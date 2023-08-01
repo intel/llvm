@@ -9,7 +9,7 @@
 #pragma once
 #include <sycl/access/access.hpp>         // for decorated, address_space
 
-#include "detail/defines_elementary.hpp"  // for __SYCL_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

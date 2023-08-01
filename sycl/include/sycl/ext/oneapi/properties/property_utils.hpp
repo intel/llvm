@@ -16,9 +16,9 @@
 #include <type_traits>                              // for false_type, true_...
 #include <variant>                                  // for tuple
 
-#include "detail/boost/mp11/detail/mp_list.hpp"     // for mp_list
-#include "detail/boost/mp11/detail/mp_rename.hpp"   // for mp_rename
-#include "detail/boost/mp11/integral.hpp"           // for mp_bool
+#include <sycl/detail/boost/mp11/detail/mp_list.hpp>     // for mp_list
+#include <sycl/detail/boost/mp11/detail/mp_rename.hpp>   // for mp_rename
+#include <sycl/detail/boost/mp11/integral.hpp>           // for mp_bool
 
 namespace sycl {
 inline namespace _V1 {

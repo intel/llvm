@@ -43,14 +43,14 @@
 #include "access/access.hpp"                           // for target, mode
 #include "aliases.hpp"                                 // for float4, int4
 #include "aspects.hpp"                                 // for aspect
-#include "detail/defines.hpp"                          // for __SYCL_SPECIAL...
-#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
-#include "detail/helpers.hpp"                          // for loop
-#include "detail/pi_error.def"                         // for PI_ERROR_INVAL...
-#include "detail/property_helper.hpp"                  // for PropWithDataKind
-#include "detail/property_list_base.hpp"               // for PropertyListBase
-#include "detail/type_list.hpp"                        // for is_contained
-#include "detail/type_traits.hpp"                      // for const_if_const_AS
+#include <sycl/detail/defines.hpp>                          // for __SYCL_SPECIAL...
+#include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
+#include <sycl/detail/helpers.hpp>                          // for loop
+#include <sycl/detail/pi_error.def>                         // for PI_ERROR_INVAL...
+#include <sycl/detail/property_helper.hpp>                  // for PropWithDataKind
+#include <sycl/detail/property_list_base.hpp>               // for PropertyListBase
+#include <sycl/detail/type_list.hpp>                        // for is_contained
+#include <sycl/detail/type_traits.hpp>                      // for const_if_const_AS
 #include "multi_ptr.hpp"                               // for multi_ptr
 #include "range.hpp"                                   // for range
 #include "types.hpp"                                   // for vec

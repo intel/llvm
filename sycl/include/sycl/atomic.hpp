@@ -20,7 +20,7 @@
 #include <type_traits>                    // for is_same
 
 #include "CL/__spirv/spirv_types.hpp"     // for Scope, MemorySemanticsMask
-#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include "multi_ptr.hpp"                  // for multi_ptr
 
 #define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \

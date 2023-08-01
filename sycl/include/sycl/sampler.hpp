@@ -15,8 +15,8 @@
 #include <memory>                  // for shared_ptr, hash
 #include <variant>                 // for hash
 
-#include "detail/defines.hpp"      // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
-#include "detail/pi.h"             // for PI_SAMPLER_ADDRESSING_MODE_CLAMP
+#include <sycl/detail/defines.hpp>      // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
+#include <sycl/detail/pi.h>             // for PI_SAMPLER_ADDRESSING_MODE_CLAMP
 
 namespace sycl {
 inline namespace _V1 {

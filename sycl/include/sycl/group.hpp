@@ -26,10 +26,10 @@
 #include <memory>                               // for unique_ptr
 
 #include "access/access.hpp"                    // for decorated, mode, addr...
-#include "detail/defines.hpp"                   // for __SYCL_TYPE
-#include "detail/defines_elementary.hpp"        // for __SYCL2020_DEPRECATED
-#include "detail/item_base.hpp"                 // for id, range
-#include "detail/type_traits.hpp"               // for is_bool, change_base_...
+#include <sycl/detail/defines.hpp>                   // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL2020_DEPRECATED
+#include <sycl/detail/item_base.hpp>                 // for id, range
+#include <sycl/detail/type_traits.hpp>               // for is_bool, change_base_...
 #include "item.hpp"                             // for item
 #include "multi_ptr.hpp"                        // for multi_ptr, address_sp...
 

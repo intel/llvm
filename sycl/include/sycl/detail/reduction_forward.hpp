@@ -10,7 +10,7 @@
 
 #include <stddef.h>              // for size_t
 
-#include "detail/item_base.hpp"  // for range
+#include <sycl/detail/item_base.hpp>  // for range
 #include "id.hpp"                // for id
 #include "item.hpp"              // for getDelinearizedItem, item
 #include "nd_range.hpp"          // for nd_range

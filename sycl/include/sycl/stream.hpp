@@ -23,10 +23,10 @@
 #include "accessor.hpp"                     // for accessor
 #include "aliases.hpp"                      // for half
 #include "atomic.hpp"                       // for atomic
-#include "detail/array.hpp"                 // for array
-#include "detail/cg.hpp"                    // for stream_impl
-#include "detail/defines_elementary.hpp"    // for __SYCL2020_DEPRECATED
-#include "detail/item_base.hpp"             // for id, range
+#include <sycl/detail/array.hpp>                 // for array
+#include <sycl/detail/cg.hpp>                    // for stream_impl
+#include <sycl/detail/defines_elementary.hpp>    // for __SYCL2020_DEPRECATED
+#include <sycl/detail/item_base.hpp>             // for id, range
 #include "group.hpp"                        // for group
 #include "h_item.hpp"                       // for h_item
 #include "half_type.hpp"                    // for half, operator-, operator<

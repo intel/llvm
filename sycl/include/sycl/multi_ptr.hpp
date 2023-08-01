@@ -15,7 +15,7 @@
 #include <type_traits>                    // for enable_if_t, add_pointer_t
 
 #include "aliases.hpp"                    // for half
-#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include "half_type.hpp"                  // for BIsRepresentationT
 
 namespace sycl {

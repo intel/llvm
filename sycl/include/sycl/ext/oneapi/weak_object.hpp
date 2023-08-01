@@ -17,8 +17,8 @@
 
 #include "access/access.hpp"                                // for target, mode
 #include "accessor.hpp"                                     // for accessor
-#include "detail/impl_utils.hpp"                            // for createSyc...
-#include "detail/memcpy.hpp"                                // for detail
+#include <sycl/detail/impl_utils.hpp>                            // for createSyc...
+#include <sycl/detail/memcpy.hpp>                                // for detail
 #include "exception.hpp"                                    // for make_erro...
 #include "ext/codeplay/experimental/fusion_properties.hpp"  // for buffer
 #include "range.hpp"                                        // for range

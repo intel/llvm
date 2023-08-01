@@ -16,7 +16,7 @@
 #include <utility>
 #include <variant>
 
-#include "detail/defines.hpp"
+#include <sycl/detail/defines.hpp>
 
 namespace sycl {
 inline namespace _V1 {

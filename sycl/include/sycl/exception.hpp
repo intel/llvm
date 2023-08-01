@@ -20,7 +20,7 @@
 #include <type_traits>                    // for true_type
 
 #include "CL/cl_platform.h"               // for cl_int
-#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

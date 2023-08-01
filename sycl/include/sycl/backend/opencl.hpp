@@ -14,10 +14,10 @@
 
 #include "backend_types.hpp"              // for backend
 #include "context.hpp"                    // for context
-#include "detail/backend_traits.hpp"      // for interop
-#include "detail/defines_elementary.hpp"  // for __SYCL_DEPRECATED
-#include "detail/export.hpp"              // for __SYCL_EXPORT
-#include "detail/pi.h"                    // for pi_native_handle
+#include <sycl/detail/backend_traits.hpp>      // for interop
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
+#include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                    // for pi_native_handle
 #include "device.hpp"                     // for device
 #include "platform.hpp"                   // for platform
 #include "queue.hpp"                      // for queue

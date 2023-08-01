@@ -16,7 +16,7 @@
 #include <memory>                                          // for shared_ptr
 #include <variant>                                         // for hash
 
-#include "detail/export.hpp"                               // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp>                               // for __SYCL_EXPORT
 #include "range.hpp"                                       // for range
 
 namespace sycl {

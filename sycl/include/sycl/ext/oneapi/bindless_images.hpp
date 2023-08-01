@@ -18,8 +18,8 @@
 #include <type_traits>                                     // for is_scalar
 
 #include "context.hpp"                                     // for context
-#include "detail/export.hpp"                               // for __SYCL_EXPORT
-#include "detail/pi.h"                                     // for pi_uint64
+#include <sycl/detail/export.hpp>                               // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                                     // for pi_uint64
 #include "device.hpp"                                      // for device
 #include "image.hpp"                                       // for image_chan...
 #include "range.hpp"                                       // for range

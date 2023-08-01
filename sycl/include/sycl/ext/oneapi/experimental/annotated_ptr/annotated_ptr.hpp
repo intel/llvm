@@ -18,7 +18,7 @@
 #include <utility>
 #include <variant>
 
-#include "detail/defines.hpp"
+#include <sycl/detail/defines.hpp>
 #include "ext/oneapi/properties/property.hpp"
 #include "ext/oneapi/properties/property_value.hpp"
 

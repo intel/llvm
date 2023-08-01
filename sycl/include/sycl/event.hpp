@@ -17,8 +17,8 @@
 #include <vector>                             // for vector
 
 #include "backend_types.hpp"                  // for backend, backend_return_t
-#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
-#include "detail/pi.h"                        // for pi_native_handle
+#include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h>                        // for pi_native_handle
 
 namespace sycl {
 inline namespace _V1 {

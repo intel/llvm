@@ -21,8 +21,8 @@
 #include <vector>                    // for vector
 #include <utility>                   // for move
 
-#include "detail/pi.h"               // for pi_mem_advice, _pi_ext_command_b...
-#include "detail/pi.hpp"             // for PiImageOffset, PiImageRegion
+#include <sycl/detail/pi.h>               // for pi_mem_advice, _pi_ext_command_b...
+#include <sycl/detail/pi.hpp>             // for PiImageOffset, PiImageRegion
 #include "event.hpp"                 // for event_impl
 #include "exception_list.hpp"        // for queue_impl
 #include "kernel_bundle.hpp"         // for kernel_bundle_impl

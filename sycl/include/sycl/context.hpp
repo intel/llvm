@@ -20,9 +20,9 @@
 #include <variant>                            // for hash
 #include <vector>                             // for vector
 
-#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
-#include "detail/helpers.hpp"                 // for context_impl
-#include "detail/pi.h"                        // for pi_native_handle
+#include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
+#include <sycl/detail/helpers.hpp>                 // for context_impl
+#include <sycl/detail/pi.h>                        // for pi_native_handle
 #include "device.hpp"                         // for device
 #include "platform.hpp"                       // for platform
 

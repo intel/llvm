@@ -16,7 +16,7 @@
 #include <type_traits>                          // for enable_if_t
 
 #include "aliases.hpp"                          // for half
-#include "detail/defines_elementary.hpp"        // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
 #include "marray.hpp"                           // for marray
 #include "types.hpp"                            // for vec
 

@@ -17,7 +17,7 @@
 #include "matrix-unified-utils.hpp"            // for use, layout, tf32, matrix
 #include "CL/__spirv/spirv_types.hpp"          // for MatrixLayout, MatrixUse
 #include "access/access.hpp"                   // for address_space, decorated
-#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_DEVICE
 #include "exception.hpp"                       // for runtime_error
 #include "ext/oneapi/bfloat16.hpp"             // for bfloat16
 #include "group.hpp"                           // for group

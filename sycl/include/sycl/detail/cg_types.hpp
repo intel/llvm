@@ -21,11 +21,11 @@
 #include <type_traits>                          // for enable_if_t, false_type
 #include <utility>                              // for declval
 
-#include "detail/array.hpp"                     // for array
-#include "detail/common.hpp"                    // for InitializedVal, NDLoop
-#include "detail/helpers.hpp"                   // for Builder
-#include "detail/item_base.hpp"                 // for id
-#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_WORK...
+#include <sycl/detail/array.hpp>                     // for array
+#include <sycl/detail/common.hpp>                    // for InitializedVal, NDLoop
+#include <sycl/detail/helpers.hpp>                   // for Builder
+#include <sycl/detail/item_base.hpp>                 // for id
+#include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_WORK...
 #include "exception.hpp"                        // for nd_range_error
 #include "h_item.hpp"                           // for h_item
 #include "item.hpp"                             // for item

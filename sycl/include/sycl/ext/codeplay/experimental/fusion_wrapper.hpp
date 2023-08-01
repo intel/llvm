@@ -11,7 +11,7 @@
 #include <sycl/queue.hpp>     // for queue
 #include <memory>             // for shared_ptr
 
-#include "detail/export.hpp"  // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 #include "event.hpp"          // for event
 #include "property_list.hpp"  // for property_list
 

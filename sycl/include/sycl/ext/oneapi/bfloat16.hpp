@@ -13,7 +13,7 @@
 #include <stdint.h>                       // for uint16_t, uint32_t
 
 #include "aliases.hpp"                    // for half
-#include "detail/defines_elementary.hpp"  // for __DPCPP_SYCL_EXTERNAL
+#include <sycl/detail/defines_elementary.hpp>  // for __DPCPP_SYCL_EXTERNAL
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;

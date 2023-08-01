@@ -21,8 +21,8 @@
 #include <cstdint>                             // for uint8_t
 #include <type_traits>                         // for enable_if_t, condition...
 
-#include "detail/helpers.hpp"                  // for marray
-#include "detail/type_list.hpp"                // for is_contained, find_sam...
+#include <sycl/detail/helpers.hpp>                  // for marray
+#include <sycl/detail/type_list.hpp>                // for is_contained, find_sam...
 
 namespace sycl {
 inline namespace _V1 {

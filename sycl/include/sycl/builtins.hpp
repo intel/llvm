@@ -17,9 +17,9 @@
 
 #include "access/access.hpp"                    // for address_space, decorated
 #include "aliases.hpp"                          // for half
-#include "detail/defines_elementary.hpp"        // for __SYCL_ALWAYS_INLINE
-#include "detail/type_list.hpp"                 // for is_contained, type_list
-#include "detail/type_traits.hpp"               // for make_larger_t, marray...
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>               // for make_larger_t, marray...
 #include "half_type.hpp"                        // for half, intel
 #include "marray.hpp"                           // for marray
 #include "multi_ptr.hpp"                        // for address_space_cast

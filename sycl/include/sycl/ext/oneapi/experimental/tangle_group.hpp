@@ -10,8 +10,8 @@
 #include <sycl/ext/oneapi/sub_group_mask.hpp>  // for sub_group_mask
 #include <type_traits>                         // for enable_if_t, decay_t
 
-#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_DEVICE
-#include "detail/type_traits.hpp"              // for is_group, is_user_cons...
+#include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp>              // for is_group, is_user_cons...
 #include "exception.hpp"                       // for runtime_error
 #include "id.hpp"                              // for id
 #include "memory_enums.hpp"                    // for memory_scope

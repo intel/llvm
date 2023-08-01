@@ -14,7 +14,7 @@
 #include <initializer_list>                     // for initializer_list
 #include <type_traits>                          // for is_same
 
-#include "detail/vector_traits.hpp"             // for vector_alignment
+#include <sycl/detail/vector_traits.hpp>             // for vector_alignment
 
 namespace sycl {
 inline namespace _V1 {

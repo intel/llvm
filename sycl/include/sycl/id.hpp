@@ -14,8 +14,8 @@
 #include <stddef.h>                       // for size_t
 #include <type_traits>                    // for enable_if_t, conditional_t
 
-#include "detail/defines.hpp"             // for __SYCL_ASSUME_INT
-#include "detail/defines_elementary.hpp"  // for __SYCL_DEPRECATED, __SYCL_A...
+#include <sycl/detail/defines.hpp>             // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED, __SYCL_A...
 #include "exception.hpp"                  // for make_error_code, errc, exce...
 
 namespace sycl {

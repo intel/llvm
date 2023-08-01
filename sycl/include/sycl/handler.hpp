@@ -50,16 +50,16 @@
 #include <vector>
 
 #include "CL/cl.h"
-#include "detail/array.hpp"
-#include "detail/common.hpp"
-#include "detail/defines_elementary.hpp"
-#include "detail/helpers.hpp"
-#include "detail/impl_utils.hpp"
-#include "detail/item_base.hpp"
-#include "detail/kernel_desc.hpp"
-#include "detail/pi.h"
-#include "detail/pi.hpp"
-#include "detail/pi_error.def"
+#include <sycl/detail/array.hpp>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/item_base.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/pi_error.def>
 #include "device.hpp"
 #include "exception.hpp"
 #include "exception_list.hpp"

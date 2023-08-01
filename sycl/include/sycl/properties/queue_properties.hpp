@@ -12,7 +12,7 @@
 #include <sycl/properties/property_traits.hpp>   // for is_property_of
 #include <type_traits>                           // for true_type
 
-#include "detail/defines_elementary.hpp"         // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

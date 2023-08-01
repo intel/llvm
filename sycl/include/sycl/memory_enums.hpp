@@ -11,7 +11,7 @@
 #include <atomic>       // for memory_order
 #include <vector>       // for vector
 
-#include "detail/pi.h"  // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
+#include <sycl/detail/pi.h>  // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
 
 namespace sycl {
 inline namespace _V1 {

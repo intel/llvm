@@ -18,11 +18,11 @@
 #include <vector>                                 // for vector
 
 #include "context.hpp"                            // for context
-#include "detail/export.hpp"                      // for __SYCL_EXPORT
-#include "detail/helpers.hpp"                     // for context_impl
-#include "detail/impl_utils.hpp"                  // for getSyclObjImpl
-#include "detail/pi.h"                            // for _pi_mem, pi_native_...
-#include "detail/pi_error.def"                    // for PI_ERROR_INVALID_ME...
+#include <sycl/detail/export.hpp>                      // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>                     // for context_impl
+#include <sycl/detail/impl_utils.hpp>                  // for getSyclObjImpl
+#include <sycl/detail/pi.h>                            // for _pi_mem, pi_native_...
+#include <sycl/detail/pi_error.def>                    // for PI_ERROR_INVALID_ME...
 #include "device.hpp"                             // for device, device_impl
 #include "exception.hpp"                          // for invalid_object_error
 #include "exception_list.hpp"                     // for queue_impl

@@ -11,8 +11,8 @@
 #include <stddef.h>                       // for size_t
 #include <type_traits>                    // for enable_if_t, true_type, dec...
 
-#include "detail/pi_error.def"            // for PI_ERROR_INVALID_DEVICE
-#include "detail/type_traits.hpp"         // for is_fixed_size_group, is_group
+#include <sycl/detail/pi_error.def>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp>         // for is_fixed_size_group, is_group
 #include "exception.hpp"                  // for runtime_error
 #include "ext/oneapi/sub_group_mask.hpp"  // for sub_group_mask
 #include "id.hpp"                         // for id

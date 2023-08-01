@@ -23,9 +23,9 @@
 #include <type_traits>                          // for enable_if_t
 
 #include "aliases.hpp"                          // for float4, int4, uint4
-#include "detail/array.hpp"                     // for array
-#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_VALUE
-#include "detail/type_list.hpp"                 // for is_contained, type_list
+#include <sycl/detail/array.hpp>                     // for array
+#include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
 #include "exception.hpp"                        // for invalid_parameter_error
 #include "id.hpp"                               // for id
 #include "range.hpp"                            // for range

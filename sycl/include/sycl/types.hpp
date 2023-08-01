@@ -66,12 +66,12 @@
 #include <type_traits>                          // for enable_if_t, is_same
 #include <utility>                              // for index_sequence, make_...
 
-#include "detail/defines_elementary.hpp"        // for __SYCL2020_DEPRECATED
-#include "detail/generic_type_lists.hpp"        // for vector_basic_list
-#include "detail/iostream_proxy.hpp"            // for cout
-#include "detail/memcpy.hpp"                    // for memcpy
-#include "detail/type_list.hpp"                 // for is_contained
-#include "detail/vector_traits.hpp"             // for vector_alignment
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL2020_DEPRECATED
+#include <sycl/detail/generic_type_lists.hpp>        // for vector_basic_list
+#include <sycl/detail/iostream_proxy.hpp>            // for cout
+#include <sycl/detail/memcpy.hpp>                    // for memcpy
+#include <sycl/detail/type_list.hpp>                 // for is_contained
+#include <sycl/detail/vector_traits.hpp>             // for vector_alignment
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv>                                // for fesetround, fegetround
 #endif

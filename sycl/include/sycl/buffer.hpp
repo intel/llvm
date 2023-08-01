@@ -34,14 +34,14 @@
 #include "access/access.hpp"                           // for placeholder
 #include "backend_types.hpp"                           // for backend, backe...
 #include "context.hpp"                                 // for context
-#include "detail/array.hpp"                            // for array
-#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
-#include "detail/export.hpp"                           // for __SYCL_EXPORT
-#include "detail/helpers.hpp"                          // for buffer_impl
-#include "detail/pi.h"                                 // for pi_native_handle
-#include "detail/pi_error.def"                         // for PI_ERROR_INVAL...
-#include "detail/property_helper.hpp"                  // for PropWithDataKind
-#include "detail/type_traits.hpp"                      // for remove_pointer_t
+#include <sycl/detail/array.hpp>                            // for array
+#include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                           // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>                          // for buffer_impl
+#include <sycl/detail/pi.h>                                 // for pi_native_handle
+#include <sycl/detail/pi_error.def>                         // for PI_ERROR_INVAL...
+#include <sycl/detail/property_helper.hpp>                  // for PropWithDataKind
+#include <sycl/detail/type_traits.hpp>                      // for remove_pointer_t
 
 namespace sycl {
 inline namespace _V1 {

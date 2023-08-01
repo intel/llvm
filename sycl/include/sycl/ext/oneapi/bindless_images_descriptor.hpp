@@ -13,7 +13,7 @@
 #include <algorithm>         // for max
 #include <system_error>      // for error_code
 
-#include "detail/array.hpp"  // for array
+#include <sycl/detail/array.hpp>  // for array
 #include "exception.hpp"     // for errc, exception
 #include "range.hpp"         // for range
 

@@ -28,7 +28,7 @@
 #include <variant>                          // for hash
 
 #include "backend_types.hpp"                // for backend, backend_return_t
-#include "detail/export.hpp"                // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp>                // for __SYCL_EXPORT
 #include "property_list.hpp"                // for property_list
 
 namespace sycl {

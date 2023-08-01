@@ -13,7 +13,7 @@
 #include <cstddef>             // for size_t
 #include <cstdint>             // for uint32_t
 
-#include "detail/defines.hpp"  // for SYCL_EXT_ONEAPI_MATRIX_VERSION
+#include <sycl/detail/defines.hpp>  // for SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 // TODO: include the header file with SPIR-V declarations from SPIRV-Headers
 // project.

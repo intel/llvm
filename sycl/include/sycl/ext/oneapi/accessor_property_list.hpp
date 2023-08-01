@@ -16,9 +16,9 @@
 #include <type_traits>                         // for conditional_t, enable_...
 #include <vector>                              // for vector
 
-#include "detail/defines.hpp"                  // for __SYCL_TYPE
-#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_VALUE
-#include "detail/property_helper.hpp"          // for DataLessPropKind, Prop...
+#include <sycl/detail/defines.hpp>                  // for __SYCL_TYPE
+#include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp>          // for DataLessPropKind, Prop...
 #include "exception.hpp"                       // for invalid_object_error
 
 namespace sycl {

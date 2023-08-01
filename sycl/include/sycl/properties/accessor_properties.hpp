@@ -15,8 +15,8 @@
 #include <type_traits>                                 // for true_type, fal...
 
 #include "access/access.hpp"                           // for mode, target
-#include "detail/defines.hpp"                          // for __SYCL_TYPE
-#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
+#include <sycl/detail/defines.hpp>                          // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
 #include "image.hpp"                                   // for image_accessor
 
 namespace sycl {

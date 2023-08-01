@@ -15,8 +15,8 @@
 #include <type_traits>                     // for true_type
 
 #include "context.hpp"                     // for context
-#include "detail/export.hpp"               // for __SYCL_EXPORT
-#include "detail/property_helper.hpp"      // for DataLessPropKind, PropWith...
+#include <sycl/detail/export.hpp>               // for __SYCL_EXPORT
+#include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, PropWith...
 #include "device.hpp"                      // for device
 #include "properties/property_traits.hpp"  // for is_property, is_property_of
 

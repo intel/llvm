@@ -13,7 +13,7 @@
 #include <type_traits>                         // for enable_if_t
 
 #include "access/access.hpp"                   // for address_space, decorated
-#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_OPERA...
+#include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_OPERA...
 #include "ext/intel/usm_pointers.hpp"          // for multi_ptr
 
 namespace sycl {

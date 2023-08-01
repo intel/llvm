@@ -10,7 +10,7 @@
 
 #include <sycl/detail/pi.h>               // for PI_DEVICE_AFFINITY_DOMAIN_L...
 
-#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

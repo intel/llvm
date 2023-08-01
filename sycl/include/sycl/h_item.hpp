@@ -14,7 +14,7 @@
 #include <sycl/range.hpp>           // for range
 #include <stddef.h>                 // for size_t
 
-#include "detail/item_base.hpp"     // for id, range
+#include <sycl/detail/item_base.hpp>     // for id, range
 
 namespace sycl {
 inline namespace _V1 {

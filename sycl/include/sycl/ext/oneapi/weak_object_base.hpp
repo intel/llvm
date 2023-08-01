@@ -10,7 +10,7 @@
 
 #include <utility>                // for declval
 
-#include "detail/impl_utils.hpp"  // for getSyclObjImpl
+#include <sycl/detail/impl_utils.hpp>  // for getSyclObjImpl
 
 namespace sycl {
 inline namespace _V1 {

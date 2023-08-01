@@ -19,7 +19,7 @@
 
 #include "backend_types.hpp"                  // for backend, backend_return_t
 #include "context.hpp"                        // for context
-#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
 #include "device.hpp"                         // for device
 #include "range.hpp"                          // for range
 

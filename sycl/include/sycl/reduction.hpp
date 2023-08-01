@@ -38,10 +38,10 @@
 #include "aspects.hpp"                                      // for aspect
 #include "buffer.hpp"                                       // for buffer
 #include "builtins.hpp"                                     // for min
-#include "detail/export.hpp"                                // for __SYCL_EX...
-#include "detail/generic_type_traits.hpp"                   // for is_sgenfloat
-#include "detail/impl_utils.hpp"                            // for createSyc...
-#include "detail/item_base.hpp"                             // for id
+#include <sycl/detail/export.hpp>                                // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp>                   // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>                            // for createSyc...
+#include <sycl/detail/item_base.hpp>                             // for id
 #include "device.hpp"                                       // for device
 #include "event.hpp"                                        // for event
 #include "exception_list.hpp"                               // for queue_impl

@@ -11,7 +11,7 @@
 #include <sycl/sub_group.hpp>             // for sub_group
 #include <tuple>                          // for _Swallow_assign, ignore
 
-#include "detail/defines_elementary.hpp"  // for __SYCL_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

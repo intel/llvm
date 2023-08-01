@@ -21,8 +21,8 @@
 
 #include "backend_types.hpp"                  // for backend, backend_return_t
 #include "context.hpp"                        // for context
-#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
-#include "detail/pi.h"                        // for pi_native_handle
+#include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h>                        // for pi_native_handle
 #include "info/info_desc.hpp"                 // for device_type
 
 namespace sycl {

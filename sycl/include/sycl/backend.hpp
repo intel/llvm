@@ -47,8 +47,8 @@
 #include "CL/cl.h"                                    // for _cl_event
 #include "access/access.hpp"                          // for mode, placeholder
 #include "async_handler.hpp"                          // for async_handler
-#include "detail/defines_elementary.hpp"              // for __SYCL_DEPRECATED
-#include "detail/impl_utils.hpp"                      // for createSyclObjFr...
+#include <sycl/detail/defines_elementary.hpp>              // for __SYCL_DEPRECATED
+#include <sycl/detail/impl_utils.hpp>                      // for createSyclObjFr...
 #include "handler.hpp"                                // for buffer
 #include "kernel.hpp"                                 // for kernel, get_native
 #include "kernel_bundle_enums.hpp"                    // for bundle_state

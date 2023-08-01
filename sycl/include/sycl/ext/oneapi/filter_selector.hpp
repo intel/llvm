@@ -12,7 +12,7 @@
 #include <memory>                    // for shared_ptr
 #include <string>                    // for string
 
-#include "detail/export.hpp"         // for __SYCL_EXPORT
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
 #include "device.hpp"                // for device
 
 // 4.6.1 Device selection class
