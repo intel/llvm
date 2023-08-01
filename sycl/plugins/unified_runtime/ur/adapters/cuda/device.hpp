@@ -22,6 +22,7 @@ private:
   static constexpr uint32_t MaxWorkItemDimensions = 3u;
   size_t MaxWorkItemSizes[MaxWorkItemDimensions];
   size_t MaxWorkGroupSize{0};
+  size_t MaxAllocSize{0};
   int MaxBlockDimY{0};
   int MaxBlockDimZ{0};
   int MaxRegsPerBlock{0};
@@ -54,7 +55,20 @@ public:
       MaxChosenLocalMem = std::atoi(LocalMemSizePtr);
       MaxLocalMemSizeChosen = true;
     }
-  };
+
+    // Max size of memory object allocation in bytes.
+    // The minimum value is max(min(1024 × 1024 ×
+    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
+    // 32 × 1024 × 1024) for devices that are not of type
+    // CL_DEVICE_TYPE_CUSTOM.
+    size_t Global = 0;
+    UR_CHECK_ERROR(cuDeviceTotalMem(&Global, cuDevice));
+
+    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
+
+    MaxAllocSize = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
+                            32u * 1024u * 1024u);
+  }
 
   ~ur_device_handle_t_() { cuDevicePrimaryCtxRelease(CuDevice); }
 
@@ -87,6 +101,8 @@ public:
   size_t getMaxBlockDimZ() const noexcept { return MaxBlockDimZ; };
 
   size_t getMaxRegsPerBlock() const noexcept { return MaxRegsPerBlock; };
+
+  size_t getMaxAllocSize() const noexcept { return MaxAllocSize; };
 
   int getMaxCapacityLocalMem() const noexcept { return MaxCapacityLocalMem; };
 
