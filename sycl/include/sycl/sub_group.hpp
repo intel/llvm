@@ -16,6 +16,7 @@
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/spirv.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/id.hpp>
 #include <sycl/memory_enums.hpp>
