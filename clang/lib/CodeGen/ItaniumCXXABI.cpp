@@ -2115,7 +2115,11 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
                                                   Address This,
                                                   llvm::Type *Ty,
                                                   SourceLocation Loc) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *TyPtr = CGM.GlobalsInt8PtrTy;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Type *TyPtr = Ty->getPointerTo();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   auto *MethodDecl = cast<CXXMethodDecl>(GD.getDecl());
   llvm::Value *VTable = CGF.GetVTablePtr(
       This, TyPtr->getPointerTo(), MethodDecl->getParent());
@@ -3846,8 +3850,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     VTable = CGM.getModule().getNamedAlias(VTableName);
 
   if (!VTable)
-    VTable =
-        CGM.getModule().getOrInsertGlobal(VTableName, CGM.GlobalsInt8PtrTy);
+    VTable = CGM.CreateRuntimeVariable(CGM.DefaultInt8PtrTy, VTableName);
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3859,15 +3862,19 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     // The vtable address point is 8 bytes after its start:
     // 4 for the offset to top + 4 for the relative offset to rtti.
     llvm::Constant *Eight = llvm::ConstantInt::get(CGM.Int32Ty, 8);
-    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.GlobalsInt8PtrTy);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     VTable =
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.GlobalsInt8PtrTy,
+    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.DefaultInt8PtrTy,
                                                           VTable, Two);
   }
-  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.GlobalsInt8PtrTy);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Fields.push_back(VTable);
 }
