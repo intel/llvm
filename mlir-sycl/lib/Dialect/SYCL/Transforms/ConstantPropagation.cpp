@@ -54,7 +54,10 @@ private:
   /// Return a range with all of the constant arguments of \p op.
   static auto getConstantArgs(SYCLHostScheduleKernel op);
 
-  /// Return a range with all of the constant implicit arguments of \p op.
+  /// Return all of the constant implicit arguments of \p op.
+  ///
+  /// \p ndrAnalysis and \p idrAnalysis are used to perform analysis and track
+  /// constant values of arguments.
   static SmallVector<std::unique_ptr<ConstantImplicitArgBase>>
   getConstantImplicitArgs(SYCLHostScheduleKernel op,
                           polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
@@ -65,8 +68,7 @@ private:
   void propagateConstantArgs(RangeTy constants, gpu::GPUFuncOp op,
                              SYCLHostScheduleKernel launch);
 
-  /// Propagate implicit constants in \p constants to the function launched by
-  /// \p launch.
+  /// Propagate implicit constants in \p constants to function \p op.
   template <typename RangeTy>
   void propagateImplicitConstantArgs(RangeTy constants, FunctionOpInterface op);
 };

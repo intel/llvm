@@ -52,6 +52,10 @@ llvm.func internal @foo(%res: !llvm.ptr) {
     !sycl.nd_range<[3], (!sycl_range_3_, !sycl_range_3_, !sycl_id_3_)>
 
 gpu.module @kernels {
+// COM: `@__init.*` functions will see the actual builtin replacement happening,
+// COM: e.g., in `@__init.1_k0_impl.1`, we see `sycl.global_offset` being
+// COM: replaced by a constant `sycl.id` (`%[[VAL_6]]` below).
+
 // CHECK-LABEL:     func.func @__init.1_k0_impl.1(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: memref<1x!sycl_id_1_>, %[[VAL_1:.*]]: memref<1x!sycl_range_1_>, %[[VAL_2:.*]]: memref<1x!sycl_range_1_>, %[[VAL_3:.*]]: memref<1x!sycl_range_1_>) {
 // CHECK-NEXT:        %[[VAL_4:.*]] = arith.constant 0 : index
@@ -259,6 +263,11 @@ gpu.module @kernels {
         : memref<1x!sycl_range_3_>
     func.return
   }
+
+// COM: `@__impl.*` and `k.*` functions will just suffer one change: the
+// COM: `func.call` will now call the cloned function instead of the original
+// COM: one, in order to get the actual constant propagation taking place in the
+// COM: cloned function.
 
 // CHECK-LABEL:     func.func @__impl.1_k0(
 // CHECK-SAME:                             %[[VAL_158:.*]]: memref<?xindex>, %[[VAL_159:.*]]: memref<?xindex>, %[[VAL_160:.*]]: memref<?xindex>, %[[VAL_161:.*]]: memref<?xindex>) {
