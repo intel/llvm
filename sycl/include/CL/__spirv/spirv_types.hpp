@@ -152,6 +152,10 @@ struct complex_half {
 };
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
+template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
+          Scope::Flag S = Scope::Flag::Subgroup,
+          MatrixUse U = MatrixUse::MatrixA>
+struct __spirv_JointMatrixINTEL;
 #else
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>
