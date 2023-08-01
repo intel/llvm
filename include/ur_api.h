@@ -24,6 +24,245 @@
 extern "C" {
 #endif
 
+// Intel 'oneAPI' Unified Runtime function registry
+#if !defined(__GNUC__)
+#pragma region registry
+#endif
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines unique stable identifiers for all functions
+typedef enum ur_function_t {
+    UR_FUNCTION_CONTEXT_CREATE = 1,                                            ///< Enumerator for ::urContextCreate
+    UR_FUNCTION_CONTEXT_RETAIN = 2,                                            ///< Enumerator for ::urContextRetain
+    UR_FUNCTION_CONTEXT_RELEASE = 3,                                           ///< Enumerator for ::urContextRelease
+    UR_FUNCTION_CONTEXT_GET_INFO = 4,                                          ///< Enumerator for ::urContextGetInfo
+    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                                 ///< Enumerator for ::urContextGetNativeHandle
+    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,                         ///< Enumerator for ::urContextCreateWithNativeHandle
+    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,                              ///< Enumerator for ::urContextSetExtendedDeleter
+    UR_FUNCTION_DEVICE_GET = 8,                                                ///< Enumerator for ::urDeviceGet
+    UR_FUNCTION_DEVICE_GET_INFO = 9,                                           ///< Enumerator for ::urDeviceGetInfo
+    UR_FUNCTION_DEVICE_RETAIN = 10,                                            ///< Enumerator for ::urDeviceRetain
+    UR_FUNCTION_DEVICE_RELEASE = 11,                                           ///< Enumerator for ::urDeviceRelease
+    UR_FUNCTION_DEVICE_PARTITION = 12,                                         ///< Enumerator for ::urDevicePartition
+    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                                     ///< Enumerator for ::urDeviceSelectBinary
+    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                                 ///< Enumerator for ::urDeviceGetNativeHandle
+    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,                         ///< Enumerator for ::urDeviceCreateWithNativeHandle
+    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,                             ///< Enumerator for ::urDeviceGetGlobalTimestamps
+    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                                    ///< Enumerator for ::urEnqueueKernelLaunch
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                                      ///< Enumerator for ::urEnqueueEventsWait
+    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,                         ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                                  ///< Enumerator for ::urEnqueueMemBufferRead
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                                 ///< Enumerator for ::urEnqueueMemBufferWrite
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,                             ///< Enumerator for ::urEnqueueMemBufferReadRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,                            ///< Enumerator for ::urEnqueueMemBufferWriteRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                                  ///< Enumerator for ::urEnqueueMemBufferCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,                             ///< Enumerator for ::urEnqueueMemBufferCopyRect
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                                  ///< Enumerator for ::urEnqueueMemBufferFill
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                                   ///< Enumerator for ::urEnqueueMemImageRead
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                                  ///< Enumerator for ::urEnqueueMemImageWrite
+    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                                   ///< Enumerator for ::urEnqueueMemImageCopy
+    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                                   ///< Enumerator for ::urEnqueueMemBufferMap
+    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                                        ///< Enumerator for ::urEnqueueMemUnmap
+    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                                         ///< Enumerator for ::urEnqueueUSMFill
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                                       ///< Enumerator for ::urEnqueueUSMMemcpy
+    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                                     ///< Enumerator for ::urEnqueueUSMPrefetch
+    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                                       ///< Enumerator for ::urEnqueueUSMAdvise
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,                     ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
+    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,                      ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
+    UR_FUNCTION_EVENT_GET_INFO = 40,                                           ///< Enumerator for ::urEventGetInfo
+    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                                 ///< Enumerator for ::urEventGetProfilingInfo
+    UR_FUNCTION_EVENT_WAIT = 42,                                               ///< Enumerator for ::urEventWait
+    UR_FUNCTION_EVENT_RETAIN = 43,                                             ///< Enumerator for ::urEventRetain
+    UR_FUNCTION_EVENT_RELEASE = 44,                                            ///< Enumerator for ::urEventRelease
+    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                                  ///< Enumerator for ::urEventGetNativeHandle
+    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,                          ///< Enumerator for ::urEventCreateWithNativeHandle
+    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                                       ///< Enumerator for ::urEventSetCallback
+    UR_FUNCTION_KERNEL_CREATE = 48,                                            ///< Enumerator for ::urKernelCreate
+    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                                     ///< Enumerator for ::urKernelSetArgValue
+    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                                     ///< Enumerator for ::urKernelSetArgLocal
+    UR_FUNCTION_KERNEL_GET_INFO = 51,                                          ///< Enumerator for ::urKernelGetInfo
+    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                                    ///< Enumerator for ::urKernelGetGroupInfo
+    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,                                ///< Enumerator for ::urKernelGetSubGroupInfo
+    UR_FUNCTION_KERNEL_RETAIN = 54,                                            ///< Enumerator for ::urKernelRetain
+    UR_FUNCTION_KERNEL_RELEASE = 55,                                           ///< Enumerator for ::urKernelRelease
+    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                                   ///< Enumerator for ::urKernelSetArgPointer
+    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                                     ///< Enumerator for ::urKernelSetExecInfo
+    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                                   ///< Enumerator for ::urKernelSetArgSampler
+    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                                   ///< Enumerator for ::urKernelSetArgMemObj
+    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,                      ///< Enumerator for ::urKernelSetSpecializationConstants
+    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                                 ///< Enumerator for ::urKernelGetNativeHandle
+    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,                         ///< Enumerator for ::urKernelCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                                         ///< Enumerator for ::urMemImageCreate
+    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                                        ///< Enumerator for ::urMemBufferCreate
+    UR_FUNCTION_MEM_RETAIN = 65,                                               ///< Enumerator for ::urMemRetain
+    UR_FUNCTION_MEM_RELEASE = 66,                                              ///< Enumerator for ::urMemRelease
+    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                                     ///< Enumerator for ::urMemBufferPartition
+    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                                    ///< Enumerator for ::urMemGetNativeHandle
+    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                                   ///< Enumerator for ::urEnqueueReadHostPipe
+    UR_FUNCTION_MEM_GET_INFO = 70,                                             ///< Enumerator for ::urMemGetInfo
+    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                                       ///< Enumerator for ::urMemImageGetInfo
+    UR_FUNCTION_PLATFORM_GET = 72,                                             ///< Enumerator for ::urPlatformGet
+    UR_FUNCTION_PLATFORM_GET_INFO = 73,                                        ///< Enumerator for ::urPlatformGetInfo
+    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                                 ///< Enumerator for ::urPlatformGetApiVersion
+    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                               ///< Enumerator for ::urPlatformGetNativeHandle
+    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,                       ///< Enumerator for ::urPlatformCreateWithNativeHandle
+    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                                   ///< Enumerator for ::urProgramCreateWithIL
+    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                               ///< Enumerator for ::urProgramCreateWithBinary
+    UR_FUNCTION_PROGRAM_BUILD = 80,                                            ///< Enumerator for ::urProgramBuild
+    UR_FUNCTION_PROGRAM_COMPILE = 81,                                          ///< Enumerator for ::urProgramCompile
+    UR_FUNCTION_PROGRAM_LINK = 82,                                             ///< Enumerator for ::urProgramLink
+    UR_FUNCTION_PROGRAM_RETAIN = 83,                                           ///< Enumerator for ::urProgramRetain
+    UR_FUNCTION_PROGRAM_RELEASE = 84,                                          ///< Enumerator for ::urProgramRelease
+    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,                             ///< Enumerator for ::urProgramGetFunctionPointer
+    UR_FUNCTION_PROGRAM_GET_INFO = 86,                                         ///< Enumerator for ::urProgramGetInfo
+    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                                   ///< Enumerator for ::urProgramGetBuildInfo
+    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,                     ///< Enumerator for ::urProgramSetSpecializationConstants
+    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,                                ///< Enumerator for ::urProgramGetNativeHandle
+    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,                        ///< Enumerator for ::urProgramCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_GET_INFO = 91,                                           ///< Enumerator for ::urQueueGetInfo
+    UR_FUNCTION_QUEUE_CREATE = 92,                                             ///< Enumerator for ::urQueueCreate
+    UR_FUNCTION_QUEUE_RETAIN = 93,                                             ///< Enumerator for ::urQueueRetain
+    UR_FUNCTION_QUEUE_RELEASE = 94,                                            ///< Enumerator for ::urQueueRelease
+    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                                  ///< Enumerator for ::urQueueGetNativeHandle
+    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                          ///< Enumerator for ::urQueueCreateWithNativeHandle
+    UR_FUNCTION_QUEUE_FINISH = 97,                                             ///< Enumerator for ::urQueueFinish
+    UR_FUNCTION_QUEUE_FLUSH = 98,                                              ///< Enumerator for ::urQueueFlush
+    UR_FUNCTION_INIT = 99,                                                     ///< Enumerator for ::urInit
+    UR_FUNCTION_TEAR_DOWN = 100,                                               ///< Enumerator for ::urTearDown
+    UR_FUNCTION_SAMPLER_CREATE = 101,                                          ///< Enumerator for ::urSamplerCreate
+    UR_FUNCTION_SAMPLER_RETAIN = 102,                                          ///< Enumerator for ::urSamplerRetain
+    UR_FUNCTION_SAMPLER_RELEASE = 103,                                         ///< Enumerator for ::urSamplerRelease
+    UR_FUNCTION_SAMPLER_GET_INFO = 104,                                        ///< Enumerator for ::urSamplerGetInfo
+    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,                               ///< Enumerator for ::urSamplerGetNativeHandle
+    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,                       ///< Enumerator for ::urSamplerCreateWithNativeHandle
+    UR_FUNCTION_USM_HOST_ALLOC = 107,                                          ///< Enumerator for ::urUSMHostAlloc
+    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                                        ///< Enumerator for ::urUSMDeviceAlloc
+    UR_FUNCTION_USM_SHARED_ALLOC = 109,                                        ///< Enumerator for ::urUSMSharedAlloc
+    UR_FUNCTION_USM_FREE = 110,                                                ///< Enumerator for ::urUSMFree
+    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                                  ///< Enumerator for ::urUSMGetMemAllocInfo
+    UR_FUNCTION_USM_POOL_CREATE = 112,                                         ///< Enumerator for ::urUSMPoolCreate
+    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,                               ///< Enumerator for ::urCommandBufferCreateExp
+    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,                             ///< Enumerator for ::urPlatformGetBackendOption
+    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,                    ///< Enumerator for ::urMemBufferCreateWithNativeHandle
+    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,                     ///< Enumerator for ::urMemImageCreateWithNativeHandle
+    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                                 ///< Enumerator for ::urEnqueueWriteHostPipe
+    UR_FUNCTION_USM_POOL_RETAIN = 118,                                         ///< Enumerator for ::urUSMPoolRetain
+    UR_FUNCTION_USM_POOL_RELEASE = 119,                                        ///< Enumerator for ::urUSMPoolRelease
+    UR_FUNCTION_USM_POOL_GET_INFO = 120,                                       ///< Enumerator for ::urUSMPoolGetInfo
+    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                               ///< Enumerator for ::urCommandBufferRetainExp
+    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                              ///< Enumerator for ::urCommandBufferReleaseExp
+    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                             ///< Enumerator for ::urCommandBufferFinalizeExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,                 ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
+    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                              ///< Enumerator for ::urCommandBufferEnqueueExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,                    ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,                ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131,           ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
+    UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                                   ///< Enumerator for ::urUSMPitchedAllocExp
+    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133,      ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
+    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,        ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135,                      ///< Enumerator for ::urBindlessImagesImageAllocateExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP = 136,                          ///< Enumerator for ::urBindlessImagesImageFreeExp
+    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137,              ///< Enumerator for ::urBindlessImagesUnsampledImageCreateExp
+    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138,                ///< Enumerator for ::urBindlessImagesSampledImageCreateExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP = 139,                          ///< Enumerator for ::urBindlessImagesImageCopyExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140,                      ///< Enumerator for ::urBindlessImagesImageGetInfoExp
+    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141,                    ///< Enumerator for ::urBindlessImagesMipmapGetLevelExp
+    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                         ///< Enumerator for ::urBindlessImagesMipmapFreeExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143,                    ///< Enumerator for ::urBindlessImagesImportOpaqueFDExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,                  ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
+    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                     ///< Enumerator for ::urBindlessImagesReleaseInteropExp
+    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146, ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+    UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
+    UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
+    UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
+    UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
+    UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
+    UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,                                     ///< Enumerator for ::urVirtualMemReserve
+    UR_FUNCTION_VIRTUAL_MEM_FREE = 155,                                        ///< Enumerator for ::urVirtualMemFree
+    UR_FUNCTION_VIRTUAL_MEM_MAP = 156,                                         ///< Enumerator for ::urVirtualMemMap
+    UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,                                       ///< Enumerator for ::urVirtualMemUnmap
+    UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,                                  ///< Enumerator for ::urVirtualMemSetAccess
+    UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,                                    ///< Enumerator for ::urVirtualMemGetInfo
+    UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,                                     ///< Enumerator for ::urPhysicalMemCreate
+    UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,                                     ///< Enumerator for ::urPhysicalMemRetain
+    UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,                                    ///< Enumerator for ::urPhysicalMemRelease
+    UR_FUNCTION_USM_IMPORT_EXP = 163,                                          ///< Enumerator for ::urUSMImportExp
+    UR_FUNCTION_USM_RELEASE_EXP = 164,                                         ///< Enumerator for ::urUSMReleaseExp
+    UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
+    UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
+    UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
+    UR_FUNCTION_LOADER_CONFIG_CREATE = 172,                                    ///< Enumerator for ::urLoaderConfigCreate
+    UR_FUNCTION_LOADER_CONFIG_RELEASE = 173,                                   ///< Enumerator for ::urLoaderConfigRelease
+    UR_FUNCTION_LOADER_CONFIG_RETAIN = 174,                                    ///< Enumerator for ::urLoaderConfigRetain
+    UR_FUNCTION_LOADER_CONFIG_GET_INFO = 175,                                  ///< Enumerator for ::urLoaderConfigGetInfo
+    UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER = 176,                              ///< Enumerator for ::urLoaderConfigEnableLayer
+    UR_FUNCTION_ADAPTER_RELEASE = 177,                                         ///< Enumerator for ::urAdapterRelease
+    UR_FUNCTION_ADAPTER_GET = 178,                                             ///< Enumerator for ::urAdapterGet
+    UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
+    UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
+    UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
+    /// @cond
+    UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_function_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Defines structure types
+typedef enum ur_structure_type_t {
+    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
+    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
+    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
+    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
+    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
+    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
+    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
+    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
+    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
+    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
+    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_index_properties_t
+    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
+    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
+    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
+    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
+    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
+    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
+    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
+    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
+    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
+    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
+    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
+    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC = 0x2001,        ///< ::ur_exp_interop_mem_desc_t
+    UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC = 0x2002,  ///< ::ur_exp_interop_semaphore_desc_t
+    UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,         ///< ::ur_exp_file_descriptor_t
+    UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,            ///< ::ur_exp_win32_handle_t
+    /// @cond
+    UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_structure_type_t;
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' Unified Runtime API common types
 #if !defined(__GNUC__)
 #pragma region common
@@ -87,6 +326,14 @@ extern "C" {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief compiler-independent type
 typedef uint8_t ur_bool_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of a loader config object
+typedef struct ur_loader_config_handle_t_ *ur_loader_config_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Handle of an adapter instance
+typedef struct ur_adapter_handle_t_ *ur_adapter_handle_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Handle of a platform instance
@@ -165,7 +412,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_DEVICE_LOST = 20,                                         ///< Device hung, reset, was removed, or adapter update occurred
     UR_RESULT_ERROR_DEVICE_REQUIRES_RESET = 21,                               ///< Device requires a reset
     UR_RESULT_ERROR_DEVICE_IN_LOW_POWER_STATE = 22,                           ///< Device currently in low power state
-    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                             ///< Device paritioning failed
+    UR_RESULT_ERROR_DEVICE_PARTITION_FAILED = 23,                             ///< Device partitioning failed
     UR_RESULT_ERROR_INVALID_DEVICE_PARTITION_COUNT = 24,                      ///< Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
     UR_RESULT_ERROR_INVALID_WORK_ITEM_SIZE = 25,                              ///< Invalid work item size
     UR_RESULT_ERROR_INVALID_WORK_DIMENSION = 26,                              ///< Invalid work dimension
@@ -181,7 +428,8 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35,                          ///< Image format not supported
     UR_RESULT_ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36,                       ///< Memory object allocation failure
     UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE = 37,                          ///< Program object parameter is invalid.
-    UR_RESULT_ERROR_UNINITIALIZED = 38,                                       ///< [Validation] adapter is not initialized
+    UR_RESULT_ERROR_UNINITIALIZED = 38,                                       ///< [Validation] adapter is not initialized or specific entry-point is not
+                                                                              ///< implemented
     UR_RESULT_ERROR_OUT_OF_HOST_MEMORY = 39,                                  ///< Insufficient host memory to satisfy call
     UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY = 40,                                ///< Insufficient device memory to satisfy call
     UR_RESULT_ERROR_OUT_OF_RESOURCES = 41,                                    ///< Out of resources
@@ -219,6 +467,7 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 66,                           ///< Objection allocation failure
     UR_RESULT_ERROR_ADAPTER_SPECIFIC = 67,                                    ///< An adapter specific warning/error has been reported and can be
                                                                               ///< retrieved via the urPlatformGetLastError entry point.
+    UR_RESULT_ERROR_LAYER_NOT_PRESENT = 68,                                   ///< A requested layer was not found by the loader.
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
@@ -228,51 +477,6 @@ typedef enum ur_result_t {
     /// @endcond
 
 } ur_result_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Defines structure types
-typedef enum ur_structure_type_t {
-    UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES = 0,               ///< ::ur_context_properties_t
-    UR_STRUCTURE_TYPE_IMAGE_DESC = 1,                       ///< ::ur_image_desc_t
-    UR_STRUCTURE_TYPE_BUFFER_PROPERTIES = 2,                ///< ::ur_buffer_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_REGION = 3,                    ///< ::ur_buffer_region_t
-    UR_STRUCTURE_TYPE_BUFFER_CHANNEL_PROPERTIES = 4,        ///< ::ur_buffer_channel_properties_t
-    UR_STRUCTURE_TYPE_BUFFER_ALLOC_LOCATION_PROPERTIES = 5, ///< ::ur_buffer_alloc_location_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES = 6,               ///< ::ur_program_properties_t
-    UR_STRUCTURE_TYPE_USM_DESC = 7,                         ///< ::ur_usm_desc_t
-    UR_STRUCTURE_TYPE_USM_HOST_DESC = 8,                    ///< ::ur_usm_host_desc_t
-    UR_STRUCTURE_TYPE_USM_DEVICE_DESC = 9,                  ///< ::ur_usm_device_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_DESC = 10,                   ///< ::ur_usm_pool_desc_t
-    UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC = 11,            ///< ::ur_usm_pool_limits_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_BINARY = 12,                   ///< ::ur_device_binary_t
-    UR_STRUCTURE_TYPE_SAMPLER_DESC = 13,                    ///< ::ur_sampler_desc_t
-    UR_STRUCTURE_TYPE_QUEUE_PROPERTIES = 14,                ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_INDEX_PROPERTIES = 15,          ///< ::ur_queue_properties_t
-    UR_STRUCTURE_TYPE_CONTEXT_NATIVE_PROPERTIES = 16,       ///< ::ur_context_native_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_NATIVE_PROPERTIES = 17,        ///< ::ur_kernel_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES = 18,         ///< ::ur_queue_native_properties_t
-    UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES = 19,           ///< ::ur_mem_native_properties_t
-    UR_STRUCTURE_TYPE_EVENT_NATIVE_PROPERTIES = 20,         ///< ::ur_event_native_properties_t
-    UR_STRUCTURE_TYPE_PLATFORM_NATIVE_PROPERTIES = 21,      ///< ::ur_platform_native_properties_t
-    UR_STRUCTURE_TYPE_DEVICE_NATIVE_PROPERTIES = 22,        ///< ::ur_device_native_properties_t
-    UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES = 23,       ///< ::ur_program_native_properties_t
-    UR_STRUCTURE_TYPE_SAMPLER_NATIVE_PROPERTIES = 24,       ///< ::ur_sampler_native_properties_t
-    UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC = 25,               ///< ::ur_queue_native_desc_t
-    UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES = 26,     ///< ::ur_device_partition_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_MEM_OBJ_PROPERTIES = 27,   ///< ::ur_kernel_arg_mem_obj_properties_t
-    UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES = 28,         ///< ::ur_physical_mem_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_POINTER_PROPERTIES = 29,   ///< ::ur_kernel_arg_pointer_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_SAMPLER_PROPERTIES = 30,   ///< ::ur_kernel_arg_sampler_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_EXEC_INFO_PROPERTIES = 31,     ///< ::ur_kernel_exec_info_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_VALUE_PROPERTIES = 32,     ///< ::ur_kernel_arg_value_properties_t
-    UR_STRUCTURE_TYPE_KERNEL_ARG_LOCAL_PROPERTIES = 33,     ///< ::ur_kernel_arg_local_properties_t
-    UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC = 0x1000,     ///< ::ur_exp_command_buffer_desc_t
-    UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES = 0x2000,  ///< ::ur_exp_sampler_mip_properties_t
-    /// @cond
-    UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_structure_type_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Base for all properties types
@@ -333,6 +537,137 @@ typedef enum ur_device_init_flag_t {
 #define UR_DEVICE_INIT_FLAGS_MASK 0xffffffe0
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a loader config object.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigCreate(
+    ur_loader_config_handle_t *phLoaderConfig ///< [out] Pointer to handle of loader config object created.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the loader config object.
+///
+/// @details
+///     - Get a reference to the loader config handle. Increment its reference
+///       count
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigRetain(
+    ur_loader_config_handle_t hLoaderConfig ///< [in] loader config handle to retain
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Release config handle.
+///
+/// @details
+///     - Decrement reference count and destroy the config handle if reference
+///       count becomes zero.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigRelease(
+    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Supported loader info
+typedef enum ur_loader_config_info_t {
+    UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS = 0, ///< [char[]] Null-terminated, semi-colon separated list of available
+                                                ///< layers.
+    UR_LOADER_CONFIG_INFO_REFERENCE_COUNT = 1,  ///< [uint32_t] Reference count of the loader config object.
+    /// @cond
+    UR_LOADER_CONFIG_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_loader_config_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves various information about the loader.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOADER_CONFIG_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the loader.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigGetInfo(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] handle of the loader config object
+    ur_loader_config_info_t propName,        ///< [in] type of the info to retrieve
+    size_t propSize,                         ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue,                        ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                             ///< the info.
+                                             ///< If propSize is not equal to or greater than the real number of bytes
+                                             ///< needed to return the info
+                                             ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+                                             ///< pPropValue is not used.
+    size_t *pPropSizeRet                     ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enable a layer for the specified loader config.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLayerName`
+///     - ::UR_RESULT_ERROR_LAYER_NOT_PRESENT
+///         + If layer specified with `pLayerName` can't be found by the loader.
+UR_APIEXPORT ur_result_t UR_APICALL
+urLoaderConfigEnableLayer(
+    ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
+                                             ///< enable.
+);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
@@ -359,8 +694,9 @@ typedef enum ur_device_init_flag_t {
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
-                                        ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_device_init_flags_t device_flags,    ///< [in] device initialization flags.
+                                            ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t hLoaderConfig ///< [in][optional] Handle of loader config handle.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -379,6 +715,197 @@ urTearDown(
     void *pParams ///< [in] pointer to tear down parameters
 );
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves all available adapters
+///
+/// @details
+///     - Adapter implementations must return exactly one adapter handle from
+///       this entry point.
+///     - The loader may return more than one adapter handle when there are
+///       multiple available.
+///     - Each returned adapter has its reference count incremented and should
+///       be released with a subsequent call to ::urAdapterRelease.
+///     - Adapters may perform adapter-specific state initialization when the
+///       first reference to them is taken.
+///     - An application may call this entry point multiple times to acquire
+///       multiple references to the adapter handle(s).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGet(
+    uint32_t NumEntries,             ///< [in] the number of adapters to be added to phAdapters.
+                                     ///< If phAdapters is not NULL, then NumEntries should be greater than
+                                     ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+                                     ///< will be returned.
+    ur_adapter_handle_t *phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+                                     ///< If NumEntries is less than the number of adapters available, then
+                                     ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *pNumAdapters           ///< [out][optional] returns the total number of adapters available.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases the adapter handle reference indicating end of its usage
+///
+/// @details
+///     - When the reference count of the adapter reaches zero, the adapter may
+///       perform adapter-specififc resource teardown
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the adapter handle.
+///
+/// @details
+///     - Get a reference to the adapter handle. Increment its reference count
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the last adapter specific error.
+///
+/// @details
+/// To be used after another entry-point has returned
+/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+/// the circumstances of the underlying driver error and the error code
+/// returned by the failed driver entry-point.
+///
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The message and error code storage is will only be valid if a previously
+///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
+///
+/// Example usage:
+///
+/// ```cpp
+/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+///     const char* pMessage;
+///     int32_t error;
+///     ::urAdapterGetLastError(hAdapter, &pMessage, &error);
+/// }
+/// ```
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMessage`
+///         + `NULL == pError`
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **ppMessage,       ///< [out] pointer to a C string where the adapter specific error message
+                                  ///< will be stored.
+    int32_t *pError               ///< [out] pointer to an integer where the adapter specific error code will
+                                  ///< be stored.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Supported adapter info
+typedef enum ur_adapter_info_t {
+    UR_ADAPTER_INFO_BACKEND = 0,         ///< [::ur_adapter_backend_t] Identifies the native backend supported by
+                                         ///< the adapter.
+    UR_ADAPTER_INFO_REFERENCE_COUNT = 1, ///< [uint32_t] Reference count of the adapter.
+                                         ///< The reference count returned should be considered immediately stale.
+                                         ///< It is unsuitable for general use in applications. This feature is
+                                         ///< provided for identifying memory leaks.
+    /// @cond
+    UR_ADAPTER_INFO_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_adapter_info_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves information about the adapter
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+UR_APIEXPORT ur_result_t UR_APICALL
+urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize,              ///< [in] the number of bytes pointed to by pPropValue.
+    void *pPropValue,             ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                                  ///< the info.
+                                  ///< If Size is not equal to or greater to the real number of bytes needed
+                                  ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+                                  ///< returned and pPropValue is not used.
+    size_t *pPropSizeRet          ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Identifies backend of the adapter
+typedef enum ur_adapter_backend_t {
+    UR_ADAPTER_BACKEND_UNKNOWN = 0,    ///< The backend is not a recognized one
+    UR_ADAPTER_BACKEND_LEVEL_ZERO = 1, ///< The backend is Level Zero
+    UR_ADAPTER_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
+    UR_ADAPTER_BACKEND_CUDA = 3,       ///< The backend is CUDA
+    UR_ADAPTER_BACKEND_HIP = 4,        ///< The backend is HIP
+    UR_ADAPTER_BACKEND_NATIVE_CPU = 5, ///< The backend is Native CPU
+    /// @cond
+    UR_ADAPTER_BACKEND_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_adapter_backend_t;
+
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
@@ -387,7 +914,7 @@ urTearDown(
 #pragma region platform
 #endif
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieves all available platforms
+/// @brief Retrieves all available platforms for the given adapters
 ///
 /// @details
 ///     - Multiple calls to this function will return identical platforms
@@ -404,9 +931,13 @@ urTearDown(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGet(
+    ur_adapter_handle_t *phAdapters,   ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters,              ///< [in] number of adapters pointed to by phAdapters
     uint32_t NumEntries,               ///< [in] the number of platforms to be added to phPlatforms.
                                        ///< If phPlatforms is not NULL, then NumEntries should be greater than
                                        ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
@@ -540,6 +1071,8 @@ urPlatformGetApiVersion(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativePlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform,      ///< [in] handle of the platform.
@@ -572,13 +1105,13 @@ typedef struct ur_platform_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativePlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPlatformCreateWithNativeHandle(
-    ur_native_handle_t hNativePlatform,                 ///< [in] the native handle of the platform.
+    ur_native_handle_t hNativePlatform,                 ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *phPlatform                    ///< [out] pointer to the handle of the platform object created.
 );
@@ -617,58 +1150,6 @@ urPlatformGetBackendOption(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the last adapter specific error.
-///
-/// @details
-/// To be used after another entry-point has returned
-/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
-/// the circumstances of the underlying driver error and the error code
-/// returned by the failed driver entry-point.
-///
-/// * Implementations *must* store the message and error code in thread-local
-///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The message and error code storage is will only be valid if a previously
-///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The memory pointed to by the C string returned in `ppMessage` is owned by
-///   the adapter and *must* be null terminated.
-///
-/// * The application *may* call this function from simultaneous threads.
-///
-/// * The implementation of this function *should* be lock-free.
-///
-/// Example usage:
-///
-/// ```cpp
-/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
-///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-///     const char* pMessage;
-///     int32_t error;
-///     ::urPlatformGetLastError(hPlatform, &pMessage, &error);
-/// }
-/// ```
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppMessage`
-///         + `NULL == pError`
-UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **ppMessage,         ///< [out] pointer to a C string where the adapter specific error message
-                                    ///< will be stored.
-    int32_t *pError                 ///< [out] pointer to an integer where the adapter specific error code will
-                                    ///< be stored.
-);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Identifies native backend adapters
 typedef enum ur_platform_backend_t {
     UR_PLATFORM_BACKEND_UNKNOWN = 0,    ///< The backend is not a recognized one
@@ -676,6 +1157,7 @@ typedef enum ur_platform_backend_t {
     UR_PLATFORM_BACKEND_OPENCL = 2,     ///< The backend is OpenCL
     UR_PLATFORM_BACKEND_CUDA = 3,       ///< The backend is CUDA
     UR_PLATFORM_BACKEND_HIP = 4,        ///< The backend is HIP
+    UR_PLATFORM_BACKEND_NATIVE_CPU = 5, ///< The backend is Native CPU
     /// @cond
     UR_PLATFORM_BACKEND_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -822,187 +1304,188 @@ urDeviceGet(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device info
 typedef enum ur_device_info_t {
-    UR_DEVICE_INFO_TYPE = 0,                                      ///< [::ur_device_type_t] type of the device
-    UR_DEVICE_INFO_VENDOR_ID = 1,                                 ///< [uint32_t] vendor Id of the device
-    UR_DEVICE_INFO_DEVICE_ID = 2,                                 ///< [uint32_t] Id of the device
-    UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 3,                         ///< [uint32_t] the number of compute units
-    UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,                  ///< [uint32_t] max work item dimensions
-    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                       ///< [size_t[]] return an array of max work item sizes
-    UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,                       ///< [size_t] max work group size
-    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,                          ///< [::ur_device_fp_capability_flags_t] single precision floating point
-                                                                  ///< capability
-    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,                            ///< [::ur_device_fp_capability_flags_t] half precision floating point
-                                                                  ///< capability
-    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,                          ///< [::ur_device_fp_capability_flags_t] double precision floating point
-                                                                  ///< capability
-    UR_DEVICE_INFO_QUEUE_PROPERTIES = 10,                         ///< [::ur_queue_flags_t] command queue properties supported by the device
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR = 11,              ///< [uint32_t] preferred vector width for char
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT = 12,             ///< [uint32_t] preferred vector width for short
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT = 13,               ///< [uint32_t] preferred vector width for int
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG = 14,              ///< [uint32_t] preferred vector width for long
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT = 15,             ///< [uint32_t] preferred vector width for float
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE = 16,            ///< [uint32_t] preferred vector width for double
-    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF = 17,              ///< [uint32_t] preferred vector width for half float
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR = 18,                 ///< [uint32_t] native vector width for char
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT = 19,                ///< [uint32_t] native vector width for short
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = 20,                  ///< [uint32_t] native vector width for int
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = 21,                 ///< [uint32_t] native vector width for long
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT = 22,                ///< [uint32_t] native vector width for float
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE = 23,               ///< [uint32_t] native vector width for double
-    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = 24,                 ///< [uint32_t] native vector width for half float
-    UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY = 25,                      ///< [uint32_t] max clock frequency in MHz
-    UR_DEVICE_INFO_MEMORY_CLOCK_RATE = 26,                        ///< [uint32_t] memory clock frequency in MHz
-    UR_DEVICE_INFO_ADDRESS_BITS = 27,                             ///< [uint32_t] address bits
-    UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,                       ///< [uint64_t] max memory allocation size
-    UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,                          ///< [::ur_bool_t] images are supported
-    UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,                      ///< [uint32_t] max number of image objects arguments of a kernel declared
-                                                                  ///< with the read_only qualifier
-    UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,                     ///< [uint32_t] max number of image objects arguments of a kernel declared
-                                                                  ///< with the write_only qualifier
-    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,                ///< [uint32_t] max number of image objects arguments of a kernel declared
-                                                                  ///< with the read_write qualifier
-    UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,                        ///< [size_t] max width of Image2D object
-    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 34,                       ///< [size_t] max heigh of Image2D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH = 35,                        ///< [size_t] max width of Image3D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 36,                       ///< [size_t] max height of Image3D object
-    UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 37,                        ///< [size_t] max depth of Image3D object
-    UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = 38,                    ///< [size_t] max image buffer size
-    UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE = 39,                     ///< [size_t] max image array size
-    UR_DEVICE_INFO_MAX_SAMPLERS = 40,                             ///< [uint32_t] max number of samplers that can be used in a kernel
-    UR_DEVICE_INFO_MAX_PARAMETER_SIZE = 41,                       ///< [size_t] max size in bytes of all arguments passed to a kernel
-    UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = 42,                      ///< [uint32_t] memory base address alignment
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE = 43,                    ///< [::ur_device_mem_cache_type_t] global memory cache type
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE = 44,                ///< [uint32_t] global memory cache line size in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = 45,                    ///< [uint64_t] size of global memory cache in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_SIZE = 46,                          ///< [uint64_t] size of global memory in bytes
-    UR_DEVICE_INFO_GLOBAL_MEM_FREE = 47,                          ///< [uint64_t] size of global memory which is free in bytes
-    UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = 48,                 ///< [uint64_t] max constant buffer size in bytes
-    UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,                        ///< [uint32_t] max number of __const declared arguments in a kernel
-    UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,                           ///< [::ur_device_local_mem_type_t] local memory type
-    UR_DEVICE_INFO_LOCAL_MEM_SIZE = 51,                           ///< [uint64_t] local memory size in bytes
-    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,                 ///< [::ur_bool_t] support error correction to global and local memory
-    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,                      ///< [::ur_bool_t] unified host device memory
-    UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 54,               ///< [size_t] profiling timer resolution in nanoseconds
-    UR_DEVICE_INFO_ENDIAN_LITTLE = 55,                            ///< [::ur_bool_t] little endian byte order
-    UR_DEVICE_INFO_AVAILABLE = 56,                                ///< [::ur_bool_t] device is available
-    UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,                       ///< [::ur_bool_t] device compiler is available
-    UR_DEVICE_INFO_LINKER_AVAILABLE = 58,                         ///< [::ur_bool_t] device linker is available
-    UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 59,                   ///< [::ur_device_exec_capability_flags_t] device kernel execution
-                                                                  ///< capability bit-field
-    UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,               ///< [::ur_queue_flags_t] device command queue property bit-field
-    UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,                 ///< [::ur_queue_flags_t] host queue property bit-field
-    UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,                         ///< [char[]] a semi-colon separated list of built-in kernels
-    UR_DEVICE_INFO_PLATFORM = 63,                                 ///< [::ur_platform_handle_t] the platform associated with the device
-    UR_DEVICE_INFO_REFERENCE_COUNT = 64,                          ///< [uint32_t] Reference count of the device object.
-                                                                  ///< The reference count returned should be considered immediately stale.
-                                                                  ///< It is unsuitable for general use in applications. This feature is
-                                                                  ///< provided for identifying memory leaks.
-    UR_DEVICE_INFO_IL_VERSION = 65,                               ///< [char[]] IL version
-    UR_DEVICE_INFO_NAME = 66,                                     ///< [char[]] Device name
-    UR_DEVICE_INFO_VENDOR = 67,                                   ///< [char[]] Device vendor
-    UR_DEVICE_INFO_DRIVER_VERSION = 68,                           ///< [char[]] Driver version
-    UR_DEVICE_INFO_PROFILE = 69,                                  ///< [char[]] Device profile
-    UR_DEVICE_INFO_VERSION = 70,                                  ///< [char[]] Device version
-    UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,                  ///< [char[]] Version of backend runtime
-    UR_DEVICE_INFO_EXTENSIONS = 72,                               ///< [char[]] Return a space separated list of extension names
-    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,                       ///< [size_t] Maximum size in bytes of internal printf buffer
-    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,              ///< [::ur_bool_t] prefer user synchronization when sharing object with
-                                                                  ///< other API
-    UR_DEVICE_INFO_PARENT_DEVICE = 75,                            ///< [::ur_device_handle_t] return parent device handle
-    UR_DEVICE_INFO_SUPPORTED_PARTITIONS = 76,                     ///< [::ur_device_partition_t[]] Returns an array of partition types
-                                                                  ///< supported by the device
-    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,                ///< [uint32_t] maximum number of sub-devices when the device is
-                                                                  ///< partitioned
-    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,                ///< [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
-                                                                  ///< supported affinity domains for partitioning.
-                                                                  ///< If the device does not support any affinity domains, then 0 will be returned.
-    UR_DEVICE_INFO_PARTITION_TYPE = 79,                           ///< [::ur_device_partition_property_t[]] return an array of
-                                                                  ///< ::ur_device_partition_property_t for properties specified in
-                                                                  ///< ::urDevicePartition
-    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                       ///< [uint32_t] max number of sub groups
-    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81,   ///< [::ur_bool_t] support sub group independent forward progress
-    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                    ///< [uint32_t[]] return an array of sub group sizes supported on Intel
-                                                                  ///< device
-    UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                         ///< [::ur_device_usm_access_capability_flags_t] support USM host memory
-                                                                  ///< access
-    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                       ///< [::ur_device_usm_access_capability_flags_t] support USM device memory
-                                                                  ///< access
-    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,                ///< [::ur_device_usm_access_capability_flags_t] support USM single device
-                                                                  ///< shared memory access
-    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,                 ///< [::ur_device_usm_access_capability_flags_t] support USM cross device
-                                                                  ///< shared memory access
-    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,                ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
-                                                                  ///< shared memory access
-    UR_DEVICE_INFO_UUID = 88,                                     ///< [char[]] return device UUID
-    UR_DEVICE_INFO_PCI_ADDRESS = 89,                              ///< [char[]] return device PCI address
-    UR_DEVICE_INFO_GPU_EU_COUNT = 90,                             ///< [uint32_t] return Intel GPU EU count
-    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                        ///< [uint32_t] return Intel GPU EU SIMD width
-    UR_DEVICE_INFO_GPU_EU_SLICES = 92,                            ///< [uint32_t] return Intel GPU number of slices
-    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 93,                ///< [uint32_t] return Intel GPU EU count per subslice
-    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,                  ///< [uint32_t] return Intel GPU number of subslices per slice
-    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,                    ///< [uint32_t] return Intel GPU number of threads per EU
-    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,                     ///< [uint32_t] return max memory bandwidth in Mb/s
-    UR_DEVICE_INFO_IMAGE_SRGB = 97,                               ///< [::ur_bool_t] device supports sRGB images
-    UR_DEVICE_INFO_BUILD_ON_SUBDEVICE = 98,                       ///< [::ur_bool_t] Return true if sub-device should do its own program
-                                                                  ///< build
-    UR_DEVICE_INFO_ATOMIC_64 = 99,                                ///< [::ur_bool_t] support 64 bit atomics
-    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 100,        ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
-                                                                  ///< memory order capabilities
-    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 101,        ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
-                                                                  ///< memory scope capabilities
-    UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 102,         ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
-                                                                  ///< memory fence order capabilities
-    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,         ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
-                                                                  ///< memory fence scope capabilities
-    UR_DEVICE_INFO_BFLOAT16 = 104,                                ///< [::ur_bool_t] support for bfloat16
-    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 105,               ///< [uint32_t] Returns 1 if the device doesn't have a notion of a
-                                                                  ///< queue index. Otherwise, returns the number of queue indices that are
-                                                                  ///< available for this device.
-    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 106,     ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
-                                                                  ///< point
-    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                        ///< [uint32_t] return the width in bits of the memory bus interface of the
-                                                                  ///< device.
-    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                      ///< [size_t[3]] return max 3D work groups
-    UR_DEVICE_INFO_ASYNC_BARRIER = 109,                           ///< [::ur_bool_t] return true if Async Barrier is supported
-    UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                     ///< [::ur_bool_t] return true if specifying memory channels is supported
-    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,          ///< [::ur_bool_t] Return true if the device supports enqueueing commands
-                                                                  ///< to read and write pipes from the host.
-    UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,            ///< [uint32_t] The maximum number of registers available per block.
-    UR_DEVICE_INFO_IP_VERSION = 113,                              ///< [uint32_t] The device IP version. The meaning of the device IP version
-                                                                  ///< is implementation-defined, but newer devices should have a higher
-                                                                  ///< version than older devices.
-    UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,          ///< [::ur_bool_t] returns true if the device supports the creation of
-                                                                  ///< bindless images
-    UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2001,   ///< [::ur_bool_t] returns true if the device supports the creation of 1D
-                                                                  ///< bindless images backed by USM
-    UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2002,   ///< [::ur_bool_t] returns true if the device supports the creation of 2D
-                                                                  ///< bindless images backed by USM
-    UR_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP = 0x2003,   ///< [::ur_bool_t] returns true if the device supports the creation of 3D
-                                                                  ///< bindless images backed by USM
-    UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP = 0x2004,                ///< [uint32_t] returns the required alignment of the pitch between two
-                                                                  ///< rows of an image in bytes
-    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2005,           ///< [size_t] returns the maximum linear width allowed for images allocated
-                                                                  ///< using USM
-    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2006,          ///< [size_t] returns the maximum linear height allowed for images
-                                                                  ///< allocated using USM
-    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP = 0x2007,           ///< [size_t] returns the maximum linear pitch allowed for images allocated
-                                                                  ///< using USM
-    UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP = 0x2008,                   ///< [::ur_bool_t] returns true if the device supports allocating mipmap
-                                                                  ///< resources
-    UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2009,        ///< [::ur_bool_t] returns true if the device supports sampling mipmap
-                                                                  ///< images with anisotropic filtering
-    UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP = 0x200A,            ///< [uint32_t] returns the maximum anisotropic ratio supported by the
-                                                                  ///< device
-    UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B,   ///< [::ur_bool_t] returns true if the device supports using images created
-                                                                  ///< from individual mipmap levels
-    UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C,    ///< [::ur_bool_t] returns true if the device supports importing external
-                                                                  ///< memory resources
-    UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D,    ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                  ///< memory resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E, ///< [::ur_bool_t] returns true if the device supports importing external
-                                                                  ///< semaphore resources
-    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F, ///< [::ur_bool_t] returns true if the device supports exporting internal
-                                                                  ///< event resources
+    UR_DEVICE_INFO_TYPE = 0,                                        ///< [::ur_device_type_t] type of the device
+    UR_DEVICE_INFO_VENDOR_ID = 1,                                   ///< [uint32_t] vendor Id of the device
+    UR_DEVICE_INFO_DEVICE_ID = 2,                                   ///< [uint32_t] Id of the device
+    UR_DEVICE_INFO_MAX_COMPUTE_UNITS = 3,                           ///< [uint32_t] the number of compute units
+    UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS = 4,                    ///< [uint32_t] max work item dimensions
+    UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES = 5,                         ///< [size_t[]] return an array of max work item sizes
+    UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE = 6,                         ///< [size_t] max work group size
+    UR_DEVICE_INFO_SINGLE_FP_CONFIG = 7,                            ///< [::ur_device_fp_capability_flags_t] single precision floating point
+                                                                    ///< capability
+    UR_DEVICE_INFO_HALF_FP_CONFIG = 8,                              ///< [::ur_device_fp_capability_flags_t] half precision floating point
+                                                                    ///< capability
+    UR_DEVICE_INFO_DOUBLE_FP_CONFIG = 9,                            ///< [::ur_device_fp_capability_flags_t] double precision floating point
+                                                                    ///< capability
+    UR_DEVICE_INFO_QUEUE_PROPERTIES = 10,                           ///< [::ur_queue_flags_t] command queue properties supported by the device
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_CHAR = 11,                ///< [uint32_t] preferred vector width for char
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_SHORT = 12,               ///< [uint32_t] preferred vector width for short
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT = 13,                 ///< [uint32_t] preferred vector width for int
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_LONG = 14,                ///< [uint32_t] preferred vector width for long
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_FLOAT = 15,               ///< [uint32_t] preferred vector width for float
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_DOUBLE = 16,              ///< [uint32_t] preferred vector width for double
+    UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF = 17,                ///< [uint32_t] preferred vector width for half float
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_CHAR = 18,                   ///< [uint32_t] native vector width for char
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_SHORT = 19,                  ///< [uint32_t] native vector width for short
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_INT = 20,                    ///< [uint32_t] native vector width for int
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_LONG = 21,                   ///< [uint32_t] native vector width for long
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_FLOAT = 22,                  ///< [uint32_t] native vector width for float
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_DOUBLE = 23,                 ///< [uint32_t] native vector width for double
+    UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF = 24,                   ///< [uint32_t] native vector width for half float
+    UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY = 25,                        ///< [uint32_t] max clock frequency in MHz
+    UR_DEVICE_INFO_MEMORY_CLOCK_RATE = 26,                          ///< [uint32_t] memory clock frequency in MHz
+    UR_DEVICE_INFO_ADDRESS_BITS = 27,                               ///< [uint32_t] address bits
+    UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE = 28,                         ///< [uint64_t] max memory allocation size
+    UR_DEVICE_INFO_IMAGE_SUPPORTED = 29,                            ///< [::ur_bool_t] images are supported
+    UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS = 30,                        ///< [uint32_t] max number of image objects arguments of a kernel declared
+                                                                    ///< with the read_only qualifier
+    UR_DEVICE_INFO_MAX_WRITE_IMAGE_ARGS = 31,                       ///< [uint32_t] max number of image objects arguments of a kernel declared
+                                                                    ///< with the write_only qualifier
+    UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS = 32,                  ///< [uint32_t] max number of image objects arguments of a kernel declared
+                                                                    ///< with the read_write qualifier
+    UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH = 33,                          ///< [size_t] max width of Image2D object
+    UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT = 34,                         ///< [size_t] max height of Image2D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH = 35,                          ///< [size_t] max width of Image3D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT = 36,                         ///< [size_t] max height of Image3D object
+    UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH = 37,                          ///< [size_t] max depth of Image3D object
+    UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE = 38,                      ///< [size_t] max image buffer size
+    UR_DEVICE_INFO_IMAGE_MAX_ARRAY_SIZE = 39,                       ///< [size_t] max image array size
+    UR_DEVICE_INFO_MAX_SAMPLERS = 40,                               ///< [uint32_t] max number of samplers that can be used in a kernel
+    UR_DEVICE_INFO_MAX_PARAMETER_SIZE = 41,                         ///< [size_t] max size in bytes of all arguments passed to a kernel
+    UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN = 42,                        ///< [uint32_t] memory base address alignment
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE = 43,                      ///< [::ur_device_mem_cache_type_t] global memory cache type
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHELINE_SIZE = 44,                  ///< [uint32_t] global memory cache line size in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE = 45,                      ///< [uint64_t] size of global memory cache in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_SIZE = 46,                            ///< [uint64_t] size of global memory in bytes
+    UR_DEVICE_INFO_GLOBAL_MEM_FREE = 47,                            ///< [uint64_t] size of global memory which is free in bytes
+    UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE = 48,                   ///< [uint64_t] max constant buffer size in bytes
+    UR_DEVICE_INFO_MAX_CONSTANT_ARGS = 49,                          ///< [uint32_t] max number of __const declared arguments in a kernel
+    UR_DEVICE_INFO_LOCAL_MEM_TYPE = 50,                             ///< [::ur_device_local_mem_type_t] local memory type
+    UR_DEVICE_INFO_LOCAL_MEM_SIZE = 51,                             ///< [uint64_t] local memory size in bytes
+    UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT = 52,                   ///< [::ur_bool_t] support error correction to global and local memory
+    UR_DEVICE_INFO_HOST_UNIFIED_MEMORY = 53,                        ///< [::ur_bool_t] unified host device memory
+    UR_DEVICE_INFO_PROFILING_TIMER_RESOLUTION = 54,                 ///< [size_t] profiling timer resolution in nanoseconds
+    UR_DEVICE_INFO_ENDIAN_LITTLE = 55,                              ///< [::ur_bool_t] little endian byte order
+    UR_DEVICE_INFO_AVAILABLE = 56,                                  ///< [::ur_bool_t] device is available
+    UR_DEVICE_INFO_COMPILER_AVAILABLE = 57,                         ///< [::ur_bool_t] device compiler is available
+    UR_DEVICE_INFO_LINKER_AVAILABLE = 58,                           ///< [::ur_bool_t] device linker is available
+    UR_DEVICE_INFO_EXECUTION_CAPABILITIES = 59,                     ///< [::ur_device_exec_capability_flags_t] device kernel execution
+                                                                    ///< capability bit-field
+    UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES = 60,                 ///< [::ur_queue_flags_t] device command queue property bit-field
+    UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES = 61,                   ///< [::ur_queue_flags_t] host queue property bit-field
+    UR_DEVICE_INFO_BUILT_IN_KERNELS = 62,                           ///< [char[]] a semi-colon separated list of built-in kernels
+    UR_DEVICE_INFO_PLATFORM = 63,                                   ///< [::ur_platform_handle_t] the platform associated with the device
+    UR_DEVICE_INFO_REFERENCE_COUNT = 64,                            ///< [uint32_t] Reference count of the device object.
+                                                                    ///< The reference count returned should be considered immediately stale.
+                                                                    ///< It is unsuitable for general use in applications. This feature is
+                                                                    ///< provided for identifying memory leaks.
+    UR_DEVICE_INFO_IL_VERSION = 65,                                 ///< [char[]] IL version
+    UR_DEVICE_INFO_NAME = 66,                                       ///< [char[]] Device name
+    UR_DEVICE_INFO_VENDOR = 67,                                     ///< [char[]] Device vendor
+    UR_DEVICE_INFO_DRIVER_VERSION = 68,                             ///< [char[]] Driver version
+    UR_DEVICE_INFO_PROFILE = 69,                                    ///< [char[]] Device profile
+    UR_DEVICE_INFO_VERSION = 70,                                    ///< [char[]] Device version
+    UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,                    ///< [char[]] Version of backend runtime
+    UR_DEVICE_INFO_EXTENSIONS = 72,                                 ///< [char[]] Return a space separated list of extension names
+    UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,                         ///< [size_t] Maximum size in bytes of internal printf buffer
+    UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC = 74,                ///< [::ur_bool_t] prefer user synchronization when sharing object with
+                                                                    ///< other API
+    UR_DEVICE_INFO_PARENT_DEVICE = 75,                              ///< [::ur_device_handle_t] return parent device handle
+    UR_DEVICE_INFO_SUPPORTED_PARTITIONS = 76,                       ///< [::ur_device_partition_t[]] Returns an array of partition types
+                                                                    ///< supported by the device
+    UR_DEVICE_INFO_PARTITION_MAX_SUB_DEVICES = 77,                  ///< [uint32_t] maximum number of sub-devices when the device is
+                                                                    ///< partitioned
+    UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN = 78,                  ///< [::ur_device_affinity_domain_flags_t] Returns a bit-field of the
+                                                                    ///< supported affinity domains for partitioning.
+                                                                    ///< If the device does not support any affinity domains, then 0 will be returned.
+    UR_DEVICE_INFO_PARTITION_TYPE = 79,                             ///< [::ur_device_partition_property_t[]] return an array of
+                                                                    ///< ::ur_device_partition_property_t for properties specified in
+                                                                    ///< ::urDevicePartition
+    UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS = 80,                         ///< [uint32_t] max number of sub groups
+    UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS = 81,     ///< [::ur_bool_t] support sub group independent forward progress
+    UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL = 82,                      ///< [uint32_t[]] return an array of sub group sizes supported on Intel
+                                                                    ///< device
+    UR_DEVICE_INFO_USM_HOST_SUPPORT = 83,                           ///< [::ur_device_usm_access_capability_flags_t] support USM host memory
+                                                                    ///< access
+    UR_DEVICE_INFO_USM_DEVICE_SUPPORT = 84,                         ///< [::ur_device_usm_access_capability_flags_t] support USM device memory
+                                                                    ///< access
+    UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT = 85,                  ///< [::ur_device_usm_access_capability_flags_t] support USM single device
+                                                                    ///< shared memory access
+    UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT = 86,                   ///< [::ur_device_usm_access_capability_flags_t] support USM cross device
+                                                                    ///< shared memory access
+    UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT = 87,                  ///< [::ur_device_usm_access_capability_flags_t] support USM system wide
+                                                                    ///< shared memory access
+    UR_DEVICE_INFO_UUID = 88,                                       ///< [char[]] return device UUID
+    UR_DEVICE_INFO_PCI_ADDRESS = 89,                                ///< [char[]] return device PCI address
+    UR_DEVICE_INFO_GPU_EU_COUNT = 90,                               ///< [uint32_t] return Intel GPU EU count
+    UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH = 91,                          ///< [uint32_t] return Intel GPU EU SIMD width
+    UR_DEVICE_INFO_GPU_EU_SLICES = 92,                              ///< [uint32_t] return Intel GPU number of slices
+    UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE = 93,                  ///< [uint32_t] return Intel GPU EU count per subslice
+    UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE = 94,                    ///< [uint32_t] return Intel GPU number of subslices per slice
+    UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU = 95,                      ///< [uint32_t] return Intel GPU number of threads per EU
+    UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH = 96,                       ///< [uint32_t] return max memory bandwidth in Mb/s
+    UR_DEVICE_INFO_IMAGE_SRGB = 97,                                 ///< [::ur_bool_t] device supports sRGB images
+    UR_DEVICE_INFO_BUILD_ON_SUBDEVICE = 98,                         ///< [::ur_bool_t] Return true if sub-device should do its own program
+                                                                    ///< build
+    UR_DEVICE_INFO_ATOMIC_64 = 99,                                  ///< [::ur_bool_t] support 64 bit atomics
+    UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES = 100,          ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+                                                                    ///< memory order capabilities
+    UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES = 101,          ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+                                                                    ///< memory scope capabilities
+    UR_DEVICE_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES = 102,           ///< [::ur_memory_order_capability_flags_t] return a bit-field of atomic
+                                                                    ///< memory fence order capabilities
+    UR_DEVICE_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES = 103,           ///< [::ur_memory_scope_capability_flags_t] return a bit-field of atomic
+                                                                    ///< memory fence scope capabilities
+    UR_DEVICE_INFO_BFLOAT16 = 104,                                  ///< [::ur_bool_t] support for bfloat16
+    UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES = 105,                 ///< [uint32_t] Returns 1 if the device doesn't have a notion of a
+                                                                    ///< queue index. Otherwise, returns the number of queue indices that are
+                                                                    ///< available for this device.
+    UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS = 106,       ///< [::ur_bool_t] support the ::urKernelSetSpecializationConstants entry
+                                                                    ///< point
+    UR_DEVICE_INFO_MEMORY_BUS_WIDTH = 107,                          ///< [uint32_t] return the width in bits of the memory bus interface of the
+                                                                    ///< device.
+    UR_DEVICE_INFO_MAX_WORK_GROUPS_3D = 108,                        ///< [size_t[3]] return max 3D work groups
+    UR_DEVICE_INFO_ASYNC_BARRIER = 109,                             ///< [::ur_bool_t] return true if Async Barrier is supported
+    UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT = 110,                       ///< [::ur_bool_t] return true if specifying memory channels is supported
+    UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED = 111,            ///< [::ur_bool_t] Return true if the device supports enqueueing commands
+                                                                    ///< to read and write pipes from the host.
+    UR_DEVICE_INFO_MAX_REGISTERS_PER_WORK_GROUP = 112,              ///< [uint32_t] The maximum number of registers available per block.
+    UR_DEVICE_INFO_IP_VERSION = 113,                                ///< [uint32_t] The device IP version. The meaning of the device IP version
+                                                                    ///< is implementation-defined, but newer devices should have a higher
+                                                                    ///< version than older devices.
+    UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT = 114,                    ///< [::ur_bool_t] return true if the device supports virtual memory.
+    UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,            ///< [::ur_bool_t] returns true if the device supports the creation of
+                                                                    ///< bindless images
+    UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001, ///< [::ur_bool_t] returns true if the device supports the creation of
+                                                                    ///< bindless images backed by shared USM
+    UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2002,     ///< [::ur_bool_t] returns true if the device supports the creation of 1D
+                                                                    ///< bindless images backed by USM
+    UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2003,     ///< [::ur_bool_t] returns true if the device supports the creation of 2D
+                                                                    ///< bindless images backed by USM
+    UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP = 0x2004,                  ///< [uint32_t] returns the required alignment of the pitch between two
+                                                                    ///< rows of an image in bytes
+    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP = 0x2005,             ///< [size_t] returns the maximum linear width allowed for images allocated
+                                                                    ///< using USM
+    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP = 0x2006,            ///< [size_t] returns the maximum linear height allowed for images
+                                                                    ///< allocated using USM
+    UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP = 0x2007,             ///< [size_t] returns the maximum linear pitch allowed for images allocated
+                                                                    ///< using USM
+    UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP = 0x2008,                     ///< [::ur_bool_t] returns true if the device supports allocating mipmap
+                                                                    ///< resources
+    UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP = 0x2009,          ///< [::ur_bool_t] returns true if the device supports sampling mipmap
+                                                                    ///< images with anisotropic filtering
+    UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP = 0x200A,              ///< [uint32_t] returns the maximum anisotropic ratio supported by the
+                                                                    ///< device
+    UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP = 0x200B,     ///< [::ur_bool_t] returns true if the device supports using images created
+                                                                    ///< from individual mipmap levels
+    UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP = 0x200C,      ///< [::ur_bool_t] returns true if the device supports importing external
+                                                                    ///< memory resources
+    UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP = 0x200D,      ///< [::ur_bool_t] returns true if the device supports exporting internal
+                                                                    ///< memory resources
+    UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP = 0x200E,   ///< [::ur_bool_t] returns true if the device supports importing external
+                                                                    ///< semaphore resources
+    UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F,   ///< [::ur_bool_t] returns true if the device supports exporting internal
+                                                                    ///< event resources
     /// @cond
     UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1166,7 +1649,7 @@ typedef union ur_device_partition_value_t {
     uint32_t count;                                    ///< [in] Number of compute units in a sub-device when partitioning with
                                                        ///< ::UR_DEVICE_PARTITION_BY_COUNTS.
     ur_device_affinity_domain_flags_t affinity_domain; ///< [in] The affinity domain to partition for when partitioning with
-                                                       ///< $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+                                                       ///< ::UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
 
 } ur_device_partition_value_t;
 
@@ -1174,7 +1657,7 @@ typedef union ur_device_partition_value_t {
 /// @brief Device partition property
 typedef struct ur_device_partition_property_t {
     ur_device_partition_t type;        ///< [in] The partitioning type to be used.
-    ur_device_partition_value_t value; ///< [in] The paritioning value.
+    ur_device_partition_value_t value; ///< [in][tagged_by(type)] The partitioning value.
 
 } ur_device_partition_property_t;
 
@@ -1344,6 +1827,8 @@ typedef enum ur_device_exec_capability_flag_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceGetNativeHandle(
     ur_device_handle_t hDevice,        ///< [in] handle of the device.
@@ -1377,13 +1862,14 @@ typedef struct ur_device_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeDevice`
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice,                 ///< [in] the native handle of the device.
+    ur_native_handle_t hNativeDevice,                 ///< [in][nocheck] the native handle of the device.
     ur_platform_handle_t hPlatform,                   ///< [in] handle of the platform instance
     const ur_device_native_properties_t *pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t *phDevice                      ///< [out] pointer to the handle of the device object created.
@@ -1680,6 +2166,8 @@ urContextGetInfo(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetNativeHandle(
     ur_context_handle_t hContext,       ///< [in] handle of the context.
@@ -1712,14 +2200,14 @@ typedef struct ur_context_native_properties_t {
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
 ///         + `NULL == phContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextCreateWithNativeHandle(
-    ur_native_handle_t hNativeContext,                 ///< [in] the native handle of the context.
+    ur_native_handle_t hNativeContext,                 ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices,                               ///< [in] number of devices associated with the context
     const ur_device_handle_t *phDevices,               ///< [in][range(0, numDevices)] list of devices associated with the context
     const ur_context_native_properties_t *pProperties, ///< [in][optional] pointer to native context properties struct
@@ -2158,6 +2646,8 @@ urMemBufferPartition(
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(
     ur_mem_handle_t hMem,           ///< [in] handle of the mem.
@@ -2190,13 +2680,14 @@ typedef struct ur_mem_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem,                 ///< [in] the native handle to the memory.
+    ur_native_handle_t hNativeMem,                 ///< [in][nocheck] the native handle to the memory.
     ur_context_handle_t hContext,                  ///< [in] handle of the context object.
     const ur_mem_native_properties_t *pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t *phMem                         ///< [out] pointer to handle of buffer memory object created.
@@ -2216,15 +2707,16 @@ urMemBufferCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem,                 ///< [in] the native handle to the memory.
+    ur_native_handle_t hNativeMem,                 ///< [in][nocheck] the native handle to the memory.
     ur_context_handle_t hContext,                  ///< [in] handle of the context object.
     const ur_image_format_t *pImageFormat,         ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc,             ///< [in] pointer to image description.
@@ -2294,6 +2786,17 @@ urMemGetInfo(
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_IMAGE_INFO_DEPTH < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urMemImageGetInfo(
     ur_mem_handle_t hMemory,  ///< [in] handle to the image object being queried.
@@ -2509,6 +3012,8 @@ urSamplerGetInfo(
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler,       ///< [in] handle of the sampler.
@@ -2542,13 +3047,14 @@ typedef struct ur_sampler_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeSampler`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerCreateWithNativeHandle(
-    ur_native_handle_t hNativeSampler,                 ///< [in] the native handle of the sampler.
+    ur_native_handle_t hNativeSampler,                 ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext,                      ///< [in] handle of the context object
     const ur_sampler_native_properties_t *pProperties, ///< [in][optional] pointer to native sampler properties struct.
     ur_sampler_handle_t *phSampler                     ///< [out] pointer to the handle of the sampler object created.
@@ -3053,6 +3559,18 @@ typedef enum ur_virtual_mem_granularity_info_t {
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext,               ///< [in] handle of the context object.
@@ -3190,7 +3708,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemSetAccess(
     ur_context_handle_t hContext,       ///< [in] handle to the context object.
     const void *pStart,                 ///< [in] pointer to the start of the virtual memory range.
-    size_t size,                        ///< [in] size in bytes of the virutal memory range.
+    size_t size,                        ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t flags ///< [in] access flags to set for the mapped virtual memory range.
 );
 
@@ -3269,11 +3787,13 @@ typedef struct ur_physical_mem_properties_t {
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If size is not a multiple of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
 UR_APIEXPORT ur_result_t UR_APICALL
 urPhysicalMemCreate(
     ur_context_handle_t hContext,                    ///< [in] handle of the context object.
     ur_device_handle_t hDevice,                      ///< [in] handle of the device object.
-    size_t size,                                     ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+    size_t size,                                     ///< [in] size in bytes of physical memory to allocate, must be a multiple
                                                      ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *pProperties, ///< [in][optional] pointer to physical memory creation properties.
     ur_physical_mem_handle_t *phPhysicalMem          ///< [out] pointer to handle of physical memory object created.
@@ -3346,11 +3866,11 @@ typedef union ur_program_metadata_value_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Program metadata property.
 typedef struct ur_program_metadata_t {
-    char *pName;                       ///< [in] null-terminated metadata name.
+    const char *pName;                 ///< [in] null-terminated metadata name.
     ur_program_metadata_type_t type;   ///< [in] the type of metadata value.
     size_t size;                       ///< [in] size in bytes of the data pointed to by value.pData, or 0 when
                                        ///< value size is less than 64-bits and is stored directly in value.data.
-    ur_program_metadata_value_t value; ///< [in] the metadata value storage.
+    ur_program_metadata_value_t value; ///< [in][tagged_by(type)] the metadata value storage.
 
 } ur_program_metadata_t;
 
@@ -3445,7 +3965,7 @@ urProgramCreateWithBinary(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point, the program passed
+///     - Following a successful call to this entry point, the program passed
 ///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
 ///       for each device in `hContext`.
 ///
@@ -3477,9 +3997,9 @@ urProgramBuild(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point `hProgram` will contain
-///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
-///       device in `hContext`.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `hContext`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3509,8 +4029,8 @@ urProgramCompile(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point the program returned in
-///       `phProgram` will contain a binary of the
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
 ///
@@ -3828,6 +4348,8 @@ urProgramSetSpecializationConstants(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetNativeHandle(
     ur_program_handle_t hProgram,       ///< [in] handle of the program.
@@ -3861,13 +4383,14 @@ typedef struct ur_program_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeProgram`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithNativeHandle(
-    ur_native_handle_t hNativeProgram,                 ///< [in] the native handle of the program.
+    ur_native_handle_t hNativeProgram,                 ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext,                      ///< [in] handle of the context instance
     const ur_program_native_properties_t *pProperties, ///< [in][optional] pointer to native program properties struct.
     ur_program_handle_t *phProgram                     ///< [out] pointer to the handle of the program object created.
@@ -4030,7 +4553,7 @@ typedef enum ur_kernel_sub_group_info_t {
 } ur_kernel_sub_group_info_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Kernel Cache Configuartion.
+/// @brief Kernel Cache Configuration.
 typedef enum ur_kernel_cache_config_t {
     UR_KERNEL_CACHE_CONFIG_DEFAULT = 0,    ///< No preference for SLM or data cache.
     UR_KERNEL_CACHE_CONFIG_LARGE_SLM = 1,  ///< Large Shared Local Memory (SLM) size.
@@ -4408,6 +4931,8 @@ urKernelSetSpecializationConstants(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel,        ///< [in] handle of the kernel.
@@ -4441,14 +4966,15 @@ typedef struct ur_kernel_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeKernel`
 ///         + `NULL == hContext`
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel,                 ///< [in] the native handle of the kernel.
+    ur_native_handle_t hNativeKernel,                 ///< [in][nocheck] the native handle of the kernel.
     ur_context_handle_t hContext,                     ///< [in] handle of the context object
     ur_program_handle_t hProgram,                     ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *pProperties, ///< [in][optional] pointer to native kernel properties struct
@@ -4700,6 +5226,8 @@ typedef struct ur_queue_native_desc_t {
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(
     ur_queue_handle_t hQueue,         ///< [in] handle of the queue.
@@ -4734,14 +5262,15 @@ typedef struct ur_queue_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeQueue`
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue,                 ///< [in] the native handle of the queue.
+    ur_native_handle_t hNativeQueue,                 ///< [in][nocheck] the native handle of the queue.
     ur_context_handle_t hContext,                    ///< [in] handle of the context object
     ur_device_handle_t hDevice,                      ///< [in] handle of the device object
     const ur_queue_native_properties_t *pProperties, ///< [in][optional] pointer to native queue properties struct
@@ -5063,6 +5592,8 @@ urEventRelease(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventGetNativeHandle(
     ur_event_handle_t hEvent,         ///< [in] handle of the event.
@@ -5096,13 +5627,14 @@ typedef struct ur_event_native_properties_t {
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeEvent`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 UR_APIEXPORT ur_result_t UR_APICALL
 urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent,                 ///< [in] the native handle of the event.
+    ur_native_handle_t hNativeEvent,                 ///< [in][nocheck] the native handle of the event.
     ur_context_handle_t hContext,                    ///< [in] handle of the context object
     const ur_event_native_properties_t *pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t *phEvent                       ///< [out] pointer to the handle of the event object created.
@@ -5160,187 +5692,6 @@ urEventSetCallback(
     ur_event_callback_t pfnNotify,  ///< [in] execution status of the event
     void *pUserData                 ///< [in][out][optional] pointer to data to be passed to callback.
 );
-
-#if !defined(__GNUC__)
-#pragma endregion
-#endif
-// Intel 'oneAPI' Unified Runtime function registry
-#if !defined(__GNUC__)
-#pragma region registry
-#endif
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Defines unique stable identifiers for all functions
-typedef enum ur_function_t {
-    UR_FUNCTION_CONTEXT_CREATE = 1,                                            ///< Enumerator for ::urContextCreate
-    UR_FUNCTION_CONTEXT_RETAIN = 2,                                            ///< Enumerator for ::urContextRetain
-    UR_FUNCTION_CONTEXT_RELEASE = 3,                                           ///< Enumerator for ::urContextRelease
-    UR_FUNCTION_CONTEXT_GET_INFO = 4,                                          ///< Enumerator for ::urContextGetInfo
-    UR_FUNCTION_CONTEXT_GET_NATIVE_HANDLE = 5,                                 ///< Enumerator for ::urContextGetNativeHandle
-    UR_FUNCTION_CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6,                         ///< Enumerator for ::urContextCreateWithNativeHandle
-    UR_FUNCTION_CONTEXT_SET_EXTENDED_DELETER = 7,                              ///< Enumerator for ::urContextSetExtendedDeleter
-    UR_FUNCTION_DEVICE_GET = 8,                                                ///< Enumerator for ::urDeviceGet
-    UR_FUNCTION_DEVICE_GET_INFO = 9,                                           ///< Enumerator for ::urDeviceGetInfo
-    UR_FUNCTION_DEVICE_RETAIN = 10,                                            ///< Enumerator for ::urDeviceRetain
-    UR_FUNCTION_DEVICE_RELEASE = 11,                                           ///< Enumerator for ::urDeviceRelease
-    UR_FUNCTION_DEVICE_PARTITION = 12,                                         ///< Enumerator for ::urDevicePartition
-    UR_FUNCTION_DEVICE_SELECT_BINARY = 13,                                     ///< Enumerator for ::urDeviceSelectBinary
-    UR_FUNCTION_DEVICE_GET_NATIVE_HANDLE = 14,                                 ///< Enumerator for ::urDeviceGetNativeHandle
-    UR_FUNCTION_DEVICE_CREATE_WITH_NATIVE_HANDLE = 15,                         ///< Enumerator for ::urDeviceCreateWithNativeHandle
-    UR_FUNCTION_DEVICE_GET_GLOBAL_TIMESTAMPS = 16,                             ///< Enumerator for ::urDeviceGetGlobalTimestamps
-    UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH = 17,                                    ///< Enumerator for ::urEnqueueKernelLaunch
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT = 18,                                      ///< Enumerator for ::urEnqueueEventsWait
-    UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19,                         ///< Enumerator for ::urEnqueueEventsWaitWithBarrier
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ = 20,                                  ///< Enumerator for ::urEnqueueMemBufferRead
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE = 21,                                 ///< Enumerator for ::urEnqueueMemBufferWrite
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_READ_RECT = 22,                             ///< Enumerator for ::urEnqueueMemBufferReadRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_WRITE_RECT = 23,                            ///< Enumerator for ::urEnqueueMemBufferWriteRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY = 24,                                  ///< Enumerator for ::urEnqueueMemBufferCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_COPY_RECT = 25,                             ///< Enumerator for ::urEnqueueMemBufferCopyRect
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_FILL = 26,                                  ///< Enumerator for ::urEnqueueMemBufferFill
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_READ = 27,                                   ///< Enumerator for ::urEnqueueMemImageRead
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_WRITE = 28,                                  ///< Enumerator for ::urEnqueueMemImageWrite
-    UR_FUNCTION_ENQUEUE_MEM_IMAGE_COPY = 29,                                   ///< Enumerator for ::urEnqueueMemImageCopy
-    UR_FUNCTION_ENQUEUE_MEM_BUFFER_MAP = 30,                                   ///< Enumerator for ::urEnqueueMemBufferMap
-    UR_FUNCTION_ENQUEUE_MEM_UNMAP = 31,                                        ///< Enumerator for ::urEnqueueMemUnmap
-    UR_FUNCTION_ENQUEUE_USM_FILL = 32,                                         ///< Enumerator for ::urEnqueueUSMFill
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY = 33,                                       ///< Enumerator for ::urEnqueueUSMMemcpy
-    UR_FUNCTION_ENQUEUE_USM_PREFETCH = 34,                                     ///< Enumerator for ::urEnqueueUSMPrefetch
-    UR_FUNCTION_ENQUEUE_USM_ADVISE = 35,                                       ///< Enumerator for ::urEnqueueUSMAdvise
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38,                     ///< Enumerator for ::urEnqueueDeviceGlobalVariableWrite
-    UR_FUNCTION_ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39,                      ///< Enumerator for ::urEnqueueDeviceGlobalVariableRead
-    UR_FUNCTION_EVENT_GET_INFO = 40,                                           ///< Enumerator for ::urEventGetInfo
-    UR_FUNCTION_EVENT_GET_PROFILING_INFO = 41,                                 ///< Enumerator for ::urEventGetProfilingInfo
-    UR_FUNCTION_EVENT_WAIT = 42,                                               ///< Enumerator for ::urEventWait
-    UR_FUNCTION_EVENT_RETAIN = 43,                                             ///< Enumerator for ::urEventRetain
-    UR_FUNCTION_EVENT_RELEASE = 44,                                            ///< Enumerator for ::urEventRelease
-    UR_FUNCTION_EVENT_GET_NATIVE_HANDLE = 45,                                  ///< Enumerator for ::urEventGetNativeHandle
-    UR_FUNCTION_EVENT_CREATE_WITH_NATIVE_HANDLE = 46,                          ///< Enumerator for ::urEventCreateWithNativeHandle
-    UR_FUNCTION_EVENT_SET_CALLBACK = 47,                                       ///< Enumerator for ::urEventSetCallback
-    UR_FUNCTION_KERNEL_CREATE = 48,                                            ///< Enumerator for ::urKernelCreate
-    UR_FUNCTION_KERNEL_SET_ARG_VALUE = 49,                                     ///< Enumerator for ::urKernelSetArgValue
-    UR_FUNCTION_KERNEL_SET_ARG_LOCAL = 50,                                     ///< Enumerator for ::urKernelSetArgLocal
-    UR_FUNCTION_KERNEL_GET_INFO = 51,                                          ///< Enumerator for ::urKernelGetInfo
-    UR_FUNCTION_KERNEL_GET_GROUP_INFO = 52,                                    ///< Enumerator for ::urKernelGetGroupInfo
-    UR_FUNCTION_KERNEL_GET_SUB_GROUP_INFO = 53,                                ///< Enumerator for ::urKernelGetSubGroupInfo
-    UR_FUNCTION_KERNEL_RETAIN = 54,                                            ///< Enumerator for ::urKernelRetain
-    UR_FUNCTION_KERNEL_RELEASE = 55,                                           ///< Enumerator for ::urKernelRelease
-    UR_FUNCTION_KERNEL_SET_ARG_POINTER = 56,                                   ///< Enumerator for ::urKernelSetArgPointer
-    UR_FUNCTION_KERNEL_SET_EXEC_INFO = 57,                                     ///< Enumerator for ::urKernelSetExecInfo
-    UR_FUNCTION_KERNEL_SET_ARG_SAMPLER = 58,                                   ///< Enumerator for ::urKernelSetArgSampler
-    UR_FUNCTION_KERNEL_SET_ARG_MEM_OBJ = 59,                                   ///< Enumerator for ::urKernelSetArgMemObj
-    UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS = 60,                      ///< Enumerator for ::urKernelSetSpecializationConstants
-    UR_FUNCTION_KERNEL_GET_NATIVE_HANDLE = 61,                                 ///< Enumerator for ::urKernelGetNativeHandle
-    UR_FUNCTION_KERNEL_CREATE_WITH_NATIVE_HANDLE = 62,                         ///< Enumerator for ::urKernelCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE = 63,                                         ///< Enumerator for ::urMemImageCreate
-    UR_FUNCTION_MEM_BUFFER_CREATE = 64,                                        ///< Enumerator for ::urMemBufferCreate
-    UR_FUNCTION_MEM_RETAIN = 65,                                               ///< Enumerator for ::urMemRetain
-    UR_FUNCTION_MEM_RELEASE = 66,                                              ///< Enumerator for ::urMemRelease
-    UR_FUNCTION_MEM_BUFFER_PARTITION = 67,                                     ///< Enumerator for ::urMemBufferPartition
-    UR_FUNCTION_MEM_GET_NATIVE_HANDLE = 68,                                    ///< Enumerator for ::urMemGetNativeHandle
-    UR_FUNCTION_ENQUEUE_READ_HOST_PIPE = 69,                                   ///< Enumerator for ::urEnqueueReadHostPipe
-    UR_FUNCTION_MEM_GET_INFO = 70,                                             ///< Enumerator for ::urMemGetInfo
-    UR_FUNCTION_MEM_IMAGE_GET_INFO = 71,                                       ///< Enumerator for ::urMemImageGetInfo
-    UR_FUNCTION_PLATFORM_GET = 72,                                             ///< Enumerator for ::urPlatformGet
-    UR_FUNCTION_PLATFORM_GET_INFO = 73,                                        ///< Enumerator for ::urPlatformGetInfo
-    UR_FUNCTION_PLATFORM_GET_API_VERSION = 74,                                 ///< Enumerator for ::urPlatformGetApiVersion
-    UR_FUNCTION_PLATFORM_GET_NATIVE_HANDLE = 75,                               ///< Enumerator for ::urPlatformGetNativeHandle
-    UR_FUNCTION_PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76,                       ///< Enumerator for ::urPlatformCreateWithNativeHandle
-    UR_FUNCTION_PROGRAM_CREATE_WITH_IL = 78,                                   ///< Enumerator for ::urProgramCreateWithIL
-    UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY = 79,                               ///< Enumerator for ::urProgramCreateWithBinary
-    UR_FUNCTION_PROGRAM_BUILD = 80,                                            ///< Enumerator for ::urProgramBuild
-    UR_FUNCTION_PROGRAM_COMPILE = 81,                                          ///< Enumerator for ::urProgramCompile
-    UR_FUNCTION_PROGRAM_LINK = 82,                                             ///< Enumerator for ::urProgramLink
-    UR_FUNCTION_PROGRAM_RETAIN = 83,                                           ///< Enumerator for ::urProgramRetain
-    UR_FUNCTION_PROGRAM_RELEASE = 84,                                          ///< Enumerator for ::urProgramRelease
-    UR_FUNCTION_PROGRAM_GET_FUNCTION_POINTER = 85,                             ///< Enumerator for ::urProgramGetFunctionPointer
-    UR_FUNCTION_PROGRAM_GET_INFO = 86,                                         ///< Enumerator for ::urProgramGetInfo
-    UR_FUNCTION_PROGRAM_GET_BUILD_INFO = 87,                                   ///< Enumerator for ::urProgramGetBuildInfo
-    UR_FUNCTION_PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88,                     ///< Enumerator for ::urProgramSetSpecializationConstants
-    UR_FUNCTION_PROGRAM_GET_NATIVE_HANDLE = 89,                                ///< Enumerator for ::urProgramGetNativeHandle
-    UR_FUNCTION_PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90,                        ///< Enumerator for ::urProgramCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_GET_INFO = 91,                                           ///< Enumerator for ::urQueueGetInfo
-    UR_FUNCTION_QUEUE_CREATE = 92,                                             ///< Enumerator for ::urQueueCreate
-    UR_FUNCTION_QUEUE_RETAIN = 93,                                             ///< Enumerator for ::urQueueRetain
-    UR_FUNCTION_QUEUE_RELEASE = 94,                                            ///< Enumerator for ::urQueueRelease
-    UR_FUNCTION_QUEUE_GET_NATIVE_HANDLE = 95,                                  ///< Enumerator for ::urQueueGetNativeHandle
-    UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                          ///< Enumerator for ::urQueueCreateWithNativeHandle
-    UR_FUNCTION_QUEUE_FINISH = 97,                                             ///< Enumerator for ::urQueueFinish
-    UR_FUNCTION_QUEUE_FLUSH = 98,                                              ///< Enumerator for ::urQueueFlush
-    UR_FUNCTION_INIT = 99,                                                     ///< Enumerator for ::urInit
-    UR_FUNCTION_TEAR_DOWN = 100,                                               ///< Enumerator for ::urTearDown
-    UR_FUNCTION_SAMPLER_CREATE = 101,                                          ///< Enumerator for ::urSamplerCreate
-    UR_FUNCTION_SAMPLER_RETAIN = 102,                                          ///< Enumerator for ::urSamplerRetain
-    UR_FUNCTION_SAMPLER_RELEASE = 103,                                         ///< Enumerator for ::urSamplerRelease
-    UR_FUNCTION_SAMPLER_GET_INFO = 104,                                        ///< Enumerator for ::urSamplerGetInfo
-    UR_FUNCTION_SAMPLER_GET_NATIVE_HANDLE = 105,                               ///< Enumerator for ::urSamplerGetNativeHandle
-    UR_FUNCTION_SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106,                       ///< Enumerator for ::urSamplerCreateWithNativeHandle
-    UR_FUNCTION_USM_HOST_ALLOC = 107,                                          ///< Enumerator for ::urUSMHostAlloc
-    UR_FUNCTION_USM_DEVICE_ALLOC = 108,                                        ///< Enumerator for ::urUSMDeviceAlloc
-    UR_FUNCTION_USM_SHARED_ALLOC = 109,                                        ///< Enumerator for ::urUSMSharedAlloc
-    UR_FUNCTION_USM_FREE = 110,                                                ///< Enumerator for ::urUSMFree
-    UR_FUNCTION_USM_GET_MEM_ALLOC_INFO = 111,                                  ///< Enumerator for ::urUSMGetMemAllocInfo
-    UR_FUNCTION_USM_POOL_CREATE = 112,                                         ///< Enumerator for ::urUSMPoolCreate
-    UR_FUNCTION_COMMAND_BUFFER_CREATE_EXP = 113,                               ///< Enumerator for ::urCommandBufferCreateExp
-    UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION = 114,                             ///< Enumerator for ::urPlatformGetBackendOption
-    UR_FUNCTION_MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115,                    ///< Enumerator for ::urMemBufferCreateWithNativeHandle
-    UR_FUNCTION_MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116,                     ///< Enumerator for ::urMemImageCreateWithNativeHandle
-    UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE = 117,                                 ///< Enumerator for ::urEnqueueWriteHostPipe
-    UR_FUNCTION_USM_POOL_RETAIN = 118,                                         ///< Enumerator for ::urUSMPoolRetain
-    UR_FUNCTION_USM_POOL_RELEASE = 119,                                        ///< Enumerator for ::urUSMPoolRelease
-    UR_FUNCTION_USM_POOL_GET_INFO = 120,                                       ///< Enumerator for ::urUSMPoolGetInfo
-    UR_FUNCTION_COMMAND_BUFFER_RETAIN_EXP = 121,                               ///< Enumerator for ::urCommandBufferRetainExp
-    UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                              ///< Enumerator for ::urCommandBufferReleaseExp
-    UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                             ///< Enumerator for ::urCommandBufferFinalizeExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,                 ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
-    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                              ///< Enumerator for ::urCommandBufferEnqueueExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,                    ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,                ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131,           ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
-    UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                                   ///< Enumerator for ::urUSMPitchedAllocExp
-    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133,      ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
-    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,        ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135,                      ///< Enumerator for ::urBindlessImagesImageAllocateExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP = 136,                          ///< Enumerator for ::urBindlessImagesImageFreeExp
-    UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137,              ///< Enumerator for ::urBindlessImagesUnsampledImageCreateExp
-    UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138,                ///< Enumerator for ::urBindlessImagesSampledImageCreateExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP = 139,                          ///< Enumerator for ::urBindlessImagesImageCopyExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140,                      ///< Enumerator for ::urBindlessImagesImageGetInfoExp
-    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141,                    ///< Enumerator for ::urBindlessImagesMipmapGetLevelExp
-    UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142,                         ///< Enumerator for ::urBindlessImagesMipmapFreeExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143,                    ///< Enumerator for ::urBindlessImagesImportOpaqueFDExp
-    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144,                  ///< Enumerator for ::urBindlessImagesMapExternalArrayExp
-    UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145,                     ///< Enumerator for ::urBindlessImagesReleaseInteropExp
-    UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146, ///< Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-    UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147,          ///< Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
-    UR_FUNCTION_BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148,             ///< Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
-    UR_FUNCTION_BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149,           ///< Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
-    UR_FUNCTION_PLATFORM_GET_LAST_ERROR = 150,                                 ///< Enumerator for ::urPlatformGetLastError
-    UR_FUNCTION_ENQUEUE_USM_FILL_2D = 151,                                     ///< Enumerator for ::urEnqueueUSMFill2D
-    UR_FUNCTION_ENQUEUE_USM_MEMCPY_2D = 152,                                   ///< Enumerator for ::urEnqueueUSMMemcpy2D
-    UR_FUNCTION_VIRTUAL_MEM_GRANULARITY_GET_INFO = 153,                        ///< Enumerator for ::urVirtualMemGranularityGetInfo
-    UR_FUNCTION_VIRTUAL_MEM_RESERVE = 154,                                     ///< Enumerator for ::urVirtualMemReserve
-    UR_FUNCTION_VIRTUAL_MEM_FREE = 155,                                        ///< Enumerator for ::urVirtualMemFree
-    UR_FUNCTION_VIRTUAL_MEM_MAP = 156,                                         ///< Enumerator for ::urVirtualMemMap
-    UR_FUNCTION_VIRTUAL_MEM_UNMAP = 157,                                       ///< Enumerator for ::urVirtualMemUnmap
-    UR_FUNCTION_VIRTUAL_MEM_SET_ACCESS = 158,                                  ///< Enumerator for ::urVirtualMemSetAccess
-    UR_FUNCTION_VIRTUAL_MEM_GET_INFO = 159,                                    ///< Enumerator for ::urVirtualMemGetInfo
-    UR_FUNCTION_PHYSICAL_MEM_CREATE = 160,                                     ///< Enumerator for ::urPhysicalMemCreate
-    UR_FUNCTION_PHYSICAL_MEM_RETAIN = 161,                                     ///< Enumerator for ::urPhysicalMemRetain
-    UR_FUNCTION_PHYSICAL_MEM_RELEASE = 162,                                    ///< Enumerator for ::urPhysicalMemRelease
-    UR_FUNCTION_USM_IMPORT_EXP = 163,                                          ///< Enumerator for ::urUSMImportExp
-    UR_FUNCTION_USM_RELEASE_EXP = 164,                                         ///< Enumerator for ::urUSMReleaseExp
-    UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
-    UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
-    UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
-    /// @cond
-    UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
-    /// @endcond
-
-} ur_function_t;
 
 #if !defined(__GNUC__)
 #pragma endregion
@@ -6578,7 +6929,7 @@ typedef struct ur_exp_interop_semaphore_handle_t_ *ur_exp_interop_semaphore_hand
 /// @brief Dictates the type of memory copy.
 typedef uint32_t ur_exp_image_copy_flags_t;
 typedef enum ur_exp_image_copy_flag_t {
-    UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE = UR_BIT(0),   ///< Host to device.
+    UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE = UR_BIT(0),   ///< Host to device
     UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST = UR_BIT(1),   ///< Device to host
     UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE = UR_BIT(2), ///< Device to device
     /// @cond
@@ -6590,23 +6941,62 @@ typedef enum ur_exp_image_copy_flag_t {
 #define UR_EXP_IMAGE_COPY_FLAGS_MASK 0xfffffff8
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief File descriptor
+typedef struct ur_exp_file_descriptor_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    int fd;                    ///< [in] A file descriptor used for Linux and & MacOS operating systems.
+
+} ur_exp_file_descriptor_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Windows specific file handle
+typedef struct ur_exp_win32_handle_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+    void *handle;              ///< [in] A win32 file handle.
+
+} ur_exp_win32_handle_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes mipmap sampler properties
 ///
 /// @details
 ///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
 ///       as part of a `pNext` chain.
 typedef struct ur_exp_sampler_mip_properties_t {
-    ur_structure_type_t stype; ///< [in] type of this structure, must be
-                               ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
-    void *pNext;               ///< [in,out][optional] pointer to extension-specific structure
-    float minMipmapLevelClamp; ///< [in] minimum mipmap level from which we can sample, minimum value
-                               ///< being 0
-    float maxMipmapLevelClamp; ///< [in] maximum mipmap level from which we can sample, maximum value
-                               ///< being the number of levels
-    float maxAnistropy;        ///< [in] anisotropic ratio used when samplling the mipmap with anisotropic
-                               ///< filtering
+    ur_structure_type_t stype;              ///< [in] type of this structure, must be
+                                            ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
+    void *pNext;                            ///< [in,out][optional] pointer to extension-specific structure
+    float minMipmapLevelClamp;              ///< [in] minimum mipmap level from which we can sample, minimum value
+                                            ///< being 0
+    float maxMipmapLevelClamp;              ///< [in] maximum mipmap level from which we can sample, maximum value
+                                            ///< being the number of levels
+    float maxAnisotropy;                    ///< [in] anisotropic ratio used when samplling the mipmap with anisotropic
+                                            ///< filtering
+    ur_sampler_filter_mode_t mipFilterMode; ///< [in] mipmap filter mode used for filtering between mipmap levels
 
 } ur_exp_sampler_mip_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes an interop memory resource descriptor
+typedef struct ur_exp_interop_mem_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+
+} ur_exp_interop_mem_desc_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes an interop semaphore resource descriptor
+typedef struct ur_exp_interop_semaphore_desc_t {
+    ur_structure_type_t stype; ///< [in] type of this structure, must be
+                               ///< ::UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+    const void *pNext;         ///< [in][optional] pointer to extension-specific structure
+
+} ur_exp_interop_semaphore_desc_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief USM allocate pitched memory
@@ -6676,12 +7066,14 @@ urUSMPitchedAllocExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
 );
 
@@ -6699,12 +7091,14 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t hImage  ///< [in] pointer to handle of image object to destroy
 );
 
@@ -6723,6 +7117,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -6736,6 +7131,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext,          ///< [in] handle of the context object
+    ur_device_handle_t hDevice,            ///< [in] handle of the device object
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
     ur_exp_image_mem_handle_t *phImageMem  ///< [out] pointer to handle of image memory allocated
@@ -6755,12 +7151,14 @@ urBindlessImagesImageAllocateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext,       ///< [in] handle of the context object
+    ur_device_handle_t hDevice,         ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hImageMem ///< [in] handle of image memory to be freed
 );
 
@@ -6778,6 +7176,7 @@ urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -6793,6 +7192,7 @@ urBindlessImagesImageFreeExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext,          ///< [in] handle of the context object
+    ur_device_handle_t hDevice,            ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
@@ -6814,6 +7214,7 @@ urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -6831,6 +7232,7 @@ urBindlessImagesUnsampledImageCreateExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext,          ///< [in] handle of the context object
+    ur_device_handle_t hDevice,            ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hImageMem,   ///< [in] handle to memory from which to create the image
     const ur_image_format_t *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,     ///< [in] pointer to image description
@@ -6855,7 +7257,7 @@ urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
@@ -6863,7 +7265,7 @@ urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pImageDesc`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
@@ -6871,12 +7273,20 @@ urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext,             ///< [in] handle of the context object
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
     void *pDst,                               ///< [in] location the data will be copied to
     void *pSrc,                               ///< [in] location the data will be copied from
     const ur_image_format_t *pImageFormat,    ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,        ///< [in] pointer to image description
     ur_exp_image_copy_flags_t imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t srcOffset,               ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                                              ///< image
+    ur_rect_offset_t dstOffset,               ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                                              ///< or 3D image
+    ur_rect_region_t copyExtent,              ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                                              ///< region to copy
+    ur_rect_region_t hostExtent,              ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                                              ///< region on the host
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before this command can be executed.
@@ -6930,6 +7340,7 @@ urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phImageMem`
@@ -6938,6 +7349,7 @@ urBindlessImagesImageGetInfoExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext,         ///< [in] handle of the context object
+    ur_device_handle_t hDevice,           ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hImageMem,  ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel,                 ///< [in] requested level of the mipmap
     ur_exp_image_mem_handle_t *phImageMem ///< [out] returning memory handle to the individual image
@@ -6957,12 +7369,14 @@ urBindlessImagesMipmapGetLevelExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
 );
 
@@ -6980,17 +7394,20 @@ urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportOpaqueFDExp(
-    ur_context_handle_t hContext,             ///< [in] handle of the context object
-    size_t size,                              ///< [in] size of the external memory
-    uint32_t fileDescriptor,                  ///< [in] the file descriptor
-    ur_exp_interop_mem_handle_t *phInteropMem ///< [out] interop memory handle to the external memory
+    ur_context_handle_t hContext,               ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                 ///< [in] handle of the device object
+    size_t size,                                ///< [in] size of the external memory
+    ur_exp_interop_mem_desc_t *pInteropMemDesc, ///< [in] the interop memory descriptor
+    ur_exp_interop_mem_handle_t *phInteropMem   ///< [out] interop memory handle to the external memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7003,6 +7420,7 @@ urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -7018,10 +7436,11 @@ urBindlessImagesImportOpaqueFDExp(
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext,            ///< [in] handle of the context object
+    ur_device_handle_t hDevice,              ///< [in] handle of the device object
     const ur_image_format_t *pImageFormat,   ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc,       ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *phImageMem        ///< [out] image memory handle to the externally allocated memory
+    ur_exp_image_mem_handle_t *phImageMem    ///< [out] image memory handle to the externally allocated memory
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7038,12 +7457,14 @@ urBindlessImagesMapExternalArrayExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext,           ///< [in] handle of the context object
+    ur_device_handle_t hDevice,             ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t hInteropMem ///< [in] handle of interop memory to be freed
 );
 
@@ -7061,15 +7482,18 @@ urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phInteropSemaphoreHandle`
+///         + `NULL == pInteropSemaphoreDesc`
+///         + `NULL == phInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
-    ur_context_handle_t hContext,                               ///< [in] handle of the context object
-    uint32_t fileDescriptor,                                    ///< [in] the file descriptor
-    ur_exp_interop_semaphore_handle_t *phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+    ur_context_handle_t hContext,                           ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                             ///< [in] handle of the device object
+    ur_exp_interop_semaphore_desc_t *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
+    ur_exp_interop_semaphore_handle_t *phInteropSemaphore   ///< [out] interop semaphore handle to the external semaphore
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7086,12 +7510,14 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 UR_APIEXPORT ur_result_t UR_APICALL
 urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext,                       ///< [in] handle of the context object
+    ur_device_handle_t hDevice,                         ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
 );
 
@@ -7808,10 +8234,57 @@ urUsmP2PPeerAccessGetInfoExp(
 #pragma region callbacks
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigCreate
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_create_params_t {
+    ur_loader_config_handle_t **pphLoaderConfig;
+} ur_loader_config_create_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_retain_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+} ur_loader_config_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_release_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+} ur_loader_config_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_get_info_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    ur_loader_config_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_loader_config_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urLoaderConfigEnableLayer
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_loader_config_enable_layer_params_t {
+    ur_loader_config_handle_t *phLoaderConfig;
+    const char **ppLayerName;
+} ur_loader_config_enable_layer_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGet
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_platform_get_params_t {
+    ur_adapter_handle_t **pphAdapters;
+    uint32_t *pNumAdapters;
     uint32_t *pNumEntries;
     ur_platform_handle_t **pphPlatforms;
     uint32_t **ppNumPlatforms;
@@ -7847,16 +8320,6 @@ typedef struct ur_platform_create_with_native_handle_params_t {
     const ur_platform_native_properties_t **ppProperties;
     ur_platform_handle_t **pphPlatform;
 } ur_platform_create_with_native_handle_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urPlatformGetLastError
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_platform_get_last_error_params_t {
-    ur_platform_handle_t *phPlatform;
-    const char ***pppMessage;
-    int32_t **ppError;
-} ur_platform_get_last_error_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urPlatformGetApiVersion
@@ -9011,6 +9474,7 @@ typedef struct ur_queue_flush_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_handle_t *phImage;
 } ur_bindless_images_unsampled_image_handle_destroy_exp_params_t;
 
@@ -9020,6 +9484,7 @@ typedef struct ur_bindless_images_unsampled_image_handle_destroy_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_sampled_image_handle_destroy_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_handle_t *phImage;
 } ur_bindless_images_sampled_image_handle_destroy_exp_params_t;
 
@@ -9029,6 +9494,7 @@ typedef struct ur_bindless_images_sampled_image_handle_destroy_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_image_allocate_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_image_mem_handle_t **pphImageMem;
@@ -9040,6 +9506,7 @@ typedef struct ur_bindless_images_image_allocate_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_image_free_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_mem_handle_t *phImageMem;
 } ur_bindless_images_image_free_exp_params_t;
 
@@ -9049,6 +9516,7 @@ typedef struct ur_bindless_images_image_free_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_mem_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
@@ -9062,6 +9530,7 @@ typedef struct ur_bindless_images_unsampled_image_create_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_mem_handle_t *phImageMem;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
@@ -9075,12 +9544,16 @@ typedef struct ur_bindless_images_sampled_image_create_exp_params_t {
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_image_copy_exp_params_t {
-    ur_context_handle_t *phContext;
+    ur_queue_handle_t *phQueue;
     void **ppDst;
     void **ppSrc;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_image_copy_flags_t *pimageCopyFlags;
+    ur_rect_offset_t *psrcOffset;
+    ur_rect_offset_t *pdstOffset;
+    ur_rect_region_t *pcopyExtent;
+    ur_rect_region_t *phostExtent;
     uint32_t *pnumEventsInWaitList;
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
@@ -9103,6 +9576,7 @@ typedef struct ur_bindless_images_image_get_info_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_mipmap_get_level_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_mem_handle_t *phImageMem;
     uint32_t *pmipmapLevel;
     ur_exp_image_mem_handle_t **pphImageMem;
@@ -9114,6 +9588,7 @@ typedef struct ur_bindless_images_mipmap_get_level_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_mipmap_free_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_image_mem_handle_t *phMem;
 } ur_bindless_images_mipmap_free_exp_params_t;
 
@@ -9123,8 +9598,9 @@ typedef struct ur_bindless_images_mipmap_free_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_import_opaque_fd_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     size_t *psize;
-    uint32_t *pfileDescriptor;
+    ur_exp_interop_mem_desc_t **ppInteropMemDesc;
     ur_exp_interop_mem_handle_t **pphInteropMem;
 } ur_bindless_images_import_opaque_fd_exp_params_t;
 
@@ -9134,10 +9610,11 @@ typedef struct ur_bindless_images_import_opaque_fd_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_map_external_array_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     const ur_image_format_t **ppImageFormat;
     const ur_image_desc_t **ppImageDesc;
     ur_exp_interop_mem_handle_t *phInteropMem;
-    ur_exp_image_handle_t **pphImageMem;
+    ur_exp_image_mem_handle_t **pphImageMem;
 } ur_bindless_images_map_external_array_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9146,6 +9623,7 @@ typedef struct ur_bindless_images_map_external_array_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_release_interop_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_interop_mem_handle_t *phInteropMem;
 } ur_bindless_images_release_interop_exp_params_t;
 
@@ -9155,8 +9633,9 @@ typedef struct ur_bindless_images_release_interop_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t {
     ur_context_handle_t *phContext;
-    uint32_t *pfileDescriptor;
-    ur_exp_interop_semaphore_handle_t **pphInteropSemaphoreHandle;
+    ur_device_handle_t *phDevice;
+    ur_exp_interop_semaphore_desc_t **ppInteropSemaphoreDesc;
+    ur_exp_interop_semaphore_handle_t **pphInteropSemaphore;
 } ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9165,6 +9644,7 @@ typedef struct ur_bindless_images_import_external_semaphore_opaque_fd_exp_params
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_bindless_images_destroy_external_semaphore_exp_params_t {
     ur_context_handle_t *phContext;
+    ur_device_handle_t *phDevice;
     ur_exp_interop_semaphore_handle_t *phInteropSemaphore;
 } ur_bindless_images_destroy_external_semaphore_exp_params_t;
 
@@ -9545,6 +10025,7 @@ typedef struct ur_usm_p2p_peer_access_get_info_exp_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_init_params_t {
     ur_device_init_flags_t *pdevice_flags;
+    ur_loader_config_handle_t *phLoaderConfig;
 } ur_init_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9554,6 +10035,54 @@ typedef struct ur_init_params_t {
 typedef struct ur_tear_down_params_t {
     void **ppParams;
 } ur_tear_down_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGet
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_params_t {
+    uint32_t *pNumEntries;
+    ur_adapter_handle_t **pphAdapters;
+    uint32_t **ppNumAdapters;
+} ur_adapter_get_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_release_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_retain_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetLastError
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_last_error_params_t {
+    ur_adapter_handle_t *phAdapter;
+    const char ***pppMessage;
+    int32_t **ppError;
+} ur_adapter_get_last_error_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_info_params_t {
+    ur_adapter_handle_t *phAdapter;
+    ur_adapter_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_adapter_get_info_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urVirtualMemGranularityGetInfo

@@ -17,13 +17,15 @@ namespace ur_validation_layer {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
 ) {
     auto pfnInit = context.urDdiTable.Global.pfnInit;
 
     if (nullptr == pfnInit) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -32,7 +34,7 @@ __urdlllocal ur_result_t UR_APICALL urInit(
         }
     }
 
-    ur_result_t result = pfnInit(device_flags);
+    ur_result_t result = pfnInit(device_flags, hLoaderConfig);
 
     return result;
 }
@@ -45,7 +47,7 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
     auto pfnTearDown = context.urDdiTable.Global.pfnTearDown;
 
     if (nullptr == pfnTearDown) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -65,8 +67,178 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+) {
+    auto pfnAdapterGet = context.urDdiTable.Global.pfnAdapterGet;
+
+    if (nullptr == pfnAdapterGet) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+    }
+
+    ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+) {
+    auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
+
+    if (nullptr == pfnAdapterRelease) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterRelease(hAdapter);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.decrementRefCount(hAdapter);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+) {
+    auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
+
+    if (nullptr == pfnAdapterRetain) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterRetain(hAdapter);
+
+    if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
+        refCountContext.incrementRefCount(hAdapter);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+) {
+    auto pfnAdapterGetLastError =
+        context.urDdiTable.Global.pfnAdapterGetLastError;
+
+    if (nullptr == pfnAdapterGetLastError) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == ppMessage) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == pError) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+    }
+
+    ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+) {
+    auto pfnAdapterGetInfo = context.urDdiTable.Global.pfnAdapterGetInfo;
+
+    if (nullptr == pfnAdapterGetInfo) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (context.enableParameterValidation) {
+        if (NULL == hAdapter) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (UR_ADAPTER_INFO_REFERENCE_COUNT < propName) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+    }
+
+    ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
+                                           pPropValue, pPropSizeRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -82,13 +254,17 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     auto pfnGet = context.urDdiTable.Platform.pfnGet;
 
     if (nullptr == pfnGet) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
+        if (NULL == phAdapters) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
     }
 
-    ur_result_t result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+    ur_result_t result =
+        pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
 
     return result;
 }
@@ -111,7 +287,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetInfo(
     auto pfnGetInfo = context.urDdiTable.Platform.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -151,7 +327,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetApiVersion(
     auto pfnGetApiVersion = context.urDdiTable.Platform.pfnGetApiVersion;
 
     if (nullptr == pfnGetApiVersion) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -179,7 +355,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Platform.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -201,7 +377,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 /// @brief Intercept function for urPlatformCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
-        hNativePlatform, ///< [in] the native handle of the platform.
+        hNativePlatform, ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -211,14 +387,10 @@ __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
         context.urDdiTable.Platform.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativePlatform) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == phPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -243,7 +415,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     auto pfnGetBackendOption = context.urDdiTable.Platform.pfnGetBackendOption;
 
     if (nullptr == pfnGetBackendOption) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -262,42 +434,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
 
     ur_result_t result =
         pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-) {
-    auto pfnGetLastError = context.urDdiTable.Platform.pfnGetLastError;
-
-    if (nullptr == pfnGetLastError) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == hPlatform) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
-        if (NULL == ppMessage) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-
-        if (NULL == pError) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnGetLastError(hPlatform, ppMessage, pError);
 
     return result;
 }
@@ -322,7 +458,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     auto pfnGet = context.urDdiTable.Device.pfnGet;
 
     if (nullptr == pfnGet) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -360,7 +496,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
     auto pfnGetInfo = context.urDdiTable.Device.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -400,7 +536,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
     auto pfnRetain = context.urDdiTable.Device.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -426,7 +562,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
     auto pfnRelease = context.urDdiTable.Device.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -462,7 +598,7 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
     auto pfnPartition = context.urDdiTable.Device.pfnPartition;
 
     if (nullptr == pfnPartition) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -498,7 +634,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceSelectBinary(
     auto pfnSelectBinary = context.urDdiTable.Device.pfnSelectBinary;
 
     if (nullptr == pfnSelectBinary) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -535,7 +671,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Device.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -556,8 +692,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    ur_native_handle_t
+        hNativeDevice, ///< [in][nocheck] the native handle of the device.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -567,14 +704,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
         context.urDdiTable.Device.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hPlatform) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -609,7 +742,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
         context.urDdiTable.Device.pfnGetGlobalTimestamps;
 
     if (nullptr == pfnGetGlobalTimestamps) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -638,7 +771,7 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
     auto pfnCreate = context.urDdiTable.Context.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -670,7 +803,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
     auto pfnRetain = context.urDdiTable.Context.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -696,7 +829,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
     auto pfnRelease = context.urDdiTable.Context.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -734,7 +867,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetInfo(
     auto pfnGetInfo = context.urDdiTable.Context.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -775,7 +908,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Context.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -797,7 +930,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -810,14 +943,10 @@ __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
         context.urDdiTable.Context.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeContext) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == phDevices) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
@@ -850,7 +979,7 @@ __urdlllocal ur_result_t UR_APICALL urContextSetExtendedDeleter(
         context.urDdiTable.Context.pfnSetExtendedDeleter;
 
     if (nullptr == pfnSetExtendedDeleter) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -882,7 +1011,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
     auto pfnImageCreate = context.urDdiTable.Mem.pfnImageCreate;
 
     if (nullptr == pfnImageCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -943,7 +1072,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
     auto pfnBufferCreate = context.urDdiTable.Mem.pfnBufferCreate;
 
     if (nullptr == pfnBufferCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -992,7 +1121,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
     auto pfnRetain = context.urDdiTable.Mem.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1018,7 +1147,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
     auto pfnRelease = context.urDdiTable.Mem.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1051,7 +1180,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
     auto pfnBufferPartition = context.urDdiTable.Mem.pfnBufferPartition;
 
     if (nullptr == pfnBufferPartition) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1092,7 +1221,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Mem.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1113,8 +1242,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_mem_native_properties_t *
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
@@ -1124,14 +1254,10 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
         context.urDdiTable.Mem.pfnBufferCreateWithNativeHandle;
 
     if (nullptr == pfnBufferCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -1150,8 +1276,9 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemImageCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
@@ -1164,14 +1291,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
         context.urDdiTable.Mem.pfnImageCreateWithNativeHandle;
 
     if (nullptr == pfnImageCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeMem) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -1215,7 +1338,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
     auto pfnGetInfo = context.urDdiTable.Mem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1265,7 +1388,7 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
     auto pfnImageGetInfo = context.urDdiTable.Mem.pfnImageGetInfo;
 
     if (nullptr == pfnImageGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1273,8 +1396,20 @@ __urdlllocal ur_result_t UR_APICALL urMemImageGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_IMAGE_INFO_DEPTH < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -1295,7 +1430,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreate(
     auto pfnCreate = context.urDdiTable.Sampler.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1339,7 +1474,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
     auto pfnRetain = context.urDdiTable.Sampler.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1366,7 +1501,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
     auto pfnRelease = context.urDdiTable.Sampler.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1400,7 +1535,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetInfo(
     auto pfnGetInfo = context.urDdiTable.Sampler.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1441,7 +1576,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Sampler.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1463,7 +1598,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
 /// @brief Intercept function for urSamplerCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeSampler,           ///< [in] the native handle of the sampler.
+        hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_sampler_native_properties_t *
         pProperties, ///< [in][optional] pointer to native sampler properties struct.
@@ -1474,14 +1609,10 @@ __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
         context.urDdiTable.Sampler.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeSampler) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -1516,7 +1647,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
     auto pfnHostAlloc = context.urDdiTable.USM.pfnHostAlloc;
 
     if (nullptr == pfnHostAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1559,7 +1690,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
     auto pfnDeviceAlloc = context.urDdiTable.USM.pfnDeviceAlloc;
 
     if (nullptr == pfnDeviceAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1607,7 +1738,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
     auto pfnSharedAlloc = context.urDdiTable.USM.pfnSharedAlloc;
 
     if (nullptr == pfnSharedAlloc) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1648,7 +1779,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
     auto pfnFree = context.urDdiTable.USM.pfnFree;
 
     if (nullptr == pfnFree) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1684,7 +1815,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMGetMemAllocInfo(
     auto pfnGetMemAllocInfo = context.urDdiTable.USM.pfnGetMemAllocInfo;
 
     if (nullptr == pfnGetMemAllocInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1719,7 +1850,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolCreate(
     auto pfnPoolCreate = context.urDdiTable.USM.pfnPoolCreate;
 
     if (nullptr == pfnPoolCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1757,7 +1888,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
     auto pfnPoolRetain = context.urDdiTable.USM.pfnPoolRetain;
 
     if (nullptr == pfnPoolRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1783,7 +1914,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
     auto pfnPoolRelease = context.urDdiTable.USM.pfnPoolRelease;
 
     if (nullptr == pfnPoolRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1816,7 +1947,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolGetInfo(
     auto pfnPoolGetInfo = context.urDdiTable.USM.pfnPoolGetInfo;
 
     if (nullptr == pfnPoolGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1870,7 +2001,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
         context.urDdiTable.VirtualMem.pfnGranularityGetInfo;
 
     if (nullptr == pfnGranularityGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1878,8 +2009,20 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (propSize != 0 && pPropValue == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (pPropValue == NULL && pPropSizeRet == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (propSize == 0 && pPropValue != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -1906,7 +2049,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemReserve(
     auto pfnReserve = context.urDdiTable.VirtualMem.pfnReserve;
 
     if (nullptr == pfnReserve) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1935,7 +2078,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemFree(
     auto pfnFree = context.urDdiTable.VirtualMem.pfnFree;
 
     if (nullptr == pfnFree) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -1970,7 +2113,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemMap(
     auto pfnMap = context.urDdiTable.VirtualMem.pfnMap;
 
     if (nullptr == pfnMap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2008,7 +2151,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemUnmap(
     auto pfnUnmap = context.urDdiTable.VirtualMem.pfnUnmap;
 
     if (nullptr == pfnUnmap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2032,14 +2175,14 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t hContext, ///< [in] handle to the context object.
     const void
         *pStart, ///< [in] pointer to the start of the virtual memory range.
-    size_t size, ///< [in] size in bytes of the virutal memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
 ) {
     auto pfnSetAccess = context.urDdiTable.VirtualMem.pfnSetAccess;
 
     if (nullptr == pfnSetAccess) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2082,7 +2225,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemGetInfo(
     auto pfnGetInfo = context.urDdiTable.VirtualMem.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2111,7 +2254,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t hDevice,   ///< [in] handle of the device object.
     size_t
-        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+        size, ///< [in] size in bytes of physical memory to allocate, must be a multiple
               ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *
         pProperties, ///< [in][optional] pointer to physical memory creation properties.
@@ -2121,7 +2264,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     auto pfnCreate = context.urDdiTable.PhysicalMem.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2157,7 +2300,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
     auto pfnRetain = context.urDdiTable.PhysicalMem.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2184,7 +2327,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
     auto pfnRelease = context.urDdiTable.PhysicalMem.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2216,7 +2359,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
     auto pfnCreateWithIL = context.urDdiTable.Program.pfnCreateWithIL;
 
     if (nullptr == pfnCreateWithIL) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2273,7 +2416,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     auto pfnCreateWithBinary = context.urDdiTable.Program.pfnCreateWithBinary;
 
     if (nullptr == pfnCreateWithBinary) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2325,7 +2468,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     auto pfnBuild = context.urDdiTable.Program.pfnBuild;
 
     if (nullptr == pfnBuild) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2355,7 +2498,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCompile(
     auto pfnCompile = context.urDdiTable.Program.pfnCompile;
 
     if (nullptr == pfnCompile) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2388,7 +2531,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     auto pfnLink = context.urDdiTable.Program.pfnLink;
 
     if (nullptr == pfnLink) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2423,7 +2566,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     auto pfnRetain = context.urDdiTable.Program.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2449,7 +2592,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
     auto pfnRelease = context.urDdiTable.Program.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2485,7 +2628,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetFunctionPointer(
         context.urDdiTable.Program.pfnGetFunctionPointer;
 
     if (nullptr == pfnGetFunctionPointer) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2531,7 +2674,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetInfo(
     auto pfnGetInfo = context.urDdiTable.Program.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2583,7 +2726,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetBuildInfo(
     auto pfnGetBuildInfo = context.urDdiTable.Program.pfnGetBuildInfo;
 
     if (nullptr == pfnGetBuildInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2619,7 +2762,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramSetSpecializationConstants(
         context.urDdiTable.Program.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2652,7 +2795,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Program.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2674,7 +2817,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// @brief Intercept function for urProgramCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeProgram,           ///< [in] the native handle of the program.
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     const ur_program_native_properties_t *
         pProperties, ///< [in][optional] pointer to native program properties struct.
@@ -2685,14 +2828,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
         context.urDdiTable.Program.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeProgram) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -2723,7 +2862,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     auto pfnCreate = context.urDdiTable.Kernel.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2763,7 +2902,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
     auto pfnSetArgValue = context.urDdiTable.Kernel.pfnSetArgValue;
 
     if (nullptr == pfnSetArgValue) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2795,7 +2934,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
     auto pfnSetArgLocal = context.urDdiTable.Kernel.pfnSetArgLocal;
 
     if (nullptr == pfnSetArgLocal) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2830,7 +2969,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetInfo(
     auto pfnGetInfo = context.urDdiTable.Kernel.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2879,7 +3018,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetGroupInfo(
     auto pfnGetGroupInfo = context.urDdiTable.Kernel.pfnGetGroupInfo;
 
     if (nullptr == pfnGetGroupInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2920,7 +3059,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetSubGroupInfo(
     auto pfnGetSubGroupInfo = context.urDdiTable.Kernel.pfnGetSubGroupInfo;
 
     if (nullptr == pfnGetSubGroupInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2951,7 +3090,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
     auto pfnRetain = context.urDdiTable.Kernel.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -2977,7 +3116,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
     auto pfnRelease = context.urDdiTable.Kernel.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3009,7 +3148,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
     auto pfnSetArgPointer = context.urDdiTable.Kernel.pfnSetArgPointer;
 
     if (nullptr == pfnSetArgPointer) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3039,7 +3178,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetExecInfo(
     auto pfnSetExecInfo = context.urDdiTable.Kernel.pfnSetExecInfo;
 
     if (nullptr == pfnSetExecInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3074,7 +3213,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgSampler(
     auto pfnSetArgSampler = context.urDdiTable.Kernel.pfnSetArgSampler;
 
     if (nullptr == pfnSetArgSampler) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3105,7 +3244,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
     auto pfnSetArgMemObj = context.urDdiTable.Kernel.pfnSetArgMemObj;
 
     if (nullptr == pfnSetArgMemObj) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3132,7 +3271,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetSpecializationConstants(
         context.urDdiTable.Kernel.pfnSetSpecializationConstants;
 
     if (nullptr == pfnSetSpecializationConstants) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3165,7 +3304,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Kernel.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3186,8 +3325,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
@@ -3199,14 +3339,10 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
         context.urDdiTable.Kernel.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeKernel) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3246,7 +3382,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetInfo(
     auto pfnGetInfo = context.urDdiTable.Queue.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3290,7 +3426,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
     auto pfnCreate = context.urDdiTable.Queue.pfnCreate;
 
     if (nullptr == pfnCreate) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3324,7 +3460,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
     auto pfnRetain = context.urDdiTable.Queue.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3350,7 +3486,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
     auto pfnRelease = context.urDdiTable.Queue.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3380,7 +3516,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Queue.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3401,9 +3537,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    ur_native_handle_t
+        hNativeQueue, ///< [in][nocheck] the native handle of the queue.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3413,14 +3550,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
         context.urDdiTable.Queue.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeQueue) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3452,7 +3585,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFinish(
     auto pfnFinish = context.urDdiTable.Queue.pfnFinish;
 
     if (nullptr == pfnFinish) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3474,7 +3607,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueFlush(
     auto pfnFlush = context.urDdiTable.Queue.pfnFlush;
 
     if (nullptr == pfnFlush) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3502,7 +3635,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetInfo(
     auto pfnGetInfo = context.urDdiTable.Event.pfnGetInfo;
 
     if (nullptr == pfnGetInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3550,7 +3683,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetProfilingInfo(
     auto pfnGetProfilingInfo = context.urDdiTable.Event.pfnGetProfilingInfo;
 
     if (nullptr == pfnGetProfilingInfo) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3584,7 +3717,7 @@ __urdlllocal ur_result_t UR_APICALL urEventWait(
     auto pfnWait = context.urDdiTable.Event.pfnWait;
 
     if (nullptr == pfnWait) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3610,7 +3743,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
     auto pfnRetain = context.urDdiTable.Event.pfnRetain;
 
     if (nullptr == pfnRetain) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3636,7 +3769,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
     auto pfnRelease = context.urDdiTable.Event.pfnRelease;
 
     if (nullptr == pfnRelease) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3664,7 +3797,7 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
     auto pfnGetNativeHandle = context.urDdiTable.Event.pfnGetNativeHandle;
 
     if (nullptr == pfnGetNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3685,8 +3818,9 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeEvent, ///< [in][nocheck] the native handle of the event.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_event_native_properties_t *
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
@@ -3696,14 +3830,10 @@ __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
         context.urDdiTable.Event.pfnCreateWithNativeHandle;
 
     if (nullptr == pfnCreateWithNativeHandle) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hNativeEvent) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
-        }
-
         if (NULL == hContext) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
@@ -3735,7 +3865,7 @@ __urdlllocal ur_result_t UR_APICALL urEventSetCallback(
     auto pfnSetCallback = context.urDdiTable.Event.pfnSetCallback;
 
     if (nullptr == pfnSetCallback) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3792,7 +3922,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     auto pfnKernelLaunch = context.urDdiTable.Enqueue.pfnKernelLaunch;
 
     if (nullptr == pfnKernelLaunch) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3846,7 +3976,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     auto pfnEventsWait = context.urDdiTable.Enqueue.pfnEventsWait;
 
     if (nullptr == pfnEventsWait) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3888,7 +4018,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
         context.urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
 
     if (nullptr == pfnEventsWaitWithBarrier) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3933,7 +4063,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     auto pfnMemBufferRead = context.urDdiTable.Enqueue.pfnMemBufferRead;
 
     if (nullptr == pfnMemBufferRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -3989,7 +4119,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     auto pfnMemBufferWrite = context.urDdiTable.Enqueue.pfnMemBufferWrite;
 
     if (nullptr == pfnMemBufferWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4055,7 +4185,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     auto pfnMemBufferReadRect = context.urDdiTable.Enqueue.pfnMemBufferReadRect;
 
     if (nullptr == pfnMemBufferReadRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4166,7 +4296,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         context.urDdiTable.Enqueue.pfnMemBufferWriteRect;
 
     if (nullptr == pfnMemBufferWriteRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4261,7 +4391,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     auto pfnMemBufferCopy = context.urDdiTable.Enqueue.pfnMemBufferCopy;
 
     if (nullptr == pfnMemBufferCopy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4324,7 +4454,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     auto pfnMemBufferCopyRect = context.urDdiTable.Enqueue.pfnMemBufferCopyRect;
 
     if (nullptr == pfnMemBufferCopyRect) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4415,7 +4545,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     auto pfnMemBufferFill = context.urDdiTable.Enqueue.pfnMemBufferFill;
 
     if (nullptr == pfnMemBufferFill) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4474,7 +4604,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     auto pfnMemImageRead = context.urDdiTable.Enqueue.pfnMemImageRead;
 
     if (nullptr == pfnMemImageRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4534,7 +4664,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     auto pfnMemImageWrite = context.urDdiTable.Enqueue.pfnMemImageWrite;
 
     if (nullptr == pfnMemImageWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4594,7 +4724,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     auto pfnMemImageCopy = context.urDdiTable.Enqueue.pfnMemImageCopy;
 
     if (nullptr == pfnMemImageCopy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4650,7 +4780,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     auto pfnMemBufferMap = context.urDdiTable.Enqueue.pfnMemBufferMap;
 
     if (nullptr == pfnMemBufferMap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4706,7 +4836,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     auto pfnMemUnmap = context.urDdiTable.Enqueue.pfnMemUnmap;
 
     if (nullptr == pfnMemUnmap) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4763,7 +4893,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     auto pfnUSMFill = context.urDdiTable.Enqueue.pfnUSMFill;
 
     if (nullptr == pfnUSMFill) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4832,7 +4962,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     auto pfnUSMMemcpy = context.urDdiTable.Enqueue.pfnUSMMemcpy;
 
     if (nullptr == pfnUSMMemcpy) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4888,7 +5018,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     auto pfnUSMPrefetch = context.urDdiTable.Enqueue.pfnUSMPrefetch;
 
     if (nullptr == pfnUSMPrefetch) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4938,7 +5068,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMAdvise(
     auto pfnUSMAdvise = context.urDdiTable.Enqueue.pfnUSMAdvise;
 
     if (nullptr == pfnUSMAdvise) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -4993,7 +5123,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     auto pfnUSMFill2D = context.urDdiTable.Enqueue.pfnUSMFill2D;
 
     if (nullptr == pfnUSMFill2D) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5083,7 +5213,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     auto pfnUSMMemcpy2D = context.urDdiTable.Enqueue.pfnUSMMemcpy2D;
 
     if (nullptr == pfnUSMMemcpy2D) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5162,7 +5292,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
         context.urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
 
     if (nullptr == pfnDeviceGlobalVariableWrite) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5225,7 +5355,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
         context.urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
 
     if (nullptr == pfnDeviceGlobalVariableRead) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5291,7 +5421,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     auto pfnReadHostPipe = context.urDdiTable.Enqueue.pfnReadHostPipe;
 
     if (nullptr == pfnReadHostPipe) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5357,7 +5487,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     auto pfnWriteHostPipe = context.urDdiTable.Enqueue.pfnWriteHostPipe;
 
     if (nullptr == pfnWriteHostPipe) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5417,7 +5547,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
     auto pfnPitchedAllocExp = context.urDdiTable.USMExp.pfnPitchedAllocExp;
 
     if (nullptr == pfnPitchedAllocExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5459,6 +5589,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -5466,11 +5597,15 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         context.urDdiTable.BindlessImagesExp.pfnUnsampledImageHandleDestroyExp;
 
     if (nullptr == pfnUnsampledImageHandleDestroyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5479,7 +5614,8 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         }
     }
 
-    ur_result_t result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     return result;
 }
@@ -5489,6 +5625,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -5496,11 +5633,15 @@ urBindlessImagesSampledImageHandleDestroyExp(
         context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
 
     if (nullptr == pfnSampledImageHandleDestroyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5509,7 +5650,8 @@ urBindlessImagesSampledImageHandleDestroyExp(
         }
     }
 
-    ur_result_t result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     return result;
 }
@@ -5518,6 +5660,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 /// @brief Intercept function for urBindlessImagesImageAllocateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -5528,11 +5671,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
 
     if (nullptr == pfnImageAllocateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5553,8 +5700,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
         }
     }
 
-    ur_result_t result =
-        pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+    ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
+                                             pImageDesc, phImageMem);
 
     return result;
 }
@@ -5563,17 +5710,22 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 /// @brief Intercept function for urBindlessImagesImageFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
 ) {
     auto pfnImageFreeExp = context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
 
     if (nullptr == pfnImageFreeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5582,7 +5734,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         }
     }
 
-    ur_result_t result = pfnImageFreeExp(hContext, hImageMem);
+    ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
     return result;
 }
@@ -5591,6 +5743,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 /// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5604,11 +5757,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
         context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
 
     if (nullptr == pfnUnsampledImageCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5638,7 +5795,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
 
     return result;
 }
@@ -5647,6 +5804,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesSampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5661,11 +5819,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
         context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
 
     if (nullptr == pfnSampledImageCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5699,8 +5861,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     }
 
     ur_result_t result =
-        pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat, pImageDesc,
-                                 hSampler, phMem, phImage);
+        pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
+                                 pImageDesc, hSampler, phMem, phImage);
 
     return result;
 }
@@ -5708,14 +5870,26 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5730,11 +5904,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     auto pfnImageCopyExp = context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
 
     if (nullptr == pfnImageCopyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
-        if (NULL == hContext) {
+        if (NULL == hQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5764,8 +5938,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     }
 
     ur_result_t result = pfnImageCopyExp(
-        hContext, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
+        dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
+        phEvent);
 
     return result;
 }
@@ -5782,7 +5957,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
         context.urDdiTable.BindlessImagesExp.pfnImageGetInfoExp;
 
     if (nullptr == pfnImageGetInfoExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5809,6 +5984,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -5819,11 +5995,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
 
     if (nullptr == pfnMipmapGetLevelExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5836,8 +6016,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
         }
     }
 
-    ur_result_t result =
-        pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+    ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
+                                              mipmapLevel, phImageMem);
 
     return result;
 }
@@ -5846,17 +6026,22 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
         context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
 
     if (nullptr == pfnMipmapFreeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5865,7 +6050,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         }
     }
 
-    ur_result_t result = pfnMipmapFreeExp(hContext, hMem);
+    ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
     return result;
 }
@@ -5874,8 +6059,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 /// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
@@ -5883,7 +6070,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
         context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
 
     if (nullptr == pfnImportOpaqueFDExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -5891,13 +6078,21 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pInteropMemDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (NULL == phInteropMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
-    ur_result_t result =
-        pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+    ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
+                                              pInteropMemDesc, phInteropMem);
 
     return result;
 }
@@ -5906,23 +6101,28 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesMapExternalArrayExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     auto pfnMapExternalArrayExp =
         context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
 
     if (nullptr == pfnMapExternalArrayExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5948,7 +6148,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     }
 
     ur_result_t result = pfnMapExternalArrayExp(
-        hContext, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+        hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
     return result;
 }
@@ -5957,6 +6157,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
 ) {
@@ -5964,11 +6165,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
 
     if (nullptr == pfnReleaseInteropExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -5977,7 +6182,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         }
     }
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hInteropMem);
+    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
         refCountContext.decrementRefCount(hInteropMem);
@@ -5991,16 +6196,18 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_interop_semaphore_desc_t
+        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreOpaqueFDExp =
         context.urDdiTable.BindlessImagesExp
             .pfnImportExternalSemaphoreOpaqueFDExp;
 
     if (nullptr == pfnImportExternalSemaphoreOpaqueFDExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6008,13 +6215,21 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == phInteropSemaphoreHandle) {
+        if (NULL == hDevice) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == pInteropSemaphoreDesc) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == phInteropSemaphore) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
     }
 
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, fileDescriptor, phInteropSemaphoreHandle);
+        hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
 
     return result;
 }
@@ -6023,6 +6238,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
 ) {
@@ -6030,11 +6246,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
 
     if (nullptr == pfnDestroyExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
         if (NULL == hContext) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL == hDevice) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
@@ -6044,7 +6264,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     }
 
     ur_result_t result =
-        pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+        pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
     return result;
 }
@@ -6070,7 +6290,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
 
     if (nullptr == pfnWaitExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6110,7 +6330,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
         context.urDdiTable.BindlessImagesExp.pfnSignalExternalSemaphoreExp;
 
     if (nullptr == pfnSignalExternalSemaphoreExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6142,7 +6362,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferCreateExp(
     auto pfnCreateExp = context.urDdiTable.CommandBufferExp.pfnCreateExp;
 
     if (nullptr == pfnCreateExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6174,7 +6394,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferRetainExp(
     auto pfnRetainExp = context.urDdiTable.CommandBufferExp.pfnRetainExp;
 
     if (nullptr == pfnRetainExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6201,7 +6421,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferReleaseExp(
     auto pfnReleaseExp = context.urDdiTable.CommandBufferExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6228,7 +6448,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferFinalizeExp(
     auto pfnFinalizeExp = context.urDdiTable.CommandBufferExp.pfnFinalizeExp;
 
     if (nullptr == pfnFinalizeExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6266,7 +6486,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         context.urDdiTable.CommandBufferExp.pfnAppendKernelLaunchExp;
 
     if (nullptr == pfnAppendKernelLaunchExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6326,7 +6546,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
 
     if (nullptr == pfnAppendMemcpyUSMExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6383,7 +6603,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
 
     if (nullptr == pfnAppendMembufferCopyExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6436,7 +6656,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
 
     if (nullptr == pfnAppendMembufferWriteExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6488,7 +6708,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
 
     if (nullptr == pfnAppendMembufferReadExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6548,7 +6768,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
 
     if (nullptr == pfnAppendMembufferCopyRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6615,7 +6835,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteRectExp;
 
     if (nullptr == pfnAppendMembufferWriteRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6680,7 +6900,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
         context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadRectExp;
 
     if (nullptr == pfnAppendMembufferReadRectExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6733,7 +6953,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     auto pfnEnqueueExp = context.urDdiTable.CommandBufferExp.pfnEnqueueExp;
 
     if (nullptr == pfnEnqueueExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6770,7 +6990,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     auto pfnImportExp = context.urDdiTable.USMExp.pfnImportExp;
 
     if (nullptr == pfnImportExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6797,7 +7017,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMReleaseExp(
     auto pfnReleaseExp = context.urDdiTable.USMExp.pfnReleaseExp;
 
     if (nullptr == pfnReleaseExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6830,7 +7050,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
         context.urDdiTable.UsmP2PExp.pfnEnablePeerAccessExp;
 
     if (nullptr == pfnEnablePeerAccessExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6859,7 +7079,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
         context.urDdiTable.UsmP2PExp.pfnDisablePeerAccessExp;
 
     if (nullptr == pfnDisablePeerAccessExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6899,7 +7119,7 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
         context.urDdiTable.UsmP2PExp.pfnPeerAccessGetInfoExp;
 
     if (nullptr == pfnPeerAccessGetInfoExp) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
     if (context.enableParameterValidation) {
@@ -6968,6 +7188,22 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
+
+    dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
+    pDdiTable->pfnAdapterGet = ur_validation_layer::urAdapterGet;
+
+    dditable.pfnAdapterRelease = pDdiTable->pfnAdapterRelease;
+    pDdiTable->pfnAdapterRelease = ur_validation_layer::urAdapterRelease;
+
+    dditable.pfnAdapterRetain = pDdiTable->pfnAdapterRetain;
+    pDdiTable->pfnAdapterRetain = ur_validation_layer::urAdapterRetain;
+
+    dditable.pfnAdapterGetLastError = pDdiTable->pfnAdapterGetLastError;
+    pDdiTable->pfnAdapterGetLastError =
+        ur_validation_layer::urAdapterGetLastError;
+
+    dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
+    pDdiTable->pfnAdapterGetInfo = ur_validation_layer::urAdapterGetInfo;
 
     return result;
 }
@@ -7612,9 +7848,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     pDdiTable->pfnCreateWithNativeHandle =
         ur_validation_layer::urPlatformCreateWithNativeHandle;
 
-    dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
-    pDdiTable->pfnGetLastError = ur_validation_layer::urPlatformGetLastError;
-
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_validation_layer::urPlatformGetApiVersion;
 
@@ -8063,8 +8296,25 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
 }
 
-ur_result_t context_t::init(ur_dditable_t *dditable) {
+ur_result_t context_t::init(ur_dditable_t *dditable,
+                            const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (enabledLayerNames.count(nameFullValidation)) {
+        enableParameterValidation = true;
+        enableLeakChecking = true;
+    } else {
+        if (enabledLayerNames.count(nameParameterValidation)) {
+            enableParameterValidation = true;
+        }
+        if (enabledLayerNames.count(nameLeakChecking)) {
+            enableLeakChecking = true;
+        }
+    }
+
+    if (!enableParameterValidation && !enableLeakChecking) {
+        return result;
+    }
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_validation_layer::urGetGlobalProcAddrTable(

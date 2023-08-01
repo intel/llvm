@@ -106,8 +106,9 @@ class AdapterRegistry {
     // to load the adapter.
     std::vector<std::vector<fs::path>> adaptersLoadPaths;
 
-    static constexpr std::array<const char *, 1> knownAdapterNames{
-        MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0")};
+    static constexpr std::array<const char *, 2> knownAdapterNames{
+        MAKE_LIBRARY_NAME("ur_adapter_level_zero", "0"),
+        MAKE_LIBRARY_NAME("ur_adapter_cuda", "0")};
 
     std::optional<std::vector<fs::path>> getEnvAdapterSearchPaths() {
         std::optional<std::vector<std::string>> pathStringsOpt;

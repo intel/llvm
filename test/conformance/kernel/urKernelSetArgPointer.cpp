@@ -43,7 +43,8 @@ TEST_P(urKernelSetArgPointerTest, SuccessHost) {
     ASSERT_NE(allocation, nullptr);
 
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), &data));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
     ValidateAllocation(allocation);
 }
@@ -60,7 +61,8 @@ TEST_P(urKernelSetArgPointerTest, SuccessDevice) {
     ASSERT_NE(allocation, nullptr);
 
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), &data));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
 
     // Copy the device allocation to a host one so we can validate the results.
@@ -86,7 +88,8 @@ TEST_P(urKernelSetArgPointerTest, SuccessShared) {
     ASSERT_NE(allocation, nullptr);
 
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, &allocation));
-    ASSERT_SUCCESS(urKernelSetArgValue(kernel, 1, sizeof(data), &data));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(data), nullptr, &data));
     Launch1DRange(array_size);
     ValidateAllocation(allocation);
 }

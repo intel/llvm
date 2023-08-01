@@ -59,6 +59,19 @@ params:
       desc: >
           [out][optional] pointer to the actual size in bytes of the queried
           propName."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_DEVICE
+    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 
 --- #--------------------------------------------------------------------------
 type: function
@@ -174,7 +187,7 @@ params:
       desc: "[in] pointer to the start of the virtual memory range."
     - type: size_t
       name: size
-      desc: "[in] size in bytes of the virutal memory range."
+      desc: "[in] size in bytes of the virtual memory range."
     - type: $x_virtual_mem_access_flags_t
       name: flags
       desc: "[in] access flags to set for the mapped virtual memory range."
@@ -260,7 +273,7 @@ params:
     - type: size_t
       name: size
       desc: >
-          [in] size in bytes of phyisical memory to allocate, must be a
+          [in] size in bytes of physical memory to allocate, must be a
           multiple of $X_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     - type: const $x_physical_mem_properties_t*
       name: pProperties
@@ -268,7 +281,9 @@ params:
     - type: $x_physical_mem_handle_t*
       name: phPhysicalMem
       desc: "[out] pointer to handle of physical memory object created."
-
+returns:
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "If size is not a multiple of $X_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retain a physical memory handle, increment its reference count."

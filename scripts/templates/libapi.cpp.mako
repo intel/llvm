@@ -56,10 +56,13 @@ ${th.make_func_name(n, tags, obj)}(
     %endfor
     )
 try {
+%if 'Loader' in obj['class']:
+    return ur_lib::${th.make_func_name(n, tags, obj)}(${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
+%else:
 %if re.match("Init", obj['name']):
     static ${x}_result_t result = ${X}_RESULT_SUCCESS;
-    std::call_once(${x}_lib::context->initOnce, [device_flags]() {
-        result = ${x}_lib::context->Init(device_flags);
+    std::call_once(${x}_lib::context->initOnce, [device_flags, hLoaderConfig]() {
+        result = ${x}_lib::context->Init(device_flags, hLoaderConfig);
     });
 
     if( ${X}_RESULT_SUCCESS != result )
@@ -71,6 +74,7 @@ try {
         return ${X}_RESULT_ERROR_UNINITIALIZED;
 
     return ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
+%endif
 } catch(...) { return exceptionToResult(std::current_exception()); }
 %if 'condition' in obj:
 #endif // ${th.subt(n, tags, obj['condition'])}

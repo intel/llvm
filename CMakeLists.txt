@@ -14,6 +14,10 @@ include(CTest)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(helpers)
 
+if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  set(CMAKE_FIND_FRAMEWORK NEVER)
+endif()
+
 find_package(Python3 COMPONENTS Interpreter)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -26,10 +30,12 @@ option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
 option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
-option(UMA_BUILD_SHARED_LIBRARY "Build UMA as shared library" OFF)
+option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
+option(UMF_BUILD_SHARED_LIBRARY "Build UMF as shared library" OFF)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(VAL_USE_LIBBACKTRACE_BACKTRACE "enable libbacktrace validation backtrace for linux" OFF)
 option(UR_BUILD_TOOLS "build ur tools" ON)
+option(UMF_ENABLE_POOL_TRACKING "Build UMF with pool tracking" OFF)
 option(UR_BUILD_ADAPTER_L0 "build level 0 adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_CUDA "build cuda adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_HIP "build hip adapter from SYCL" OFF)
@@ -51,14 +57,7 @@ if(MSVC)
     set(CUSTOM_COMMAND_BINARY_DIR ${CUSTOM_COMMAND_BINARY_DIR}/$<CONFIG>)
 endif()
 
-# CXX flags setup
 if(NOT MSVC)
-    add_compile_options(-fPIC -Wall -Wpedantic
-        $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
-        $<$<CXX_COMPILER_ID:Clang>:-fcolor-diagnostics>)
-    if(UR_DEVELOPER_MODE)
-        add_compile_options(-Werror -fno-omit-frame-pointer)
-    endif()
     # Determine if libstdc++ is being used.
     check_cxx_source_compiles("
         #include <array>
@@ -74,21 +73,13 @@ if(NOT MSVC)
         # is available we still need to link this library.
         link_libraries(stdc++fs)
     endif()
-elseif(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
-    add_compile_options(/MP /W3 /MD$<$<CONFIG:Debug>:d>)
-
-    if(UR_DEVELOPER_MODE)
-        add_compile_options(/WX)
-    endif()
 endif()
 
 if(UR_ENABLE_TRACING)
     add_compile_definitions(UR_ENABLE_TRACING)
 
     # fetch xpti proxy library for the tracing layer
-    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230304" "xpti")
+    FetchContentSparse_Declare(xpti https://github.com/intel/llvm.git "sycl-nightly/20230703" "xpti")
     FetchContent_MakeAvailable(xpti)
 
     # set -fPIC for xpti since we are linking it with a shared library
@@ -128,6 +119,10 @@ endif()
 
 if(UR_USE_UBSAN)
     add_sanitizer_flag(undefined)
+endif()
+
+if(UR_USE_TSAN)
+    add_sanitizer_flag(thread)
 endif()
 
 if(UR_USE_MSAN)

@@ -20,6 +20,238 @@ c_intptr_t = c_ssize_t
 __version__ = "1.0"
 
 ###############################################################################
+## @brief Defines unique stable identifiers for all functions
+class ur_function_v(IntEnum):
+    CONTEXT_CREATE = 1                              ## Enumerator for ::urContextCreate
+    CONTEXT_RETAIN = 2                              ## Enumerator for ::urContextRetain
+    CONTEXT_RELEASE = 3                             ## Enumerator for ::urContextRelease
+    CONTEXT_GET_INFO = 4                            ## Enumerator for ::urContextGetInfo
+    CONTEXT_GET_NATIVE_HANDLE = 5                   ## Enumerator for ::urContextGetNativeHandle
+    CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6           ## Enumerator for ::urContextCreateWithNativeHandle
+    CONTEXT_SET_EXTENDED_DELETER = 7                ## Enumerator for ::urContextSetExtendedDeleter
+    DEVICE_GET = 8                                  ## Enumerator for ::urDeviceGet
+    DEVICE_GET_INFO = 9                             ## Enumerator for ::urDeviceGetInfo
+    DEVICE_RETAIN = 10                              ## Enumerator for ::urDeviceRetain
+    DEVICE_RELEASE = 11                             ## Enumerator for ::urDeviceRelease
+    DEVICE_PARTITION = 12                           ## Enumerator for ::urDevicePartition
+    DEVICE_SELECT_BINARY = 13                       ## Enumerator for ::urDeviceSelectBinary
+    DEVICE_GET_NATIVE_HANDLE = 14                   ## Enumerator for ::urDeviceGetNativeHandle
+    DEVICE_CREATE_WITH_NATIVE_HANDLE = 15           ## Enumerator for ::urDeviceCreateWithNativeHandle
+    DEVICE_GET_GLOBAL_TIMESTAMPS = 16               ## Enumerator for ::urDeviceGetGlobalTimestamps
+    ENQUEUE_KERNEL_LAUNCH = 17                      ## Enumerator for ::urEnqueueKernelLaunch
+    ENQUEUE_EVENTS_WAIT = 18                        ## Enumerator for ::urEnqueueEventsWait
+    ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19           ## Enumerator for ::urEnqueueEventsWaitWithBarrier
+    ENQUEUE_MEM_BUFFER_READ = 20                    ## Enumerator for ::urEnqueueMemBufferRead
+    ENQUEUE_MEM_BUFFER_WRITE = 21                   ## Enumerator for ::urEnqueueMemBufferWrite
+    ENQUEUE_MEM_BUFFER_READ_RECT = 22               ## Enumerator for ::urEnqueueMemBufferReadRect
+    ENQUEUE_MEM_BUFFER_WRITE_RECT = 23              ## Enumerator for ::urEnqueueMemBufferWriteRect
+    ENQUEUE_MEM_BUFFER_COPY = 24                    ## Enumerator for ::urEnqueueMemBufferCopy
+    ENQUEUE_MEM_BUFFER_COPY_RECT = 25               ## Enumerator for ::urEnqueueMemBufferCopyRect
+    ENQUEUE_MEM_BUFFER_FILL = 26                    ## Enumerator for ::urEnqueueMemBufferFill
+    ENQUEUE_MEM_IMAGE_READ = 27                     ## Enumerator for ::urEnqueueMemImageRead
+    ENQUEUE_MEM_IMAGE_WRITE = 28                    ## Enumerator for ::urEnqueueMemImageWrite
+    ENQUEUE_MEM_IMAGE_COPY = 29                     ## Enumerator for ::urEnqueueMemImageCopy
+    ENQUEUE_MEM_BUFFER_MAP = 30                     ## Enumerator for ::urEnqueueMemBufferMap
+    ENQUEUE_MEM_UNMAP = 31                          ## Enumerator for ::urEnqueueMemUnmap
+    ENQUEUE_USM_FILL = 32                           ## Enumerator for ::urEnqueueUSMFill
+    ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
+    ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
+    ENQUEUE_USM_ADVISE = 35                         ## Enumerator for ::urEnqueueUSMAdvise
+    ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
+    ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39        ## Enumerator for ::urEnqueueDeviceGlobalVariableRead
+    EVENT_GET_INFO = 40                             ## Enumerator for ::urEventGetInfo
+    EVENT_GET_PROFILING_INFO = 41                   ## Enumerator for ::urEventGetProfilingInfo
+    EVENT_WAIT = 42                                 ## Enumerator for ::urEventWait
+    EVENT_RETAIN = 43                               ## Enumerator for ::urEventRetain
+    EVENT_RELEASE = 44                              ## Enumerator for ::urEventRelease
+    EVENT_GET_NATIVE_HANDLE = 45                    ## Enumerator for ::urEventGetNativeHandle
+    EVENT_CREATE_WITH_NATIVE_HANDLE = 46            ## Enumerator for ::urEventCreateWithNativeHandle
+    EVENT_SET_CALLBACK = 47                         ## Enumerator for ::urEventSetCallback
+    KERNEL_CREATE = 48                              ## Enumerator for ::urKernelCreate
+    KERNEL_SET_ARG_VALUE = 49                       ## Enumerator for ::urKernelSetArgValue
+    KERNEL_SET_ARG_LOCAL = 50                       ## Enumerator for ::urKernelSetArgLocal
+    KERNEL_GET_INFO = 51                            ## Enumerator for ::urKernelGetInfo
+    KERNEL_GET_GROUP_INFO = 52                      ## Enumerator for ::urKernelGetGroupInfo
+    KERNEL_GET_SUB_GROUP_INFO = 53                  ## Enumerator for ::urKernelGetSubGroupInfo
+    KERNEL_RETAIN = 54                              ## Enumerator for ::urKernelRetain
+    KERNEL_RELEASE = 55                             ## Enumerator for ::urKernelRelease
+    KERNEL_SET_ARG_POINTER = 56                     ## Enumerator for ::urKernelSetArgPointer
+    KERNEL_SET_EXEC_INFO = 57                       ## Enumerator for ::urKernelSetExecInfo
+    KERNEL_SET_ARG_SAMPLER = 58                     ## Enumerator for ::urKernelSetArgSampler
+    KERNEL_SET_ARG_MEM_OBJ = 59                     ## Enumerator for ::urKernelSetArgMemObj
+    KERNEL_SET_SPECIALIZATION_CONSTANTS = 60        ## Enumerator for ::urKernelSetSpecializationConstants
+    KERNEL_GET_NATIVE_HANDLE = 61                   ## Enumerator for ::urKernelGetNativeHandle
+    KERNEL_CREATE_WITH_NATIVE_HANDLE = 62           ## Enumerator for ::urKernelCreateWithNativeHandle
+    MEM_IMAGE_CREATE = 63                           ## Enumerator for ::urMemImageCreate
+    MEM_BUFFER_CREATE = 64                          ## Enumerator for ::urMemBufferCreate
+    MEM_RETAIN = 65                                 ## Enumerator for ::urMemRetain
+    MEM_RELEASE = 66                                ## Enumerator for ::urMemRelease
+    MEM_BUFFER_PARTITION = 67                       ## Enumerator for ::urMemBufferPartition
+    MEM_GET_NATIVE_HANDLE = 68                      ## Enumerator for ::urMemGetNativeHandle
+    ENQUEUE_READ_HOST_PIPE = 69                     ## Enumerator for ::urEnqueueReadHostPipe
+    MEM_GET_INFO = 70                               ## Enumerator for ::urMemGetInfo
+    MEM_IMAGE_GET_INFO = 71                         ## Enumerator for ::urMemImageGetInfo
+    PLATFORM_GET = 72                               ## Enumerator for ::urPlatformGet
+    PLATFORM_GET_INFO = 73                          ## Enumerator for ::urPlatformGetInfo
+    PLATFORM_GET_API_VERSION = 74                   ## Enumerator for ::urPlatformGetApiVersion
+    PLATFORM_GET_NATIVE_HANDLE = 75                 ## Enumerator for ::urPlatformGetNativeHandle
+    PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76         ## Enumerator for ::urPlatformCreateWithNativeHandle
+    PROGRAM_CREATE_WITH_IL = 78                     ## Enumerator for ::urProgramCreateWithIL
+    PROGRAM_CREATE_WITH_BINARY = 79                 ## Enumerator for ::urProgramCreateWithBinary
+    PROGRAM_BUILD = 80                              ## Enumerator for ::urProgramBuild
+    PROGRAM_COMPILE = 81                            ## Enumerator for ::urProgramCompile
+    PROGRAM_LINK = 82                               ## Enumerator for ::urProgramLink
+    PROGRAM_RETAIN = 83                             ## Enumerator for ::urProgramRetain
+    PROGRAM_RELEASE = 84                            ## Enumerator for ::urProgramRelease
+    PROGRAM_GET_FUNCTION_POINTER = 85               ## Enumerator for ::urProgramGetFunctionPointer
+    PROGRAM_GET_INFO = 86                           ## Enumerator for ::urProgramGetInfo
+    PROGRAM_GET_BUILD_INFO = 87                     ## Enumerator for ::urProgramGetBuildInfo
+    PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88       ## Enumerator for ::urProgramSetSpecializationConstants
+    PROGRAM_GET_NATIVE_HANDLE = 89                  ## Enumerator for ::urProgramGetNativeHandle
+    PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90          ## Enumerator for ::urProgramCreateWithNativeHandle
+    QUEUE_GET_INFO = 91                             ## Enumerator for ::urQueueGetInfo
+    QUEUE_CREATE = 92                               ## Enumerator for ::urQueueCreate
+    QUEUE_RETAIN = 93                               ## Enumerator for ::urQueueRetain
+    QUEUE_RELEASE = 94                              ## Enumerator for ::urQueueRelease
+    QUEUE_GET_NATIVE_HANDLE = 95                    ## Enumerator for ::urQueueGetNativeHandle
+    QUEUE_CREATE_WITH_NATIVE_HANDLE = 96            ## Enumerator for ::urQueueCreateWithNativeHandle
+    QUEUE_FINISH = 97                               ## Enumerator for ::urQueueFinish
+    QUEUE_FLUSH = 98                                ## Enumerator for ::urQueueFlush
+    INIT = 99                                       ## Enumerator for ::urInit
+    TEAR_DOWN = 100                                 ## Enumerator for ::urTearDown
+    SAMPLER_CREATE = 101                            ## Enumerator for ::urSamplerCreate
+    SAMPLER_RETAIN = 102                            ## Enumerator for ::urSamplerRetain
+    SAMPLER_RELEASE = 103                           ## Enumerator for ::urSamplerRelease
+    SAMPLER_GET_INFO = 104                          ## Enumerator for ::urSamplerGetInfo
+    SAMPLER_GET_NATIVE_HANDLE = 105                 ## Enumerator for ::urSamplerGetNativeHandle
+    SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106         ## Enumerator for ::urSamplerCreateWithNativeHandle
+    USM_HOST_ALLOC = 107                            ## Enumerator for ::urUSMHostAlloc
+    USM_DEVICE_ALLOC = 108                          ## Enumerator for ::urUSMDeviceAlloc
+    USM_SHARED_ALLOC = 109                          ## Enumerator for ::urUSMSharedAlloc
+    USM_FREE = 110                                  ## Enumerator for ::urUSMFree
+    USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
+    USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
+    COMMAND_BUFFER_CREATE_EXP = 113                 ## Enumerator for ::urCommandBufferCreateExp
+    PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
+    MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
+    MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
+    ENQUEUE_WRITE_HOST_PIPE = 117                   ## Enumerator for ::urEnqueueWriteHostPipe
+    USM_POOL_RETAIN = 118                           ## Enumerator for ::urUSMPoolRetain
+    USM_POOL_RELEASE = 119                          ## Enumerator for ::urUSMPoolRelease
+    USM_POOL_GET_INFO = 120                         ## Enumerator for ::urUSMPoolGetInfo
+    COMMAND_BUFFER_RETAIN_EXP = 121                 ## Enumerator for ::urCommandBufferRetainExp
+    COMMAND_BUFFER_RELEASE_EXP = 122                ## Enumerator for ::urCommandBufferReleaseExp
+    COMMAND_BUFFER_FINALIZE_EXP = 123               ## Enumerator for ::urCommandBufferFinalizeExp
+    COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125   ## Enumerator for ::urCommandBufferAppendKernelLaunchExp
+    COMMAND_BUFFER_ENQUEUE_EXP = 128                ## Enumerator for ::urCommandBufferEnqueueExp
+    COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129      ## Enumerator for ::urCommandBufferAppendMemcpyUSMExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130  ## Enumerator for ::urCommandBufferAppendMembufferCopyExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131 ## Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
+    USM_PITCHED_ALLOC_EXP = 132                     ## Enumerator for ::urUSMPitchedAllocExp
+    BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133## Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
+    BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134  ## Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
+    BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135        ## Enumerator for ::urBindlessImagesImageAllocateExp
+    BINDLESS_IMAGES_IMAGE_FREE_EXP = 136            ## Enumerator for ::urBindlessImagesImageFreeExp
+    BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137## Enumerator for ::urBindlessImagesUnsampledImageCreateExp
+    BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138  ## Enumerator for ::urBindlessImagesSampledImageCreateExp
+    BINDLESS_IMAGES_IMAGE_COPY_EXP = 139            ## Enumerator for ::urBindlessImagesImageCopyExp
+    BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140        ## Enumerator for ::urBindlessImagesImageGetInfoExp
+    BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141      ## Enumerator for ::urBindlessImagesMipmapGetLevelExp
+    BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142           ## Enumerator for ::urBindlessImagesMipmapFreeExp
+    BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143      ## Enumerator for ::urBindlessImagesImportOpaqueFDExp
+    BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144    ## Enumerator for ::urBindlessImagesMapExternalArrayExp
+    BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145       ## Enumerator for ::urBindlessImagesReleaseInteropExp
+    BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146   ## Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
+    BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147## Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
+    BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
+    BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
+    ENQUEUE_USM_FILL_2D = 151                       ## Enumerator for ::urEnqueueUSMFill2D
+    ENQUEUE_USM_MEMCPY_2D = 152                     ## Enumerator for ::urEnqueueUSMMemcpy2D
+    VIRTUAL_MEM_GRANULARITY_GET_INFO = 153          ## Enumerator for ::urVirtualMemGranularityGetInfo
+    VIRTUAL_MEM_RESERVE = 154                       ## Enumerator for ::urVirtualMemReserve
+    VIRTUAL_MEM_FREE = 155                          ## Enumerator for ::urVirtualMemFree
+    VIRTUAL_MEM_MAP = 156                           ## Enumerator for ::urVirtualMemMap
+    VIRTUAL_MEM_UNMAP = 157                         ## Enumerator for ::urVirtualMemUnmap
+    VIRTUAL_MEM_SET_ACCESS = 158                    ## Enumerator for ::urVirtualMemSetAccess
+    VIRTUAL_MEM_GET_INFO = 159                      ## Enumerator for ::urVirtualMemGetInfo
+    PHYSICAL_MEM_CREATE = 160                       ## Enumerator for ::urPhysicalMemCreate
+    PHYSICAL_MEM_RETAIN = 161                       ## Enumerator for ::urPhysicalMemRetain
+    PHYSICAL_MEM_RELEASE = 162                      ## Enumerator for ::urPhysicalMemRelease
+    USM_IMPORT_EXP = 163                            ## Enumerator for ::urUSMImportExp
+    USM_RELEASE_EXP = 164                           ## Enumerator for ::urUSMReleaseExp
+    USM_P2P_ENABLE_PEER_ACCESS_EXP = 165            ## Enumerator for ::urUsmP2PEnablePeerAccessExp
+    USM_P2P_DISABLE_PEER_ACCESS_EXP = 166           ## Enumerator for ::urUsmP2PDisablePeerAccessExp
+    USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167          ## Enumerator for ::urUsmP2PPeerAccessGetInfoExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168 ## Enumerator for ::urCommandBufferAppendMembufferWriteExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169  ## Enumerator for ::urCommandBufferAppendMembufferReadExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170## Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
+    COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171 ## Enumerator for ::urCommandBufferAppendMembufferReadRectExp
+    LOADER_CONFIG_CREATE = 172                      ## Enumerator for ::urLoaderConfigCreate
+    LOADER_CONFIG_RELEASE = 173                     ## Enumerator for ::urLoaderConfigRelease
+    LOADER_CONFIG_RETAIN = 174                      ## Enumerator for ::urLoaderConfigRetain
+    LOADER_CONFIG_GET_INFO = 175                    ## Enumerator for ::urLoaderConfigGetInfo
+    LOADER_CONFIG_ENABLE_LAYER = 176                ## Enumerator for ::urLoaderConfigEnableLayer
+    ADAPTER_RELEASE = 177                           ## Enumerator for ::urAdapterRelease
+    ADAPTER_GET = 178                               ## Enumerator for ::urAdapterGet
+    ADAPTER_RETAIN = 179                            ## Enumerator for ::urAdapterRetain
+    ADAPTER_GET_LAST_ERROR = 180                    ## Enumerator for ::urAdapterGetLastError
+    ADAPTER_GET_INFO = 181                          ## Enumerator for ::urAdapterGetInfo
+
+class ur_function_t(c_int):
+    def __str__(self):
+        return str(ur_function_v(self.value))
+
+
+###############################################################################
+## @brief Defines structure types
+class ur_structure_type_v(IntEnum):
+    CONTEXT_PROPERTIES = 0                          ## ::ur_context_properties_t
+    IMAGE_DESC = 1                                  ## ::ur_image_desc_t
+    BUFFER_PROPERTIES = 2                           ## ::ur_buffer_properties_t
+    BUFFER_REGION = 3                               ## ::ur_buffer_region_t
+    BUFFER_CHANNEL_PROPERTIES = 4                   ## ::ur_buffer_channel_properties_t
+    BUFFER_ALLOC_LOCATION_PROPERTIES = 5            ## ::ur_buffer_alloc_location_properties_t
+    PROGRAM_PROPERTIES = 6                          ## ::ur_program_properties_t
+    USM_DESC = 7                                    ## ::ur_usm_desc_t
+    USM_HOST_DESC = 8                               ## ::ur_usm_host_desc_t
+    USM_DEVICE_DESC = 9                             ## ::ur_usm_device_desc_t
+    USM_POOL_DESC = 10                              ## ::ur_usm_pool_desc_t
+    USM_POOL_LIMITS_DESC = 11                       ## ::ur_usm_pool_limits_desc_t
+    DEVICE_BINARY = 12                              ## ::ur_device_binary_t
+    SAMPLER_DESC = 13                               ## ::ur_sampler_desc_t
+    QUEUE_PROPERTIES = 14                           ## ::ur_queue_properties_t
+    QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_index_properties_t
+    CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
+    KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
+    QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
+    MEM_NATIVE_PROPERTIES = 19                      ## ::ur_mem_native_properties_t
+    EVENT_NATIVE_PROPERTIES = 20                    ## ::ur_event_native_properties_t
+    PLATFORM_NATIVE_PROPERTIES = 21                 ## ::ur_platform_native_properties_t
+    DEVICE_NATIVE_PROPERTIES = 22                   ## ::ur_device_native_properties_t
+    PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
+    SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
+    QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
+    DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
+    KERNEL_ARG_MEM_OBJ_PROPERTIES = 27              ## ::ur_kernel_arg_mem_obj_properties_t
+    PHYSICAL_MEM_PROPERTIES = 28                    ## ::ur_physical_mem_properties_t
+    KERNEL_ARG_POINTER_PROPERTIES = 29              ## ::ur_kernel_arg_pointer_properties_t
+    KERNEL_ARG_SAMPLER_PROPERTIES = 30              ## ::ur_kernel_arg_sampler_properties_t
+    KERNEL_EXEC_INFO_PROPERTIES = 31                ## ::ur_kernel_exec_info_properties_t
+    KERNEL_ARG_VALUE_PROPERTIES = 32                ## ::ur_kernel_arg_value_properties_t
+    KERNEL_ARG_LOCAL_PROPERTIES = 33                ## ::ur_kernel_arg_local_properties_t
+    EXP_COMMAND_BUFFER_DESC = 0x1000                ## ::ur_exp_command_buffer_desc_t
+    EXP_SAMPLER_MIP_PROPERTIES = 0x2000             ## ::ur_exp_sampler_mip_properties_t
+    EXP_INTEROP_MEM_DESC = 0x2001                   ## ::ur_exp_interop_mem_desc_t
+    EXP_INTEROP_SEMAPHORE_DESC = 0x2002             ## ::ur_exp_interop_semaphore_desc_t
+    EXP_FILE_DESCRIPTOR = 0x2003                    ## ::ur_exp_file_descriptor_t
+    EXP_WIN32_HANDLE = 0x2004                       ## ::ur_exp_win32_handle_t
+
+class ur_structure_type_t(c_int):
+    def __str__(self):
+        return str(ur_structure_type_v(self.value))
+
+
+###############################################################################
 ## @brief Generates generic 'oneAPI' API versions
 def UR_MAKE_VERSION( _major, _minor ):
     return (( _major << 16 )|( _minor & 0x0000ffff))
@@ -53,6 +285,16 @@ def UR_MINOR_VERSION( _ver ):
 ###############################################################################
 ## @brief compiler-independent type
 class ur_bool_t(c_ubyte):
+    pass
+
+###############################################################################
+## @brief Handle of a loader config object
+class ur_loader_config_handle_t(c_void_p):
+    pass
+
+###############################################################################
+## @brief Handle of an adapter instance
+class ur_adapter_handle_t(c_void_p):
     pass
 
 ###############################################################################
@@ -142,7 +384,7 @@ class ur_result_v(IntEnum):
     ERROR_DEVICE_LOST = 20                          ## Device hung, reset, was removed, or adapter update occurred
     ERROR_DEVICE_REQUIRES_RESET = 21                ## Device requires a reset
     ERROR_DEVICE_IN_LOW_POWER_STATE = 22            ## Device currently in low power state
-    ERROR_DEVICE_PARTITION_FAILED = 23              ## Device paritioning failed
+    ERROR_DEVICE_PARTITION_FAILED = 23              ## Device partitioning failed
     ERROR_INVALID_DEVICE_PARTITION_COUNT = 24       ## Invalid counts provided with ::UR_DEVICE_PARTITION_BY_COUNTS
     ERROR_INVALID_WORK_ITEM_SIZE = 25               ## Invalid work item size
     ERROR_INVALID_WORK_DIMENSION = 26               ## Invalid work dimension
@@ -158,7 +400,8 @@ class ur_result_v(IntEnum):
     ERROR_IMAGE_FORMAT_NOT_SUPPORTED = 35           ## Image format not supported
     ERROR_MEM_OBJECT_ALLOCATION_FAILURE = 36        ## Memory object allocation failure
     ERROR_INVALID_PROGRAM_EXECUTABLE = 37           ## Program object parameter is invalid.
-    ERROR_UNINITIALIZED = 38                        ## [Validation] adapter is not initialized
+    ERROR_UNINITIALIZED = 38                        ## [Validation] adapter is not initialized or specific entry-point is not
+                                                    ## implemented
     ERROR_OUT_OF_HOST_MEMORY = 39                   ## Insufficient host memory to satisfy call
     ERROR_OUT_OF_DEVICE_MEMORY = 40                 ## Insufficient device memory to satisfy call
     ERROR_OUT_OF_RESOURCES = 41                     ## Out of resources
@@ -196,6 +439,7 @@ class ur_result_v(IntEnum):
     ERROR_OBJECT_ALLOCATION_FAILURE = 66            ## Objection allocation failure
     ERROR_ADAPTER_SPECIFIC = 67                     ## An adapter specific warning/error has been reported and can be
                                                     ## retrieved via the urPlatformGetLastError entry point.
+    ERROR_LAYER_NOT_PRESENT = 68                    ## A requested layer was not found by the loader.
     ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000       ## Invalid Command-Buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001## Sync point is not valid for the command-buffer
     ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002  ## Sync point wait list is invalid
@@ -204,51 +448,6 @@ class ur_result_v(IntEnum):
 class ur_result_t(c_int):
     def __str__(self):
         return str(ur_result_v(self.value))
-
-
-###############################################################################
-## @brief Defines structure types
-class ur_structure_type_v(IntEnum):
-    CONTEXT_PROPERTIES = 0                          ## ::ur_context_properties_t
-    IMAGE_DESC = 1                                  ## ::ur_image_desc_t
-    BUFFER_PROPERTIES = 2                           ## ::ur_buffer_properties_t
-    BUFFER_REGION = 3                               ## ::ur_buffer_region_t
-    BUFFER_CHANNEL_PROPERTIES = 4                   ## ::ur_buffer_channel_properties_t
-    BUFFER_ALLOC_LOCATION_PROPERTIES = 5            ## ::ur_buffer_alloc_location_properties_t
-    PROGRAM_PROPERTIES = 6                          ## ::ur_program_properties_t
-    USM_DESC = 7                                    ## ::ur_usm_desc_t
-    USM_HOST_DESC = 8                               ## ::ur_usm_host_desc_t
-    USM_DEVICE_DESC = 9                             ## ::ur_usm_device_desc_t
-    USM_POOL_DESC = 10                              ## ::ur_usm_pool_desc_t
-    USM_POOL_LIMITS_DESC = 11                       ## ::ur_usm_pool_limits_desc_t
-    DEVICE_BINARY = 12                              ## ::ur_device_binary_t
-    SAMPLER_DESC = 13                               ## ::ur_sampler_desc_t
-    QUEUE_PROPERTIES = 14                           ## ::ur_queue_properties_t
-    QUEUE_INDEX_PROPERTIES = 15                     ## ::ur_queue_properties_t
-    CONTEXT_NATIVE_PROPERTIES = 16                  ## ::ur_context_native_properties_t
-    KERNEL_NATIVE_PROPERTIES = 17                   ## ::ur_kernel_native_properties_t
-    QUEUE_NATIVE_PROPERTIES = 18                    ## ::ur_queue_native_properties_t
-    MEM_NATIVE_PROPERTIES = 19                      ## ::ur_mem_native_properties_t
-    EVENT_NATIVE_PROPERTIES = 20                    ## ::ur_event_native_properties_t
-    PLATFORM_NATIVE_PROPERTIES = 21                 ## ::ur_platform_native_properties_t
-    DEVICE_NATIVE_PROPERTIES = 22                   ## ::ur_device_native_properties_t
-    PROGRAM_NATIVE_PROPERTIES = 23                  ## ::ur_program_native_properties_t
-    SAMPLER_NATIVE_PROPERTIES = 24                  ## ::ur_sampler_native_properties_t
-    QUEUE_NATIVE_DESC = 25                          ## ::ur_queue_native_desc_t
-    DEVICE_PARTITION_PROPERTIES = 26                ## ::ur_device_partition_properties_t
-    KERNEL_ARG_MEM_OBJ_PROPERTIES = 27              ## ::ur_kernel_arg_mem_obj_properties_t
-    PHYSICAL_MEM_PROPERTIES = 28                    ## ::ur_physical_mem_properties_t
-    KERNEL_ARG_POINTER_PROPERTIES = 29              ## ::ur_kernel_arg_pointer_properties_t
-    KERNEL_ARG_SAMPLER_PROPERTIES = 30              ## ::ur_kernel_arg_sampler_properties_t
-    KERNEL_EXEC_INFO_PROPERTIES = 31                ## ::ur_kernel_exec_info_properties_t
-    KERNEL_ARG_VALUE_PROPERTIES = 32                ## ::ur_kernel_arg_value_properties_t
-    KERNEL_ARG_LOCAL_PROPERTIES = 33                ## ::ur_kernel_arg_local_properties_t
-    EXP_COMMAND_BUFFER_DESC = 0x1000                ## ::ur_exp_command_buffer_desc_t
-    EXP_SAMPLER_MIP_PROPERTIES = 0x2000             ## ::ur_exp_sampler_mip_properties_t
-
-class ur_structure_type_t(c_int):
-    def __str__(self):
-        return str(ur_structure_type_v(self.value))
 
 
 ###############################################################################
@@ -297,6 +496,48 @@ class ur_device_init_flags_v(IntEnum):
 class ur_device_init_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
+
+
+###############################################################################
+## @brief Supported loader info
+class ur_loader_config_info_v(IntEnum):
+    AVAILABLE_LAYERS = 0                            ## [char[]] Null-terminated, semi-colon separated list of available
+                                                    ## layers.
+    REFERENCE_COUNT = 1                             ## [uint32_t] Reference count of the loader config object.
+
+class ur_loader_config_info_t(c_int):
+    def __str__(self):
+        return str(ur_loader_config_info_v(self.value))
+
+
+###############################################################################
+## @brief Supported adapter info
+class ur_adapter_info_v(IntEnum):
+    BACKEND = 0                                     ## [::ur_adapter_backend_t] Identifies the native backend supported by
+                                                    ## the adapter.
+    REFERENCE_COUNT = 1                             ## [uint32_t] Reference count of the adapter.
+                                                    ## The reference count returned should be considered immediately stale.
+                                                    ## It is unsuitable for general use in applications. This feature is
+                                                    ## provided for identifying memory leaks.
+
+class ur_adapter_info_t(c_int):
+    def __str__(self):
+        return str(ur_adapter_info_v(self.value))
+
+
+###############################################################################
+## @brief Identifies backend of the adapter
+class ur_adapter_backend_v(IntEnum):
+    UNKNOWN = 0                                     ## The backend is not a recognized one
+    LEVEL_ZERO = 1                                  ## The backend is Level Zero
+    OPENCL = 2                                      ## The backend is OpenCL
+    CUDA = 3                                        ## The backend is CUDA
+    HIP = 4                                         ## The backend is HIP
+    NATIVE_CPU = 5                                  ## The backend is Native CPU
+
+class ur_adapter_backend_t(c_int):
+    def __str__(self):
+        return str(ur_adapter_backend_v(self.value))
 
 
 ###############################################################################
@@ -355,6 +596,7 @@ class ur_platform_backend_v(IntEnum):
     OPENCL = 2                                      ## The backend is OpenCL
     CUDA = 3                                        ## The backend is CUDA
     HIP = 4                                         ## The backend is HIP
+    NATIVE_CPU = 5                                  ## The backend is Native CPU
 
 class ur_platform_backend_t(c_int):
     def __str__(self):
@@ -475,7 +717,7 @@ class ur_device_info_v(IntEnum):
     MAX_READ_WRITE_IMAGE_ARGS = 32                  ## [uint32_t] max number of image objects arguments of a kernel declared
                                                     ## with the read_write qualifier
     IMAGE2D_MAX_WIDTH = 33                          ## [size_t] max width of Image2D object
-    IMAGE2D_MAX_HEIGHT = 34                         ## [size_t] max heigh of Image2D object
+    IMAGE2D_MAX_HEIGHT = 34                         ## [size_t] max height of Image2D object
     IMAGE3D_MAX_WIDTH = 35                          ## [size_t] max width of Image3D object
     IMAGE3D_MAX_HEIGHT = 36                         ## [size_t] max height of Image3D object
     IMAGE3D_MAX_DEPTH = 37                          ## [size_t] max depth of Image3D object
@@ -584,13 +826,14 @@ class ur_device_info_v(IntEnum):
     IP_VERSION = 113                                ## [uint32_t] The device IP version. The meaning of the device IP version
                                                     ## is implementation-defined, but newer devices should have a higher
                                                     ## version than older devices.
+    VIRTUAL_MEMORY_SUPPORT = 114                    ## [::ur_bool_t] return true if the device supports virtual memory.
     BINDLESS_IMAGES_SUPPORT_EXP = 0x2000            ## [::ur_bool_t] returns true if the device supports the creation of
                                                     ## bindless images
-    BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2001     ## [::ur_bool_t] returns true if the device supports the creation of 1D
+    BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001 ## [::ur_bool_t] returns true if the device supports the creation of
+                                                    ## bindless images backed by shared USM
+    BINDLESS_IMAGES_1D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 1D
                                                     ## bindless images backed by USM
-    BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2002     ## [::ur_bool_t] returns true if the device supports the creation of 2D
-                                                    ## bindless images backed by USM
-    BINDLESS_IMAGES_3D_USM_SUPPORT_EXP = 0x2003     ## [::ur_bool_t] returns true if the device supports the creation of 3D
+    BINDLESS_IMAGES_2D_USM_SUPPORT_EXP = 0x2003     ## [::ur_bool_t] returns true if the device supports the creation of 2D
                                                     ## bindless images backed by USM
     IMAGE_PITCH_ALIGN_EXP = 0x2004                  ## [uint32_t] returns the required alignment of the pitch between two
                                                     ## rows of an image in bytes
@@ -673,7 +916,7 @@ class ur_device_partition_value_t(Structure):
         ("count", c_ulong),                                             ## [in] Number of compute units in a sub-device when partitioning with
                                                                         ## ::UR_DEVICE_PARTITION_BY_COUNTS.
         ("affinity_domain", ur_device_affinity_domain_flags_t)          ## [in] The affinity domain to partition for when partitioning with
-                                                                        ## $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
+                                                                        ## ::UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN.
     ]
 
 ###############################################################################
@@ -681,7 +924,7 @@ class ur_device_partition_value_t(Structure):
 class ur_device_partition_property_t(Structure):
     _fields_ = [
         ("type", ur_device_partition_t),                                ## [in] The partitioning type to be used.
-        ("value", ur_device_partition_value_t)                          ## [in] The paritioning value.
+        ("value", ur_device_partition_value_t)                          ## [in][tagged_by(type)] The partitioning value.
     ]
 
 ###############################################################################
@@ -1404,7 +1647,7 @@ class ur_program_metadata_t(Structure):
         ("type", ur_program_metadata_type_t),                           ## [in] the type of metadata value.
         ("size", c_size_t),                                             ## [in] size in bytes of the data pointed to by value.pData, or 0 when
                                                                         ## value size is less than 64-bits and is stored directly in value.data.
-        ("value", ur_program_metadata_value_t)                          ## [in] the metadata value storage.
+        ("value", ur_program_metadata_value_t)                          ## [in][tagged_by(type)] the metadata value storage.
     ]
 
 ###############################################################################
@@ -1573,7 +1816,7 @@ class ur_kernel_sub_group_info_t(c_int):
 
 
 ###############################################################################
-## @brief Kernel Cache Configuartion.
+## @brief Kernel Cache Configuration.
 class ur_kernel_cache_config_v(IntEnum):
     DEFAULT = 0                                     ## No preference for SLM or data cache.
     LARGE_SLM = 1                                   ## Large Shared Local Memory (SLM) size.
@@ -1868,180 +2111,6 @@ def ur_event_callback_t(user_defined_callback):
     return ur_event_callback_t_wrapper
 
 ###############################################################################
-## @brief Defines unique stable identifiers for all functions
-class ur_function_v(IntEnum):
-    CONTEXT_CREATE = 1                              ## Enumerator for ::urContextCreate
-    CONTEXT_RETAIN = 2                              ## Enumerator for ::urContextRetain
-    CONTEXT_RELEASE = 3                             ## Enumerator for ::urContextRelease
-    CONTEXT_GET_INFO = 4                            ## Enumerator for ::urContextGetInfo
-    CONTEXT_GET_NATIVE_HANDLE = 5                   ## Enumerator for ::urContextGetNativeHandle
-    CONTEXT_CREATE_WITH_NATIVE_HANDLE = 6           ## Enumerator for ::urContextCreateWithNativeHandle
-    CONTEXT_SET_EXTENDED_DELETER = 7                ## Enumerator for ::urContextSetExtendedDeleter
-    DEVICE_GET = 8                                  ## Enumerator for ::urDeviceGet
-    DEVICE_GET_INFO = 9                             ## Enumerator for ::urDeviceGetInfo
-    DEVICE_RETAIN = 10                              ## Enumerator for ::urDeviceRetain
-    DEVICE_RELEASE = 11                             ## Enumerator for ::urDeviceRelease
-    DEVICE_PARTITION = 12                           ## Enumerator for ::urDevicePartition
-    DEVICE_SELECT_BINARY = 13                       ## Enumerator for ::urDeviceSelectBinary
-    DEVICE_GET_NATIVE_HANDLE = 14                   ## Enumerator for ::urDeviceGetNativeHandle
-    DEVICE_CREATE_WITH_NATIVE_HANDLE = 15           ## Enumerator for ::urDeviceCreateWithNativeHandle
-    DEVICE_GET_GLOBAL_TIMESTAMPS = 16               ## Enumerator for ::urDeviceGetGlobalTimestamps
-    ENQUEUE_KERNEL_LAUNCH = 17                      ## Enumerator for ::urEnqueueKernelLaunch
-    ENQUEUE_EVENTS_WAIT = 18                        ## Enumerator for ::urEnqueueEventsWait
-    ENQUEUE_EVENTS_WAIT_WITH_BARRIER = 19           ## Enumerator for ::urEnqueueEventsWaitWithBarrier
-    ENQUEUE_MEM_BUFFER_READ = 20                    ## Enumerator for ::urEnqueueMemBufferRead
-    ENQUEUE_MEM_BUFFER_WRITE = 21                   ## Enumerator for ::urEnqueueMemBufferWrite
-    ENQUEUE_MEM_BUFFER_READ_RECT = 22               ## Enumerator for ::urEnqueueMemBufferReadRect
-    ENQUEUE_MEM_BUFFER_WRITE_RECT = 23              ## Enumerator for ::urEnqueueMemBufferWriteRect
-    ENQUEUE_MEM_BUFFER_COPY = 24                    ## Enumerator for ::urEnqueueMemBufferCopy
-    ENQUEUE_MEM_BUFFER_COPY_RECT = 25               ## Enumerator for ::urEnqueueMemBufferCopyRect
-    ENQUEUE_MEM_BUFFER_FILL = 26                    ## Enumerator for ::urEnqueueMemBufferFill
-    ENQUEUE_MEM_IMAGE_READ = 27                     ## Enumerator for ::urEnqueueMemImageRead
-    ENQUEUE_MEM_IMAGE_WRITE = 28                    ## Enumerator for ::urEnqueueMemImageWrite
-    ENQUEUE_MEM_IMAGE_COPY = 29                     ## Enumerator for ::urEnqueueMemImageCopy
-    ENQUEUE_MEM_BUFFER_MAP = 30                     ## Enumerator for ::urEnqueueMemBufferMap
-    ENQUEUE_MEM_UNMAP = 31                          ## Enumerator for ::urEnqueueMemUnmap
-    ENQUEUE_USM_FILL = 32                           ## Enumerator for ::urEnqueueUSMFill
-    ENQUEUE_USM_MEMCPY = 33                         ## Enumerator for ::urEnqueueUSMMemcpy
-    ENQUEUE_USM_PREFETCH = 34                       ## Enumerator for ::urEnqueueUSMPrefetch
-    ENQUEUE_USM_ADVISE = 35                         ## Enumerator for ::urEnqueueUSMAdvise
-    ENQUEUE_DEVICE_GLOBAL_VARIABLE_WRITE = 38       ## Enumerator for ::urEnqueueDeviceGlobalVariableWrite
-    ENQUEUE_DEVICE_GLOBAL_VARIABLE_READ = 39        ## Enumerator for ::urEnqueueDeviceGlobalVariableRead
-    EVENT_GET_INFO = 40                             ## Enumerator for ::urEventGetInfo
-    EVENT_GET_PROFILING_INFO = 41                   ## Enumerator for ::urEventGetProfilingInfo
-    EVENT_WAIT = 42                                 ## Enumerator for ::urEventWait
-    EVENT_RETAIN = 43                               ## Enumerator for ::urEventRetain
-    EVENT_RELEASE = 44                              ## Enumerator for ::urEventRelease
-    EVENT_GET_NATIVE_HANDLE = 45                    ## Enumerator for ::urEventGetNativeHandle
-    EVENT_CREATE_WITH_NATIVE_HANDLE = 46            ## Enumerator for ::urEventCreateWithNativeHandle
-    EVENT_SET_CALLBACK = 47                         ## Enumerator for ::urEventSetCallback
-    KERNEL_CREATE = 48                              ## Enumerator for ::urKernelCreate
-    KERNEL_SET_ARG_VALUE = 49                       ## Enumerator for ::urKernelSetArgValue
-    KERNEL_SET_ARG_LOCAL = 50                       ## Enumerator for ::urKernelSetArgLocal
-    KERNEL_GET_INFO = 51                            ## Enumerator for ::urKernelGetInfo
-    KERNEL_GET_GROUP_INFO = 52                      ## Enumerator for ::urKernelGetGroupInfo
-    KERNEL_GET_SUB_GROUP_INFO = 53                  ## Enumerator for ::urKernelGetSubGroupInfo
-    KERNEL_RETAIN = 54                              ## Enumerator for ::urKernelRetain
-    KERNEL_RELEASE = 55                             ## Enumerator for ::urKernelRelease
-    KERNEL_SET_ARG_POINTER = 56                     ## Enumerator for ::urKernelSetArgPointer
-    KERNEL_SET_EXEC_INFO = 57                       ## Enumerator for ::urKernelSetExecInfo
-    KERNEL_SET_ARG_SAMPLER = 58                     ## Enumerator for ::urKernelSetArgSampler
-    KERNEL_SET_ARG_MEM_OBJ = 59                     ## Enumerator for ::urKernelSetArgMemObj
-    KERNEL_SET_SPECIALIZATION_CONSTANTS = 60        ## Enumerator for ::urKernelSetSpecializationConstants
-    KERNEL_GET_NATIVE_HANDLE = 61                   ## Enumerator for ::urKernelGetNativeHandle
-    KERNEL_CREATE_WITH_NATIVE_HANDLE = 62           ## Enumerator for ::urKernelCreateWithNativeHandle
-    MEM_IMAGE_CREATE = 63                           ## Enumerator for ::urMemImageCreate
-    MEM_BUFFER_CREATE = 64                          ## Enumerator for ::urMemBufferCreate
-    MEM_RETAIN = 65                                 ## Enumerator for ::urMemRetain
-    MEM_RELEASE = 66                                ## Enumerator for ::urMemRelease
-    MEM_BUFFER_PARTITION = 67                       ## Enumerator for ::urMemBufferPartition
-    MEM_GET_NATIVE_HANDLE = 68                      ## Enumerator for ::urMemGetNativeHandle
-    ENQUEUE_READ_HOST_PIPE = 69                     ## Enumerator for ::urEnqueueReadHostPipe
-    MEM_GET_INFO = 70                               ## Enumerator for ::urMemGetInfo
-    MEM_IMAGE_GET_INFO = 71                         ## Enumerator for ::urMemImageGetInfo
-    PLATFORM_GET = 72                               ## Enumerator for ::urPlatformGet
-    PLATFORM_GET_INFO = 73                          ## Enumerator for ::urPlatformGetInfo
-    PLATFORM_GET_API_VERSION = 74                   ## Enumerator for ::urPlatformGetApiVersion
-    PLATFORM_GET_NATIVE_HANDLE = 75                 ## Enumerator for ::urPlatformGetNativeHandle
-    PLATFORM_CREATE_WITH_NATIVE_HANDLE = 76         ## Enumerator for ::urPlatformCreateWithNativeHandle
-    PROGRAM_CREATE_WITH_IL = 78                     ## Enumerator for ::urProgramCreateWithIL
-    PROGRAM_CREATE_WITH_BINARY = 79                 ## Enumerator for ::urProgramCreateWithBinary
-    PROGRAM_BUILD = 80                              ## Enumerator for ::urProgramBuild
-    PROGRAM_COMPILE = 81                            ## Enumerator for ::urProgramCompile
-    PROGRAM_LINK = 82                               ## Enumerator for ::urProgramLink
-    PROGRAM_RETAIN = 83                             ## Enumerator for ::urProgramRetain
-    PROGRAM_RELEASE = 84                            ## Enumerator for ::urProgramRelease
-    PROGRAM_GET_FUNCTION_POINTER = 85               ## Enumerator for ::urProgramGetFunctionPointer
-    PROGRAM_GET_INFO = 86                           ## Enumerator for ::urProgramGetInfo
-    PROGRAM_GET_BUILD_INFO = 87                     ## Enumerator for ::urProgramGetBuildInfo
-    PROGRAM_SET_SPECIALIZATION_CONSTANTS = 88       ## Enumerator for ::urProgramSetSpecializationConstants
-    PROGRAM_GET_NATIVE_HANDLE = 89                  ## Enumerator for ::urProgramGetNativeHandle
-    PROGRAM_CREATE_WITH_NATIVE_HANDLE = 90          ## Enumerator for ::urProgramCreateWithNativeHandle
-    QUEUE_GET_INFO = 91                             ## Enumerator for ::urQueueGetInfo
-    QUEUE_CREATE = 92                               ## Enumerator for ::urQueueCreate
-    QUEUE_RETAIN = 93                               ## Enumerator for ::urQueueRetain
-    QUEUE_RELEASE = 94                              ## Enumerator for ::urQueueRelease
-    QUEUE_GET_NATIVE_HANDLE = 95                    ## Enumerator for ::urQueueGetNativeHandle
-    QUEUE_CREATE_WITH_NATIVE_HANDLE = 96            ## Enumerator for ::urQueueCreateWithNativeHandle
-    QUEUE_FINISH = 97                               ## Enumerator for ::urQueueFinish
-    QUEUE_FLUSH = 98                                ## Enumerator for ::urQueueFlush
-    INIT = 99                                       ## Enumerator for ::urInit
-    TEAR_DOWN = 100                                 ## Enumerator for ::urTearDown
-    SAMPLER_CREATE = 101                            ## Enumerator for ::urSamplerCreate
-    SAMPLER_RETAIN = 102                            ## Enumerator for ::urSamplerRetain
-    SAMPLER_RELEASE = 103                           ## Enumerator for ::urSamplerRelease
-    SAMPLER_GET_INFO = 104                          ## Enumerator for ::urSamplerGetInfo
-    SAMPLER_GET_NATIVE_HANDLE = 105                 ## Enumerator for ::urSamplerGetNativeHandle
-    SAMPLER_CREATE_WITH_NATIVE_HANDLE = 106         ## Enumerator for ::urSamplerCreateWithNativeHandle
-    USM_HOST_ALLOC = 107                            ## Enumerator for ::urUSMHostAlloc
-    USM_DEVICE_ALLOC = 108                          ## Enumerator for ::urUSMDeviceAlloc
-    USM_SHARED_ALLOC = 109                          ## Enumerator for ::urUSMSharedAlloc
-    USM_FREE = 110                                  ## Enumerator for ::urUSMFree
-    USM_GET_MEM_ALLOC_INFO = 111                    ## Enumerator for ::urUSMGetMemAllocInfo
-    USM_POOL_CREATE = 112                           ## Enumerator for ::urUSMPoolCreate
-    COMMAND_BUFFER_CREATE_EXP = 113                 ## Enumerator for ::urCommandBufferCreateExp
-    PLATFORM_GET_BACKEND_OPTION = 114               ## Enumerator for ::urPlatformGetBackendOption
-    MEM_BUFFER_CREATE_WITH_NATIVE_HANDLE = 115      ## Enumerator for ::urMemBufferCreateWithNativeHandle
-    MEM_IMAGE_CREATE_WITH_NATIVE_HANDLE = 116       ## Enumerator for ::urMemImageCreateWithNativeHandle
-    ENQUEUE_WRITE_HOST_PIPE = 117                   ## Enumerator for ::urEnqueueWriteHostPipe
-    USM_POOL_RETAIN = 118                           ## Enumerator for ::urUSMPoolRetain
-    USM_POOL_RELEASE = 119                          ## Enumerator for ::urUSMPoolRelease
-    USM_POOL_GET_INFO = 120                         ## Enumerator for ::urUSMPoolGetInfo
-    COMMAND_BUFFER_RETAIN_EXP = 121                 ## Enumerator for ::urCommandBufferRetainExp
-    COMMAND_BUFFER_RELEASE_EXP = 122                ## Enumerator for ::urCommandBufferReleaseExp
-    COMMAND_BUFFER_FINALIZE_EXP = 123               ## Enumerator for ::urCommandBufferFinalizeExp
-    COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125   ## Enumerator for ::urCommandBufferAppendKernelLaunchExp
-    COMMAND_BUFFER_ENQUEUE_EXP = 128                ## Enumerator for ::urCommandBufferEnqueueExp
-    COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129      ## Enumerator for ::urCommandBufferAppendMemcpyUSMExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130  ## Enumerator for ::urCommandBufferAppendMembufferCopyExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131 ## Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
-    USM_PITCHED_ALLOC_EXP = 132                     ## Enumerator for ::urUSMPitchedAllocExp
-    BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133## Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
-    BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134  ## Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
-    BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP = 135        ## Enumerator for ::urBindlessImagesImageAllocateExp
-    BINDLESS_IMAGES_IMAGE_FREE_EXP = 136            ## Enumerator for ::urBindlessImagesImageFreeExp
-    BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP = 137## Enumerator for ::urBindlessImagesUnsampledImageCreateExp
-    BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP = 138  ## Enumerator for ::urBindlessImagesSampledImageCreateExp
-    BINDLESS_IMAGES_IMAGE_COPY_EXP = 139            ## Enumerator for ::urBindlessImagesImageCopyExp
-    BINDLESS_IMAGES_IMAGE_GET_INFO_EXP = 140        ## Enumerator for ::urBindlessImagesImageGetInfoExp
-    BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP = 141      ## Enumerator for ::urBindlessImagesMipmapGetLevelExp
-    BINDLESS_IMAGES_MIPMAP_FREE_EXP = 142           ## Enumerator for ::urBindlessImagesMipmapFreeExp
-    BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP = 143      ## Enumerator for ::urBindlessImagesImportOpaqueFDExp
-    BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP = 144    ## Enumerator for ::urBindlessImagesMapExternalArrayExp
-    BINDLESS_IMAGES_RELEASE_INTEROP_EXP = 145       ## Enumerator for ::urBindlessImagesReleaseInteropExp
-    BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP = 146   ## Enumerator for ::urBindlessImagesImportExternalSemaphoreOpaqueFDExp
-    BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP = 147## Enumerator for ::urBindlessImagesDestroyExternalSemaphoreExp
-    BINDLESS_IMAGES_WAIT_EXTERNAL_SEMAPHORE_EXP = 148   ## Enumerator for ::urBindlessImagesWaitExternalSemaphoreExp
-    BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP = 149 ## Enumerator for ::urBindlessImagesSignalExternalSemaphoreExp
-    PLATFORM_GET_LAST_ERROR = 150                   ## Enumerator for ::urPlatformGetLastError
-    ENQUEUE_USM_FILL_2D = 151                       ## Enumerator for ::urEnqueueUSMFill2D
-    ENQUEUE_USM_MEMCPY_2D = 152                     ## Enumerator for ::urEnqueueUSMMemcpy2D
-    VIRTUAL_MEM_GRANULARITY_GET_INFO = 153          ## Enumerator for ::urVirtualMemGranularityGetInfo
-    VIRTUAL_MEM_RESERVE = 154                       ## Enumerator for ::urVirtualMemReserve
-    VIRTUAL_MEM_FREE = 155                          ## Enumerator for ::urVirtualMemFree
-    VIRTUAL_MEM_MAP = 156                           ## Enumerator for ::urVirtualMemMap
-    VIRTUAL_MEM_UNMAP = 157                         ## Enumerator for ::urVirtualMemUnmap
-    VIRTUAL_MEM_SET_ACCESS = 158                    ## Enumerator for ::urVirtualMemSetAccess
-    VIRTUAL_MEM_GET_INFO = 159                      ## Enumerator for ::urVirtualMemGetInfo
-    PHYSICAL_MEM_CREATE = 160                       ## Enumerator for ::urPhysicalMemCreate
-    PHYSICAL_MEM_RETAIN = 161                       ## Enumerator for ::urPhysicalMemRetain
-    PHYSICAL_MEM_RELEASE = 162                      ## Enumerator for ::urPhysicalMemRelease
-    USM_IMPORT_EXP = 163                            ## Enumerator for ::urUSMImportExp
-    USM_RELEASE_EXP = 164                           ## Enumerator for ::urUSMReleaseExp
-    USM_P2P_ENABLE_PEER_ACCESS_EXP = 165            ## Enumerator for ::urUsmP2PEnablePeerAccessExp
-    USM_P2P_DISABLE_PEER_ACCESS_EXP = 166           ## Enumerator for ::urUsmP2PDisablePeerAccessExp
-    USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167          ## Enumerator for ::urUsmP2PPeerAccessGetInfoExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168 ## Enumerator for ::urCommandBufferAppendMembufferWriteExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169  ## Enumerator for ::urCommandBufferAppendMembufferReadExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170## Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
-    COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171 ## Enumerator for ::urCommandBufferAppendMembufferReadRectExp
-
-class ur_function_t(c_int):
-    def __str__(self):
-        return str(ur_function_v(self.value))
-
-
-###############################################################################
 ## @brief Map flags
 class ur_map_flags_v(IntEnum):
     READ = UR_BIT(0)                                ## Map for read access
@@ -2086,7 +2155,7 @@ class ur_exp_interop_semaphore_handle_t(c_void_p):
 ###############################################################################
 ## @brief Dictates the type of memory copy.
 class ur_exp_image_copy_flags_v(IntEnum):
-    HOST_TO_DEVICE = UR_BIT(0)                      ## Host to device.
+    HOST_TO_DEVICE = UR_BIT(0)                      ## Host to device
     DEVICE_TO_HOST = UR_BIT(1)                      ## Device to host
     DEVICE_TO_DEVICE = UR_BIT(2)                    ## Device to device
 
@@ -2094,6 +2163,26 @@ class ur_exp_image_copy_flags_t(c_int):
     def __str__(self):
         return hex(self.value)
 
+
+###############################################################################
+## @brief File descriptor
+class ur_exp_file_descriptor_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("fd", c_int)                                                   ## [in] A file descriptor used for Linux and & MacOS operating systems.
+    ]
+
+###############################################################################
+## @brief Windows specific file handle
+class ur_exp_win32_handle_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE
+        ("pNext", c_void_p),                                            ## [in][optional] pointer to extension-specific structure
+        ("handle", c_void_p)                                            ## [in] A win32 file handle.
+    ]
 
 ###############################################################################
 ## @brief Describes mipmap sampler properties
@@ -2110,8 +2199,27 @@ class ur_exp_sampler_mip_properties_t(Structure):
                                                                         ## being 0
         ("maxMipmapLevelClamp", c_float),                               ## [in] maximum mipmap level from which we can sample, maximum value
                                                                         ## being the number of levels
-        ("maxAnistropy", c_float)                                       ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
+        ("maxAnisotropy", c_float),                                     ## [in] anisotropic ratio used when samplling the mipmap with anisotropic
                                                                         ## filtering
+        ("mipFilterMode", ur_sampler_filter_mode_t)                     ## [in] mipmap filter mode used for filtering between mipmap levels
+    ]
+
+###############################################################################
+## @brief Describes an interop memory resource descriptor
+class ur_exp_interop_mem_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
+    ]
+
+###############################################################################
+## @brief Describes an interop semaphore resource descriptor
+class ur_exp_interop_semaphore_desc_t(Structure):
+    _fields_ = [
+        ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
+                                                                        ## ::UR_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+        ("pNext", c_void_p)                                             ## [in][optional] pointer to extension-specific structure
     ]
 
 ###############################################################################
@@ -2156,11 +2264,58 @@ class ur_exp_peer_info_t(c_int):
 __use_win_types = "Windows" == platform.uname()[0]
 
 ###############################################################################
+## @brief Function-pointer for urLoaderConfigCreate
+if __use_win_types:
+    _urLoaderConfigCreate_t = WINFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
+else:
+    _urLoaderConfigCreate_t = CFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigRetain
+if __use_win_types:
+    _urLoaderConfigRetain_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+else:
+    _urLoaderConfigRetain_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigRelease
+if __use_win_types:
+    _urLoaderConfigRelease_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+else:
+    _urLoaderConfigRelease_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigGetInfo
+if __use_win_types:
+    _urLoaderConfigGetInfo_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urLoaderConfigGetInfo_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+###############################################################################
+## @brief Function-pointer for urLoaderConfigEnableLayer
+if __use_win_types:
+    _urLoaderConfigEnableLayer_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
+else:
+    _urLoaderConfigEnableLayer_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
+
+
+###############################################################################
+## @brief Table of LoaderConfig functions pointers
+class ur_loader_config_dditable_t(Structure):
+    _fields_ = [
+        ("pfnCreate", c_void_p),                                        ## _urLoaderConfigCreate_t
+        ("pfnRetain", c_void_p),                                        ## _urLoaderConfigRetain_t
+        ("pfnRelease", c_void_p),                                       ## _urLoaderConfigRelease_t
+        ("pfnGetInfo", c_void_p),                                       ## _urLoaderConfigGetInfo_t
+        ("pfnEnableLayer", c_void_p)                                    ## _urLoaderConfigEnableLayer_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urPlatformGet
 if __use_win_types:
-    _urPlatformGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
+    _urPlatformGet_t = WINFUNCTYPE( ur_result_t, POINTER(ur_adapter_handle_t), c_ulong, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
 else:
-    _urPlatformGet_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
+    _urPlatformGet_t = CFUNCTYPE( ur_result_t, POINTER(ur_adapter_handle_t), c_ulong, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetInfo
@@ -2182,13 +2337,6 @@ if __use_win_types:
     _urPlatformCreateWithNativeHandle_t = WINFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
 else:
     _urPlatformCreateWithNativeHandle_t = CFUNCTYPE( ur_result_t, ur_native_handle_t, POINTER(ur_platform_native_properties_t), POINTER(ur_platform_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urPlatformGetLastError
-if __use_win_types:
-    _urPlatformGetLastError_t = WINFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
-else:
-    _urPlatformGetLastError_t = CFUNCTYPE( ur_result_t, ur_platform_handle_t, POINTER(c_char_p), POINTER(c_long) )
 
 ###############################################################################
 ## @brief Function-pointer for urPlatformGetApiVersion
@@ -2213,7 +2361,6 @@ class ur_platform_dditable_t(Structure):
         ("pfnGetInfo", c_void_p),                                       ## _urPlatformGetInfo_t
         ("pfnGetNativeHandle", c_void_p),                               ## _urPlatformGetNativeHandle_t
         ("pfnCreateWithNativeHandle", c_void_p),                        ## _urPlatformCreateWithNativeHandle_t
-        ("pfnGetLastError", c_void_p),                                  ## _urPlatformGetLastError_t
         ("pfnGetApiVersion", c_void_p),                                 ## _urPlatformGetApiVersion_t
         ("pfnGetBackendOption", c_void_p)                               ## _urPlatformGetBackendOption_t
     ]
@@ -3044,51 +3191,51 @@ class ur_queue_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 if __use_win_types:
-    _urBindlessImagesUnsampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 else:
-    _urBindlessImagesUnsampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesUnsampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
 if __use_win_types:
-    _urBindlessImagesSampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 else:
-    _urBindlessImagesSampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_handle_t )
+    _urBindlessImagesSampledImageHandleDestroyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageAllocateExp
 if __use_win_types:
-    _urBindlessImagesImageAllocateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesImageAllocateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesImageAllocateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesImageAllocateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageFreeExp
 if __use_win_types:
-    _urBindlessImagesImageFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesImageFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 else:
-    _urBindlessImagesImageFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesImageFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
 if __use_win_types:
-    _urBindlessImagesUnsampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesUnsampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 else:
-    _urBindlessImagesUnsampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesUnsampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesSampledImageCreateExp
 if __use_win_types:
-    _urBindlessImagesSampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesSampledImageCreateExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 else:
-    _urBindlessImagesSampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesSampledImageCreateExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_sampler_handle_t, POINTER(ur_mem_handle_t), POINTER(ur_exp_image_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageCopyExp
 if __use_win_types:
-    _urBindlessImagesImageCopyExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urBindlessImagesImageCopyExp_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, ur_rect_region_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 else:
-    _urBindlessImagesImageCopyExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
+    _urBindlessImagesImageCopyExp_t = CFUNCTYPE( ur_result_t, ur_queue_handle_t, c_void_p, c_void_p, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_image_copy_flags_t, ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, ur_rect_region_t, c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImageGetInfoExp
@@ -3100,51 +3247,51 @@ else:
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 if __use_win_types:
-    _urBindlessImagesMipmapGetLevelExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesMipmapGetLevelExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesMipmapGetLevelExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
+    _urBindlessImagesMipmapGetLevelExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t, c_ulong, POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMipmapFreeExp
 if __use_win_types:
-    _urBindlessImagesMipmapFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesMipmapFreeExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 else:
-    _urBindlessImagesMipmapFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_image_mem_handle_t )
+    _urBindlessImagesMipmapFreeExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_image_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_exp_interop_mem_desc_t), POINTER(ur_exp_interop_mem_handle_t) )
 else:
-    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_size_t, c_ulong, POINTER(ur_exp_interop_mem_handle_t) )
+    _urBindlessImagesImportOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, c_size_t, POINTER(ur_exp_interop_mem_desc_t), POINTER(ur_exp_interop_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesMapExternalArrayExp
 if __use_win_types:
-    _urBindlessImagesMapExternalArrayExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesMapExternalArrayExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_mem_handle_t) )
 else:
-    _urBindlessImagesMapExternalArrayExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_handle_t) )
+    _urBindlessImagesMapExternalArrayExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_image_format_t), POINTER(ur_image_desc_t), ur_exp_interop_mem_handle_t, POINTER(ur_exp_image_mem_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesReleaseInteropExp
 if __use_win_types:
-    _urBindlessImagesReleaseInteropExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+    _urBindlessImagesReleaseInteropExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_mem_handle_t )
 else:
-    _urBindlessImagesReleaseInteropExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_mem_handle_t )
+    _urBindlessImagesReleaseInteropExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_mem_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
 if __use_win_types:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_interop_semaphore_desc_t), POINTER(ur_exp_interop_semaphore_handle_t) )
 else:
-    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, c_ulong, POINTER(ur_exp_interop_semaphore_handle_t) )
+    _urBindlessImagesImportExternalSemaphoreOpaqueFDExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, POINTER(ur_exp_interop_semaphore_desc_t), POINTER(ur_exp_interop_semaphore_handle_t) )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
 if __use_win_types:
-    _urBindlessImagesDestroyExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_semaphore_handle_t )
 else:
-    _urBindlessImagesDestroyExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_exp_interop_semaphore_handle_t )
+    _urBindlessImagesDestroyExternalSemaphoreExp_t = CFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_exp_interop_semaphore_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urBindlessImagesWaitExternalSemaphoreExp
@@ -3439,9 +3586,9 @@ class ur_usm_p2p_exp_dditable_t(Structure):
 ###############################################################################
 ## @brief Function-pointer for urInit
 if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
 else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t )
+    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
 
 ###############################################################################
 ## @brief Function-pointer for urTearDown
@@ -3450,13 +3597,53 @@ if __use_win_types:
 else:
     _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
 
+###############################################################################
+## @brief Function-pointer for urAdapterGet
+if __use_win_types:
+    _urAdapterGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
+else:
+    _urAdapterGet_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
+
+###############################################################################
+## @brief Function-pointer for urAdapterRelease
+if __use_win_types:
+    _urAdapterRelease_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+else:
+    _urAdapterRelease_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urAdapterRetain
+if __use_win_types:
+    _urAdapterRetain_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+else:
+    _urAdapterRetain_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urAdapterGetLastError
+if __use_win_types:
+    _urAdapterGetLastError_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
+else:
+    _urAdapterGetLastError_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
+
+###############################################################################
+## @brief Function-pointer for urAdapterGetInfo
+if __use_win_types:
+    _urAdapterGetInfo_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urAdapterGetInfo_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
 
 ###############################################################################
 ## @brief Table of Global functions pointers
 class ur_global_dditable_t(Structure):
     _fields_ = [
         ("pfnInit", c_void_p),                                          ## _urInit_t
-        ("pfnTearDown", c_void_p)                                       ## _urTearDown_t
+        ("pfnTearDown", c_void_p),                                      ## _urTearDown_t
+        ("pfnAdapterGet", c_void_p),                                    ## _urAdapterGet_t
+        ("pfnAdapterRelease", c_void_p),                                ## _urAdapterRelease_t
+        ("pfnAdapterRetain", c_void_p),                                 ## _urAdapterRetain_t
+        ("pfnAdapterGetLastError", c_void_p),                           ## _urAdapterGetLastError_t
+        ("pfnAdapterGetInfo", c_void_p)                                 ## _urAdapterGetInfo_t
     ]
 
 ###############################################################################
@@ -3604,6 +3791,7 @@ class ur_device_dditable_t(Structure):
 ###############################################################################
 class ur_dditable_t(Structure):
     _fields_ = [
+        ("LoaderConfig", ur_loader_config_dditable_t),
         ("Platform", ur_platform_dditable_t),
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),
@@ -3652,7 +3840,6 @@ class UR_DDI:
         self.urPlatformGetInfo = _urPlatformGetInfo_t(self.__dditable.Platform.pfnGetInfo)
         self.urPlatformGetNativeHandle = _urPlatformGetNativeHandle_t(self.__dditable.Platform.pfnGetNativeHandle)
         self.urPlatformCreateWithNativeHandle = _urPlatformCreateWithNativeHandle_t(self.__dditable.Platform.pfnCreateWithNativeHandle)
-        self.urPlatformGetLastError = _urPlatformGetLastError_t(self.__dditable.Platform.pfnGetLastError)
         self.urPlatformGetApiVersion = _urPlatformGetApiVersion_t(self.__dditable.Platform.pfnGetApiVersion)
         self.urPlatformGetBackendOption = _urPlatformGetBackendOption_t(self.__dditable.Platform.pfnGetBackendOption)
 
@@ -3932,6 +4119,11 @@ class UR_DDI:
         # attach function interface to function address
         self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
         self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
+        self.urAdapterGet = _urAdapterGet_t(self.__dditable.Global.pfnAdapterGet)
+        self.urAdapterRelease = _urAdapterRelease_t(self.__dditable.Global.pfnAdapterRelease)
+        self.urAdapterRetain = _urAdapterRetain_t(self.__dditable.Global.pfnAdapterRetain)
+        self.urAdapterGetLastError = _urAdapterGetLastError_t(self.__dditable.Global.pfnAdapterGetLastError)
+        self.urAdapterGetInfo = _urAdapterGetInfo_t(self.__dditable.Global.pfnAdapterGetInfo)
 
         # call driver to get function pointers
         VirtualMem = ur_virtual_mem_dditable_t()

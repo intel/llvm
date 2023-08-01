@@ -96,7 +96,8 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
     error = False
 
     outlines = []
-    for iline, line in enumerate(util.textRead(fin)):
+    iter = enumerate(util.textRead(fin))
+    for iline, line in iter:
 
         if re.match(RE_ENABLE, line) or re.match(RE_PYCODE_BLOCK_END, line):
             enable = True
@@ -136,6 +137,18 @@ def _generate_valid_rst(fin, fout, namespace, tags, ver, rev, meta):
                         continue
 
                     if code_block and 'function' == symbol_type:
+                        # If function is split across multiple lines
+                        # then join lines until a ';' is encountered.
+                        try:
+                            line = line.rstrip()
+                            while not line.endswith(';'):
+                                _, n_line = next(iter)
+                                line = line + n_line.strip()
+                            line += '\n'
+                        except StopIteration:
+                            print(f"Function {line[:100]} was not terminated by a ';' character.")
+                            error = True
+                    
                         words = re.sub(RE_EXTRACT_PARAMS, r"\1", line)
                         words = line.split(",")
                         if len(words) != len(meta['function'][symbol]['params']):

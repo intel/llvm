@@ -7,15 +7,15 @@ function(add_adapter_reg_search_test name)
     cmake_parse_arguments(TEST "" "" "SEARCH_PATH;ENVS;SOURCES" ${ARGN})
 
     set(TEST_TARGET_NAME adapter-reg-test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${TEST_SOURCES})
 
     if(WIN32)
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/windows/adapter_search.cpp)
+            ${PROJECT_SOURCE_DIR}/source/loader/windows/adapter_search.cpp)
     else()
         target_sources(${TEST_TARGET_NAME} PRIVATE
-            ${CMAKE_SOURCE_DIR}/source/loader/linux/adapter_search.cpp)
+            ${PROJECT_SOURCE_DIR}/source/loader/linux/adapter_search.cpp)
     endif()
 
     target_link_libraries(${TEST_TARGET_NAME}
@@ -25,7 +25,7 @@ function(add_adapter_reg_search_test name)
         GTest::gtest_main)
 
     target_include_directories(${TEST_TARGET_NAME} PRIVATE
-        ${CMAKE_SOURCE_DIR}/source/loader)
+        ${PROJECT_SOURCE_DIR}/source/loader)
 
     add_test(NAME adapter-reg-${name}
         COMMAND ${TEST_TARGET_NAME}
@@ -35,7 +35,7 @@ function(add_adapter_reg_search_test name)
         ENVIRONMENT "UR_ADAPTERS_SEARCH_PATH=\"${TEST_SEARCH_PATH}\"" ${TEST_ENVS})
 endfunction()
 
-set(TEST_SEARCH_PATH ${CMAKE_SOURCE_DIR})
+set(TEST_SEARCH_PATH ${PROJECT_SOURCE_DIR})
 set(TEST_BIN_PATH ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 add_adapter_reg_search_test(search-with-env
     SEARCH_PATH ${TEST_SEARCH_PATH}

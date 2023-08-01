@@ -43,15 +43,15 @@ TEST_P(urUSMSharedAllocTest, SuccessWithDescriptors) {
 
     ur_usm_device_desc_t usm_device_desc{UR_STRUCTURE_TYPE_USM_DEVICE_DESC,
                                          nullptr,
-                                         /* device flags*/ 0};
+                                         /* device flags */ 0};
 
     ur_usm_host_desc_t usm_host_desc{UR_STRUCTURE_TYPE_USM_HOST_DESC,
                                      &usm_device_desc,
-                                     /* host flags*/ 0};
+                                     /* host flags */ 0};
 
     ur_usm_desc_t usm_desc{UR_STRUCTURE_TYPE_USM_DESC, &usm_host_desc,
-                           /* common usm flags */ 0,
-                           /* mem advice flags*/ UR_USM_ADVICE_FLAG_DEFAULT};
+                           /* mem advice flags */ UR_USM_ADVICE_FLAG_DEFAULT,
+                           /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, nullptr,
@@ -70,9 +70,9 @@ TEST_P(urUSMSharedAllocTest, SuccessWithDescriptors) {
 TEST_P(urUSMSharedAllocTest, SuccessWithMultipleAdvices) {
     ur_usm_desc_t usm_desc{
         UR_STRUCTURE_TYPE_USM_DESC, nullptr,
-        /* common usm flags */ 0,
-        /* mem advice flags*/ UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
-            UR_USM_ADVICE_FLAG_BIAS_CACHED};
+        /* mem advice flags */ UR_USM_ADVICE_FLAG_SET_READ_MOSTLY |
+            UR_USM_ADVICE_FLAG_BIAS_CACHED,
+        /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, nullptr,

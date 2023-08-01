@@ -7,7 +7,7 @@ set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 function(add_conformance_test name)
     set(TEST_TARGET_NAME test-${name})
-    add_executable(${TEST_TARGET_NAME}
+    add_ur_executable(${TEST_TARGET_NAME}
         ${ARGN}
         ${UR_CONFORMANCE_TEST_DIR}/source/environment.cpp
         ${UR_CONFORMANCE_TEST_DIR}/source/main.cpp)
@@ -47,6 +47,7 @@ endfunction()
 add_subdirectory(testing)
 add_subdirectory(adapters)
 
+add_subdirectory(runtime)
 add_subdirectory(platform)
 add_subdirectory(device)
 add_subdirectory(context)
@@ -55,6 +56,7 @@ add_subdirectory(usm)
 add_subdirectory(event)
 add_subdirectory(queue)
 add_subdirectory(sampler)
+add_subdirectory(virtual_memory)
 
 if(DEFINED UR_DPCXX)
     add_custom_target(generate_device_binaries)

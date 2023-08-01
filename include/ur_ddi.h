@@ -24,6 +24,8 @@ extern "C" {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGet
 typedef ur_result_t(UR_APICALL *ur_pfnPlatformGet_t)(
+    ur_adapter_handle_t *,
+    uint32_t,
     uint32_t,
     ur_platform_handle_t *,
     uint32_t *);
@@ -51,13 +53,6 @@ typedef ur_result_t(UR_APICALL *ur_pfnPlatformCreateWithNativeHandle_t)(
     ur_platform_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urPlatformGetLastError
-typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetLastError_t)(
-    ur_platform_handle_t,
-    const char **,
-    int32_t *);
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urPlatformGetApiVersion
 typedef ur_result_t(UR_APICALL *ur_pfnPlatformGetApiVersion_t)(
     ur_platform_handle_t,
@@ -77,7 +72,6 @@ typedef struct ur_platform_dditable_t {
     ur_pfnPlatformGetInfo_t pfnGetInfo;
     ur_pfnPlatformGetNativeHandle_t pfnGetNativeHandle;
     ur_pfnPlatformCreateWithNativeHandle_t pfnCreateWithNativeHandle;
-    ur_pfnPlatformGetLastError_t pfnGetLastError;
     ur_pfnPlatformGetApiVersion_t pfnGetApiVersion;
     ur_pfnPlatformGetBackendOption_t pfnGetBackendOption;
 } ur_platform_dditable_t;
@@ -1279,18 +1273,21 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetQueueProcAddrTable_t)(
 /// @brief Function-pointer for urBindlessImagesUnsampledImageHandleDestroyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageHandleDestroyExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesSampledImageHandleDestroyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageHandleDestroyExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImageAllocateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_mem_handle_t *);
@@ -1299,12 +1296,14 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageAllocateExp_t)(
 /// @brief Function-pointer for urBindlessImagesImageFreeExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageFreeExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesUnsampledImageCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
@@ -1315,6 +1314,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesUnsampledImageCreateExp_t)(
 /// @brief Function-pointer for urBindlessImagesSampledImageCreateExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
@@ -1325,12 +1325,16 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesSampledImageCreateExp_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImageCopyExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageCopyExp_t)(
-    ur_context_handle_t,
+    ur_queue_handle_t,
     void *,
     void *,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_image_copy_flags_t,
+    ur_rect_offset_t,
+    ur_rect_offset_t,
+    ur_rect_region_t,
+    ur_rect_region_t,
     uint32_t,
     const ur_event_handle_t *,
     ur_event_handle_t *);
@@ -1347,6 +1351,7 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImageGetInfoExp_t)(
 /// @brief Function-pointer for urBindlessImagesMipmapGetLevelExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t,
     uint32_t,
     ur_exp_image_mem_handle_t *);
@@ -1355,42 +1360,48 @@ typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapGetLevelExp_t)(
 /// @brief Function-pointer for urBindlessImagesMipmapFreeExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMipmapFreeExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_image_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportOpaqueFDExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportOpaqueFDExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     size_t,
-    uint32_t,
+    ur_exp_interop_mem_desc_t *,
     ur_exp_interop_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesMapExternalArrayExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesMapExternalArrayExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     const ur_image_format_t *,
     const ur_image_desc_t *,
     ur_exp_interop_mem_handle_t,
-    ur_exp_image_handle_t *);
+    ur_exp_image_mem_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesReleaseInteropExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesReleaseInteropExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_interop_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesImportExternalSemaphoreOpaqueFDExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesImportExternalSemaphoreOpaqueFDExp_t)(
     ur_context_handle_t,
-    uint32_t,
+    ur_device_handle_t,
+    ur_exp_interop_semaphore_desc_t *,
     ur_exp_interop_semaphore_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urBindlessImagesDestroyExternalSemaphoreExp
 typedef ur_result_t(UR_APICALL *ur_pfnBindlessImagesDestroyExternalSemaphoreExp_t)(
     ur_context_handle_t,
+    ur_device_handle_t,
     ur_exp_interop_semaphore_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1852,7 +1863,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetUsmP2PExpProcAddrTable_t)(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urInit
 typedef ur_result_t(UR_APICALL *ur_pfnInit_t)(
-    ur_device_init_flags_t);
+    ur_device_init_flags_t,
+    ur_loader_config_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urTearDown
@@ -1860,10 +1872,48 @@ typedef ur_result_t(UR_APICALL *ur_pfnTearDown_t)(
     void *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGet
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGet_t)(
+    uint32_t,
+    ur_adapter_handle_t *,
+    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRelease
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRelease_t)(
+    ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterRetain
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterRetain_t)(
+    ur_adapter_handle_t);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetLastError
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetLastError_t)(
+    ur_adapter_handle_t,
+    const char **,
+    int32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urAdapterGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnAdapterGetInfo_t)(
+    ur_adapter_handle_t,
+    ur_adapter_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Global functions pointers
 typedef struct ur_global_dditable_t {
     ur_pfnInit_t pfnInit;
     ur_pfnTearDown_t pfnTearDown;
+    ur_pfnAdapterGet_t pfnAdapterGet;
+    ur_pfnAdapterRelease_t pfnAdapterRelease;
+    ur_pfnAdapterRetain_t pfnAdapterRetain;
+    ur_pfnAdapterGetLastError_t pfnAdapterGetLastError;
+    ur_pfnAdapterGetInfo_t pfnAdapterGetInfo;
 } ur_global_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////

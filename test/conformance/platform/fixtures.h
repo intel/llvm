@@ -14,13 +14,30 @@ struct urTest : ::testing::Test {
 
     void SetUp() override {
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_SUCCESS(urInit(device_flags));
+        ASSERT_SUCCESS(urLoaderConfigCreate(&loader_config));
+        ASSERT_SUCCESS(urLoaderConfigEnableLayer(loader_config,
+                                                 "UR_LAYER_FULL_VALIDATION"));
+        ASSERT_SUCCESS(urInit(device_flags, loader_config));
+
+        uint32_t adapter_count;
+        ASSERT_SUCCESS(urAdapterGet(0, nullptr, &adapter_count));
+        adapters.resize(adapter_count);
+        ASSERT_SUCCESS(urAdapterGet(adapter_count, adapters.data(), nullptr));
     }
 
     void TearDown() override {
+        for (auto adapter : adapters) {
+            ASSERT_SUCCESS(urAdapterRelease(adapter));
+        }
+        if (loader_config) {
+            ASSERT_SUCCESS(urLoaderConfigRelease(loader_config));
+        }
         ur_tear_down_params_t tear_down_params{};
         ASSERT_SUCCESS(urTearDown(&tear_down_params));
     }
+
+    ur_loader_config_handle_t loader_config = nullptr;
+    std::vector<ur_adapter_handle_t> adapters;
 };
 
 struct urPlatformsTest : urTest {
@@ -28,10 +45,14 @@ struct urPlatformsTest : urTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urTest::SetUp());
         uint32_t count;
-        ASSERT_SUCCESS(urPlatformGet(0, nullptr, &count));
+        ASSERT_SUCCESS(urPlatformGet(adapters.data(),
+                                     static_cast<uint32_t>(adapters.size()), 0,
+                                     nullptr, &count));
         ASSERT_NE(count, 0);
         platforms.resize(count);
-        ASSERT_SUCCESS(urPlatformGet(count, platforms.data(), nullptr));
+        ASSERT_SUCCESS(urPlatformGet(adapters.data(),
+                                     static_cast<uint32_t>(adapters.size()),
+                                     count, platforms.data(), nullptr));
     }
 
     std::vector<ur_platform_handle_t> platforms;
