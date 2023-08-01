@@ -170,6 +170,9 @@ foreach(dir examples include source test tools)
 endforeach()
 file(GLOB_RECURSE format_src ${format_glob})
 
+# check for licence
+VerifyLicence(${format_src})
+
 # Add code formatter target
 add_custom_target(cppformat)
 
