@@ -8,14 +8,15 @@ on:
       - completed
 
 jobs:
-  start-aws:
-    runs-on: ubuntu-20.04
+  aws:
+    runs-on: [cuda]
     environment: aws
     steps:
-      - uses: actions/checkout@v3
-        with:
-          sparse-checkout: devops/actions/aws-ec2
-      - run: npm install ./devops/actions/aws-ec2
+      # - uses: actions/checkout@v3
+      #   with:
+      #     sparse-checkout: devops/actions/aws-ec2
+      # - run: npm install ./devops/actions/aws-ec2
+      - run: echo "${{ github.event.action }}"
       - id: mode
         run: |
           if [ "${{ github.event.action }}" == "completed" ]; then
@@ -23,11 +24,13 @@ jobs:
           else
               echo 'MODE=start' >> $GITHUB_OUTPUT
           fi
-      - uses: ./devops/actions/aws-ec2
-        with:
-          mode: ${{ steps.mode.outputs.MODE }}
-          runs-on-list: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
-          # runs-on-list: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
-          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
-          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+      - run: echo "${{ steps.mode.outputs.MODE }}"
+      - run: echo '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+      # - uses: ./devops/actions/aws-ec2
+      #   with:
+      #     mode: ${{ steps.mode.outputs.MODE }}
+      #     runs-on-list: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+      #     # runs-on-list: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+      #     GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      #     AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+      #     AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
