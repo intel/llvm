@@ -134,7 +134,9 @@ template <typename Param, typename... T>
 typename Param::return_type ext_oneapi_get_info(T... args) const;
 ----
 _Constraints_: Available only when the types `+T...+` described by the parameter
-pack match the type list defined by `Param::argument_types`.
+pack match the type list defined by `Param::argument_types`, which must be
+defined in accordance with the table below. The representation of
+`Param::argument_types` is unspecified.
 
 _Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
 in this extension, and the type alias `Param::return_type` must be defined in
