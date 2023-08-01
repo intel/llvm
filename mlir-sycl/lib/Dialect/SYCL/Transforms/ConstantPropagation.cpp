@@ -277,7 +277,7 @@ public:
   NDRInfo(polygeist::NDRangeInformation &&info) : info(std::move(info)) {}
 
   template <typename... Args>
-  NDRInfo(Args &&...args)
+  NDRInfo(Args &&... args)
       : info(std::in_place, std::in_place_type<RangeAndOffsetInfo>,
              std::forward<Args>(args)...) {}
 
@@ -482,21 +482,29 @@ private:
 /// Class representing an accessor with constant members.
 class ConstantAccessorArg : public ConstantExplicitArg {
 public:
-  template <typename... Args>
-  ConstantAccessorArg(unsigned index, Args &&...args)
-      : ConstantExplicitArg(ConstantExplicitArg::Kind::ConstantAccessorArg,
-                            index),
-        info(std::forward<Args>(args)...) {}
+  static std::unique_ptr<ConstantAccessorArg>
+  get(unsigned index, polygeist::AccessorInformation &&info) {
+    return std::unique_ptr<ConstantAccessorArg>(
+        isValidInfo(info) ? new ConstantAccessorArg(index, std::move(info))
+                          : nullptr);
+  }
 
   /// Propagate the constant this argument represents.
   void propagate(OpBuilder &builder, Region &region);
 
   static bool classof(const ConstantExplicitArg *c) {
-    return c->getKind() == ConstantExplicitArg::Kind::ConstantAccessorArg;
+    return c->getKind() == ConstantArg::Kind::ConstantAccessorArg;
   }
 
 private:
-  RangeAndOffsetInfo info;
+  /// Return whether \p can be used to replace arguments.
+  static bool isValidInfo(const polygeist::AccessorInformation &info);
+
+  ConstantAccessorArg(unsigned index, polygeist::AccessorInformation &&info)
+      : ConstantExplicitArg(ConstantArg::Kind::ConstantAccessorArg, index),
+        info(std::move(info)) {}
+
+  polygeist::AccessorInformation info;
 };
 } // namespace
 
@@ -517,8 +525,8 @@ void ConstantSYCLGridArgs::RewriterBase::rewrite(Operation *op,
   TypeSwitch<const RewriterBase *>(this)
       .Case<NumWorkItemsRewriter, NumWorkGroupsRewriter, WorkGroupSizeRewriter,
             GlobalOffsetRewriter>([&](const auto *rewriter) {
-        return rewriter->rewrite(cast<typename std::remove_pointer_t<
-                                     decltype(rewriter)>::operation_type>(op),
+        return rewriter->rewrite(cast<typename std::remove_pointer_t<decltype(
+                                     rewriter)>::operation_type>(op),
                                  info, builder);
       });
 }
@@ -733,45 +741,96 @@ void ConstantSYCLGridArgs::rewrite(Operation *op, OpBuilder &builder) const {
 // ConstantAccessorArg
 //===----------------------------------------------------------------------===//
 
+bool ConstantAccessorArg::isValidInfo(
+    const polygeist::AccessorInformation &info) {
+  return !info.needsRange() || info.hasConstantRange() ||
+         (info.hasBufferInformation() &&
+          info.getBufferInfo().hasConstantSize()) ||
+         !info.needsOffset() || info.hasConstantOffset();
+}
+
 /// Propagate the constant this argument represents.
 void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
+  // NOTE: Modifications to this function that extend this propagator
+  // capabilities may need parallel modifications to
+  // ConstantAccessorArg::isValidInfo.
+
   constexpr unsigned accessRangeMemberOffset = 1;
   constexpr unsigned memoryRangeMemberOffset = 2;
   constexpr unsigned offsetMemberOffset = 3;
 
-  // Try to propagate known access range argument
-  unsigned index = getIndex();
   Location loc = region.getLoc();
+  unsigned index = getIndex();
 
-  // Replace known range
-  bool hasRangeInfo = info.hasRangeInfo();
-  bool hasConstantRangeInfo = info.hasConstantRange();
-  if (hasRangeInfo) {
-    Value toReplace = region.getArgument(index + accessRangeMemberOffset);
-    Type type = toReplace.getType();
-    Value newRange;
-    if (hasConstantRangeInfo) {
-      LLVM_DEBUG(llvm::dbgs().indent(4) << "Using inferred constant range\n");
-      newRange = info.getRangeValue(builder, loc, type);
-    } else {
-      LLVM_DEBUG(llvm::dbgs().indent(4)
-                 << "No range provided on construction: using buffer range\n");
-      newRange = region.getArgument(index + memoryRangeMemberOffset);
-    }
-
-    assert(newRange && "Expecting range value");
-
-    toReplace.replaceAllUsesWith(newRange);
+  const auto replace = [&](unsigned offset, auto createF) {
+    Value toReplace = region.getArgument(index + offset);
+    Value newValue = createF(toReplace.getType());
+    toReplace.replaceAllUsesWith(newValue);
     recordHit();
+  };
+
+  LLVM_DEBUG(llvm::dbgs().indent(2)
+             << "Propagating accessor at position #" << index << "\n");
+
+  if (info.needsRange()) {
+    if (info.hasConstantRange()) {
+      ArrayRef<size_t> accessRange = info.getConstantRange();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4)
+            << "Constant access range provided on construction: <";
+        llvm::interleaveComma(accessRange, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(accessRangeMemberOffset, [&](Type type) {
+        return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                     accessRange);
+      });
+    }
+  } else {
+    LLVM_DEBUG(
+        llvm::dbgs().indent(4)
+        << "No access range provided on construction: using memory range\n");
+    replace(accessRangeMemberOffset, [&](Type) {
+      return region.getArgument(index + memoryRangeMemberOffset);
+    });
   }
 
-  if (info.hasConstantOffset()) {
-    LLVM_DEBUG(llvm::dbgs().indent(4) << "Using inferred constant offset\n");
-    Value toReplace = region.getArgument(index + offsetMemberOffset);
-    Type type = toReplace.getType();
-    Value newOffset = info.getOffsetValue(builder, loc, type);
-    toReplace.replaceAllUsesWith(newOffset);
-    recordHit();
+  if (info.hasBufferInformation()) {
+    const polygeist::BufferInformation &bufferInfo = info.getBufferInfo();
+    if (bufferInfo.hasConstantSize()) {
+      ArrayRef<size_t> memoryRange = bufferInfo.getConstantSize();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4)
+            << "Constant memory range provided on construction: <";
+        llvm::interleaveComma(memoryRange, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(memoryRangeMemberOffset, [&](Type type) {
+        return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                     memoryRange);
+      });
+    }
+  }
+
+  if (info.needsOffset()) {
+    if (info.hasConstantOffset()) {
+      ArrayRef<size_t> offset = info.getConstantOffset();
+      LLVM_DEBUG({
+        llvm::dbgs().indent(4) << "Constant offset provided on construction: <";
+        llvm::interleaveComma(offset, llvm::dbgs());
+        llvm::dbgs() << ">\n";
+      });
+      replace(offsetMemberOffset, [&](Type type) {
+        return createIDRange<SYCLIDConstructorOp>(builder, loc, type, offset);
+      });
+    }
+  } else {
+    LLVM_DEBUG(llvm::dbgs().indent(4)
+               << "No offset provided on construction: using default offset\n");
+    replace(offsetMemberOffset, [&](Type type) {
+      return createIDRange<SYCLIDConstructorOp>(builder, loc, type,
+                                                ArrayRef<size_t>());
+    });
   }
 }
 
@@ -859,71 +918,16 @@ getConstantAccessorArg(SYCLHostScheduleKernel op,
     return nullptr;
   }
 
-  // std::nullopt -> No constant range info
-  // Empty vector -> Use buffer range
-  // Other -> Constant range info
-  auto range = [&]() -> std::optional<polygeist::IDRangeInformation> {
-    // No range
-    if (!accInfo->needsRange()) {
-      if (accInfo->hasBufferInformation()) {
-        const polygeist::BufferInformation &buffInfo = accInfo->getBufferInfo();
-        if (buffInfo.hasConstantSize())
-          return polygeist::IDRangeInformation(buffInfo.getConstantSize());
-      }
-      return polygeist::IDRangeInformation(1);
-    }
-    // Constant range
-    if (accInfo->hasConstantRange())
-      return polygeist::IDRangeInformation(accInfo->getConstantRange());
-    // No constant range info
-    return std::nullopt;
-  }();
+  auto result = ConstantAccessorArg::get(index, std::move(*accInfo));
 
-  LLVM_DEBUG(
-      if (range) {
-        if (range->isConstant()) {
-          llvm::dbgs().indent(4) << "Constant range information:\n";
-          llvm::dbgs().indent(6) << *range << "\n";
-        } else {
-          LLVM_DEBUG(llvm::dbgs().indent(4)
-                     << "No range provided: can use buffer range\n");
-        }
-      } else {
-        LLVM_DEBUG(llvm::dbgs().indent(4)
-                   << "No range information could be inferred\n");
-      });
+  LLVM_DEBUG({
+    llvm::dbgs().indent(4) << "Accessor analysis information:\n" << *accInfo;
+    if (!result)
+      llvm::dbgs().indent(4)
+          << "Not enough information; not performing accessor propagation\n";
+  });
 
-  // std::nullopt -> No constant offset info
-  // Other -> Constant offset info
-  auto offset = [&]() -> std::optional<OffsetInfo> {
-    // Default offset
-    if (!accInfo->needsOffset())
-      return DefaultOffset();
-    // Constant offset
-    if (accInfo->hasConstantOffset())
-      return polygeist::IDRangeInformation(accInfo->getConstantOffset());
-    // No constant offset info
-    return std::nullopt;
-  }();
-
-  LLVM_DEBUG(
-      if (offset) {
-        llvm::dbgs().indent(4) << "Constant offset information:\n";
-        llvm::dbgs().indent(6) << *offset << "\n";
-      } else {
-        LLVM_DEBUG(llvm::dbgs().indent(4)
-                   << "No offset information could be inferred.\n");
-      });
-
-  if (!range) {
-    if (!offset)
-      return nullptr;
-    return std::make_unique<ConstantAccessorArg>(index, std::move(*offset));
-  }
-  if (!offset)
-    return std::make_unique<ConstantAccessorArg>(index, std::move(*range));
-  return std::make_unique<ConstantAccessorArg>(index, std::move(*range),
-                                               std::move(*offset));
+  return result;
 }
 
 template <typename RangeTy>

@@ -1197,8 +1197,8 @@ llvm.func internal @foo_constant_constant_global_local_size(
 // COM: Third split
 
 // CHECK-LABEL: ConstantPropagationPass
-// CHECK-NEXT:   (S) 6 num-propagated-constants   - Number of propagated constants
-// CHECK-NEXT:   (S) 6 num-replaced-explicit-args - Number of replaced explicit arguments
+// CHECK-NEXT:   (S) 7 num-propagated-constants   - Number of propagated constants
+// CHECK-NEXT:   (S) 7 num-replaced-explicit-args - Number of replaced explicit arguments
 // CHECK-NEXT:   (S) 0 num-replaced-implicit-args - Number of replaced implicit arguments
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
@@ -1215,6 +1215,8 @@ gpu.module @kernels {
                           %accRange: memref<?x!sycl_range_1_>,
                           %memRange: memref<?x!sycl_range_1_>,
                           %offset: memref<?x!sycl_id_1_>)
+
+// COM: Constant access range and offset
 
 // CHECK-LABEL:     gpu.func @k0(
 // CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi32, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
@@ -1240,6 +1242,8 @@ gpu.module @kernels {
     gpu.return
   }
 
+// COM: No access range needed, unknown memory range and default offset.
+
 // CHECK-LABEL:     gpu.func @k1(
 // CHECK-SAME:                   %[[VAL_11:.*]]: memref<?xi32, 1>, %[[VAL_12:.*]]: memref<?x!sycl_range_1_>, %[[VAL_13:.*]]: memref<?x!sycl_range_1_>, %[[VAL_14:.*]]: memref<?x!sycl_id_1_>) kernel {
 // CHECK-NEXT:        %[[VAL_15:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
@@ -1260,6 +1264,8 @@ gpu.module @kernels {
     gpu.return
   }
 
+// COM: No access range needed, constant memory range and default offset.
+
 // CHECK-LABEL:     gpu.func @k2(
 // CHECK-SAME:                   %[[VAL_18:.*]]: memref<?xi32, 1>, %[[VAL_19:.*]]: memref<?x!sycl_range_1_>, %[[VAL_20:.*]]: memref<?x!sycl_range_1_>, %[[VAL_21:.*]]: memref<?x!sycl_id_1_>) kernel {
 // CHECK-NEXT:        %[[VAL_22:.*]] = arith.constant 512 : index
@@ -1268,7 +1274,7 @@ gpu.module @kernels {
 // CHECK-NEXT:        %[[VAL_25:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_26:.*]] = memref.cast %[[VAL_25]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
 // CHECK-NEXT:        %[[VAL_27:.*]] = memref.alloca() : memref<1x!sycl_accessor_1_i32_w_gb2>
-// CHECK-NEXT:        func.call @init(%[[VAL_27]], %[[VAL_18]], %[[VAL_24]], %[[VAL_20]], %[[VAL_26]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:        func.call @init(%[[VAL_27]], %[[VAL_18]], %[[VAL_24]], %[[VAL_24]], %[[VAL_26]]) : (memref<1x!sycl_accessor_1_i32_w_gb2>, memref<?xi32, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k2(%ptr: memref<?xi32, 1>,
@@ -1282,6 +1288,8 @@ gpu.module @kernels {
            memref<?x!sycl_id_1_>) -> ()
     gpu.return
   }
+
+// COM: Not enough info
 
 // CHECK-LABEL:     gpu.func @k3(
 // CHECK-SAME:                   %[[VAL_28:.*]]: memref<?xi32, 1>, %[[VAL_29:.*]]: memref<?x!sycl_range_1_>, %[[VAL_30:.*]]: memref<?x!sycl_range_1_>, %[[VAL_31:.*]]: memref<?x!sycl_id_1_>) kernel {
