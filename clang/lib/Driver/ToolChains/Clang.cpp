@@ -9416,7 +9416,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const bool IsSYCLNativeCPU = isSYCLNativeCPU(TC, C.getDefaultToolChain());
     if (IsSYCLNativeCPU) {
       TargetTripleOpt = "native_cpu";
-      WrapperArgs.push_back(C.getArgs().MakeArgString("-native-cpu"));
     }
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-target=") + TargetTripleOpt));

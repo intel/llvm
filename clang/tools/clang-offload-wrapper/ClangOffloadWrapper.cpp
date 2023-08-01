@@ -219,10 +219,6 @@ static cl::opt<bool> BatchMode(
              "a_1.bin|||"),
     cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<bool> NativeCPU("native-cpu", cl::NotHidden, cl::init(false),
-                               cl::Optional,
-                               cl::desc("Enable wrapping for SYCL Native CPU"));
-
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
   case OffloadKind::Unknown:
@@ -1036,7 +1032,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if (NativeCPU) {
+      if (Img.Tgt == "native_cpu") {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
