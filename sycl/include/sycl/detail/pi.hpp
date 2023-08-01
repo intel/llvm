@@ -35,12 +35,15 @@ struct trace_event_data_t;
 namespace sycl {
 inline namespace _V1 {
 
+class context;
 
 namespace detail {
 
 enum class PiApiKind {
 #define _PI_API(api) api,
+#include <sycl/detail/pi.def>
 };
+class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
@@ -218,6 +221,7 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
   };
+#include <sycl/detail/pi.def>
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call
