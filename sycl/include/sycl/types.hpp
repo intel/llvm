@@ -10,14 +10,8 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp>
-
-// Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
-// extension even if the host compiler supports it. The same can be
-// accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.
-#ifndef __NO_EXT_VECTOR_TYPE_ON_HOST__
-// #define __NO_EXT_VECTOR_TYPE_ON_HOST__
-#endif
+#include <sycl/detail/generic_type_traits.hpp>  // for is_sigeninteger, is_s...
+#include <assert.h>                             // for assert
 
 // Check if Clang's ext_vector_type attribute is available. Host compiler
 // may not be Clang, and Clang may not be built with the extension.
@@ -46,27 +40,40 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
 
-#include <sycl/access/access.hpp>
-#include <sycl/aliases.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/half_type.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <sycl/access/access.hpp>               // for decorated, address_space
+#include <sycl/aliases.hpp>                     // for half, cl_char, cl_int
+#include <sycl/detail/common.hpp>               // for ArrayCreator, RepeatV...
+#include <sycl/detail/type_traits.hpp>          // for is_floating_point
+#include <sycl/exception.hpp>                   // for make_error_code, errc
+#include <sycl/half_type.hpp>                   // for StorageT, half, Vec16...
+#include <sycl/marray.hpp>                      // for __SYCL_BINOP, __SYCL_...
+#include <sycl/multi_ptr.hpp>                   // for multi_ptr
 
 #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #include <sycl/detail/cl.h>
 #endif
 
-#include <array>
-#include <cmath>
-#include <cstring>
-#include <optional>
-#include <variant>
+#include <array>                                // for array
+#include <cmath>                                // for ceil, floor, rint, trunc
+#include <optional>                             // for optional
+#include <variant>                              // for tuple, variant
+#include <cstddef>                              // for size_t, NULL, byte
+#include <cstdint>                              // for uint8_t, int16_t, int...
+#include <functional>                           // for divides, multiplies
+#include <iterator>                             // for pair
+#include <ostream>                              // for operator<<, basic_ost...
+#include <tuple>                                // for tuple
+#include <type_traits>                          // for enable_if_t, is_same
+#include <utility>                              // for index_sequence, make_...
+
+#include "detail/defines_elementary.hpp"        // for __SYCL2020_DEPRECATED
+#include "detail/generic_type_lists.hpp"        // for vector_basic_list
+#include "detail/iostream_proxy.hpp"            // for cout
+#include "detail/memcpy.hpp"                    // for memcpy
+#include "detail/type_list.hpp"                 // for is_contained
+#include "detail/vector_traits.hpp"             // for vector_alignment
 #ifndef __SYCL_DEVICE_ONLY__
-#include <cfenv>
+#include <cfenv>                                // for fesetround, fegetround
 #endif
 
 // 4.10.1: Scalar data types
@@ -132,11 +139,7 @@ template <> struct vec_helper<std::byte> {
 };
 #endif
 
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-class SwizzleOp;
 
-template <typename T, int N, typename V = void> struct VecStorage;
 
 // Element type for relational operator return value.
 template <typename DataT>
@@ -536,11 +539,6 @@ convertImpl(T Value) {
 
 #endif // __SYCL_DEVICE_ONLY__
 
-// Forward declarations
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernel;
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernelWithKH;
 
 } // namespace detail
 
@@ -1001,7 +999,6 @@ public:
 #error "Undefine __SYCL_ACCESS_RETURN macro"
 #endif
 #define __SYCL_ACCESS_RETURN this
-#include "swizzles.def"
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
@@ -1935,7 +1932,6 @@ public:
 #error "Undefine __SYCL_ACCESS_RETURN macro"
 #endif
 #define __SYCL_ACCESS_RETURN m_Vector
-#include "swizzles.def"
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 

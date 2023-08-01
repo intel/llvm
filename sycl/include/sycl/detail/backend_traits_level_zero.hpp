@@ -15,16 +15,24 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/device.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
-#include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
-#include <variant>
+#include <sycl/context.hpp>                                  // for context
+#include <sycl/detail/backend_traits.hpp>                    // for BackendI...
+#include <sycl/device.hpp>                                   // for device
+#include <sycl/event.hpp>                                    // for event
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>  // for ownership
+#include <sycl/kernel_bundle.hpp>                            // for kernel_b...
+#include <sycl/queue.hpp>                                    // for queue
+#include <variant>                                           // for variant
+#include <vector>                                            // for vector
+
+#include "backend_types.hpp"                                 // for backend
+#include "handler.hpp"                                       // for buffer
+#include "image.hpp"                                         // for image
+#include "kernel.hpp"                                        // for kernel
+#include "kernel_bundle_enums.hpp"                           // for bundle_s...
+#include "platform.hpp"                                      // for platform
+#include "property_list.hpp"                                 // for property...
+#include "range.hpp"                                         // for range
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;
@@ -40,8 +48,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-// Forward declarations
-class device_impl;
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods

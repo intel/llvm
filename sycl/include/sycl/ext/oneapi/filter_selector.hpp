@@ -8,24 +8,20 @@
 
 #pragma once
 
-#include <sycl/device_selector.hpp>
+#include <sycl/device_selector.hpp>  // for device_selector
+#include <memory>                    // for shared_ptr
+#include <string>                    // for string
 
-#include <memory>
-#include <string>
+#include "detail/export.hpp"         // for __SYCL_EXPORT
+#include "device.hpp"                // for device
 
 // 4.6.1 Device selection class
 
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declarations
-class device;
-class device_selector;
 
 namespace ext::oneapi {
-namespace detail {
-class filter_selector_impl;
-} // namespace detail
 
 class __SYCL_EXPORT filter_selector : public device_selector {
 public:

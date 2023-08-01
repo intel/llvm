@@ -8,15 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/kernel_handler.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/host_profiling_info.hpp>  // for HostProfilingInfo
+#include <sycl/detail/kernel_desc.hpp>          // for kernel_param_kind_t
+#include <sycl/group.hpp>                       // for group
+#include <sycl/id.hpp>                          // for id
+#include <sycl/interop_handle.hpp>              // for interop_handle
+#include <sycl/kernel_handler.hpp>              // for kernel_handler
+#include <sycl/nd_item.hpp>                     // for nd_item
+#include <sycl/range.hpp>                       // for range, operator*
+#include <stddef.h>                             // for size_t
+#include <functional>                           // for function
+#include <type_traits>                          // for enable_if_t, false_type
+#include <utility>                              // for declval
+
+#include "detail/array.hpp"                     // for array
+#include "detail/common.hpp"                    // for InitializedVal, NDLoop
+#include "detail/helpers.hpp"                   // for Builder
+#include "detail/item_base.hpp"                 // for id
+#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_WORK...
+#include "exception.hpp"                        // for nd_range_error
+#include "h_item.hpp"                           // for h_item
+#include "item.hpp"                             // for item
+#include "nd_range.hpp"                         // for nd_range
 
 namespace sycl {
 inline namespace _V1 {

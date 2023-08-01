@@ -9,9 +9,22 @@
 #pragma once
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <sycl/detail/group_sort_impl.hpp>
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
-#include <sycl/sycl_span.hpp>
+#include <sycl/sycl_span.hpp>       // for span
+#include <limits.h>                 // for CHAR_BIT
+#include <stdint.h>                 // for uint32_t
+#include <bitset>                   // for bitset
+#include <cstddef>                  // for size_t, byte
+#include <functional>               // for less, greater
+#include <limits>                   // for numeric_limits
+#include <system_error>             // for error_code
+#include <type_traits>              // for is_same, is_arithmetic
+
+#include "aliases.hpp"              // for half
+#include "detail/pi_error.def"      // for PI_ERROR_INVALID_DEVICE
+#include "exception.hpp"            // for sycl_category, exception
+#include "ext/oneapi/bfloat16.hpp"  // for bfloat16
+#include "memory_enums.hpp"         // for memory_scope
+#include "range.hpp"                // for range
 
 namespace sycl {
 inline namespace _V1 {

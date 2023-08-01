@@ -8,9 +8,12 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/builtins.hpp>              // for isnan
+#include <sycl/half_type.hpp>             // for half
+#include <stdint.h>                       // for uint16_t, uint32_t
+
+#include "aliases.hpp"                    // for half
+#include "detail/defines_elementary.hpp"  // for __DPCPP_SYCL_EXTERNAL
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
@@ -21,7 +24,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {
 
-class bfloat16;
 
 namespace detail {
 using Bfloat16StorageT = uint16_t;

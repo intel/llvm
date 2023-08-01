@@ -8,31 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
+#include <memory>                             // for shared_ptr, hash, opera...
+#include <cstddef>                            // for size_t
+#include <variant>                            // for hash
 
-#include <memory>
+#include "backend_types.hpp"                  // for backend, backend_return_t
+#include "context.hpp"                        // for context
+#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
+#include "device.hpp"                         // for device
+#include "range.hpp"                          // for range
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declaration
-class context;
-class queue;
-template <backend Backend> class backend_traits;
-template <bundle_state State> class kernel_bundle;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
-class kernel_impl;
 
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.

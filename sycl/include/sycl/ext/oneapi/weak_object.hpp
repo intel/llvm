@@ -8,12 +8,20 @@
 
 #pragma once
 
-#include <sycl/buffer.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/stream.hpp>
+#include <sycl/buffer.hpp>                                  // for buffer
+#include <sycl/ext/oneapi/weak_object_base.hpp>             // for weak_obje...
+#include <sycl/stream.hpp>                                  // for stream
+#include <stddef.h>                                         // for size_t
+#include <optional>                                         // for optional
+#include <memory>                                           // for shared_ptr
 
-#include <optional>
+#include "access/access.hpp"                                // for target, mode
+#include "accessor.hpp"                                     // for accessor
+#include "detail/impl_utils.hpp"                            // for createSyc...
+#include "detail/memcpy.hpp"                                // for detail
+#include "exception.hpp"                                    // for make_erro...
+#include "ext/codeplay/experimental/fusion_properties.hpp"  // for buffer
+#include "range.hpp"                                        // for range
 
 namespace sycl {
 inline namespace _V1 {

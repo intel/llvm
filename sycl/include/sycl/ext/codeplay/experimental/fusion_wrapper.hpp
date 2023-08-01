@@ -8,14 +8,15 @@
 
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/queue.hpp>     // for queue
+#include <memory>             // for shared_ptr
+
+#include "detail/export.hpp"  // for __SYCL_EXPORT
+#include "event.hpp"          // for event
+#include "property_list.hpp"  // for property_list
 
 namespace sycl {
 inline namespace _V1 {
-
-namespace detail {
-class fusion_wrapper_impl;
-}
 
 namespace ext::codeplay::experimental {
 

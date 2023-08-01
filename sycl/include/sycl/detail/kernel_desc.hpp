@@ -10,9 +10,6 @@
 
 // This header file must not include any standard C++ header files.
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

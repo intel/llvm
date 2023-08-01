@@ -8,18 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cassert>
-#include <iterator>
-#include <tuple>
-#include <type_traits>
+#include <tuple>    // for tuple
+#include <array>    // for tuple_element
+#include <cstddef>  // for size_t
+#include <utility>  // for make_index_sequence, index_sequence
+#include <variant>  // for tuple
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-template <typename... T> struct tuple;
 
 template <typename T, typename... Ts, std::size_t... Is>
 std::tuple<Ts...> get_tuple_tail_impl(const std::tuple<T, Ts...> &Tuple,
@@ -41,7 +39,6 @@ template <typename... Ts> auto tie(Ts &...Args) {
   return sycl::detail::tuple<Ts &...>(Args...);
 }
 
-template <std::size_t N, typename T> struct tuple_element;
 
 template <std::size_t N, typename T, typename... Rest>
 struct tuple_element<N, tuple<T, Rest...>>

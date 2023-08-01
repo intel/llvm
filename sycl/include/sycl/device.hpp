@@ -8,38 +8,36 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/platform.hpp>
+#include <sycl/aspects.hpp>                                      // for aspect
+#include <sycl/detail/export.hpp>                                // for __SY...
+#include <sycl/detail/info_desc_helpers.hpp>                     // for is_d...
+#include <sycl/detail/owner_less_base.hpp>                       // for Owne...
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>  // for arch...
+#include <sycl/info/info_desc.hpp>                               // for part...
+#include <sycl/platform.hpp>                                     // for plat...
+#include <memory>                                                // for shar...
+#include <cstddef>                                               // for size_t
+#include <string>                                                // for string
+#include <type_traits>                                           // for add_...
+#include <variant>                                               // for hash
+#include <vector>                                                // for vector
 
-#include <memory>
-#include <utility>
+#include "backend_types.hpp"                                     // for backend
+#include "detail/defines_elementary.hpp"                         // for __SY...
+#include "detail/pi.h"                                           // for pi_n...
+#include "device_selector.hpp"                                   // for Enab...
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declarations
-class device_selector;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
-class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
-enum class aspect;
 
 namespace ext::oneapi {
-// Forward declaration
-class filter_selector;
 
 enum class peer_access {
   access_supported = 0x0,

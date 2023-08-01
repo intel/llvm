@@ -8,16 +8,20 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/device.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
-#include <sycl/image.hpp>
+#include <sycl/context.hpp>                                // for context
+#include <sycl/device.hpp>                                 // for device
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>  // for image_desc...
+#include <sycl/image.hpp>                                  // for image_chan...
+#include <cstddef>                                         // for size_t
+#include <memory>                                          // for shared_ptr
+#include <variant>                                         // for hash
+
+#include "detail/export.hpp"                               // for __SYCL_EXPORT
+#include "range.hpp"                                       // for range
 
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declaration
-class queue;
 
 namespace ext::oneapi::experimental {
 

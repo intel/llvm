@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <climits>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ID_QUERIES_FIT_...
 
 #if __SYCL_ID_QUERIES_FIT_IN_INT__ && __has_builtin(__builtin_assume)
 #define __SYCL_ASSUME_INT(x) __builtin_assume((x) <= INT_MAX)

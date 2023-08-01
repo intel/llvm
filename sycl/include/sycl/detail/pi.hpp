@@ -13,17 +13,17 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.h>
-
-#include <cassert>
-#include <cstdint>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <vector>
+#include <sycl/backend_types.hpp>   // for backend
+#include <sycl/detail/export.hpp>   // for __SYCL_EXPORT
+#include <sycl/detail/os_util.hpp>  // for __SYCL_RT_OS_LINUX
+#include <sycl/detail/pi.h>         // for piContextCreate, piContextGetInfo
+#include <stddef.h>                 // for size_t
+#include <cstdint>                  // for uint64_t, uint32_t
+#include <memory>                   // for shared_ptr
+#include <sstream>                  // for operator<<, basic_ostream, string...
+#include <string>                   // for char_traits, string
+#include <vector>                   // for vector
+#include <type_traits>              // for false_type, true_type
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -35,15 +35,12 @@ struct trace_event_data_t;
 namespace sycl {
 inline namespace _V1 {
 
-class context;
 
 namespace detail {
 
 enum class PiApiKind {
 #define _PI_API(api) api,
-#include <sycl/detail/pi.def>
 };
-class plugin;
 using PluginPtr = std::shared_ptr<plugin>;
 
 template <sycl::backend BE>
@@ -221,7 +218,6 @@ template <PiApiKind PiApiOffset> struct PiFuncInfo {};
       return MPlugin.PiFunctionTable.api;                                      \
     }                                                                          \
   };
-#include <sycl/detail/pi.def>
 
 /// Emits an XPTI trace before a PI API call is made
 /// \param FName The name of the PI API call

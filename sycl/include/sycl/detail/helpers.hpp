@@ -8,37 +8,24 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/memcpy.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <CL/__spirv/spirv_types.hpp>  // for MemorySemanticsMask
+#include <sycl/access/access.hpp>      // for fence_space
+#include <sycl/detail/export.hpp>      // for __SYCL_EXPORT
+#include <sycl/detail/pi.hpp>          // for PiEvent
+#include <stdint.h>                    // for uint32_t
+#include <memory>                      // for shared_ptr
+#include <type_traits>                 // for enable_if_t, integral_constant
+#include <vector>                      // for vector
+#include <cstddef>                     // for size_t
+#include <utility>                     // for forward, integer_sequence, mak...
 
-#include <memory>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
+#include "memory_enums.hpp"            // for memory_order
 
 namespace sycl {
 inline namespace _V1 {
-class context;
-class event;
-template <int Dims, bool WithOffset> class item;
-template <int Dims> class group;
-template <int Dims> class range;
-template <int Dims> class id;
-template <int Dims> class nd_item;
-template <int Dims> class h_item;
-template <typename Type, std::size_t NumElements> class marray;
-enum class memory_order;
 
 namespace detail {
 
-class buffer_impl;
-class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>

@@ -7,17 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/type_traits.hpp>         // for is_group
+#include <sycl/exception.hpp>                  // for feature_not_supported
+#include <type_traits>                         // for enable_if_t
 
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include "access/access.hpp"                   // for address_space, decorated
+#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_OPERA...
+#include "ext/intel/usm_pointers.hpp"          // for multi_ptr
 
 namespace sycl {
 inline namespace _V1 {

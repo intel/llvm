@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/property_list_base.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_list_base.hpp>   // for PropertyListBase
+#include <sycl/properties/property_traits.hpp>  // for is_property
+#include <bitset>                               // for bitset
+#include <memory>                               // for shared_ptr
+#include <type_traits>                          // for conditional_t, enable...
+#include <vector>                               // for vector
+
+#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_VALUE
+#include "detail/property_helper.hpp"           // for DataLessPropKind, Pro...
+#include "exception.hpp"                        // for invalid_object_error
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi {
-template <typename... PropsT> class accessor_property_list;
-} // namespace ext::oneapi
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///

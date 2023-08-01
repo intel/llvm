@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/stl.hpp>
+#include <stddef.h>       // for size_t
+#include <stdint.h>       // for int32_t
+
+#include "exception.hpp"  // for make_error_code, errc, exception
 
 namespace sycl {
 inline namespace _V1 {

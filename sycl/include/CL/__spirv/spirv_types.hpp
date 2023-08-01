@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/half_type.hpp>  // for half
+#include <complex>             // for complex
+#include <cstddef>             // for size_t
+#include <cstdint>             // for uint32_t
 
-#include <complex>
-#include <cstddef>
-#include <cstdint>
+#include "detail/defines.hpp"  // for SYCL_EXT_ONEAPI_MATRIX_VERSION
 
 // TODO: include the header file with SPIR-V declarations from SPIRV-Headers
 // project.
@@ -152,10 +152,6 @@ struct complex_half {
 };
 
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
-template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup,
-          MatrixUse U = MatrixUse::MatrixA>
-struct __spirv_JointMatrixINTEL;
 #else
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup>

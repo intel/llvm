@@ -8,10 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/memcpy.hpp>
-
-#include <type_traits>
+#include <type_traits>  // for is_trivially_copyable, enable_if_t
 
 #if __cpp_lib_bit_cast
 #include <bit>

@@ -7,10 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
-#include <sycl/types.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>  // for sub_group_mask
+#include <sycl/types.hpp>                      // for vec
+#include <stddef.h>                            // for size_t
+#include <stdint.h>                            // for uint32_t
+
+#include "marray.hpp"                          // for marray
 
 namespace sycl {
 inline namespace _V1 {
@@ -67,16 +69,6 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
 }
 
 } // namespace detail
-
-namespace ext::oneapi::experimental {
-
-// Forward declarations of non-uniform group types for algorithm definitions
-template <typename ParentGroup> class ballot_group;
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
-template <typename ParentGroup> class tangle_group;
-class opportunistic_group;
-
-} // namespace ext::oneapi::experimental
 
 } // namespace _V1
 } // namespace sycl

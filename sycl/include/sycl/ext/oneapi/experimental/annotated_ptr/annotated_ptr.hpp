@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <cstddef>
-#include <type_traits>
-
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <cstddef>
+#include <type_traits>
+#include <string_view>
+#include <tuple>
+#include <utility>
+#include <variant>
+
+#include "detail/defines.hpp"
+#include "ext/oneapi/properties/property.hpp"
+#include "ext/oneapi/properties/property_value.hpp"
 
 namespace sycl {
 inline namespace _V1 {

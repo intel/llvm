@@ -9,14 +9,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>
-#include <sycl/sub_group.hpp>
+#include <sycl/exception.hpp>  // for make_error_code, errc, exception
+#include <type_traits>         // for enable_if_t
+
+#include "memory_enums.hpp"    // for memory_scope
 
 namespace sycl {
 inline namespace _V1 {

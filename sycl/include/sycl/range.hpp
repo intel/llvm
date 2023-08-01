@@ -7,15 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/detail/array.hpp>
-#include <sycl/detail/helpers.hpp>
-
-#include <stdexcept>
-#include <type_traits>
+#include <sycl/detail/array.hpp>    // for array
+#include <sycl/detail/helpers.hpp>  // for Builder
+#include <stddef.h>                 // for size_t
+#include <type_traits>              // for enable_if_t
+#include <array>                    // for array
 
 namespace sycl {
 inline namespace _V1 {
-template <int Dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
 /// dispatch, or the overall Dimensions of the dispatch.

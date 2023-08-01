@@ -10,23 +10,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-
-#include <cstdint>
-#include <cstdlib>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sys/stat.h>              // for stat
+#include <cstdlib>                 // for size_t
+#include <string>                  // for string
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
-// Windows platform
-#ifdef _WIN64
-// 64-bit Windows platform
-#else
-// 32-bit Windows platform
-#endif // _WIN64
 #elif __linux__
 // Linux platform
 #define __SYCL_RT_OS_LINUX

@@ -10,9 +10,6 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 #ifdef __SYCL_DEVICE_ONLY__
 
 // Get the value of the specialization constant with given symbolic ID.

@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>  // for properties_t
+#include <type_traits>                                // for false_type, con...
+#include <utility>                                    // for declval
 
 namespace sycl {
 inline namespace _V1 {
@@ -19,8 +19,6 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-template <typename T, typename PropertyListT> class annotated_arg;
-template <typename T, typename PropertyListT> class annotated_ptr;
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr

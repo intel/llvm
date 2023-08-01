@@ -8,29 +8,24 @@
 
 #pragma once
 
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <memory>                             // for shared_ptr, hash
+#include <cstddef>                            // for size_t
+#include <variant>                            // for hash
+#include <vector>                             // for vector
 
-#include <memory>
+#include "backend_types.hpp"                  // for backend, backend_return_t
+#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
+#include "detail/pi.h"                        // for pi_native_handle
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declaration
-class context;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
-
-namespace detail {
-class event_impl;
-}
 
 /// An event object can be used to synchronize memory transfers, enqueues of
 /// kernels and signaling barriers.

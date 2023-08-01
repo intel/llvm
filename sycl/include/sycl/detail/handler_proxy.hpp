@@ -8,19 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/access/access.hpp>  // for image_target, target
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
 
 namespace sycl {
 inline namespace _V1 {
 
-class handler;
 
 namespace detail {
 
-class AccessorBaseHost;
-class UnsampledImageAccessorBaseHost;
-class SampledImageAccessorBaseHost;
 
 #ifdef __SYCL_DEVICE_ONLY__
 // In device compilation accessor isn't inherited from host base classes, so

@@ -8,19 +8,13 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/pi.h>               // for PI_DEVICE_AFFINITY_DOMAIN_L...
+
+#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {
 
-class device;
-class platform;
-class kernel_id;
-enum class memory_scope;
-enum class memory_order;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -28,18 +22,6 @@ namespace info {
   struct Desc {                                                                \
     using return_type = ReturnT;                                               \
   };
-// A.1 Platform information desctiptors
-namespace platform {
-// TODO Despite giving this deprecation warning, we're still yet to implement
-// info::device::aspects.
-struct __SYCL2020_DEPRECATED("deprecated in SYCL 2020, use device::get_info() "
-                             "with info::device::aspects instead") extensions;
-#include <sycl/info/platform_traits.def>
-} // namespace platform
-// A.2 Context information desctiptors
-namespace context {
-#include <sycl/info/context_traits.def>
-} // namespace context
 
 // A.3 Device information descriptors
 enum class device_type : pi_uint64 {
@@ -96,15 +78,11 @@ namespace device {
 // atomic_fence_order_capabilities, atomic_fence_scope_capabilities, aspects,
 // il_version.
 
-struct atomic_fence_order_capabilities;
-struct atomic_fence_scope_capabilities;
 
 #define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
   struct __SYCL2020_DEPRECATED(Message) Desc;
-#include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
-template <int Dimensions = 3> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC(DescType, Desc, ReturnT, PiCode)     \
   template <> struct Desc {                                                    \
     using return_type = ReturnT;                                               \
@@ -112,24 +90,9 @@ template <int Dimensions = 3> struct max_work_item_sizes;
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
   __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
 
-#include <sycl/info/device_traits.def>
 } // namespace device
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-
-// A.4 Queue information descriptors
-namespace queue {
-#include <sycl/info/queue_traits.def>
-} // namespace queue
-
-// A.5 Kernel information desctiptors
-namespace kernel {
-#include <sycl/info/kernel_traits.def>
-} // namespace kernel
-
-namespace kernel_device_specific {
-#include <sycl/info/kernel_device_specific_traits.def>
-} // namespace kernel_device_specific
 
 // A.6 Event information desctiptors
 enum class event_command_status : pi_int32 {
@@ -140,13 +103,6 @@ enum class event_command_status : pi_int32 {
   // add other ext_oneapi values
   ext_oneapi_unknown = -1
 };
-
-namespace event {
-#include <sycl/info/event_traits.def>
-} // namespace event
-namespace event_profiling {
-#include <sycl/info/event_profiling_traits.def>
-} // namespace event_profiling
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 // Provide an alias to the return type for each of the info parameters
@@ -188,14 +144,7 @@ template <typename T, T param> struct compatibility_param_traits {};
 namespace ext::oneapi::experimental::info {
 
 enum class graph_support_level { unsupported = 0, native, emulated };
-
-namespace device {
-template <int Dimensions> struct max_work_groups;
-} // namespace device
 } // namespace ext::oneapi::experimental::info
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 } // namespace _V1

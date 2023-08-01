@@ -8,17 +8,21 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/aliases.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/half_type.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <CL/__spirv/spirv_types.hpp>          // for complex_double, comple...
+#include <sycl/access/access.hpp>              // for decorated, address_space
+#include <sycl/aliases.hpp>                    // for half, cl_char, cl_double
+#include <sycl/detail/generic_type_lists.hpp>  // for nonconst_address_space...
+#include <sycl/detail/type_traits.hpp>         // for is_gen_based_on_type_s...
+#include <sycl/half_type.hpp>                  // for BIsRepresentationT
+#include <sycl/multi_ptr.hpp>                  // for multi_ptr, address_spa...
+#include <complex>                             // for complex
+#include <limits>                              // for numeric_limits
+#include <cstddef>                             // for byte
+#include <cstdint>                             // for uint8_t
+#include <type_traits>                         // for enable_if_t, condition...
 
-#include <complex>
-#include <limits>
+#include "detail/helpers.hpp"                  // for marray
+#include "detail/type_list.hpp"                // for is_contained, find_sam...
 
 namespace sycl {
 inline namespace _V1 {
@@ -272,8 +276,6 @@ using is_genptr = std::bool_constant<
 
 template <typename T> using is_nan_type = is_contained<T, gtl::nan_list>;
 
-// nan_types
-template <typename T, typename Enable = void> struct nan_types;
 
 template <typename T>
 struct nan_types<
@@ -313,8 +315,6 @@ template <typename T>
 using make_unsinged_integer_t =
     make_type_t<T, gtl::scalar_unsigned_integer_list>;
 
-template <typename T, typename B, typename Enable = void>
-struct convert_data_type_impl;
 
 template <typename T, typename B>
 struct convert_data_type_impl<T, B,
@@ -509,11 +509,6 @@ using select_cl_scalar_t = std::conditional_t<
                            sycl::detail::half_impl::BIsRepresentationT,
                            select_cl_scalar_complex_or_T_t<T>>>>;
 
-// select_cl_vector_or_scalar_or_ptr does cl_* type selection for element type
-// of a vector type T, pointer type substitution, and scalar type substitution.
-// If T is not vector, scalar, or pointer unmodified T is returned.
-template <typename T, typename Enable = void>
-struct select_cl_vector_or_scalar_or_ptr;
 
 template <typename T>
 struct select_cl_vector_or_scalar_or_ptr<
@@ -548,12 +543,6 @@ struct select_cl_vector_or_scalar_or_ptr<
 #endif
 };
 
-// select_cl_mptr_or_vector_or_scalar_or_ptr does cl_* type selection for type
-// pointed by multi_ptr, for raw pointers, for element type of a vector type T,
-// and does scalar type substitution.  If T is not mutlti_ptr or vector or
-// scalar or pointer unmodified T is returned.
-template <typename T, typename Enable = void>
-struct select_cl_mptr_or_vector_or_scalar_or_ptr;
 
 // this struct helps to use std::uint8_t instead of std::byte,
 // which is not supported on device
@@ -652,11 +641,7 @@ template <typename T>
 using common_rel_ret_t =
     std::conditional_t<is_vgentype<T>::value, make_singed_integer_t<T>, bool>;
 
-// forward declaration
-template <int N> struct Boolean;
 
-// Try to get vector element count or 1 otherwise
-template <typename T, typename Enable = void> struct TryToGetNumElements;
 
 template <typename T>
 struct TryToGetNumElements<
@@ -701,7 +686,6 @@ template <typename T>
 using rel_sign_bit_test_arg_t =
     typename RelationalTestForSignBitType<T>::argument_type;
 
-template <typename T, typename Enable = void> struct RelConverter;
 
 template <typename T>
 struct RelConverter<T,
@@ -753,8 +737,6 @@ template <typename T> static constexpr T quiet_NaN() {
   return std::numeric_limits<T>::quiet_NaN();
 }
 
-// is_same_vector_size
-template <int FirstSize, typename... Args> class is_same_vector_size_impl;
 
 template <int FirstSize, typename T, typename... Args>
 class is_same_vector_size_impl<FirstSize, T, Args...> {

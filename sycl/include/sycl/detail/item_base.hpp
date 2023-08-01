@@ -8,16 +8,14 @@
 
 #pragma once
 
-#include <sycl/id.hpp>
-#include <sycl/range.hpp>
+#include <sycl/id.hpp>     // for id
+#include <sycl/range.hpp>  // for range
+#include <stddef.h>        // for size_t
 
 namespace sycl {
 inline namespace _V1 {
-template <int dimensions> class id;
-template <int dimensions> class range;
 
 namespace detail {
-template <int Dims, bool WithOffset> struct ItemBase;
 
 template <int Dims> struct ItemBase<Dims, true> {
 

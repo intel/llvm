@@ -7,14 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>  // for sub_group_mask
+#include <stdint.h>                            // for uint32_t
+#include <type_traits>                         // for true_type
+
+#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_DEVICE
+#include "detail/type_traits.hpp"              // for is_group, is_user_cons...
+#include "exception.hpp"                       // for runtime_error
+#include "id.hpp"                              // for id
+#include "memory_enums.hpp"                    // for memory_scope
+#include "range.hpp"                           // for range
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-class opportunistic_group;
 
 namespace this_kernel {
 inline opportunistic_group get_opportunistic_group();

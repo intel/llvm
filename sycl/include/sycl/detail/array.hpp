@@ -7,15 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <functional>
-#include <stdexcept>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/exception.hpp>             // for invalid_parameter_error
+#include <stddef.h>                       // for size_t
+#include <type_traits>                    // for enable_if_t
+
+#include "detail/defines_elementary.hpp"  // for __SYCL_ALWAYS_INLINE
+#include "detail/pi_error.def"            // for PI_ERROR_INVALID_VALUE
 
 namespace sycl {
 inline namespace _V1 {
-template <int dimensions> class id;
-template <int dimensions> class range;
 namespace detail {
 
 template <int dimensions = 1> class array {

@@ -8,9 +8,12 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/access/access.hpp>               // for mode, placeholder
+#include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, Dat...
+#include <sycl/properties/property_traits.hpp>  // for is_property, is_prope...
+#include <type_traits>                          // for true_type
+
+#include "queue.hpp"                            // for queue
 
 namespace sycl {
 inline namespace _V1 {
@@ -32,16 +35,8 @@ class enable_fusion : public detail::DataLessProperty<detail::FusionEnable> {};
 
 } // namespace ext::codeplay::experimental::property
 
-// Forward declarations
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-class accessor;
 
-class queue;
 
 // Property trait specializations.
 template <>

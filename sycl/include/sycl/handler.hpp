@@ -13,17 +13,13 @@
 #include <sycl/context.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/cl.h>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/os_util.hpp>
 #include <sycl/detail/reduction_forward.hpp>
 #include <sycl/event.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
@@ -35,20 +31,45 @@
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-
 #include <sycl/ext/oneapi/bindless_images_interop.hpp>
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
-
 #include <functional>
-#include <limits>
 #include <memory>
 #include <tuple>
 #include <type_traits>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "CL/cl.h"
+#include "detail/array.hpp"
+#include "detail/common.hpp"
+#include "detail/defines_elementary.hpp"
+#include "detail/helpers.hpp"
+#include "detail/impl_utils.hpp"
+#include "detail/item_base.hpp"
+#include "detail/kernel_desc.hpp"
+#include "detail/pi.h"
+#include "detail/pi.hpp"
+#include "detail/pi_error.def"
+#include "device.hpp"
+#include "exception.hpp"
+#include "exception_list.hpp"
+#include "ext/oneapi/bindless_images_descriptor.hpp"
+#include "ext/oneapi/device_global/properties.hpp"
+#include "group.hpp"
+#include "kernel_bundle_enums.hpp"
+#include "range.hpp"
+#include "types.hpp"
+#include "usm/usm_enums.hpp"
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
@@ -68,21 +89,17 @@ template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __fill;
-
 template <typename T> class __usmfill;
 template <typename T> class __usmfill2d;
 template <typename T> class __usmmemcpy2d;
-
 template <typename T_Src, typename T_Dst, int Dims,
           sycl::access::mode AccessMode, sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
-
 template <typename T_Src, typename T_Dst, int Dims,
           sycl::access::mode AccessMode, sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
-
 template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
           sycl::access::mode AccessMode_Dst,
@@ -90,7 +107,6 @@ template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::placeholder IsPlaceholder_Src,
           sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
-
 // For unit testing purposes
 class MockHandler;
 
@@ -99,28 +115,8 @@ inline namespace _V1 {
 
 // Forward declaration
 
-class handler;
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
-
-namespace ext::intel::experimental {
-template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
-          class>
-class pipe;
-}
-
-namespace ext::oneapi::experimental::detail {
-class graph_impl;
-}
 namespace detail {
 
-class handler_impl;
-class kernel_impl;
-class queue_impl;
-class stream_impl;
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -144,8 +140,6 @@ SuggestedArgType argument_helper(...);
 template <typename F, typename SuggestedArgType>
 using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 
-// Used when parallel_for range is rounded-up.
-template <typename Name> class __pf_kernel_wrapper;
 
 template <typename Type> struct get_kernel_wrapper_name_t {
   using name = __pf_kernel_wrapper<Type>;

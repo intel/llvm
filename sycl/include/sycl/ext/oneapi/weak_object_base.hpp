@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#include <utility>                // for declval
+
+#include "detail/impl_utils.hpp"  // for getSyclObjImpl
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::detail {
-template <typename SYCLObjT> class weak_object_base;
 
 // Helper function for getting the underlying weak_ptr from a weak_object.
 template <typename SYCLObjT>

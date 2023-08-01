@@ -8,17 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
-#include <sycl/id.hpp>
-#include <sycl/item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/helpers.hpp>  // for Builder, group
+#include <sycl/id.hpp>              // for id
+#include <sycl/item.hpp>            // for item
+#include <sycl/range.hpp>           // for range
+#include <stddef.h>                 // for size_t
+
+#include "detail/item_base.hpp"     // for id, range
 
 namespace sycl {
 inline namespace _V1 {
-
-namespace detail {
-class Builder;
-}
 
 /// Identifies an instance of a group::parallel_for_work_item function object
 /// executing at each point in a local range passed to a parallel_for_work_item

@@ -8,23 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/item_base.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/id.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/defines.hpp>        // for __SYCL_ASSUME_INT
+#include <sycl/detail/helpers.hpp>        // for Builder
+#include <sycl/detail/item_base.hpp>      // for id, range, ItemBase
+#include <sycl/id.hpp>                    // for id, item
+#include <sycl/range.hpp>                 // for range
+#include <cstddef>                        // for size_t
+#include <type_traits>                    // for enable_if_t, conditional_t
 
-#include <cstddef>
+#include "detail/defines_elementary.hpp"  // for __SYCL_ALWAYS_INLINE, __SYC...
+#include "exception.hpp"                  // for make_error_code, errc, exce...
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-class Builder;
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernel;
-template <typename TransformedArgType, int Dims, typename KernelType>
-class RoundedRangeKernelWithKH;
 
 namespace reduction {
 template <int Dims>

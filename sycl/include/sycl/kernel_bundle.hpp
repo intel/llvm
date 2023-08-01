@@ -8,33 +8,34 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/detail/pi.hpp>
-#include <sycl/device.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/context.hpp>                 // for context
+#include <sycl/detail/kernel_desc.hpp>      // for get_spec_constant_symboli...
+#include <sycl/detail/owner_less_base.hpp>  // for OwnerLessBase
+#include <sycl/detail/pi.h>                 // for pi_native_handle
+#include <sycl/detail/pi.hpp>               // for cast
+#include <sycl/device.hpp>                  // for device
+#include <sycl/kernel.hpp>                  // for kernel, kernel_bundle
+#include <sycl/kernel_bundle_enums.hpp>     // for bundle_state
+#include <memory>                           // for shared_ptr, operator==, hash
+#include <vector>                           // for vector
+#include <array>                            // for array
+#include <cstring>                          // for size_t, memcpy
+#include <functional>                       // for function
+#include <iterator>                         // for distance
+#include <string>                           // for string
+#include <type_traits>                      // for enable_if_t, remove_refer...
+#include <utility>                          // for move
+#include <variant>                          // for hash
 
-#include <cassert>
-#include <memory>
-#include <set>
-#include <vector>
+#include "backend_types.hpp"                // for backend, backend_return_t
+#include "detail/export.hpp"                // for __SYCL_EXPORT
+#include "property_list.hpp"                // for property_list
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declaration
-template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<Backend, kernel_bundle<State>>;
-
-namespace detail {
-class kernel_id_impl;
-}
 
 template <typename KernelName> kernel_id get_kernel_id();
 
@@ -68,7 +69,6 @@ private:
 };
 
 namespace detail {
-class device_image_impl;
 using DeviceImageImplPtr = std::shared_ptr<device_image_impl>;
 
 // The class is used as a base for device_image for "untemplating" public
@@ -134,7 +134,6 @@ private:
 };
 
 namespace detail {
-class kernel_bundle_impl;
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
 
 // The class is used as a base for kernel_bundle to "untemplate" it's methods

@@ -7,14 +7,21 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>  // for sub_group_mask
+#include <type_traits>                         // for enable_if_t, decay_t
+
+#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_DEVICE
+#include "detail/type_traits.hpp"              // for is_group, is_user_cons...
+#include "exception.hpp"                       // for runtime_error
+#include "id.hpp"                              // for id
+#include "memory_enums.hpp"                    // for memory_scope
+#include "range.hpp"                           // for range
+#include "sub_group.hpp"                       // for sub_group
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename ParentGroup> class tangle_group;
 
 template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&

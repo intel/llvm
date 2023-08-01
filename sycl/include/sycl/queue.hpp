@@ -8,12 +8,50 @@
 
 #pragma once
 
-#include <sycl/detail/assert_happened.hpp>
-#include <sycl/detail/service_kernel_names.hpp>
-#include <sycl/device_selector.hpp>
-#include <sycl/exception_list.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/detail/assert_happened.hpp>             // for AssertHappened
+#include <sycl/device_selector.hpp>                    // for device_selector
+#include <sycl/exception_list.hpp>                     // for defaultAsyncHa...
+#include <sycl/handler.hpp>                            // for handler, isDev...
+#include <sycl/property_list.hpp>                      // for property_list
+#include <stdint.h>                                    // for int32_t
+#include <cstddef>                                     // for size_t
+#include <functional>                                  // for function
+#include <memory>                                      // for shared_ptr, hash
+#include <tuple>                                       // for tuple
+#include <type_traits>                                 // for remove_all_ext...
+#include <variant>                                     // for hash
+#include <vector>                                      // for vector
+
+#include "access/access.hpp"                           // for target, access...
+#include "accessor.hpp"                                // for accessor
+#include "aspects.hpp"                                 // for aspect
+#include "async_handler.hpp"                           // for async_handler
+#include "backend_types.hpp"                           // for backend, backe...
+#include "buffer.hpp"                                  // for buffer
+#include "context.hpp"                                 // for context
+#include "detail/cg_types.hpp"                         // for check_fn_signa...
+#include "detail/common.hpp"                           // for code_location
+#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
+#include "detail/export.hpp"                           // for __SYCL_EXPORT
+#include "detail/info_desc_helpers.hpp"                // for is_queue_info_...
+#include "detail/kernel_desc.hpp"                      // for KernelInfo
+#include "detail/owner_less_base.hpp"                  // for OwnerLessBase
+#include "detail/pi.h"                                 // for pi_mem_advice
+#include "device.hpp"                                  // for device
+#include "event.hpp"                                   // for event
+#include "exception.hpp"                               // for make_error_code
+#include "ext/oneapi/bindless_images_descriptor.hpp"   // for image_descriptor
+#include "ext/oneapi/bindless_images_interop.hpp"      // for interop_semaph...
+#include "ext/oneapi/bindless_images_memory.hpp"       // for image_mem_handle
+#include "ext/oneapi/device_global/device_global.hpp"  // for device_global
+#include "ext/oneapi/device_global/properties.hpp"     // for device_image_s...
+#include "ext/oneapi/experimental/graph.hpp"           // for graph_state
+#include "ext/oneapi/properties/properties.hpp"        // for empty_properti...
+#include "id.hpp"                                      // for id
+#include "kernel.hpp"                                  // for auto_name
+#include "kernel_handler.hpp"                          // for kernel_handler
+#include "nd_range.hpp"                                // for nd_range
+#include "range.hpp"                                   // for range
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be
@@ -38,18 +76,12 @@
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declaration
-class context;
-class device;
-class event;
-class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
-class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
 inline event submitAssertCapture(queue &, event &, queue *,

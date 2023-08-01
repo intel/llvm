@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/known_identity.hpp>
 
 namespace sycl {
 inline namespace _V1 {

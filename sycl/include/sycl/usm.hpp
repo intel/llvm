@@ -7,13 +7,17 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/ext/intel/experimental/usm_properties.hpp>
-#include <sycl/usm/usm_allocator.hpp>
-#include <sycl/usm/usm_enums.hpp>
+#include <sycl/detail/common.hpp>  // for code_location
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/usm/usm_enums.hpp>  // for alloc
+#include <cstddef>                 // for size_t
+#include <algorithm>               // for max
 
-#include <cstddef>
+#include "builtins.hpp"            // for max
+#include "context.hpp"             // for context
+#include "device.hpp"              // for device
+#include "property_list.hpp"       // for property_list
+#include "queue.hpp"               // for queue
 
 namespace sycl {
 inline namespace _V1 {

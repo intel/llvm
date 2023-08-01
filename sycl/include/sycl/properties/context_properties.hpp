@@ -8,9 +8,12 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/context.hpp>                     // for context
+#include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, Dat...
+#include <sycl/properties/property_traits.hpp>  // for is_property_of
+#include <type_traits>                          // for true_type
+
+#include "detail/defines_elementary.hpp"        // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {
@@ -31,8 +34,6 @@ class use_primary_context
 // clang-format on
 } // namespace property::context
 
-// Forward declaration
-class context;
 
 // Context property trait specializations
 template <>

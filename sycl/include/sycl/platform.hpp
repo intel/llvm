@@ -8,28 +8,32 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/device_selector.hpp>
+#include <sycl/aspects.hpp>                   // for aspect
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_platform_info_desc
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/device_selector.hpp>           // for EnableIfSYCL2020DeviceS...
+#include <cstddef>                            // for size_t
+#include <memory>                             // for shared_ptr, hash, opera...
+#include <string>                             // for string
+#include <variant>                            // for hash
+#include <vector>                             // for vector
 
-#include <utility>
+#include "backend_types.hpp"                  // for backend, backend_return_t
+#include "context.hpp"                        // for context
+#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
+#include "detail/pi.h"                        // for pi_native_handle
+#include "info/info_desc.hpp"                 // for device_type
 
 namespace sycl {
 inline namespace _V1 {
 // TODO: make code thread-safe
 
-// Forward declaration
-class device;
-class context;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
-class platform_impl;
 
 /// Allows to enable/disable "Default Context" extension
 ///
@@ -40,10 +44,6 @@ class platform_impl;
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 } // namespace detail
-namespace ext::oneapi {
-// Forward declaration
-class filter_selector;
-} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///

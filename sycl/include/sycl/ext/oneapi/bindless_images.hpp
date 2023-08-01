@@ -8,12 +8,21 @@
 
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/queue.hpp>                                  // for queue
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>  // for image_desc...
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>     // for interop_me...
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>      // for image_mem_...
+#include <sycl/ext/oneapi/bindless_images_sampler.hpp>     // for bindless_i...
+#include <assert.h>                                        // for assert
+#include <stddef.h>                                        // for size_t
+#include <type_traits>                                     // for is_scalar
 
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
-#include <sycl/ext/oneapi/bindless_images_sampler.hpp>
+#include "context.hpp"                                     // for context
+#include "detail/export.hpp"                               // for __SYCL_EXPORT
+#include "detail/pi.h"                                     // for pi_uint64
+#include "device.hpp"                                      // for device
+#include "image.hpp"                                       // for image_chan...
+#include "range.hpp"                                       // for range
 
 namespace sycl {
 inline namespace _V1 {

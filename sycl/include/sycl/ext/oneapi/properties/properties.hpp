@@ -8,14 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/types.hpp>
-
-#include <tuple>
-#include <type_traits>
+#include <sycl/ext/oneapi/properties/property.hpp>        // for IsRuntimePr...
+#include <sycl/ext/oneapi/properties/property_utils.hpp>  // for Sorted, Mer...
+#include <sycl/ext/oneapi/properties/property_value.hpp>  // for property_value
+#include <sycl/types.hpp>                                 // for is_device_c...
+#include <tuple>                                          // for tuple, tupl...
+#include <type_traits>                                    // for enable_if_t
+#include <variant>                                        // for tuple
 
 namespace sycl {
 inline namespace _V1 {
@@ -209,9 +208,6 @@ using empty_properties_t = properties<std::tuple<>>;
 template <typename... PropertyValueTs>
 using properties_t = properties<std::tuple<PropertyValueTs...>>;
 
-// Helper for merging two property lists;
-template <typename LHSPropertiesT, typename RHSPropertiesT>
-struct merged_properties;
 template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
 struct merged_properties<properties_t<LHSPropertiesTs...>,
                          properties_t<RHSPropertiesTs...>> {

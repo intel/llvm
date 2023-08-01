@@ -8,18 +8,20 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/memory_enums.hpp>
+#include <sycl/access/access.hpp>         // for address_space, decorated
+#include <sycl/detail/helpers.hpp>        // for getSPIRVMemorySemanticsMask
+#include <sycl/memory_enums.hpp>          // for memory_order, getStdMemoryO...
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <atomic>
+#include <atomic>                         // for atomic, memory_order
 #else
 #include <cstring>
 #endif
-#include <type_traits>
+#include <type_traits>                    // for is_same
+
+#include "CL/__spirv/spirv_types.hpp"     // for Scope, MemorySemanticsMask
+#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include "multi_ptr.hpp"                  // for multi_ptr
 
 #define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \
   static_assert(!std::is_same<T, float>::value,                                \
@@ -28,10 +30,6 @@
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declaration
-template <typename pointerT, access::address_space addressSpace,
-          access::decorated isDecorated>
-class multi_ptr;
 
 namespace detail {
 

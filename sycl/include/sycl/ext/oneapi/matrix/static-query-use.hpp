@@ -20,6 +20,14 @@
 
 #pragma once
 
+#include <stdint.h>                                    // for uint32_t, int8_t
+#include <cstddef>                                     // for size_t
+#include <type_traits>                                 // for enable_if
+
+#include "aliases.hpp"                                 // for half
+#include "ext/oneapi/matrix/matrix-unified-utils.hpp"  // for use, layout
+#include "ext/oneapi/matrix/matrix-unified.hpp"        // for joint_matrix
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
@@ -54,9 +62,6 @@ enum class matrix_type {
 
 enum class scope_t { sub_group, work_group };
 
-template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
-          int sM = 0, int sN = 0, int sK = 0, typename Enabled = void>
-struct tpu_params;
 
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int sM, int sN, int sK) {

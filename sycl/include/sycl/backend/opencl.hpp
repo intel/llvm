@@ -9,9 +9,18 @@
 
 #pragma once
 
-#include <sycl/backend.hpp>
+#include <string>                         // for string
+#include <type_traits>                    // for enable_if_t
 
-#include <string>
+#include "backend_types.hpp"              // for backend
+#include "context.hpp"                    // for context
+#include "detail/backend_traits.hpp"      // for interop
+#include "detail/defines_elementary.hpp"  // for __SYCL_DEPRECATED
+#include "detail/export.hpp"              // for __SYCL_EXPORT
+#include "detail/pi.h"                    // for pi_native_handle
+#include "device.hpp"                     // for device
+#include "platform.hpp"                   // for platform
+#include "queue.hpp"                      // for queue
 
 namespace sycl {
 inline namespace _V1 {

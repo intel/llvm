@@ -8,18 +8,22 @@
 
 #pragma once
 
-#include <sycl/detail/boost/mp11/algorithm.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/detail/boost/mp11/algorithm.hpp>     // for mp_sort_q
+#include <sycl/ext/oneapi/properties/property.hpp>  // for PropertyID, IsRun...
+#include <stddef.h>                                 // for size_t
+#include <tuple>                                    // for tuple
+#include <array>                                    // for tuple_element
+#include <type_traits>                              // for false_type, true_...
+#include <variant>                                  // for tuple
 
-#include <tuple>
+#include "detail/boost/mp11/detail/mp_list.hpp"     // for mp_list
+#include "detail/boost/mp11/detail/mp_rename.hpp"   // for mp_rename
+#include "detail/boost/mp11/integral.hpp"           // for mp_bool
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-// Forward declaration
-template <typename PropertyT, typename... Ts> struct property_value;
 
 namespace detail {
 
@@ -148,10 +152,6 @@ struct SortedAllUnique<std::tuple<L, R, Rest...>>
 // Property merging
 //******************************************************************************
 
-// Merges two sets of properties, failing if two properties are the same but
-// with different values.
-// NOTE: This assumes that the properties are in sorted order.
-template <typename LHSPropertyT, typename RHSPropertyT> struct MergeProperties;
 
 template <> struct MergeProperties<std::tuple<>, std::tuple<>> {
   using type = std::tuple<>;
@@ -210,12 +210,6 @@ template <char... Chars> struct CharsToStr {
   static constexpr const char value[] = {Chars..., '\0'};
 };
 
-// Helper for converting a list of size_t values to a comma-separated string
-// representation. This is done by extracting the digit one-by-one and when
-// finishing a value, the parsed result is added to a separate list of
-// "parsed" characters with the delimiter.
-template <typename List, typename ParsedList, char... Chars>
-struct SizeListToStrHelper;
 
 // Specialization for when we are in the process of converting a non-zero value
 // (Value). Chars will have the already converted digits of the original value

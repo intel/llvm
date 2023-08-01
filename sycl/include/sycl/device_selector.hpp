@@ -8,25 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
+#include <functional>                          // for function
+#include <vector>                              // for vector
+#include <type_traits>                         // for enable_if_t
 
-#include <functional>
-#include <vector>
+#include "aspects.hpp"                         // for aspect
+#include "context.hpp"                         // for context
 
 // 4.6.1 Device selection class
 
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declarations
-class device;
-class context;
-enum class aspect;
-
-namespace ext::oneapi {
-class filter_selector;
-} // namespace ext::oneapi
 
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.

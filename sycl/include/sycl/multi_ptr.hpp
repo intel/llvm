@@ -7,12 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <cassert>
-#include <cstddef>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <CL/__spirv/spirv_ops.hpp>       // for __spirv_ocl_prefetch
+#include <sycl/access/access.hpp>         // for address_space, decorated
+#include <sycl/detail/type_traits.hpp>    // for const_if_const_AS
+#include <cstddef>                        // for nullptr_t, ptrdiff_t, size_t
+#include <iterator>                       // for random_access_iterator_tag
+#include <type_traits>                    // for enable_if_t, add_pointer_t
+
+#include "aliases.hpp"                    // for half
+#include "detail/defines_elementary.hpp"  // for __SYCL2020_DEPRECATED
+#include "half_type.hpp"                  // for BIsRepresentationT
 
 namespace sycl {
 inline namespace _V1 {
@@ -60,12 +64,6 @@ struct LegacyReferenceTypes<ElementType,
 };
 } // namespace detail
 
-// Forward declarations
-template <typename dataT, int dimensions, access::mode accessMode,
-          access::target accessTarget, access::placeholder isPlaceholder,
-          typename PropertyListT>
-class accessor;
-template <typename dataT, int dimensions> class local_accessor;
 
 /// Provides constructors for address space qualified and non address space
 /// qualified pointers to allow interoperability between plain C++ and OpenCL C.

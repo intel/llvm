@@ -8,12 +8,35 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/handler.hpp>
+#include <sycl/builtins.hpp>                // for isinf, isnan, signbit
+#include <sycl/detail/defines.hpp>          // for __SYCL_SPECIAL_CLASS, __S...
+#include <sycl/detail/export.hpp>           // for __SYCL_EXPORT
+#include <sycl/detail/owner_less_base.hpp>  // for OwnerLessBase
+#include <sycl/handler.hpp>                 // for handler
+#include <stdint.h>                         // for uint16_t, uint8_t
+#include <cstddef>                          // for size_t, byte
+#include <memory>                           // for hash, shared_ptr
+#include <type_traits>                      // for enable_if_t, is_same, fal...
+#include <variant>                          // for hash
+
+#include "access/access.hpp"                // for target, mode, address_space
+#include "accessor.hpp"                     // for accessor
+#include "aliases.hpp"                      // for half
+#include "atomic.hpp"                       // for atomic
+#include "detail/array.hpp"                 // for array
+#include "detail/cg.hpp"                    // for stream_impl
+#include "detail/defines_elementary.hpp"    // for __SYCL2020_DEPRECATED
+#include "detail/item_base.hpp"             // for id, range
+#include "group.hpp"                        // for group
+#include "h_item.hpp"                       // for h_item
+#include "half_type.hpp"                    // for half, operator-, operator<
+#include "item.hpp"                         // for item
+#include "nd_item.hpp"                      // for nd_item
+#include "nd_range.hpp"                     // for nd_range
+#include "property_list.hpp"                // for property_list
+#include "range.hpp"                        // for range
+#include "sub_group.hpp"                    // for multi_ptr
+#include "types.hpp"                        // for vec, SwizzleOp
 
 namespace sycl {
 inline namespace _V1 {
@@ -765,7 +788,6 @@ constexpr stream_manipulator hexfloat = stream_manipulator::hexfloat;
 
 constexpr stream_manipulator defaultfloat = stream_manipulator::defaultfloat;
 
-class stream;
 
 class __precision_manipulator__ {
   int Precision_;

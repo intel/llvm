@@ -8,20 +8,21 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/aspects.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/memory_enums.hpp>
+#include <sycl/access/access.hpp>  // for address_space
+#include <sycl/memory_enums.hpp>   // for getStdMemoryOrder, memory_order
+#include <stddef.h>                // for size_t, ptrdiff_t
+#include <stdint.h>                // for uintptr_t, uint32_t, uint64_t
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/spirv.hpp>
 #include <sycl/multi_ptr.hpp>
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <atomic>
+#include <atomic>                  // for atomic
 #endif
-#include <type_traits>
+#include <type_traits>             // for enable_if_t, bool_constant
+
+#include "bit_cast.hpp"            // for bit_cast
 
 namespace sycl {
 inline namespace _V1 {
@@ -53,7 +54,6 @@ using IsValidDefaultOrder = std::bool_constant<Order == memory_order::relaxed ||
                                                Order == memory_order::acq_rel ||
                                                Order == memory_order::seq_cst>;
 
-template <memory_order ReadModifyWriteOrder> struct memory_order_traits;
 
 template <> struct memory_order_traits<memory_order::relaxed> {
   static constexpr memory_order read_order = memory_order::relaxed;
@@ -86,7 +86,6 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
   }
 }
 
-template <typename T, typename = void> struct bit_equal;
 
 template <typename T>
 struct bit_equal<T, typename std::enable_if_t<std::is_integral_v<T>>> {

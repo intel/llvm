@@ -8,6 +8,10 @@
 
 #pragma once
 
+#include <stddef.h>     // for size_t
+
+#include "detail/pi.h"  // for pi_uint64
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {

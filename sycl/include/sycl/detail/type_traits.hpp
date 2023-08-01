@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#include <sycl/access/access.hpp>              // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp>  // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>           // for is_contained, find_twi...
+#include <array>                               // for array
+#include <tuple>                               // for tuple
+#include <type_traits>                         // for true_type, false_type
+#include <cstddef>                             // for size_t
 
-#include <array>
-#include <tuple>
-#include <type_traits>
+#include "half_type.hpp"                       // for half
 
 namespace sycl {
 inline namespace _V1 {
@@ -27,13 +27,9 @@ template <class T>
 inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
 } // namespace detail
 
-template <int Dimensions> class group;
-struct sub_group;
 namespace ext::oneapi {
-struct sub_group;
 
 namespace experimental {
-template <typename Group, std::size_t Extent> class group_with_scratchpad;
 
 template <class T> struct is_fixed_topology_group : std::false_type {};
 
@@ -85,17 +81,9 @@ template <typename T>
 struct is_generic_group
     : std::integral_constant<bool,
                              is_group<T>::value || is_sub_group<T>::value> {};
-
-namespace half_impl {
-class half;
-}
 } // namespace detail
 using half = detail::half_impl::half;
 
-// Forward declaration
-template <typename ElementType, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
 
 template <class T>
 struct is_group : std::bool_constant<detail::is_group<T>::value ||
@@ -115,7 +103,6 @@ namespace detail {
 // sycl/doc/extensions/supported/sycl_ext_intel_device_info.md
 using uuid_type = std::array<unsigned char, 16>;
 
-template <typename T, typename R> struct copy_cv_qualifiers;
 
 template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
@@ -130,8 +117,6 @@ template <typename T>
 struct vector_size
     : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
 
-// vector_element
-template <typename T> struct vector_element_impl;
 template <typename T>
 using vector_element_impl_t = typename vector_element_impl<T>::type;
 template <typename T> struct vector_element_impl {
@@ -183,8 +168,6 @@ template <typename T, typename R> struct copy_cv_qualifiers {
   using type = typename copy_cv_qualifiers_impl<T, std::remove_cv_t<R>>::type;
 };
 
-// make_signed with support SYCL vec class
-template <typename T, typename Enable = void> struct make_signed_impl;
 
 template <typename T>
 using make_signed_impl_t = typename make_signed_impl<T, T>::type;
@@ -217,8 +200,6 @@ template <typename T> struct make_signed {
 
 template <typename T> using make_signed_t = typename make_signed<T>::type;
 
-// make_unsigned with support SYCL vec class
-template <typename T, typename Enable = void> struct make_unsigned_impl;
 
 template <typename T>
 using make_unsigned_impl_t = typename make_unsigned_impl<T, T>::type;
@@ -416,8 +397,6 @@ template <typename T, int N, typename TL> struct make_type_impl<vec<T, N>, TL> {
 template <typename T, typename TL>
 using make_type_t = typename make_type_impl<T, TL>::type;
 
-// make_larger_t
-template <typename T, typename Enable = void> struct make_larger_impl;
 template <typename T>
 struct make_larger_impl<
     T, std::enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {

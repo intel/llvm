@@ -8,6 +8,11 @@
 
 #pragma once
 
+#include <utility>                  // for forward
+
+#include "detail/defines.hpp"       // for __SYCL_TYPE
+#include "kernel_bundle_enums.hpp"  // for bundle_state
+
 namespace sycl {
 inline namespace _V1 {
 

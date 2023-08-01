@@ -10,12 +10,5 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
-namespace __sycl_service_kernel__ {
-
-class AssertInfoCopier;
-
-} // namespace __sycl_service_kernel__
-} // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -8,12 +8,15 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/access/access.hpp>  // for mode, placeholder, target
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/property_list.hpp>  // for property_list
+#include <cstddef>                 // for size_t
+#include <memory>                  // for shared_ptr, hash
+#include <variant>                 // for hash
+
+#include "detail/defines.hpp"      // for __SYCL_SPECIAL_CLASS, __SYCL_TYPE
+#include "detail/pi.h"             // for PI_SAMPLER_ADDRESSING_MODE_CLAMP
 
 namespace sycl {
 inline namespace _V1 {
@@ -36,12 +39,6 @@ enum class coordinate_normalization_mode : unsigned int {
 };
 
 namespace detail {
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor;
-}
-
-namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
 class __SYCL_EXPORT sampler_impl {
 public:
@@ -54,7 +51,6 @@ public:
   __ocl_sampler_t m_Sampler;
 };
 #else
-class sampler_impl;
 #endif
 } // namespace detail
 

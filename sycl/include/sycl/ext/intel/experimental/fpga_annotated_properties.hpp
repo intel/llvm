@@ -10,6 +10,14 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
+#include <cstdint>
+#include <iosfwd>
+#include <tuple>
+#include <type_traits>
+
+#include "ext/oneapi/properties/properties.hpp"
+#include "ext/oneapi/properties/property.hpp"
+#include "ext/oneapi/properties/property_value.hpp"
 
 namespace sycl {
 inline namespace _V1 {
@@ -107,10 +115,7 @@ inline constexpr read_write_mode_key::value_t<read_write_mode_enum::read_write>
 
 namespace oneapi {
 namespace experimental {
-template <typename T, typename PropertyListT> class annotated_arg;
-template <typename T, typename PropertyListT> class annotated_ptr;
 
-struct alignment_key;
 using register_map_key = intel::experimental::register_map_key;
 using conduit_key = intel::experimental::conduit_key;
 using stable_key = intel::experimental::stable_key;

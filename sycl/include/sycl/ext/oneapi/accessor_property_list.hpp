@@ -8,18 +8,21 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_list_base.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/access/access.hpp>              // for mode, placeholder, target
+#include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
+#include <sycl/property_list.hpp>              // for property_list
+#include <bitset>                              // for bitset
+#include <memory>                              // for shared_ptr
+#include <type_traits>                         // for conditional_t, enable_...
+#include <vector>                              // for vector
+
+#include "detail/defines.hpp"                  // for __SYCL_TYPE
+#include "detail/pi_error.def"                 // for PI_ERROR_INVALID_VALUE
+#include "detail/property_helper.hpp"          // for DataLessPropKind, Prop...
+#include "exception.hpp"                       // for invalid_object_error
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declaration
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder,
-          typename PropertyListT>
-class accessor;
 namespace detail {
 // This helper template must be specialized for nested instance template
 // of each compile-time-constant property.
@@ -58,6 +61,7 @@ class __SYCL_TYPE(accessor_property_list) accessor_property_list
   // property of PropT type, where PropT is a nested instance template of
   // compile-time-constant property.
   template <typename PropT, typename... PropListT> struct ContainsProperty;
+
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>

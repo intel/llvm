@@ -8,41 +8,33 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/accessor.hpp>         // for AccessorImplHost, AccessorImplPtr
+#include <sycl/detail/cg_types.hpp>  // for ArgDesc, HostTask, HostKernelBase
+#include <sycl/detail/common.hpp>    // for code_location
+#include <sycl/detail/helpers.hpp>   // for context_impl
+#include <sycl/kernel.hpp>           // for kernel_impl
+#include <assert.h>                  // for assert
+#include <stddef.h>                  // for size_t
+#include <stdint.h>                  // for int32_t
+#include <memory>                    // for shared_ptr, unique_ptr
+#include <string>                    // for string
+#include <vector>                    // for vector
+#include <utility>                   // for move
 
-#include <memory>
-#include <string>
-#include <type_traits>
-#include <vector>
+#include "detail/pi.h"               // for pi_mem_advice, _pi_ext_command_b...
+#include "detail/pi.hpp"             // for PiImageOffset, PiImageRegion
+#include "event.hpp"                 // for event_impl
+#include "exception_list.hpp"        // for queue_impl
+#include "kernel_bundle.hpp"         // for kernel_bundle_impl
 
 namespace sycl {
 inline namespace _V1 {
 
-// Forward declarations
-class queue;
 
 namespace detail {
 
-class event_impl;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
-class stream_impl;
-class queue_impl;
-class kernel_bundle_impl;
 
 // If there's a need to add new members to CG classes without breaking ABI
 // compatibility, we can bring back the extended members mechanism. See

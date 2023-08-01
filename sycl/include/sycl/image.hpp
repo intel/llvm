@@ -8,26 +8,42 @@
 
 #pragma once
 
-#include <sycl/detail/aligned_allocator.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/aligned_allocator.hpp>           // for aligned_allocator
+#include <sycl/detail/common.hpp>                      // for convertToArrayOfN
+#include <sycl/detail/owner_less_base.hpp>             // for OwnerLessBase
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>      // for SYCLMemObjAllo...
+#include <sycl/event.hpp>                              // for event
+#include <sycl/ext/oneapi/accessor_property_list.hpp>  // for accessor_prope...
+#include <sycl/sampler.hpp>                            // for image_sampler
+#include <sycl/stl.hpp>                                // for make_unique_ptr
+#include <sycl/types.hpp>                              // for vec
+#include <stdint.h>                                    // for uint8_t, uint32_t
+#include <cstddef>                                     // for size_t, nullptr_t
+#include <functional>                                  // for function
+#include <memory>                                      // for shared_ptr
+#include <type_traits>                                 // for enable_if_t
+#include <variant>                                     // for hash
 
-#include <cstddef>
+#include "access/access.hpp"                           // for placeholder
+#include "aliases.hpp"                                 // for cl_float, cl_half
+#include "backend_types.hpp"                           // for backend, backe...
+#include "buffer.hpp"                                  // for range
+#include "context.hpp"                                 // for context
+#include "detail/backend_traits.hpp"                   // for InteropFeature...
+#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
+#include "detail/export.hpp"                           // for __SYCL_EXPORT
+#include "detail/impl_utils.hpp"                       // for getSyclObjImpl
+#include "detail/pi.h"                                 // for pi_native_handle
+#include "detail/stl_type_traits.hpp"                  // for iterator_value...
+#include "detail/type_list.hpp"                        // for is_contained
+#include "exception.hpp"                               // for make_error_code
+#include "property_list.hpp"                           // for property_list
+#include "range.hpp"                                   // for range, rangeTo...
 
 namespace sycl {
 inline namespace _V1 {
 
-// forward declarations
-class handler;
 
-template <int D, typename A> class image;
 
 // 'friend'
 template <backend Backend, int D, typename A>
@@ -92,7 +108,6 @@ using image_allocator = detail::aligned_allocator<byte>;
 
 namespace detail {
 
-class image_impl;
 
 // validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename T>
@@ -394,23 +409,12 @@ private:
   }
 };
 
-template <typename DataT, int Dims, access::mode AccMode,
-          access::target AccTarget, access::placeholder IsPlaceholder>
-class image_accessor;
 
 } // namespace detail
 
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget>
-class unsampled_image_accessor;
 
-template <typename DataT, int Dimensions, access_mode AccessMode>
-class host_unsampled_image_accessor;
 
-template <typename DataT, int Dimensions, image_target AccessTarget>
-class sampled_image_accessor;
 
-template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 /// Defines a shared image data.
 ///

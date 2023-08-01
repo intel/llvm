@@ -12,15 +12,24 @@
 #pragma once
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/builtins.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/image.hpp>
-#include <sycl/sampler.hpp>
-#include <sycl/types.hpp>
+#include <sycl/builtins.hpp>                    // for clamp, fmax, min
+#include <sycl/detail/export.hpp>               // for __SYCL_EXPORT
+#include <sycl/detail/generic_type_traits.hpp>  // for max_v, min_v, TryToGe...
+#include <sycl/image.hpp>                       // for image_channel_type
+#include <sycl/sampler.hpp>                     // for addressing_mode, coor...
+#include <sycl/types.hpp>                       // for vec, operator*, round...
+#include <stddef.h>                             // for size_t
+#include <cstdint>                              // for int32_t, uint16_t
+#include <type_traits>                          // for enable_if_t
 
-#include <cmath>
-#include <cstdint>
+#include "aliases.hpp"                          // for float4, int4, uint4
+#include "detail/array.hpp"                     // for array
+#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_VALUE
+#include "detail/type_list.hpp"                 // for is_contained, type_list
+#include "exception.hpp"                        // for invalid_parameter_error
+#include "id.hpp"                               // for id
+#include "range.hpp"                            // for range
+#include "swizzles.def"                         // for vec::x, vec::y, vec::z
 
 namespace sycl {
 inline namespace _V1 {

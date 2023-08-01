@@ -7,23 +7,23 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <complex>
+#include <sycl/detail/type_traits.hpp>  // for remove_pointer, is_pointer
+#include <sycl/exception.hpp>           // for make_error_code, errc, exception
+#include <sycl/functional.hpp>          // for plus, multiplies, maximum
+#include <sycl/group.hpp>               // for group
+#include <sycl/sub_group.hpp>           // for sub_group
+#include <stddef.h>                     // for size_t
+#include <complex>                      // for complex
+#include <type_traits>                  // for enable_if_t, decay_t, integra...
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
-#include <sycl/functional.hpp>
-#include <sycl/group.hpp>
-#include <sycl/group_barrier.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/sub_group.hpp>
+#include "aliases.hpp"                  // for half
+#include "detail/array.hpp"             // for array
+#include "detail/helpers.hpp"           // for loop
+#include "detail/item_base.hpp"         // for id, range
+#include "detail/type_list.hpp"         // for is_contained, type_list
+#include "id.hpp"                       // for id
+#include "range.hpp"                    // for range
+#include "types.hpp"                    // for vec
 
 namespace sycl {
 inline namespace _V1 {
@@ -144,9 +144,6 @@ using is_plus_or_multiplies_if_complex = std::integral_constant<
                                    is_multiplies<T, BinaryOperation>::value)
                                 : std::true_type::value)>;
 
-// used to transform a vector op to a scalar op;
-// e.g. sycl::plus<std::vec<T, N>> to sycl::plus<T>
-template <typename T> struct get_scalar_binary_op;
 
 template <template <typename> typename F, typename T, int n>
 struct get_scalar_binary_op<F<sycl::vec<T, n>>> {

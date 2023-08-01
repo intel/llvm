@@ -8,8 +8,11 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_helper.hpp>       // for DataLessPropKind
+#include <sycl/properties/property_traits.hpp>   // for is_property_of
+#include <type_traits>                           // for true_type
+
+#include "detail/defines_elementary.hpp"         // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {
@@ -19,7 +22,7 @@ inline namespace _V1 {
       : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
   }
 
-#include <sycl/properties/queue_properties.def>
+#include <sycl/properties/queue_properties.def>  // for use_default_stream
 
 namespace property ::queue {
 namespace __SYCL2020_DEPRECATED(
@@ -43,8 +46,6 @@ private:
 };
 } // namespace ext::intel::property::queue
 
-// Queue property trait specializations.
-class queue;
 
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <>                                                                  \
@@ -52,7 +53,6 @@ class queue;
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 
-#include <sycl/properties/queue_properties.def>
 
 } // namespace _V1
 } // namespace sycl

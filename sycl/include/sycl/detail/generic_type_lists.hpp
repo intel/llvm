@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/half_type.hpp>
-
-#include <cstddef>
+#include <sycl/access/access.hpp>     // for address_space
+#include <sycl/detail/type_list.hpp>  // for type_list, address_space_list
+#include <sycl/half_type.hpp>         // for half
+#include <cstddef>                    // for byte, size_t
+#include <type_traits>                // for conditional_t, is_signed_v, is_...
 
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions
@@ -21,8 +20,6 @@
 // Forward declarations
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
-template <typename Type, std::size_t NumElements> class marray;
 
 namespace detail {
 namespace gtl {

@@ -8,9 +8,6 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 #ifdef __SYCL_DEVICE_ONLY__
 
 #define __SPIRV_VAR_QUALIFIERS extern "C" const

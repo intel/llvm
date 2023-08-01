@@ -8,16 +8,21 @@
 
 #pragma once
 
-#include "fpga_utils.hpp"
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/context.hpp>
-#include <sycl/device.hpp>
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
-#include <type_traits>
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/ext/intel/experimental/pipe_properties.hpp>  // for protocol_...
+#include <sycl/ext/oneapi/properties/properties.hpp>        // for ValueOrDe...
+#include <sycl/queue.hpp>                                   // for queue
+#include <stdint.h>                                         // for int32_t
+#include <string>                                           // for string
+#include <tuple>                                            // for _Swallow_...
+
+#include "detail/export.hpp"                                // for __SYCL_EX...
+#include "event.hpp"                                        // for event
+#include "exception.hpp"                                    // for make_erro...
+#include "handler.hpp"                                      // for handler
+#include "info/event_traits.def"                            // for command_e...
+#include "info/info_desc.hpp"                               // for event_com...
+#include "memory_enums.hpp"                                 // for memory_order
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <xpti/xpti_data_types.h>

@@ -8,9 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <ostream>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <ostream>                             // for operator<<, ostream
 
 namespace sycl {
 inline namespace _V1 {
@@ -26,7 +25,6 @@ enum class backend : char {
   ext_native_cpu = 7,
 };
 
-template <backend Backend> class backend_traits;
 
 template <backend Backend, typename SYCLObjectT>
 using backend_input_t =

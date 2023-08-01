@@ -8,31 +8,24 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/impl_utils.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/property_list.hpp>          // for property_list
+#include <functional>                      // for function
+#include <memory>                          // for shared_ptr
+#include <vector>                          // for vector
+#include <type_traits>                     // for true_type
 
-#include <functional>
-#include <memory>
-#include <vector>
+#include "context.hpp"                     // for context
+#include "detail/export.hpp"               // for __SYCL_EXPORT
+#include "detail/property_helper.hpp"      // for DataLessPropKind, PropWith...
+#include "device.hpp"                      // for device
+#include "properties/property_traits.hpp"  // for is_property, is_property_of
 
 namespace sycl {
 inline namespace _V1 {
 
-class handler;
-class queue;
-class device;
 namespace ext {
 namespace oneapi {
 namespace experimental {
-
-namespace detail {
-class node_impl;
-class graph_impl;
-class exec_graph_impl;
-
-} // namespace detail
 
 /// State to template the command_graph class on.
 enum class graph_state {
@@ -89,7 +82,6 @@ private:
 } // namespace node
 } // namespace property
 
-template <graph_state State> class command_graph;
 
 namespace detail {
 // Templateless modifiable command-graph base class.

@@ -8,11 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/exception.hpp>             // for feature_not_supported
+#include <type_traits>                    // for remove_reference_t
 
-#include <type_traits>
+#include "detail/defines.hpp"             // for __SYCL_TYPE
+#include "detail/defines_elementary.hpp"  // for __SYCL_ALWAYS_INLINE
+#include "detail/pi_error.def"            // for PI_ERROR_INVALID_OPERATION
 
 namespace sycl {
 inline namespace _V1 {

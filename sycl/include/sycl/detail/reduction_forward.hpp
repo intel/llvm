@@ -8,18 +8,20 @@
 
 #pragma once
 
+#include <stddef.h>              // for size_t
+
+#include "detail/item_base.hpp"  // for range
+#include "id.hpp"                // for id
+#include "item.hpp"              // for getDelinearizedItem, item
+#include "nd_range.hpp"          // for nd_range
+#include "range.hpp"             // for range
 // To be included in <sycl/handler.hpp>. Note that reductions implementation
 // need complete sycl::handler type so we cannot include whole
 // <sycl/reduction.hpp> there.
 
-#include <sycl/detail/common.hpp>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T, class BinaryOperation, int Dims, size_t Extent,
-          bool ExplicitIdentity, typename RedOutVar>
-class reduction_impl_algo;
 
 namespace reduction {
 enum class strategy : int {
@@ -61,8 +63,6 @@ template <typename KernelName,
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest);
 
-template <typename T> struct IsReduction;
-template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace _V1

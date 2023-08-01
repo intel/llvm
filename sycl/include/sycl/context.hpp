@@ -8,24 +8,28 @@
 
 #pragma once
 
-#include <sycl/async_handler.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/async_handler.hpp>             // for async_handler
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/property_list.hpp>             // for property_list
+#include <cstddef>                            // for size_t
+#include <memory>                             // for shared_ptr, hash, opera...
+#include <type_traits>                        // for add_pointer_t
+#include <variant>                            // for hash
+#include <vector>                             // for vector
+
+#include "detail/defines_elementary.hpp"      // for __SYCL2020_DEPRECATED
+#include "detail/helpers.hpp"                 // for context_impl
+#include "detail/pi.h"                        // for pi_native_handle
+#include "device.hpp"                         // for device
+#include "platform.hpp"                       // for platform
 
 // 4.6.2 Context class
 
 namespace sycl {
 inline namespace _V1 {
-// Forward declarations
-class device;
-class platform;
-
-namespace detail {
-class context_impl;
-}
 template <backend Backend, class SyclT>
 auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 

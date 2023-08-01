@@ -8,30 +8,31 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/access/access.hpp>                 // for target, mode, place...
+#include <sycl/accessor.hpp>                      // for AccessorBaseHost
+#include <sycl/backend_types.hpp>                 // for backend, backend_re...
+#include <stdint.h>                               // for int32_t
+#include <memory>                                 // for shared_ptr
+#include <type_traits>                            // for enable_if_t
+#include <utility>                                // for move, pair
+#include <vector>                                 // for vector
 
-#include <memory>
+#include "context.hpp"                            // for context
+#include "detail/export.hpp"                      // for __SYCL_EXPORT
+#include "detail/helpers.hpp"                     // for context_impl
+#include "detail/impl_utils.hpp"                  // for getSyclObjImpl
+#include "detail/pi.h"                            // for _pi_mem, pi_native_...
+#include "detail/pi_error.def"                    // for PI_ERROR_INVALID_ME...
+#include "device.hpp"                             // for device, device_impl
+#include "exception.hpp"                          // for invalid_object_error
+#include "exception_list.hpp"                     // for queue_impl
+#include "ext/oneapi/accessor_property_list.hpp"  // for accessor_property_list
+#include "image.hpp"                              // for image
+#include "properties/buffer_properties.hpp"       // for buffer
 
 namespace sycl {
 inline namespace _V1 {
 
-namespace detail {
-class AccessorBaseHost;
-class ExecCGCommand;
-class DispatchHostTask;
-class queue_impl;
-class device_impl;
-class context_impl;
-} // namespace detail
-
-class queue;
-class device;
-class context;
 
 class interop_handle {
 public:

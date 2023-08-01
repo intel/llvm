@@ -8,11 +8,13 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
-
-#include <mutex>
+#include <sycl/context.hpp>                     // for context
+#include <sycl/detail/property_helper.hpp>      // for PropWithDataKind, Dat...
+#include <sycl/properties/property_traits.hpp>  // for is_property_of
+#include <stdint.h>                             // for uint32_t, uint64_t
+#include <mutex>                                // for mutex
+#include <type_traits>                          // for true_type
+#include <utility>                              // for move
 
 namespace sycl {
 inline namespace _V1 {
@@ -72,9 +74,6 @@ class use_pinned_host_memory : public sycl::detail::DataLessProperty<
                                    sycl::detail::BufferUsePinnedHostMemory> {};
 } // namespace ext::oneapi::property::buffer
 
-// Forward declaration
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
 
 // Buffer property trait specializations
 template <typename T, int Dimensions, typename AllocatorT>

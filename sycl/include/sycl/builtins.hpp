@@ -8,14 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/boolean.hpp>              // for Boolean
+#include <sycl/detail/builtins.hpp>             // for __invoke_select, __in...
+#include <sycl/detail/generic_type_traits.hpp>  // for is_svgenfloat, is_sge...
+#include <sycl/types.hpp>                       // for vec
+#include <cstring>                              // for memcpy, size_t
+#include <type_traits>                          // for enable_if_t, conditio...
 
-#include <algorithm>
+#include "access/access.hpp"                    // for address_space, decorated
+#include "aliases.hpp"                          // for half
+#include "detail/defines_elementary.hpp"        // for __SYCL_ALWAYS_INLINE
+#include "detail/type_list.hpp"                 // for is_contained, type_list
+#include "detail/type_traits.hpp"               // for make_larger_t, marray...
+#include "half_type.hpp"                        // for half, intel
+#include "marray.hpp"                           // for marray
+#include "multi_ptr.hpp"                        // for address_space_cast
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

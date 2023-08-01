@@ -8,42 +8,52 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/id.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/range.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/detail/common.hpp>                      // for code_location
+#include <sycl/detail/owner_less_base.hpp>             // for OwnerLessBase
+#include <sycl/detail/stl_type_traits.hpp>             // for iterator_value...
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>      // for SYCLMemObjAllo...
+#include <sycl/event.hpp>                              // for event
+#include <sycl/exception.hpp>                          // for invalid_object...
+#include <sycl/ext/oneapi/accessor_property_list.hpp>  // for accessor_prope...
+#include <sycl/id.hpp>                                 // for id
+#include <sycl/property_list.hpp>                      // for property_list
+#include <sycl/range.hpp>                              // for range, rangeTo...
+#include <sycl/stl.hpp>                                // for make_unique_ptr
+#include <stdint.h>                                    // for uint32_t
+#include <cstddef>                                     // for size_t, nullptr_t
+#include <functional>                                  // for function
+#include <iterator>                                    // for iterator_traits
+#include <memory>                                      // for shared_ptr
+#include <string>                                      // for string
+#include <type_traits>                                 // for enable_if_t
+#include <typeinfo>                                    // for type_info
+#include <utility>                                     // for declval, move
+#include <variant>                                     // for hash
+#include <vector>                                      // for vector
+
+#include "access/access.hpp"                           // for placeholder
+#include "backend_types.hpp"                           // for backend, backe...
+#include "context.hpp"                                 // for context
+#include "detail/array.hpp"                            // for array
+#include "detail/defines_elementary.hpp"               // for __SYCL2020_DEP...
+#include "detail/export.hpp"                           // for __SYCL_EXPORT
+#include "detail/helpers.hpp"                          // for buffer_impl
+#include "detail/pi.h"                                 // for pi_native_handle
+#include "detail/pi_error.def"                         // for PI_ERROR_INVAL...
+#include "detail/property_helper.hpp"                  // for PropWithDataKind
+#include "detail/type_traits.hpp"                      // for remove_pointer_t
 
 namespace sycl {
 inline namespace _V1 {
 
-class handler;
-class queue;
-template <int dimensions> class range;
 
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
-template <typename DataT, int Dimensions, access::mode AccessMode>
-class host_accessor;
 
-template <typename T, int Dimensions, typename AllocatorT, typename Enable>
-class buffer;
-
-namespace ext::oneapi {
-template <typename SYCLObjT> class weak_object;
-} // namespace ext::oneapi
 
 namespace detail {
 
-class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
@@ -59,9 +69,6 @@ auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
     -> backend_return_t<BackendName,
                         buffer<DataT, Dimensions, Allocator, void>>;
 
-template <backend Backend, typename DataT, int Dimensions,
-          typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
-struct BufferInterop;
 
 // The non-template base for the sycl::buffer class
 class __SYCL_EXPORT buffer_plain {

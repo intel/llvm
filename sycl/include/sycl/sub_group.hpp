@@ -8,27 +8,24 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/functional.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
-#include <sycl/range.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>               // for address_space, decorated
+#include <sycl/detail/generic_type_traits.hpp>  // for select_cl_scalar_inte...
+#include <sycl/detail/type_traits.hpp>          // for is_scalar_arithmetic
+#include <sycl/id.hpp>                          // for id
+#include <sycl/memory_enums.hpp>                // for memory_scope
+#include <sycl/range.hpp>                       // for range
+#include <sycl/types.hpp>                       // for vec
+#include <stdint.h>                             // for uint32_t
+#include <type_traits>                          // for enable_if_t, remove_cv_t
+#include <tuple>                                // for _Swallow_assign, ignore
 
-#include <type_traits>
+#include "detail/defines_elementary.hpp"        // for __SYCL_DEPRECATED
+#include "detail/pi_error.def"                  // for PI_ERROR_INVALID_DEVICE
+#include "exception.hpp"                        // for runtime_error, make_e...
+#include "multi_ptr.hpp"                        // for multi_ptr
 
 namespace sycl {
 inline namespace _V1 {
-template <typename T, access::address_space Space,
-          access::decorated DecorateAddress>
-class multi_ptr;
 
 namespace detail {
 
@@ -121,7 +118,6 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 
 } // namespace detail
 
-struct sub_group;
 namespace ext::oneapi {
 inline sycl::sub_group this_sub_group();
 namespace experimental {

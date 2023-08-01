@@ -8,15 +8,12 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/id.hpp>
-#include <sycl/info/info_desc.hpp>
+#include <sycl/detail/pi.h>                             // for pi_device_info
+#include <type_traits>                                  // for true_type
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T> struct PiInfoCode;
 template <typename T> struct is_platform_info_desc : std::false_type {};
 template <typename T> struct is_context_info_desc : std::false_type {};
 template <typename T> struct is_device_info_desc : std::false_type {};
@@ -41,11 +38,6 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#include <sycl/info/context_traits.def>
-#include <sycl/info/event_traits.def>
-#include <sycl/info/kernel_traits.def>
-#include <sycl/info/platform_traits.def>
-#include <sycl/info/queue_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #define __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)              \
   template <> struct PiInfoCode<info::DescType::Desc> {                        \
@@ -55,7 +47,6 @@ template <typename T> struct is_event_profiling_info_desc : std::false_type {};
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#include <sycl/info/event_profiling_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 template <typename Param> struct IsSubGroupInfo : std::false_type {};
@@ -83,7 +74,8 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
   struct is_##DescType##_info_desc<info::DescType::Desc> : std::true_type {    \
     using return_type = info::DescType::Desc::return_type;                     \
   };
-#include <sycl/info/kernel_device_specific_traits.def>
+#include <sycl/info/kernel_device_specific_traits.def>  // for compile_num_s...
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 // Need a static_cast here since piDeviceGetInfo can also accept
 // pi_usm_capability_query values.
@@ -99,7 +91,6 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
 #define __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED(DescType, Desc, ReturnT, PiCode)  \
   __SYCL_PARAM_TRAITS_SPEC(DescType, Desc, ReturnT, PiCode)
 
-#include <sycl/info/device_traits.def>
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_SPEC_SPECIALIZED
@@ -114,9 +105,6 @@ struct IsSubGroupInfo<info::kernel_device_specific::compile_sub_group_size>
       : std::true_type {                                                       \
     using return_type = Namespace::info::DescType::Desc::return_type;          \
   };
-#include <sycl/info/ext_codeplay_device_traits.def>
-#include <sycl/info/ext_intel_device_traits.def>
-#include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 
 } // namespace detail
