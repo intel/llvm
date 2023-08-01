@@ -20,6 +20,11 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+namespace detail {
+class queue_impl;
+}
+
 /// A list of asynchronous exceptions.
 ///
 /// \ingroup sycl_api
