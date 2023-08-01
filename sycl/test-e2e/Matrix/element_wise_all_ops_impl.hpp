@@ -1,6 +1,10 @@
-#define TM 8
-#define TN SG_SZ
-#define TK 16
+//==----------- element_wise_all_ops_impl.hpp  - DPC++ joint_matrix---------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
 static float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
@@ -34,175 +38,162 @@ void assert_ops_ref(host_accessor<T, 2, access::mode::read> mat,
     }
 }
 
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS, size_t SUB_COLS, typename joint_matrix_t, use Use, typename OP>
-void matrix_verify_op(queue q, big_matrix<T, NUM_ROWS, NUM_COLS> &mat, nd_range<2> &r,
-                       const float ref, OP op) {
-  buffer<T, 2> bufMat(mat.get_data(), range<2>(NUM_ROWS, NUM_COLS));
-
-  q.submit([&](handler &cgh) {
-     sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
-     cgh.parallel_for(
-         r, [accessMat, op](nd_item<2> spmd_item)[[intel::reqd_sub_group_size(SG_SZ)]] {
-           const auto global_idx = spmd_item.get_global_id(0);
-           const auto global_idy = spmd_item.get_global_id(1);
-           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
-
-           sub_group sg = spmd_item.get_sub_group();
-           joint_matrix_t sub_mat;
-           if constexpr (std::is_same_v<T, bfloat16>)
-             joint_matrix_fill(sg, sub_mat, bfloat16(5.0));
-           else
-             joint_matrix_fill(sg, sub_mat, 5);
-           auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
-           for (int i = 0; i < wi_slice.length(); i++) {
-             if constexpr (std::is_same_v<T, bfloat16>)
-               wi_slice[i] = op(wi_slice[i], bfloat16(2));
-             else
-               wi_slice[i] = op(wi_slice[i], 2);
-           }
-
-           //if (Use == use::a) {
-
-            ext::intel::experimental::matrix::joint_matrix_store(
-                sg, sub_mat,
-                accessMat.template get_multi_ptr<access::decorated::no>() +
-                    (sg_startx * SUB_ROWS) * NUM_COLS + sg_starty / SG_SZ * SUB_COLS,
-                NUM_COLS);
-          //  } else {
-          //   joint_matrix_store(
-          //       sg, sub_mat,
-          //       accessMat.template get_multi_ptr<access::decorated::no>() +
-          //           (sg_startx * SUB_ROWS) * NUM_COLS + sg_starty / SG_SZ * SUB_COLS,
-          //       NUM_COLS, layout::row_major);
-
-          //  }
-
-         }); // parallel for
-   })
-      .wait();
-  assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
-}
-/*
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS, size_t SUB_COLS, typename joint_matrix_t, use Use>
-void matrix_verify_logic(queue q, big_matrix<T, NUM_ROWS, NUM_COLS> &mat, nd_range<2> &r,
-                         const float ref) {
-  buffer<T, 2> bufMat(mat.get_data(), range<2>(NUM_ROWS, NUM_COLS));
-
-  q.submit([&](handler &cgh) {
-     sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
-     cgh.parallel_for(
-         r, [accessMat](nd_item<2> spmd_item)[[intel::reqd_sub_group_size(SG_SZ)]] {
-           const auto global_idx = spmd_item.get_global_id(0);
-           const auto global_idy = spmd_item.get_global_id(1);
-           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
-           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
-
-           sub_group sg = spmd_item.get_sub_group();
-           joint_matrix_t sub_mat;
-           if constexpr (std::is_same_v<T, bfloat16>)
-             joint_matrix_fill(sg, sub_mat, bfloat16(5.0));
-           else
-             joint_matrix_fill(sg, sub_mat, 5);
-           auto wi_slice =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
-           for (int i = 0; i < wi_slice.length(); i++) {
-             if (wi_slice[i]) {
-               if constexpr (std::is_same_v<T, bfloat16>) {
-                 if (wi_slice[i] > bfloat16(2.0) ||
-                     wi_slice[i] >= bfloat16(2.0) ||
-                     wi_slice[i] < bfloat16(2.0) ||
-                     wi_slice[i] <= bfloat16(2.0)) {
-                   T val = (wi_slice[i] != bfloat16(2.0)) ? wi_slice[i]
-                                                            : bfloat16(2.0);
-                   val = bfloat16(make_fp32(val) - static_cast<float>(1));
-                   val = bfloat16(make_fp32(val) + static_cast<float>(1));
-                   if (wi_slice[i] == bfloat16(2.0)) {
-                     val = bfloat16(make_fp32(val) - static_cast<float>(2));
-                     val = bfloat16(make_fp32(val) * static_cast<float>(3));
-                     val = bfloat16(make_fp32(val) / static_cast<float>(2));
-
-                   } else {
-                     val = bfloat16(make_fp32(val) + static_cast<float>(2));
-                   }
-                   wi_slice[i] = val;
-                 }
-               } else {
-                 if (wi_slice[i] > 2.0 || wi_slice[i] >= 2.0 ||
-                     wi_slice[i] < 2.0 || wi_slice[i] <= 2.0) {
-                   T val = (wi_slice[i] != 2.0) ? wi_slice[i]
-                                                  : static_cast<T>(2.0);
-                   val = val - 1;
-                   val = val + 1;
-                   if (wi_slice[i] == 2.0) {
-                     val = val - 2;
-                     val = val * 3;
-                     val = val / 2;
-                   } else {
-                     val = val + 2;
-                   }
-                   wi_slice[i] = val;
-                 }
-               }
-             }
-           }
-           if (Use == use::a) {
-            ext::intel::experimental::matrix::joint_matrix_store(
-                sg, sub_mat,
-                accessMat.template get_multi_ptr<access::decorated::no>() +
-                    (sg_startx * SUB_ROWS) * NUM_COLS + sg_starty / SG_SZ * SUB_COLS,
-                NUM_COLS);
-           } else {
-            joint_matrix_store(
-                sg, sub_mat,
-                accessMat.template get_multi_ptr<access::decorated::no>() +
-                    (sg_startx * SUB_ROWS) * NUM_COLS + sg_starty / SG_SZ * SUB_COLS,
-                NUM_COLS, layout::row_major);
-
-           }
-         }); // parallel for
-   })
-      .wait();
-  assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
-}
-*/
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS, size_t SUB_COLS, typename joint_matrix_t, use Use> void test_ewops() {
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
+          size_t SUB_COLS, typename OP>
+void verify_op_a(const T l, const T r, const float ref, OP op) {
   T mat[NUM_ROWS][NUM_COLS];
   big_matrix<T, NUM_ROWS, NUM_COLS> big_mat((T *)&mat);
 
-  size_t NDRangeRows = NUM_ROWS / SUB_ROWS;
-  size_t NDRangeCols = NUM_COLS / SUB_COLS;
+  buffer<T, 2> bufMat(big_mat.get_data(), range<2>(NUM_ROWS, NUM_COLS));
 
   queue q;
-  nd_range<2> r({NDRangeRows, NDRangeCols * SG_SZ}, {1, 1 * SG_SZ});
+  q.submit([&](handler &cgh) {
+     sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
+     cgh.parallel_for(
+         nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * SG_SZ},
+                     {1, 1 * SG_SZ}),
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-  std::cout << "+: ";
-  matrix_verify_op<T, NUM_ROWS, NUM_COLS, SUB_ROWS, SUB_COLS, joint_matrix_t, Use>(q, big_mat, r, 7.0, [](auto l, auto r){ return l + r;});
-  std::cout << "passed\n";
-  std::cout << "-: ";
-  matrix_verify_op<T, NUM_ROWS, NUM_COLS, SUB_ROWS, SUB_COLS, joint_matrix_t, Use>(q, big_mat, r, 3.0, [](auto l, auto r){ return l - r;});
-  std::cout << "passed\n";
-  std::cout << "*: ";
-  matrix_verify_op<T, NUM_ROWS, NUM_COLS, SUB_ROWS, SUB_COLS, joint_matrix_t, Use>(q, big_mat, r, 10.0, [](auto l, auto r){ return l * r;});
-  std::cout << "passed\n";
-  std::cout << "/: ";
-  matrix_verify_op<T, NUM_ROWS, NUM_COLS, SUB_ROWS, SUB_COLS, joint_matrix_t, Use>(q, big_mat, r, 2.5, [](auto l, auto r){ return l / r;});
-  std::cout << "passed\n";
-  //matrix_verify_logic<T, NUM_ROWS, NUM_COLS, SUB_ROWS, SUB_COLS, joint_matrix_t, Use>(q, big_mat, r, 7.0);
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::a, SUB_ROWS, SUB_COLS,
+                        layout::row_major>
+               sub_mat;
+           joint_matrix_fill(sg, sub_mat, l);
+           auto wi_slice =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
+           for (int i = 0; i < wi_slice.length(); i++) {
+             wi_slice[i] = op(wi_slice[i], r);
+           }
+
+           ext::intel::experimental::matrix::joint_matrix_store(
+               sg, sub_mat,
+               accessMat.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * SUB_ROWS) * NUM_COLS +
+                   sg_starty / SG_SZ * SUB_COLS,
+               NUM_COLS);
+         }); // parallel for
+   }).wait();
+  assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
+}
+
+template <typename T, size_t NUM_ROWS, size_t NUM_COLS, size_t SUB_ROWS,
+          size_t SUB_COLS, typename OP>
+void verify_op_c(const T l, const T r, const float ref, OP op) {
+  T mat[NUM_ROWS][NUM_COLS];
+  big_matrix<T, NUM_ROWS, NUM_COLS> big_mat((T *)&mat);
+
+  buffer<T, 2> bufMat(big_mat.get_data(), range<2>(NUM_ROWS, NUM_COLS));
+
+  queue q;
+  q.submit([&](handler &cgh) {
+     sycl::accessor accessMat{bufMat, cgh, sycl::read_write};
+     cgh.parallel_for(
+         nd_range<2>({NUM_ROWS / SUB_ROWS, NUM_COLS / SUB_COLS * SG_SZ},
+                     {1, 1 * SG_SZ}),
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
+           const auto global_idx = spmd_item.get_global_id(0);
+           const auto global_idy = spmd_item.get_global_id(1);
+           const auto sg_startx = global_idx - spmd_item.get_local_id(0);
+           const auto sg_starty = global_idy - spmd_item.get_local_id(1);
+
+           sub_group sg = spmd_item.get_sub_group();
+           joint_matrix<sub_group, T, use::accumulator, SUB_ROWS, SUB_COLS>
+               sub_mat;
+           joint_matrix_fill(sg, sub_mat, l);
+           auto wi_slice =
+               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_mat);
+           for (int i = 0; i < wi_slice.length(); i++) {
+             wi_slice[i] = op(wi_slice[i], r);
+           }
+
+           joint_matrix_store(
+               sg, sub_mat,
+               accessMat.template get_multi_ptr<access::decorated::no>() +
+                   (sg_startx * SUB_ROWS) * NUM_COLS +
+                   sg_starty / SG_SZ * SUB_COLS,
+               NUM_COLS, layout::row_major);
+         }); // parallel for
+   }).wait();
+  assert_ops_ref<T, NUM_ROWS, NUM_COLS>(bufMat.get_host_access(read_only), ref);
+}
+
+template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
+void test_ewops_a() {
+
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0,
+      [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.0,
+      [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0,
+      [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
+  verify_op_a<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.0,
+      [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
+}
+
+template <typename T, size_t NROWS, size_t NCOLS, size_t SROWS, size_t SCOLS>
+void test_ewops_c() {
+
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 7.0, [](auto l, auto r) { return l + r; });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0, [](auto l, auto r) { return l - r; });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 10.0, [](auto l, auto r) { return l * r; });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.5, [](auto l, auto r) { return l / r; });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(5.0), 5.0, [](auto l, auto r) { return l == r ? l : T(1.0); });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(5.0), 1.0, [](auto l, auto r) { return l != r ? l : T(1.0); });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0,
+      [](auto l, auto r) { return l > r ? T(3.0) : T(2.0); });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.0,
+      [](auto l, auto r) { return l < r ? T(3.0) : T(2.0); });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 3.0,
+      [](auto l, auto r) { return l >= r ? T(3.0) : T(2.0); });
+  verify_op_c<T, NROWS, NCOLS, SROWS, SCOLS>(
+      T(5.0), T(2.0), 2.0,
+      [](auto l, auto r) { return l <= r ? T(3.0) : T(2.0); });
 }
 
 int main() {
+  static constexpr size_t TM = 8;
+  static constexpr size_t TN = SG_SZ;
+  static constexpr size_t TK = 16;
+
   static constexpr size_t MATRIX_M = TM * 2;
   static constexpr size_t MATRIX_N = TN * 2;
   static constexpr size_t MATRIX_K = TK * 2;
 
-  // test A
-  test_ewops<bfloat16, MATRIX_M, MATRIX_K, TM, TK, joint_matrix<sub_group, bfloat16, use::a, TM, TK, layout::row_major>, use::a>();
-
-  // test C
-  //test_ewops<bfloat16, MATRIX_M, MATRIX_N, TM, TN, joint_matrix<sub_group, bfloat16, use::accumulator, TM, TN>, use::accumulator>();
-  //test_ewops<float, MATRIX_M, MATRIX_N, TM, TN, joint_matrix<sub_group, float, use::accumulator, TM, TN>, use::accumulator>();
+  test_ewops_a<bfloat16, MATRIX_M, MATRIX_K, TM, TK>();
+  test_ewops_c<float, MATRIX_M, MATRIX_N, TM, TN>();
 
   return 0;
 }
