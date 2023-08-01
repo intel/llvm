@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 function(add_ur_adapter name)
-    add_library(${name} ${ARGN})
+    add_ur_library(${name} ${ARGN})
     if(MSVC)
         set(TARGET_LIBNAME ${name})
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
@@ -15,6 +15,8 @@ function(add_ur_adapter name)
         set_target_properties(${name} PROPERTIES
             LINK_FLAGS "/DEF:${ADAPTER_VERSION_SCRIPT}"
         )
+    elseif(APPLE)
+        target_compile_options(${name} PRIVATE "-fvisibility=hidden")
     else()
         set(TARGET_LIBNAME lib${name}_${PROJECT_VERSION_MAJOR}.0)
         string(TOUPPER ${TARGET_LIBNAME} TARGET_LIBNAME)
@@ -31,7 +33,7 @@ add_subdirectory(null)
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
     # fetch adapter sources from SYCL
     set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-    FetchSource(https://github.com/intel/llvm.git sycl-nightly/20230717 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
+    FetchSource(https://github.com/intel/llvm.git nightly-2023-08-01 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
 endif()
 
 if(UR_BUILD_ADAPTER_L0)

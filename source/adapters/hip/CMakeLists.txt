@@ -45,6 +45,10 @@ set(HIP_HEADERS "${UR_HIP_INCLUDE_DIR};${UR_HIP_HSA_INCLUDE_DIR}")
 add_ur_adapter(${TARGET_NAME}
     SHARED
     ${HIP_DIR}/ur_interface_loader.cpp
+    ${HIP_DIR}/adapter.hpp
+    ${HIP_DIR}/adapter.cpp
+    ${HIP_DIR}/command_buffer.hpp
+    ${HIP_DIR}/command_buffer.cpp
     ${HIP_DIR}/common.hpp
     ${HIP_DIR}/common.cpp
     ${HIP_DIR}/context.hpp
@@ -67,12 +71,9 @@ add_ur_adapter(${TARGET_NAME}
     ${HIP_DIR}/sampler.hpp
     ${HIP_DIR}/sampler.cpp
     ${HIP_DIR}/usm.cpp
+    ${HIP_DIR}/usm_p2p.cpp
     ${HIP_DIR}/../../ur.cpp
     ${HIP_DIR}/../../ur.hpp
-    ${HIP_DIR}/../../usm_allocator.cpp
-    ${HIP_DIR}/../../usm_allocator.hpp
-    ${HIP_DIR}/../../usm_allocator_config.cpp
-    ${HIP_DIR}/../../usm_allocator_config.hpp
 )
 
 if(NOT MSVC)
@@ -100,6 +101,7 @@ if("${UR_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::unified_malloc_framework
     rocmdrv
     )
 

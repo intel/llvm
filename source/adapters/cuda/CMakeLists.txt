@@ -10,6 +10,10 @@ set(TARGET_NAME ur_adapter_cuda)
 add_ur_adapter(${TARGET_NAME}
     SHARED
     ${CUDA_DIR}/ur_interface_loader.cpp
+    ${CUDA_DIR}/adapter.hpp
+    ${CUDA_DIR}/adapter.cpp
+    ${CUDA_DIR}/command_buffer.hpp
+    ${CUDA_DIR}/command_buffer.cpp
     ${CUDA_DIR}/common.hpp
     ${CUDA_DIR}/common.cpp
     ${CUDA_DIR}/context.hpp
@@ -33,12 +37,9 @@ add_ur_adapter(${TARGET_NAME}
     ${CUDA_DIR}/sampler.cpp
     ${CUDA_DIR}/tracing.cpp
     ${CUDA_DIR}/usm.cpp
+    ${CUDA_DIR}/usm_p2p.cpp
     ${CUDA_DIR}/../../ur.cpp
     ${CUDA_DIR}/../../ur.hpp
-    ${CUDA_DIR}/../../usm_allocator.cpp
-    ${CUDA_DIR}/../../usm_allocator.hpp
-    ${CUDA_DIR}/../../usm_allocator_config.cpp
-    ${CUDA_DIR}/../../usm_allocator_config.hpp
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES
@@ -69,6 +70,7 @@ endif()
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::unified_malloc_framework
     Threads::Threads
     cudadrv
 )
