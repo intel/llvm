@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: [SYCL Experimental Pre-Commit]
     types:
-      - in-progress
+      - in_progress
       - completed
 
 jobs:
