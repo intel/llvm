@@ -1,5 +1,5 @@
 // REQUIRES: fusion
-// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} -Xclang -no-opaque-pointers -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
 // Test internalization of a nested array type.

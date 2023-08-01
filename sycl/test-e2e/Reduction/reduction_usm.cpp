@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Xclang -no-opaque-pointers -o %t.out
 // RUN: %{run} %t.out
 //
 // `Group algorithms are not supported on host device.` on Nvidia.
