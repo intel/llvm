@@ -222,9 +222,8 @@ public:
   /// @brief Method that emits begin/end trace notifications
   /// @return Current class
   XPTIScope &scopedNotify(uint16_t TraceType) {
-    TraceType &= 0xfffe;
-    if (xptiCheckTraceEnabled(MStreamID, TraceType) && MTP) {
-      MTraceType = TraceType;
+    if (xptiTraceEnabled() && MTP) {
+      MTraceType = TraceType & 0xfffe;
       MScopedNotify = true;
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
                             MInstanceID, static_cast<const void *>(MUserData));
@@ -232,7 +231,7 @@ public:
     return *this;
   }
   ~XPTIScope() {
-    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MTP && MScopedNotify) {
+    if (xptiTraceEnabled() && MTP && MScopedNotify) {
       if (MTraceType == (uint16_t)xpti::trace_point_type_t::signal ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
