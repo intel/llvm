@@ -1,6 +1,7 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE1 %s -c -o %t.1.o
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE2 %s -c -o %t.2.o
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -shared %t.1.o %t.2.o -o %t.so
+// TODO: Stop disabling opaque pointers once it can work.
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE1 %s -c -o %t.1.o
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl -fsycl-targets=%sycl_triple -fPIC -DCASE2 %s -c -o %t.2.o
+// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl -fsycl-targets=%sycl_triple -shared %t.1.o %t.2.o -o %t.so
 //
 // Some of the above compiler options will not work on Windows.
 // UNSUPPORTED: windows
