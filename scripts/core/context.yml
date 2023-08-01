@@ -196,6 +196,9 @@ params:
       name: phNativeContext
       desc: |
             [out] a pointer to the native handle of the context.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xContextCreateWithNativeHandle."
@@ -224,7 +227,7 @@ params:
     - type: $x_native_handle_t
       name: hNativeContext
       desc: |
-            [in] the native handle of the context.
+            [in][nocheck] the native handle of the context.
     - type: uint32_t
       name: numDevices
       desc: "[in] number of devices associated with the context"
@@ -238,6 +241,9 @@ params:
       name: phContext
       desc: |
             [out] pointer to the handle of the context object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: fptr_typedef
 desc: "Context's extended deleter callback function with user data."

@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 add_conformance_test_with_kernels_environment(enqueue
+    urEnqueueDeviceGlobalVariableRead.cpp
+    urEnqueueDeviceGlobalVariableWrite.cpp
     urEnqueueEventsWait.cpp
     urEnqueueEventsWaitWithBarrier.cpp
     urEnqueueKernelLaunch.cpp
@@ -16,8 +18,6 @@ add_conformance_test_with_kernels_environment(enqueue
     urEnqueueMemBufferWrite.cpp
     urEnqueueMemBufferWriteRect.cpp
     urEnqueueMemImageCopy.cpp
-    urEnqueueMemImageFill.cpp
-    urEnqueueMemImageMap.cpp
     urEnqueueMemImageRead.cpp
     urEnqueueMemImageWrite.cpp
     urEnqueueMemUnmap.cpp

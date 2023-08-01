@@ -160,7 +160,7 @@ etors:
       desc: "[uint32_t] Return SubGroup size required by Intel"
 --- #--------------------------------------------------------------------------
 type: enum
-desc: "Kernel Cache Configuartion."
+desc: "Kernel Cache Configuration."
 class: $xKernel
 name: $x_kernel_cache_config_t
 etors:
@@ -487,6 +487,9 @@ params:
       name: phNativeKernel
       desc: |
             [out] a pointer to the native handle of the kernel.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xKernelCreateWithNativeHandle."
@@ -515,7 +518,7 @@ params:
     - type: $x_native_handle_t
       name: hNativeKernel
       desc: |
-            [in] the native handle of the kernel.
+            [in][nocheck] the native handle of the kernel.
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
@@ -529,3 +532,6 @@ params:
       name: phKernel
       desc: |
             [out] pointer to the handle of the kernel object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."

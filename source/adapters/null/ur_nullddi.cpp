@@ -15,15 +15,17 @@ namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnInit = d_context.urDdiTable.Global.pfnInit;
     if (nullptr != pfnInit) {
-        result = pfnInit(device_flags);
+        result = pfnInit(device_flags, hLoaderConfig);
     } else {
         // generic implementation
     }
@@ -54,8 +56,143 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGet = d_context.urDdiTable.Global.pfnAdapterGet;
+    if (nullptr != pfnAdapterGet) {
+        result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+    } else {
+        // generic implementation
+        for (size_t i = 0; (nullptr != phAdapters) && (i < NumEntries); ++i) {
+            phAdapters[i] =
+                reinterpret_cast<ur_adapter_handle_t>(d_context.get());
+        }
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterRelease = d_context.urDdiTable.Global.pfnAdapterRelease;
+    if (nullptr != pfnAdapterRelease) {
+        result = pfnAdapterRelease(hAdapter);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterRetain = d_context.urDdiTable.Global.pfnAdapterRetain;
+    if (nullptr != pfnAdapterRetain) {
+        result = pfnAdapterRetain(hAdapter);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGetLastError =
+        d_context.urDdiTable.Global.pfnAdapterGetLastError;
+    if (nullptr != pfnAdapterGetLastError) {
+        result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // if the driver has created a custom function, then call it instead of using the generic path
+    auto pfnAdapterGetInfo = d_context.urDdiTable.Global.pfnAdapterGetInfo;
+    if (nullptr != pfnAdapterGetInfo) {
+        result = pfnAdapterGetInfo(hAdapter, propName, propSize, pPropValue,
+                                   pPropSizeRet);
+    } else {
+        // generic implementation
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -73,7 +210,8 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
     // if the driver has created a custom function, then call it instead of using the generic path
     auto pfnGet = d_context.urDdiTable.Platform.pfnGet;
     if (nullptr != pfnGet) {
-        result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+        result = pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms,
+                        pNumPlatforms);
     } else {
         // generic implementation
         for (size_t i = 0; (nullptr != phPlatforms) && (i < NumEntries); ++i) {
@@ -167,7 +305,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 /// @brief Intercept function for urPlatformCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
-        hNativePlatform, ///< [in] the native handle of the platform.
+        hNativePlatform, ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -209,32 +347,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     if (nullptr != pfnGetBackendOption) {
         result =
             pfnGetBackendOption(hPlatform, pFrontendOption, ppPlatformOption);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-    ) try {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnGetLastError = d_context.urDdiTable.Platform.pfnGetLastError;
-    if (nullptr != pfnGetLastError) {
-        result = pfnGetLastError(hPlatform, ppMessage, pError);
     } else {
         // generic implementation
     }
@@ -445,8 +557,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    ur_native_handle_t
+        hNativeDevice, ///< [in][nocheck] the native handle of the device.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -627,7 +740,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -829,8 +942,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_mem_native_properties_t *
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
@@ -857,8 +971,9 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemImageCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
@@ -1073,7 +1188,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
 /// @brief Intercept function for urSamplerCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeSampler,           ///< [in] the native handle of the sampler.
+        hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_sampler_native_properties_t *
         pProperties, ///< [in][optional] pointer to native sampler properties struct.
@@ -1472,7 +1587,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t hContext, ///< [in] handle to the context object.
     const void
         *pStart, ///< [in] pointer to the start of the virtual memory range.
-    size_t size, ///< [in] size in bytes of the virutal memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
     ) try {
@@ -1531,7 +1646,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t hDevice,   ///< [in] handle of the device object.
     size_t
-        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+        size, ///< [in] size in bytes of physical memory to allocate, must be a multiple
               ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *
         pProperties, ///< [in][optional] pointer to physical memory creation properties.
@@ -1919,7 +2034,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// @brief Intercept function for urProgramCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeProgram,           ///< [in] the native handle of the program.
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     const ur_program_native_properties_t *
         pProperties, ///< [in][optional] pointer to native program properties struct.
@@ -2307,8 +2422,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
@@ -2457,9 +2573,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    ur_native_handle_t
+        hNativeQueue, ///< [in][nocheck] the native handle of the queue.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -2669,8 +2786,9 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeEvent, ///< [in][nocheck] the native handle of the event.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_event_native_properties_t *
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
@@ -3817,6 +3935,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -3827,7 +3946,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
         d_context.urDdiTable.BindlessImagesExp
             .pfnUnsampledImageHandleDestroyExp;
     if (nullptr != pfnUnsampledImageHandleDestroyExp) {
-        result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+        result = pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
     } else {
         // generic implementation
     }
@@ -3842,6 +3961,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
     ) try {
@@ -3851,7 +3971,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
     auto pfnSampledImageHandleDestroyExp =
         d_context.urDdiTable.BindlessImagesExp.pfnSampledImageHandleDestroyExp;
     if (nullptr != pfnSampledImageHandleDestroyExp) {
-        result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+        result = pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
     } else {
         // generic implementation
     }
@@ -3865,6 +3985,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 /// @brief Intercept function for urBindlessImagesImageAllocateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -3877,8 +3998,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     auto pfnImageAllocateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageAllocateExp;
     if (nullptr != pfnImageAllocateExp) {
-        result =
-            pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+        result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
+                                     pImageDesc, phImageMem);
     } else {
         // generic implementation
         *phImageMem =
@@ -3894,6 +4015,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 /// @brief Intercept function for urBindlessImagesImageFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
     ) try {
@@ -3903,7 +4025,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     auto pfnImageFreeExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageFreeExp;
     if (nullptr != pfnImageFreeExp) {
-        result = pfnImageFreeExp(hContext, hImageMem);
+        result = pfnImageFreeExp(hContext, hDevice, hImageMem);
     } else {
         // generic implementation
     }
@@ -3917,6 +4039,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 /// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -3932,8 +4055,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     auto pfnUnsampledImageCreateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnUnsampledImageCreateExp;
     if (nullptr != pfnUnsampledImageCreateExp) {
-        result = pfnUnsampledImageCreateExp(hContext, hImageMem, pImageFormat,
-                                            pImageDesc, phMem, phImage);
+        result = pfnUnsampledImageCreateExp(hContext, hDevice, hImageMem,
+                                            pImageFormat, pImageDesc, phMem,
+                                            phImage);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -3950,6 +4074,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesSampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -3966,8 +4091,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     auto pfnSampledImageCreateExp =
         d_context.urDdiTable.BindlessImagesExp.pfnSampledImageCreateExp;
     if (nullptr != pfnSampledImageCreateExp) {
-        result = pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat,
-                                          pImageDesc, hSampler, phMem, phImage);
+        result =
+            pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
+                                     pImageDesc, hSampler, phMem, phImage);
     } else {
         // generic implementation
         *phMem = reinterpret_cast<ur_mem_handle_t>(d_context.get());
@@ -3983,14 +4109,26 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4008,8 +4146,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     auto pfnImageCopyExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImageCopyExp;
     if (nullptr != pfnImageCopyExp) {
-        result = pfnImageCopyExp(hContext, pDst, pSrc, pImageFormat, pImageDesc,
-                                 imageCopyFlags, numEventsInWaitList,
+        result = pfnImageCopyExp(hQueue, pDst, pSrc, pImageFormat, pImageDesc,
+                                 imageCopyFlags, srcOffset, dstOffset,
+                                 copyExtent, hostExtent, numEventsInWaitList,
                                  phEventWaitList, phEvent);
     } else {
         // generic implementation
@@ -4052,6 +4191,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -4064,8 +4204,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     auto pfnMipmapGetLevelExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMipmapGetLevelExp;
     if (nullptr != pfnMipmapGetLevelExp) {
-        result =
-            pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+        result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem, mipmapLevel,
+                                      phImageMem);
     } else {
         // generic implementation
         *phImageMem =
@@ -4081,6 +4221,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4089,7 +4230,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     auto pfnMipmapFreeExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMipmapFreeExp;
     if (nullptr != pfnMipmapFreeExp) {
-        result = pfnMipmapFreeExp(hContext, hMem);
+        result = pfnMipmapFreeExp(hContext, hDevice, hMem);
     } else {
         // generic implementation
     }
@@ -4103,8 +4244,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 /// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
     ) try {
@@ -4114,8 +4257,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     auto pfnImportOpaqueFDExp =
         d_context.urDdiTable.BindlessImagesExp.pfnImportOpaqueFDExp;
     if (nullptr != pfnImportOpaqueFDExp) {
-        result =
-            pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+        result = pfnImportOpaqueFDExp(hContext, hDevice, size, pInteropMemDesc,
+                                      phInteropMem);
     } else {
         // generic implementation
         *phInteropMem =
@@ -4131,12 +4274,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesMapExternalArrayExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -4145,11 +4289,12 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     auto pfnMapExternalArrayExp =
         d_context.urDdiTable.BindlessImagesExp.pfnMapExternalArrayExp;
     if (nullptr != pfnMapExternalArrayExp) {
-        result = pfnMapExternalArrayExp(hContext, pImageFormat, pImageDesc,
-                                        hInteropMem, phImageMem);
+        result = pfnMapExternalArrayExp(hContext, hDevice, pImageFormat,
+                                        pImageDesc, hInteropMem, phImageMem);
     } else {
         // generic implementation
-        *phImageMem = reinterpret_cast<ur_exp_image_handle_t>(d_context.get());
+        *phImageMem =
+            reinterpret_cast<ur_exp_image_mem_handle_t>(d_context.get());
     }
 
     return result;
@@ -4161,6 +4306,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
     ) try {
@@ -4170,7 +4316,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     auto pfnReleaseInteropExp =
         d_context.urDdiTable.BindlessImagesExp.pfnReleaseInteropExp;
     if (nullptr != pfnReleaseInteropExp) {
-        result = pfnReleaseInteropExp(hContext, hInteropMem);
+        result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
     } else {
         // generic implementation
     }
@@ -4185,9 +4331,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_interop_semaphore_desc_t
+        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4197,10 +4345,10 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             .pfnImportExternalSemaphoreOpaqueFDExp;
     if (nullptr != pfnImportExternalSemaphoreOpaqueFDExp) {
         result = pfnImportExternalSemaphoreOpaqueFDExp(
-            hContext, fileDescriptor, phInteropSemaphoreHandle);
+            hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
     } else {
         // generic implementation
-        *phInteropSemaphoreHandle =
+        *phInteropSemaphore =
             reinterpret_cast<ur_exp_interop_semaphore_handle_t>(
                 d_context.get());
     }
@@ -4214,6 +4362,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
     ) try {
@@ -4223,7 +4372,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     auto pfnDestroyExternalSemaphoreExp =
         d_context.urDdiTable.BindlessImagesExp.pfnDestroyExternalSemaphoreExp;
     if (nullptr != pfnDestroyExternalSemaphoreExp) {
-        result = pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+        result = pfnDestroyExternalSemaphoreExp(hContext, hDevice,
+                                                hInteropSemaphore);
     } else {
         // generic implementation
     }
@@ -4906,6 +5056,16 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     pDdiTable->pfnTearDown = driver::urTearDown;
 
+    pDdiTable->pfnAdapterGet = driver::urAdapterGet;
+
+    pDdiTable->pfnAdapterRelease = driver::urAdapterRelease;
+
+    pDdiTable->pfnAdapterRetain = driver::urAdapterRetain;
+
+    pDdiTable->pfnAdapterGetLastError = driver::urAdapterGetLastError;
+
+    pDdiTable->pfnAdapterGetInfo = driver::urAdapterGetInfo;
+
     return result;
 } catch (...) {
     return exceptionToResult(std::current_exception());
@@ -5388,8 +5548,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
 
     pDdiTable->pfnCreateWithNativeHandle =
         driver::urPlatformCreateWithNativeHandle;
-
-    pDdiTable->pfnGetLastError = driver::urPlatformGetLastError;
 
     pDdiTable->pfnGetApiVersion = driver::urPlatformGetApiVersion;
 

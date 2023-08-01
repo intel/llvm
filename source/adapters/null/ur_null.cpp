@@ -18,7 +18,28 @@ context_t d_context;
 //////////////////////////////////////////////////////////////////////////
 context_t::context_t() {
     //////////////////////////////////////////////////////////////////////////
-    urDdiTable.Platform.pfnGet = [](uint32_t NumEntries,
+    urDdiTable.Global.pfnAdapterGet = [](uint32_t NumAdapters,
+                                         ur_adapter_handle_t *phAdapters,
+                                         uint32_t *pNumAdapters) {
+        if (phAdapters != nullptr && NumAdapters != 1) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        if (pNumAdapters != nullptr) {
+            *pNumAdapters = 1;
+        }
+        if (nullptr != phAdapters) {
+            *reinterpret_cast<void **>(phAdapters) = d_context.get();
+        }
+
+        return UR_RESULT_SUCCESS;
+    };
+    //////////////////////////////////////////////////////////////////////////
+    urDdiTable.Global.pfnAdapterRelease = [](ur_adapter_handle_t) {
+        return UR_RESULT_SUCCESS;
+    };
+    //////////////////////////////////////////////////////////////////////////
+    urDdiTable.Platform.pfnGet = [](ur_adapter_handle_t *phAdapters,
+                                    uint32_t NumAdapters, uint32_t NumEntries,
                                     ur_platform_handle_t *phPlatforms,
                                     uint32_t *pNumPlatforms) {
         if (phPlatforms != nullptr && NumEntries != 1) {

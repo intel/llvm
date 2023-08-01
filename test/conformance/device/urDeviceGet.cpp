@@ -56,6 +56,6 @@ TEST_F(urDeviceGetTest, InvalidValueNumEntries) {
     ASSERT_NE(count, 0);
     std::vector<ur_device_handle_t> devices(count);
     ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_VALUE,
+        UR_RESULT_ERROR_INVALID_SIZE,
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, devices.data(), nullptr));
 }

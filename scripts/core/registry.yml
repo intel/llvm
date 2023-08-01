@@ -1,7 +1,7 @@
 ---
 type: header
 desc: "Intel $OneApi Unified Runtime function registry"
-ordinal: "9"
+ordinal: "-1"
 ---
 name: $x_function_t
 type: enum
@@ -436,9 +436,6 @@ etors:
 - name: BINDLESS_IMAGES_SIGNAL_EXTERNAL_SEMAPHORE_EXP
   desc: Enumerator for $xBindlessImagesSignalExternalSemaphoreExp
   value: '149'
-- name: PLATFORM_GET_LAST_ERROR
-  desc: Enumerator for $xPlatformGetLastError
-  value: '150'
 - name: ENQUEUE_USM_FILL_2D
   desc: Enumerator for $xEnqueueUSMFill2D
   value: '151'
@@ -502,3 +499,140 @@ etors:
 - name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
   desc: Enumerator for $xCommandBufferAppendMembufferReadRectExp
   value: '171'
+- name: LOADER_CONFIG_CREATE
+  desc: Enumerator for $xLoaderConfigCreate
+  value: '172'
+- name: LOADER_CONFIG_RELEASE
+  desc: Enumerator for $xLoaderConfigRelease
+  value: '173'
+- name: LOADER_CONFIG_RETAIN
+  desc: Enumerator for $xLoaderConfigRetain
+  value: '174'
+- name: LOADER_CONFIG_GET_INFO
+  desc: Enumerator for $xLoaderConfigGetInfo
+  value: '175'
+- name: LOADER_CONFIG_ENABLE_LAYER
+  desc: Enumerator for $xLoaderConfigEnableLayer
+  value: '176'
+- name: ADAPTER_RELEASE
+  desc: Enumerator for $xAdapterRelease
+  value: '177'
+- name: ADAPTER_GET
+  desc: Enumerator for $xAdapterGet
+  value: '178'
+- name: ADAPTER_RETAIN
+  desc: Enumerator for $xAdapterRetain
+  value: '179'
+- name: ADAPTER_GET_LAST_ERROR
+  desc: Enumerator for $xAdapterGetLastError
+  value: '180'
+- name: ADAPTER_GET_INFO
+  desc: Enumerator for $xAdapterGetInfo
+  value: '181'
+---
+type: enum
+desc: Defines structure types
+name: $x_structure_type_t
+etors:
+- name: CONTEXT_PROPERTIES
+  desc: $x_context_properties_t
+  value: '0'
+- name: IMAGE_DESC
+  desc: $x_image_desc_t
+  value: '1'
+- name: BUFFER_PROPERTIES
+  desc: $x_buffer_properties_t
+  value: '2'
+- name: BUFFER_REGION
+  desc: $x_buffer_region_t
+  value: '3'
+- name: BUFFER_CHANNEL_PROPERTIES
+  desc: $x_buffer_channel_properties_t
+  value: '4'
+- name: BUFFER_ALLOC_LOCATION_PROPERTIES
+  desc: $x_buffer_alloc_location_properties_t
+  value: '5'
+- name: PROGRAM_PROPERTIES
+  desc: $x_program_properties_t
+  value: '6'
+- name: USM_DESC
+  desc: $x_usm_desc_t
+  value: '7'
+- name: USM_HOST_DESC
+  desc: $x_usm_host_desc_t
+  value: '8'
+- name: USM_DEVICE_DESC
+  desc: $x_usm_device_desc_t
+  value: '9'
+- name: USM_POOL_DESC
+  desc: $x_usm_pool_desc_t
+  value: '10'
+- name: USM_POOL_LIMITS_DESC
+  desc: $x_usm_pool_limits_desc_t
+  value: '11'
+- name: DEVICE_BINARY
+  desc: $x_device_binary_t
+  value: '12'
+- name: SAMPLER_DESC
+  desc: $x_sampler_desc_t
+  value: '13'
+- name: QUEUE_PROPERTIES
+  desc: $x_queue_properties_t
+  value: '14'
+- name: QUEUE_INDEX_PROPERTIES
+  desc: $x_queue_index_properties_t
+  value: '15'
+- name: CONTEXT_NATIVE_PROPERTIES
+  desc: $x_context_native_properties_t
+  value: '16'
+- name: KERNEL_NATIVE_PROPERTIES
+  desc: $x_kernel_native_properties_t
+  value: '17'
+- name: QUEUE_NATIVE_PROPERTIES
+  desc: $x_queue_native_properties_t
+  value: '18'
+- name: MEM_NATIVE_PROPERTIES
+  desc: $x_mem_native_properties_t
+  value: '19'
+- name: EVENT_NATIVE_PROPERTIES
+  desc: $x_event_native_properties_t
+  value: '20'
+- name: PLATFORM_NATIVE_PROPERTIES
+  desc: $x_platform_native_properties_t
+  value: '21'
+- name: DEVICE_NATIVE_PROPERTIES
+  desc: $x_device_native_properties_t
+  value: '22'
+- name: PROGRAM_NATIVE_PROPERTIES
+  desc: $x_program_native_properties_t
+  value: '23'
+- name: SAMPLER_NATIVE_PROPERTIES
+  desc: $x_sampler_native_properties_t
+  value: '24'
+- name: QUEUE_NATIVE_DESC
+  desc: $x_queue_native_desc_t
+  value: '25'
+- name: DEVICE_PARTITION_PROPERTIES
+  desc: $x_device_partition_properties_t
+  value: '26'
+- name: KERNEL_ARG_MEM_OBJ_PROPERTIES
+  desc: $x_kernel_arg_mem_obj_properties_t
+  value: '27'
+- name: PHYSICAL_MEM_PROPERTIES
+  desc: $x_physical_mem_properties_t
+  value: '28'
+- name: KERNEL_ARG_POINTER_PROPERTIES
+  desc: $x_kernel_arg_pointer_properties_t
+  value: '29'
+- name: KERNEL_ARG_SAMPLER_PROPERTIES
+  desc: $x_kernel_arg_sampler_properties_t
+  value: '30'
+- name: KERNEL_EXEC_INFO_PROPERTIES
+  desc: $x_kernel_exec_info_properties_t
+  value: '31'
+- name: KERNEL_ARG_VALUE_PROPERTIES
+  desc: $x_kernel_arg_value_properties_t
+  value: '32'
+- name: KERNEL_ARG_LOCAL_PROPERTIES
+  desc: $x_kernel_arg_local_properties_t
+  value: '33'

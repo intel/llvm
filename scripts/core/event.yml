@@ -266,6 +266,9 @@ params:
       name: phNativeEvent
       desc: |
             [out] a pointer to the native handle of the event.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Properties for for $xEventCreateWithNativeHandle."
@@ -294,7 +297,7 @@ params:
     - type: $x_native_handle_t
       name: hNativeEvent
       desc: |
-            [in] the native handle of the event.
+            [in][nocheck] the native handle of the event.
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
@@ -305,6 +308,9 @@ params:
       name: phEvent
       desc: |
             [out] pointer to the handle of the event object created.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Event states for all events."

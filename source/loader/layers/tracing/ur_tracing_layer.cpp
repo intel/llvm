@@ -34,7 +34,7 @@ context_t::context_t() {
                    streamv.str().data());
 }
 
-bool context_t::isEnabled() { return xptiTraceEnabled(); }
+bool context_t::isAvailable() const { return xptiTraceEnabled(); }
 
 void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
                        void *args, ur_result_t *resultp, uint64_t instance) {

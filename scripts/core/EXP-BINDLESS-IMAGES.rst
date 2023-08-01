@@ -64,12 +64,16 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_structure_type_t
     ${X}_STRUCTURE_TYPE_EXP_SAMPLER_MIP_PROPERTIES
+    ${X}_STRUCTURE_TYPE_EXP_INTEROP_MEM_DESC
+    ${X}_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
+    ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
+    ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_BINDLESS_IMAGES_3D_USM_SUPPORT_EXP
     * ${X}_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP
     * ${X}_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP
     * ${X}_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP
@@ -119,6 +123,10 @@ Types
 * ${x}_exp_image_mem_handle_t
 * ${x}_exp_interop_mem_handle_t
 * ${x}_exp_interop_semaphore_handle_t
+* ${x}_exp_interop_mem_desc_t
+* ${x}_exp_interop_semaphore_desc_t
+* ${x}_exp_file_descriptor_t
+* ${x}_exp_win32_handle_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -149,11 +157,25 @@ Functions
 Changelog
 --------------------------------------------------------------------------------
 
-+-----------+------------------------+
-| Revision  | Changes                |
-+===========+========================+
-| 1.0       | Initial Draft           |
-+-----------+------------------------+
++----------+----------------------------------------------------------+
+| Revision | Changes                                                  |
++==========+==========================================================+
+| 1.0      | Initial Draft                                            |
++----------+----------------------------------------------------------+
+| 2.0      || Added device parameters to UR functions.                |
+|          || Added sub-region copy parameters to image copy function.|
+|          || Removed 3D USM capabilities.                            |
+|          || Added mip filter mode.                                  |
++----------+----------------------------------------------------------+
+| 3.0      | Added device query for bindless images on shared USM     |
++----------+-------------------------------------------------------------+
+| 4.0      || Added platform specific interop resource handles.          |
+|          || Added and updated to use new interop resource descriptors. |
++----------+-------------------------------------------------------------+
+| 5.0      | Update interop struct and func param names to adhere to convention. |
++----------+-------------------------------------------------------------+
+| 6.0      | Fix semaphore import function parameter name.               |
++----------+-------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------

@@ -18,8 +18,10 @@ namespace ur_tracing_layer {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urInit
 __urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
 ) {
     auto pfnInit = context.urDdiTable.Global.pfnInit;
 
@@ -27,11 +29,11 @@ __urdlllocal ur_result_t UR_APICALL urInit(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_init_params_t params = {&device_flags};
+    ur_init_params_t params = {&device_flags, &hLoaderConfig};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_INIT, "urInit", &params);
 
-    ur_result_t result = pfnInit(device_flags);
+    ur_result_t result = pfnInit(device_flags, hLoaderConfig);
 
     context.notify_end(UR_FUNCTION_INIT, "urInit", &params, &result, instance);
 
@@ -62,8 +64,156 @@ __urdlllocal ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGet
+__urdlllocal ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+) {
+    auto pfnAdapterGet = context.urDdiTable.Global.pfnAdapterGet;
+
+    if (nullptr == pfnAdapterGet) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_adapter_get_params_t params = {&NumEntries, &phAdapters, &pNumAdapters};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params);
+
+    ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
+
+    context.notify_end(UR_FUNCTION_ADAPTER_GET, "urAdapterGet", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRelease
+__urdlllocal ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+) {
+    auto pfnAdapterRelease = context.urDdiTable.Global.pfnAdapterRelease;
+
+    if (nullptr == pfnAdapterRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_adapter_release_params_t params = {&hAdapter};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RELEASE,
+                                             "urAdapterRelease", &params);
+
+    ur_result_t result = pfnAdapterRelease(hAdapter);
+
+    context.notify_end(UR_FUNCTION_ADAPTER_RELEASE, "urAdapterRelease", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterRetain
+__urdlllocal ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+) {
+    auto pfnAdapterRetain = context.urDdiTable.Global.pfnAdapterRetain;
+
+    if (nullptr == pfnAdapterRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_adapter_retain_params_t params = {&hAdapter};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_RETAIN,
+                                             "urAdapterRetain", &params);
+
+    ur_result_t result = pfnAdapterRetain(hAdapter);
+
+    context.notify_end(UR_FUNCTION_ADAPTER_RETAIN, "urAdapterRetain", &params,
+                       &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetLastError
+__urdlllocal ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+) {
+    auto pfnAdapterGetLastError =
+        context.urDdiTable.Global.pfnAdapterGetLastError;
+
+    if (nullptr == pfnAdapterGetLastError) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_adapter_get_last_error_params_t params = {&hAdapter, &ppMessage,
+                                                 &pError};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
+                                             "urAdapterGetLastError", &params);
+
+    ur_result_t result = pfnAdapterGetLastError(hAdapter, ppMessage, pError);
+
+    context.notify_end(UR_FUNCTION_ADAPTER_GET_LAST_ERROR,
+                       "urAdapterGetLastError", &params, &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urAdapterGetInfo
+__urdlllocal ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+) {
+    auto pfnAdapterGetInfo = context.urDdiTable.Global.pfnAdapterGetInfo;
+
+    if (nullptr == pfnAdapterGetInfo) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_adapter_get_info_params_t params = {&hAdapter, &propName, &propSize,
+                                           &pPropValue, &pPropSizeRet};
+    uint64_t instance = context.notify_begin(UR_FUNCTION_ADAPTER_GET_INFO,
+                                             "urAdapterGetInfo", &params);
+
+    ur_result_t result = pfnAdapterGetInfo(hAdapter, propName, propSize,
+                                           pPropValue, pPropSizeRet);
+
+    context.notify_end(UR_FUNCTION_ADAPTER_GET_INFO, "urAdapterGetInfo",
+                       &params, &result, instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urPlatformGet
 __urdlllocal ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -82,12 +232,13 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_platform_get_params_t params = {&NumEntries, &phPlatforms,
-                                       &pNumPlatforms};
+    ur_platform_get_params_t params = {&phAdapters, &NumAdapters, &NumEntries,
+                                       &phPlatforms, &pNumPlatforms};
     uint64_t instance = context.notify_begin(UR_FUNCTION_PLATFORM_GET,
                                              "urPlatformGet", &params);
 
-    ur_result_t result = pfnGet(NumEntries, phPlatforms, pNumPlatforms);
+    ur_result_t result =
+        pfnGet(phAdapters, NumAdapters, NumEntries, phPlatforms, pNumPlatforms);
 
     context.notify_end(UR_FUNCTION_PLATFORM_GET, "urPlatformGet", &params,
                        &result, instance);
@@ -186,7 +337,7 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetNativeHandle(
 /// @brief Intercept function for urPlatformCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
-        hNativePlatform, ///< [in] the native handle of the platform.
+        hNativePlatform, ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -243,36 +394,6 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGetBackendOption(
     context.notify_end(UR_FUNCTION_PLATFORM_GET_BACKEND_OPTION,
                        "urPlatformGetBackendOption", &params, &result,
                        instance);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urPlatformGetLastError
-__urdlllocal ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
-) {
-    auto pfnGetLastError = context.urDdiTable.Platform.pfnGetLastError;
-
-    if (nullptr == pfnGetLastError) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    ur_platform_get_last_error_params_t params = {&hPlatform, &ppMessage,
-                                                  &pError};
-    uint64_t instance = context.notify_begin(
-        UR_FUNCTION_PLATFORM_GET_LAST_ERROR, "urPlatformGetLastError", &params);
-
-    ur_result_t result = pfnGetLastError(hPlatform, ppMessage, pError);
-
-    context.notify_end(UR_FUNCTION_PLATFORM_GET_LAST_ERROR,
-                       "urPlatformGetLastError", &params, &result, instance);
 
     return result;
 }
@@ -495,8 +616,9 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urDeviceCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    ur_native_handle_t
+        hNativeDevice, ///< [in][nocheck] the native handle of the device.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -705,7 +827,7 @@ __urdlllocal ur_result_t UR_APICALL urContextGetNativeHandle(
 /// @brief Intercept function for urContextCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -936,8 +1058,9 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemBufferCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_mem_native_properties_t *
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
@@ -969,8 +1092,9 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urMemImageCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
@@ -1214,7 +1338,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerGetNativeHandle(
 /// @brief Intercept function for urSamplerCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeSampler,           ///< [in] the native handle of the sampler.
+        hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_sampler_native_properties_t *
         pProperties, ///< [in][optional] pointer to native sampler properties struct.
@@ -1672,7 +1796,7 @@ __urdlllocal ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t hContext, ///< [in] handle to the context object.
     const void
         *pStart, ///< [in] pointer to the start of the virtual memory range.
-    size_t size, ///< [in] size in bytes of the virutal memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
 ) {
@@ -1740,7 +1864,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t hDevice,   ///< [in] handle of the device object.
     size_t
-        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+        size, ///< [in] size in bytes of physical memory to allocate, must be a multiple
               ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *
         pProperties, ///< [in][optional] pointer to physical memory creation properties.
@@ -2185,7 +2309,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramGetNativeHandle(
 /// @brief Intercept function for urProgramCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeProgram,           ///< [in] the native handle of the program.
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     const ur_program_native_properties_t *
         pProperties, ///< [in][optional] pointer to native program properties struct.
@@ -2637,8 +2761,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urKernelCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
@@ -2808,9 +2933,10 @@ __urdlllocal ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urQueueCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    ur_native_handle_t
+        hNativeQueue, ///< [in][nocheck] the native handle of the queue.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3051,8 +3177,9 @@ __urdlllocal ur_result_t UR_APICALL urEventGetNativeHandle(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEventCreateWithNativeHandle
 __urdlllocal ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeEvent, ///< [in][nocheck] the native handle of the event.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_event_native_properties_t *
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
@@ -4329,6 +4456,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -4340,12 +4468,13 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
     }
 
     ur_bindless_images_unsampled_image_handle_destroy_exp_params_t params = {
-        &hContext, &hImage};
+        &hContext, &hDevice, &hImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesUnsampledImageHandleDestroyExp", &params);
 
-    ur_result_t result = pfnUnsampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnUnsampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     context.notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP,
@@ -4360,6 +4489,7 @@ urBindlessImagesUnsampledImageHandleDestroyExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -4371,12 +4501,13 @@ urBindlessImagesSampledImageHandleDestroyExp(
     }
 
     ur_bindless_images_sampled_image_handle_destroy_exp_params_t params = {
-        &hContext, &hImage};
+        &hContext, &hDevice, &hImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
         "urBindlessImagesSampledImageHandleDestroyExp", &params);
 
-    ur_result_t result = pfnSampledImageHandleDestroyExp(hContext, hImage);
+    ur_result_t result =
+        pfnSampledImageHandleDestroyExp(hContext, hDevice, hImage);
 
     context.notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP,
@@ -4390,6 +4521,7 @@ urBindlessImagesSampledImageHandleDestroyExp(
 /// @brief Intercept function for urBindlessImagesImageAllocateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -4404,13 +4536,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     }
 
     ur_bindless_images_image_allocate_exp_params_t params = {
-        &hContext, &pImageFormat, &pImageDesc, &phImageMem};
+        &hContext, &hDevice, &pImageFormat, &pImageDesc, &phImageMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
                              "urBindlessImagesImageAllocateExp", &params);
 
-    ur_result_t result =
-        pfnImageAllocateExp(hContext, pImageFormat, pImageDesc, phImageMem);
+    ur_result_t result = pfnImageAllocateExp(hContext, hDevice, pImageFormat,
+                                             pImageDesc, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_ALLOCATE_EXP,
                        "urBindlessImagesImageAllocateExp", &params, &result,
@@ -4423,6 +4555,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 /// @brief Intercept function for urBindlessImagesImageFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
 ) {
@@ -4432,12 +4565,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_image_free_exp_params_t params = {&hContext, &hImageMem};
+    ur_bindless_images_image_free_exp_params_t params = {&hContext, &hDevice,
+                                                         &hImageMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
                              "urBindlessImagesImageFreeExp", &params);
 
-    ur_result_t result = pfnImageFreeExp(hContext, hImageMem);
+    ur_result_t result = pfnImageFreeExp(hContext, hDevice, hImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_FREE_EXP,
                        "urBindlessImagesImageFreeExp", &params, &result,
@@ -4450,6 +4584,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 /// @brief Intercept function for urBindlessImagesUnsampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -4467,13 +4602,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     }
 
     ur_bindless_images_unsampled_image_create_exp_params_t params = {
-        &hContext, &hImageMem, &pImageFormat, &pImageDesc, &phMem, &phImage};
+        &hContext,   &hDevice, &hImageMem, &pImageFormat,
+        &pImageDesc, &phMem,   &phImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesUnsampledImageCreateExp", &params);
 
     ur_result_t result = pfnUnsampledImageCreateExp(
-        hContext, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
+        hContext, hDevice, hImageMem, pImageFormat, pImageDesc, phMem, phImage);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesUnsampledImageCreateExp", &params,
@@ -4486,6 +4622,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 /// @brief Intercept function for urBindlessImagesSampledImageCreateExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -4504,15 +4641,15 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     }
 
     ur_bindless_images_sampled_image_create_exp_params_t params = {
-        &hContext, &hImageMem, &pImageFormat, &pImageDesc,
-        &hSampler, &phMem,     &phImage};
+        &hContext,   &hDevice,  &hImageMem, &pImageFormat,
+        &pImageDesc, &hSampler, &phMem,     &phImage};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
         "urBindlessImagesSampledImageCreateExp", &params);
 
     ur_result_t result =
-        pfnSampledImageCreateExp(hContext, hImageMem, pImageFormat, pImageDesc,
-                                 hSampler, phMem, phImage);
+        pfnSampledImageCreateExp(hContext, hDevice, hImageMem, pImageFormat,
+                                 pImageDesc, hSampler, phMem, phImage);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_CREATE_EXP,
                        "urBindlessImagesSampledImageCreateExp", &params,
@@ -4524,14 +4661,26 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urBindlessImagesImageCopyExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -4549,12 +4698,16 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_image_copy_exp_params_t params = {&hContext,
+    ur_bindless_images_image_copy_exp_params_t params = {&hQueue,
                                                          &pDst,
                                                          &pSrc,
                                                          &pImageFormat,
                                                          &pImageDesc,
                                                          &imageCopyFlags,
+                                                         &srcOffset,
+                                                         &dstOffset,
+                                                         &copyExtent,
+                                                         &hostExtent,
                                                          &numEventsInWaitList,
                                                          &phEventWaitList,
                                                          &phEvent};
@@ -4563,8 +4716,9 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
                              "urBindlessImagesImageCopyExp", &params);
 
     ur_result_t result = pfnImageCopyExp(
-        hContext, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, pDst, pSrc, pImageFormat, pImageDesc, imageCopyFlags, srcOffset,
+        dstOffset, copyExtent, hostExtent, numEventsInWaitList, phEventWaitList,
+        phEvent);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMAGE_COPY_EXP,
                        "urBindlessImagesImageCopyExp", &params, &result,
@@ -4608,6 +4762,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 /// @brief Intercept function for urBindlessImagesMipmapGetLevelExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -4622,13 +4777,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     }
 
     ur_bindless_images_mipmap_get_level_exp_params_t params = {
-        &hContext, &hImageMem, &mipmapLevel, &phImageMem};
+        &hContext, &hDevice, &hImageMem, &mipmapLevel, &phImageMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
                              "urBindlessImagesMipmapGetLevelExp", &params);
 
-    ur_result_t result =
-        pfnMipmapGetLevelExp(hContext, hImageMem, mipmapLevel, phImageMem);
+    ur_result_t result = pfnMipmapGetLevelExp(hContext, hDevice, hImageMem,
+                                              mipmapLevel, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_GET_LEVEL_EXP,
                        "urBindlessImagesMipmapGetLevelExp", &params, &result,
@@ -4641,6 +4796,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 /// @brief Intercept function for urBindlessImagesMipmapFreeExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
 ) {
     auto pfnMipmapFreeExp =
@@ -4650,12 +4806,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_mipmap_free_exp_params_t params = {&hContext, &hMem};
+    ur_bindless_images_mipmap_free_exp_params_t params = {&hContext, &hDevice,
+                                                          &hMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
                              "urBindlessImagesMipmapFreeExp", &params);
 
-    ur_result_t result = pfnMipmapFreeExp(hContext, hMem);
+    ur_result_t result = pfnMipmapFreeExp(hContext, hDevice, hMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MIPMAP_FREE_EXP,
                        "urBindlessImagesMipmapFreeExp", &params, &result,
@@ -4668,8 +4825,10 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 /// @brief Intercept function for urBindlessImagesImportOpaqueFDExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
@@ -4681,13 +4840,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     }
 
     ur_bindless_images_import_opaque_fd_exp_params_t params = {
-        &hContext, &size, &fileDescriptor, &phInteropMem};
+        &hContext, &hDevice, &size, &pInteropMemDesc, &phInteropMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
                              "urBindlessImagesImportOpaqueFDExp", &params);
 
-    ur_result_t result =
-        pfnImportOpaqueFDExp(hContext, size, fileDescriptor, phInteropMem);
+    ur_result_t result = pfnImportOpaqueFDExp(hContext, hDevice, size,
+                                              pInteropMemDesc, phInteropMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_IMPORT_OPAQUE_FD_EXP,
                        "urBindlessImagesImportOpaqueFDExp", &params, &result,
@@ -4700,12 +4859,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesMapExternalArrayExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     auto pfnMapExternalArrayExp =
@@ -4716,13 +4876,14 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     }
 
     ur_bindless_images_map_external_array_exp_params_t params = {
-        &hContext, &pImageFormat, &pImageDesc, &hInteropMem, &phImageMem};
+        &hContext,   &hDevice,     &pImageFormat,
+        &pImageDesc, &hInteropMem, &phImageMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
                              "urBindlessImagesMapExternalArrayExp", &params);
 
     ur_result_t result = pfnMapExternalArrayExp(
-        hContext, pImageFormat, pImageDesc, hInteropMem, phImageMem);
+        hContext, hDevice, pImageFormat, pImageDesc, hInteropMem, phImageMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_ARRAY_EXP,
                        "urBindlessImagesMapExternalArrayExp", &params, &result,
@@ -4735,6 +4896,7 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 /// @brief Intercept function for urBindlessImagesReleaseInteropExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
 ) {
@@ -4745,13 +4907,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_bindless_images_release_interop_exp_params_t params = {&hContext,
-                                                              &hInteropMem};
+    ur_bindless_images_release_interop_exp_params_t params = {
+        &hContext, &hDevice, &hInteropMem};
     uint64_t instance =
         context.notify_begin(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
                              "urBindlessImagesReleaseInteropExp", &params);
 
-    ur_result_t result = pfnReleaseInteropExp(hContext, hInteropMem);
+    ur_result_t result = pfnReleaseInteropExp(hContext, hDevice, hInteropMem);
 
     context.notify_end(UR_FUNCTION_BINDLESS_IMAGES_RELEASE_INTEROP_EXP,
                        "urBindlessImagesReleaseInteropExp", &params, &result,
@@ -4765,9 +4927,11 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 __urdlllocal ur_result_t UR_APICALL
 urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_interop_semaphore_desc_t
+        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
     auto pfnImportExternalSemaphoreOpaqueFDExp =
         context.urDdiTable.BindlessImagesExp
@@ -4778,13 +4942,13 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     }
 
     ur_bindless_images_import_external_semaphore_opaque_fd_exp_params_t params =
-        {&hContext, &fileDescriptor, &phInteropSemaphoreHandle};
+        {&hContext, &hDevice, &pInteropSemaphoreDesc, &phInteropSemaphore};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
         "urBindlessImagesImportExternalSemaphoreOpaqueFDExp", &params);
 
     ur_result_t result = pfnImportExternalSemaphoreOpaqueFDExp(
-        hContext, fileDescriptor, phInteropSemaphoreHandle);
+        hContext, hDevice, pInteropSemaphoreDesc, phInteropSemaphore);
 
     context.notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_IMPORT_EXTERNAL_SEMAPHORE_OPAQUE_FD_EXP,
@@ -4798,6 +4962,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 /// @brief Intercept function for urBindlessImagesDestroyExternalSemaphoreExp
 __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
 ) {
@@ -4809,13 +4974,13 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     }
 
     ur_bindless_images_destroy_external_semaphore_exp_params_t params = {
-        &hContext, &hInteropSemaphore};
+        &hContext, &hDevice, &hInteropSemaphore};
     uint64_t instance = context.notify_begin(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
         "urBindlessImagesDestroyExternalSemaphoreExp", &params);
 
     ur_result_t result =
-        pfnDestroyExternalSemaphoreExp(hContext, hInteropSemaphore);
+        pfnDestroyExternalSemaphoreExp(hContext, hDevice, hInteropSemaphore);
 
     context.notify_end(
         UR_FUNCTION_BINDLESS_IMAGES_DESTROY_EXTERNAL_SEMAPHORE_EXP,
@@ -5669,6 +5834,21 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     dditable.pfnTearDown = pDdiTable->pfnTearDown;
     pDdiTable->pfnTearDown = ur_tracing_layer::urTearDown;
 
+    dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
+    pDdiTable->pfnAdapterGet = ur_tracing_layer::urAdapterGet;
+
+    dditable.pfnAdapterRelease = pDdiTable->pfnAdapterRelease;
+    pDdiTable->pfnAdapterRelease = ur_tracing_layer::urAdapterRelease;
+
+    dditable.pfnAdapterRetain = pDdiTable->pfnAdapterRetain;
+    pDdiTable->pfnAdapterRetain = ur_tracing_layer::urAdapterRetain;
+
+    dditable.pfnAdapterGetLastError = pDdiTable->pfnAdapterGetLastError;
+    pDdiTable->pfnAdapterGetLastError = ur_tracing_layer::urAdapterGetLastError;
+
+    dditable.pfnAdapterGetInfo = pDdiTable->pfnAdapterGetInfo;
+    pDdiTable->pfnAdapterGetInfo = ur_tracing_layer::urAdapterGetInfo;
+
     return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -6296,9 +6476,6 @@ __urdlllocal ur_result_t UR_APICALL urGetPlatformProcAddrTable(
     pDdiTable->pfnCreateWithNativeHandle =
         ur_tracing_layer::urPlatformCreateWithNativeHandle;
 
-    dditable.pfnGetLastError = pDdiTable->pfnGetLastError;
-    pDdiTable->pfnGetLastError = ur_tracing_layer::urPlatformGetLastError;
-
     dditable.pfnGetApiVersion = pDdiTable->pfnGetApiVersion;
     pDdiTable->pfnGetApiVersion = ur_tracing_layer::urPlatformGetApiVersion;
 
@@ -6736,8 +6913,13 @@ __urdlllocal ur_result_t UR_APICALL urGetDeviceProcAddrTable(
     return result;
 }
 
-ur_result_t context_t::init(ur_dditable_t *dditable) {
+ur_result_t context_t::init(ur_dditable_t *dditable,
+                            const std::set<std::string> &enabledLayerNames) {
     ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (!enabledLayerNames.count(name)) {
+        return result;
+    }
 
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetGlobalProcAddrTable(

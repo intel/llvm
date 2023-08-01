@@ -436,6 +436,9 @@ params:
       name: phNativeMem
       desc: |
             [out] a pointer to the native handle of the mem.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native memory object creation properties"
@@ -463,7 +466,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeMem
-      desc: "[in] the native handle to the memory."
+      desc: "[in][nocheck] the native handle to the memory."
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object."
@@ -473,6 +476,9 @@ params:
     - type: $x_mem_handle_t*
       name: phMem
       desc: "[out] pointer to handle of buffer memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Create runtime image memory object from native memory handle."
@@ -487,7 +493,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeMem
-      desc: "[in] the native handle to the memory."
+      desc: "[in][nocheck] the native handle to the memory."
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object."
@@ -503,6 +509,9 @@ params:
     - type: $x_mem_handle_t*
       name: phMem
       desc: "[out] pointer to handle of image memory object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieve information about a memory object."
@@ -577,3 +586,15 @@ params:
       name: pPropSizeRet
       desc: |
             [out][optional] pointer to the actual size in bytes of the queried propName.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
+        - "If `propName` is not supported by the adapter."
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`propSize == 0 && pPropValue != NULL`"
+        - "If `propSize` is less than the real number of bytes needed to return the info."
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`propSize != 0 && pPropValue == NULL`"
+        - "`pPropValue == NULL && pPropSizeRet == NULL`"
+    - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY

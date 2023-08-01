@@ -1,7 +1,9 @@
-urInit(.device_flags = 0) -> UR_RESULT_SUCCESS;
+urInit(.device_flags = 0, .hLoaderConfig = nullptr) -> UR_RESULT_SUCCESS;
 Platform initialized.
-urPlatformGet(.NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-urPlatformGet(.NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
+urAdapterGet(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urAdapterGet(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
+urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
 urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{.*}})) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
 urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
@@ -9,4 +11,5 @@ urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries =
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 Found a Null Device gpu.
+urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS;
 urTearDown(.pParams = nullptr) -> UR_RESULT_SUCCESS;

@@ -1,5 +1,5 @@
 """
- Copyright (C) 2022 Intel Corporation
+ Copyright (C) 2022-2023 Intel Corporation
 
  Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  See LICENSE.TXT
@@ -319,6 +319,7 @@ class param_traits:
     RE_RANGE    = r".*\[range\((.+),\s*(.+)\)\][\S\s]*"
     RE_RELEASE  = r".*\[release\].*"
     RE_TYPENAME = r".*\[typename\((.+),\s(.+)\)\].*"
+    RE_TAGGED   = r".*\[tagged_by\((.+)\)].*"
 
     @classmethod
     def is_mbz(cls, item):
@@ -368,6 +369,20 @@ class param_traits:
             return True if re.match(cls.RE_RANGE, item['desc']) else False
         except:
             return False
+
+    @classmethod
+    def is_tagged(cls, item):
+        try:
+            return True if re.match(cls.RE_TAGGED, item['desc']) else False
+        except:
+            return False
+    
+    @classmethod
+    def tagged_member(cls, item):
+        try:
+            return re.sub(cls.RE_TAGGED, r"\1", item['desc'])
+        except:
+            return None
 
     @classmethod
     def range_start(cls, item):
@@ -427,7 +442,7 @@ class function_traits:
 
 """
 Public:
-    substitues each tag['key'] with tag['value']
+    substitutes each tag['key'] with tag['value']
     if comment, then insert doxygen '::' notation at beginning (for autogen links)
 """
 def subt(namespace, tags, string, comment=False, remove_namespace=False):
