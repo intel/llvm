@@ -77,7 +77,9 @@ struct is_sycl_accessor_with
 template <typename T, accessor_mode_cap_val_t Capability,
           sycl::access::target AccessTarget, typename RetT>
 using EnableIfAccessor = std::enable_if_t<
-    detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value, RetT>;
+    detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value ||
+        sycl::detail::acc_properties::is_local_accessor_v<T>,
+    RetT>;
 
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {

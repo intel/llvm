@@ -894,6 +894,11 @@ def Xspirv_translator : Separate<["-"], "Xspirv-translator">,
 def Xspirv_translator_EQ : JoinedAndSeparate<["-"], "Xspirv-translator=">,
   HelpText<"Pass <arg> to the LLVM IR to SPIR-V translation backend identified by <triple>.">,
   MetaVarName<"<triple> <arg>">, Flags<[CoreOption, HelpHidden]>;
+def Xspirv_to_ir_wrapper : Separate<["-"], "Xspirv-to-ir-wrapper">,
+  HelpText<"Pass <arg> to the SPIR-V to LLVM IR translation backend.">, MetaVarName<"<arg>">, Flags<[CoreOption, HelpHidden]>;
+def Xspirv_to_ir_wrapper_EQ : JoinedAndSeparate<["-"], "Xspirv-to-ir-wrapper=">,
+  HelpText<"Pass <arg> to the SPIR-V to LLVM IR translation backend identified by <triple>.">,
+  MetaVarName<"<triple> <arg>">, Flags<[CoreOption, HelpHidden]>;
 def Xsycl_backend : Separate<["-"], "Xsycl-target-backend">,
   HelpText<"Pass <arg> to the SYCL based target backend.">, MetaVarName<"<arg>">, Flags<[CoreOption]>;
 def Xsycl_backend_EQ : JoinedAndSeparate<["-"], "Xsycl-target-backend=">,
@@ -5482,10 +5487,10 @@ def : Flag<["-"], "fno-sycl-explicit-simd">,
 defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>,
   MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
-  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Enables "
   "elimination of DPC++ dead kernel arguments">;
 def fno_sycl_dead_args_optimization : Flag<["-"], "fno-sycl-dead-args-optimization">,
-  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Disables "
   "elimination of DPC++ dead kernel arguments">;
 def fsycl_device_lib_EQ : CommaJoined<["-"], "fsycl-device-lib=">, Group<sycl_Group>, Flags<[NoXarchOption, CoreOption]>,
   Values<"libc, libm-fp32, libm-fp64, libimf-fp32, libimf-fp64, libimf-bf16, all">, HelpText<"Control inclusion of "
@@ -5496,10 +5501,10 @@ def fno_sycl_device_lib_EQ : CommaJoined<["-"], "fno-sycl-device-lib=">, Group<s
   "device libraries from device binary linkage. Valid arguments "
   "are libc, libm-fp32, libm-fp64, all">;
 def fsycl_device_lib_jit_link : Flag<["-"], "fsycl-device-lib-jit-link">,
-  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Enables "
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Enables "
   "sycl device library jit link (experimental)">;
 def fno_sycl_device_lib_jit_link : Flag<["-"], "fno-sycl-device-lib-jit-link">,
-  Group<sycl_Group>, Flags<[NoArgumentUnused, CoreOption]>, HelpText<"Disables "
+  Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Disables "
   "sycl device library jit link (experimental)">;
 def fsycl_fp32_prec_sqrt : Flag<["-"], "fsycl-fp32-prec-sqrt">, Group<sycl_Group>, Flags<[CC1Option]>,
   HelpText<"SYCL only. Specify that single precision floating-point sqrt is correctly rounded.">,

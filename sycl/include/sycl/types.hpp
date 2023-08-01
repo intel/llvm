@@ -745,7 +745,7 @@ public:
 
   constexpr vec(vec &&Rhs) = default;
 
-  vec &operator=(const vec &Rhs) = default;
+  constexpr vec &operator=(const vec &Rhs) = default;
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
