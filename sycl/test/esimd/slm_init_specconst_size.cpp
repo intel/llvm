@@ -24,8 +24,8 @@ int main() {
           [=](sycl::kernel_handler kh) SYCL_ESIMD_KERNEL {
             slm_init(kh.get_specialization_constant<Size>());
           });
-      // CHECK-TYPED: define weak_odr dso_local spir_kernel void @{{.*}}(i8 addrspace(1)* noundef align 1 "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #1
-      // CHECK-OPAQUE: define weak_odr dso_local spir_kernel void @{{.*}}(ptr addrspace(1) noundef align 1 "VCArgumentIOKind"="0" %{{.*}}) local_unnamed_addr #1
+      // CHECK-TYPED: define weak_odr dso_local spir_kernel void @{{.*}}() local_unnamed_addr #1
+      // CHECK-OPAQUE: define weak_odr dso_local spir_kernel void @{{.*}}() local_unnamed_addr #1
     });
   }
 
