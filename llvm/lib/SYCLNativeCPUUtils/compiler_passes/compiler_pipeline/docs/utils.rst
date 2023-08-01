@@ -54,12 +54,12 @@ intermediate triple such as ``spir64`` or ``spir32``, the alignment will have
 been enforced and assumed valid according to that.
 
 However, the final target data layout used by the code generator may have
-looser requirements than SPIR, in which case the final generated code may
-inadvertently break the higher-level language specification.
+looser requirements than the SPIR ABI, in which case the final generated code
+may inadvertently break the higher-level language specification.
 
-As a concrete example, SPIR requires that vector types are aligned to their own
-byte size. However, 32-bit arm  targets have 128-bit vectors aligned to only 64
-bits. So when generating code for something like:
+As a concrete example, the SPIR ABI requires that vector types are aligned to
+their own byte size. However, 32-bit arm  targets have 128-bit vectors aligned
+to only 64 bits. So when generating code for something like:
 
 .. code:: c
 
@@ -158,7 +158,7 @@ be run as a module pass.
 
 This is often required as most LLVM backends aren't able to generate code for
 the ``llvm::CallingConv::SPIR_FUNC`` or ``llvm::CallingConv::SPIR_KERNEL``
-calling conventions used by SPIR or SPIR-V.
+calling conventions used by SPIR-V.
 
 The pass accepts a *single* calling convention to be used across the entire
 module. Note that it does not perform any other transformations of the function
@@ -295,9 +295,9 @@ module in either case but are marked as internal so that later passes can
 optimize them if they are no longer called once inlined.
 
 Newly-created functions preserve the original calling convention, unless they
-are SPIR kernels. In that case, the new functions will have ``SPIR_FUNC``
-calling convention. Newly-created functions steal the ``mux-kernel`` attributes
-from the original functions.
+are kernels. In that case, the new functions will have ``SPIR_FUNC`` calling
+convention. Newly-created functions steal the ``mux-kernel`` attributes from
+the original functions.
 
 Once we have all of our subkernels, we apply the 3-dimensional work item loops
 individually to each subkernel. The return value of a subkernel is used to
@@ -1016,7 +1016,7 @@ A pass that replaces calls to ``llvm.memcpy.*``, ``llvm.memset.*`` and
 ``llvm.memmove.*`` with calls to a generated loop. This pass can be used for
 targets which are not able to generate backend code for these intrinsics or do
 not link with a library which supports this. Although some attempt is made not to
-generate these intrinsics, they can exist in ``SPIR`` or ``SPIRV`` code. Note that
+generate these intrinsics, they can exist in ``SPIRV`` code. Note that
 ``llvm.memmove.*`` does not currently support different address spaces for the
 pointer arguments.
 
