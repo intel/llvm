@@ -842,7 +842,7 @@ protected:
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
   /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID;
+  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 

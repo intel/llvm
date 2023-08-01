@@ -751,13 +751,13 @@ public:
   // when root cause of API incompatibility will be fixed
 #ifdef __SYCL_DEVICE_ONLY__
   vec(const vec &Rhs) = default;
+  vec &operator=(const vec &Rhs) = default;
 #else
   constexpr vec(const vec &Rhs) : m_Data(Rhs.m_Data) {}
+  constexpr vec &operator=(const vec &Rhs) = default;
 #endif
 
   vec(vec &&Rhs) = default;
-
-  vec &operator=(const vec &Rhs) = default;
 
   // W/o this, things like "vec<char,*> = vec<signed char, *>" doesn't work.
   template <typename Ty = DataT>
