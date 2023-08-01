@@ -137,8 +137,7 @@ _Constraints_: Available only when the types `+T...+` described by the parameter
 pack match the types defined in the table below.
 
 _Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
-in this extension, and the type alias `Param::return_type` must be defined in
-accordance with the table below.
+in this extension.
 
 _Returns_: Information about the kernel that applies when the kernel is
 submitted with the configuration described by the parameter pack `+T...+`.
@@ -147,10 +146,6 @@ The return type is defined in the table below.
 This extension adds several new queries to this interface, many of which
 already have equivalents in the `kernel_device_specific` or `device`
 namespaces.
-
-NOTE: Redefining these queries is necessary to define `Param::argument_types`.
-If this extension is proposed for a future SYCL standard, such duplication
-could be avoided.
 
 NOTE: These queries are queue- and not device-specific because it is
 anticipated that implementations will introduce finer-grained queue
