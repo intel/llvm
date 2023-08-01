@@ -28,8 +28,8 @@ void llvm::getSYCLDeviceRequirements(
     return C->getUniqueInteger().getSExtValue();
   };
 
-  auto ExtractUnsignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                     unsigned OpNo) -> uint64_t {
+  auto ExtractUnsignedIntegerFromMDNodeOperand =
+      [=](const MDNode *N, unsigned OpNo) -> uint64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return C->getUniqueInteger().getZExtValue();
