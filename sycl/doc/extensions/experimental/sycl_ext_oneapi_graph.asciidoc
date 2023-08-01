@@ -315,10 +315,6 @@ class no_cycle_check {
     no_cycle_check() = default;
 };
 
-class no_host_copy {
-public:
-  no_host_copy() = default;
-};
 } // namespace graph
 
 namespace node {
@@ -387,7 +383,6 @@ template<>
 class command_graph<graph_state::executable> {
 public:
     command_graph() = delete;
-    void update(const command_graph<graph_state::modifiable>& graph);
 };
 }  // namespace ext::oneapi::experimental
 
@@ -445,8 +440,8 @@ support using this graph extension.
 
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
-Node is a class that encapsulates tasks like SYCL kernel functions, memory
-operations, or host tasks for deferred execution. A graph must
+Node is a class that encapsulates tasks like SYCL kernel functions, or memory
+operations for deferred execution. A graph must
 be created first, the structure of a graph is defined second by adding nodes and
 edges.
 
@@ -523,19 +518,6 @@ graph LR
 
 ==== Graph Properties [[graph-properties]]
 
-===== No-Host-Copy Property
-
-The `no_host_copy` property is defined by this extension and can be passed to
-either the `command_graph` constructor or the `command_graph::begin_recording()`
-member function. This property will disable the host data copy that may
-occur as detailed in the <<storage-lifetimes, storage lifetimes>> section of
-this specification.
-
-Passing this property represents a promise from the user that host data
-associated with a buffer that was created using a host data pointer will
-outlive any executable graphs created from a modifiable graph which uses
-that buffer.
-
 ===== No-Cycle-Check Property
 
 The `property::graph::no_cycle_check` property disables any checks if a newly
@@ -547,16 +529,6 @@ for execution when this property is set. Creating a cycle in a `command_graph`
 puts that `command_graph` into an undefined state. Any further operations
 performed on a `command_graph` in this state will result in undefined
 behavior.
-
-==== Executable Graph Update
-
-A graph in the executable state can have each nodes inputs & outputs updated
-using the `command_graph::update()` method. This takes a graph in the
-modifiable state and updates the executable graph to use the node input &
-outputs of the modifiable graph, a technique called _Whole Graph Update_. The
-modifiable graph must have the same topology as the graph originally used to
-create the executable graphs, with the nodes targeting the same devices and
-added in the same order.
 
 ==== Graph Member Functions
 
@@ -600,6 +572,9 @@ associated with `syclContext`.
 
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
+
+* Throws synchronously with error code `invalid` if the backend associated
+with `syclDevice` is not supported.
 
 |===
 
@@ -647,7 +622,7 @@ group function passed to `queue::submit` unless explicitly stated otherwise in
 <<extension-interaction, Interaction With Other Extensions>>. Code in the
 function is executed synchronously, before the function returns back to
 `command_graph::add`, with the exception of any SYCL commands (e.g. kernels,
-host tasks, or explicit memory copy operations). These commands are captured
+or explicit memory copy operations). These commands are captured
 into the graph and executed asynchronously when the graph is submitted to a
 queue. The requisites of `cgf` will be used to identify any dependent nodes in
 the graph to form edges with.
@@ -858,72 +833,6 @@ Exceptions:
 
 |===
 
-:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
-
-Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
-[source, c++]
-----
-void
-update(const command_graph<graph_state::modifiable>& graph);
-----
-
-
-|Updates the executable graph node inputs & outputs from a topologically
-identical modifiable graph. A topologically identical graph is one with the
-same structure of nodes and edges, and the nodes added in the same order to
-both graphs. Equivalent nodes in topologically identical graphs each have the
-same command, targeting the same device. There is the additional limitation that
-to update an executable graph, every node in the graph must be either a kernel
-command or a host task.
-
-The only characteristic that can differ between two topologically identical
-graphs during an update are the arguments to kernel nodes. For example,
-the graph may capture different values for the USM pointers or accessors used
-in the graph. It is these kernels arguments in `graph` that constitute the
-inputs & outputs to update to.
-
-Differences in the following characteristics between two graphs during an
-update results in undefined behavior:
-
-* Modifying the native C++ callable of a `host task` node.
-* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
-
-The effects of the update will be visible on the next submission of the
-executable graph without the need for additional user synchronization.
-
-Preconditions:
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
-
-Parameters:
-
-* `graph` - Modifiable graph object to update graph node inputs & outputs with.
-  This graph must have the same topology as the original graph used on
-  executable graph creation.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the topology of `graph` is
-  not the same as the existing graph topology, or if the nodes were not added in
-  the same order.
-
-:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
-
-* Throws synchronously with error code `invalid` if `graph` contains any node
-  which is not a kernel command or host task, e.g.
-  {handler-copy-functions}[memory operations].
-
-* Throws synchronously with error code `invalid` if the context or device
-  associated with `graph` does not match that of the `command_graph` being
-  updated.
-|===
-
 === Queue Class Modifications
 
 :queue-class: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:interface.queue.class
@@ -1118,77 +1027,13 @@ As a result, users don't need to manually wrap queue recording code in a
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
 
-=== Storage Lifetimes [[storage-lifetimes]]
-
-The lifetime of any buffer recorded as part of a submission
-to a command graph will be extended in keeping with the common reference
-semantics and buffer synchronization rules in the SYCL specification. It will be
-extended either for the lifetime of the graph (including both modifiable graphs
-and the executable graphs created from them) or until the buffer is no longer
-required by the graph (such as after being replaced through executable graph update).
-
-If a buffer created with a host data pointer is recorded as part of a submission to
-a command graph, the lifetime of that host data will also be extended by taking a
-copy of that data inside the buffer. To illustrate, consider the following example:
-
-[source,c++]
-----
-void foo(queue q /* queue in recording mode */ ) {
-  float data[NUM];
-  buffer buf{data, range{NUM}};
-  q.submit([&](handler &cgh) {
-    accessor acc{buf, cgh, read_only};
-    cgh.single_task([] {
-       // use "acc"
-    });
-  });
-  // "data" goes out of scope
-}
-----
-
-In this example, the implementation extends the lifetime of the buffer because
-it is used in the recorded graph. Because the buffer uses the host memory data,
-the implementation also makes an internal copy of that host data. As illustrated
-above, that host memory might go out of scope before the recorded graph goes out
-of scope, or before the data has been copied to the device.
-
-The default behavior is to always copy the host data in a case like this, but
-this is not necessary if the user knows that the lifetime of the host data
-outlives the lifetime of the recorded graph. If the user knows this is the
-case, they may use the `graph::no_host_copy` property to avoid the internal
-copy. Passing the property to `begin_recording()` will prevent host copies only
-for commands recorded before `end_recording()` is called for a given queue.
-Passing the property to the `command_graph` constructor will prevent host copies
-for all commands recorded to the graph.
-
-The implementation guarantees that the host memory will not be copied internally
-if all the commands accessing this buffer use `access_mode::write` or the
-`no_init` property because the host memory is not needed in these cases.
-Note, however, that these cases require the application to disable copy-back
-as described in <<buffer-limitations, Buffer Limitations>>.
-
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
-A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
-dependency rules. It is valid to record a host task as part of graph, though it
-may lead to sub-optimal graph performance because a host task node may prevent
-the SYCL runtime from submitting the entire executable `command_graph` to the
-device at once.
-
-Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
-by replacing the whole node with the new callable.
-
-[source,c++]
-----
-auto node = graph.add([&](sycl::handler& cgh){
-  // Host code here is evaluated during the call to add()
-  cgh.host_task([=](){
-    // Code here is evaluated as part of executing the command graph node
-  });
-});
-----
+It is not yet supported to have a host task inside a `command_graph`.
+Support will be added subsequently as detailed in the <<host-tasks, host tasks>> 
+part from the <<future-direction, future direction>> section of this specification.
 
 === Queue Behavior In Recording Mode
 
@@ -1349,7 +1194,7 @@ Recorded commands are not counted as submitted for the purposes of its operation
 ==== sycl_ext_oneapi_device_global
 
 The new handler methods, and queue shortcuts, defined by
-link:../proposed/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
 cannot be used in graph nodes. A synchronous exception will be thrown with error
 code `invalid` if a user tries to add them to a graph.
 
@@ -1536,7 +1381,7 @@ submitted in its entirety for execution via
 
 ----
 
-== Future Direction
+== Future Direction [[future-direction]]
 
 === Memory Allocation Nodes
 
@@ -1594,6 +1439,168 @@ aiming to optimize. Automatic load balancing of commands across devices is not a
 problem this extension currently aims to solve, it is the responsibility of the
 user to decide the device each command will be processed for, not the SYCL
 runtime.
+
+=== Storage Lifetimes [[storage-lifetimes]]
+
+The lifetime of any buffer recorded as part of a submission
+to a command graph will be extended in keeping with the common reference
+semantics and buffer synchronization rules in the SYCL specification. It will be
+extended either for the lifetime of the graph (including both modifiable graphs
+and the executable graphs created from them) or until the buffer is no longer
+required by the graph (such as after being replaced through executable graph update).
+
+If a buffer created with a host data pointer is recorded as part of a submission to
+a command graph, the lifetime of that host data will also be extended by taking a
+copy of that data inside the buffer. To illustrate, consider the following example:
+
+[source,c++]
+----
+void foo(queue q /* queue in recording mode */ ) {
+  float data[NUM];
+  buffer buf{data, range{NUM}};
+  q.submit([&](handler &cgh) {
+    accessor acc{buf, cgh, read_only};
+    cgh.single_task([] {
+       // use "acc"
+    });
+  });
+  // "data" goes out of scope
+}
+----
+
+In this example, the implementation extends the lifetime of the buffer because
+it is used in the recorded graph. Because the buffer uses the host memory data,
+the implementation also makes an internal copy of that host data. As illustrated
+above, that host memory might go out of scope before the recorded graph goes out
+of scope, or before the data has been copied to the device.
+
+The default behavior is to always copy the host data in a case like this, but
+this is not necessary if the user knows that the lifetime of the host data
+outlives the lifetime of the recorded graph. If the user knows this is the
+case, they may use the `graph::no_host_copy` property to avoid the internal
+copy. Passing the property to `begin_recording()` will prevent host copies only
+for commands recorded before `end_recording()` is called for a given queue.
+Passing the property to the `command_graph` constructor will prevent host copies
+for all commands recorded to the graph.
+
+The implementation guarantees that the host memory will not be copied internally
+if all the commands accessing this buffer use `access_mode::write` or the
+`no_init` property because the host memory is not needed in these cases.
+Note, however, that these cases require the application to disable copy-back
+as described in <<buffer-limitations, Buffer Limitations>>.
+
+===== No-Host-Copy Property
+
+The `no_host_copy` property is defined by this extension and can be passed to
+either the `command_graph` constructor or the `command_graph::begin_recording()`
+member function. This property will disable the host data copy that may
+occur as detailed in the <<storage-lifetimes, storage lifetimes>> section of
+this specification.
+
+Passing this property represents a promise from the user that host data
+associated with a buffer that was created using a host data pointer will
+outlive any executable graphs created from a modifiable graph which uses
+that buffer.
+
+=== Host Tasks [[host-tasks]]
+
+A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
+dependency rules. It is valid to record a host task as part of graph, though it
+may lead to sub-optimal graph performance because a host task node may prevent
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
+
+Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
+by replacing the whole node with the new callable.
+
+[source,c++]
+----
+auto node = graph.add([&](sycl::handler& cgh){
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
+});
+----
+
+=== Graph Update
+
+==== Executable Graph Update
+
+A graph in the executable state can have each nodes inputs & outputs updated
+using the `command_graph::update()` method. This takes a graph in the
+modifiable state and updates the executable graph to use the node input &
+outputs of the modifiable graph, a technique called _Whole Graph Update_. The
+modifiable graph must have the same topology as the graph originally used to
+create the executable graphs, with the nodes targeting the same devices and
+added in the same order.
+
+:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source, c++]
+----
+void
+update(const command_graph<graph_state::modifiable>& graph);
+----
+
+
+|Updates the executable graph node inputs & outputs from a topologically
+identical modifiable graph. A topologically identical graph is one with the
+same structure of nodes and edges, and the nodes added in the same order to
+both graphs. Equivalent nodes in topologically identical graphs each have the
+same command, targeting the same device. There is the additional limitation that
+to update an executable graph, every node in the graph must be either a kernel
+command or a host task.
+
+The only characteristic that can differ between two topologically identical
+graphs during an update are the arguments to kernel nodes. For example,
+the graph may capture different values for the USM pointers or accessors used
+in the graph. It is these kernels arguments in `graph` that constitute the
+inputs & outputs to update to.
+
+Differences in the following characteristics between two graphs during an
+update results in undefined behavior:
+
+* Modifying the native C++ callable of a `host task` node.
+* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
+
+The effects of the update will be visible on the next submission of the
+executable graph without the need for additional user synchronization.
+
+Preconditions:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `graph` - Modifiable graph object to update graph node inputs & outputs with.
+  This graph must have the same topology as the original graph used on
+  executable graph creation.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the topology of `graph` is
+  not the same as the existing graph topology, or if the nodes were not added in
+  the same order.
+
+:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
+
+* Throws synchronously with error code `invalid` if `graph` contains any node
+  which is not a kernel command or host task, e.g.
+  {handler-copy-functions}[memory operations].
+
+* Throws synchronously with error code `invalid` if the context or device
+  associated with `graph` does not match that of the `command_graph` being
+  updated.
+
+|===
 
 == Issues
 
@@ -1653,13 +1660,9 @@ block size.
 the finalize call either extending the basic command graph proposal
 or layered as a separate extension proposal.
 
-== Non-implemented features
-The following features are not yet or only partially implemented:
+== Non-implemented features and known issues
+The following features are not yet supported:
 
-. Extending lifetime of buffers used in a graph.
-. Buffer taking a copy of underlying host data when buffer is used in a graph.
-. Executable graph `update()`.
-. Using `handler::host_task` in a graph node.
 . Using `handler::fill` in a graph node implemented for USM only.
 . Using `handler::memset` in a graph node.
 . Using `handler::prefetch` in a graph node.
@@ -1669,7 +1672,7 @@ The following features are not yet or only partially implemented:
 . Using sycl streams in a graph node.
 . Thread safety of new methods.
 . Profiling an event returned from graph submission with `event::get_profiling_info()`.
-. Throwing exceptions for invalid usage is only partially implemented.
+. Subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph.
 
 == Revision History
 
@@ -1681,5 +1684,7 @@ The following features are not yet or only partially implemented:
 
 |1|2023-03-23|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
 |Initial public working draft
+|2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
+|Promote status to experimental
 
 |========================================
