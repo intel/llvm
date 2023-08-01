@@ -1708,7 +1708,7 @@ private:
     if (blockArg == block->args_end())
       return nullptr;
 
-    // Recurisvely search for alloca defining operation.
+    // Recursively search for alloca defining operation.
     Value callChainAncestor =
         getCallChainAncestor(parentFunction, blockArg->getArgNumber());
     return getAlloca(callChainAncestor);
