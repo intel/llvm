@@ -522,6 +522,17 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
           Args.emplace_back(transConstant(getUInt32(M, Op)));
         return mapType(T, BM->addJointMatrixINTELType(ElemTy, Args));
       }
+      case OpTypeCooperativeMatrixKHR: {
+        // The expected representation is:
+        // target("spirv.CooperativeMatrixKHR", %element_type, %scope%, %rows%,
+        // %cols%, %use%)
+        auto *ElemTy = transType(TargetTy->getTypeParameter(0));
+        ArrayRef<unsigned> Ops = TargetTy->int_params();
+        std::vector<SPIRVValue *> Args;
+        for (const auto &Op : Ops)
+          Args.emplace_back(transConstant(getUInt32(M, Op)));
+        return mapType(T, BM->addCooperativeMatrixKHRType(ElemTy, Args));
+      }
       default:
         if (isSubgroupAvcINTELTypeOpCode(Opcode))
           return mapType(T, BM->addSubgroupAvcINTELType(Opcode));

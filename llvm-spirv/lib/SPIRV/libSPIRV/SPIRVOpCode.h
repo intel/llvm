@@ -220,7 +220,8 @@ inline bool isTypeOpCode(Op OpCode) {
          isSubgroupAvcINTELTypeOpCode(OpCode) || OC == OpTypeVmeImageINTEL ||
          isVCOpCode(OpCode) || OC == internal::OpTypeTokenINTEL ||
          OC == internal::OpTypeJointMatrixINTEL ||
-         OC == internal::OpTypeJointMatrixINTELv2;
+         OC == internal::OpTypeJointMatrixINTELv2 ||
+         OC == OpTypeCooperativeMatrixKHR;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {
