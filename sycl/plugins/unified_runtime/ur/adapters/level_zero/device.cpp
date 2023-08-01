@@ -340,6 +340,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       return UR_RESULT_SUCCESS;
     }
 
+    if (Device->isCCS()) {
+      ur_device_partition_property_t cslice = {
+          UR_DEVICE_PARTITION_BY_CSLICE,
+      };
+
+      return ReturnValue(cslice);
+    }
+
     return ReturnValue(Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
