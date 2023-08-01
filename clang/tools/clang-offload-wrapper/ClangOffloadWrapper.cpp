@@ -618,8 +618,8 @@ private:
       FTy = NativeCPUBuiltinTy;
     else
       FTy = NativeCPUFuncTy;
-    auto FCalle =
-        M.getOrInsertFunction(sycl::utils::addSYCLNativeCPUSuffix(Name), FTy);
+    auto FCalle = M.getOrInsertFunction(
+        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
     return dyn_cast<Function>(FCalle.getCallee());
   }
 
