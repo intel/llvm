@@ -74,6 +74,10 @@ target_include_directories(LevelZeroLoader-Headers
 add_ur_adapter(${TARGET_NAME}
     SHARED
     ${L0_DIR}/ur_interface_loader.cpp
+    ${L0_DIR}/adapter.hpp
+    ${L0_DIR}/adapter.cpp
+    ${L0_DIR}/command_buffer.hpp
+    ${L0_DIR}/command_buffer.cpp
     ${L0_DIR}/common.hpp
     ${L0_DIR}/context.hpp
     ${L0_DIR}/device.hpp
@@ -91,6 +95,7 @@ add_ur_adapter(${TARGET_NAME}
     ${L0_DIR}/device.cpp
     ${L0_DIR}/event.cpp
     ${L0_DIR}/usm.cpp
+    ${L0_DIR}/usm_p2p.cpp
     ${L0_DIR}/memory.cpp
     ${L0_DIR}/kernel.cpp
     ${L0_DIR}/platform.cpp
@@ -98,10 +103,6 @@ add_ur_adapter(${TARGET_NAME}
     ${L0_DIR}/queue.cpp
     ${L0_DIR}/sampler.cpp
     ${L0_DIR}/../../ur.cpp
-    ${L0_DIR}/../../usm_allocator.cpp
-    ${L0_DIR}/../../usm_allocator.hpp
-    ${L0_DIR}/../../usm_allocator_config.cpp
-    ${L0_DIR}/../../usm_allocator_config.hpp
 )
 
 set_target_properties(${TARGET_NAME} PROPERTIES
@@ -112,6 +113,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 target_link_libraries(${TARGET_NAME} PRIVATE
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
+    ${PROJECT_NAME}::unified_malloc_framework
     LevelZeroLoader
     LevelZeroLoader-Headers
 )

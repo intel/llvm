@@ -91,7 +91,7 @@ if(UR_ENABLE_TRACING)
     set(XPTI_DIR ${xpti_SOURCE_DIR})
     set(XPTI_ENABLE_TESTS OFF CACHE INTERNAL "Turn off xptifw tests")
 
-    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230304" "xptifw")
+    FetchContentSparse_Declare(xptifw https://github.com/intel/llvm.git "sycl-nightly/20230703" "xptifw")
 
     FetchContent_MakeAvailable(xptifw)
 
