@@ -52,7 +52,6 @@ endif()
 add_lit_testsuite(check-sycl-deploy "Running the SYCL regression tests"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${DEPLOY_RT_TEST_ARGS}
-  PARAMS "SYCL_PLUGIN=opencl"
   DEPENDS ${SYCL_DEPLOY_TEST_DEPS}
   EXCLUDE_FROM_CHECK_ALL
   )
@@ -82,7 +81,7 @@ if(SYCL_BUILD_PI_CUDA)
   add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
     ${CMAKE_CURRENT_BINARY_DIR}
     ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=cuda"
+    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
     DEPENDS ${SYCL_TEST_DEPS}
     ${SYCL_TEST_EXCLUDE}
   )
@@ -98,7 +97,7 @@ if(SYCL_BUILD_PI_HIP)
     add_lit_testsuite(check-sycl-hip-ptx "Running device-agnostic SYCL regression tests for HIP NVidia PTX"
       ${CMAKE_CURRENT_BINARY_DIR}
       ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda;SYCL_PLUGIN=hip"
+      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
       DEPENDS ${SYCL_TEST_DEPS}
       ${SYCL_TEST_EXCLUDE}
     )
@@ -108,7 +107,7 @@ if(SYCL_BUILD_PI_HIP)
     add_lit_testsuite(check-sycl-hip-gcn "Running device-agnostic SYCL regression tests for HIP AMDGCN"
       ${CMAKE_CURRENT_BINARY_DIR}
       ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa;SYCL_PLUGIN=hip"
+      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa"
       DEPENDS ${SYCL_TEST_DEPS}
       ${SYCL_TEST_EXCLUDE}
     )
