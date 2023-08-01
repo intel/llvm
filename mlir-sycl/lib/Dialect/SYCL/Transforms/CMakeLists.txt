@@ -10,6 +10,7 @@ add_mlir_library(MLIRSYCLTransforms
 
   LINK_LIBS PUBLIC
   MLIRPass
+  MLIRPolygeistAnalysis
   MLIRTransforms  
   MLIRTransformUtils
   MLIRSYCLDialect
