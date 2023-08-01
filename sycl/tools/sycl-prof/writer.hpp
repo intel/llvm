@@ -9,8 +9,20 @@
 #pragma once
 
 #include <fstream>
+#include <iomanip>
 #include <mutex>
+#include <string>
 #include <string_view>
+#include <vector>
+
+struct record_t {
+  std::string name;
+  std::string cat;
+  std::string phase;
+  size_t PID;
+  size_t TID;
+  double TS;
+};
 
 class Writer {
 public:
@@ -20,6 +32,12 @@ public:
                           size_t PID, size_t TID, size_t TimeStamp) = 0;
   virtual void writeEnd(std::string_view Name, std::string_view Category,
                         size_t PID, size_t TID, size_t TimeStamp) = 0;
+  virtual void writeBufferBegin(std::string_view Name,
+                                std::string_view Category, size_t PID,
+                                size_t TID, size_t TimeStamp) = 0;
+  virtual void writeBufferEnd(std::string_view Name, std::string_view Category,
+                              size_t PID, size_t TID, size_t TimeStamp) = 0;
+  virtual void writeRecord(record_t &r) = 0;
   virtual ~Writer() = default;
 };
 
@@ -30,8 +48,37 @@ public:
   void init() final {
     std::lock_guard<std::mutex> _{MWriteMutex};
 
+    MOutFile << std::fixed << std::setprecision(3);
     MOutFile << "{\n";
     MOutFile << "  \"traceEvents\": [\n";
+  }
+
+  void writeBufferBegin(std::string_view Name, std::string_view Category,
+                        size_t PID, size_t TID, size_t TimeStamp) override {
+    std::lock_guard<std::mutex> _{MWriteMutex};
+
+    record_t r;
+    r.name = Name;
+    r.cat = Category;
+    r.phase = "B";
+    r.PID = PID;
+    r.TID = TID;
+    r.TS = (double)TimeStamp / 1000;
+    MRecords.push_back(r); // should use emplace_back
+  }
+
+  void writeBufferEnd(std::string_view Name, std::string_view Category,
+                      size_t PID, size_t TID, size_t TimeStamp) override {
+    std::lock_guard<std::mutex> _{MWriteMutex};
+
+    record_t r;
+    r.name = Name;
+    r.cat = Category;
+    r.phase = "E";
+    r.PID = PID;
+    r.TID = TID;
+    r.TS = (double)TimeStamp / 1000; // microseconds
+    MRecords.push_back(r);           // should use emplace_back
   }
 
   void writeBegin(std::string_view Name, std::string_view Category, size_t PID,
@@ -66,11 +113,26 @@ public:
     MOutFile << std::endl;
   }
 
+  void writeRecord(record_t &r) override {
+    MOutFile << "{\"name\": \"" << r.name << "\", ";
+    MOutFile << "\"cat\": \"" << r.cat << "\", ";
+    MOutFile << "\"ph\": \"" << r.phase << "\", ";
+    MOutFile << "\"pid\": \"" << r.PID << "\", ";
+    MOutFile << "\"tid\": \"" << r.TID << "\", ";
+    MOutFile << "\"ts\": \"" << r.TS << "\"},";
+    MOutFile << std::endl;
+  }
+
   void finalize() final {
     std::lock_guard<std::mutex> _{MWriteMutex};
 
     if (!MOutFile.is_open())
       return;
+
+    for (auto &r : MRecords) {
+      // Assumes file is open
+      writeRecord(r);
+    }
 
     // add an empty element for not ending with '}, ]'
     MOutFile << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
@@ -86,4 +148,5 @@ public:
 private:
   std::mutex MWriteMutex;
   std::ofstream MOutFile;
+  std::vector<record_t> MRecords;
 };

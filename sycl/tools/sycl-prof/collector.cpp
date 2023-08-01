@@ -19,8 +19,6 @@
 #include <thread>
 #include <unistd.h>
 
-namespace chrono = std::chrono;
-
 Writer *GWriter = nullptr;
 
 struct Measurements {
@@ -30,14 +28,41 @@ struct Measurements {
 };
 
 unsigned long process_id() { return static_cast<unsigned long>(getpid()); }
+using tick_t = uint64_t;
+
+#if defined(__linux__)
+#include <time.h>
+// https://stackoverflow.com/questions/42189976/calculate-system-time-using-rdtsc
+// Discussion describes how clock_gettime() costs about 4 ns per call
+struct rdtsc_t {
+  inline uint64_t get_clock() {
+    struct timespec ts;
+    // Other possible options include CLOCK_PROCESS_CPUTIME_ID, CLOCK_MONOTONIC
+    int status = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (status == 0) {
+      return (static_cast<uint64_t>(1000000000UL) *
+                  static_cast<uint64_t>(ts.tv_sec) +
+              static_cast<uint64_t>(ts.tv_nsec));
+    } else
+      return 0;
+  }
+};
+#else
+struct rdtsc_t {
+  inline uint64_t get_clock() {
+    auto Now = std::chrono::steady_clock::now();
+    size_t TS = std::chrono::time_point_cast<std::chrono::nanoseconds>(Now)
+                    .time_since_epoch()
+                    .count();
+  }
+};
+#endif
 
 static Measurements measure() {
+  rdtsc_t timer;
   size_t TID = std::hash<std::thread::id>{}(std::this_thread::get_id());
   size_t PID = process_id();
-  auto Now = chrono::high_resolution_clock::now();
-  size_t TS = chrono::time_point_cast<chrono::nanoseconds>(Now)
-                  .time_since_epoch()
-                  .count();
+  size_t TS = timer.get_clock();
 
   return Measurements{TID, PID, TS};
 }
@@ -72,7 +97,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 
   std::string_view NameView{StreamName};
-  if (NameView == "sycl.pi") {
+  if (NameView == "sycl.pi" || NameView == "sycl.perf") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_begin,
                          apiBeginEndCallback);
@@ -114,10 +139,11 @@ XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
                                            const void *UserData) {
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_function_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "API", PID, TID,
-                        TS);
+    GWriter->writeBufferBegin(static_cast<const char *>(UserData), "API", PID,
+                              TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "API", PID, TID, TS);
+    GWriter->writeBufferEnd(static_cast<const char *>(UserData), "API", PID,
+                            TID, TS);
   }
 }
 
@@ -138,9 +164,9 @@ XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
 
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_task_begin) {
-    GWriter->writeBegin(Name, "SYCL", PID, TID, TS);
+    GWriter->writeBufferBegin(Name, "SYCL", PID, TID, TS);
   } else {
-    GWriter->writeEnd(Name, "SYCL", PID, TID, TS);
+    GWriter->writeBufferEnd(Name, "SYCL", PID, TID, TS);
   }
 }
 
@@ -152,10 +178,10 @@ XPTI_CALLBACK_API void waitBeginEndCallback(uint16_t TraceType,
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_wait_begin ||
       TraceType == xpti::trace_barrier_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                        TS);
+    GWriter->writeBufferBegin(static_cast<const char *>(UserData), "SYCL", PID,
+                              TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                      TS);
+    GWriter->writeBufferEnd(static_cast<const char *>(UserData), "SYCL", PID,
+                            TID, TS);
   }
 }

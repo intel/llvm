@@ -8,6 +8,7 @@
 
 #include <detail/scheduler/leaves_collection.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/xpti_registry.hpp>
 
 #include <algorithm>
 
@@ -50,6 +51,7 @@ size_t LeavesCollection::remove(value_type Cmd) {
 }
 
 bool LeavesCollection::push_back(value_type Cmd, EnqueueListT &ToEnqueue) {
+  XPTI_LW_TRACE();
   bool Result = false;
 
   if (isHostAccessorCmd(Cmd))
@@ -62,6 +64,7 @@ bool LeavesCollection::push_back(value_type Cmd, EnqueueListT &ToEnqueue) {
 }
 
 std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
+  XPTI_LW_TRACE();
   std::vector<value_type> Result;
   Result.reserve(MGenericCommands.size() + MHostAccessorCommands.size());
 
@@ -75,6 +78,7 @@ std::vector<LeavesCollection::value_type> LeavesCollection::toVector() const {
 
 bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
                                               EnqueueListT &ToEnqueue) {
+  XPTI_LW_TRACE();
   // 1. find the oldest command with doOverlap() = true amongst the List
   //      => OldCmd
   HostAccessorCommandSingleXRefT OldCmdIt;
@@ -113,6 +117,7 @@ bool LeavesCollection::addHostAccessorCommand(EmptyCommand *Cmd,
 
 bool LeavesCollection::addGenericCommand(Command *Cmd,
                                          EnqueueListT &ToEnqueue) {
+  XPTI_LW_TRACE();
   if (MGenericCommands.full()) {
     Command *OldLeaf = MGenericCommands.front();
 
@@ -129,11 +134,13 @@ bool LeavesCollection::addGenericCommand(Command *Cmd,
 }
 
 void LeavesCollection::insertHostAccessorCommand(EmptyCommand *Cmd) {
+  XPTI_LW_TRACE();
   MHostAccessorCommandsXRef[Cmd] =
       MHostAccessorCommands.insert(MHostAccessorCommands.end(), Cmd);
 }
 
 size_t LeavesCollection::eraseHostAccessorCommand(EmptyCommand *Cmd) {
+  XPTI_LW_TRACE();
   auto XRefIt = MHostAccessorCommandsXRef.find(Cmd);
 
   if (XRefIt == MHostAccessorCommandsXRef.end())

@@ -17,6 +17,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <detail/xpti_registry.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/exception.hpp>
 
@@ -41,6 +42,7 @@ namespace detail {
 // TODO merge with LeavesCollection's version of doOverlap (see
 // leaves_collection.cpp).
 static bool doOverlap(const Requirement *LHS, const Requirement *RHS) {
+  XPTI_LW_TRACE();
   return (LHS->MOffsetInBytes + LHS->MAccessRange.size() * LHS->MElemSize >=
           RHS->MOffsetInBytes) ||
          (RHS->MOffsetInBytes + RHS->MAccessRange.size() * RHS->MElemSize >=
@@ -93,6 +95,7 @@ static access::mode combineAccessModes(access::mode A, access::mode B) {
 }
 
 Scheduler::GraphBuilder::GraphBuilder() {
+  XPTI_LW_TRACE();
   if (const char *EnvVarCStr = SYCLConfig<SYCL_PRINT_EXECUTION_GRAPH>::get()) {
     std::string GraphPrintOpts(EnvVarCStr);
     bool EnableAlways = GraphPrintOpts.find("always") != std::string::npos;
@@ -195,6 +198,7 @@ MemObjRecord *Scheduler::GraphBuilder::getMemObjRecord(SYCLMemObjI *MemObject) {
 MemObjRecord *Scheduler::GraphBuilder::getOrInsertMemObjRecord(
     const QueueImplPtr &Queue, const Requirement *Req,
     std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   SYCLMemObjI *MemObject = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObject);
 
@@ -255,6 +259,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
                                            access::mode AccessMode,
                                            std::vector<Command *> &ToCleanUp) {
 
+  XPTI_LW_TRACE();
   const bool ReadOnlyReq = AccessMode == access::mode::read;
   if (ReadOnlyReq)
     return;
@@ -272,6 +277,7 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
 void Scheduler::GraphBuilder::addNodeToLeaves(
     MemObjRecord *Record, Command *Cmd, access::mode AccessMode,
     std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   LeavesCollection &Leaves{AccessMode == access::mode::read
                                ? Record->MReadLeaves
                                : Record->MWriteLeaves};
@@ -282,6 +288,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   AllocaCommandBase *AllocaCmd =
       findAllocaForReq(Record, Req, Queue->getContextImplPtr());
   assert(AllocaCmd && "There must be alloca for requirement!");
@@ -312,6 +319,7 @@ UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
 static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
                                             AllocaCommandBase *AllocaCmdDst,
                                             access::mode MapMode) {
+  XPTI_LW_TRACE();
   assert(AllocaCmdSrc->MLinkedAllocaCmd == AllocaCmdDst &&
          "Expected linked alloca commands");
   assert(AllocaCmdSrc->MIsActive &&
@@ -339,7 +347,7 @@ static Command *insertMapUnmapForLinkedCmds(AllocaCommandBase *AllocaCmdSrc,
 Command *Scheduler::GraphBuilder::insertMemoryMove(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-
+  XPTI_LW_TRACE();
   AllocaCommandBase *AllocaCmdDst =
       getOrCreateAllocaForReq(Record, Req, Queue, ToEnqueue);
   if (!AllocaCmdDst)
@@ -427,6 +435,7 @@ Command *Scheduler::GraphBuilder::insertMemoryMove(
 Command *Scheduler::GraphBuilder::remapMemoryObject(
     MemObjRecord *Record, Requirement *Req, AllocaCommandBase *HostAllocaCmd,
     std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   assert(HostAllocaCmd->getQueue()->is_host() &&
          "Host alloca command expected");
   assert(HostAllocaCmd->MIsActive && "Active alloca command expected");
@@ -474,6 +483,7 @@ Command *Scheduler::GraphBuilder::remapMemoryObject(
 Command *
 Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
                                      std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   QueueImplPtr HostQueue = Scheduler::getInstance().getDefaultHostQueue();
   SYCLMemObjI *MemObj = Req->MSYCLMemObj;
   MemObjRecord *Record = getMemObjRecord(MemObj);
@@ -520,7 +530,7 @@ Scheduler::GraphBuilder::addCopyBack(Requirement *Req,
 Command *
 Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
                                          std::vector<Command *> &ToEnqueue) {
-
+  XPTI_LW_TRACE();
   const QueueImplPtr &HostQueue = getInstance().getDefaultHostQueue();
 
   MemObjRecord *Record = getOrInsertMemObjRecord(HostQueue, Req, ToEnqueue);
@@ -557,7 +567,7 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 Command *Scheduler::GraphBuilder::addCGUpdateHost(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &HostQueue,
     std::vector<Command *> &ToEnqueue) {
-
+  XPTI_LW_TRACE();
   auto UpdateHost = static_cast<CGUpdateHost *>(CommandGroup.get());
   Requirement *Req = UpdateHost->getReqToUpdate();
 
@@ -577,6 +587,7 @@ std::set<Command *>
 Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
                                         const Requirement *Req,
                                         const ContextImplPtr &Context) {
+  XPTI_LW_TRACE();
   std::set<Command *> RetDeps;
   std::vector<Command *> Visited;
   const bool ReadOnlyReq = Req->MAccessMode == access::mode::read;
@@ -633,6 +644,7 @@ Scheduler::GraphBuilder::findDepsForReq(MemObjRecord *Record,
 // object
 DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
                                                   MemObjRecord *Record) {
+  XPTI_LW_TRACE();
   for (const DepDesc &DD : Cmd->MDeps) {
     if (getMemObjRecord(DD.MDepRequirement->MSYCLMemObj) == Record) {
       return DD;
@@ -647,6 +659,7 @@ DepDesc Scheduler::GraphBuilder::findDepForRecord(Command *Cmd,
 AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const ContextImplPtr &Context,
     bool AllowConst) {
+  XPTI_LW_TRACE();
   auto IsSuitableAlloca = [&Context, Req,
                            AllowConst](AllocaCommandBase *AllocaCmd) {
     bool Res = sameCtx(AllocaCmd->getQueue()->getContextImplPtr(), Context);
@@ -666,6 +679,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
 }
 
 static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
+  XPTI_LW_TRACE();
   if (const char *HUMConfig = SYCLConfig<SYCL_HOST_UNIFIED_MEMORY>::get()) {
     if (std::strcmp(HUMConfig, "0") == 0)
       return Ctx->is_host();
@@ -686,7 +700,7 @@ static bool checkHostUnifiedMemory(const ContextImplPtr &Ctx) {
 AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
     MemObjRecord *Record, const Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
-
+  XPTI_LW_TRACE();
   AllocaCommandBase *AllocaCmd = findAllocaForReq(
       Record, Req, Queue->getContextImplPtr(), /*AllowConst=*/false);
 
@@ -857,6 +871,7 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
     Command *Cmd, const std::vector<Requirement *> &Reqs,
     const QueueImplPtr &Queue, Command::BlockReason Reason,
     std::vector<Command *> &ToEnqueue, const bool AddDepsToLeaves) {
+  XPTI_LW_TRACE();
   EmptyCommand *EmptyCmd =
       new EmptyCommand(Scheduler::getInstance().getDefaultHostQueue());
 
@@ -896,6 +911,7 @@ EmptyCommand *Scheduler::GraphBuilder::addEmptyCmd(
 }
 
 static bool isInteropHostTask(ExecCGCommand *Cmd) {
+  XPTI_LW_TRACE();
   if (Cmd->getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     return false;
 
@@ -906,6 +922,7 @@ static bool isInteropHostTask(ExecCGCommand *Cmd) {
 }
 
 static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
+  XPTI_LW_TRACE();
   std::unordered_map<SYCLMemObjI *, access::mode> CombinedModes;
   bool HasDuplicateMemObjects = false;
   for (const Requirement *Req : Reqs) {
@@ -930,6 +947,7 @@ Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
     std::vector<Command *> &ToEnqueue,
     sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
     const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
+  XPTI_LW_TRACE();
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
@@ -1012,7 +1030,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
     std::vector<Requirement *> &Reqs,
     const std::vector<detail::EventImplPtr> &Events, QueueImplPtr Queue,
     std::vector<Command *> &ToEnqueue) {
-
+  XPTI_LW_TRACE();
   if (MPrintOptionsArray[BeforeAddCG])
     printGraphAsDot("before_addCG");
 
@@ -1115,6 +1133,7 @@ void Scheduler::GraphBuilder::createGraphForCommand(
 
 void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
     MemObjRecord *Record) {
+  XPTI_LW_TRACE();
   for (Command *Cmd : Record->MReadLeaves) {
     --(Cmd->MLeafCounter);
     if (Cmd->readyForCleanup())
@@ -1128,6 +1147,7 @@ void Scheduler::GraphBuilder::decrementLeafCountersForRecord(
 }
 
 void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
+  XPTI_LW_TRACE();
   std::vector<AllocaCommandBase *> &AllocaCommands = Record->MAllocaCommands;
   if (AllocaCommands.empty())
     return;
@@ -1218,6 +1238,7 @@ void Scheduler::GraphBuilder::cleanupCommandsForRecord(MemObjRecord *Record) {
 
 void Scheduler::GraphBuilder::cleanupCommand(
     Command *Cmd, [[maybe_unused]] bool AllowUnsubmitted) {
+  XPTI_LW_TRACE();
   if (SYCLConfig<SYCL_DISABLE_POST_ENQUEUE_CLEANUP>::get()) {
     static bool DeprWarningPrinted = false;
     if (!DeprWarningPrinted) {
@@ -1272,6 +1293,7 @@ void Scheduler::GraphBuilder::cleanupCommand(
 }
 
 void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
+  XPTI_LW_TRACE();
   const auto It = std::find_if(
       MMemObjs.begin(), MMemObjs.end(),
       [MemObject](const SYCLMemObjI *Obj) { return Obj == MemObject; });
@@ -1296,6 +1318,7 @@ void Scheduler::GraphBuilder::removeRecordForMemObj(SYCLMemObjI *MemObject) {
 Command *Scheduler::GraphBuilder::connectDepEvent(
     Command *const Cmd, const EventImplPtr &DepEvent, const DepDesc &Dep,
     std::vector<Command *> &ToCleanUp) {
+  XPTI_LW_TRACE();
   assert(Cmd->getWorkerContext() != DepEvent->getContextImpl());
 
   // construct Host Task type command manually and make it depend on DepEvent
@@ -1350,6 +1373,7 @@ Command *Scheduler::GraphBuilder::connectDepEvent(
 }
 
 void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
+  XPTI_LW_TRACE();
   auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
   if (isInFusionMode(QUniqueID)) {
     throw sycl::exception{sycl::make_error_code(sycl::errc::invalid),
@@ -1371,6 +1395,7 @@ void Scheduler::GraphBuilder::startFusion(QueueImplPtr Queue) {
 
 void Scheduler::GraphBuilder::removeNodeFromGraph(
     Command *Node, std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   // Remove the placeholder command as leaf of all its requirements and from the
   // user list of all its dependencies.
   for (auto &Dep : Node->MDeps) {
@@ -1405,6 +1430,7 @@ void Scheduler::GraphBuilder::removeNodeFromGraph(
 
 void Scheduler::GraphBuilder::cancelFusion(QueueImplPtr Queue,
                                            std::vector<Command *> &ToEnqueue) {
+  XPTI_LW_TRACE();
   auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
   if (!isInFusionMode(QUniqueID)) {
     return;
@@ -1443,6 +1469,7 @@ static bool checkForCircularDependency(Command *, bool, KernelFusionCommand *);
 
 static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
                                       KernelFusionCommand *Fusion) {
+  XPTI_LW_TRACE();
   if (isPartOfFusion(Cmd, Fusion)) {
     // If this is part of the fusion and the predecessor also was, we can stop
     // the traversal here. A direct dependency between two kernels in the same
@@ -1458,6 +1485,7 @@ static bool createsCircularDependency(Command *Cmd, bool PredPartOfFusion,
 
 static bool checkForCircularDependency(Command *Cmd, bool IsPartOfFusion,
                                        KernelFusionCommand *Fusion) {
+  XPTI_LW_TRACE();
   // Check the requirement dependencies.
   for (auto &Dep : Cmd->MDeps) {
     auto *DepCmd = Dep.MDepCommand;
@@ -1493,6 +1521,7 @@ EventImplPtr
 Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
                                         std::vector<Command *> &ToEnqueue,
                                         const property_list &PropList) {
+  XPTI_LW_TRACE();
   auto QUniqueID = std::hash<QueueImplPtr>()(Queue);
 #if SYCL_EXT_CODEPLAY_KERNEL_FUSION
   if (!isInFusionMode(QUniqueID)) {
@@ -1587,8 +1616,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   }
 
   createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().getRequirements(), FusedEventDeps,
-                        Queue, ToEnqueue);
+                        FusedKernelCmd->getCG().getRequirements(),
+                        FusedEventDeps, Queue, ToEnqueue);
 
   ToEnqueue.push_back(FusedKernelCmd.get());
 

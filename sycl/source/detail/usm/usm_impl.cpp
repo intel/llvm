@@ -41,6 +41,7 @@ namespace usm {
 void *alignedAllocHost(size_t Alignment, size_t Size, const context &Ctxt,
                        alloc Kind, const property_list &PropList,
                        const detail::code_location &CodeLoc) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
@@ -130,6 +131,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
                            const context_impl *CtxImpl,
                            const device_impl *DevImpl, alloc Kind,
                            const property_list &PropList) {
+  XPTI_LW_TRACE();
   void *RetVal = nullptr;
   if (Size == 0)
     return nullptr;
@@ -232,6 +234,7 @@ void *alignedAllocInternal(size_t Alignment, size_t Size,
 void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
                    const device &Dev, alloc Kind, const property_list &PropList,
                    const detail::code_location &CodeLoc) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
@@ -262,6 +265,7 @@ void *alignedAlloc(size_t Alignment, size_t Size, const context &Ctxt,
 }
 
 void freeInternal(void *Ptr, const context_impl *CtxImpl) {
+  XPTI_LW_TRACE();
   if (Ptr == nullptr)
     return;
   if (CtxImpl->is_host()) {
@@ -276,6 +280,7 @@ void freeInternal(void *Ptr, const context_impl *CtxImpl) {
 
 void free(void *Ptr, const context &Ctxt,
           const detail::code_location &CodeLoc) {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   // Stash the code location information and propagate
   detail::tls_code_loc_t CL(CodeLoc);
