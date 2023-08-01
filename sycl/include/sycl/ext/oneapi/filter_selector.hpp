@@ -13,7 +13,7 @@
 #include <string>                    // for string
 
 #include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include "device.hpp"                // for device
+#include <sycl/device.hpp>                // for device
 
 // 4.6.1 Device selection class
 

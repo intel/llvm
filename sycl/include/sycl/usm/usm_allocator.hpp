@@ -16,8 +16,8 @@
 #include <cstdlib>                 // for size_t, aligned_alloc, free
 #include <type_traits>             // for true_type
 
-#include "builtins.hpp"            // for max
-#include "property_list.hpp"       // for property_list
+#include <sycl/builtins.hpp>            // for max
+#include <sycl/property_list.hpp>       // for property_list
 
 namespace sycl {
 inline namespace _V1 {

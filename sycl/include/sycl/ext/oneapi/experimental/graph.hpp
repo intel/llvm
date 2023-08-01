@@ -14,11 +14,11 @@
 #include <vector>                          // for vector
 #include <type_traits>                     // for true_type
 
-#include "context.hpp"                     // for context
+#include <sycl/context.hpp>                     // for context
 #include <sycl/detail/export.hpp>               // for __SYCL_EXPORT
 #include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, PropWith...
-#include "device.hpp"                      // for device
-#include "properties/property_traits.hpp"  // for is_property, is_property_of
+#include <sycl/device.hpp>                      // for device
+#include <sycl/properties/property_traits.hpp>  // for is_property, is_property_of
 
 namespace sycl {
 inline namespace _V1 {

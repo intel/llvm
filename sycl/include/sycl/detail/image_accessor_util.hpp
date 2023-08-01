@@ -22,14 +22,14 @@
 #include <cstdint>                              // for int32_t, uint16_t
 #include <type_traits>                          // for enable_if_t
 
-#include "aliases.hpp"                          // for float4, int4, uint4
+#include <sycl/aliases.hpp>                          // for float4, int4, uint4
 #include <sycl/detail/array.hpp>                     // for array
 #include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
-#include "exception.hpp"                        // for invalid_parameter_error
-#include "id.hpp"                               // for id
-#include "range.hpp"                            // for range
-#include "swizzles.def"                         // for vec::x, vec::y, vec::z
+#include <sycl/exception.hpp>                        // for invalid_parameter_error
+#include <sycl/id.hpp>                               // for id
+#include <sycl/range.hpp>                            // for range
+#include <sycl/swizzles.def>                         // for vec::x, vec::y, vec::z
 
 namespace sycl {
 inline namespace _V1 {

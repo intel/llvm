@@ -17,11 +17,11 @@
 #include <cstddef>                            // for size_t
 #include <variant>                            // for hash
 
-#include "backend_types.hpp"                  // for backend, backend_return_t
-#include "context.hpp"                        // for context
+#include <sycl/backend_types.hpp>                  // for backend, backend_return_t
+#include <sycl/context.hpp>                        // for context
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
-#include "device.hpp"                         // for device
-#include "range.hpp"                          // for range
+#include <sycl/device.hpp>                         // for device
+#include <sycl/range.hpp>                          // for range
 
 namespace sycl {
 inline namespace _V1 {

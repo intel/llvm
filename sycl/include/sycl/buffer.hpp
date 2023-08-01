@@ -31,9 +31,9 @@
 #include <variant>                                     // for hash
 #include <vector>                                      // for vector
 
-#include "access/access.hpp"                           // for placeholder
-#include "backend_types.hpp"                           // for backend, backe...
-#include "context.hpp"                                 // for context
+#include <sycl/access/access.hpp>                           // for placeholder
+#include <sycl/backend_types.hpp>                           // for backend, backe...
+#include <sycl/context.hpp>                                 // for context
 #include <sycl/detail/array.hpp>                            // for array
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>                           // for __SYCL_EXPORT

@@ -14,10 +14,10 @@
 #include <sycl/properties/property_traits.hpp>         // for is_property_of
 #include <type_traits>                                 // for true_type, fal...
 
-#include "access/access.hpp"                           // for mode, target
+#include <sycl/access/access.hpp>                           // for mode, target
 #include <sycl/detail/defines.hpp>                          // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
-#include "image.hpp"                                   // for image_accessor
+#include <sycl/image.hpp>                                   // for image_accessor
 
 namespace sycl {
 inline namespace _V1 {

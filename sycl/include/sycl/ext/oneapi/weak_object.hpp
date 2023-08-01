@@ -15,13 +15,13 @@
 #include <optional>                                         // for optional
 #include <memory>                                           // for shared_ptr
 
-#include "access/access.hpp"                                // for target, mode
-#include "accessor.hpp"                                     // for accessor
+#include <sycl/access/access.hpp>                                // for target, mode
+#include <sycl/accessor.hpp>                                     // for accessor
 #include <sycl/detail/impl_utils.hpp>                            // for createSyc...
 #include <sycl/detail/memcpy.hpp>                                // for detail
-#include "exception.hpp"                                    // for make_erro...
-#include "ext/codeplay/experimental/fusion_properties.hpp"  // for buffer
-#include "range.hpp"                                        // for range
+#include <sycl/exception.hpp>                                    // for make_erro...
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for buffer
+#include <sycl/range.hpp>                                        // for range
 
 namespace sycl {
 inline namespace _V1 {

@@ -22,7 +22,7 @@
 #endif
 #include <type_traits>             // for enable_if_t, bool_constant
 
-#include "bit_cast.hpp"            // for bit_cast
+#include <sycl/bit_cast.hpp>            // for bit_cast
 
 namespace sycl {
 inline namespace _V1 {

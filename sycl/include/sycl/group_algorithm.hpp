@@ -16,14 +16,14 @@
 #include <complex>                      // for complex
 #include <type_traits>                  // for enable_if_t, decay_t, integra...
 
-#include "aliases.hpp"                  // for half
+#include <sycl/aliases.hpp>                  // for half
 #include <sycl/detail/array.hpp>             // for array
 #include <sycl/detail/helpers.hpp>           // for loop
 #include <sycl/detail/item_base.hpp>         // for id, range
 #include <sycl/detail/type_list.hpp>         // for is_contained, type_list
-#include "id.hpp"                       // for id
-#include "range.hpp"                    // for range
-#include "types.hpp"                    // for vec
+#include <sycl/id.hpp>                       // for id
+#include <sycl/range.hpp>                    // for range
+#include <sycl/types.hpp>                    // for vec
 
 namespace sycl {
 inline namespace _V1 {

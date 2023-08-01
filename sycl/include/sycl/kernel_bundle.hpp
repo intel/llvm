@@ -27,9 +27,9 @@
 #include <utility>                          // for move
 #include <variant>                          // for hash
 
-#include "backend_types.hpp"                // for backend, backend_return_t
+#include <sycl/backend_types.hpp>                // for backend, backend_return_t
 #include <sycl/detail/export.hpp>                // for __SYCL_EXPORT
-#include "property_list.hpp"                // for property_list
+#include <sycl/property_list.hpp>                // for property_list
 
 namespace sycl {
 inline namespace _V1 {

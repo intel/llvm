@@ -24,12 +24,12 @@
 #include <sycl/queue.hpp>                  // for queue
 #include <vector>                          // for vector
 
-#include "CL/cl.h"                         // for _cl_event, cl_event, cl_de...
-#include "backend_types.hpp"               // for backend
-#include "handler.hpp"                     // for buffer
-#include "kernel.hpp"                      // for kernel
-#include "kernel_bundle_enums.hpp"         // for bundle_state
-#include "platform.hpp"                    // for platform
+#include <sycl/CL/cl.h>                         // for _cl_event, cl_event, cl_de...
+#include <sycl/backend_types.hpp>               // for backend
+#include <sycl/handler.hpp>                     // for buffer
+#include <sycl/kernel.hpp>                      // for kernel
+#include <sycl/kernel_bundle_enums.hpp>         // for bundle_state
+#include <sycl/platform.hpp>                    // for platform
 
 namespace sycl {
 inline namespace _V1 {

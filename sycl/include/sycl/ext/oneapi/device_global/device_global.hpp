@@ -16,8 +16,8 @@
 #include <type_traits>                                   // for enable_if_t
 #include <utility>                                       // for declval
 
-#include "access/access.hpp"                             // for address_space
-#include "multi_ptr.hpp"                                 // for multi_ptr
+#include <sycl/access/access.hpp>                             // for address_space
+#include <sycl/multi_ptr.hpp>                                 // for multi_ptr
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HOST_NOT_SUPPORTED(Op)

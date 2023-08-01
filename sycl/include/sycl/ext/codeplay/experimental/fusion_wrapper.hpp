@@ -12,8 +12,8 @@
 #include <memory>             // for shared_ptr
 
 #include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
-#include "event.hpp"          // for event
-#include "property_list.hpp"  // for property_list
+#include <sycl/event.hpp>          // for event
+#include <sycl/property_list.hpp>  // for property_list
 
 namespace sycl {
 inline namespace _V1 {

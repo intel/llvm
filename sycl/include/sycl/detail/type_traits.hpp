@@ -16,7 +16,7 @@
 #include <type_traits>                         // for true_type, false_type
 #include <cstddef>                             // for size_t
 
-#include "half_type.hpp"                       // for half
+#include <sycl/half_type.hpp>                       // for half
 
 namespace sycl {
 inline namespace _V1 {

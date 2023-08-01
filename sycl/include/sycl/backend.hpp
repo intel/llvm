@@ -44,15 +44,15 @@
 #include <memory>                                     // for shared_ptr
 #include <vector>                                     // for vector
 
-#include "CL/cl.h"                                    // for _cl_event
-#include "access/access.hpp"                          // for mode, placeholder
-#include "async_handler.hpp"                          // for async_handler
+#include <sycl/CL/cl.h>                                    // for _cl_event
+#include <sycl/access/access.hpp>                          // for mode, placeholder
+#include <sycl/async_handler.hpp>                          // for async_handler
 #include <sycl/detail/defines_elementary.hpp>              // for __SYCL_DEPRECATED
 #include <sycl/detail/impl_utils.hpp>                      // for createSyclObjFr...
-#include "handler.hpp"                                // for buffer
-#include "kernel.hpp"                                 // for kernel, get_native
-#include "kernel_bundle_enums.hpp"                    // for bundle_state
-#include "property_list.hpp"                          // for property_list
+#include <sycl/handler.hpp>                                // for buffer
+#include <sycl/kernel.hpp>                                 // for kernel, get_native
+#include <sycl/kernel_bundle_enums.hpp>                    // for bundle_state
+#include <sycl/property_list.hpp>                          // for property_list
 
 namespace sycl {
 inline namespace _V1 {

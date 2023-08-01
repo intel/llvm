@@ -19,12 +19,12 @@
 #include <system_error>             // for error_code
 #include <type_traits>              // for is_same, is_arithmetic
 
-#include "aliases.hpp"              // for half
+#include <sycl/aliases.hpp>              // for half
 #include <sycl/detail/pi_error.def>      // for PI_ERROR_INVALID_DEVICE
-#include "exception.hpp"            // for sycl_category, exception
-#include "ext/oneapi/bfloat16.hpp"  // for bfloat16
-#include "memory_enums.hpp"         // for memory_scope
-#include "range.hpp"                // for range
+#include <sycl/exception.hpp>            // for sycl_category, exception
+#include <sycl/ext/oneapi/bfloat16.hpp>  // for bfloat16
+#include <sycl/memory_enums.hpp>         // for memory_scope
+#include <sycl/range.hpp>                // for range
 
 namespace sycl {
 inline namespace _V1 {

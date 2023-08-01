@@ -12,7 +12,7 @@
 #include <sycl/exception.hpp>  // for make_error_code, errc, exception
 #include <type_traits>         // for enable_if_t
 
-#include "memory_enums.hpp"    // for memory_scope
+#include <sycl/memory_enums.hpp>    // for memory_scope
 
 namespace sycl {
 inline namespace _V1 {

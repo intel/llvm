@@ -13,10 +13,10 @@
 #include <stdint.h>                      // for int8_t, uint8_t, int32_t
 #include <type_traits>                   // for enable_if_t
 
-#include "matrix-unified-utils.hpp"      // for layout, use, tf32
-#include "aliases.hpp"                   // for half
-#include "half_type.hpp"                 // for half
-#include "marray.hpp"                    // for marray
+#include <sycl/matrix-unified-utils.hpp>      // for layout, use, tf32
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/half_type.hpp>                 // for half
+#include <sycl/marray.hpp>                    // for marray
 
 namespace sycl {
 inline namespace _V1 {

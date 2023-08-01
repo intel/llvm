@@ -12,7 +12,7 @@
 #include <stddef.h>                            // for size_t
 #include <stdint.h>                            // for uint32_t
 
-#include "marray.hpp"                          // for marray
+#include <sycl/marray.hpp>                          // for marray
 
 namespace sycl {
 inline namespace _V1 {

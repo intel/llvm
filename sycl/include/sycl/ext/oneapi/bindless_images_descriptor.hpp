@@ -14,8 +14,8 @@
 #include <system_error>      // for error_code
 
 #include <sycl/detail/array.hpp>  // for array
-#include "exception.hpp"     // for errc, exception
-#include "range.hpp"         // for range
+#include <sycl/exception.hpp>     // for errc, exception
+#include <sycl/range.hpp>         // for range
 
 namespace sycl {
 inline namespace _V1 {

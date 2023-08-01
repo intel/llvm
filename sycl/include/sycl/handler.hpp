@@ -49,7 +49,7 @@
 #include <utility>
 #include <vector>
 
-#include "CL/cl.h"
+#include <sycl/CL/cl.h>
 #include <sycl/detail/array.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
@@ -60,16 +60,16 @@
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
 #include <sycl/detail/pi_error.def>
-#include "device.hpp"
-#include "exception.hpp"
-#include "exception_list.hpp"
-#include "ext/oneapi/bindless_images_descriptor.hpp"
-#include "ext/oneapi/device_global/properties.hpp"
-#include "group.hpp"
-#include "kernel_bundle_enums.hpp"
-#include "range.hpp"
-#include "types.hpp"
-#include "usm/usm_enums.hpp"
+#include <sycl/device.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/group.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
+#include <sycl/range.hpp>
+#include <sycl/types.hpp>
+#include <sycl/usm/usm_enums.hpp>
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001

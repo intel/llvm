@@ -17,12 +17,12 @@
 #include <stddef.h>                                        // for size_t
 #include <type_traits>                                     // for is_scalar
 
-#include "context.hpp"                                     // for context
+#include <sycl/context.hpp>                                     // for context
 #include <sycl/detail/export.hpp>                               // for __SYCL_EXPORT
 #include <sycl/detail/pi.h>                                     // for pi_uint64
-#include "device.hpp"                                      // for device
-#include "image.hpp"                                       // for image_chan...
-#include "range.hpp"                                       // for range
+#include <sycl/device.hpp>                                      // for device
+#include <sycl/image.hpp>                                       // for image_chan...
+#include <sycl/range.hpp>                                       // for range
 
 namespace sycl {
 inline namespace _V1 {

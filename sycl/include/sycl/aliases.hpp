@@ -11,7 +11,7 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <cstdint>                             // for uint8_t, int16_t, int32_t
 
-#include "half_type.hpp"                       // for half
+#include <sycl/half_type.hpp>                       // for half
 
 namespace sycl {
 inline namespace _V1 {

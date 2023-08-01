@@ -10,7 +10,7 @@
 
 #include <type_traits>  // for bool_constant
 
-#include "aspects.hpp"  // for aspect
+#include <sycl/aspects.hpp>  // for aspect
 
 // This macro creates an alias from an aspect to another. To avoid
 // redeclarations, we need to define it empty for this file, otherwise we would

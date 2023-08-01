@@ -10,7 +10,7 @@
 #include <sycl/detail/defines.hpp>        // for __SYCL_TYPE
 
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include "device_aspect_traits.hpp"       // for __SYCL_ASPECT_DEPRECATED
+#include <sycl/device_aspect_traits.hpp>       // for __SYCL_ASPECT_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

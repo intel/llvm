@@ -16,7 +16,7 @@
 #include <variant>                            // for hash
 #include <vector>                             // for vector
 
-#include "backend_types.hpp"                  // for backend, backend_return_t
+#include <sycl/backend_types.hpp>                  // for backend, backend_return_t
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
 #include <sycl/detail/pi.h>                        // for pi_native_handle
 

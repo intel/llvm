@@ -25,14 +25,14 @@
 #include <variant>                                           // for variant
 #include <vector>                                            // for vector
 
-#include "backend_types.hpp"                                 // for backend
-#include "handler.hpp"                                       // for buffer
-#include "image.hpp"                                         // for image
-#include "kernel.hpp"                                        // for kernel
-#include "kernel_bundle_enums.hpp"                           // for bundle_s...
-#include "platform.hpp"                                      // for platform
-#include "property_list.hpp"                                 // for property...
-#include "range.hpp"                                         // for range
+#include <sycl/backend_types.hpp>                                 // for backend
+#include <sycl/handler.hpp>                                       // for buffer
+#include <sycl/image.hpp>                                         // for image
+#include <sycl/kernel.hpp>                                        // for kernel
+#include <sycl/kernel_bundle_enums.hpp>                           // for bundle_s...
+#include <sycl/platform.hpp>                                      // for platform
+#include <sycl/property_list.hpp>                                 // for property...
+#include <sycl/range.hpp>                                         // for range
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;

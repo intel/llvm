@@ -17,10 +17,10 @@
 #include <complex>                              // for complex
 #include <cstddef>                              // for byte, size_t
 
-#include "aliases.hpp"                          // for half
-#include "half_type.hpp"                        // for half
-#include "marray.hpp"                           // for marray
-#include "types.hpp"                            // for vec
+#include <sycl/aliases.hpp>                          // for half
+#include <sycl/half_type.hpp>                        // for half
+#include <sycl/marray.hpp>                           // for marray
+#include <sycl/types.hpp>                            // for vec
 
 namespace sycl {
 inline namespace _V1 {

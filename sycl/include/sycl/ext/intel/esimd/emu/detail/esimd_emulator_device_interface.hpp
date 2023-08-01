@@ -53,7 +53,7 @@ struct ESIMDDeviceInterface {
   void *reserved;
 
   ESIMDDeviceInterface();
-#include "esimd_emulator_functions_v1.h"
+#include <sycl/esimd_emulator_functions_v1.h>
 };
 
 // Denotes the data version used by the implementation.

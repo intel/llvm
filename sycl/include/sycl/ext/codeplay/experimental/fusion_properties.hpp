@@ -13,7 +13,7 @@
 #include <sycl/properties/property_traits.hpp>  // for is_property, is_prope...
 #include <type_traits>                          // for true_type
 
-#include "queue.hpp"                            // for queue
+#include <sycl/queue.hpp>                            // for queue
 
 namespace sycl {
 inline namespace _V1 {

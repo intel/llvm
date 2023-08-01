@@ -34,30 +34,30 @@
 #include <utility>                                          // for index_seq...
 #include <variant>                                          // for tuple
 
-#include "access/access.hpp"                                // for address_s...
-#include "aspects.hpp"                                      // for aspect
-#include "buffer.hpp"                                       // for buffer
-#include "builtins.hpp"                                     // for min
+#include <sycl/access/access.hpp>                                // for address_s...
+#include <sycl/aspects.hpp>                                      // for aspect
+#include <sycl/buffer.hpp>                                       // for buffer
+#include <sycl/builtins.hpp>                                     // for min
 #include <sycl/detail/export.hpp>                                // for __SYCL_EX...
 #include <sycl/detail/generic_type_traits.hpp>                   // for is_sgenfloat
 #include <sycl/detail/impl_utils.hpp>                            // for createSyc...
 #include <sycl/detail/item_base.hpp>                             // for id
-#include "device.hpp"                                       // for device
-#include "event.hpp"                                        // for event
-#include "exception_list.hpp"                               // for queue_impl
-#include "ext/codeplay/experimental/fusion_properties.hpp"  // for buffer
-#include "group.hpp"                                        // for workGroup...
-#include "id.hpp"                                           // for getDeline...
-#include "info/device_traits.def"                           // for host_unif...
-#include "marray.hpp"                                       // for marray
-#include "memory_enums.hpp"                                 // for memory_order
-#include "multi_ptr.hpp"                                    // for address_s...
-#include "nd_item.hpp"                                      // for nd_item
-#include "nd_range.hpp"                                     // for nd_range
-#include "properties/accessor_properties.hpp"               // for no_init
-#include "property_list.hpp"                                // for property_...
-#include "queue.hpp"                                        // for queue
-#include "range.hpp"                                        // for range
+#include <sycl/device.hpp>                                       // for device
+#include <sycl/event.hpp>                                        // for event
+#include <sycl/exception_list.hpp>                               // for queue_impl
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for buffer
+#include <sycl/group.hpp>                                        // for workGroup...
+#include <sycl/id.hpp>                                           // for getDeline...
+#include <sycl/info/device_traits.def>                           // for host_unif...
+#include <sycl/marray.hpp>                                       // for marray
+#include <sycl/memory_enums.hpp>                                 // for memory_order
+#include <sycl/multi_ptr.hpp>                                    // for address_s...
+#include <sycl/nd_item.hpp>                                      // for nd_item
+#include <sycl/nd_range.hpp>                                     // for nd_range
+#include <sycl/properties/accessor_properties.hpp>               // for no_init
+#include <sycl/property_list.hpp>                                // for property_...
+#include <sycl/queue.hpp>                                        // for queue
+#include <sycl/range.hpp>                                        // for range
 
 namespace sycl {
 inline namespace _V1 {

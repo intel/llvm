@@ -19,24 +19,24 @@
 #include <type_traits>                      // for enable_if_t, is_same, fal...
 #include <variant>                          // for hash
 
-#include "access/access.hpp"                // for target, mode, address_space
-#include "accessor.hpp"                     // for accessor
-#include "aliases.hpp"                      // for half
-#include "atomic.hpp"                       // for atomic
+#include <sycl/access/access.hpp>                // for target, mode, address_space
+#include <sycl/accessor.hpp>                     // for accessor
+#include <sycl/aliases.hpp>                      // for half
+#include <sycl/atomic.hpp>                       // for atomic
 #include <sycl/detail/array.hpp>                 // for array
 #include <sycl/detail/cg.hpp>                    // for stream_impl
 #include <sycl/detail/defines_elementary.hpp>    // for __SYCL2020_DEPRECATED
 #include <sycl/detail/item_base.hpp>             // for id, range
-#include "group.hpp"                        // for group
-#include "h_item.hpp"                       // for h_item
-#include "half_type.hpp"                    // for half, operator-, operator<
-#include "item.hpp"                         // for item
-#include "nd_item.hpp"                      // for nd_item
-#include "nd_range.hpp"                     // for nd_range
-#include "property_list.hpp"                // for property_list
-#include "range.hpp"                        // for range
-#include "sub_group.hpp"                    // for multi_ptr
-#include "types.hpp"                        // for vec, SwizzleOp
+#include <sycl/group.hpp>                        // for group
+#include <sycl/h_item.hpp>                       // for h_item
+#include <sycl/half_type.hpp>                    // for half, operator-, operator<
+#include <sycl/item.hpp>                         // for item
+#include <sycl/nd_item.hpp>                      // for nd_item
+#include <sycl/nd_range.hpp>                     // for nd_range
+#include <sycl/property_list.hpp>                // for property_list
+#include <sycl/range.hpp>                        // for range
+#include <sycl/sub_group.hpp>                    // for multi_ptr
+#include <sycl/types.hpp>                        // for vec, SwizzleOp
 
 namespace sycl {
 inline namespace _V1 {

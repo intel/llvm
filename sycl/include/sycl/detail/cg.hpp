@@ -23,9 +23,9 @@
 
 #include <sycl/detail/pi.h>               // for pi_mem_advice, _pi_ext_command_b...
 #include <sycl/detail/pi.hpp>             // for PiImageOffset, PiImageRegion
-#include "event.hpp"                 // for event_impl
-#include "exception_list.hpp"        // for queue_impl
-#include "kernel_bundle.hpp"         // for kernel_bundle_impl
+#include <sycl/event.hpp>                 // for event_impl
+#include <sycl/exception_list.hpp>        // for queue_impl
+#include <sycl/kernel_bundle.hpp>         // for kernel_bundle_impl
 
 namespace sycl {
 inline namespace _V1 {

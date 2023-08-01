@@ -12,13 +12,13 @@
 #include <tuple>                                       // for ignore, _Swall...
 #include <type_traits>                                 // for is_same, remov...
 
-#include "access/access.hpp"                           // for address_space
+#include <sycl/access/access.hpp>                           // for address_space
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL_ALWAYS_...
 #include <sycl/detail/pi_error.def>                         // for PI_ERROR_INVAL...
-#include "exception.hpp"                               // for runtime_error
-#include "ext/oneapi/matrix/matrix-unified-utils.hpp"  // for layout, use, tf32
-#include "marray.hpp"                                  // for marray
-#include "multi_ptr.hpp"                               // for multi_ptr
+#include <sycl/exception.hpp>                               // for runtime_error
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>  // for layout, use, tf32
+#include <sycl/marray.hpp>                                  // for marray
+#include <sycl/multi_ptr.hpp>                               // for multi_ptr
 
 namespace sycl {
 inline namespace _V1 {

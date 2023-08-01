@@ -13,11 +13,11 @@
 #include <cstddef>                 // for size_t
 #include <algorithm>               // for max
 
-#include "builtins.hpp"            // for max
-#include "context.hpp"             // for context
-#include "device.hpp"              // for device
-#include "property_list.hpp"       // for property_list
-#include "queue.hpp"               // for queue
+#include <sycl/builtins.hpp>            // for max
+#include <sycl/context.hpp>             // for context
+#include <sycl/device.hpp>              // for device
+#include <sycl/property_list.hpp>       // for property_list
+#include <sycl/queue.hpp>               // for queue
 
 namespace sycl {
 inline namespace _V1 {

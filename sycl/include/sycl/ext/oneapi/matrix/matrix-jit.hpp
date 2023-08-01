@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "utils.hpp"
+#include <sycl/utils.hpp>
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>

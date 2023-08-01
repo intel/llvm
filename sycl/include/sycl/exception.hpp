@@ -19,7 +19,7 @@
 #include <system_error>                   // for error_code, error_category
 #include <type_traits>                    // for true_type
 
-#include "CL/cl_platform.h"               // for cl_int
+#include <sycl/CL/cl_platform.h>               // for cl_int
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 
 namespace sycl {

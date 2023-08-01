@@ -13,8 +13,8 @@
 #include <iterator>           // for random_access_iterator_tag
 #include <ostream>            // for operator<<, ostream, ptrdiff_t
 
-#include "access/access.hpp"  // for mode, placeholder, target
-#include "buffer.hpp"         // for range
+#include <sycl/access/access.hpp>  // for mode, placeholder, target
+#include <sycl/buffer.hpp>         // for range
 
 /// \file accessor_iterator.hpp
 /// The file contains implementation of accessor iterator class.

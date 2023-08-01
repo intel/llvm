@@ -22,13 +22,13 @@
 #include <variant>                                     // for hash
 #include <vector>                                      // for vector
 
-#include "access/access.hpp"                           // for target, access...
-#include "accessor.hpp"                                // for accessor
-#include "aspects.hpp"                                 // for aspect
-#include "async_handler.hpp"                           // for async_handler
-#include "backend_types.hpp"                           // for backend, backe...
-#include "buffer.hpp"                                  // for buffer
-#include "context.hpp"                                 // for context
+#include <sycl/access/access.hpp>                           // for target, access...
+#include <sycl/accessor.hpp>                                // for accessor
+#include <sycl/aspects.hpp>                                 // for aspect
+#include <sycl/async_handler.hpp>                           // for async_handler
+#include <sycl/backend_types.hpp>                           // for backend, backe...
+#include <sycl/buffer.hpp>                                  // for buffer
+#include <sycl/context.hpp>                                 // for context
 #include <sycl/detail/cg_types.hpp>                         // for check_fn_signa...
 #include <sycl/detail/common.hpp>                           // for code_location
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
@@ -37,21 +37,21 @@
 #include <sycl/detail/kernel_desc.hpp>                      // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>                  // for OwnerLessBase
 #include <sycl/detail/pi.h>                                 // for pi_mem_advice
-#include "device.hpp"                                  // for device
-#include "event.hpp"                                   // for event
-#include "exception.hpp"                               // for make_error_code
-#include "ext/oneapi/bindless_images_descriptor.hpp"   // for image_descriptor
-#include "ext/oneapi/bindless_images_interop.hpp"      // for interop_semaph...
-#include "ext/oneapi/bindless_images_memory.hpp"       // for image_mem_handle
-#include "ext/oneapi/device_global/device_global.hpp"  // for device_global
-#include "ext/oneapi/device_global/properties.hpp"     // for device_image_s...
-#include "ext/oneapi/experimental/graph.hpp"           // for graph_state
-#include "ext/oneapi/properties/properties.hpp"        // for empty_properti...
-#include "id.hpp"                                      // for id
-#include "kernel.hpp"                                  // for auto_name
-#include "kernel_handler.hpp"                          // for kernel_handler
-#include "nd_range.hpp"                                // for nd_range
-#include "range.hpp"                                   // for range
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/event.hpp>                                   // for event
+#include <sycl/exception.hpp>                               // for make_error_code
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>   // for image_descriptor
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>      // for interop_semaph...
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>       // for image_mem_handle
+#include <sycl/ext/oneapi/device_global/device_global.hpp>  // for device_global
+#include <sycl/ext/oneapi/device_global/properties.hpp>     // for device_image_s...
+#include <sycl/ext/oneapi/experimental/graph.hpp>           // for graph_state
+#include <sycl/ext/oneapi/properties/properties.hpp>        // for empty_properti...
+#include <sycl/id.hpp>                                      // for id
+#include <sycl/kernel.hpp>                                  // for auto_name
+#include <sycl/kernel_handler.hpp>                          // for kernel_handler
+#include <sycl/nd_range.hpp>                                // for nd_range
+#include <sycl/range.hpp>                                   // for range
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be

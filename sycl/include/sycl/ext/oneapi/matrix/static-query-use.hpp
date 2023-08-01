@@ -24,9 +24,9 @@
 #include <cstddef>                                     // for size_t
 #include <type_traits>                                 // for enable_if
 
-#include "aliases.hpp"                                 // for half
-#include "ext/oneapi/matrix/matrix-unified-utils.hpp"  // for use, layout
-#include "ext/oneapi/matrix/matrix-unified.hpp"        // for joint_matrix
+#include <sycl/aliases.hpp>                                 // for half
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>  // for use, layout
+#include <sycl/ext/oneapi/matrix/matrix-unified.hpp>        // for joint_matrix
 
 namespace sycl {
 inline namespace _V1 {

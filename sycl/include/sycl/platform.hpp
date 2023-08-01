@@ -19,11 +19,11 @@
 #include <variant>                            // for hash
 #include <vector>                             // for vector
 
-#include "backend_types.hpp"                  // for backend, backend_return_t
-#include "context.hpp"                        // for context
+#include <sycl/backend_types.hpp>                  // for backend, backend_return_t
+#include <sycl/context.hpp>                        // for context
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
 #include <sycl/detail/pi.h>                        // for pi_native_handle
-#include "info/info_desc.hpp"                 // for device_type
+#include <sycl/info/info_desc.hpp>                 // for device_type
 
 namespace sycl {
 inline namespace _V1 {

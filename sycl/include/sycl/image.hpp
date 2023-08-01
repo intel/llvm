@@ -24,11 +24,11 @@
 #include <type_traits>                                 // for enable_if_t
 #include <variant>                                     // for hash
 
-#include "access/access.hpp"                           // for placeholder
-#include "aliases.hpp"                                 // for cl_float, cl_half
-#include "backend_types.hpp"                           // for backend, backe...
-#include "buffer.hpp"                                  // for range
-#include "context.hpp"                                 // for context
+#include <sycl/access/access.hpp>                           // for placeholder
+#include <sycl/aliases.hpp>                                 // for cl_float, cl_half
+#include <sycl/backend_types.hpp>                           // for backend, backe...
+#include <sycl/buffer.hpp>                                  // for range
+#include <sycl/context.hpp>                                 // for context
 #include <sycl/detail/backend_traits.hpp>                   // for InteropFeature...
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>                           // for __SYCL_EXPORT
@@ -36,9 +36,9 @@
 #include <sycl/detail/pi.h>                                 // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>                  // for iterator_value...
 #include <sycl/detail/type_list.hpp>                        // for is_contained
-#include "exception.hpp"                               // for make_error_code
-#include "property_list.hpp"                           // for property_list
-#include "range.hpp"                                   // for range, rangeTo...
+#include <sycl/exception.hpp>                               // for make_error_code
+#include <sycl/property_list.hpp>                           // for property_list
+#include <sycl/range.hpp>                                   // for range, rangeTo...
 
 namespace sycl {
 inline namespace _V1 {

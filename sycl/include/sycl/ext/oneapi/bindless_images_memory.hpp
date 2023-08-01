@@ -17,7 +17,7 @@
 #include <variant>                                         // for hash
 
 #include <sycl/detail/export.hpp>                               // for __SYCL_EXPORT
-#include "range.hpp"                                       // for range
+#include <sycl/range.hpp>                                       // for range
 
 namespace sycl {
 inline namespace _V1 {

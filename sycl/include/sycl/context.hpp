@@ -23,8 +23,8 @@
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
 #include <sycl/detail/helpers.hpp>                 // for context_impl
 #include <sycl/detail/pi.h>                        // for pi_native_handle
-#include "device.hpp"                         // for device
-#include "platform.hpp"                       // for platform
+#include <sycl/device.hpp>                         // for device
+#include <sycl/platform.hpp>                       // for platform
 
 // 4.6.2 Context class
 

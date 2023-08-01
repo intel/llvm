@@ -17,18 +17,18 @@
 #include <utility>                                // for move, pair
 #include <vector>                                 // for vector
 
-#include "context.hpp"                            // for context
+#include <sycl/context.hpp>                            // for context
 #include <sycl/detail/export.hpp>                      // for __SYCL_EXPORT
 #include <sycl/detail/helpers.hpp>                     // for context_impl
 #include <sycl/detail/impl_utils.hpp>                  // for getSyclObjImpl
 #include <sycl/detail/pi.h>                            // for _pi_mem, pi_native_...
 #include <sycl/detail/pi_error.def>                    // for PI_ERROR_INVALID_ME...
-#include "device.hpp"                             // for device, device_impl
-#include "exception.hpp"                          // for invalid_object_error
-#include "exception_list.hpp"                     // for queue_impl
-#include "ext/oneapi/accessor_property_list.hpp"  // for accessor_property_list
-#include "image.hpp"                              // for image
-#include "properties/buffer_properties.hpp"       // for buffer
+#include <sycl/device.hpp>                             // for device, device_impl
+#include <sycl/exception.hpp>                          // for invalid_object_error
+#include <sycl/exception_list.hpp>                     // for queue_impl
+#include <sycl/ext/oneapi/accessor_property_list.hpp>  // for accessor_property_list
+#include <sycl/image.hpp>                              // for image
+#include <sycl/properties/buffer_properties.hpp>       // for buffer
 
 namespace sycl {
 inline namespace _V1 {

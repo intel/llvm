@@ -12,7 +12,7 @@
 #include <sycl/half_type.hpp>             // for half
 #include <stdint.h>                       // for uint16_t, uint32_t
 
-#include "aliases.hpp"                    // for half
+#include <sycl/aliases.hpp>                    // for half
 #include <sycl/detail/defines_elementary.hpp>  // for __DPCPP_SYCL_EXTERNAL
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t

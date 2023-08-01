@@ -18,11 +18,11 @@
 #include <sycl/platform.hpp>                                // for platform
 #include <sycl/queue.hpp>                                   // for queue
 
-#include "access/access.hpp"                                // for access_mode
-#include "ext/codeplay/experimental/fusion_properties.hpp"  // for accessor
-#include "kernel_bundle_enums.hpp"                          // for bundle_state
-#include "properties/image_properties.hpp"                  // for sampled_i...
-#include "stream.hpp"                                       // for stream
+#include <sycl/access/access.hpp>                                // for access_mode
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for accessor
+#include <sycl/kernel_bundle_enums.hpp>                          // for bundle_state
+#include <sycl/properties/image_properties.hpp>                  // for sampled_i...
+#include <sycl/stream.hpp>                                       // for stream
 
 namespace sycl {
 inline namespace _V1 {

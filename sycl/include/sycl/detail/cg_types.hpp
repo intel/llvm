@@ -26,10 +26,10 @@
 #include <sycl/detail/helpers.hpp>                   // for Builder
 #include <sycl/detail/item_base.hpp>                 // for id
 #include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_WORK...
-#include "exception.hpp"                        // for nd_range_error
-#include "h_item.hpp"                           // for h_item
-#include "item.hpp"                             // for item
-#include "nd_range.hpp"                         // for nd_range
+#include <sycl/exception.hpp>                        // for nd_range_error
+#include <sycl/h_item.hpp>                           // for h_item
+#include <sycl/item.hpp>                             // for item
+#include <sycl/nd_range.hpp>                         // for nd_range
 
 namespace sycl {
 inline namespace _V1 {

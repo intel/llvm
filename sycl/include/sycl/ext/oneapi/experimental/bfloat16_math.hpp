@@ -14,7 +14,7 @@
 #include <cstring>                       // for size_t, memcpy
 #include <type_traits>                   // for enable_if_t, is_same
 
-#include "builtins.hpp"                  // for ceil, cos, exp, exp10, exp2
+#include <sycl/builtins.hpp>                  // for ceil, cos, exp, exp10, exp2
 
 namespace sycl {
 inline namespace _V1 {

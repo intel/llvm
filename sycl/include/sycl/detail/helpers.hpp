@@ -19,7 +19,7 @@
 #include <cstddef>                     // for size_t
 #include <utility>                     // for forward, integer_sequence, mak...
 
-#include "memory_enums.hpp"            // for memory_order
+#include <sycl/memory_enums.hpp>            // for memory_order
 
 namespace sycl {
 inline namespace _V1 {

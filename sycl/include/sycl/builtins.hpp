@@ -15,14 +15,14 @@
 #include <cstring>                              // for memcpy, size_t
 #include <type_traits>                          // for enable_if_t, conditio...
 
-#include "access/access.hpp"                    // for address_space, decorated
-#include "aliases.hpp"                          // for half
+#include <sycl/access/access.hpp>                    // for address_space, decorated
+#include <sycl/aliases.hpp>                          // for half
 #include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
 #include <sycl/detail/type_traits.hpp>               // for make_larger_t, marray...
-#include "half_type.hpp"                        // for half, intel
-#include "marray.hpp"                           // for marray
-#include "multi_ptr.hpp"                        // for address_space_cast
+#include <sycl/half_type.hpp>                        // for half, intel
+#include <sycl/marray.hpp>                           // for marray
+#include <sycl/multi_ptr.hpp>                        // for address_space_cast
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

@@ -11,10 +11,10 @@
 #include <stddef.h>              // for size_t
 
 #include <sycl/detail/item_base.hpp>  // for range
-#include "id.hpp"                // for id
-#include "item.hpp"              // for getDelinearizedItem, item
-#include "nd_range.hpp"          // for nd_range
-#include "range.hpp"             // for range
+#include <sycl/id.hpp>                // for id
+#include <sycl/item.hpp>              // for getDelinearizedItem, item
+#include <sycl/nd_range.hpp>          // for nd_range
+#include <sycl/range.hpp>             // for range
 // To be included in <sycl/handler.hpp>. Note that reductions implementation
 // need complete sycl::handler type so we cannot include whole
 // <sycl/reduction.hpp> there.

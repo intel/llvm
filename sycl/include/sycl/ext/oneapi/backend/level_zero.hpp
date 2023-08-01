@@ -15,10 +15,10 @@
 #include <type_traits>                                      // for enable_if_t
 #include <variant>                                          // for get_if
 
-#include "async_handler.hpp"                                // for async_han...
-#include "backend_types.hpp"                                // for backend
-#include "buffer.hpp"                                       // for buffer_al...
-#include "context.hpp"                                      // for context
+#include <sycl/async_handler.hpp>                                // for async_han...
+#include <sycl/backend_types.hpp>                                // for backend
+#include <sycl/buffer.hpp>                                       // for buffer_al...
+#include <sycl/context.hpp>                                      // for context
 #include <sycl/detail/backend_traits.hpp>                        // for interop
 #include <sycl/detail/backend_traits_level_zero.hpp>             // for ze_comman...
 #include <sycl/detail/defines_elementary.hpp>                    // for __SYCL_DE...
@@ -26,18 +26,18 @@
 #include <sycl/detail/impl_utils.hpp>                            // for createSyc...
 #include <sycl/detail/pi.h>                                      // for pi_native...
 #include <sycl/detail/pi.hpp>                                    // for cast
-#include "device.hpp"                                       // for device
-#include "event.hpp"                                        // for event
-#include "ext/codeplay/experimental/fusion_properties.hpp"  // for buffer
-#include "ext/oneapi/backend/level_zero_ownership.hpp"      // for ownership
-#include "image.hpp"                                        // for image
-#include "kernel.hpp"                                       // for kernel
-#include "kernel_bundle.hpp"                                // for kernel_bu...
-#include "kernel_bundle_enums.hpp"                          // for bundle_state
-#include "platform.hpp"                                     // for platform
-#include "properties/image_properties.hpp"                  // for image
-#include "property_list.hpp"                                // for property_...
-#include "queue.hpp"                                        // for queue
+#include <sycl/device.hpp>                                       // for device
+#include <sycl/event.hpp>                                        // for event
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for buffer
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>      // for ownership
+#include <sycl/image.hpp>                                        // for image
+#include <sycl/kernel.hpp>                                       // for kernel
+#include <sycl/kernel_bundle.hpp>                                // for kernel_bu...
+#include <sycl/kernel_bundle_enums.hpp>                          // for bundle_state
+#include <sycl/platform.hpp>                                     // for platform
+#include <sycl/properties/image_properties.hpp>                  // for image
+#include <sycl/property_list.hpp>                                // for property_...
+#include <sycl/queue.hpp>                                        // for queue
 
 namespace sycl {
 inline namespace _V1 {

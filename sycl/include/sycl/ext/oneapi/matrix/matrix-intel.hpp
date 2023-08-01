@@ -14,15 +14,15 @@
 #include <tuple>                               // for ignore, tuple, _Swallo...
 #include <type_traits>                         // for enable_if_t
 
-#include "matrix-unified-utils.hpp"            // for use, layout, tf32, matrix
-#include "CL/__spirv/spirv_types.hpp"          // for MatrixLayout, MatrixUse
-#include "access/access.hpp"                   // for address_space, decorated
+#include <sycl/matrix-unified-utils.hpp>            // for use, layout, tf32, matrix
+#include <sycl/CL/__spirv/spirv_types.hpp>          // for MatrixLayout, MatrixUse
+#include <sycl/access/access.hpp>                   // for address_space, decorated
 #include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_DEVICE
-#include "exception.hpp"                       // for runtime_error
-#include "ext/oneapi/bfloat16.hpp"             // for bfloat16
-#include "group.hpp"                           // for group
-#include "multi_ptr.hpp"                       // for multi_ptr
-#include "sub_group.hpp"                       // for sub_group
+#include <sycl/exception.hpp>                       // for runtime_error
+#include <sycl/ext/oneapi/bfloat16.hpp>             // for bfloat16
+#include <sycl/group.hpp>                           // for group
+#include <sycl/multi_ptr.hpp>                       // for multi_ptr
+#include <sycl/sub_group.hpp>                       // for sub_group
 
 namespace sycl {
 inline namespace _V1 {

@@ -19,7 +19,7 @@
 #include <sycl/detail/defines.hpp>                  // for __SYCL_TYPE
 #include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp>          // for DataLessPropKind, Prop...
-#include "exception.hpp"                       // for invalid_object_error
+#include <sycl/exception.hpp>                       // for invalid_object_error
 
 namespace sycl {
 inline namespace _V1 {
