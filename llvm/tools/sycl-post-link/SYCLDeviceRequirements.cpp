@@ -22,14 +22,14 @@ void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
   auto ExtractSignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                   unsigned OpNo) -> auto {
+                                                   unsigned OpNo) -> int64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return C->getUniqueInteger().getSExtValue();
   };
 
   auto ExtractUnsignedIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                                     unsigned OpNo) -> auto {
+                                                     unsigned OpNo) -> uint64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
     return C->getUniqueInteger().getZExtValue();
@@ -81,7 +81,6 @@ void llvm::getSYCLDeviceRequirements(
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
       auto MDValue = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
-      assert(MDValue >= 0);
       if (!SubGroupSize)
         SubGroupSize = MDValue;
       else
