@@ -1728,7 +1728,9 @@ public:
                                 PatternRewriter &rewriter) const final {
     // `set_kernel` op can only be raised in a CGF.
     auto enclosingFunc = op->getParentOfType<LLVM::LLVMFuncOp>();
-    assert(enclosingFunc && op.getHandler() == getHandler(enclosingFunc));
+    assert(enclosingFunc);
+    auto handler = op.getHandler();
+    assert(handler == getHandler(enclosingFunc));
 
     // Discover `set_nd_range` ops in the CGF. We are currently only interested
     // in `parallel_for` launches, hence there should be exactly one
@@ -1811,8 +1813,8 @@ public:
 
     // Finally construct the op with the raised information.
     rewriter.replaceOpWithNewOp<sycl::SYCLHostScheduleKernel>(
-        op, op.getKernelName(), range.getRange(), range.getOffset(), args,
-        rewriter.getTypeArrayAttr(syclTypes), range.getNdRange());
+        op, handler, op.getKernelName(), range.getRange(), range.getOffset(),
+        args, rewriter.getTypeArrayAttr(syclTypes), range.getNdRange());
 
     return success();
   }

@@ -818,3 +818,79 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   
   llvm.return
 }
+
+// -----
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+!lambda_class = !llvm.struct<"class.lambda", opaque>
+!sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+
+llvm.mlir.global internal constant @_ZN4sycl3_V16detailL17kernel_signaturesE() : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>> {
+  %zero = llvm.mlir.constant(0 : i32) : i32
+  %dummy = llvm.mlir.constant(-987654321 : i32) : i32
+  %kind_accessor = llvm.mlir.constant(0 : i32) : i32
+  %kind_std_layout = llvm.mlir.constant(1 : i32) : i32
+  %kind_invalid = llvm.mlir.constant(15 : i32) : i32
+  %undef = llvm.mlir.undef : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>
+  
+  // COM: accessor arg
+  %accessor_0 = llvm.insertvalue %kind_accessor, %undef[0] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %accessor_1 = llvm.insertvalue %zero, %accessor_0[1] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %accessor = llvm.insertvalue %zero, %accessor_1[2] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+
+  // COM: std_layout arg
+  %std_layout_0 = llvm.insertvalue %kind_std_layout, %undef[0] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %std_layout_1 = llvm.insertvalue %zero, %std_layout_0[1] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %std_layout = llvm.insertvalue %zero, %std_layout_1[2] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+
+  // COM: sentinel
+  %sentinel_0 = llvm.insertvalue %kind_invalid, %undef[0] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %sentinel_1 = llvm.insertvalue %dummy, %sentinel_0[1] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  %sentinel = llvm.insertvalue %dummy, %sentinel_1[2] : !llvm.struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)> 
+  
+  // COM: mockup 2 kernels here:
+  //      - accessor, sentinel
+  //      - std_layout, accessor
+  %0 = llvm.mlir.undef : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>>
+  %1 = llvm.insertvalue %accessor, %0[0] : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>> 
+  %2 = llvm.insertvalue %sentinel, %1[1] : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>> 
+  %3 = llvm.insertvalue %std_layout, %2[2] : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>> 
+  %4 = llvm.insertvalue %accessor, %3[3] : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>> 
+  llvm.return %4 : !llvm.array<4 x struct<"struct.sycl::_V1::detail::kernel_param_desc_t", (i32, i32, i32)>>
+}
+
+llvm.mlir.global private unnamed_addr constant @kernel_num_params_str("kernel_num_params\00")
+llvm.mlir.global private unnamed_addr constant @kernel_param_desc_str("kernel_param_desc\00")
+
+llvm.func @raise_schedule_parallel_for_range_accessor(%handler: !llvm.ptr) {
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %c2 = llvm.mlir.constant (2 : i32) : i32
+  %nullptr = llvm.mlir.null : !llvm.ptr
+
+  %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", opaque> : (i32) -> !llvm.ptr
+  sycl.host.handler.set_nd_range %handler -> range %range : !llvm.ptr, !llvm.ptr
+
+  %lambda = llvm.alloca %c1 x !lambda_class : (i32) -> !llvm.ptr
+  %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", opaque> : (i32) -> !llvm.ptr
+  sycl.host.set_captured %lambda[0] = %accessor : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+
+  %kernel_signatures = llvm.mlir.addressof @_ZN4sycl3_V16detailL17kernel_signaturesE : !llvm.ptr
+  %kernel_num_params_str = llvm.mlir.addressof @kernel_num_params_str : !llvm.ptr
+  %kernel_param_desc_str = llvm.mlir.addressof @kernel_param_desc_str : !llvm.ptr
+  %num_params = llvm.alloca %c1 x i32 : (i32) -> !llvm.ptr
+  %param_desc = llvm.alloca %c1 x !llvm.ptr : (i32) -> !llvm.ptr
+  llvm.store %c2, %num_params : i32, !llvm.ptr
+  llvm.store %kernel_signatures, %param_desc : !llvm.ptr, !llvm.ptr
+  "llvm.intr.var.annotation"(%num_params, %kernel_num_params_str, %nullptr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%param_desc, %kernel_param_desc_str, %nullptr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+
+  llvm.return
+}
