@@ -172,6 +172,7 @@ inline std::string codeToString(pi_int32 code) {
                           "Native API returns: "
 
 #ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
+#include <sycl/detail/iostream_proxy.hpp>
 // TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
 #define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
   {                                                                            \
@@ -184,6 +185,7 @@ inline std::string codeToString(pi_int32 code) {
 #endif
 
 #ifndef SYCL_SUPPRESS_EXCEPTIONS
+#include <sycl/exception.hpp>
 // SYCL 1.2.1 exceptions
 #define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
   {                                                                            \
@@ -412,6 +414,11 @@ constexpr std::array<T, N1 + N2> ConcatArrays(const std::array<T, N1> &A1,
                       std::make_index_sequence<N2>());
 }
 
+// Utility for creating an std::array from the results of flattening the
+// arguments using a flattening functor.
+template <typename DataT, template <typename, typename> typename FlattenF,
+          typename... ArgTN>
+struct ArrayCreator;
 template <typename DataT, template <typename, typename> typename FlattenF,
           typename ArgT, typename... ArgTN>
 struct ArrayCreator<DataT, FlattenF, ArgT, ArgTN...> {
