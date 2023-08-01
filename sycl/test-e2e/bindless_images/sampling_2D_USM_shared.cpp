@@ -1,12 +1,13 @@
 // REQUIRES: linux
 // REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <cmath>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -19,18 +20,11 @@ int main() {
   sycl::queue q(dev);
   auto ctxt = q.get_context();
 
-  if (!dev.has(sycl::aspect::ext_oneapi_bindless_images_shared_usm)) {
-    std::cout
-        << "images backed by USM shared allocations are not supported, skipping"
-        << std::endl;
-    return 0;
-  }
-
   // declare image data
   size_t width = 5;
   size_t height = 6;
   size_t N = width * height;
-  size_t width_in_bytes = width * sizeof(float);
+  size_t widthInBytes = width * sizeof(float);
   std::vector<float> out(N);
   std::vector<float> expected(N);
   std::vector<float> dataIn(N);
@@ -43,7 +37,7 @@ int main() {
   }
 
   try {
-    sycl::ext::oneapi::experimental::bindless_image_sampler samp1(
+    sycl::ext::oneapi::experimental::bindless_image_sampler samp(
         sycl::addressing_mode::clamp,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
@@ -53,39 +47,39 @@ int main() {
         {width, height}, sycl::image_channel_order::r,
         sycl::image_channel_type::fp32);
 
-    auto device_pitch_align = dev.get_info<
+    auto devicePitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
-    auto device_max_pitch =
+    auto deviceMaxPitch =
         dev.get_info<sycl::ext::oneapi::experimental::info::device::
                          max_image_linear_row_pitch>();
 
     // Pitch requirements:
-    //  - pitch % device_pitch_align == 0
-    //  - pitch >= width_in_bytes
-    //  - pitch <= device_max_pitch
-    size_t pitch = device_pitch_align *
-                   std::ceil(float(width_in_bytes) / float(device_pitch_align));
-    assert(pitch <= device_max_pitch);
+    //  - pitch % devicePitchAlign == 0
+    //  - pitch >= widthInBytes
+    //  - pitch <= deviceMaxPitch
+    size_t pitch = devicePitchAlign *
+                   std::ceil(float(widthInBytes) / float(devicePitchAlign));
+    assert(pitch <= deviceMaxPitch);
 
     // Shared USM allocation
-    auto img_mem = sycl::aligned_alloc_shared(device_pitch_align,
-                                              (pitch * height), dev, ctxt);
+    auto imgMem = sycl::aligned_alloc_shared(devicePitchAlign, (pitch * height),
+                                             dev, ctxt);
 
-    if (img_mem == nullptr) {
+    if (imgMem == nullptr) {
       std::cerr << "Error allocating images!" << std::endl;
       return 1;
     }
 
     // Copy to shared USM and incorporate pitch
     for (size_t i = 0; i < height; i++) {
-      memcpy(static_cast<float *>(img_mem) + (i * pitch / sizeof(float)),
-             dataIn.data() + (i * width), width_in_bytes);
+      memcpy(static_cast<float *>(imgMem) + (i * pitch / sizeof(float)),
+             dataIn.data() + (i * width), widthInBytes);
     }
 
     // Extension: create the image and return the handle
-    sycl::ext::oneapi::experimental::sampled_image_handle img_handle =
-        sycl::ext::oneapi::experimental::create_image(img_mem, pitch, samp1,
-                                                      desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::sampled_image_handle imgHandle =
+        sycl::ext::oneapi::experimental::create_image(imgMem, pitch, samp, desc,
+                                                      dev, ctxt);
 
     sycl::buffer<float, 2> buf((float *)out.data(),
                                sycl::range<2>{height, width});
@@ -105,7 +99,7 @@ int main() {
 
             // Extension: read image data from handle
             float px = sycl::ext::oneapi::experimental::read_image<float>(
-                img_handle, sycl::float2(fdim0, fdim1));
+                imgHandle, sycl::float2(fdim0, fdim1));
 
             outAcc[sycl::id<2>{dim1, dim0}] = px;
           });
@@ -114,15 +108,14 @@ int main() {
     q.wait_and_throw();
 
     // Extension: cleanup
-    sycl::ext::oneapi::experimental::destroy_image_handle(img_handle, dev,
-                                                          ctxt);
-    sycl::free(img_mem, ctxt);
+    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle, dev, ctxt);
+    sycl::free(imgMem, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -149,5 +142,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -36,37 +36,37 @@ int main() {
         {width}, sycl::image_channel_order::r, sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
-    sycl::ext::oneapi::experimental::image_mem img_mem_00(desc, q);
-    sycl::ext::oneapi::experimental::image_mem img_mem_1(desc, q);
-    sycl::ext::oneapi::experimental::image_mem img_mem_2(desc, q);
+    sycl::ext::oneapi::experimental::image_mem imgMem00(desc, q);
+    sycl::ext::oneapi::experimental::image_mem imgMem1(desc, q);
+    sycl::ext::oneapi::experimental::image_mem imgMem2(desc, q);
 
     // We're able to use move semantics
-    auto img_mem_0 = std::move(img_mem_00);
+    auto imgMem0 = std::move(imgMem00);
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, desc, q);
+        sycl::ext::oneapi::experimental::create_image(imgMem0, desc, q);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle2 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_1, desc, q);
+        sycl::ext::oneapi::experimental::create_image(imgMem1, desc, q);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle3 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_2, desc, q);
+        sycl::ext::oneapi::experimental::create_image(imgMem2, desc, q);
 
     // Extension: copy over data to device (2 subregions)
     sycl::range copySrcOffset = {0, 0, 0};
-    sycl::range copyExtent = {width / 2, 1, 1};
+    sycl::range copyExtent1 = {width / 2, 1, 1};
     sycl::range srcExtent = {width, 0, 0};
 
     q.ext_oneapi_copy(dataIn1.data(), {0, 0, 0}, srcExtent,
-                      img_mem_0.get_handle(), {0, 0, 0}, desc, copyExtent);
+                      imgMem0.get_handle(), {0, 0, 0}, desc, copyExtent1);
     q.ext_oneapi_copy(dataIn1.data(), {width / 2, 0, 0}, srcExtent,
-                      img_mem_0.get_handle(), {width / 2, 0, 0}, desc,
-                      copyExtent);
+                      imgMem0.get_handle(), {width / 2, 0, 0}, desc,
+                      copyExtent1);
 
     q.ext_oneapi_copy(dataIn2.data(), {0, 0, 0}, srcExtent,
-                      img_mem_1.get_handle(), {0, 0, 0}, desc, copyExtent);
+                      imgMem1.get_handle(), {0, 0, 0}, desc, copyExtent1);
     q.ext_oneapi_copy(dataIn2.data(), {width / 2, 0, 0}, srcExtent,
-                      img_mem_1.get_handle(), {width / 2, 0, 0}, desc,
-                      copyExtent);
+                      imgMem1.get_handle(), {width / 2, 0, 0}, desc,
+                      copyExtent1);
 
     q.wait_and_throw();
 
@@ -88,13 +88,12 @@ int main() {
     q.wait_and_throw();
 
     // Extension: copy data from device to host (two sub-regions)
-    sycl::range copy_extent_2 = {width / 2, 1, 1};
-    sycl::range dest_extent_0 = {width, 0, 0};
-    q.ext_oneapi_copy(img_mem_2.get_handle(), {0, 0, 0}, desc, out.data(),
-                      {0, 0, 0}, dest_extent_0, copy_extent_2);
-    q.ext_oneapi_copy(img_mem_2.get_handle(), {width / 2, 0, 0}, desc,
-                      out.data(), {width / 2, 0, 0}, dest_extent_0,
-                      copy_extent_2);
+    sycl::range copyExtent2 = {width / 2, 1, 1};
+    sycl::range destExtent = {width, 0, 0};
+    q.ext_oneapi_copy(imgMem2.get_handle(), {0, 0, 0}, desc, out.data(),
+                      {0, 0, 0}, destExtent, copyExtent2);
+    q.ext_oneapi_copy(imgMem2.get_handle(), {width / 2, 0, 0}, desc, out.data(),
+                      {width / 2, 0, 0}, destExtent, copyExtent2);
     q.wait_and_throw();
 
     // Extension: cleanup
@@ -102,10 +101,10 @@ int main() {
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, q);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -132,5 +131,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

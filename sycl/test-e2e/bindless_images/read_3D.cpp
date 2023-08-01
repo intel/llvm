@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -46,21 +46,19 @@ int main() {
         sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
-    sycl::ext::oneapi::experimental::image_mem img_mem_1(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
 
     // Extension: copy over data to device
-    q.ext_oneapi_copy(dataIn1.data(), img_mem_0.get_handle(), desc);
-    q.ext_oneapi_copy(dataIn2.data(), img_mem_1.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn1.data(), imgMem0.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn2.data(), imgMem1.get_handle(), desc);
     q.wait_and_throw();
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, desc, dev,
-                                                      ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem0, desc, dev, ctxt);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle2 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_1, desc, dev,
-                                                      ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem1, desc, dev, ctxt);
 
     sycl::buffer<float, 3> buf((float *)out.data(),
                                sycl::range<3>{depth, height, width});
@@ -97,10 +95,10 @@ int main() {
                                                           ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -125,5 +123,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

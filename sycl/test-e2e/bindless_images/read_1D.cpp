@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -38,46 +38,45 @@ int main() {
         sycl::image_channel_type::fp32);
 
     // Extension: allocate memory on device and create the handle
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
-    sycl::ext::oneapi::experimental::image_mem img_mem_1(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
 
     // std::hash specialization to ensure `image_mem` follows common reference
     // semantics
-    assert(std::hash<sycl::ext::oneapi::experimental::image_mem>{}(img_mem_0) !=
-           std::hash<sycl::ext::oneapi::experimental::image_mem>{}(img_mem_1));
+    assert(std::hash<sycl::ext::oneapi::experimental::image_mem>{}(imgMem0) !=
+           std::hash<sycl::ext::oneapi::experimental::image_mem>{}(imgMem1));
 
     // We're able to use move semantics
     // Move construct
-    sycl::ext::oneapi::experimental::image_mem img_mem_0_move_construct(
-        std::move(img_mem_0));
+    sycl::ext::oneapi::experimental::image_mem imgMem0MoveConstruct(
+        std::move(imgMem0));
     // Move assign
-    sycl::ext::oneapi::experimental::image_mem img_mem_0_move_assign;
-    img_mem_0_move_assign = std::move(img_mem_0_move_construct);
+    sycl::ext::oneapi::experimental::image_mem imgMem0MoveAssign;
+    imgMem0MoveAssign = std::move(imgMem0MoveConstruct);
 
     // We're able to use copy semantics
     // Copy construct
-    sycl::ext::oneapi::experimental::image_mem img_mem_1_copy_construct(
-        img_mem_1);
+    sycl::ext::oneapi::experimental::image_mem imgMem1CopyConstruct(imgMem1);
     // Copy assign
-    sycl::ext::oneapi::experimental::image_mem img_mem_1_copy_assign;
-    img_mem_1_copy_assign = img_mem_1_copy_construct;
+    sycl::ext::oneapi::experimental::image_mem imgMem1CopyAssign;
+    imgMem1CopyAssign = imgMem1CopyConstruct;
 
     // Equality operators to ensure `image_mem` follows common reference
     // semantics
-    assert(img_mem_0_move_assign != img_mem_1_copy_assign);
-    assert(img_mem_1 == img_mem_1_copy_assign);
+    assert(imgMem0MoveAssign != imgMem1CopyAssign);
+    assert(imgMem1 == imgMem1CopyAssign);
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0_move_assign,
-                                                      desc, dev, ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem0MoveAssign, desc,
+                                                      dev, ctxt);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgHandle2 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_1_copy_assign,
-                                                      desc, dev, ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem1CopyAssign, desc,
+                                                      dev, ctxt);
 
     // Extension: copy over data to device
-    q.ext_oneapi_copy(dataIn1.data(), img_mem_0_move_assign.get_handle(), desc);
-    q.ext_oneapi_copy(dataIn2.data(), img_mem_1_copy_assign.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn1.data(), imgMem0MoveAssign.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn2.data(), imgMem1CopyAssign.get_handle(), desc);
 
     q.wait_and_throw();
 
@@ -109,10 +108,10 @@ int main() {
                                                           ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -139,5 +138,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

@@ -4,10 +4,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
 #include <random>
+#include <sycl/sycl.hpp>
 
 // Print test names and pass status
 // #define VERBOSE_LV1
@@ -45,17 +45,6 @@ struct util {
     }
   }
 
-  // Return fractional part of argument
-  // Whole part is returned through wholeComp
-  static double fract(double x, double *wholeComp) {
-    // This fmin operation is to prevent fract from returning 1.0.
-    // Instead will return the largest possible floating-point number less
-    // than 1.0
-    double fractComp = std::fmin(x - std::floor(x), 0x1.fffffep-1f);
-    *wholeComp = std::floor(x);
-    return fractComp;
-  }
-
   // Returns the two pixels to access plus the weight each of them have
   static double get_common_linear_fract_and_coords_fp64(double coord, int *x0,
                                                         int *x1) {
@@ -64,7 +53,7 @@ struct util {
     // Subtract to align so that pixel center is 0.5 away from origin.
     coord = coord - 0.5;
 
-    double weight = fract(coord, &pixelCoord);
+    double weight = sycl::fract(coord, &pixelCoord);
     *x0 = static_cast<int>(std::floor(pixelCoord));
     *x1 = *x0 + 1;
     return weight;
@@ -123,10 +112,7 @@ struct util {
     // Clamp sampling according to the SYCL spec returns a border color.
     // The border color is all zeros.
     // There does not appear to be any way for the user to set the border color
-    if (coordXInt > width - 1) {
-      return VecType{0};
-    }
-    if (coordXInt < 0) {
+    if (coordXInt > width - 1 || coordXInt < 0) {
       return VecType{0};
     }
     return input_image[coordXInt];
@@ -509,8 +495,10 @@ struct util {
         });
       } catch (sycl::exception e) {
         std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
+        exit(-1);
       } catch (...) {
         std::cerr << "\tKernel submission failed!" << std::endl;
+        exit(-1);
       }
     } else if constexpr (NDims == 2) {
       assert(false && "2d normalized not yet implemented");

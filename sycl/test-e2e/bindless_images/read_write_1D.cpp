@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -39,28 +39,25 @@ int main() {
 
     // Extension: allocate memory on device and create the handle
     // Input images memory
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
-    sycl::ext::oneapi::experimental::image_mem img_mem_1(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem1(desc, dev, ctxt);
 
     // Output image memory
-    sycl::ext::oneapi::experimental::image_mem img_mem_2(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem2(desc, dev, ctxt);
 
     // Extension: copy over data to device
-    q.ext_oneapi_copy(dataIn1.data(), img_mem_0.get_handle(), desc);
-    q.ext_oneapi_copy(dataIn2.data(), img_mem_1.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn1.data(), imgMem0.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn2.data(), imgMem1.get_handle(), desc);
     q.wait_and_throw();
 
     // Extension: create the image and return the handle
     sycl::ext::oneapi::experimental::unsampled_image_handle imgIn1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, desc, dev,
-                                                      ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem0, desc, dev, ctxt);
     sycl::ext::oneapi::experimental::unsampled_image_handle imgIn2 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_1, desc, dev,
-                                                      ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem1, desc, dev, ctxt);
 
     sycl::ext::oneapi::experimental::unsampled_image_handle imgOut =
-        sycl::ext::oneapi::experimental::create_image(img_mem_2, desc, dev,
-                                                      ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem2, desc, dev, ctxt);
 
     q.submit([&](sycl::handler &cgh) {
       cgh.parallel_for<image_addition>(width, [=](sycl::id<1> id) {
@@ -82,7 +79,7 @@ int main() {
 
     q.wait_and_throw();
     // Extension: copy data from device to host
-    q.ext_oneapi_copy(img_mem_2.get_handle(), out.data(), desc);
+    q.ext_oneapi_copy(imgMem2.get_handle(), out.data(), desc);
     q.wait_and_throw();
 
     // Extension: cleanup
@@ -91,10 +88,10 @@ int main() {
     sycl::ext::oneapi::experimental::destroy_image_handle(imgOut, dev, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -121,5 +118,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

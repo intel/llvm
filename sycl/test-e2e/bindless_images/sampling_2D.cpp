@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -35,7 +35,7 @@ int main() {
   }
 
   try {
-    sycl::ext::oneapi::experimental::bindless_image_sampler samp1(
+    sycl::ext::oneapi::experimental::bindless_image_sampler samp(
         sycl::addressing_mode::repeat,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
@@ -47,33 +47,33 @@ int main() {
     size_t pitch = 0;
 
     // Extension: returns the device pointer to USM allocated pitched memory
-    auto img_mem_usm_0 =
+    auto imgMemUSM0 =
         sycl::ext::oneapi::experimental::pitched_alloc_device(&pitch, desc, q);
 
-    if (img_mem_usm_0 == nullptr) {
+    if (imgMemUSM0 == nullptr) {
       std::cout << "Error allocating images!" << std::endl;
       return 1;
     }
 
     // Extension: allocate memory on device
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem0(desc, dev, ctxt);
 
     // Extension: copy over data to device for USM image (handler variant)
     q.submit([&](sycl::handler &cgh) {
-      cgh.ext_oneapi_copy(dataIn1.data(), img_mem_usm_0, desc, pitch);
+      cgh.ext_oneapi_copy(dataIn1.data(), imgMemUSM0, desc, pitch);
     });
 
     // Extension: copy over data to device for non-USM image
-    q.ext_oneapi_copy(dataIn2.data(), img_mem_0.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn2.data(), imgMem0.get_handle(), desc);
     q.wait_and_throw();
 
     // Extension: create the images and return the handles
     sycl::ext::oneapi::experimental::sampled_image_handle imgHandle1 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_usm_0, pitch,
-                                                      samp1, desc, dev, ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMemUSM0, pitch, samp,
+                                                      desc, dev, ctxt);
     sycl::ext::oneapi::experimental::sampled_image_handle imgHandle2 =
-        sycl::ext::oneapi::experimental::create_image(img_mem_0, samp1, desc,
-                                                      dev, ctxt);
+        sycl::ext::oneapi::experimental::create_image(imgMem0, samp, desc, dev,
+                                                      ctxt);
 
     sycl::buffer<float, 2> buf((float *)out.data(),
                                sycl::range<2>{height, width});
@@ -110,13 +110,13 @@ int main() {
                                                           ctxt);
     sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle2, dev,
                                                           ctxt);
-    sycl::free(img_mem_usm_0, ctxt);
+    sycl::free(imgMemUSM0, ctxt);
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -143,5 +143,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

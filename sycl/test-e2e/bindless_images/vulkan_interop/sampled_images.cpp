@@ -84,7 +84,7 @@ bool run_sycl(int input_image_fd, size_t width, size_t height) {
     });
   } catch (...) {
     std::cerr << "Kernel submission failed!" << std::endl;
-    assert(false);
+    exit(-1);
   }
 
   try {

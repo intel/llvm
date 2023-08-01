@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -40,23 +40,23 @@ int main() {
 
     // Extension: returns the device pointer to the allocated memory
     // Input images memory
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem(desc, dev, ctxt);
 
     // Extension: query for bindless image support -- device aspects
-    bool bindless_support = dev.has(sycl::aspect::ext_oneapi_bindless_images);
-    bool bindless_shared_usm_support =
+    bool bindlessSupport = dev.has(sycl::aspect::ext_oneapi_bindless_images);
+    bool bindlessSharedUsmSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_images_shared_usm);
-    bool usm_1d_support =
+    bool usm1dSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_images_1d_usm);
-    bool usm_2d_support =
+    bool usm2dSupport =
         dev.has(sycl::aspect::ext_oneapi_bindless_images_2d_usm);
 
 #ifdef VERBOSE_PRINT
-    std::cout << "bindless_images_support: " << bindless_support
+    std::cout << "bindless_images_support: " << bindlessSupport
               << "\nbindless_images_shared_usm_support: "
-              << bindless_shared_usm_support
-              << "\nbindless_images_1d_usm_support: " << usm_1d_support
-              << "\nbindless_images_2d_usm_support: " << usm_2d_support << "\n";
+              << bindlessSharedUsmSupport
+              << "\nbindless_images_1d_usm_support: " 1dS
+              << "\nbindless_images_2d_usm_support: " << S << "\n";
 #endif
 
     // Extension: get pitch alignment information from device -- device info
@@ -64,63 +64,61 @@ int main() {
     // These can be different depending on the device so we cannot test that the
     // values are correct
     // But we should at least see that the query itself works
-    auto pitch_align = dev.get_info<
+    auto pitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();
-    auto max_pitch = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                      device::max_image_linear_row_pitch>();
-    auto max_width = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                      device::max_image_linear_width>();
-    auto max_height = dev.get_info<sycl::ext::oneapi::experimental::info::
-                                       device::max_image_linear_height>();
+    auto maxPitch = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                     max_image_linear_row_pitch>();
+    auto maxWidth = dev.get_info<sycl::ext::oneapi::experimental::info::device::
+                                     max_image_linear_width>();
+    auto maxheight = dev.get_info<sycl::ext::oneapi::experimental::info::
+                                      device::max_image_linear_height>();
 
 #ifdef VERBOSE_PRINT
-    std::cout << "image_row_pitch_align: " << pitch_align
-              << "\nmax_image_linear_row_pitch: " << max_pitch
-              << "\nmax_image_linear_width: " << max_width
-              << "\nmax_image_linear_height: " << max_height << "\n";
+    std::cout << "image_row_pitch_align: " << pitchAlign
+              << "\nmax_image_linear_row_pitch: " << maxPitch
+              << "\nmax_image_linear_width: " << maxWidth
+              << "\nmax_image_linear_height: " << maxheight << "\n";
 #endif
 
     // Extension: query for bindless image mipmaps support -- aspects & info
-    bool mipmap_support = dev.has(sycl::aspect::ext_oneapi_mipmap);
-    bool mipmap_anisotropy_support =
+    bool mipmapSupport = dev.has(sycl::aspect::ext_oneapi_mipmap);
+    bool mipmapAnisotropySupport =
         dev.has(sycl::aspect::ext_oneapi_mipmap_anisotropy);
-    float mipmap_max_anisotropy = dev.get_info<
+    float mipmapMaxAnisotropy = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::mipmap_max_anisotropy>();
-    bool mipmap_level_reference_support =
+    bool mipmapLevelReferenceSupport =
         dev.has(sycl::aspect::ext_oneapi_mipmap_level_reference);
 
 #ifdef VERBOSE_PRINT
-    std::cout << "mipmap_support: " << mipmap_support
-              << "\nmipmap_anisotropy_support: " << mipmap_anisotropy_support
-              << "\nmipmap_max_anisotropy: " << mipmap_max_anisotropy
-              << "\nmipmap_level_reference_support: "
-              << mipmap_level_reference_support << "\n";
+    std::cout << "mipmapSupport: " << mipmapSupport
+              << "\nmipmapAnisotropySupport: " << mipmapAnisotropySupport
+              << "\nmipmapMaxAnisotropy: " << mipmapMaxAnisotropy
+              << "\nmipmapLevelReferenceSupport: "
+              << mipmapLevelReferenceSupport << "\n";
 #endif
 
     // Extension: query for bindless image interop support -- device aspects
-    bool interop_memory_import_support =
+    bool interopMemoryImportSupport =
         dev.has(sycl::aspect::ext_oneapi_interop_memory_import);
-    bool interop_memory_export_support =
+    bool interopMemoryExportSupport =
         dev.has(sycl::aspect::ext_oneapi_interop_memory_export);
-    bool interop_semaphore_import_support =
+    bool interopSemaphoreImportSupport =
         dev.has(sycl::aspect::ext_oneapi_interop_semaphore_import);
-    bool interop_semaphore_export_support =
+    bool interopSemaphoreExportSupport =
         dev.has(sycl::aspect::ext_oneapi_interop_semaphore_export);
 
 #ifdef VERBOSE_PRINT
-    std::cout << "interop_memory_import_support: "
-              << interop_memory_import_support
-              << "\ninterop_memory_export_support: "
-              << interop_memory_export_support
-              << "\ninterop_semaphore_import_support: "
-              << interop_semaphore_import_support
-              << "\ninterop_semaphore_export_support: "
-              << interop_semaphore_export_support << "\n";
+    std::cout << "interopMemoryImportSupport: " << interopMemoryImportSupport
+              << "\ninteropMemoryExportSupport: " << interopMemoryExportSupport
+              << "\ninteropSemaphoreImportSupport: "
+              << interopSemaphoreImportSupport
+              << "\ninteropSemaphoreExportSupport: "
+              << interopSemaphoreExportSupport << "\n";
 #endif
 
-    auto rangeMem = img_mem_0.get_range();
+    auto rangeMem = imgMem.get_range();
     auto range = sycl::ext::oneapi::experimental::get_image_range(
-        img_mem_0.get_handle(), dev, ctxt);
+        imgMem.get_handle(), dev, ctxt);
     if (rangeMem != range) {
       printString("handle and mem object disagree on image dimensions!\n");
       validated = false;
@@ -144,7 +142,7 @@ int main() {
       validated = false;
     }
 
-    auto type = img_mem_0.get_type();
+    auto type = imgMem.get_type();
     if (type == sycl::ext::oneapi::experimental::image_type::standard) {
       printString("image type is correct!\n");
     } else {
@@ -152,9 +150,9 @@ int main() {
       validated = false;
     }
 
-    auto ctypeMem = img_mem_0.get_channel_type();
+    auto ctypeMem = imgMem.get_channel_type();
     auto ctype = sycl::ext::oneapi::experimental::get_image_channel_type(
-        img_mem_0.get_handle(), dev, ctxt);
+        imgMem.get_handle(), dev, ctxt);
     if (ctypeMem != ctype) {
       printString("handle and mem object disagree on image channel type!\n");
       validated = false;
@@ -166,7 +164,7 @@ int main() {
       validated = false;
     }
 
-    auto corder = img_mem_0.get_channel_order();
+    auto corder = imgMem.get_channel_order();
     if (corder == sycl::image_channel_order::r) {
       printString("channel order is correct!\n");
     } else {
@@ -174,9 +172,9 @@ int main() {
       validated = false;
     }
 
-    auto numchannelsMem = img_mem_0.get_num_channels();
+    auto numchannelsMem = imgMem.get_num_channels();
     auto numchannels = sycl::ext::oneapi::experimental::get_image_num_channels(
-        img_mem_0.get_handle(), dev, ctxt);
+        imgMem.get_handle(), dev, ctxt);
     if (numchannelsMem != numchannels) {
       printString("handle and mem object disagree on number of channels!\n");
       validated = false;
@@ -190,10 +188,10 @@ int main() {
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   if (validated) {
@@ -201,6 +199,6 @@ int main() {
     return 0;
   }
 
-  std::cout << "Test Failed!\n";
-  return 1;
+  std::cout << "Test Failed!" << std::endl;
+  return 3;
 }

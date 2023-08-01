@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -40,26 +40,26 @@ int main() {
   try {
 
     size_t width = N;
-    unsigned int num_levels = 2;
+    unsigned int numLevels = 2;
 
     // Extension: image descriptor -- number of levels
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width}, sycl::image_channel_order::rgba,
         sycl::image_channel_type::fp32,
-        sycl::ext::oneapi::experimental::image_type::mipmap, num_levels);
+        sycl::ext::oneapi::experimental::image_type::mipmap, numLevels);
 
     // Extension: allocate mipmap memory on device
-    sycl::ext::oneapi::experimental::image_mem mip_mem(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem mipMem(desc, dev, ctxt);
 
     // Extension: retrieve level 0
-    sycl::ext::oneapi::experimental::image_mem_handle img_mem1 =
-        mip_mem.get_mip_level_mem_handle(0);
+    sycl::ext::oneapi::experimental::image_mem_handle imgMem1 =
+        mipMem.get_mip_level_mem_handle(0);
 
     // Extension: copy over data to device at level 0
-    q.ext_oneapi_copy(dataIn1.data(), img_mem1, desc);
+    q.ext_oneapi_copy(dataIn1.data(), imgMem1, desc);
 
     // Extension: copy data to device at level 1
-    q.ext_oneapi_copy(dataIn2.data(), mip_mem.get_mip_level_mem_handle(1),
+    q.ext_oneapi_copy(dataIn2.data(), mipMem.get_mip_level_mem_handle(1),
                       desc.get_mip_level_desc(1));
     q.wait_and_throw();
 
@@ -68,11 +68,11 @@ int main() {
         sycl::addressing_mode::mirrored_repeat,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest, sycl::filtering_mode::nearest, 0.0f,
-        (float)num_levels, 8.0f);
+        (float)numLevels, 8.0f);
 
     // Extension: create a sampled image handle to represent the mipmap
     sycl::ext::oneapi::experimental::sampled_image_handle mipHandle =
-        sycl::ext::oneapi::experimental::create_image(mip_mem, samp, desc, dev,
+        sycl::ext::oneapi::experimental::create_image(mipMem, samp, desc, dev,
                                                       ctxt);
 
     sycl::buffer<float, 1> buf((float *)out.data(), N);
@@ -99,7 +99,7 @@ int main() {
     q.wait_and_throw();
 
     // Extension: copy data from device
-    q.ext_oneapi_copy(mip_mem.get_mip_level_mem_handle(1), copyOut.data(),
+    q.ext_oneapi_copy(mipMem.get_mip_level_mem_handle(1), copyOut.data(),
                       desc.get_mip_level_desc(1));
     q.wait_and_throw();
 
@@ -108,10 +108,10 @@ int main() {
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -138,5 +138,5 @@ int main() {
   }
 
   std::cout << "Test failed!" << std::endl;
-  return 1;
+  return 3;
 }

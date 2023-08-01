@@ -4,8 +4,8 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -14,15 +14,15 @@ class image_addition;
 
 int main() {
 
-#if defined(SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES)
-  assert(SYCL_EXT_ONEAPI_FREE_FUNCTION_QUERIES == 1);
+#if defined(SYCL_EXT_ONEAPI_BINDLESS_IMAGES)
+  assert(SYCL_EXT_ONEAPI_BINDLESS_IMAGES == 1);
 #if defined(VERBOSE_PRINT)
   std::cout << "SYCL_EXT_ONEAPI_BINDLESS_IMAGES is defined!" << std::endl;
 #endif
 #else
   std::cerr << "Bindless images feature test macro is not defined!"
             << std::endl;
-  assert(false);
+  return 1;
 #endif // defined(SYCL_EXT_ONEAPI_BINDLESS_IMAGES)
 
   sycl::device dev;
@@ -34,10 +34,10 @@ int main() {
   size_t width = N;
   std::vector<float> out(N);
   std::vector<float> expected(N);
-  std::vector<float> dataIn1(N);
+  std::vector<float> dataIn(N);
   for (int i = 0; i < N; i++) {
     expected[i] = i;
-    dataIn1[i] = float(i);
+    dataIn[i] = float(i);
   }
 
   try {
@@ -45,21 +45,21 @@ int main() {
     sycl::ext::oneapi::experimental::image_descriptor desc(
         {width}, sycl::image_channel_order::r, sycl::image_channel_type::fp32);
 
-    sycl::ext::oneapi::experimental::bindless_image_sampler samp1(
+    sycl::ext::oneapi::experimental::bindless_image_sampler samp(
         sycl::addressing_mode::repeat,
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::linear);
 
     // Extension: allocate memory on device
-    sycl::ext::oneapi::experimental::image_mem img_mem_0(desc, dev, ctxt);
+    sycl::ext::oneapi::experimental::image_mem imgMem(desc, dev, ctxt);
 
     // Extension: copy over data to device
-    q.ext_oneapi_copy(dataIn1.data(), img_mem_0.get_handle(), desc);
+    q.ext_oneapi_copy(dataIn.data(), imgMem.get_handle(), desc);
     q.wait_and_throw();
 
     // Extension: create the image and return the handle
-    auto imgHandle1 = sycl::ext::oneapi::experimental::create_image(
-        img_mem_0, samp1, desc, dev, ctxt);
+    auto imgHandle = sycl::ext::oneapi::experimental::create_image(
+        imgMem, samp, desc, dev, ctxt);
 
     sycl::buffer<float, 1> buf((float *)out.data(), N);
     q.submit([&](sycl::handler &cgh) {
@@ -70,7 +70,7 @@ int main() {
         float x = float(id[0] + 0.5) / (float)N;
         // Extension: read image data from handle
         float px1 =
-            sycl::ext::oneapi::experimental::read_image<float>(imgHandle1, x);
+            sycl::ext::oneapi::experimental::read_image<float>(imgHandle, x);
 
         outAcc[id] = px1;
       });
@@ -79,15 +79,14 @@ int main() {
     q.wait_and_throw();
 
     // Extension: cleanup
-    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle1, dev,
-                                                          ctxt);
+    sycl::ext::oneapi::experimental::destroy_image_handle(imgHandle, dev, ctxt);
 
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
-    exit(-1);
+    return 1;
   } catch (...) {
     std::cerr << "Unknown exception caught!\n";
-    exit(-1);
+    return 2;
   }
 
   // collect and validate output
@@ -114,5 +113,5 @@ int main() {
   }
 
   std::cout << "Test passed!" << std::endl;
-  return 1;
+  return 3;
 }

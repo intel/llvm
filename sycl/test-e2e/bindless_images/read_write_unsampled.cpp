@@ -4,9 +4,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %t.out
 
-#include <CL/sycl.hpp>
 #include <iostream>
 #include <random>
+#include <sycl/sycl.hpp>
 #include <type_traits>
 
 static sycl::device dev;
@@ -120,8 +120,10 @@ struct util {
       });
     } catch (sycl::exception e) {
       std::cout << "\tKernel submission failed! " << e.what() << std::endl;
+      exit(-1);
     } catch (...) {
       std::cout << "\tKernel submission failed!" << std::endl;
+      exit(-1);
     }
   }
 
@@ -168,8 +170,10 @@ struct util {
       });
     } catch (sycl::exception e) {
       std::cout << "\tKernel submission failed! " << e.what() << std::endl;
+      exit(-1);
     } catch (...) {
       std::cout << "\tKernel submission failed!" << std::endl;
+      exit(-1);
     }
   }
 
@@ -215,8 +219,10 @@ struct util {
       });
     } catch (sycl::exception e) {
       std::cout << "\tKernel submission failed! " << e.what() << std::endl;
+      exit(-1);
     } catch (...) {
       std::cout << "\tKernel submission failed!" << std::endl;
+      exit(-1);
     }
   }
 };
