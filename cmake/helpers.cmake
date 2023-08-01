@@ -146,14 +146,3 @@ function(FetchContentSparse_Declare name GIT_REPOSITORY GIT_TAG GIT_DIR)
         WORKING_DIRECTORY ${content-build-dir})
     FetchContent_Declare(${name} SOURCE_DIR ${content-build-dir}/${GIT_DIR})
 endfunction()
-
-
-# Checks that every input file includes an appropriate license notice.
-function(VerifyLicence)
-    foreach(file ${ARGN})
-        file(READ ${file} file_contents LIMIT 300)
-        if(NOT "${file_contents}" MATCHES "SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception")
-            message(FATAL_ERROR "${file} does not contain an appropriate license comment.")
-        endif()
-    endforeach()
-endfunction()
