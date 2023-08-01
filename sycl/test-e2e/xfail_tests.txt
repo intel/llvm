@@ -1,10 +1,4 @@
-Assert/assert_in_kernels.cpp
-Assert/assert_in_multiple_tus.cpp
-Assert/assert_in_multiple_tus_one_ndebug.cpp
-Assert/assert_in_one_kernel.cpp
-Assert/assert_in_simultaneous_kernels.cpp
 Assert/assert_in_simultaneously_multiple_tus.cpp
-Assert/assert_in_simultaneously_multiple_tus_one_ndebug.cpp
 AtomicRef/accessor.cpp
 AtomicRef/add.cpp
 AtomicRef/add_generic.cpp
@@ -159,7 +153,6 @@ DeviceLib/std_complex_math_fp64_test.cpp
 DeviceLib/std_complex_math_test.cpp
 DeviceLib/string_test.cpp
 DiscardEvents/discard_events_check_images.cpp
-DiscardEvents/discard_events_using_assert.cpp
 DotProduct/dot_product_int_test.cpp
 ESIMD/BitonicSortK.cpp
 ESIMD/BitonicSortKv2.cpp
@@ -369,7 +362,6 @@ GroupAlgorithm/exclusive_scan_sycl2020.cpp
 GroupAlgorithm/inclusive_scan_sycl2020.cpp
 GroupAlgorithm/reduce_sycl2020.cpp
 GroupLocalMemory/group_local_memory.cpp
-GroupLocalMemory/no_early_opt.cpp
 HierPar/hier_par_basic.cpp
 HierPar/hier_par_wgscope.cpp
 HierPar/hier_par_wgscope_O0.cpp
@@ -468,7 +460,6 @@ Printf/int.cpp
 Printf/long.cpp
 Printf/mixed-address-space.cpp
 Printf/percent-symbol.cpp
-PropagateOptionsToBackend/sycl-opt-level-level-zero.cpp
 Properties/cache_config.cpp
 Reduction/reduction_big_data.cpp
 Reduction/reduction_complex_nums.cpp
@@ -584,5 +575,4 @@ USM/memops2d/memcpy2d_shared_to_host.cpp
 USM/memops2d/memcpy2d_shared_to_shared.cpp
 UserDefinedReductions/user_defined_reductions.cpp
 UserDefinedReductions/user_defined_reductions_wg_size_larger_than_data_size.cpp
-XPTI/kernel/basic.cpp
 XPTI/kernel/content.cpp
