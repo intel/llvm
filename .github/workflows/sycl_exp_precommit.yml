@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: [Linux, build]
+    runs-on: [cuda]
     steps:
       - run: echo "Build successful"
 
