@@ -44,6 +44,7 @@ FunctionPass *createSIFixControlFlowLiveIntervalsPass();
 FunctionPass *createSIOptimizeExecMaskingPreRAPass();
 FunctionPass *createSIOptimizeVGPRLiveRangePass();
 FunctionPass *createSIFixSGPRCopiesPass();
+FunctionPass *createLowerWWMCopiesPass();
 FunctionPass *createSIMemoryLegalizerPass();
 FunctionPass *createSIInsertWaitcntsPass();
 FunctionPass *createSIPreAllocateWWMRegsPass();
@@ -146,6 +147,9 @@ extern char &SIFixSGPRCopiesID;
 
 void initializeSIFixVGPRCopiesPass(PassRegistry &);
 extern char &SIFixVGPRCopiesID;
+
+void initializeSILowerWWMCopiesPass(PassRegistry &);
+extern char &SILowerWWMCopiesID;
 
 void initializeSILowerI1CopiesPass(PassRegistry &);
 extern char &SILowerI1CopiesID;
