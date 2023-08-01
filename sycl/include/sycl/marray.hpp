@@ -210,7 +210,7 @@ public:
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -235,7 +235,7 @@ public:
     return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
