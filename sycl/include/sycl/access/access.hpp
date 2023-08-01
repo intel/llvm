@@ -102,6 +102,7 @@ constexpr bool modeWritesNewData(access::mode m) {
   return m != access::mode::read;
 }
 
+template <access::decorated Decorated> struct NegateDecorated;
 template <> struct NegateDecorated<access::decorated::yes> {
   static constexpr access::decorated value = access::decorated::no;
 };
@@ -152,6 +153,8 @@ template <> struct TargetToAS<access::target::constant_buffer> {
       access::address_space::constant_space;
 };
 
+template <typename ElementType, access::address_space addressSpace>
+struct DecoratedType;
 
 template <typename ElementType>
 struct DecoratedType<ElementType, access::address_space::private_space> {
