@@ -670,6 +670,15 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
 struct urVirtualMemGranularityTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t),
+            &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+
         ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
             context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
             sizeof(granularity), &granularity, nullptr));
@@ -681,6 +690,15 @@ template <class T>
 struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            this->device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT,
+            sizeof(ur_bool_t), &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+
         ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
             this->context, this->device,
             UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
