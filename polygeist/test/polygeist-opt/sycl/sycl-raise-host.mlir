@@ -818,3 +818,103 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   
   llvm.return
 }
+
+// -----
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+
+!lambda_class = !llvm.struct<"class.lambda", (i16, i32, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>, !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+!sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
+
+// COM: check that we can handle the lambda being constructed in a different function.
+
+// CHECK-LABEL:   llvm.func @build_lambda(
+// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr) {
+// CHECK-DAG:       %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-DAG:       %[[VAL_2:.*]] = llvm.mlir.constant(32 : i32) : i32
+// CHECK-DAG:       %[[VAL_3:.*]] = llvm.mlir.constant(123 : i16) : i16
+// CHECK-DAG:       %[[VAL_4:.*]] = llvm.mlir.constant(123 : i32) : i32
+// CHECK-DAG:       %[[VAL_5:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_7:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_5]], %[[VAL_5]], %[[VAL_5]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      %[[VAL_8:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)> : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_3]], %[[VAL_8]] : i16, !llvm.ptr
+// CHECK-NEXT:      %[[VAL_9:.*]] = llvm.getelementptr %[[VAL_8]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK-NEXT:      llvm.store %[[VAL_4]], %[[VAL_9]] : i32, !llvm.ptr
+// CHECK-NEXT:      sycl.host.set_captured %[[VAL_8]][1] = %[[VAL_4]] : !llvm.ptr, i32
+// CHECK-NEXT:      %[[VAL_10:.*]] = llvm.getelementptr %[[VAL_8]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK-NEXT:      %[[VAL_11:.*]] = llvm.load %[[VAL_6]] : !llvm.ptr -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_11]], %[[VAL_10]] : !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:      sycl.host.set_captured %[[VAL_8]][2] = %[[VAL_6]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+// CHECK-NEXT:      %[[VAL_12:.*]] = llvm.getelementptr %[[VAL_8]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
+// CHECK-NEXT:      "llvm.intr.memcpy"(%[[VAL_12]], %[[VAL_7]], %[[VAL_2]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+// CHECK-NEXT:      sycl.host.set_captured %[[VAL_8]][3] = %[[VAL_7]] : !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:      llvm.call @parallel_for(%[[VAL_0]], %[[VAL_8]]) : (!llvm.ptr, !llvm.ptr) -> ()
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @build_lambda(%handler: !llvm.ptr) {
+
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %c32 = llvm.mlir.constant (32 : i32) : i32
+  %c123_16 = llvm.mlir.constant (123 : i16) : i16
+  %c123_32 = llvm.mlir.constant (123 : i32) : i32
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
+  %vector = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
+
+  // COM: ensure %accessor is actually detected as a sycl::accessor
+  sycl.host.constructor(%accessor, %nullptr, %nullptr, %nullptr) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+
+  // COM: struct containing the captured values
+  %lambda_obj = llvm.alloca %c1 x !lambda_class : (i32) -> !llvm.ptr
+
+  // COM: the first capture is a store to the lambda object
+  llvm.store %c123_16, %lambda_obj : i16, !llvm.ptr
+
+  // COM: All other captures are 2-index GEPs to the lambda object
+  %gep1 = llvm.getelementptr %lambda_obj[0, 1] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %c123_32, %gep1 : i32, !llvm.ptr
+
+  // COM: Special handling for accessors
+  %gep2 = llvm.getelementptr %lambda_obj[0, 2] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  %first_member = llvm.load %accessor : !llvm.ptr -> !llvm.ptr
+  llvm.store %first_member, %gep2 : !llvm.ptr, !llvm.ptr
+
+  // COM: Non-scalar values are memcpy'ed
+  %gep3 = llvm.getelementptr %lambda_obj[0, 3] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  "llvm.intr.memcpy"(%gep3, %vector, %c32) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+
+  // COM: Call parallel_for
+  llvm.call @parallel_for(%handler, %lambda_obj) : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.return
+}
+
+// CHECK-LABEL:   llvm.func @parallel_for(
+// CHECK-SAME:                            %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                            %[[VAL_1:.*]]: !llvm.ptr) {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.alloca %[[VAL_2]] x !llvm.ptr : (i32) -> !llvm.ptr
+// CHECK-NEXT:      llvm.store %[[VAL_1]], %[[VAL_3]] : !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @parallel_for(%handler: !llvm.ptr, %lambda_obj: !llvm.ptr) {
+  // COM: ensure this function is detected as a handler
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i32) : i32
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %annotated_ptr = llvm.alloca %c1 x !llvm.ptr : (i32) -> !llvm.ptr
+  llvm.store %lambda_obj, %annotated_ptr : !llvm.ptr, !llvm.ptr
+  %kernel_str = llvm.mlir.addressof @kernel_str : !llvm.ptr
+  "llvm.intr.var.annotation"(%annotated_ptr, %kernel_str, %kernel_str, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.return
+}

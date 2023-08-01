@@ -1569,9 +1569,11 @@ public:
     if (!store || !isa<LLVM::StoreOp>(store))
       return failure();
 
-    auto alloca = dyn_cast_or_null<LLVM::AllocaOp>(lambdaObj.getDefiningOp());
-    if (!alloca || !alloca.getElemType().has_value())
+    LLVM::AllocaOp alloca = getAlloca(lambdaObj);
+    if (!alloca)
       return failure();
+    // Needed in case alloca is in a different function.
+    lambdaObj = alloca;
 
     auto lambdaClassTy =
         dyn_cast<LLVM::LLVMStructType>(alloca.getElemType().value());
@@ -1678,6 +1680,61 @@ private:
     }
 
     return {op, value};
+  }
+
+  /// Return the `llvm.alloca` operation defining \p lambdaObj.
+  static LLVM::AllocaOp getAlloca(Value lambdaObj) {
+    if (Operation *definingOp = lambdaObj.getDefiningOp()) {
+      // lambdaObj defined in this function
+      return TypeSwitch<Operation *, LLVM::AllocaOp>(definingOp)
+          .Case<LLVM::AllocaOp>([](auto alloca) { // Return the defining alloca
+            return alloca.getElemType().has_value() ? alloca : nullptr;
+          })
+          // Safely bail out
+          .Default(LLVM::AllocaOp());
+    }
+    // Check lambdaObj is a function argument
+    Block *block = lambdaObj.getParentBlock();
+    if (!block->isEntryBlock())
+      return nullptr;
+
+    // Get parent function
+    auto parentFunction = dyn_cast<LLVM::LLVMFuncOp>(block->getParentOp());
+    if (!parentFunction)
+      return nullptr;
+
+    // Search function argument
+    const auto *blockArg = llvm::find(block->getArguments(), lambdaObj);
+    if (blockArg == block->args_end())
+      return nullptr;
+
+    // Recurisvely search for alloca defining operation.
+    Value callChainAncestor =
+        getCallChainAncestor(parentFunction, blockArg->getArgNumber());
+    return getAlloca(callChainAncestor);
+  }
+
+  /// If \p func has a single `CallOpInterface` user and no `llvm.addressof`
+  /// user, return the operand \p index of such user; else, return nullptr;
+  static Value getCallChainAncestor(LLVM::LLVMFuncOp func, unsigned index) {
+    auto module = func->getParentOfType<ModuleOp>();
+    std::optional<SymbolTable::UseRange> symbolUses =
+        SymbolTable::getSymbolUses(func, module);
+    if (!symbolUses)
+      return nullptr;
+    Value val;
+    for (const SymbolTable::SymbolUse &use : *symbolUses) {
+      Operation *user = use.getUser();
+      if (isa<CallOpInterface>(user)) {
+        if (val)
+          return nullptr;
+        val = user->getOperand(index);
+      } else if (isa<LLVM::AddressOfOp>(user)) {
+        // Avoid potential indirect call
+        return nullptr;
+      }
+    }
+    return val;
   }
 
   // Use the \p expected type as domain knowledge to try to broaden an
