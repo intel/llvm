@@ -44,10 +44,7 @@ public:
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
-enum class CodeState { Data = 0, Thumb = 2, Arm = 4 };
 } // namespace
-
-static DenseMap<InputSection *, SmallVector<const Defined *, 0>> sectionMap{};
 
 ARM::ARM() {
   copyRel = R_ARM_COPY;
@@ -71,24 +68,16 @@ uint32_t ARM::calcEFlags() const {
   // The ABIFloatType is used by loaders to detect the floating point calling
   // convention.
   uint32_t abiFloatType = 0;
-
-  // Set the EF_ARM_BE8 flag in the ELF header, if ELF file is big-endian
-  // with BE-8 code.
-  uint32_t armBE8 = 0;
-
   if (config->armVFPArgs == ARMVFPArgKind::Base ||
       config->armVFPArgs == ARMVFPArgKind::Default)
     abiFloatType = EF_ARM_ABI_FLOAT_SOFT;
   else if (config->armVFPArgs == ARMVFPArgKind::VFP)
     abiFloatType = EF_ARM_ABI_FLOAT_HARD;
 
-  if (!config->isLE && config->armBe8)
-    armBE8 = EF_ARM_BE8;
-
   // We don't currently use any features incompatible with EF_ARM_EABI_VER5,
   // but we don't have any firm guarantees of conformance. Linux AArch64
   // kernels (as of 2016) require an EABI version to be set.
-  return EF_ARM_EABI_VER5 | abiFloatType | armBE8;
+  return EF_ARM_EABI_VER5 | abiFloatType;
 }
 
 RelExpr ARM::getRelExpr(RelType type, const Symbol &s,
