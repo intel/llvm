@@ -245,4 +245,9 @@ static llvm::cl::opt<mlir::sycl::Implementation> SYCLImplementation(
     llvm::cl::init(mlir::sycl::Implementation::DPCPP),
     llvm::cl::values(clEnumVal(mlir::sycl::Implementation::DPCPP, "dpcpp")));
 
+static llvm::cl::opt<bool>
+    PrintPipeline("print-pipeline", llvm::cl::init(false),
+                  llvm::cl::desc("Print the pass pipelines in textual format"),
+                  llvm::cl::Hidden);
+
 #endif /* CGEIST_OPTIONS_H_ */
