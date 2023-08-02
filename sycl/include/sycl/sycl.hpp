@@ -64,6 +64,7 @@
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -78,6 +79,7 @@
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>
