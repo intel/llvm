@@ -16,26 +16,13 @@
 //
 // Copyright (c) 2023 Barak Shoshany. Licensed under the MIT license.
 #include "cl_processor.hpp"
-#include "external/BS_thread_pool.hpp"
+#include "parallel_test.h"
 #include "xpti/xpti_trace_framework.h"
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <random>
-
-// Macro to parallelize a loop.
-#define PARALLEL_FOR(tp, func, lower, upper)                                   \
-  {                                                                            \
-    int NumWorkers = tp.get_thread_count();                                    \
-    int Step = (upper - lower + 1) / NumWorkers;                               \
-    for (int i = 0; i < NumWorkers; ++i) {                                     \
-      int Min = lower + i * Step;                                              \
-      int Max = std::min<int>((lower + (i + 1) * Step), upper);                \
-      auto Ret = tp.submit(func, Min, Max);                                    \
-    }                                                                          \
-    tp.wait_for_tasks();                                                       \
-  }
 
 namespace test {
 void registerCallbacks(uint8_t sid);
