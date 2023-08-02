@@ -275,7 +275,7 @@ struct sub_group {
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)
     return src[get_local_id()[0]];
-#else  // __NVPTX__ || __AMDGCN__ || __AMDGCN__
+#else  // __NVPTX__ || __AMDGCN__
     auto l = __SYCL_GenericCastToPtrExplicit_ToLocal<T>(src);
     if (l)
       return load(l);
@@ -286,7 +286,7 @@ struct sub_group {
 
     assert(!"Sub-group load() is supported for local or global pointers only.");
     return {};
-#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
+#endif // __NVPTX__ || __AMDGCN__
   }
 #else  //__SYCL_DEVICE_ONLY__
   template <typename CVT, typename T = std::remove_cv_t<CVT>>
@@ -309,12 +309,12 @@ struct sub_group {
     return src.get()[get_local_id()[0]];
 #else
     return sycl::detail::sub_group::load(src);
-#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
+#endif // __NVPTX__ || __AMDGCN__
 #else
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
-#endif // __NVPTX__ || __AMDGCN__ || __AMDGCN__
+#endif // __NVPTX__ || __AMDGCN__
   }
 
   template <typename CVT, access::address_space Space,
