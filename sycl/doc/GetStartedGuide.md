@@ -649,6 +649,27 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
+**Linux & Windows (64-bit)**:
+
+```bash
+./simple-sycl-app.exe
+The results are correct!
+```
+
+**NOTE**: Currently, when the application has been built with the CUDA target,
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
+variable.
+
+```bash
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
+```
+
+**NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
+device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
+explained in following section [Code the program for a specific
+GPU](#code-the-program-for-a-specific-gpu).
+
 #### AOT Target architectures
 
 When building for HIP AMD, use the AMD target triple and specify the
@@ -664,7 +685,7 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
 The target architecture may also be specified for the CUDA backend, with
 `-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is
 necessary if an application aims to use newer hardware features, such as
-native atomic operations or tensor core operations.
+native atomic operations or the joint_matrix extension.
 Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
 `--maxrregcount=<n>` for limiting the register usage or `--verbose` for
 printing generation statistics) using the `-Xcuda-ptxas` flag.
@@ -720,27 +741,6 @@ The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
-
-**Linux & Windows (64-bit)**:
-
-```bash
-./simple-sycl-app.exe
-The results are correct!
-```
-
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
-variable.
-
-```bash
-ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
-```
-
-**NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
-explained in following section [Code the program for a specific
-GPU](#code-the-program-for-a-specific-gpu).
 
 ### Build DPC++ application with CMake
 
