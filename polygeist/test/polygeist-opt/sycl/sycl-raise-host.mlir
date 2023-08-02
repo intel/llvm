@@ -818,3 +818,71 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   
   llvm.return
 }
+
+// -----
+
+!sycl_range_1_ = !sycl.range<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
+
+gpu.module @device_functions {
+  gpu.func @foo() kernel {
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @range_str("range\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+llvm.mlir.global private unnamed_addr constant @offset_str("offset\00")
+    {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
+
+// COM: Check we can raise sycl.host.handler.set_nd_range when there are several var annotations in the code.
+
+// CHECK-LABEL:   llvm.func @raise_set_globalsize_offset(
+// CHECK-SAME:                                           %[[VAL_0:.*]]: !llvm.ptr,
+// CHECK-SAME:                                           %[[VAL_1:.*]]: i1) {
+// CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(512 : i64) : i64
+// CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(100 : i64) : i64
+// CHECK-NEXT:      %[[VAL_4:.*]] = llvm.mlir.constant(1 : i64) : i64
+// CHECK-NEXT:      sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
+// CHECK-NEXT:      %[[VAL_5:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      %[[VAL_6:.*]] = llvm.alloca %[[VAL_4]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+// CHECK-NEXT:      llvm.cond_br %[[VAL_1]], ^bb1, ^bb2
+// CHECK-NEXT:    ^bb1:
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_5]], %[[VAL_2]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]], %[[VAL_3]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      llvm.br ^bb3
+// CHECK-NEXT:    ^bb2:
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_5]], %[[VAL_2]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK-NEXT:      sycl.host.constructor(%[[VAL_6]]) {type = !sycl_id_1_} : (!llvm.ptr) -> ()
+// CHECK-NEXT:      sycl.host.handler.set_nd_range %[[VAL_0]] -> range %[[VAL_5]], offset %[[VAL_6]] : !llvm.ptr, !llvm.ptr, !llvm.ptr
+// CHECK-NEXT:      llvm.br ^bb3
+// CHECK-NEXT:    ^bb3:
+// CHECK-NEXT:      llvm.return
+// CHECK-NEXT:    }
+llvm.func @raise_set_globalsize_offset(%handler: !llvm.ptr, %condition: i1) {
+  %c0 = llvm.mlir.constant (0 : i32) : i32
+  %c1 = llvm.mlir.constant (1 : i64) : i64
+  sycl.host.handler.set_kernel %handler -> @device_functions::@foo : !llvm.ptr
+  %c100 = llvm.mlir.constant (100 : i64) : i64
+  %c512 = llvm.mlir.constant (512 : i64) : i64
+  %nullptr = llvm.mlir.null : !llvm.ptr
+  %range = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  %offset = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i64) -> !llvm.ptr
+  %rangeStr = llvm.mlir.addressof @range_str : !llvm.ptr
+  %offsetStr = llvm.mlir.addressof @offset_str : !llvm.ptr
+  llvm.cond_br %condition, ^b0, ^b1
+^b0:
+  sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  sycl.host.constructor(%offset, %c100) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
+  "llvm.intr.var.annotation"(%range, %rangeStr, %rangeStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%offset, %offsetStr, %offsetStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.br ^exit
+^b1:
+  sycl.host.constructor(%range, %c512) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+  sycl.host.constructor(%offset) {type = !sycl_id_1_} : (!llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%range, %rangeStr, %rangeStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  "llvm.intr.var.annotation"(%offset, %offsetStr, %offsetStr, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
+  llvm.br ^exit
+^exit:
+  llvm.return
+}

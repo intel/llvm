@@ -1471,11 +1471,30 @@ public:
         return WalkResult::advance();
 
       StringRef annotationStr = *failureOrAnnotationStr;
-      if (!(annotationStr == "nd_range" || annotationStr == "offset" ||
-            annotationStr == "range"))
+      if (annotationStr == "nd_range" || annotationStr == "range") {
+        if (!arguments.empty()) {
+          bool ndRangeMismatch = (annotationStr == "nd_range") != ndRangePassed;
+          // We can handle the case in which the same [nd-]range pointer is used
+          // in different branches. [nd-]range analysis will spot mismatches.
+          if (ndRangeMismatch ||
+              arguments.front().getValue() != annotation.getVal())
+            WalkResult::interrupt();
+          arguments.front().addAnnotation(annotation);
+          return WalkResult::advance();
+        }
+        ndRangePassed = annotationStr == "nd_range";
+      } else if (annotationStr == "offset") {
+        if (arguments.size() != 1) {
+          // We can handle the case in which the same offset pointer is used in
+          // different branches. id analysis will spot mismatches.
+          if (arguments[1].getValue() != annotation.getVal())
+            WalkResult::interrupt();
+          arguments[1].addAnnotation(annotation);
+          return WalkResult::advance();
+        }
+      } else {
         return WalkResult::advance();
-
-      ndRangePassed = annotationStr == "nd_range";
+      }
 
       arguments.emplace_back(annotation, annotation.getVal());
 
@@ -1490,15 +1509,18 @@ public:
 
     // We will introduce the operation after the last annotation
     OpBuilder::InsertionGuard ig(rewriter);
-    LLVM::VarAnnotation lastAnnotation = arguments.back().getAnnotation();
+    LLVM::VarAnnotation lastAnnotation =
+        arguments.back().getAnnotations().back();
     rewriter.setInsertionPointAfter(lastAnnotation);
     Location loc = lastAnnotation.getLoc();
 
     // Remove annotations, no longer needed
     // Also prevents infinite recursion
     rewriter.updateRootInPlace(op, [&] {
-      for (const Argument &arg : arguments)
-        rewriter.eraseOp(arg.getAnnotation());
+      for (const Argument &arg : arguments) {
+        for (LLVM::VarAnnotation annot : arg.getAnnotations())
+          rewriter.eraseOp(annot);
+      }
     });
 
     // Finally insert sycl.host.handler.set_nd_range after the last annotation
@@ -1524,15 +1546,18 @@ private:
   class Argument {
   public:
     Argument(LLVM::VarAnnotation annotation, Value value)
-        : annotation(annotation), value(value) {
+        : annotations({annotation}), value(value) {
       assert(annotation && value && "All members must be set");
     }
 
-    LLVM::VarAnnotation getAnnotation() const { return annotation; }
+    ArrayRef<LLVM::VarAnnotation> getAnnotations() const { return annotations; }
     Value getValue() const { return value; }
+    void addAnnotation(LLVM::VarAnnotation annot) {
+      annotations.push_back(annot);
+    }
 
   private:
-    LLVM::VarAnnotation annotation;
+    SmallVector<LLVM::VarAnnotation> annotations;
     Value value;
   };
 };
