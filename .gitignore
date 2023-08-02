@@ -85,4 +85,4 @@ out/
 /.devcontainer
 
 # External content
-/external
+*/**/external
