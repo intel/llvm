@@ -1750,7 +1750,7 @@ public:
     // `set_nd_range` op in the function.
     auto setNDRangeOps =
         enclosingFunc.getOps<sycl::SYCLHostHandlerSetNDRange>();
-    if (std::distance(setNDRangeOps.begin(), setNDRangeOps.end()) != 1)
+    if (!llvm::hasNItems(setNDRangeOps, 1))
       return failure();
     auto range = *setNDRangeOps.begin();
 
@@ -1778,8 +1778,7 @@ public:
     // Discover `set_captured` ops in the CGF. We check that we have captured a
     // value matching the expected kind for each parameter.
     auto setCapturedOps = enclosingFunc.getOps<sycl::SYCLHostSetCaptured>();
-    unsigned numCaptured =
-        std::distance(setCapturedOps.begin(), setCapturedOps.end());
+    unsigned numCaptured = llvm::range_size(setCapturedOps);
 
     // Wrong number of `set_captured` ops.
     if (numCaptured != numParams)
@@ -1884,11 +1883,11 @@ private:
   static FailureOr<std::tuple<unsigned, Value>>
   getKernelParameterInfo(Block *block) {
     auto annotations = block->getOps<LLVM::VarAnnotation>();
-    if (std::distance(annotations.begin(), annotations.end()) != 2)
+    if (!llvm::hasNItems(annotations, 2))
       return failure();
 
     LLVM::VarAnnotation numParamsAnn = *annotations.begin();
-    LLVM::VarAnnotation paramDescAnn = *++annotations.begin();
+    LLVM::VarAnnotation paramDescAnn = *std::next(annotations.begin());
     FailureOr<StringRef> numParamsAnnStr = getAnnotation(numParamsAnn);
     FailureOr<StringRef> paramDescAnnStr = getAnnotation(paramDescAnn);
     if (failed(numParamsAnnStr) || failed(paramDescAnnStr) ||
@@ -1914,10 +1913,9 @@ private:
   getParameterKinds(unsigned numParams, Value paramDesc) {
     FlatSymbolRefAttr kernelSignaturesRef;
     unsigned offset = 0;
-    auto addressOf = paramDesc.getDefiningOp<LLVM::AddressOfOp>();
-    if (addressOf)
+    if (auto addressOf = paramDesc.getDefiningOp<LLVM::AddressOfOp>()) {
       kernelSignaturesRef = addressOf.getGlobalNameAttr();
-    else {
+    } else {
       auto gep = paramDesc.getDefiningOp<LLVM::GEPOp>();
       if (!gep || !gep.getDynamicIndices().empty())
         return failure();
