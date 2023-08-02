@@ -1,4 +1,4 @@
-; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; RUN: llvm-as -opaque-pointers < %s | llvm-dis -opaque-pointers | FileCheck %s
 
 ; CHECK: declare void @decl(ptr sret(i64))
 ; CHECK: call void @decl(ptr %arg)
