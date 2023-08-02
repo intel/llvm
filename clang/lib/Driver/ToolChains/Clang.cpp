@@ -9255,16 +9255,14 @@ void OffloadBundler::ConstructJobMultipleOutputs(
           TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
       llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
       Triples += TT.normalize();
-    } else {
-      if (Dep.DependentToolChain->getTriple().getEnvironment() ==
-          llvm::Triple::SYCLMLIR) {
-        llvm::Triple Tmp{Dep.DependentToolChain->getTriple().getArchName(),
-                         Dep.DependentToolChain->getTriple().getVendorName(),
-                         Dep.DependentToolChain->getTriple().getOSName()};
-        Triples += Tmp.normalize();
-      } else
-        Triples += Dep.DependentToolChain->getTriple().normalize();
-    }
+    } else if (Dep.DependentToolChain->getTriple().getEnvironment() ==
+               llvm::Triple::SYCLMLIR) {
+      llvm::Triple Tmp{Dep.DependentToolChain->getTriple().getArchName(),
+                       Dep.DependentToolChain->getTriple().getVendorName(),
+                       Dep.DependentToolChain->getTriple().getOSName()};
+      Triples += Tmp.normalize();
+    } else
+      Triples += Dep.DependentToolChain->getTriple().normalize();
     if ((Dep.DependentOffloadKind == Action::OFK_HIP ||
          Dep.DependentOffloadKind == Action::OFK_OpenMP ||
          Dep.DependentOffloadKind == Action::OFK_Cuda ||
