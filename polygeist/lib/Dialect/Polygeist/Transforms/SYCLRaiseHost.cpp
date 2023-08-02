@@ -1772,10 +1772,6 @@ public:
       return failure();
     auto paramKinds = *failureOfParamKinds;
 
-    // Adjust `num_params` if the last entry is a sentinel.
-    if (numParams > 0 && paramKinds.back() == kernel_param_kind_t::kind_invalid)
-      --numParams;
-
     // No point in trying to raise a `schedule_kernel` without arguments.
     if (numParams == 0)
       return failure();
