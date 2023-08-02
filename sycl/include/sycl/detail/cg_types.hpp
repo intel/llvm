@@ -25,7 +25,7 @@
 #include <sycl/detail/common.hpp>                    // for InitializedVal, NDLoop
 #include <sycl/detail/helpers.hpp>                   // for Builder
 #include <sycl/detail/item_base.hpp>                 // for id
-#include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_WORK...
+#include <sycl/detail/pi.h>                  // for PI_ERROR_INVALID_WORK...
 #include <sycl/exception.hpp>                        // for nd_range_error
 #include <sycl/h_item.hpp>                           // for h_item
 #include <sycl/item.hpp>                             // for item

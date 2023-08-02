@@ -11,6 +11,13 @@
 #include <sycl/detail/pi.h>                             // for pi_device_info
 #include <type_traits>                                  // for true_type
 
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
+#include <sycl/aspects.hpp>
+#include <sycl/id.hpp>
+#include <sycl/info/info_desc.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {

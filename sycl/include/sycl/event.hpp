@@ -20,6 +20,10 @@
 #include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
 #include <sycl/detail/pi.h>                        // for pi_native_handle
 
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 // Forward declaration

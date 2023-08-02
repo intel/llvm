@@ -20,7 +20,7 @@
 #include <type_traits>              // for is_same, is_arithmetic
 
 #include <sycl/aliases.hpp>              // for half
-#include <sycl/detail/pi_error.def>      // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/pi.h>      // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>            // for sycl_category, exception
 #include <sycl/ext/oneapi/bfloat16.hpp>  // for bfloat16
 #include <sycl/memory_enums.hpp>         // for memory_scope

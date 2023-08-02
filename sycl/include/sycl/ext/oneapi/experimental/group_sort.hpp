@@ -15,8 +15,8 @@
 #include <system_error>                 // for error_code
 #include <utility>                      // for declval
 
-#include <sycl/group_helpers_sorters.hpp>    // for default_sorter, group_with_sc...
-#include <sycl/detail/pi_error.def>          // for PI_ERROR_INVALID_DEVICE
+#include "group_helpers_sorters.hpp"    // for default_sorter, group_with_sc...
+#include <sycl/detail/pi.h>          // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>                // for sycl_category, exception
 
 namespace sycl {

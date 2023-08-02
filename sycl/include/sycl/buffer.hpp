@@ -38,10 +38,10 @@
 #include <sycl/detail/defines_elementary.hpp>               // for __SYCL2020_DEP...
 #include <sycl/detail/export.hpp>                           // for __SYCL_EXPORT
 #include <sycl/detail/helpers.hpp>                          // for buffer_impl
-#include <sycl/detail/pi.h>                                 // for pi_native_handle
-#include <sycl/detail/pi_error.def>                         // for PI_ERROR_INVAL...
+#include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
 #include <sycl/detail/property_helper.hpp>                  // for PropWithDataKind
 #include <sycl/detail/type_traits.hpp>                      // for remove_pointer_t
+#include <sycl/detail/stl_type_traits.hpp>                      // for iterator_to_const_type_t
 
 namespace sycl {
 inline namespace _V1 {

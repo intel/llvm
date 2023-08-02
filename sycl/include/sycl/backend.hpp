@@ -44,7 +44,7 @@
 #include <memory>                                     // for shared_ptr
 #include <vector>                                     // for vector
 
-#include <sycl/CL/cl.h>                                    // for _cl_event
+#include <sycl/detail/cl.h>                                    // for _cl_event
 #include <sycl/access/access.hpp>                          // for mode, placeholder
 #include <sycl/async_handler.hpp>                          // for async_handler
 #include <sycl/detail/defines_elementary.hpp>              // for __SYCL_DEPRECATED

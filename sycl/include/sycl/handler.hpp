@@ -49,7 +49,7 @@
 #include <utility>
 #include <vector>
 
-#include <sycl/CL/cl.h>
+#include <sycl/detail/cl.h>
 #include <sycl/detail/array.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
@@ -59,7 +59,7 @@
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
-#include <sycl/detail/pi_error.def>
+#include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>

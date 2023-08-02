@@ -11,7 +11,7 @@
 #include <stdint.h>                            // for uint32_t
 #include <type_traits>                         // for true_type
 
-#include <sycl/detail/pi_error.def>                 // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/pi.h>                 // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>              // for is_group, is_user_cons...
 #include <sycl/exception.hpp>                       // for runtime_error
 #include <sycl/id.hpp>                              // for id

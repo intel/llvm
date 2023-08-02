@@ -15,7 +15,7 @@
 #include <functional>                     // for hash
 #include <limits>                         // for float_denorm_style, float_r...
 #include <cstddef>                        // for size_t
-#include <iosfwd>                         // for istream, ostream
+#include <sycl/detail/iostream_proxy.hpp>                         // for istream, ostream
 #include <string_view>                    // for hash
 #include <type_traits>                    // for enable_if_t
 

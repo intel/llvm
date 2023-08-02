@@ -12,6 +12,14 @@
 
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
+#include <sycl/aspects.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
+#include <sycl/range.hpp>
+#include <sycl/detail/type_traits.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 

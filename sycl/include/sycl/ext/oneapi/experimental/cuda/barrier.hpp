@@ -10,7 +10,7 @@
 
 #include <stdint.h>             // for int32_t, int64_t, uint32_t, uint64_t
 
-#include <sycl/detail/pi_error.def>  // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/pi.h>  // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>        // for runtime_error
 
 #define SYCL_EXT_ONEAPI_CUDA_ASYNC_BARRIER 1

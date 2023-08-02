@@ -24,7 +24,7 @@
 #include <sycl/queue.hpp>                  // for queue
 #include <vector>                          // for vector
 
-#include <sycl/CL/cl.h>                         // for _cl_event, cl_event, cl_de...
+#include <sycl/detail/cl.h>                         // for _cl_event, cl_event, cl_de...
 #include <sycl/backend_types.hpp>               // for backend
 #include <sycl/handler.hpp>                     // for buffer
 #include <sycl/kernel.hpp>                      // for kernel

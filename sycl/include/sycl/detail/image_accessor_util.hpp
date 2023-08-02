@@ -24,7 +24,7 @@
 
 #include <sycl/aliases.hpp>                          // for float4, int4, uint4
 #include <sycl/detail/array.hpp>                     // for array
-#include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/pi.h>                  // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
 #include <sycl/exception.hpp>                        // for invalid_parameter_error
 #include <sycl/id.hpp>                               // for id

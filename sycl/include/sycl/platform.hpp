@@ -25,6 +25,10 @@
 #include <sycl/detail/pi.h>                        // for pi_native_handle
 #include <sycl/info/info_desc.hpp>                 // for device_type
 
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 // TODO: make code thread-safe

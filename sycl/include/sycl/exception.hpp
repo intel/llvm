@@ -19,8 +19,9 @@
 #include <system_error>                   // for error_code, error_category
 #include <type_traits>                    // for true_type
 
-#include <sycl/CL/cl_platform.h>               // for cl_int
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/CL/cl_platform.h>              // for cl_int
+#include <sycl/detail/common.hpp>             // for codeToString
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

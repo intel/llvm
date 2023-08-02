@@ -17,7 +17,7 @@
 #include <type_traits>                      // for enable_if_t
 #include <utility>                          // for move
 
-#include <sycl/detail/pi_error.def>              // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/pi.h>              // for PI_ERROR_INVALID_VALUE
 
 namespace sycl {
 inline namespace _V1 {

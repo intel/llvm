@@ -20,7 +20,7 @@
 #include <tuple>                                // for _Swallow_assign, ignore
 
 #include <sycl/detail/defines_elementary.hpp>        // for __SYCL_DEPRECATED
-#include <sycl/detail/pi_error.def>                  // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/pi.h>                  // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>                        // for runtime_error, make_e...
 #include <sycl/multi_ptr.hpp>                        // for multi_ptr
 

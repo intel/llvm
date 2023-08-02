@@ -26,6 +26,10 @@
 #include <sycl/device.hpp>                         // for device
 #include <sycl/platform.hpp>                       // for platform
 
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
+
 // 4.6.2 Context class
 
 namespace sycl {
