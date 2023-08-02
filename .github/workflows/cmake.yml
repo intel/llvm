@@ -81,6 +81,9 @@ jobs:
     - name: Generate source from spec, check for uncommitted diff
       if: matrix.os == 'ubuntu-22.04'
       run: cmake --build ${{github.workspace}}/build --target check-generated
+    
+    - name: Verify that each source file contains a license
+      run: cmake --build ${{github.workspace}}/build --target verify-licenses
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
