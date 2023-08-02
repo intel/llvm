@@ -15,6 +15,11 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_OPERATION
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 /// Reading the value of a specialization constant

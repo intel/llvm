@@ -20,6 +20,8 @@
 #include <sycl/marray.hpp>                                  // for marray
 #include <sycl/multi_ptr.hpp>                               // for multi_ptr
 
+#include "matrix-intel.hpp"
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

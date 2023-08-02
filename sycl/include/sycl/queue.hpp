@@ -52,6 +52,7 @@
 #include <sycl/kernel_handler.hpp>                          // for kernel_handler
 #include <sycl/nd_range.hpp>                                // for nd_range
 #include <sycl/range.hpp>                                   // for range
+#include <sycl/detail/service_kernel_names.hpp>
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be

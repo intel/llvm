@@ -14,8 +14,8 @@
 #include <tuple>                               // for ignore, tuple, _Swallo...
 #include <type_traits>                         // for enable_if_t
 
-#include <sycl/matrix-unified-utils.hpp>            // for use, layout, tf32, matrix
-#include <sycl/CL/__spirv/spirv_types.hpp>          // for MatrixLayout, MatrixUse
+#include "matrix-unified-utils.hpp"            // for use, layout, tf32, matrix
+#include <CL/__spirv/spirv_types.hpp>          // for MatrixLayout, MatrixUse
 #include <sycl/access/access.hpp>                   // for address_space, decorated
 #include <sycl/detail/pi.h>                 // for PI_ERROR_INVALID_DEVICE
 #include <sycl/exception.hpp>                       // for runtime_error
@@ -23,6 +23,8 @@
 #include <sycl/group.hpp>                           // for group
 #include <sycl/multi_ptr.hpp>                       // for multi_ptr
 #include <sycl/sub_group.hpp>                       // for sub_group
+
+#include "utils.hpp" // for getDecorated
 
 namespace sycl {
 inline namespace _V1 {

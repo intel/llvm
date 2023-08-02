@@ -19,7 +19,7 @@
 #endif
 #include <type_traits>                    // for is_same
 
-#include <sycl/CL/__spirv/spirv_types.hpp>     // for Scope, MemorySemanticsMask
+#include <CL/__spirv/spirv_types.hpp>     // for Scope, MemorySemanticsMask
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
 

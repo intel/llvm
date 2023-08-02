@@ -14,9 +14,6 @@
 #include <vector>                              // for vector
 #include <type_traits>                         // for enable_if_t
 
-#include <sycl/aspects.hpp>                         // for aspect
-#include <sycl/context.hpp>                         // for context
-
 // 4.6.1 Device selection class
 
 namespace sycl {

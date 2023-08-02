@@ -24,6 +24,11 @@
 #include <sycl/id.hpp>                       // for id
 #include <sycl/range.hpp>                    // for range
 #include <sycl/types.hpp>                    // for vec
+#include <sycl/known_identity.hpp>
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/oneapi/functional.hpp>
+#endif
 
 namespace sycl {
 inline namespace _V1 {

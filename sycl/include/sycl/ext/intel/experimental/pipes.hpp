@@ -20,9 +20,14 @@
 #include <sycl/event.hpp>                                        // for event
 #include <sycl/exception.hpp>                                    // for make_erro...
 #include <sycl/handler.hpp>                                      // for handler
-#include <sycl/info/event_traits.def>                            // for command_e...
+//#include <sycl/info/event_traits.def>                            // for command_e...
 #include <sycl/info/info_desc.hpp>                               // for event_com...
 #include <sycl/memory_enums.hpp>                                 // for memory_order
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/oneapi/latency_control/properties.hpp>
+#include <sycl/ext/intel/experimental/fpga_utils.hpp>
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <xpti/xpti_data_types.h>

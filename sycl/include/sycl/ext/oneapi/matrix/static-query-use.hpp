@@ -27,6 +27,7 @@
 #include <sycl/aliases.hpp>                                 // for half
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>  // for use, layout
 #include <sycl/ext/oneapi/matrix/matrix-unified.hpp>        // for joint_matrix
+#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 
 namespace sycl {
 inline namespace _V1 {

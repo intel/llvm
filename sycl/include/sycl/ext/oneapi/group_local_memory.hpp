@@ -16,6 +16,10 @@
 #include <sycl/detail/pi.h>                 // for PI_ERROR_INVALID_OPERA...
 #include <sycl/ext/intel/usm_pointers.hpp>          // for multi_ptr
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/sycl_fe_intrins.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi {

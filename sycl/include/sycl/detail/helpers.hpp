@@ -21,6 +21,10 @@
 
 #include <sycl/memory_enums.hpp>            // for memory_order
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_vars.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 class context;

@@ -9,6 +9,11 @@
 
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <type_traits>
+#include <CL/__spirv/spirv_ops.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace access {

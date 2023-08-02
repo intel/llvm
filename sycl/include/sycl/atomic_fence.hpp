@@ -10,7 +10,9 @@
 
 #include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
 
-#ifndef __SYCL_DEVICE_ONLY__
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/spirv.hpp>
+#else
 #include <atomic>                 // for atomic_thread_fence
 #endif
 

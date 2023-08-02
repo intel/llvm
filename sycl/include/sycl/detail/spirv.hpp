@@ -9,6 +9,10 @@
 #pragma once
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+#include <cstring> // for std::memcpy
+
 namespace sycl {
 inline namespace _V1 {
 struct sub_group;

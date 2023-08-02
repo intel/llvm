@@ -29,7 +29,6 @@
 #include <sycl/exception.hpp>                        // for invalid_parameter_error
 #include <sycl/id.hpp>                               // for id
 #include <sycl/range.hpp>                            // for range
-#include <sycl/swizzles.def>                         // for vec::x, vec::y, vec::z
 
 namespace sycl {
 inline namespace _V1 {

@@ -24,6 +24,10 @@
 #include <sycl/exception.hpp>                        // for runtime_error, make_e...
 #include <sycl/multi_ptr.hpp>                        // for multi_ptr
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/oneapi/functional.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 template <typename T, access::address_space Space,

@@ -16,6 +16,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <cassert>
 
 // Helpers for dummy handles
 

@@ -26,6 +26,10 @@
 #include <sycl/memory_enums.hpp>         // for memory_scope
 #include <sycl/range.hpp>                // for range
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/group_sort_impl.hpp>
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {

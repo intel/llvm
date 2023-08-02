@@ -19,6 +19,10 @@
 #include <string_view>                    // for hash
 #include <type_traits>                    // for enable_if_t
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/aspects.hpp>
+#endif
+
 #if !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
 #endif

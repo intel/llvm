@@ -55,6 +55,10 @@
 #include <sycl/range.hpp>                                   // for range
 #include <sycl/types.hpp>                                   // for vec
 
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/image_ocl_types.hpp>
+#endif
+
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
 ///

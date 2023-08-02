@@ -22,7 +22,7 @@
 #include <cstddef>                        // for size_t
 #include <type_traits>                    // for enable_if_t, remove_const_t
 
-#include <sycl/CL/__spirv/spirv_types.hpp>     // for Scope
+#include <CL/__spirv/spirv_types.hpp>     // for Scope
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED, __SY...
 #include <sycl/device_event.hpp>               // for device_event
 #include <sycl/exception.hpp>                  // for make_error_code, errc, exce...

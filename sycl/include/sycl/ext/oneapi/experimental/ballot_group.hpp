@@ -18,6 +18,8 @@
 #include <sycl/range.hpp>                           // for range
 #include <sycl/sub_group.hpp>                       // for sub_group
 
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for GetMask
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
