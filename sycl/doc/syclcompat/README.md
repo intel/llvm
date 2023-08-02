@@ -493,6 +493,7 @@ namespace syclcompat {
 
 enum class memory_region {
   global = 0, // device global memory
+  constant,   // device read-only memory
   local,      // device local memory
   usm_shared, // memory which can be accessed by host and device
 };
@@ -511,15 +512,19 @@ public:
       (Memory == memory_region::local)
           ? target::local
           : target::device;
-  static constexpr sycl::access_mode mode = sycl::access_mode::read_write;
+  static constexpr sycl::access_mode mode =
+      (Memory == memory_region::constant)
+          ? sycl::access_mode::read
+          : sycl::access_mode::read_write;
   static constexpr size_t type_size = sizeof(T);
-  using element_t = T;
-  using value_t = typename std::remove_cv<T>::type;
+  using element_t =
+      typename std::conditional_t<Memory == constant, const T, T>;
+  using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
-  using accessor_t = typename std::conditional<
+  using accessor_t = typename std::conditional_t<
       target == target::local,
       sycl::local_accessor<T, Dimension>,
-      sycl::accessor<T, Dimension, mode>>::type;
+      sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
 };
 
@@ -593,6 +598,8 @@ public:
 
 template <class T, size_t Dimension>
 using global_memory = device_memory<T, memory_region::global, Dimension>;
+template <class T, size_t Dimension>
+using constant_memory = detail::device_memory<T, constant, Dimension>;
 template <class T, size_t Dimension>
 using shared_memory = device_memory<T, memory_region::usm_shared, Dimension>;
 
