@@ -17,7 +17,20 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
+// Get the value of the specialization constant with given symbolic ID.
+// `SymbolicID` is a unique string ID of a specialization constant.
+// `DefaultValue` contains a pointer to a global variable with the initializer,
+// which should be used as the default value of the specialization constants.
+// `RTBuffer` is a pointer to a runtime buffer, which holds values of all
+// specialization constant and should be used if native specialization constants
+// are not available.
+template <typename T>
+__DPCPP_SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
+
+template <typename T>
+__DPCPP_SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
 #endif
 
 namespace sycl {

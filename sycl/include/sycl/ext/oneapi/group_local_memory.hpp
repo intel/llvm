@@ -17,7 +17,9 @@
 #include <sycl/ext/intel/usm_pointers.hpp> // for multi_ptr
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <sycl/detail/sycl_fe_intrins.hpp>
+// Request a fixed-size allocation in local address space at kernel scope.
+extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
+__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
 #endif
 
 namespace sycl {

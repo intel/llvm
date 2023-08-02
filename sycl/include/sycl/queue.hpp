@@ -37,7 +37,6 @@
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_mem_advice
-#include <sycl/detail/service_kernel_names.hpp>
 #include <sycl/device.hpp>                                // for device
 #include <sycl/event.hpp>                                 // for event
 #include <sycl/exception.hpp>                             // for make_error_code
@@ -3003,6 +3002,11 @@ inline namespace _V1 {
 
 namespace detail {
 #define __SYCL_ASSERT_START 1
+
+namespace __sycl_service_kernel__ {
+class AssertInfoCopier;
+} // namespace __sycl_service_kernel__
+
 /**
  * Submit copy task for assert failure flag and host-task to check the flag
  * \param Event kernel's event to depend on i.e. the event represents the
