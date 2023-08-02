@@ -404,8 +404,14 @@ void PointerReplacer::replace(Instruction *I) {
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewT = PointerType::get(BC->getType()->getContext(),
                                   V->getType()->getPointerAddressSpace());
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    auto *NewT = PointerType::getWithSamePointeeType(
+        cast<PointerType>(BC->getType()),
+        V->getType()->getPointerAddressSpace());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewI = new BitCastInst(V, NewT);
     IC.InsertNewInstWith(NewI, *BC);
     NewI->takeName(BC);

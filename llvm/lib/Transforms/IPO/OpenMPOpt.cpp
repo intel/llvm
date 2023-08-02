@@ -4407,7 +4407,14 @@ struct AAKernelInfoFunction : AAKernelInfo {
     if (WorkFnAI->getType()->getPointerAddressSpace() !=
         (unsigned int)AddressSpace::Generic) {
       WorkFnAI = new AddrSpaceCastInst(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           WorkFnAI, PointerType::get(Ctx, (unsigned int)AddressSpace::Generic),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+          WorkFnAI,
+          PointerType::getWithSamePointeeType(
+              cast<PointerType>(WorkFnAI->getType()),
+              (unsigned int)AddressSpace::Generic),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
           WorkFnAI->getName() + ".generic", StateMachineBeginBB);
       WorkFnAI->setDebugLoc(DLoc);
     }

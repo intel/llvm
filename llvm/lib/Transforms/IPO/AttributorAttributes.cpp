@@ -12009,8 +12009,14 @@ struct AAAddressSpaceImpl : public AAAddressSpace {
             getAssociatedType()->getPointerAddressSpace())
       return ChangeStatus::UNCHANGED;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *NewPtrTy = PointerType::get(getAssociatedType()->getContext(),
                                       static_cast<uint32_t>(getAddressSpace()));
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    Type *NewPtrTy = PointerType::getWithSamePointeeType(
+        cast<PointerType>(getAssociatedType()),
+        static_cast<uint32_t>(getAddressSpace()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     bool UseOriginalValue =
         OriginalValue->getType()->getPointerAddressSpace() ==
         static_cast<uint32_t>(getAddressSpace());

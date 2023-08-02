@@ -1386,7 +1386,13 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
     CallInst *Call = dyn_cast<CallInst>(V);
     if (!Call) {
       if (ICmpInst *CI = dyn_cast<ICmpInst>(V)) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         PointerType *NewTy = PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+        Value *Src0 = CI->getOperand(0);
+        PointerType *NewTy = PointerType::getWithSamePointeeType(
+            cast<PointerType>(Src0->getType()), AMDGPUAS::LOCAL_ADDRESS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
         if (isa<ConstantPointerNull>(CI->getOperand(0)))
           CI->setOperand(0, ConstantPointerNull::get(NewTy));
@@ -1402,7 +1408,12 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
       if (isa<AddrSpaceCastInst>(V))
         continue;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PointerType *NewTy = PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      PointerType *NewTy = PointerType::getWithSamePointeeType(
+          cast<PointerType>(V->getType()), AMDGPUAS::LOCAL_ADDRESS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
       // FIXME: It doesn't really make sense to try to do this for all
       // instructions.
@@ -1462,7 +1473,12 @@ bool AMDGPUPromoteAllocaImpl::tryPromoteAllocaToLDS(AllocaInst &I,
       Function *ObjectSize = Intrinsic::getDeclaration(
           Mod, Intrinsic::objectsize,
           {Intr->getType(),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
            PointerType::get(Context, AMDGPUAS::LOCAL_ADDRESS)});
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+           PointerType::getWithSamePointeeType(
+               cast<PointerType>(Src->getType()), AMDGPUAS::LOCAL_ADDRESS)});
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
       CallInst *NewCall = Builder.CreateCall(
           ObjectSize,
