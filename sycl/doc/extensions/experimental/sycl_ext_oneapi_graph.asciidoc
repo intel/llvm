@@ -1393,64 +1393,16 @@ submitted in its entirety for execution via
 
 == Future Direction [[future-direction]]
 
-=== Memory Allocation Nodes
+This section contains both features of the specification which have been
+fully developed, but are not yet implemented, as well as features which are
+still in development.
 
-There is no provided interface for users to define a USM allocation/free
-operation belonging to the scope of the graph. It would be error prone and
-non-performant to allocate or free memory as a node executed during graph
-submission. Instead, such a memory allocation API needs to provide a way to
-return a pointer which won't be valid until the allocation is made on graph
-finalization, as allocating at finalization is the only way to benefit from
-the known graph scope for optimal memory allocation, and even optimize to
-eliminate some allocations entirely.
+Fully developed features will be moved to the main specification once they
+have been implemented.
 
-Such a deferred allocation strategy presents challenges however, and as a result
-we recommend instead that prior to graph construction users perform core SYCL
-USM allocations to be used in the graph submission. Before to coming to this
-recommendation we considered the following explicit graph building interfaces
-for adding a memory allocation owned by the graph:
+=== Features Awaiting Implementation
 
-1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
-   which will be instantiated on graph finalization with the location of the
-   allocated USM memory.
-
-2. Allocation function returning a handle to the allocation. Applications use
-   the handle in node command-group functions to access memory when allocated.
-
-3. Allocation function returning a pointer to a virtual allocation, only backed
-   with an actual allocation when graph is finalized or submitted.
-
-Design 1) has the drawback of forcing users to keep the user pointer variable
-alive so that the reference is valid, which is unintuitive and is likely to
-result in bugs.
-
-Design 2) introduces a handle object which has the advantages of being a less
-error prone way to provide the pointer to the deferred allocation. However, it
-requires kernel changes and introduces an overhead above the raw pointers that
-are the advantage of USM.
-
-Design 3) needs specific backend support for deferred allocation.
-
-=== Device Specific Graph
-
-A modifiable state `command_graph` contains nodes targeting specific devices,
-rather than being a device agnostic representation only tied to devices on
-finalization. This allows the implementation to process nodes which require
-device information when the command group function is evaluated. For example,
-a SYCL reduction implementation may desire the work-group/sub-group size, which
-is normally gathered by the runtime from the device associated with the queue.
-
-This design also enables the future capability for a user to compose a graph
-with nodes targeting different devices, allowing the benefits of defining an
-execution graph ahead of submission to be extended to multi-device platforms.
-Without this capability a user currently has to submit individual single-device
-graphs and use events for dependencies, which is a usage model this extension is
-aiming to optimize. Automatic load balancing of commands across devices is not a
-problem this extension currently aims to solve, it is the responsibility of the
-user to decide the device each command will be processed for, not the SYCL
-runtime.
-
-=== Storage Lifetimes [[storage-lifetimes]]
+==== Storage Lifetimes [[storage-lifetimes]]
 
 The lifetime of any buffer recorded as part of a submission
 to a command graph will be extended in keeping with the common reference
@@ -1512,7 +1464,7 @@ associated with a buffer that was created using a host data pointer will
 outlive any executable graphs created from a modifiable graph which uses
 that buffer.
 
-=== Host Tasks [[future-host-tasks]]
+==== Host Tasks [[future-host-tasks]]
 
 A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
 dependency rules. It is valid to record a host task as part of graph, though it
@@ -1532,8 +1484,6 @@ auto node = graph.add([&](sycl::handler& cgh){
   });
 });
 ----
-
-=== Graph Update
 
 ==== Executable Graph Update
 
@@ -1611,6 +1561,65 @@ Exceptions:
   updated.
 
 |===
+
+=== Features Still in Development
+
+==== Memory Allocation Nodes
+
+There is no provided interface for users to define a USM allocation/free
+operation belonging to the scope of the graph. It would be error prone and
+non-performant to allocate or free memory as a node executed during graph
+submission. Instead, such a memory allocation API needs to provide a way to
+return a pointer which won't be valid until the allocation is made on graph
+finalization, as allocating at finalization is the only way to benefit from
+the known graph scope for optimal memory allocation, and even optimize to
+eliminate some allocations entirely.
+
+Such a deferred allocation strategy presents challenges however, and as a result
+we recommend instead that prior to graph construction users perform core SYCL
+USM allocations to be used in the graph submission. Before to coming to this
+recommendation we considered the following explicit graph building interfaces
+for adding a memory allocation owned by the graph:
+
+1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
+   which will be instantiated on graph finalization with the location of the
+   allocated USM memory.
+
+2. Allocation function returning a handle to the allocation. Applications use
+   the handle in node command-group functions to access memory when allocated.
+
+3. Allocation function returning a pointer to a virtual allocation, only backed
+   with an actual allocation when graph is finalized or submitted.
+
+Design 1) has the drawback of forcing users to keep the user pointer variable
+alive so that the reference is valid, which is unintuitive and is likely to
+result in bugs.
+
+Design 2) introduces a handle object which has the advantages of being a less
+error prone way to provide the pointer to the deferred allocation. However, it
+requires kernel changes and introduces an overhead above the raw pointers that
+are the advantage of USM.
+
+Design 3) needs specific backend support for deferred allocation.
+
+==== Device Specific Graph
+
+A modifiable state `command_graph` contains nodes targeting specific devices,
+rather than being a device agnostic representation only tied to devices on
+finalization. This allows the implementation to process nodes which require
+device information when the command group function is evaluated. For example,
+a SYCL reduction implementation may desire the work-group/sub-group size, which
+is normally gathered by the runtime from the device associated with the queue.
+
+This design also enables the future capability for a user to compose a graph
+with nodes targeting different devices, allowing the benefits of defining an
+execution graph ahead of submission to be extended to multi-device platforms.
+Without this capability a user currently has to submit individual single-device
+graphs and use events for dependencies, which is a usage model this extension is
+aiming to optimize. Automatic load balancing of commands across devices is not a
+problem this extension currently aims to solve, it is the responsibility of the
+user to decide the device each command will be processed for, not the SYCL
+runtime.
 
 == Issues
 
