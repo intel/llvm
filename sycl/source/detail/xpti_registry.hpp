@@ -222,8 +222,8 @@ public:
   /// @brief Method that emits begin/end trace notifications
   /// @return Current class
   XPTIScope &scopedNotify(uint16_t TraceType) {
-    // Keep this data even if no subscribers for this TraceType (begin). Someone
-    // could still use (end) emitted from destructor.
+    // Keep this data even if no subscribers are for this TraceType (begin).
+    // Someone could still use (end) emitted from destructor.
     MTraceType = TraceType & 0xfffe;
     MScopedNotify = true;
     if (xptiCheckTraceEnabled(MStreamID, TraceType) && MTP) {
