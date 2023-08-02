@@ -458,6 +458,9 @@ __SYCL_EXPORT rel_res_t sycl_host_SignBitSet(s::cl_float x) __NOEXC {
 __SYCL_EXPORT rel_res_t sycl_host_SignBitSet(s::cl_double x) __NOEXC {
   return std::signbit(x);
 }
+__SYCL_EXPORT s::cl_long __vSignBitSet(s::cl_double x) __NOEXC {
+  return -static_cast<s::cl_long>(std::signbit(x));
+}
 __SYCL_EXPORT s::cl_int __vSignBitSet(s::cl_float x) __NOEXC {
 #ifdef __GNUC__
   // GCC 11.3 and later is stumbling with an internal compiler error
@@ -468,9 +471,6 @@ __SYCL_EXPORT s::cl_int __vSignBitSet(s::cl_float x) __NOEXC {
 #else
   return -static_cast<s::cl_int>(std::signbit(x));
 #endif
-}
-__SYCL_EXPORT s::cl_long __vSignBitSet(s::cl_double x) __NOEXC {
-  return -static_cast<s::cl_long>(std::signbit(x));
 }
 __SYCL_EXPORT rel_res_t sycl_host_SignBitSet(s::cl_half x) __NOEXC {
   return std::signbit(d::cast_if_host_half(x));
