@@ -2917,6 +2917,10 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
         break;
+
+    case UR_DEVICE_INFO_ESIMD_SUPPORT_EXP:
+        os << "UR_DEVICE_INFO_ESIMD_SUPPORT_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -4703,6 +4707,20 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
     } break;
 
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+
+    case UR_DEVICE_INFO_ESIMD_SUPPORT_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size

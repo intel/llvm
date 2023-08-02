@@ -1,0 +1,23 @@
+#
+# Copyright (C) 2023 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental APIs for ESIMD"
+ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support ESIMD."
+name: $x_device_info_t
+etors:
+    - name: ESIMD_SUPPORT_EXP
+      value: "0x2010"
+      desc: "[$x_bool_t] returns true if the device supports ESIMD"

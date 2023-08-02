@@ -864,6 +864,7 @@ class ur_device_info_v(IntEnum):
                                                     ## semaphore resources
     INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP = 0x200F   ## [::ur_bool_t] returns true if the device supports exporting internal
                                                     ## event resources
+    ESIMD_SUPPORT_EXP = 0x2010                      ## [::ur_bool_t] returns true if the device supports ESIMD
 
 class ur_device_info_t(c_int):
     def __str__(self):
