@@ -590,7 +590,7 @@ func.func @set_captured_non_sycl_type_attribute(%lambda: !llvm.ptr, %value: !llv
 
 func.func @f(%handler: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op '@kernels::@k0' does not reference a valid kernel}}
-  sycl.host.schedule_kernel @kernels::@k0 : () -> ()
+  sycl.host.schedule_kernel %handler -> @kernels::@k0 : (!llvm.ptr) -> ()
   func.return
 }
 
@@ -602,9 +602,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @schedule_kernel_nd_range_unexpected_attr() {
+func.func @schedule_kernel_nd_range_unexpected_attr(%handler: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op expects nd_range to be unset when a range is not present}}
-  sycl.host.schedule_kernel @ekernels::@k0 {nd_range} : () -> ()
+  sycl.host.schedule_kernel %handler -> @ekernels::@k0 {nd_range} : (!llvm.ptr) -> ()
   func.return
 }
 
@@ -616,9 +616,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @schedule_kernel_nd_range_unexpected_offset(%nd_range: !llvm.ptr, %offset: !llvm.ptr) {
+func.func @schedule_kernel_nd_range_unexpected_offset(%handler: !llvm.ptr, %nd_range: !llvm.ptr, %offset: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op expects no offset argument if the nd_range attribute is set}}
-  sycl.host.schedule_kernel @ekernels::@k0[nd_range %nd_range, offset %offset] : (!llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.schedule_kernel %handler -> @ekernels::@k0[nd_range %nd_range, offset %offset] : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   func.return
 }
 
@@ -630,9 +630,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @schedule_kernel_inconsistent_type_attributes(%arg0: i32) {
+func.func @schedule_kernel_inconsistent_type_attributes(%handler: !llvm.ptr, %arg0: i32) {
   // expected-error @below {{'sycl.host.schedule_kernel' op has inconsistent SYCL type attributes}}
-  "sycl.host.schedule_kernel"(%arg0) {kernel_name = @kernels::@k0, operand_segment_sizes = array<i32: 0, 0, 1>, sycl_types = [none, none]} : (i32) -> ()
+  "sycl.host.schedule_kernel"(%handler, %arg0) {kernel_name = @kernels::@k0, operand_segment_sizes = array<i32: 1, 0, 0, 1>, sycl_types = [none, none]} : (!llvm.ptr, i32) -> ()
   func.return
 }
 
@@ -644,9 +644,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @schedule_kernel_scalar_type_attribute(%arg0: i32) {
+func.func @schedule_kernel_scalar_type_attribute(%handler: !llvm.ptr, %arg0: i32) {
   // expected-error @below {{'sycl.host.schedule_kernel' op does not expect a type attribute for a non-pointer value}}
-  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (i32) -> ()
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%arg0: i32) : (!llvm.ptr, i32) -> ()
   func.return
 }
 
@@ -658,9 +658,9 @@ gpu.module @kernels {
 
 // -----
 
-func.func @schedule_kernel_non_sycl_type_attribute(%arg0: !llvm.ptr) {
+func.func @schedule_kernel_non_sycl_type_attribute(%handler: !llvm.ptr, %arg0: !llvm.ptr) {
   // expected-error @below {{'sycl.host.schedule_kernel' op expects the type attribute to reference a SYCL type}}
-  sycl.host.schedule_kernel @kernels::@k0(%arg0: i32) : (!llvm.ptr) -> ()
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%arg0: i32) : (!llvm.ptr, !llvm.ptr) -> ()
   func.return
 }
 

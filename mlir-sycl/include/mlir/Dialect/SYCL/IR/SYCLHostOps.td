@@ -181,8 +181,8 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
   let summary = "Schedules a SYCL kernel launch.";
   let description = [{
     This operation represents the scheduling of a launch of the given kernel
-    function with the specified range and kernel arguments. Its purpose is to
-    collect the information surfaced by the host-raising process about a 
+    function with the specified handler, range and kernel arguments. Its purpose
+    is to collect the information surfaced by the host-raising process about a 
     particular launch, thereby providing an entry-point for host-device analyses
     and optimizations.
 
@@ -205,12 +205,14 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
 
     Example:
     ```
-    sycl.host.schedule_kernel @kernels::@k0[range %1]
-      (%2: !sycl_accessor_1_f32_rw_gb, %3) : (!llvm.ptr, !llvm.ptr, i32) -> ()
+    sycl.host.schedule_kernel %handler -> @kernels::@k0[range %1]
+      (%2: !sycl_accessor_1_f32_rw_gb, %3)
+      : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32) -> ()
     ```
   }];
 
   let arguments = (ins
+    LLVM_AnyPointer:$handler,
     SymbolRefAttr:$kernel_name,
     Optional<LLVM_AnyPointer>:$range,
     Optional<LLVM_AnyPointer>:$offset,
@@ -218,32 +220,36 @@ def SYCLHostScheduleKernel : SYCL_HostOp<"schedule_kernel",
     TypeArrayAttr:$sycl_types,
     UnitAttr:$nd_range);
   let builders = [
-    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+    OpBuilder<(ins "::mlir::Value":$handler,
+                   "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::ValueRange":$args), [{
-      build($_builder, $_state, kernel_name, /*range=*/Value(),
+      build($_builder, $_state, handler, kernel_name, /*range=*/Value(),
             /*offset=*/Value(), args);
     }]>,
-    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+    OpBuilder<(ins "::mlir::Value":$handler,
+                   "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::ValueRange":$args,
                    "bool":$nd_range), [{
       ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
       auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
       auto ndRangeAttr = nd_range ? $_builder.getUnitAttr() : UnitAttr();
-      build($_builder, $_state, kernel_name, range,
+      build($_builder, $_state, handler, kernel_name, range,
             /*offset=*/Value(), args, syclTypes, ndRangeAttr);
     }]>,
-    OpBuilder<(ins "::mlir::SymbolRefAttr":$kernel_name,
+    OpBuilder<(ins "::mlir::Value":$handler,
+                    "::mlir::SymbolRefAttr":$kernel_name,
                    "::mlir::Value":$range,
                    "::mlir::Value":$offset,
                    "::mlir::ValueRange":$args), [{
       ::llvm::SmallVector<::mlir::Type> noneTypes(args.size(), $_builder.getNoneType());
       auto syclTypes = $_builder.getTypeArrayAttr(noneTypes);
-      build($_builder, $_state, kernel_name, range, offset, args, syclTypes);
+      build($_builder, $_state, handler, kernel_name, range, offset, args, syclTypes);
     }]>
   ];
   let assemblyFormat = [{
-    $kernel_name (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? ``
+    $handler `->` $kernel_name
+    (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? ``
     custom<ArgsWithSYCLTypes>($args, $sycl_types)
     attr-dict `:` functional-type(operands, results)
   }];

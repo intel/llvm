@@ -695,6 +695,10 @@ void SYCLHostScheduleKernel::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
   auto *defaultResource = SideEffects::DefaultResource::get();
+  // Unconditionally add a write effect on the handler to prevent the op from
+  // being trivially dead when all other operands are read-only.
+  effects.emplace_back(MemoryEffects::Write::get(), getHandler(),
+                       defaultResource);
   // The nd-range arguments will be read from
   if (Value range = getRange())
     effects.emplace_back(MemoryEffects::Read::get(), range, defaultResource);
