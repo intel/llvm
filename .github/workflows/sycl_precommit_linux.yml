@@ -15,6 +15,8 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
+    # Changes in CI won't have any effect with pull_request_target
+    - '.github/workflows'
     # For CI-related files we explicitly skip all the jobs below even if there
     # were other (non-ignored) files modified in this PR.
     - 'devops/*/**'

@@ -17,12 +17,20 @@ inline namespace _V1 {
 namespace detail {
 
 // 4.10.2.6 Memory layout and alignment
-template <typename T, int N>
+// due to MSVC the maximum alignment for sycl::vec is 64 and this proposed
+// change is being brought to the spec committee.
+constexpr size_t MaxVecAlignment = 64;
+template <typename T, size_t N>
 struct vector_alignment_impl
-    : std::conditional_t<N == 3, std::integral_constant<int, sizeof(T) * 4>,
-                         std::integral_constant<int, sizeof(T) * N>> {};
+    : std::conditional_t<
+          N == 3,
+          std::integral_constant<size_t,
+                                 (std::min)(sizeof(T) * 4, MaxVecAlignment)>,
+          std::integral_constant<size_t,
+                                 (std::min)(sizeof(T) * N, MaxVecAlignment)>> {
+};
 
-template <typename T, int N>
+template <typename T, size_t N>
 struct vector_alignment
     : vector_alignment_impl<std::remove_cv_t<std::remove_reference_t<T>>, N> {};
 } // namespace detail

@@ -218,6 +218,16 @@ else:
     config.substitutions.append( ('%fPIC', ('' if platform.system() == 'Windows' else '-fPIC')) )
     config.substitutions.append( ('%shared_lib', '-shared') )
 
+
+config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
+config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
+
+vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+
+if config.vulkan_found == "TRUE":
+    config.available_features.add('vulkan')
+
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
