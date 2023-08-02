@@ -1,5 +1,9 @@
 # ESIMD kernel execution emulation on host.
 
+## Deprecation note
+
+ESIMD Emulator feature is deprecated and will be removed in the future.
+
 ## Introduction
 
 ESIMD implementation provides a feature to execute ESIMD kernels on the host

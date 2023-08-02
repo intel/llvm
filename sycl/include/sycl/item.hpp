@@ -18,7 +18,7 @@
 #include <cstddef>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Builder;
 template <typename TransformedArgType, int Dims, typename KernelType>
@@ -167,5 +167,5 @@ template <int Dims> item<Dims> this_item() {
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

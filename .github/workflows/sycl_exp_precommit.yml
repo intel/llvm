@@ -1,0 +1,20 @@
+name: SYCL Experimental Pre-Commit
+
+on:
+  pull_request:
+    branches:
+    - sycl
+    paths:
+    - '.github/workflows/**'
+
+jobs:
+  build:
+    runs-on: [cuda]
+    steps:
+      - run: echo "Build successful"
+
+  e2e:
+    needs: [build]
+    runs-on: aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - run: echo "E2E on AWS CUDA successful"

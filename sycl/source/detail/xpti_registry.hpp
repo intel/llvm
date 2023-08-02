@@ -22,7 +22,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // We define a sycl stream name and this will be used by the instrumentation
 // framework
@@ -271,5 +271,5 @@ private:
 #endif
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

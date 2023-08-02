@@ -1,8 +1,7 @@
-// -*- C++ -*-
-//===----------------------------------------------------------------------===//
+//===- sycl_complex.hpp ---------------------------------------------------===//
 //
-// Adapted from the LLVM Project, under the Apache License v2.0 with LLVM
-// Exceptions. See https://llvm.org/LICENSE.txt for license information.
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
@@ -20,7 +19,7 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -979,32 +978,11 @@ tan(const complex<_Tp> &__x) {
   return complex<_Tp>(__z.imag(), -__z.real());
 }
 
-// Literal suffix for complex number literals [complex.literals]
-inline namespace literals {
-inline namespace complex_literals {
-constexpr complex<double> operator""i(long double __im) {
-  return {0.0, static_cast<double>(__im)};
-}
-
-constexpr complex<double> operator""i(unsigned long long __im) {
-  return {0.0, static_cast<double>(__im)};
-}
-
-constexpr complex<float> operator""if(long double __im) {
-  return {0.0f, static_cast<float>(__im)};
-}
-
-constexpr complex<float> operator""if(unsigned long long __im) {
-  return {0.0f, static_cast<float>(__im)};
-}
-} // namespace complex_literals
-} // namespace literals
-
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef _SYCL_EXT_CPLX_INLINE_VISIBILITY

@@ -13,7 +13,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 
 template <typename T, typename PropertyListT> class fpga_kernel_attribute;
@@ -24,8 +24,8 @@ enum class streaming_interface_options_enum : std::uint16_t {
 };
 
 enum class register_map_interface_options_enum : std::uint16_t {
+  do_not_wait_for_done_write,
   wait_for_done_write,
-  do_not_wait_for_done_write
 };
 
 struct streaming_interface_key {
@@ -49,7 +49,8 @@ struct pipelined_key {
       std::integral_constant<int, pipeline_directive_or_initiation_interval>>;
 };
 
-template <streaming_interface_options_enum option>
+template <streaming_interface_options_enum option =
+              streaming_interface_options_enum::accept_downstream_stall>
 inline constexpr streaming_interface_key::value_t<option> streaming_interface;
 
 inline constexpr streaming_interface_key::value_t<
@@ -60,7 +61,8 @@ inline constexpr streaming_interface_key::value_t<
     streaming_interface_options_enum::remove_downstream_stall>
     streaming_interface_remove_downstream_stall;
 
-template <register_map_interface_options_enum option>
+template <register_map_interface_options_enum option =
+              register_map_interface_options_enum::do_not_wait_for_done_write>
 inline constexpr register_map_interface_key::value_t<option>
     register_map_interface;
 
@@ -128,12 +130,12 @@ template <>
 struct IsCompileTimeProperty<intel::experimental::pipelined_key>
     : std::true_type {};
 
-template <intel::experimental::streaming_interface_options_enum Stall>
+template <intel::experimental::streaming_interface_options_enum Stall_Free>
 struct PropertyMetaInfo<
-    intel::experimental::streaming_interface_key::value_t<Stall>> {
+    intel::experimental::streaming_interface_key::value_t<Stall_Free>> {
   static constexpr const char *name = "sycl-streaming-interface";
   static constexpr intel::experimental::streaming_interface_options_enum value =
-      Stall;
+      Stall_Free;
 };
 template <intel::experimental::register_map_interface_options_enum Wait>
 struct PropertyMetaInfo<
@@ -150,5 +152,5 @@ struct PropertyMetaInfo<intel::experimental::pipelined_key::value_t<Value>> {
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

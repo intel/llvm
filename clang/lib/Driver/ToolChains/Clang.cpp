@@ -5374,6 +5374,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
       CmdArgs.push_back("-fsycl-esimd-force-stateless-mem");
+
+    const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
+    for (const auto &Arg : DeviceTraitsMacrosArgs) {
+      CmdArgs.push_back(Arg);
+    }
   }
 
   if (IsOpenMPDevice) {
@@ -10101,6 +10106,14 @@ void SpirvToIrWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           {"-llvm-spirv-opts",
            "--spirv-preserve-auxdata --spirv-target-env=SPV-IR "
            "--spirv-builtin-format=global"});
+
+  const toolchains::SYCLToolChain &TC =
+      static_cast<const toolchains::SYCLToolChain &>(getToolChain());
+
+  // Handle -Xspirv-to-ir-wrapper
+  TC.TranslateTargetOpt(TCArgs, CmdArgs, options::OPT_Xspirv_to_ir_wrapper,
+                        options::OPT_Xspirv_to_ir_wrapper_EQ,
+                        JA.getOffloadingArch());
 
   auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),

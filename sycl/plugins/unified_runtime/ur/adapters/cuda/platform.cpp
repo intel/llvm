@@ -15,9 +15,6 @@
 #include <cuda.h>
 #include <sstream>
 
-void enableCUDATracing();
-void disableCUDATracing();
-
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
     ur_platform_handle_t hPlatform, ur_platform_info_t PlatformInfoType,
     size_t Size, void *pPlatformInfo, size_t *pSizeRet) {
@@ -57,8 +54,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
-              uint32_t *pNumPlatforms) {
+urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   try {
     static std::once_flag InitFlag;
@@ -171,14 +168,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
-  enableCUDATracing();
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  std::ignore = hPlatform;
+  std::ignore = phNativePlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
-  disableCUDATracing();
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+    ur_native_handle_t hNativePlatform,
+    const ur_platform_native_properties_t *pProperties,
+    ur_platform_handle_t *phPlatform) {
+  std::ignore = hNativePlatform;
+  std::ignore = pProperties;
+  std::ignore = phPlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Get CUDA plugin specific backend option.
