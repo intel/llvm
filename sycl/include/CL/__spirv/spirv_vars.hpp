@@ -10,6 +10,11 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+
+#include <cstddef> // for size_t
+#include <cstdint> // for uint8_t
+
 #define __SPIRV_VAR_QUALIFIERS extern "C" const
 
 #if defined(__NVPTX__) || defined(__AMDGCN__)

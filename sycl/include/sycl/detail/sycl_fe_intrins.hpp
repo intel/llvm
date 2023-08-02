@@ -12,6 +12,11 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+
+#include <cstddef> // for size_t
+#include <cstdint> // for uint8_t
+
 // Get the value of the specialization constant with given symbolic ID.
 // `SymbolicID` is a unique string ID of a specialization constant.
 // `DefaultValue` contains a pointer to a global variable with the initializer,
