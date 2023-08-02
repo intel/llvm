@@ -222,24 +222,25 @@ public:
   /// @brief Method that emits begin/end trace notifications
   /// @return Current class
   XPTIScope &scopedNotify(uint16_t TraceType) {
-    if (xptiTraceEnabled() && MTP) {
-      MTraceType = TraceType & 0xfffe;
-      MScopedNotify = true;
+    // Keep this data even if no subscribers for this TraceType (begin). Someone
+    // could still use (end) emitted from destructor.
+    MTraceType = TraceType & 0xfffe;
+    MScopedNotify = true;
+    if (xptiCheckTraceEnabled(MStreamID, TraceType) && MTP) {
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
                             MInstanceID, static_cast<const void *>(MUserData));
     }
     return *this;
   }
   ~XPTIScope() {
-    if (xptiTraceEnabled() && MTP && MScopedNotify) {
+    MTraceType = MTraceType | 1;
+    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MTP && MScopedNotify) {
       if (MTraceType == (uint16_t)xpti::trace_point_type_t::signal ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::edge_create ||
           MTraceType == (uint16_t)xpti::trace_point_type_t::diagnostics)
         return;
-
-      MTraceType = MTraceType | 1;
 
       // Only notify for a trace type that has a begin/end
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
