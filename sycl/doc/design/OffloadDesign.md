@@ -190,7 +190,7 @@ the driver.  The driver is also responsible for letting the
 |            Option                    |   Expected Behavior   |
 |--------------------------------------|-----------------------|
 | `--sycl-device-libraries=<arg>`      | A comma separated list of device libraries that are linked during the device link. |
-| `--device-library-location=<arg>`    | The location in which the device libraries reside |
+| `--sycl-device-library-location=<arg>`    | The location in which the device libraries reside |
 
 *Table: Options to pass device libraries to the clang-linker-wrapper*
 
