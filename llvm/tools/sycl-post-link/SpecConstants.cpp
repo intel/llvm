@@ -610,31 +610,31 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
                                        DefaultValue);
 }
 
-} // namespace
-
 /// Function creates load instruction from the given Buffer by the given Offset.
 /// Function returns the value of load instruction.
-static Value *createLoadFromBuffer(CallInst *CI, Value *Buffer, size_t Offset,
-                                   Type *SCType) {
-  LLVMContext &C = CI->getContext();
+Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
+                            size_t Offset, Type *SCType) {
+  LLVMContext &C = InsertBefore->getContext();
   Type *Int8Ty = Type::getInt8Ty(C);
   Type *Int32Ty = Type::getInt32Ty(C);
   GetElementPtrInst *GEP = GetElementPtrInst::Create(
-      Int8Ty, Buffer, {ConstantInt::get(Int32Ty, Offset, false)}, "gep", CI);
+      Int8Ty, Buffer, {ConstantInt::get(Int32Ty, Offset, false)}, "gep",
+      InsertBefore);
 
   Instruction *BitCast = nullptr;
   if (SCType->isIntegerTy(1)) // No bitcast to i1 before load
     BitCast = GEP;
   else
-    BitCast = new BitCastInst(
-        GEP, PointerType::get(SCType, GEP->getAddressSpace()), "bc", CI);
+    BitCast =
+        new BitCastInst(GEP, PointerType::get(SCType, GEP->getAddressSpace()),
+                        "bc", InsertBefore);
 
   // When we encounter i1 spec constant, we still load the whole byte
   Value *Load = new LoadInst(SCType->isIntegerTy(1) ? Int8Ty : SCType, BitCast,
-                             "load", CI);
+                             "load", InsertBefore);
   if (SCType->isIntegerTy(1)) // trunc back to i1 if necessary
     Load = CastInst::CreateIntegerCast(Load, SCType, /* IsSigned */ false,
-                                       "tobool", CI);
+                                       "tobool", InsertBefore);
 
   return Load;
 }
@@ -654,9 +654,7 @@ static Value *createLoadFromBuffer(CallInst *CI, Value *Buffer, size_t Offset,
 ///   %A = type { i32 }
 ///   @value = constant %"spec_id" { %A { i32 1 } }, align 4
 ///   call spir_func void @getCompositeSpecConst(%1, %2, @value, %3)
-static Constant *tryGetSpecConstInitializerFromCI(CallInst *CI,
-                                                  unsigned ArgIndex) {
-  assert(CI->getNumOperands() > ArgIndex && "ArgIndex is out of boundary");
+Constant *tryGetSpecConstInitializerFromCI(CallInst *CI, unsigned ArgIndex) {
   auto *GV = dyn_cast<GlobalVariable>(
       CI->getArgOperand(ArgIndex)->stripPointerCasts());
   if (!GV)
@@ -674,10 +672,9 @@ static Constant *tryGetSpecConstInitializerFromCI(CallInst *CI,
 
 /// Function replaces last Metadata node in the given vector with new
 /// node which contains given Padding.
-static void
-updatePaddingInLastMDNode(LLVMContext &Ctx,
-                          MapVector<StringRef, MDNode *> &SCMetadata,
-                          unsigned Padding) {
+void updatePaddingInLastMDNode(LLVMContext &Ctx,
+                               MapVector<StringRef, MDNode *> &SCMetadata,
+                               unsigned Padding) {
   // The spec constant map can't be empty as the first offset is 0
   // and so it can't be misaligned.
   assert(!SCMetadata.empty() && "Cannot add padding to first spec constant");
@@ -723,6 +720,8 @@ updatePaddingInLastMDNode(LLVMContext &Ctx,
   // Replace the last metadata node with the node including the padding.
   SCMetadata[Last.first] = MDNode::get(Ctx, MDOps);
 }
+
+} // namespace
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
