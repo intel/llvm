@@ -31,9 +31,9 @@ gpu.module @kernels {
   }
 }
 
-llvm.func internal @foo(%res: !llvm.ptr) {
+llvm.func internal @foo(%handler: !llvm.ptr, %res: !llvm.ptr) {
   %c = llvm.mlir.constant(0 : i64) : i64
-  sycl.host.schedule_kernel @kernels::@k0(%res, %c) : (!llvm.ptr, i64) -> ()
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%res, %c) : (!llvm.ptr, !llvm.ptr, i64) -> ()
   llvm.return
 }
 
@@ -900,6 +900,7 @@ gpu.module @kernels {
 // COM: Check we can detect the offset is constant (all-zeroes)
 
 llvm.func internal @foo_default_offset(
+    %handler: !llvm.ptr,
     %range.0: i64,
     %res.offset: !llvm.ptr, %res.gs: !llvm.ptr,
     %res.ls: !llvm.ptr, %res.nws: !llvm.ptr) {
@@ -908,15 +909,16 @@ llvm.func internal @foo_default_offset(
       : (i32) -> !llvm.ptr
   sycl.host.constructor(%range, %range.0) {type=!sycl_range_1_}
       : (!llvm.ptr, i64) -> ()
-  sycl.host.schedule_kernel @kernels::@k0[range %range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k0[range %range](
       %res.offset, %res.gs, %res.ls, %res.nws)
-      : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+      : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
 
 // COM: Check we can detect the range is constant
 
 llvm.func internal @foo_constant_range(
+    %handler: !llvm.ptr,
     %offset.0: i64,
     %res.offset: !llvm.ptr, %res.gs: !llvm.ptr,
     %res.ls: !llvm.ptr, %res.nws: !llvm.ptr) {
@@ -930,15 +932,16 @@ llvm.func internal @foo_constant_range(
       : (!llvm.ptr, i64) -> ()
   sycl.host.constructor(%offset, %offset.0) {type=!sycl_id_1_}
       : (!llvm.ptr, i64) -> ()
-  sycl.host.schedule_kernel @kernels::@k1[range %range, offset %offset](
+  sycl.host.schedule_kernel %handler -> @kernels::@k1[range %range, offset %offset](
       %res.offset, %res.gs, %res.ls, %res.nws)
-      : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+      : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
 
 // COM: Check we can detect both range and offset are constant
 
 llvm.func internal @foo_constant_range_offset(
+    %handler: !llvm.ptr,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,
     %res.ls.0: !llvm.ptr, %res.ls.1: !llvm.ptr,
@@ -956,17 +959,18 @@ llvm.func internal @foo_constant_range_offset(
       : (!llvm.ptr, i64, i64) -> ()
   sycl.host.constructor(%offset, %c1_i64, %c2) {type=!sycl_id_2_}
       : (!llvm.ptr, i64, i64) -> ()
-  sycl.host.schedule_kernel @kernels::@k2[range %range, offset %offset](
+  sycl.host.schedule_kernel %handler -> @kernels::@k2[range %range, offset %offset](
       %res.offset.0, %res.offset.1, %res.gs.0, %res.gs.1,
       %res.ls.0, %res.ls.1, %res.nws.0, %res.nws.1)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
 
 // COM: Check we can detect default offset (nd-range)
 
 llvm.func internal @foo_default_offset_ndr(
+    %handler: !llvm.ptr,
     %i: i64,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr, %res.offset.2: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,  %res.gs.2: !llvm.ptr,
@@ -990,12 +994,12 @@ llvm.func internal @foo_default_offset_ndr(
   sycl.host.constructor(%nd_range, %global_size, %local_size)
       {type=!sycl_nd_range_3_}
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.schedule_kernel @kernels::@k3[nd_range %nd_range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k3[nd_range %nd_range](
       %res.offset.0, %res.offset.1, %res.offset.2, %res.gs.0,
       %res.gs.1, %res.gs.2, %res.ls.0, %res.ls.1,
       %res.ls.2, %res.nws.0, %res.nws.1, %res.nws.2)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
@@ -1003,6 +1007,7 @@ llvm.func internal @foo_default_offset_ndr(
 // COM: Check we can detect constant offset (nd-range)
 
 llvm.func internal @foo_constant_constant_offset_ndr(
+    %handler: !llvm.ptr,
     %i: i64,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr, %res.offset.2: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,  %res.gs.2: !llvm.ptr,
@@ -1030,12 +1035,12 @@ llvm.func internal @foo_constant_constant_offset_ndr(
   sycl.host.constructor(%nd_range, %global_size, %local_size, %offset)
       {type=!sycl_nd_range_3_}
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.schedule_kernel @kernels::@k4[nd_range %nd_range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k4[nd_range %nd_range](
       %res.offset.0, %res.offset.1, %res.offset.2, %res.gs.0,
       %res.gs.1, %res.gs.2, %res.ls.0, %res.ls.1,
       %res.ls.2, %res.nws.0, %res.nws.1, %res.nws.2)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr,
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
@@ -1044,6 +1049,7 @@ llvm.func internal @foo_constant_constant_offset_ndr(
 // COM: Check we can detect constant global size (nd-range)
 
 llvm.func internal @foo_constant_constant_global_size(
+    %handler: !llvm.ptr,
     %i: i64,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr, %res.offset.2: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,  %res.gs.2: !llvm.ptr,
@@ -1071,12 +1077,12 @@ llvm.func internal @foo_constant_constant_global_size(
   sycl.host.constructor(%nd_range, %global_size, %local_size, %offset)
       {type=!sycl_nd_range_3_}
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.schedule_kernel @kernels::@k5[nd_range %nd_range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k5[nd_range %nd_range](
       %res.offset.0, %res.offset.1, %res.offset.2, %res.gs.0,
       %res.gs.1, %res.gs.2, %res.ls.0, %res.ls.1,
       %res.ls.2, %res.nws.0, %res.nws.1, %res.nws.2)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr,
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
@@ -1085,6 +1091,7 @@ llvm.func internal @foo_constant_constant_global_size(
 // COM: Check we can detect constant local size (nd-range)
 
 llvm.func internal @foo_constant_constant_local_size(
+    %handler: !llvm.ptr,
     %i: i64,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr, %res.offset.2: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,  %res.gs.2: !llvm.ptr,
@@ -1112,12 +1119,12 @@ llvm.func internal @foo_constant_constant_local_size(
   sycl.host.constructor(%nd_range, %global_size, %local_size, %offset)
       {type=!sycl_nd_range_3_}
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.schedule_kernel @kernels::@k6[nd_range %nd_range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k6[nd_range %nd_range](
       %res.offset.0, %res.offset.1, %res.offset.2, %res.gs.0,
       %res.gs.1, %res.gs.2, %res.ls.0, %res.ls.1,
       %res.ls.2, %res.nws.0, %res.nws.1, %res.nws.2)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr,
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
@@ -1126,6 +1133,7 @@ llvm.func internal @foo_constant_constant_local_size(
 // COM: Check we can detect constant global and local size (nd-range)
 
 llvm.func internal @foo_constant_constant_global_local_size(
+    %handler: !llvm.ptr,
     %i: i64,
     %res.offset.0: !llvm.ptr, %res.offset.1: !llvm.ptr, %res.offset.2: !llvm.ptr,
     %res.gs.0: !llvm.ptr, %res.gs.1: !llvm.ptr,  %res.gs.2: !llvm.ptr,
@@ -1153,12 +1161,12 @@ llvm.func internal @foo_constant_constant_global_local_size(
   sycl.host.constructor(%nd_range, %global_size, %local_size, %offset)
       {type=!sycl_nd_range_3_}
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-  sycl.host.schedule_kernel @kernels::@k7[nd_range %nd_range](
+  sycl.host.schedule_kernel %handler -> @kernels::@k7[nd_range %nd_range](
       %res.offset.0, %res.offset.1, %res.offset.2, %res.gs.0,
       %res.gs.1, %res.gs.2, %res.ls.0, %res.ls.1,
       %res.ls.2, %res.nws.0, %res.nws.1, %res.nws.2)
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
-         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
+         !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr,
          !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
