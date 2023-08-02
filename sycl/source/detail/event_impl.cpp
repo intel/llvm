@@ -100,6 +100,12 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
+static uint64_t inline getTimestamp() {
+  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
+      .count();
+}
+
 const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
   return MEvent;
 }
@@ -281,16 +287,13 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
 
-  // 1. Capture a host timestamp (no backend involvement at all) in the SYCL
-  // runtime as part of queue::submit.  This determines the timebase for event
-  // profiling.   This is what gets returned for
-  // info::event_profiling::command_submit.
-  if (MFallbackProfiling) {
-    auto TimeStamp =
-        std::chrono::high_resolution_clock::now().time_since_epoch();
-    MSubmitTime =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp).count();
-  }
+  // 1) This code is in order to support profiling for OpenCL version < 2.1
+  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
+  // host and device submit time. The host timestamp in sycl runtime will be
+  // return for the info::event_profiling::command_submit
+  if (MFallbackProfiling)
+    MSubmitTime = getTimestamp();
+
   return MSubmitTime;
 }
 
@@ -310,10 +313,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
 
-  // 3. For the return value for info::event_profiling::command_start,
-  // use the backend event profiling START information,
-  // normalized by the backend event profiling QUEUED information
-  // and the timestamp captured in (2).
+  // 3. When API clGetDeviceAndHostTimer is not available, the return
+  // value is the normalized timestamp that is computed with
+  // backend event profiling START information, normalized by the
+  // backend event profiling QUEUED information and MSubmitTimeBase
   if (!MFallbackProfiling)
     return MHostProfilingInfo->getStartTime();
   else {
@@ -338,8 +341,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
 
-  // 4. For the return value for info::event_profiling::command_end, same as
-  // (3), except use the backend event profiling END information instead.
+  // 4. When API clGetDeviceAndHostTimer is not available, the return
+  // value is the normalized timestamp that is computed with
+  // backend event profiling END information, normalized by the
+  // MSubmitTimeBase
   if (!MFallbackProfiling)
     return MHostProfilingInfo->getEndTime();
   else {
@@ -376,12 +381,6 @@ event_impl::get_info<info::event::command_execution_status>() {
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
-}
-
-static uint64_t getTimestamp() {
-  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
-      .count();
 }
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
@@ -470,19 +469,15 @@ void event_impl::setSubmissionTime() {
     return;
   if (QueueImplPtr Queue = MQueue.lock()) {
     try {
-      if (MFallbackProfiling) {
-        // 2. Capture another host timestamp (no backend involvement here
-        // either) in the SYCL runtime when the command actually gets queued to
-        // the backend. This will never be returned directly, but it will be
-        // used to normalize to the event profiling timebase.
-        auto TimeStamp =
-            std::chrono::high_resolution_clock::now().time_since_epoch();
-        MSubmitTimeBase =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
-                .count();
-      } else {
+      // 2. if API clGetDeviceAndHostTimer is available, use that to get host
+      // and device timestamp.
+      // otherwise, capture another host timestamp in sycl runtime
+      // when the command is actually gets queued to the backend
+      // to use it to normalize to the event profiling time base
+      if (!MFallbackProfiling)
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-      }
+      else
+        MSubmitTimeBase = getTimestamp();
     } catch (feature_not_supported &e) {
       throw sycl::exception(
           make_error_code(errc::profiling),
