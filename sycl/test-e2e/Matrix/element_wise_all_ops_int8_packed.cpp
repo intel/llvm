@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=16
+// RUN: %{run} %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=32
 // RUN: %{run} %t.out
 
 // This test stores the matrix B that is VNNIed (packed).
@@ -20,6 +22,6 @@ using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 16
+#define TN 16
 
 #include "element_wise_all_ops_int8_packed_impl.hpp"

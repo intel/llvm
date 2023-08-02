@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=16
+// RUN: %{run} %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=32
 // RUN: %{run} %t.out
 
 #include <iostream>
@@ -17,6 +19,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 16
+static constexpr size_t SN = 16;
 
 #include "joint_matrix_all_sizes_impl.hpp"

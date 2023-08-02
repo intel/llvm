@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -DSG_SZ=16
+// RUN: %{run} %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -DSG_SZ=32
 // RUN: %{run} %t.out
 
 // this code calculates the sum of rows into a global array of number of rows
@@ -20,6 +22,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 16
+#define TN 16
 
 #include "element_wise_irreg_sum_rows_impl.hpp"

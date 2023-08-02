@@ -7,8 +7,11 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=16
 // RUN: %{run} %t.out
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=32
+// RUN: %{run} %t.out
+
 // XFAIL: cpu
 
 #include <iostream>
@@ -19,6 +22,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 16
+#define TN 16
 
 #include "get_coord_bf16_matB_impl.hpp"
