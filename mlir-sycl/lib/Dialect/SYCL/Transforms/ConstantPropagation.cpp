@@ -161,7 +161,9 @@ public:
 
 protected:
   explicit ConstantImplicitArgBase(ConstantArg::Kind kind)
-      : ConstantArg(kind) {}
+      : ConstantArg(kind) {
+    assert(kind >= ConstantArg::Kind::ImplicitBegin && "Invalid kind");
+  }
 
 private:
   static FunctionOpInterface cloneFunction(FunctionOpInterface original,
