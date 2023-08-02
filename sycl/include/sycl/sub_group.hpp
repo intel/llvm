@@ -348,7 +348,7 @@ struct sub_group {
     }
     return res;
   }
-#else  // __NVPTX__ || __AMDGCN__
+#else // __NVPTX__ || __AMDGCN__
   template <int N, typename CVT, access::address_space Space,
             access::decorated IsDecorated, typename T = std::remove_cv_t<CVT>>
   std::enable_if_t<
