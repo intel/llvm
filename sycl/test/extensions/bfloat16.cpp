@@ -1,6 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=%sycl_triple -S -Xclang -no-enable-noundef-analysis %s -Xclang -opaque-pointers -o - | FileCheck %s
-
-// UNSUPPORTED: cuda || hip_amd
+// Use explicit spir64 triple as not yet supported on CUDA/HIP.
+// RUN: %clangxx -fsycl-device-only -fsycl-targets=spir64-unknown-unknown -S -Xclang -no-enable-noundef-analysis %s -Xclang -opaque-pointers -o - | FileCheck %s
 
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/sycl.hpp>
