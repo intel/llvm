@@ -1032,7 +1032,7 @@ modifiable graph will perform this action, useful in RAII pattern usage.
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
 It is not yet supported to have a host task inside a `command_graph`.
-Support will be added subsequently as detailed in the <<host-tasks, host tasks>> 
+Support will be added subsequently as detailed in the <<future-host-tasks, host tasks>>
 part from the <<future-direction, future direction>> section of this specification.
 
 === Queue Behavior In Recording Mode
@@ -1197,6 +1197,16 @@ The new handler methods, and queue shortcuts, defined by
 link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
 cannot be used in graph nodes. A synchronous exception will be thrown with error
 code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+=== sycl_ext_oneapi_bindless_images
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
@@ -1502,7 +1512,7 @@ associated with a buffer that was created using a host data pointer will
 outlive any executable graphs created from a modifiable graph which uses
 that buffer.
 
-=== Host Tasks [[host-tasks]]
+=== Host Tasks [[future-host-tasks]]
 
 A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
 dependency rules. It is valid to record a host task as part of graph, though it
@@ -1666,13 +1676,15 @@ The following features are not yet supported:
 . Using `handler::fill` in a graph node implemented for USM only.
 . Using `handler::memset` in a graph node.
 . Using `handler::prefetch` in a graph node.
-. Using handler::memadvise in a graph node.
+. Using `handler::memadvise` in a graph node.
 . Using specialization constants in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
 . Thread safety of new methods.
-. Profiling an event returned from graph submission with `event::get_profiling_info()`.
-. Subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph.
+. Profiling an event returned from graph submission with
+  `event::get_profiling_info()`.
+. A sub-graph can only be added as a node to any parent graph once, and will not
+  correctly execute by itself after being added as a sub-graph.
 
 == Revision History
 
@@ -1684,7 +1696,8 @@ The following features are not yet supported:
 
 |1|2023-03-23|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
 |Initial public working draft
-|2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
+|2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller,
+Maxime France-Pillois
 |Promote status to experimental
 
 |========================================
