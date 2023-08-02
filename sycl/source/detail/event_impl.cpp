@@ -309,7 +309,18 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-  return MHostProfilingInfo->getStartTime();
+
+  // 3. For the return value for info::event_profiling::command_start,
+  // use the backend event profiling START information,
+  // normalized by the backend event profiling QUEUED information
+  // and the timestamp captured in (2).
+  if (!MFallbackProfiling)
+    return MHostProfilingInfo->getStartTime();
+  else {
+    QueueImplPtr Queue = MQueue.lock();
+    return (Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
+            MSubmitTimeBase);
+  }
 }
 
 template <>
@@ -326,7 +337,16 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-  return MHostProfilingInfo->getEndTime();
+
+  // 4. For the return value for info::event_profiling::command_end, same as
+  // (3), except use the backend event profiling END information instead.
+  if (!MFallbackProfiling)
+    return MHostProfilingInfo->getEndTime();
+  else {
+    QueueImplPtr Queue = MQueue.lock();
+    return (Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
+            MSubmitTimeBase);
+  }
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
