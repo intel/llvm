@@ -39,6 +39,7 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::local_accessor<.+>::local_accessor",
     "^sycl::_V1::local_accessor<.+>::__init_esimd",
     "^sycl::_V1::local_accessor<.+>::get_pointer",
+    "^sycl::_V1::local_accessor<.+>::get_multi_ptr",
     "^sycl::_V1::local_accessor_base<.+>::local_accessor_base",
     "^sycl::_V1::local_accessor_base<.+>::__init_esimd",
     "^sycl::_V1::local_accessor_base<.+>::getQualifiedPtr",
@@ -67,6 +68,7 @@ static const char *LegalSYCLFunctions[] = {
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::accessor<.+>::get_pointer.+",
+    "^sycl::_V1::accessor<.+>::get_multi_ptr.+",
     "^sycl::_V1::accessor<.+>::getPointerAdjusted",
     "^sycl::_V1::accessor<.+>::getTotalOffset",
     "^sycl::_V1::accessor<.+>::getLinearIndex",
