@@ -152,9 +152,9 @@ public:
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
       if (!MDevice->has(aspect::queue_profiling)) {
-        // TODO temporary workaround, see MLimitedProfiling
+        // fallback profiling support
         if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
-          MLimitedProfiling = true;
+          MFallbackProfiling = true;
         } else {
           throw sycl::exception(
               make_error_code(errc::feature_not_supported),
@@ -679,7 +679,7 @@ public:
                                size_t Offset,
                                const std::vector<event> &DepEvents);
 
-  bool isProfilingLimited() { return MLimitedProfiling; }
+  bool isProfilingFallback() { return MFallbackProfiling; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -846,11 +846,8 @@ protected:
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 
-  // TODO this is a temporary workaround to allow use of start & end info
-  // on FPGA OpenCL 1.2 (current implementation of profiling does not
-  // support submit time stamps on this OpenCL version). Remove once
-  // the fallback implementation of profiling info is in place.
-  bool MLimitedProfiling = false;
+  // the fallback implementation of profiling info
+  bool MFallbackProfiling = false;
 
 public:
   // Queue constructed with the discard_events property

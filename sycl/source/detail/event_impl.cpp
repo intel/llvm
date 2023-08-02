@@ -151,7 +151,7 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue},
       MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
+      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -280,13 +280,17 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (MLimitedProfiling)
-    throw sycl::exception(
-        make_error_code(sycl::errc::invalid),
-        "Submit profiling information is temporarily unsupported on this "
-        "device. This is indicated by the lack of queue_profiling aspect, but, "
-        "as a temporary workaround, profiling can still be enabled to use "
-        "command_start and command_end profiling info.");
+
+  // 1. Capture a host timestamp (no backend involvement at all) in the SYCL
+  // runtime as part of queue::submit.  This determines the timebase for event
+  // profiling.   This is what gets returned for
+  // info::event_profiling::command_submit.
+  if (MFallbackProfiling) {
+    auto TimeStamp =
+        std::chrono::high_resolution_clock::now().time_since_epoch();
+    MSubmitTime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp).count();
+  }
   return MSubmitTime;
 }
 
@@ -442,11 +446,23 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled || MLimitedProfiling)
+  if (!MIsProfilingEnabled)
     return;
   if (QueueImplPtr Queue = MQueue.lock()) {
     try {
-      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+      if (MFallbackProfiling) {
+        // 2. Capture another host timestamp (no backend involvement here
+        // either) in the SYCL runtime when the command actually gets queued to
+        // the backend. This will never be returned directly, but it will be
+        // used to normalize to the event profiling timebase.
+        auto TimeStamp =
+            std::chrono::high_resolution_clock::now().time_since_epoch();
+        MSubmitTimeBase =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
+                .count();
+      } else {
+        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+      }
     } catch (feature_not_supported &e) {
       throw sycl::exception(
           make_error_code(errc::profiling),
