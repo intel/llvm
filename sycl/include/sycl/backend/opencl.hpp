@@ -1,4 +1,3 @@
-
 //==---------------- opencl.hpp - SYCL OpenCL backend ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,9 +8,6 @@
 
 #pragma once
 
-#include <string>      // for string
-#include <type_traits> // for enable_if_t
-
 #include <sycl/backend_types.hpp>             // for backend
 #include <sycl/context.hpp>                   // for context
 #include <sycl/detail/backend_traits.hpp>     // for interop
@@ -21,6 +17,9 @@
 #include <sycl/device.hpp>                    // for device
 #include <sycl/platform.hpp>                  // for platform
 #include <sycl/queue.hpp>                     // for queue
+
+#include <string>      // for string
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {
