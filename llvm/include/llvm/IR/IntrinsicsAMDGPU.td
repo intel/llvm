@@ -2778,5 +2778,5 @@ def int_amdgcn_fdiv_fast : DefaultAttrsIntrinsic<
 
 // SYCL
 def int_amdgcn_implicit_offset : ClangBuiltin<"__builtin_amdgcn_implicit_offset">,
-  Intrinsic<[LLVMQualPointerType<5>], [], [IntrNoMem, IntrSpeculatable]>;
+  Intrinsic<[LLVMQualPointerType<llvm_i32_ty, 5>], [], [IntrNoMem, IntrSpeculatable]>;
 }
