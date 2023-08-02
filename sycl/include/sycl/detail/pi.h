@@ -145,6 +145,7 @@
 //         - piextSignalExternalSemaphore
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
+
 #define _PI_H_VERSION_MAJOR 14
 #define _PI_H_VERSION_MINOR 38
 
