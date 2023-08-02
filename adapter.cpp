@@ -64,9 +64,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
     ur_adapter_handle_t, const char **ppMessage, int32_t *pError) {
+  std::ignore = pError;
   *ppMessage = ErrorMessage;
-  *pError = ErrorMessageCode;
-  return UR_RESULT_SUCCESS;
+  return ErrorMessageCode;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
