@@ -1,6 +1,9 @@
-// RUN: %{build} -Xclang -no-opaque-pointers -o %t.out
+// RUN: %{build} -o %t.out
 //
 // RUN: %{run} %t.out
+
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
 
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //

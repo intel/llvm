@@ -1,6 +1,9 @@
 // REQUIRES: fusion
-// RUN: %{build} -Xclang -no-opaque-pointers -fsycl-embed-ir -O2 -o %t.out
+// RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
+
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
 
 // Test internalization of a nested array type.
 

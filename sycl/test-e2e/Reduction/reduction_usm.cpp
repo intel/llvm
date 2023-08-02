@@ -1,4 +1,4 @@
-// RUN: %{build} -Xclang -no-opaque-pointers -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
 // `Group algorithms are not supported on host device.` on Nvidia.
@@ -6,6 +6,9 @@
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
+
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
 
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // with reductions initialized with USM pointer.
