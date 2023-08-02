@@ -18,7 +18,8 @@ namespace sycl {
 inline namespace _V1 {
 
 template <typename To, typename From>
-#if __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#if __cpp_lib_bit_cast ||                                                      \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
 constexpr
 #endif
     std::enable_if_t<sizeof(To) == sizeof(From) &&
@@ -30,9 +31,9 @@ constexpr
   return std::bit_cast<To>(from);
 #else // __cpp_lib_bit_cast
 
-#if __has_builtin(__builtin_bit_cast)
+#if defined(__has_builtin) && __has_builtin(__builtin_bit_cast)
   return __builtin_bit_cast(To, from);
-#else  // __has_builtin(__builtin_bit_cast)
+#else // __has_builtin(__builtin_bit_cast)
   static_assert(std::is_trivially_default_constructible<To>::value,
                 "To must be trivially default constructible");
   To to;

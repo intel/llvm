@@ -23,7 +23,7 @@
 #include <sycl/aspects.hpp>
 #endif
 
-#if !__has_builtin(__builtin_expect)
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
 #endif
 
@@ -31,7 +31,8 @@
 // `constexpr` could work because the implicit conversion from `float` to
 // `_Float16` can be `constexpr`.
 #define __SYCL_CONSTEXPR_HALF constexpr
-#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#elif __cpp_lib_bit_cast ||                                                    \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
 #define __SYCL_CONSTEXPR_HALF constexpr
 #else
 #define __SYCL_CONSTEXPR_HALF
