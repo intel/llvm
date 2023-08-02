@@ -1807,9 +1807,8 @@ public:
         break;
 
       case kernel_param_kind_t::kind_std_layout:
-        // We expected standard layout, but the captured value is a
-        // SYCL-specific type.
-        if (syclType.has_value())
+        // We expected standard layout, but the captured value is an accessor.
+        if (syclType.has_value() && isa<sycl::AccessorType>(syclType.value()))
           return failure();
         break;
 
@@ -1833,7 +1832,8 @@ public:
   }
 
 private:
-  // Copy of `sycl::_V1::detail::kernel_param_kind_t`.
+  // Copy of `sycl::_V1::detail::kernel_param_kind_t` from
+  // `sycl/include/sycl/detail/kernel_desc.hpp`.
   enum class kernel_param_kind_t {
     kind_accessor = 0,
     kind_std_layout = 1, // standard layout object parameters
@@ -2006,23 +2006,16 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   rewritePatterns.add<RaiseIDDefaultConstructor, RaiseIDCopyConstructor,
                       RaiseRangeCopyConstructor, RaiseRangeCopyConstructor,
                       RaiseIDConstructor, RaiseRangeConstructor>(context,
-                                                                 /*benefit=*/3);
+                                                                 /*benefit=*/4);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
-                                               /*benefit=*/2);
+                                               /*benefit=*/3);
   rewritePatterns.add<RaiseSetNDRange, RaiseSetCaptured>(context,
-                                                         /*benefit=*/1);
-
+                                                         /*benefit=*/2);
+  rewritePatterns.add<RaiseScheduleKernel>(context,
+                                           /*benefit=*/1);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))
-    signalPassFailure();
-
-  rewritePatterns.clear();
-  rewritePatterns.add<RaiseScheduleKernel>(context);
-
-  FrozenRewritePatternSet frozen2(std::move(rewritePatterns));
-
-  if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen2)))
     signalPassFailure();
 }
 
