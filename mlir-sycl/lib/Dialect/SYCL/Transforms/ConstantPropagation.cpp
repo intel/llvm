@@ -160,8 +160,7 @@ public:
   }
 
 protected:
-  explicit ConstantImplicitArgBase(ConstantArg::Kind kind)
-      : ConstantArg(kind) {
+  explicit ConstantImplicitArgBase(ConstantArg::Kind kind) : ConstantArg(kind) {
     assert(kind >= ConstantArg::Kind::ImplicitBegin && "Invalid kind");
   }
 
@@ -248,11 +247,7 @@ public:
   RangeAndOffsetInfo(OffsetInfo &&offsetInfo)
       : offsetInfo(std::move(offsetInfo)) {}
 
-  bool hasRangeInfo() const { return static_cast<bool>(rangeInfo); }
-
-  bool hasConstantRange() const {
-    return hasRangeInfo() && rangeInfo->isConstant();
-  }
+  bool hasConstantRange() const { return rangeInfo && rangeInfo->isConstant(); }
 
   Value getRangeValue(OpBuilder &builder, Location loc, Type type) const {
     assert(hasConstantRange() && "Expecting constant range");
