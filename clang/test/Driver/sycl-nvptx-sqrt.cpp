@@ -1,6 +1,6 @@
 // REQUIRES: nvptx-registered-target
 
-// RUN: %clang -### \
+// RUN: not %clang -### \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:   -fsycl-fp32-prec-sqrt \
 // RUN:   %s \
@@ -8,7 +8,7 @@
 
 // CHECK-CORRECT: "-fcuda-prec-sqrt"
 
-// RUN: %clang -### \
+// RUN: not %clang -### \
 // RUN:   -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:   %s \
 // RUN: 2>&1 | FileCheck --check-prefix=CHECK-APPROX %s

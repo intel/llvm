@@ -9,7 +9,7 @@
 
 /// ###########################################################################
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: not %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_OPAQUE_NON_SPIRV
 // RUN: %clangxx -fsycl %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_OPAQUE_SPIRV
