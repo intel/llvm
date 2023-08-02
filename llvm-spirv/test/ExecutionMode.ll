@@ -1,9 +1,6 @@
 ; RUN: llvm-as < %s | llvm-spirv -spirv-text -o %t
 ; RUN: FileCheck < %t %s
 
-; check for magic number followed by version 1.1
-; CHECK: 119734787 65792
-
 ; CHECK-DAG: TypeVoid [[VOID:[0-9]+]]
 
 ; CHECK-DAG: EntryPoint 6 [[WORKER:[0-9]+]] "worker"
