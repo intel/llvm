@@ -3,7 +3,6 @@
 // RUN: %{build} -DLAMBDA_KERNEL=0 -o %t2.out
 // RUN: %{run} %t2.out
 
-#include <iostream>
 #include <sycl/sycl.hpp>
 
 template <typename AccT> class func {
@@ -15,11 +14,11 @@ public:
 };
 
 int main() {
-  sycl::queue q{};
   constexpr int arr_size = 16;
   int arr[arr_size];
 
   {
+    sycl::queue q;
     sycl::buffer<int, 1> buf(arr, arr_size);
     q.submit([&](sycl::handler &cgh) {
       auto acc = buf.get_access<sycl::access_mode::write>(cgh);
