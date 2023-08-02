@@ -12,7 +12,7 @@
 #include "logger/ur_logger.hpp"
 #include "ur_lib_loader.hpp"
 
-#if defined(SANITIZER_ANY)
+#if defined(SANITIZER_ANY) || defined(__APPLE__)
 #define LOAD_DRIVER_LIBRARY(NAME) dlopen(NAME, RTLD_LAZY | RTLD_LOCAL)
 #else
 #define LOAD_DRIVER_LIBRARY(NAME)                                              \

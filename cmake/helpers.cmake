@@ -57,6 +57,56 @@ macro(add_sanitizer_flag flag)
     set(CMAKE_REQUIRED_LIBRARIES ${SAVED_CMAKE_REQUIRED_LIBRARIES})
 endmacro()
 
+function(add_ur_target_compile_options name)
+    if(NOT MSVC)
+        target_compile_options(${name} PRIVATE
+            -fPIC
+            -Wall
+            -Wpedantic
+            $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
+            $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
+        )
+
+        if (CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+        endif()
+        if(UR_DEVELOPER_MODE)
+            target_compile_options(${name} PRIVATE
+                -Werror
+                -fno-omit-frame-pointer
+                -fstack-protector-strong
+            )
+        endif()
+    elseif(MSVC)
+        target_compile_options(${name} PRIVATE
+            /MP
+            /W3
+            /MD$<$<CONFIG:Debug>:d>
+            /GS
+        )
+        add_link_options(
+            /DYNAMICBASE
+            /HIGHENTROPYVA
+            /ALLOWISOLATION
+            /NXCOMPAT
+        )
+
+        if(UR_DEVELOPER_MODE)
+            target_compile_options(${name} PRIVATE /WX /GS)
+        endif()
+    endif()
+endfunction()
+
+function(add_ur_executable name)
+    add_executable(${name} ${ARGN})
+    add_ur_target_compile_options(${name})
+endfunction()
+
+function(add_ur_library name)
+    add_library(${name} ${ARGN})
+    add_ur_target_compile_options(${name})
+endfunction()
+
 include(FetchContent)
 
 function(FetchSource GIT_REPOSITORY GIT_TAG GIT_DIR DEST)

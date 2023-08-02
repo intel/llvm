@@ -47,8 +47,9 @@ namespace ur_validation_layer
     {
         auto ${th.make_pfn_name(n, tags, obj)} = context.${n}DdiTable.${th.get_table_name(n, tags, obj)}.${th.make_pfn_name(n, tags, obj)};
 
-        if( nullptr == ${th.make_pfn_name(n, tags, obj)} )
-            return ${X}_RESULT_ERROR_UNSUPPORTED_FEATURE;
+        if( nullptr == ${th.make_pfn_name(n, tags, obj)} ) {
+            return ${X}_RESULT_ERROR_UNINITIALIZED;
+        }
 
         if( context.enableParameterValidation )
         {
@@ -138,11 +139,26 @@ namespace ur_validation_layer
     }
 
     %endfor
-    ${x}_result_t context_t::init(
-        ${x}_dditable_t *dditable
-        )
-    {
+    ${x}_result_t
+    context_t::init(ur_dditable_t *dditable,
+                    const std::set<std::string> &enabledLayerNames) {
         ${x}_result_t result = ${X}_RESULT_SUCCESS;
+        
+        if (enabledLayerNames.count(nameFullValidation)) {
+            enableParameterValidation = true;
+            enableLeakChecking = true;
+        } else {
+            if (enabledLayerNames.count(nameParameterValidation)) {
+                enableParameterValidation = true;
+            }
+            if (enabledLayerNames.count(nameLeakChecking)) {
+                enableLeakChecking = true;
+            }
+        }
+
+        if(!enableParameterValidation && !enableLeakChecking) {
+            return result;
+        }
 
         %for tbl in th.get_pfntables(specs, meta, n, tags):
         if ( ${X}_RESULT_SUCCESS == result )

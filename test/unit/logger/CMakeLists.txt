@@ -8,7 +8,7 @@ add_unit_test(logger
 )
 
 set(TEST_TARGET_NAME test-logger_env_var)
-add_executable(${TEST_TARGET_NAME}
+add_ur_executable(${TEST_TARGET_NAME}
     env_var.cpp
 )
 target_link_libraries(${TEST_TARGET_NAME}

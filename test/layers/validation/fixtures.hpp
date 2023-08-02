@@ -12,28 +12,50 @@
 struct urTest : ::testing::Test {
 
     void SetUp() override {
+        ASSERT_EQ(urLoaderConfigCreate(&loader_config), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urLoaderConfigEnableLayer(loader_config,
+                                            "UR_LAYER_FULL_VALIDATION"),
+                  UR_RESULT_SUCCESS);
         ur_device_init_flags_t device_flags = 0;
-        ASSERT_EQ(urInit(device_flags), UR_RESULT_SUCCESS);
+        ASSERT_EQ(urInit(device_flags, loader_config), UR_RESULT_SUCCESS);
     }
 
     void TearDown() override {
+        if (loader_config) {
+            ASSERT_EQ(urLoaderConfigRelease(loader_config), UR_RESULT_SUCCESS);
+        }
         ur_tear_down_params_t tear_down_params{};
         ASSERT_EQ(urTearDown(&tear_down_params), UR_RESULT_SUCCESS);
     }
+
+    ur_loader_config_handle_t loader_config = nullptr;
 };
 
 struct valPlatformsTest : urTest {
 
     void SetUp() override {
         urTest::SetUp();
+
+        uint32_t adapter_count;
+        ASSERT_EQ(urAdapterGet(0, nullptr, &adapter_count), UR_RESULT_SUCCESS);
+        adapters.resize(adapter_count);
+        ASSERT_EQ(urAdapterGet(adapter_count, adapters.data(), nullptr),
+                  UR_RESULT_SUCCESS);
+
         uint32_t count;
-        ASSERT_EQ(urPlatformGet(0, nullptr, &count), UR_RESULT_SUCCESS);
+        ASSERT_EQ(
+            urPlatformGet(adapters.data(), adapter_count, 0, nullptr, &count),
+            UR_RESULT_SUCCESS);
         ASSERT_NE(count, 0);
         platforms.resize(count);
-        ASSERT_EQ(urPlatformGet(count, platforms.data(), nullptr),
+        ASSERT_EQ(urPlatformGet(adapters.data(), adapter_count, count,
+                                platforms.data(), nullptr),
                   UR_RESULT_SUCCESS);
     }
 
+    void TearDown() override { urTest::TearDown(); }
+
+    std::vector<ur_adapter_handle_t> adapters;
     std::vector<ur_platform_handle_t> platforms;
 };
 

@@ -17,3 +17,10 @@ import datetime
 type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for ${" ".join(name.split("-")).title()}"
 ordinal: "99"
+--- #--------------------------------------------------------------------------
+type: macro
+desc: |
+      The extension string which defines support for ${name}
+      which is returned when querying device extensions.
+name: $X_${"_".join(name.split("-")).upper()}_EXTENSION_STRING_EXP
+value: "\"$x_exp_${"_".join(name.split("-"))}\""

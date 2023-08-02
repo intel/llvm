@@ -5,7 +5,7 @@ import glob
 expdocs = []
 for section in sections:
     foundDocs = glob.glob(section + "/EXP-*.rst")
-    for found in foundDocs:
+    for found in sorted(foundDocs):
         expdocs.append(found)
 %>
 =====================
