@@ -43,6 +43,10 @@ private:
 };
 } // namespace property::image
 
+// Forward declaration
+template <int Dimensions, typename AllocatorT> class image;
+template <int Dimensions, typename AllocatorT> class sampled_image;
+template <int Dimensions, typename AllocatorT> class unsampled_image;
 
 // SYCL 1.2.1 image property trait specializations
 template <int Dimensions, typename AllocatorT>

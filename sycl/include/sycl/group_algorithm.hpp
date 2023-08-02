@@ -144,6 +144,9 @@ using is_plus_or_multiplies_if_complex = std::integral_constant<
                                    is_multiplies<T, BinaryOperation>::value)
                                 : std::true_type::value)>;
 
+// used to transform a vector op to a scalar op;
+// e.g. sycl::plus<std::vec<T, N>> to sycl::plus<T>
+template <typename T> struct get_scalar_binary_op;
 
 template <template <typename> typename F, typename T, int n>
 struct get_scalar_binary_op<F<sycl::vec<T, n>>> {

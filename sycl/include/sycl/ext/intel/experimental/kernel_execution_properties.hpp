@@ -16,6 +16,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
 
+template <typename T, typename PropertyListT> class gpu_kernel_attribute;
 
 enum class cache_config_enum : std::uint16_t { large_slm, large_data };
 

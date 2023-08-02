@@ -74,6 +74,9 @@ class use_pinned_host_memory : public sycl::detail::DataLessProperty<
                                    sycl::detail::BufferUsePinnedHostMemory> {};
 } // namespace ext::oneapi::property::buffer
 
+// Forward declaration
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 
 // Buffer property trait specializations
 template <typename T, int Dimensions, typename AllocatorT>

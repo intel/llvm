@@ -29,15 +29,21 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declarations
+class device_selector;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
+class device_impl;
 auto getDeviceComparisonLambda();
 } // namespace detail
 
+enum class aspect;
 
 namespace ext::oneapi {
+// Forward declaration
+class filter_selector;
 
 enum class peer_access {
   access_supported = 0x0,

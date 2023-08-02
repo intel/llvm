@@ -25,6 +25,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+class context;
 
 enum class errc : unsigned int {
   success = 0,

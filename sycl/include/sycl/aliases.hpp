@@ -15,6 +15,10 @@
 
 namespace sycl {
 inline namespace _V1 {
+template <typename T, int N> class vec;
+namespace detail::half_impl {
+class half;
+} // namespace detail::half_impl
 } // namespace _V1
 } // namespace sycl
 

@@ -94,6 +94,27 @@ struct is_compile_time_property<sycl::ext::intel::property::buffer_location>
     : std::true_type {};
 } // namespace ext::oneapi
 
+// Forward declaration
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode>
+class host_accessor;
+template <typename DataT, int Dimensions>
+class __SYCL_EBO
+    __SYCL_SPECIAL_CLASS __SYCL_TYPE(local_accessor) local_accessor;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode,
+          image_target AccessTarget>
+class unsampled_image_accessor;
+template <typename DataT, int Dimensions, image_target AccessTarget>
+class sampled_image_accessor;
+template <typename DataT, int Dimensions, access_mode AccessMode>
+class host_unsampled_image_accessor;
+template <typename DataT, int Dimensions> class host_sampled_image_accessor;
 
 namespace detail::acc_properties {
 template <typename T> struct is_accessor : std::false_type {};

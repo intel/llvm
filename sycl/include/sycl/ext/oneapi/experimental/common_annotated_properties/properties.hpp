@@ -19,6 +19,8 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
+template <typename T, typename PropertyListT> class annotated_arg;
+template <typename T, typename PropertyListT> class annotated_ptr;
 
 //===----------------------------------------------------------------------===//
 //        Common properties of annotated_arg/annotated_ptr

@@ -788,6 +788,7 @@ constexpr stream_manipulator hexfloat = stream_manipulator::hexfloat;
 
 constexpr stream_manipulator defaultfloat = stream_manipulator::defaultfloat;
 
+class stream;
 
 class __precision_manipulator__ {
   int Precision_;

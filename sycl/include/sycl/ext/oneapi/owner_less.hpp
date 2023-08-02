@@ -51,6 +51,7 @@ template <typename SyclObject> struct owner_less_base {
 };
 } // namespace detail
 
+template <typename SyclObject> struct owner_less;
 
 template <>
 struct owner_less<context> : public detail::owner_less_base<context> {};

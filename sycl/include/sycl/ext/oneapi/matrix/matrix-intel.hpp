@@ -71,6 +71,10 @@ template <int D> struct spv_scope_traits<sycl::group<D>> {
   constexpr static auto value = __spv::Scope::Workgroup;
 };
 
+// forward declarations
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout>
+struct joint_matrix;
 
 } // namespace matrix
 } // namespace experimental

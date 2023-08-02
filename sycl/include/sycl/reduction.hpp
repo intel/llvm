@@ -87,6 +87,22 @@ template <typename T> struct AreAllButLastReductions<T> {
 };
 } // namespace detail
 
+/// Class that is used to represent objects that are passed to user's lambda
+/// functions and representing users' reduction variable.
+/// The generic version of the class represents those reductions of those
+/// types and operations for which the identity value is not known.
+/// The View template describes whether the reducer owns its data or not: if
+/// View is 'true', then the reducer does not own its data and instead provides
+/// a view of data allocated elsewhere (i.e. via a reference or pointer member);
+/// if View is 'false', then the reducer owns its data. With the current default
+/// reduction algorithm, the top-level reducers that are passed to the user's
+/// lambda contain a private copy of the reduction variable, whereas any reducer
+/// created by a subscript operator contains a reference to a reduction variable
+/// allocated elsewhere. The Subst parameter is an implementation detail and is
+/// used to spell out restrictions using 'enable_if'.
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          typename IdentityContainerT, bool View = false, typename Subst = void>
+class reducer;
 
 namespace detail {
 // This type trait is used to detect if the atomic operation BinaryOperation
@@ -166,7 +182,12 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
                                             size_t LocalMemBytesPerWorkItem);
 
+template <typename T, class BinaryOperation, bool IsOptional>
+class ReducerElement;
 
+/// Helper class for accessing reducer-defined types in CRTP
+/// May prove to be useful for other things later
+template <typename Reducer> struct ReducerTraits;
 
 template <typename T, class BinaryOperation, int Dims, std::size_t Extent,
           typename IdentityContainerT, bool View, typename Subst>
@@ -799,6 +820,7 @@ struct data_dim_t<
   static constexpr int value = AccessorDims;
 };
 
+template <class T> struct get_red_t;
 template <class T> struct get_red_t<T *> {
   using type = T;
 };
@@ -807,6 +829,12 @@ template <class T, int Dims, typename AllocatorT>
 struct get_red_t<buffer<T, Dims, AllocatorT>> {
   using type = T;
 };
+
+namespace reduction {
+// Kernel name wrapper for initializing reduction-related memory through
+// reduction_impl_algo::withInitializedMem.
+template <typename KernelName> struct InitMemKrn;
+} // namespace reduction
 
 /// A helper to pass undefined (sycl::detail::auto_name) names unmodified. We
 /// must do that to avoid name collisions.
@@ -1188,6 +1216,11 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   });
 }
 
+namespace reduction {
+template <typename KernelName, strategy S, class... Ts> struct MainKrn;
+template <typename KernelName, strategy S, class... Ts> struct AuxKrn;
+} // namespace reduction
+
 // Tag structs to help creating unique kernels for multi-reduction cases.
 struct KernelOneWGTag {};
 struct KernelMultipleWGTag {};
@@ -1202,6 +1235,7 @@ using __sycl_reduction_kernel =
 
 // Implementations.
 
+template <reduction::strategy> struct NDRangeReduction;
 
 template <>
 struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
@@ -2264,6 +2298,10 @@ void reduCGFuncImplArray(
        InitToIdentityProps[Is]),
    ...);
 }
+
+namespace reduction::main_krn {
+template <class KernelName, class Accessor> struct NDRangeMulti;
+} // namespace reduction::main_krn
 template <typename KernelName, typename KernelType, int Dims,
           typename PropertiesT, typename... Reductions, size_t... Is>
 void reduCGFuncMulti(handler &CGH, KernelType KernelFunc,
@@ -2460,6 +2498,10 @@ void reduAuxCGFuncImplArray(
        InitToIdentityProps[Is]),
    ...);
 }
+
+namespace reduction::aux_krn {
+template <class KernelName, class Predicate> struct Multi;
+} // namespace reduction::aux_krn
 template <typename KernelName, typename KernelType, typename... Reductions,
           size_t... Is>
 size_t reduAuxCGFunc(handler &CGH, size_t NWorkItems, size_t MaxWGSize,

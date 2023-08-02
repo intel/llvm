@@ -22,6 +22,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+class queue;
 
 namespace ext::oneapi::experimental {
 

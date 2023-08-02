@@ -30,11 +30,17 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declarations
+class queue;
 
 namespace detail {
 
+class event_impl;
 using EventImplPtr = std::shared_ptr<event_impl>;
 
+class stream_impl;
+class queue_impl;
+class kernel_bundle_impl;
 
 // If there's a need to add new members to CG classes without breaking ABI
 // compatibility, we can bring back the extended members mechanism. See

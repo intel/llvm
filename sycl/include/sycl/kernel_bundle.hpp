@@ -33,9 +33,15 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declaration
+template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
 auto get_native(const kernel_bundle<State> &Obj)
     -> backend_return_t<Backend, kernel_bundle<State>>;
+
+namespace detail {
+class kernel_id_impl;
+}
 
 template <typename KernelName> kernel_id get_kernel_id();
 
@@ -69,6 +75,7 @@ private:
 };
 
 namespace detail {
+class device_image_impl;
 using DeviceImageImplPtr = std::shared_ptr<device_image_impl>;
 
 // The class is used as a base for device_image for "untemplating" public
@@ -134,6 +141,7 @@ private:
 };
 
 namespace detail {
+class kernel_bundle_impl;
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
 
 // The class is used as a base for kernel_bundle to "untemplate" it's methods

@@ -15,6 +15,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+template <int Dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
 /// dispatch, or the overall Dimensions of the dispatch.

@@ -24,6 +24,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
 
 template <size_t PartitionSize, typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&

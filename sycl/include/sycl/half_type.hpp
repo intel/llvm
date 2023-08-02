@@ -35,7 +35,14 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail::half_impl {
+class half;
+}
 using half = detail::half_impl::half;
+
+namespace ext::intel::esimd::detail {
+class WrapperElementTypeProxy;
+} // namespace ext::intel::esimd::detail
 
 namespace detail {
 
@@ -211,6 +218,7 @@ private:
 } // namespace host_half_impl
 
 namespace half_impl {
+class half;
 
 // Several aliases are defined below:
 // - StorageT: actual representation of half data type. It is used by scalar

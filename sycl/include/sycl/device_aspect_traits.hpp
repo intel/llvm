@@ -29,6 +29,7 @@ template <aspect Aspect> struct all_devices_have;
   struct all_devices_have<aspect::ASPECT>                                      \
       : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_##ASPECT##__> {};
 
+#include <sycl/info/aspects.def>
 
 #undef __SYCL_ASPECT
 
@@ -36,6 +37,7 @@ template <aspect Aspect> struct all_devices_have;
   template <>                                                                  \
   struct all_devices_have<aspect::ASPECT>                                      \
       : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_##ASPECT##__> {};
+#include <sycl/info/aspects_deprecated.def>
 
 #undef __SYCL_ASPECT_DEPRECATED
 
@@ -52,6 +54,7 @@ template <aspect Aspect> struct any_device_has;
   struct any_device_has<aspect::ASPECT>                                        \
       : std::bool_constant<__SYCL_ANY_DEVICE_HAS_##ASPECT##__> {};
 
+#include <sycl/info/aspects.def>
 
 #undef __SYCL_ASPECT
 
@@ -59,6 +62,7 @@ template <aspect Aspect> struct any_device_has;
   template <>                                                                  \
   struct any_device_has<aspect::ASPECT>                                        \
       : std::bool_constant<__SYCL_ANY_DEVICE_HAS_##ASPECT##__> {};
+#include <sycl/info/aspects_deprecated.def>
 
 #undef __SYCL_ASPECT_DEPRECATED
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__

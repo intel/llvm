@@ -34,6 +34,8 @@ class use_primary_context
 // clang-format on
 } // namespace property::context
 
+// Forward declaration
+class context;
 
 // Context property trait specializations
 template <>

@@ -20,9 +20,13 @@
 namespace sycl {
 inline namespace _V1 {
 
+template <typename DataT, std::size_t N> class marray;
 
 namespace detail {
 
+// Helper trait for counting the aggregate number of arguments in a type list,
+// expanding marrays.
+template <typename... Ts> struct GetMArrayArgsSize;
 template <> struct GetMArrayArgsSize<> {
   static constexpr std::size_t value = 0;
 };

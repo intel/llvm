@@ -19,6 +19,8 @@ template <typename T> using head_t = typename T::head;
 
 template <typename T> using tail_t = typename T::tail;
 
+// type_list
+template <typename... T> struct type_list;
 
 using empty_type_list = type_list<>;
 
@@ -57,6 +59,8 @@ struct is_contained
 template <typename T>
 struct is_contained<T, empty_type_list> : std::false_type {};
 
+// value_list
+template <typename T, T... Values> struct value_list;
 
 template <typename T, T Head, T... Tail> struct value_list<T, Head, Tail...> {
   static constexpr T head = Head;

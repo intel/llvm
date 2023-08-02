@@ -16,6 +16,8 @@
 
 namespace sycl {
 inline namespace _V1 {
+template <int dimensions> class id;
+template <int dimensions> class range;
 namespace detail {
 
 template <int dimensions = 1> class array {

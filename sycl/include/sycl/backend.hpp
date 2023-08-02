@@ -224,6 +224,8 @@ auto get_native(const accessor<DataT, Dimensions, AccessMode, AccessTarget,
                               IsPlaceholder>>::type = delete;
 
 namespace detail {
+// Forward declaration
+class kernel_bundle_impl;
 
 __SYCL_EXPORT platform make_platform(pi_native_handle NativeHandle,
                                      backend Backend);

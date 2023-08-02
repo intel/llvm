@@ -22,6 +22,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+class opportunistic_group;
 
 namespace this_kernel {
 inline opportunistic_group get_opportunistic_group();

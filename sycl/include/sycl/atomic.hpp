@@ -30,6 +30,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+template <typename pointerT, access::address_space addressSpace,
+          access::decorated isDecorated>
+class multi_ptr;
 
 namespace detail {
 

@@ -228,7 +228,18 @@
 
 namespace sycl {
 inline namespace _V1 {
+class stream;
+namespace ext::intel::esimd::detail {
+// Forward declare a "back-door" access class to support ESIMD.
+class AccessorPrivateProxy;
+} // namespace ext::intel::esimd::detail
 
+template <typename DataT, int Dimensions = 1,
+          access::mode AccessMode = access::mode::read_write,
+          access::target AccessTarget = access::target::device,
+          access::placeholder IsPlaceholder = access::placeholder::false_t,
+          typename PropertyListT = ext::oneapi::accessor_property_list<>>
+class accessor;
 
 namespace detail {
 
@@ -508,9 +519,11 @@ public:
   }
 };
 
+class AccessorImplHost;
 
 void __SYCL_EXPORT addHostAccessorAndWait(AccessorImplHost *Req);
 
+class SYCLMemObjI;
 
 using AccessorImplPtr = std::shared_ptr<AccessorImplHost>;
 
@@ -566,6 +579,7 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
+class LocalAccessorImplHost;
 using LocalAccessorImplPtr = std::shared_ptr<LocalAccessorImplHost>;
 
 class __SYCL_EXPORT LocalAccessorBaseHost {
@@ -593,6 +607,8 @@ protected:
   LocalAccessorImplPtr impl;
 };
 
+class UnsampledImageAccessorImplHost;
+class SampledImageAccessorImplHost;
 using UnsampledImageAccessorImplPtr =
     std::shared_ptr<UnsampledImageAccessorImplHost>;
 using SampledImageAccessorImplPtr =
@@ -729,6 +745,7 @@ protected:
 #endif
 };
 
+template <int Dim, typename T> struct IsValidCoordDataT;
 template <typename T> struct IsValidCoordDataT<1, T> {
   constexpr static bool value = detail::is_contained<
       T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
@@ -744,6 +761,7 @@ template <typename T> struct IsValidCoordDataT<3, T> {
                            vec<opencl::cl_float, 4>>>::type::value;
 };
 
+template <int Dim, typename T> struct IsValidUnsampledCoord2020DataT;
 template <typename T> struct IsValidUnsampledCoord2020DataT<1, T> {
   constexpr static bool value = std::is_same_v<T, int>;
 };
@@ -754,6 +772,7 @@ template <typename T> struct IsValidUnsampledCoord2020DataT<3, T> {
   constexpr static bool value = std::is_same_v<T, int4>;
 };
 
+template <int Dim, typename T> struct IsValidSampledCoord2020DataT;
 template <typename T> struct IsValidSampledCoord2020DataT<1, T> {
   constexpr static bool value = std::is_same_v<T, float>;
 };
@@ -764,6 +783,9 @@ template <typename T> struct IsValidSampledCoord2020DataT<3, T> {
   constexpr static bool value = std::is_same_v<T, float4>;
 };
 
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::placeholder IsPlaceholder>
+class __image_array_slice__;
 
 // Image accessor
 template <typename DataT, int Dimensions, access::mode AccessMode,

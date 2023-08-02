@@ -22,6 +22,11 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+class Builder;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH;
 
 namespace reduction {
 template <int Dims>

@@ -13,6 +13,13 @@
 #include <sycl/detail/generic_type_traits.hpp>  // for is_sigeninteger, is_s...
 #include <assert.h>                             // for assert
 
+// Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
+// extension even if the host compiler supports it. The same can be
+// accomplished by -D__NO_EXT_VECTOR_TYPE_ON_HOST__ command line option.
+#ifndef __NO_EXT_VECTOR_TYPE_ON_HOST__
+// #define __NO_EXT_VECTOR_TYPE_ON_HOST__
+#endif
+
 // Check if Clang's ext_vector_type attribute is available. Host compiler
 // may not be Clang, and Clang may not be built with the extension.
 #ifdef __clang__
@@ -139,7 +146,11 @@ template <> struct vec_helper<std::byte> {
 };
 #endif
 
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+class SwizzleOp;
 
+template <typename T, int N, typename V = void> struct VecStorage;
 
 // Element type for relational operator return value.
 template <typename DataT>
@@ -539,6 +550,11 @@ convertImpl(T Value) {
 
 #endif // __SYCL_DEVICE_ONLY__
 
+// Forward declarations
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH;
 
 } // namespace detail
 
@@ -999,6 +1015,7 @@ public:
 #error "Undefine __SYCL_ACCESS_RETURN macro"
 #endif
 #define __SYCL_ACCESS_RETURN this
+#include "swizzles.def"
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 
@@ -1932,6 +1949,7 @@ public:
 #error "Undefine __SYCL_ACCESS_RETURN macro"
 #endif
 #define __SYCL_ACCESS_RETURN m_Vector
+#include "swizzles.def"
 #undef __SYCL_ACCESS_RETURN
   // End of hi/lo, even/odd, xyzw, and rgba swizzles.
 

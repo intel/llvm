@@ -14,8 +14,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+template <int dimensions> class id;
+template <int dimensions> class range;
 
 namespace detail {
+template <int Dims, bool WithOffset> struct ItemBase;
 
 template <int Dims> struct ItemBase<Dims, true> {
 

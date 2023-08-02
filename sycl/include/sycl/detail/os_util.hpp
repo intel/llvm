@@ -17,6 +17,12 @@
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
+// Windows platform
+#ifdef _WIN64
+// 64-bit Windows platform
+#else
+// 32-bit Windows platform
+#endif // _WIN64
 #elif __linux__
 // Linux platform
 #define __SYCL_RT_OS_LINUX

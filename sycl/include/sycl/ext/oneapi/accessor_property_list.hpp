@@ -23,6 +23,11 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declaration
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor;
 namespace detail {
 // This helper template must be specialized for nested instance template
 // of each compile-time-constant property.
@@ -61,7 +66,6 @@ class __SYCL_TYPE(accessor_property_list) accessor_property_list
   // property of PropT type, where PropT is a nested instance template of
   // compile-time-constant property.
   template <typename PropT, typename... PropListT> struct ContainsProperty;
-
   template <typename PropT> struct ContainsProperty<PropT> : std::false_type {};
   template <typename PropT, typename Head, typename... Tail>
   struct ContainsProperty<PropT, Head, Tail...>

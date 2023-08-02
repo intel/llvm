@@ -25,11 +25,17 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declaration
+class context;
+class queue;
+template <backend Backend> class backend_traits;
+template <bundle_state State> class kernel_bundle;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
+class kernel_impl;
 
 /// This class is the default KernelName template parameter type for kernel
 /// invocation APIs such as single_task.

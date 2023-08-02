@@ -39,6 +39,12 @@ enum class coordinate_normalization_mode : unsigned int {
 };
 
 namespace detail {
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
+}
+
+namespace detail {
 #ifdef __SYCL_DEVICE_ONLY__
 class __SYCL_EXPORT sampler_impl {
 public:
@@ -51,6 +57,7 @@ public:
   __ocl_sampler_t m_Sampler;
 };
 #else
+class sampler_impl;
 #endif
 } // namespace detail
 

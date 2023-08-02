@@ -150,6 +150,7 @@ using byte = unsigned char;
 #endif
 
 inline constexpr size_t dynamic_extent = SIZE_MAX;
+template <typename _Tp, size_t _Extent = dynamic_extent> class span;
 
 template <class _Tp> struct __is_span_impl : public std::false_type {};
 

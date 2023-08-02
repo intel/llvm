@@ -21,6 +21,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace ext::oneapi {
+template <typename... PropsT> class accessor_property_list;
+} // namespace ext::oneapi
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///

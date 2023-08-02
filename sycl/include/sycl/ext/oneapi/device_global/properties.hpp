@@ -18,6 +18,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <typename T, typename PropertyListT> class device_global;
 
 struct device_image_scope_key {
   using value_t = property_value<device_image_scope_key>;

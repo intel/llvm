@@ -21,6 +21,16 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
+class Builder;
+
+namespace spirv {
+
+template <typename Group> struct group_scope;
+
+} // namespace spirv
+
+} // namespace detail
 
 namespace ext::oneapi {
 
@@ -31,6 +41,9 @@ namespace ext::oneapi {
 #define BITS_TYPE uint32_t
 #endif
 
+// defining `group_ballot` here to make predicate default `true`
+// need to forward declare sub_group_mask first
+struct sub_group_mask;
 template <typename Group>
 std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
 group_ballot(Group g, bool predicate = true);

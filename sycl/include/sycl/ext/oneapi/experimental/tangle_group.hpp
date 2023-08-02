@@ -22,6 +22,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <typename ParentGroup> class tangle_group;
 
 template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&

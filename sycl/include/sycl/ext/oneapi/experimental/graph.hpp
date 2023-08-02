@@ -23,9 +23,19 @@
 namespace sycl {
 inline namespace _V1 {
 
+class handler;
+class queue;
+class device;
 namespace ext {
 namespace oneapi {
 namespace experimental {
+
+namespace detail {
+class node_impl;
+class graph_impl;
+class exec_graph_impl;
+
+} // namespace detail
 
 /// State to template the command_graph class on.
 enum class graph_state {
@@ -82,6 +92,7 @@ private:
 } // namespace node
 } // namespace property
 
+template <graph_state State> class command_graph;
 
 namespace detail {
 // Templateless modifiable command-graph base class.

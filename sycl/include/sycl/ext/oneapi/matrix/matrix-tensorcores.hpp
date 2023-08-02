@@ -13,7 +13,7 @@
 #include <stdint.h>                      // for int8_t, uint8_t, int32_t
 #include <type_traits>                   // for enable_if_t
 
-#include <sycl/matrix-unified-utils.hpp>      // for layout, use, tf32
+#include "matrix-unified-utils.hpp"
 #include <sycl/aliases.hpp>                   // for half
 #include <sycl/half_type.hpp>                 // for half
 #include <sycl/marray.hpp>                    // for marray
@@ -22,9 +22,24 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
+namespace experimental {
+namespace matrix {
+
+template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
+          layout Layout = layout::dynamic>
+struct joint_matrix;
+
+} // namespace matrix
+} // namespace experimental
 
 namespace detail {
 
+template <typename T, sycl::ext::oneapi::experimental::matrix::use Use,
+          size_t Rows, size_t Cols,
+          sycl::ext::oneapi::experimental::matrix::layout Layout =
+              sycl::ext::oneapi::experimental::matrix::layout::dynamic,
+          typename Cond = void>
+struct joint_matrix_cuda;
 
 #define __SYCL_JOINT_MATRIX_OVERLOAD_ARR(TYPE, USE, M, N, SIZE)                \
   template <sycl::ext::oneapi::experimental::matrix::layout Layout>            \

@@ -23,9 +23,21 @@
 
 namespace sycl {
 inline namespace _V1 {
+class context;
+class event;
+template <int Dims, bool WithOffset> class item;
+template <int Dims> class group;
+template <int Dims> class range;
+template <int Dims> class id;
+template <int Dims> class nd_item;
+template <int Dims> class h_item;
+template <typename Type, std::size_t NumElements> class marray;
+enum class memory_order;
 
 namespace detail {
 
+class buffer_impl;
+class context_impl;
 // The function returns list of events that can be passed to OpenCL API as
 // dependency list and waits for others.
 __SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>

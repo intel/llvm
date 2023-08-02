@@ -38,6 +38,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+template <typename AccessorDataT, int AccessorDimensions,
+          access::mode AccessMode, access::target AccessTarget,
+          access::placeholder IsPlaceholder, typename PropertyListT>
+class accessor;
 
 namespace detail {
 

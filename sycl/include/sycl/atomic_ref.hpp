@@ -54,6 +54,7 @@ using IsValidDefaultOrder = std::bool_constant<Order == memory_order::relaxed ||
                                                Order == memory_order::acq_rel ||
                                                Order == memory_order::seq_cst>;
 
+template <memory_order ReadModifyWriteOrder> struct memory_order_traits;
 
 template <> struct memory_order_traits<memory_order::relaxed> {
   static constexpr memory_order read_order = memory_order::relaxed;
@@ -86,6 +87,7 @@ inline constexpr memory_order getLoadOrder(memory_order order) {
   }
 }
 
+template <typename T, typename = void> struct bit_equal;
 
 template <typename T>
 struct bit_equal<T, typename std::enable_if_t<std::is_integral_v<T>>> {

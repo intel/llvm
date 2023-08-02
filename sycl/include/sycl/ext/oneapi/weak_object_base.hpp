@@ -15,6 +15,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::detail {
+template <typename SYCLObjT> class weak_object_base;
 
 // Helper function for getting the underlying weak_ptr from a weak_object.
 template <typename SYCLObjT>

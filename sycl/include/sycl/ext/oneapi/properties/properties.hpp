@@ -208,6 +208,9 @@ using empty_properties_t = properties<std::tuple<>>;
 template <typename... PropertyValueTs>
 using properties_t = properties<std::tuple<PropertyValueTs...>>;
 
+// Helper for merging two property lists;
+template <typename LHSPropertiesT, typename RHSPropertiesT>
+struct merged_properties;
 template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
 struct merged_properties<properties_t<LHSPropertiesTs...>,
                          properties_t<RHSPropertiesTs...>> {

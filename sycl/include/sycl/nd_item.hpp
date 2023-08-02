@@ -30,6 +30,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+namespace detail {
+class Builder;
+}
+
+namespace ext::oneapi::experimental {
+template <int Dimensions> class root_group;
+}
 
 /// Identifies an instance of the function object executing at each point in an
 /// nd_range.

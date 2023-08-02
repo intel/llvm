@@ -89,17 +89,21 @@ template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __fill;
+
 template <typename T> class __usmfill;
 template <typename T> class __usmfill2d;
 template <typename T> class __usmmemcpy2d;
+
 template <typename T_Src, typename T_Dst, int Dims,
           sycl::access::mode AccessMode, sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __copyAcc2Ptr;
+
 template <typename T_Src, typename T_Dst, int Dims,
           sycl::access::mode AccessMode, sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __copyPtr2Acc;
+
 template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
           sycl::access::mode AccessMode_Dst,
@@ -107,6 +111,7 @@ template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::placeholder IsPlaceholder_Src,
           sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
+
 // For unit testing purposes
 class MockHandler;
 
@@ -115,8 +120,28 @@ inline namespace _V1 {
 
 // Forward declaration
 
+class handler;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
+
+namespace ext::intel::experimental {
+template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
+          class>
+class pipe;
+}
+
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 namespace detail {
 
+class handler_impl;
+class kernel_impl;
+class queue_impl;
+class stream_impl;
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder>
+class image_accessor;
 template <typename RetType, typename Func, typename Arg>
 static Arg member_ptr_helper(RetType (Func::*)(Arg) const);
 
@@ -140,6 +165,8 @@ SuggestedArgType argument_helper(...);
 template <typename F, typename SuggestedArgType>
 using lambda_arg_type = decltype(argument_helper<F, SuggestedArgType>(0));
 
+// Used when parallel_for range is rounded-up.
+template <typename Name> class __pf_kernel_wrapper;
 
 template <typename Type> struct get_kernel_wrapper_name_t {
   using name = __pf_kernel_wrapper<Type>;

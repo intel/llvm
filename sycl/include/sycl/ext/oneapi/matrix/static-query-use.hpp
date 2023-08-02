@@ -62,6 +62,9 @@ enum class matrix_type {
 
 enum class scope_t { sub_group, work_group };
 
+template <tpu u, typename Ta = void, typename Tb = void, typename Tc = void,
+          int sM = 0, int sN = 0, int sK = 0, typename Enabled = void>
+struct tpu_params;
 
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_amx(int sM, int sN, int sK) {

@@ -36,6 +36,7 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+class Builder;
 
 // Implements a barrier accross work items within a work group.
 inline void workGroupBarrier() {

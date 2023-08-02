@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/fpga_utils.hpp>
+#include "fpga_utils.hpp"
 #include <sycl/detail/defines.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/pointers.hpp>

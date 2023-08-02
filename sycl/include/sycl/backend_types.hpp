@@ -25,6 +25,7 @@ enum class backend : char {
   ext_native_cpu = 7,
 };
 
+template <backend Backend> class backend_traits;
 
 template <backend Backend, typename SYCLObjectT>
 using backend_input_t =

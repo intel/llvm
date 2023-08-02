@@ -22,7 +22,7 @@ inline namespace _V1 {
       : public sycl::detail::DataLessProperty<sycl::detail::ENUM_VAL> {};      \
   }
 
-#include <sycl/properties/queue_properties.def>  // for use_default_stream
+#include <sycl/properties/queue_properties.def>
 
 namespace property ::queue {
 namespace __SYCL2020_DEPRECATED(
@@ -46,6 +46,8 @@ private:
 };
 } // namespace ext::intel::property::queue
 
+// Queue property trait specializations.
+class queue;
 
 #define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
   template <>                                                                  \
@@ -53,6 +55,7 @@ private:
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
 
+#include <sycl/properties/queue_properties.def>
 
 } // namespace _V1
 } // namespace sycl

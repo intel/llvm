@@ -22,6 +22,14 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declarations
+class device;
+class context;
+enum class aspect;
+
+namespace ext::oneapi {
+class filter_selector;
+} // namespace ext::oneapi
 
 /// The SYCL 1.2.1 device_selector class provides ability to choose the
 /// best SYCL device based on heuristics specified by the user.

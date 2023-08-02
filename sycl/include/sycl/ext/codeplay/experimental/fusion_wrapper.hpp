@@ -18,6 +18,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+namespace detail {
+class fusion_wrapper_impl;
+}
+
 namespace ext::codeplay::experimental {
 
 ///

@@ -33,6 +33,18 @@
 namespace sycl {
 inline namespace _V1 {
 
+namespace detail {
+class AccessorBaseHost;
+class ExecCGCommand;
+class DispatchHostTask;
+class queue_impl;
+class device_impl;
+class context_impl;
+} // namespace detail
+
+class queue;
+class device;
+class context;
 
 class interop_handle {
 public:

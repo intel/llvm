@@ -22,6 +22,9 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+template <typename T, class BinaryOperation, int Dims, size_t Extent,
+          bool ExplicitIdentity, typename RedOutVar>
+class reduction_impl_algo;
 
 namespace reduction {
 enum class strategy : int {
@@ -63,6 +66,8 @@ template <typename KernelName,
 void reduction_parallel_for(handler &CGH, nd_range<Dims> NDRange,
                             PropertiesT Properties, RestT... Rest);
 
+template <typename T> struct IsReduction;
+template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
 } // namespace _V1

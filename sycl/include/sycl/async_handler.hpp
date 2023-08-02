@@ -13,6 +13,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+class exception_list;
 
 using async_handler = std::function<void(sycl::exception_list)>;
 } // namespace _V1

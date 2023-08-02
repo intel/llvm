@@ -30,6 +30,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declarations
+class device;
+class platform;
+
+namespace detail {
+class context_impl;
+}
 template <backend Backend, class SyclT>
 auto get_native(const SyclT &Obj) -> backend_return_t<Backend, SyclT>;
 

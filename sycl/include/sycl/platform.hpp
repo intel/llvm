@@ -29,11 +29,15 @@ namespace sycl {
 inline namespace _V1 {
 // TODO: make code thread-safe
 
+// Forward declaration
+class device;
+class context;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
+class platform_impl;
 
 /// Allows to enable/disable "Default Context" extension
 ///
@@ -44,6 +48,10 @@ namespace detail {
 /// \param Val Indicates if extension should be enabled/disabled
 void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
 } // namespace detail
+namespace ext::oneapi {
+// Forward declaration
+class filter_selector;
+} // namespace ext::oneapi
 
 /// Encapsulates a SYCL platform on which kernels may be executed.
 ///

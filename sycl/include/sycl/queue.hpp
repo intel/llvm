@@ -76,12 +76,18 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declaration
+class context;
+class device;
+class event;
+class queue;
 
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 
 namespace detail {
+class queue_impl;
 
 #if __SYCL_USE_FALLBACK_ASSERT
 inline event submitAssertCapture(queue &, event &, queue *,

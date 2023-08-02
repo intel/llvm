@@ -70,5 +70,15 @@ inline uint32_t IdToMaskPosition(NonUniformGroup Group, uint32_t Id) {
 
 } // namespace detail
 
+namespace ext::oneapi::experimental {
+
+// Forward declarations of non-uniform group types for algorithm definitions
+template <typename ParentGroup> class ballot_group;
+template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <typename ParentGroup> class tangle_group;
+class opportunistic_group;
+
+} // namespace ext::oneapi::experimental
+
 } // namespace _V1
 } // namespace sycl

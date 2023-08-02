@@ -46,14 +46,26 @@
 namespace sycl {
 inline namespace _V1 {
 
+class handler;
+class queue;
+template <int dimensions> class range;
 
 template <typename DataT>
 using buffer_allocator = detail::sycl_memory_object_allocator<DataT>;
 
+template <typename DataT, int Dimensions, access::mode AccessMode>
+class host_accessor;
 
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
+
+namespace ext::oneapi {
+template <typename SYCLObjT> class weak_object;
+} // namespace ext::oneapi
 
 namespace detail {
 
+class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
@@ -69,6 +81,9 @@ auto get_native_buffer(const buffer<DataT, Dimensions, Allocator, void> &Obj)
     -> backend_return_t<BackendName,
                         buffer<DataT, Dimensions, Allocator, void>>;
 
+template <backend Backend, typename DataT, int Dimensions,
+          typename AllocatorT = buffer_allocator<std::remove_const_t<DataT>>>
+struct BufferInterop;
 
 // The non-template base for the sycl::buffer class
 class __SYCL_EXPORT buffer_plain {

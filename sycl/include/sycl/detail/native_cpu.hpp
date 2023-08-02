@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 #pragma once
-#include <sycl/cg_types.hpp>
+#include "cg_types.hpp"
 #include <CL/__spirv/spirv_vars.hpp>
 #include <functional>
 #include <memory>

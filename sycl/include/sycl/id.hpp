@@ -20,6 +20,15 @@
 
 namespace sycl {
 inline namespace _V1 {
+// Forward declarations
+namespace detail {
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernel;
+template <typename TransformedArgType, int Dims, typename KernelType>
+class RoundedRangeKernelWithKH;
+} // namespace detail
+template <int Dimensions> class range;
+template <int Dimensions, bool with_offset> class item;
 
 /// A unique identifier of an item in an index space.
 ///

@@ -48,6 +48,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+// Forward declarations
+class device_impl;
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods

@@ -26,6 +26,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+template <typename T, access::address_space Space,
+          access::decorated DecorateAddress>
+class multi_ptr;
 
 namespace detail {
 
@@ -118,6 +121,7 @@ GetUnqualMultiPtr(const multi_ptr<CVT, Space, IsDecorated> &Mptr) {
 
 } // namespace detail
 
+struct sub_group;
 namespace ext::oneapi {
 inline sycl::sub_group this_sub_group();
 namespace experimental {

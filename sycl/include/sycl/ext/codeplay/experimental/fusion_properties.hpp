@@ -35,8 +35,16 @@ class enable_fusion : public detail::DataLessProperty<detail::FusionEnable> {};
 
 } // namespace ext::codeplay::experimental::property
 
+// Forward declarations
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 
+template <typename DataT, int Dimensions, access::mode AccessMode,
+          access::target AccessTarget, access::placeholder IsPlaceholder,
+          typename PropertyListT>
+class accessor;
 
+class queue;
 
 // Property trait specializations.
 template <>

@@ -8,14 +8,17 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>  // for backend
+#include <sycl/backend_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+template <backend Backend, typename SYCLObjectT> struct interop;
 
+template <backend Backend, typename T> struct BackendInput;
 
+template <backend Backend, typename T> struct BackendReturn;
 
 template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakePlatform = false;

@@ -64,6 +64,12 @@ struct LegacyReferenceTypes<ElementType,
 };
 } // namespace detail
 
+// Forward declarations
+template <typename dataT, int dimensions, access::mode accessMode,
+          access::target accessTarget, access::placeholder isPlaceholder,
+          typename PropertyListT>
+class accessor;
+template <typename dataT, int dimensions> class local_accessor;
 
 /// Provides constructors for address space qualified and non address space
 /// qualified pointers to allow interoperability between plain C++ and OpenCL C.

@@ -20,8 +20,14 @@
 namespace sycl {
 inline namespace _V1 {
 
+// Forward declarations
+class device;
+class device_selector;
 
 namespace ext::oneapi {
+namespace detail {
+class filter_selector_impl;
+} // namespace detail
 
 class __SYCL_EXPORT filter_selector : public device_selector {
 public:
