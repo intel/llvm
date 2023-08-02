@@ -1730,7 +1730,7 @@ private:
 ///   as a lambda function.
 /// - It requires that the actual `parallel_for` call was inlined, so that the
 ///   precursor ops are all in the same function (= CGF).
-/// - Launches without arugments are currently not raised due to their limited
+/// - Launches without arguments are currently not raised due to their limited
 ///   practical relevance.
 class RaiseScheduleKernel
     : public OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel> {
@@ -1845,7 +1845,7 @@ private:
   };
 
   /// Returns the unique value stored into the variable annotated by
-  //  \p annotation, or nullptr if there is no unique value, or the variable has
+  /// \p annotation, or nullptr if there is no unique value, or the variable has
   /// unexpected users.
   static Value getAnnotatedValue(LLVM::VarAnnotation annotation) {
     Value ptr = annotation.getVal();
