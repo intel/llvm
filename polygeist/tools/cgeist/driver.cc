@@ -372,7 +372,7 @@ static LogicalResult canonicalize(mlir::MLIRContext &Ctx,
       addFunctionPass(affine::createAffineScalarReplacementPass);
   }
 
-  if (PrintPipeline){
+  if (PrintPipeline) {
     llvm::errs() << "Canonicalization pipeline:\n";
     PM.dump();
   }
