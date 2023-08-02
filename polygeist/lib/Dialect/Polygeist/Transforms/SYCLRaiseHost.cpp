@@ -1718,7 +1718,20 @@ private:
   AccessorTypeTag accessorTypeTag;
 };
 
-/// TODO: Overview comment. Only lambdas, parallel_for, arguments
+/// Starting from a `sycl.host.handler.set_kernel` op, this pattern discovers
+/// the corresponding `sycl.host.handler.set_nd_range` and
+/// `sycl.host.set_captured` ops in the CGF. The pattern relies on variable
+/// annotations in SYCL's `handler.hpp` to find the number and kinds of kernel
+/// parameters. This info is used to verify that suitable values/entities have
+/// been captured.
+///
+/// Known limitations:
+/// - This pattern only matches `parallel_for` launches with the kernel passed
+///   as a lambda function.
+/// - It requires that the actual `parallel_for` call was inlined, so that the
+///   precursor ops are all in the same function (= CGF).
+/// - Launches without arugments are currently not raised due to their limited
+///   practical relevance.
 class RaiseScheduleKernel
     : public OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel> {
 public:
@@ -1806,7 +1819,7 @@ public:
       }
     }
 
-    // `set_captured` ops didn't cover all args
+    // `set_captured` ops didn't cover all args.
     if (!args.empty() &&
         !llvm::all_of(args, [](auto v) { return static_cast<bool>(v); }))
       return failure();
@@ -1831,9 +1844,13 @@ private:
     kind_invalid = 0xf, // not a valid kernel kind
   };
 
+  /// Returns the unique value stored into the variable annotated by
+  //  \p annotation, or nullptr if there is no unique value, or the variable has
+  /// unexpected users.
   static Value getAnnotatedValue(LLVM::VarAnnotation annotation) {
     Value ptr = annotation.getVal();
-    assert(isa_and_nonnull<LLVM::AllocaOp>(ptr.getDefiningOp()));
+    if (!isa_and_nonnull<LLVM::AllocaOp>(ptr.getDefiningOp()))
+      return {};
 
     Value value;
     for (auto *user : ptr.getUsers()) {
@@ -1862,6 +1879,8 @@ private:
     return value;
   }
 
+  /// Scan \p block for `llvm.intr.var.annotation`s to try to extract the number
+  /// of kernel parameters and a pointer to the first descriptor.
   static FailureOr<std::tuple<unsigned, Value>>
   getKernelParameterInfo(Block *block) {
     auto annotations = block->getOps<LLVM::VarAnnotation>();
@@ -1888,6 +1907,9 @@ private:
                                        paramDesc};
   }
 
+  /// Try to parse \p numParams kernel parameter descriptors starting from the
+  /// \p paramDesc pointer into the `kernel_signatures` constant from the
+  /// integration header. If successful, return the descriptors' kinds.
   static FailureOr<SmallVector<kernel_param_kind_t>>
   getParameterKinds(unsigned numParams, Value paramDesc) {
     FlatSymbolRefAttr kernelSignaturesRef;
