@@ -412,7 +412,7 @@ template <typename Group, size_t Rows, size_t Cols,
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
     layout::dynamic> &res,
-    multi_ptr<float, Space, IsDecorated> src, size_t stride, layout Layout);
+    multi_ptr<const float, Space, IsDecorated> src, size_t stride, layout Layout);
 
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
@@ -420,7 +420,7 @@ template <typename Group, size_t Rows, size_t Cols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
-    multi_ptr<float, Space, IsDecorated> src, size_t stride);
+    multi_ptr<const float, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
@@ -583,9 +583,11 @@ using joint_matrix_a;`| type alias for `joint_matrix` for matrix A
 |`template <typename Group, layout Layout> +
 using joint_matrix_b;`| type alias for `joint_matrix` for matrix B
 |`template <typename Group> +
-using joint_matrix_c;`| type alias for `joint_matrix` for the input matrix accumulator
+using joint_matrix_c;`| type alias for `joint_matrix` for the input
+matrix accumulator
 |`template <typename Group> +
-using joint_matrix_d;`| type alias for `joint_matrix` for the output matrix accumulator
+using joint_matrix_d;`| type alias for `joint_matrix` for the output
+matrix accumulator
 |======================
 
 ```c++

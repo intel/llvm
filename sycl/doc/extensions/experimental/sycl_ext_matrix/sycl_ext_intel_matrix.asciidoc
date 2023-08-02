@@ -39,8 +39,7 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[
-  sycl_ext_oneapi_matrix]
+* link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix]
 
 == Status
 This is an experimental extension specification, intended to provide early
@@ -201,7 +200,7 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
 ```
 === New Device Information Descriptor
 Besides the query we provide in
-link:../experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
+link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
 some device descriptors are Intel hardware specific. These are
 provided as part of `ext::intel::experimental::info::device::matrix`
 namespace:
