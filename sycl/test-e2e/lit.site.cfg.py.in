@@ -38,6 +38,10 @@ config.external_tests = "@SYCL_EXTERNAL_TESTS@"
 config.extra_include = "@CMAKE_CURRENT_SOURCE_DIR@/include"
 config.gpu_aot_target_opts = lit_config.params.get("gpu_aot_target_opts", "@GPU_AOT_TARGET_OPTS@")
 
+config.vulkan_include_dir = "@Vulkan_INCLUDE_DIRS@"
+config.vulkan_lib = "@Vulkan_LIBRARY@"
+config.vulkan_found = "@Vulkan_FOUND@"
+
 config.run_launcher = lit_config.params.get('run_launcher', "@SYCL_E2E_RUN_LAUNCHER@")
 
 import lit.llvm
