@@ -376,6 +376,9 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::FP_EXTEND, MVT::f32, Custom);
     setOperationAction(ISD::FP_EXTEND, MVT::f64, Custom);
     setOperationAction(ISD::ConstantFP, MVT::bf16, Expand);
+    setOperationAction(ISD::SELECT_CC, MVT::bf16, Expand);
+    setOperationAction(ISD::SELECT, MVT::bf16, Promote);
+    setOperationAction(ISD::SETCC, MVT::bf16, Promote);
   }
 
   if (Subtarget.hasStdExtZfhOrZfhminOrZhinxOrZhinxmin()) {
@@ -4727,8 +4730,6 @@ static unsigned getRISCVVLOp(SDValue Op) {
   OP_CASE(SMAX)
   OP_CASE(UMIN)
   OP_CASE(UMAX)
-  OP_CASE(FMINNUM)
-  OP_CASE(FMAXNUM)
   OP_CASE(STRICT_FADD)
   OP_CASE(STRICT_FSUB)
   OP_CASE(STRICT_FMUL)
@@ -4752,8 +4753,6 @@ static unsigned getRISCVVLOp(SDValue Op) {
   VP_CASE(SMAX)       // VP_SMAX
   VP_CASE(UMIN)       // VP_UMIN
   VP_CASE(UMAX)       // VP_UMAX
-  VP_CASE(FMINNUM)    // VP_FMINNUM
-  VP_CASE(FMAXNUM)    // VP_FMAXNUM
   VP_CASE(FCOPYSIGN)  // VP_FCOPYSIGN
   VP_CASE(SETCC)      // VP_SETCC
   VP_CASE(SINT_TO_FP) // VP_SINT_TO_FP
@@ -4805,6 +4804,12 @@ static unsigned getRISCVVLOp(SDValue Op) {
     return RISCVISD::VFCVT_RTZ_X_F_VL;
   case ISD::VP_FP_TO_UINT:
     return RISCVISD::VFCVT_RTZ_XU_F_VL;
+  case ISD::FMINNUM:
+  case ISD::VP_FMINNUM:
+    return RISCVISD::VFMIN_VL;
+  case ISD::FMAXNUM:
+  case ISD::VP_FMAXNUM:
+    return RISCVISD::VFMAX_VL;
   }
   // clang-format on
 #undef OP_CASE
@@ -4821,7 +4826,7 @@ static bool hasMergeOp(unsigned Opcode) {
                  ISD::FIRST_TARGET_STRICTFP_OPCODE ==
              21 &&
          "adding target specific op should update this function");
-  if (Opcode >= RISCVISD::ADD_VL && Opcode <= RISCVISD::FMAXNUM_VL)
+  if (Opcode >= RISCVISD::ADD_VL && Opcode <= RISCVISD::VFMAX_VL)
     return true;
   if (Opcode == RISCVISD::FCOPYSIGN_VL)
     return true;
@@ -7190,6 +7195,14 @@ static SDValue lowerGetVectorLength(SDNode *N, SelectionDAG &DAG,
   return DAG.getNode(ISD::INTRINSIC_WO_CHAIN, DL, XLenVT, ID, AVL, Sew, LMul);
 }
 
+// LMUL * VLEN should be greater than or equal to EGS * SEW
+static inline bool isValidEGW(int EGS, EVT VT,
+                              const RISCVSubtarget &Subtarget) {
+  return (Subtarget.getRealMinVLen() *
+             VT.getSizeInBits().getKnownMinValue()) / RISCV::RVVBitsPerBlock >=
+         EGS * VT.getScalarSizeInBits();
+}
+
 SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                                                      SelectionDAG &DAG) const {
   unsigned IntNo = Op.getConstantOperandVal(0);
@@ -7309,6 +7322,48 @@ SDValue RISCVTargetLowering::LowerINTRINSIC_WO_CHAIN(SDValue Op,
                      DAG.getUNDEF(MaskVT), Mask, VL});
     return DAG.getNode(RISCVISD::VSELECT_VL, DL, VT, SelectCond, SplattedVal,
                        Vec, VL);
+  }
+  // EGS * EEW >= 128 bits
+  case Intrinsic::riscv_vaesdf_vv:
+  case Intrinsic::riscv_vaesdf_vs:
+  case Intrinsic::riscv_vaesdm_vv:
+  case Intrinsic::riscv_vaesdm_vs:
+  case Intrinsic::riscv_vaesef_vv:
+  case Intrinsic::riscv_vaesef_vs:
+  case Intrinsic::riscv_vaesem_vv:
+  case Intrinsic::riscv_vaesem_vs:
+  case Intrinsic::riscv_vaeskf1:
+  case Intrinsic::riscv_vaeskf2:
+  case Intrinsic::riscv_vaesz_vs:
+  case Intrinsic::riscv_vsm4k:
+  case Intrinsic::riscv_vsm4r_vv:
+  case Intrinsic::riscv_vsm4r_vs: {
+    if (!isValidEGW(4, Op.getSimpleValueType(), Subtarget) ||
+        !isValidEGW(4, Op->getOperand(1).getSimpleValueType(), Subtarget) ||
+        !isValidEGW(4, Op->getOperand(2).getSimpleValueType(), Subtarget))
+      report_fatal_error("EGW should be greater than or equal to 4 * SEW.");
+    return Op;
+  }
+  // EGS * EEW >= 256 bits
+  case Intrinsic::riscv_vsm3c:
+  case Intrinsic::riscv_vsm3me: {
+    if (!isValidEGW(8, Op.getSimpleValueType(), Subtarget) ||
+        !isValidEGW(8, Op->getOperand(1).getSimpleValueType(), Subtarget))
+      report_fatal_error("EGW should be greater than or equal to 8 * SEW.");
+    return Op;
+  }
+  // zvknha(SEW=32)/zvknhb(SEW=[32|64])
+  case Intrinsic::riscv_vsha2ch:
+  case Intrinsic::riscv_vsha2cl:
+  case Intrinsic::riscv_vsha2ms: {
+    if (Op->getSimpleValueType(0).getScalarSizeInBits() == 64 &&
+        !Subtarget.hasStdExtZvknhb())
+      report_fatal_error("SEW=64 needs Zvknhb to be enabled.");
+    if (!isValidEGW(4, Op.getSimpleValueType(), Subtarget) ||
+        !isValidEGW(4, Op->getOperand(1).getSimpleValueType(), Subtarget) ||
+        !isValidEGW(4, Op->getOperand(2).getSimpleValueType(), Subtarget))
+      report_fatal_error("EGW should be greater than or equal to 4 * SEW.");
+    return Op;
   }
   }
 
@@ -16274,8 +16329,8 @@ const char *RISCVTargetLowering::getTargetNodeName(unsigned Opcode) const {
   NODE_NAME_CASE(CTLZ_VL)
   NODE_NAME_CASE(CTTZ_VL)
   NODE_NAME_CASE(CTPOP_VL)
-  NODE_NAME_CASE(FMINNUM_VL)
-  NODE_NAME_CASE(FMAXNUM_VL)
+  NODE_NAME_CASE(VFMIN_VL)
+  NODE_NAME_CASE(VFMAX_VL)
   NODE_NAME_CASE(MULHS_VL)
   NODE_NAME_CASE(MULHU_VL)
   NODE_NAME_CASE(VFCVT_RTZ_X_F_VL)
@@ -16747,6 +16802,22 @@ getIntrinsicForMaskedAtomicRMWBinOp(unsigned XLen, AtomicRMWInst::BinOp BinOp) {
 Value *RISCVTargetLowering::emitMaskedAtomicRMWIntrinsic(
     IRBuilderBase &Builder, AtomicRMWInst *AI, Value *AlignedAddr, Value *Incr,
     Value *Mask, Value *ShiftAmt, AtomicOrdering Ord) const {
+  // In the case of an atomicrmw xchg with a constant 0/-1 operand, replace
+  // the atomic instruction with an AtomicRMWInst::And/Or with appropriate
+  // mask, as this produces better code than the LR/SC loop emitted by
+  // int_riscv_masked_atomicrmw_xchg.
+  if (AI->getOperation() == AtomicRMWInst::Xchg &&
+      isa<ConstantInt>(AI->getValOperand())) {
+    ConstantInt *CVal = cast<ConstantInt>(AI->getValOperand());
+    if (CVal->isZero())
+      return Builder.CreateAtomicRMW(AtomicRMWInst::And, AlignedAddr,
+                                     Builder.CreateNot(Mask, "Inv_Mask"),
+                                     AI->getAlign(), Ord);
+    if (CVal->isMinusOne())
+      return Builder.CreateAtomicRMW(AtomicRMWInst::Or, AlignedAddr, Mask,
+                                     AI->getAlign(), Ord);
+  }
+
   unsigned XLen = Subtarget.getXLen();
   Value *Ordering =
       Builder.getIntN(XLen, static_cast<uint64_t>(AI->getOrdering()));
