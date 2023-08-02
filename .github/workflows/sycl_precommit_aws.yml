@@ -4,11 +4,38 @@ on:
   workflow_run:
     workflows: [SYCL Experimental Pre-Commit]
     types:
-      - in_progress
       - completed
 
 jobs:
-  aws:
+  create-check:
+    runs-on: [Linux, build]
+    outputs:
+      id: ${{ steps.create_check.outputs.result }}
+    steps:
+      - uses: actions/github-script@v6
+        id: create_check
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha
+            const run_id = '${{ github.run_id }}'
+            const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
+
+            const result = await  github.request('POST /repos/{owner}/{repo}/check-runs', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'e2e-aws-cuda',
+              head_sha: sha,
+              details_url: this_run_url,
+              status: 'in_progress',
+              output: {
+                title: 'SYCL E2E on AWS CUDA',
+                summary: 'URL: ' + this_run_url
+              }
+            })
+            console.log(result)
+            return result.data.id
+
+  aws-start:
     runs-on: ubuntu-20.04
     environment: aws
     steps:
@@ -16,16 +43,60 @@ jobs:
         with:
           sparse-checkout: devops/actions/aws-ec2
       - run: npm install ./devops/actions/aws-ec2
-      - id: mode
-        run: |
-          if [ "${{ github.event.action }}" == "completed" ]; then
-              echo 'MODE=stop' >> $GITHUB_OUTPUT
-          else
-              echo 'MODE=start' >> $GITHUB_OUTPUT
-          fi
       - uses: ./devops/actions/aws-ec2
         with:
-          mode: ${{ steps.mode.outputs.MODE }}
+          mode: start
+          runs-on-list: '[{"runs-on":"aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}
+
+  e2e-cuda:
+    needs: [aws-start]
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    with:
+      name: CUDA E2E
+      runner: 'aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}'
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+      image_options: -u 1001 --gpus all
+      target_devices: ext_oneapi_cuda:gpu
+      ref: ${{ github.sha }}
+      merge_ref: ${{ github.event.pull_request.base.sha }}
+      env: '{"LIT_FILTER":"Basic/accessor"}'
+
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: llvm_sycl.tar.zst
+      sycl_toolchain_decompress_command: zstd
+
+  update-check:
+    needs: [create-check, e2e-cuda]
+    if: always()
+    runs-on: [Linux, build]
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            const result = await github.request('PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              check_run_id: '${{ needs.create-check.outputs.id }}',
+              status: 'completed',
+              conclusion: '${{ needs.e2e-cuda.conclusion }}'
+            })
+            console.log(result)
+
+  aws-stop:
+    needs: [aws-start, e2e-cuda]
+    runs-on: ubuntu-20.04
+    environment: aws
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          sparse-checkout: devops/actions/aws-ec2
+      - run: npm install ./devops/actions/aws-ec2
+      - uses: ./devops/actions/aws-ec2
+        with:
+          mode: stop
           runs-on-list: '[{"runs-on":"aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
           GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
