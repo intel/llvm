@@ -932,12 +932,14 @@ inline pi_result piPluginGetLastError(char **Message) {
   // reference for the urAdapterGetLastError call, then release it.
   ur_adapter_handle_t Adapter;
   urAdapterGet(1, &Adapter, nullptr);
+  // FIXME: ErrorCode should store a native error, but these are not being used
+  // in CUDA adapter at the moment
   int32_t ErrorCode;
-  urAdapterGetLastError(Adapter, const_cast<const char **>(Message),
-                        &ErrorCode);
+  ur_result_t Res = urAdapterGetLastError(
+      Adapter, const_cast<const char **>(Message), &ErrorCode);
   urAdapterRelease(Adapter);
 
-  return PI_SUCCESS;
+  return ur2piResult(Res);
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
