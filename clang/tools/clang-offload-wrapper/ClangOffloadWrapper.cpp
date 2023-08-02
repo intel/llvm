@@ -616,7 +616,10 @@ private:
       FTy = NativeCPUFuncTy;
     auto FCalle = M.getOrInsertFunction(
         sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
-    return dyn_cast<Function>(FCalle.getCallee());
+    Function *F = dyn_cast<Function>(FCalle.getCallee());
+    if (F == nullptr)
+      report_fatal_error("Unexpected callee");
+    return F;
   }
 
   Expected<std::pair<Constant *, Constant *>>
