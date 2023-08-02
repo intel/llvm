@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <sycl/id.hpp>                    // for id
-#include <sycl/range.hpp>                 // for range
+#include <sycl/id.hpp>    // for id
+#include <sycl/range.hpp> // for range
 
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

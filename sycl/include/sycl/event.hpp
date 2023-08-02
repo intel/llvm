@@ -8,17 +8,17 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <memory>                             // for shared_ptr, hash
-#include <cstddef>                            // for size_t
-#include <variant>                            // for hash
-#include <vector>                             // for vector
+#include <cstddef>                           // for size_t
+#include <memory>                            // for shared_ptr, hash
+#include <sycl/detail/export.hpp>            // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp> // for is_event_info_desc, is_...
+#include <sycl/detail/owner_less_base.hpp>   // for OwnerLessBase
+#include <variant>                           // for hash
+#include <vector>                            // for vector
 
-#include <sycl/backend_types.hpp>                  // for backend, backend_return_t
-#include <sycl/detail/defines_elementary.hpp>      // for __SYCL2020_DEPRECATED
-#include <sycl/detail/pi.h>                        // for pi_native_handle
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h>                   // for pi_native_handle
 
 #ifdef __SYCL_INTERNAL_API
 #include <sycl/detail/cl.h>

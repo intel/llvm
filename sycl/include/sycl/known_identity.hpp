@@ -8,19 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp>  // for is_genbool, is_genint...
-#include <sycl/functional.hpp>                  // for bit_and, bit_or, bit_xor
-#include <stdint.h>                             // for uint16_t
-#include <functional>                           // for logical_and, logical_or
-#include <limits>                               // for numeric_limits
-#include <type_traits>                          // for enable_if_t, bool_con...
-#include <complex>                              // for complex
-#include <cstddef>                              // for byte, size_t
+#include <complex>                             // for complex
+#include <cstddef>                             // for byte, size_t
+#include <functional>                          // for logical_and, logical_or
+#include <limits>                              // for numeric_limits
+#include <stdint.h>                            // for uint16_t
+#include <sycl/detail/generic_type_traits.hpp> // for is_genbool, is_genint...
+#include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
+#include <type_traits>                         // for enable_if_t, bool_con...
 
-#include <sycl/aliases.hpp>                          // for half
-#include <sycl/half_type.hpp>                        // for half
-#include <sycl/marray.hpp>                           // for marray
-#include <sycl/types.hpp>                            // for vec
+#include <sycl/aliases.hpp>   // for half
+#include <sycl/half_type.hpp> // for half
+#include <sycl/marray.hpp>    // for marray
+#include <sycl/types.hpp>     // for vec
 
 namespace sycl {
 inline namespace _V1 {

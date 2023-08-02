@@ -8,21 +8,21 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>                                // for host_acce...
-#include <sycl/context.hpp>                                 // for context
-#include <sycl/device.hpp>                                  // for device
-#include <sycl/event.hpp>                                   // for event
-#include <sycl/ext/oneapi/weak_object.hpp>                  // for weak_object
-#include <sycl/kernel.hpp>                                  // for kernel
-#include <sycl/kernel_bundle.hpp>                           // for kernel_id
-#include <sycl/platform.hpp>                                // for platform
-#include <sycl/queue.hpp>                                   // for queue
+#include <sycl/accessor.hpp>               // for host_acce...
+#include <sycl/context.hpp>                // for context
+#include <sycl/device.hpp>                 // for device
+#include <sycl/event.hpp>                  // for event
+#include <sycl/ext/oneapi/weak_object.hpp> // for weak_object
+#include <sycl/kernel.hpp>                 // for kernel
+#include <sycl/kernel_bundle.hpp>          // for kernel_id
+#include <sycl/platform.hpp>               // for platform
+#include <sycl/queue.hpp>                  // for queue
 
-#include <sycl/access/access.hpp>                                // for access_mode
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for accessor
-#include <sycl/kernel_bundle_enums.hpp>                          // for bundle_state
-#include <sycl/properties/image_properties.hpp>                  // for sampled_i...
-#include <sycl/stream.hpp>                                       // for stream
+#include <sycl/access/access.hpp> // for access_mode
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for accessor
+#include <sycl/kernel_bundle_enums.hpp>         // for bundle_state
+#include <sycl/properties/image_properties.hpp> // for sampled_i...
+#include <sycl/stream.hpp>                      // for stream
 
 namespace sycl {
 inline namespace _V1 {

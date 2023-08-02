@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for mode, placeholder, target
-#include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
-#include <sycl/property_list.hpp>              // for property_list
-#include <bitset>                              // for bitset
-#include <memory>                              // for shared_ptr
-#include <type_traits>                         // for conditional_t, enable_...
-#include <vector>                              // for vector
+#include <bitset>                             // for bitset
+#include <memory>                             // for shared_ptr
+#include <sycl/access/access.hpp>             // for mode, placeholder, target
+#include <sycl/detail/property_list_base.hpp> // for PropertyListBase
+#include <sycl/property_list.hpp>             // for property_list
+#include <type_traits>                        // for conditional_t, enable_...
+#include <vector>                             // for vector
 
-#include <sycl/detail/defines.hpp>                  // for __SYCL_TYPE
-#include <sycl/detail/pi.h>                 // for PI_ERROR_INVALID_VALUE
-#include <sycl/detail/property_helper.hpp>          // for DataLessPropKind, Prop...
-#include <sycl/exception.hpp>                       // for invalid_object_error
+#include <sycl/detail/defines.hpp>         // for __SYCL_TYPE
+#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Prop...
+#include <sycl/exception.hpp>              // for invalid_object_error
 
 namespace sycl {
 inline namespace _V1 {

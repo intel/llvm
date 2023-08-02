@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/detail/array.hpp>    // for array
-#include <sycl/detail/helpers.hpp>  // for Builder
-#include <stddef.h>                 // for size_t
-#include <type_traits>              // for enable_if_t
-#include <array>                    // for array
+#include <array>                   // for array
+#include <stddef.h>                // for size_t
+#include <sycl/detail/array.hpp>   // for array
+#include <sycl/detail/helpers.hpp> // for Builder
+#include <type_traits>             // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

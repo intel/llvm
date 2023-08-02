@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
-#include <stdint.h>                // for uint64_t
+#include <stdint.h>               // for uint64_t
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
 namespace sycl {
 inline namespace _V1 {

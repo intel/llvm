@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>               // for mode, placeholder
-#include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, Dat...
-#include <sycl/properties/property_traits.hpp>  // for is_property, is_prope...
-#include <type_traits>                          // for true_type
+#include <sycl/access/access.hpp>              // for mode, placeholder
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property, is_prope...
+#include <type_traits>                         // for true_type
 
-#include <sycl/queue.hpp>                            // for queue
+#include <sycl/queue.hpp> // for queue
 
 namespace sycl {
 inline namespace _V1 {

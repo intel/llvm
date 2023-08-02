@@ -10,7 +10,7 @@
 
 #include "device_aspect_macros.hpp" // for aspect
 
-#include <type_traits>  // for bool_constant
+#include <type_traits> // for bool_constant
 
 // This macro creates an alias from an aspect to another. To avoid
 // redeclarations, we need to define it empty for this file, otherwise we would

@@ -10,8 +10,8 @@
 
 // 4.5 C++ Standard library classes required for the interface
 
-#include <memory>   // for unique_ptr
-#include <utility>  // for forward
+#include <memory>  // for unique_ptr
+#include <utility> // for forward
 
 namespace sycl {
 inline namespace _V1 {

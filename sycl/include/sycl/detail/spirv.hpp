@@ -10,8 +10,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 #include <cstring> // for std::memcpy
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
 
 namespace sycl {
 inline namespace _V1 {

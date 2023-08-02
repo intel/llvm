@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>                          // for accessor
-#include <sycl/backend_types.hpp>                     // for backend
-#include <sycl/buffer.hpp>                            // for buffer_allocator
-#include <sycl/context.hpp>                           // for context, get_na...
-#include <sycl/detail/backend_traits.hpp>             // for InteropFeatureS...
-#include <sycl/feature_test.hpp>                      // for SYCL_BACKEND_OP...
-#include <sycl/image.hpp>                             // for image, image_al...
-#include <stdint.h>                                   // for int32_t
+#include <stdint.h>                       // for int32_t
+#include <sycl/accessor.hpp>              // for accessor
+#include <sycl/backend_types.hpp>         // for backend
+#include <sycl/buffer.hpp>                // for buffer_allocator
+#include <sycl/context.hpp>               // for context, get_na...
+#include <sycl/detail/backend_traits.hpp> // for InteropFeatureS...
+#include <sycl/feature_test.hpp>          // for SYCL_BACKEND_OP...
+#include <sycl/image.hpp>                 // for image, image_al...
 #if SYCL_BACKEND_OPENCL
-#include <sycl/detail/backend_traits_opencl.hpp>      // for interop
+#include <sycl/detail/backend_traits_opencl.hpp> // for interop
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_CUDA
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
@@ -30,29 +30,29 @@
 #include <sycl/detail/backend_traits_hip.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-#include <sycl/detail/backend_traits_level_zero.hpp>  // for _ze_command_lis...
+#include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
 #endif
-#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                           // for pi_native_handle
-#include <sycl/device.hpp>                            // for device, get_native
-#include <sycl/event.hpp>                             // for event, get_native
-#include <sycl/exception.hpp>                         // for make_error_code
-#include <sycl/kernel_bundle.hpp>                     // for kernel_bundle
-#include <sycl/platform.hpp>                          // for platform, get_n...
-#include <sycl/queue.hpp>                             // for queue, get_native
-#include <type_traits>                                // for enable_if_t
-#include <memory>                                     // for shared_ptr
-#include <vector>                                     // for vector
+#include <memory>                 // for shared_ptr
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>       // for pi_native_handle
+#include <sycl/device.hpp>        // for device, get_native
+#include <sycl/event.hpp>         // for event, get_native
+#include <sycl/exception.hpp>     // for make_error_code
+#include <sycl/kernel_bundle.hpp> // for kernel_bundle
+#include <sycl/platform.hpp>      // for platform, get_n...
+#include <sycl/queue.hpp>         // for queue, get_native
+#include <type_traits>            // for enable_if_t
+#include <vector>                 // for vector
 
-#include <sycl/detail/cl.h>                                    // for _cl_event
-#include <sycl/access/access.hpp>                          // for mode, placeholder
-#include <sycl/async_handler.hpp>                          // for async_handler
-#include <sycl/detail/defines_elementary.hpp>              // for __SYCL_DEPRECATED
-#include <sycl/detail/impl_utils.hpp>                      // for createSyclObjFr...
-#include <sycl/handler.hpp>                                // for buffer
-#include <sycl/kernel.hpp>                                 // for kernel, get_native
-#include <sycl/kernel_bundle_enums.hpp>                    // for bundle_state
-#include <sycl/property_list.hpp>                          // for property_list
+#include <sycl/access/access.hpp>             // for mode, placeholder
+#include <sycl/async_handler.hpp>             // for async_handler
+#include <sycl/detail/cl.h>                   // for _cl_event
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/detail/impl_utils.hpp>         // for createSyclObjFr...
+#include <sycl/handler.hpp>                   // for buffer
+#include <sycl/kernel.hpp>                    // for kernel, get_native
+#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
+#include <sycl/property_list.hpp>             // for property_list
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,27 +8,27 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>                 // for target, mode, place...
-#include <sycl/accessor.hpp>                      // for AccessorBaseHost
-#include <sycl/backend_types.hpp>                 // for backend, backend_re...
-#include <stdint.h>                               // for int32_t
-#include <memory>                                 // for shared_ptr
-#include <type_traits>                            // for enable_if_t
-#include <utility>                                // for move, pair
-#include <vector>                                 // for vector
+#include <memory>                 // for shared_ptr
+#include <stdint.h>               // for int32_t
+#include <sycl/access/access.hpp> // for target, mode, place...
+#include <sycl/accessor.hpp>      // for AccessorBaseHost
+#include <sycl/backend_types.hpp> // for backend, backend_re...
+#include <type_traits>            // for enable_if_t
+#include <utility>                // for move, pair
+#include <vector>                 // for vector
 
-#include <sycl/context.hpp>                            // for context
-#include <sycl/detail/export.hpp>                      // for __SYCL_EXPORT
-#include <sycl/detail/helpers.hpp>                     // for context_impl
-#include <sycl/detail/impl_utils.hpp>                  // for getSyclObjImpl
-#include <sycl/detail/pi.h>                            // for _pi_mem, pi_native_...
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_ME...
-#include <sycl/device.hpp>                             // for device, device_impl
-#include <sycl/exception.hpp>                          // for invalid_object_error
-#include <sycl/exception_list.hpp>                     // for queue_impl
-#include <sycl/ext/oneapi/accessor_property_list.hpp>  // for accessor_property_list
-#include <sycl/image.hpp>                              // for image
-#include <sycl/properties/buffer_properties.hpp>       // for buffer
+#include <sycl/context.hpp>           // for context
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>    // for context_impl
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+#include <sycl/detail/pi.h>           // for _pi_mem, pi_native_...
+#include <sycl/detail/pi.h>           // for PI_ERROR_INVALID_ME...
+#include <sycl/device.hpp>            // for device, device_impl
+#include <sycl/exception.hpp>         // for invalid_object_error
+#include <sycl/exception_list.hpp>    // for queue_impl
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
+#include <sycl/image.hpp>                             // for image
+#include <sycl/properties/buffer_properties.hpp>      // for buffer
 
 namespace sycl {
 inline namespace _V1 {

@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <type_traits>
 #include <CL/__spirv/spirv_ops.hpp>
+#include <type_traits>
 #endif
 
 namespace sycl {

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <ostream>                             // for operator<<, ostream
+#include <ostream>                            // for operator<<, ostream
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <type_traits>  // for is_trivially_copyable, enable_if_t
+#include <type_traits> // for is_trivially_copyable, enable_if_t
 
 #if __cpp_lib_bit_cast
 #include <bit>

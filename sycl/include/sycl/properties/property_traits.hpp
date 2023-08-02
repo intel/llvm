@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>  // for DataLessPropertyBase, Pro...
-#include <type_traits>                      // for bool_constant, false_type
+#include <sycl/detail/property_helper.hpp> // for DataLessPropertyBase, Pro...
+#include <type_traits>                     // for bool_constant, false_type
 
 namespace sycl {
 inline namespace _V1 {

@@ -7,18 +7,18 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
-#include <stdint.h>                                    // for uint32_t
-#include <cstring>                                     // for size_t, memcpy
-#include <tuple>                                       // for ignore, _Swall...
-#include <type_traits>                                 // for is_same, remov...
+#include <cstring>     // for size_t, memcpy
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for ignore, _Swall...
+#include <type_traits> // for is_same, remov...
 
-#include <sycl/access/access.hpp>                           // for address_space
-#include <sycl/detail/defines_elementary.hpp>               // for __SYCL_ALWAYS_...
-#include <sycl/detail/pi.h>                         // for PI_ERROR_INVAL...
-#include <sycl/exception.hpp>                               // for runtime_error
-#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp>  // for layout, use, tf32
-#include <sycl/marray.hpp>                                  // for marray
-#include <sycl/multi_ptr.hpp>                               // for multi_ptr
+#include <sycl/access/access.hpp>             // for address_space
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
+#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32
+#include <sycl/marray.hpp>                                 // for marray
+#include <sycl/multi_ptr.hpp>                              // for multi_ptr
 
 #include "matrix-intel.hpp"
 

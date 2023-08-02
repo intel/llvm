@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>                               // for aspect
-#include <sycl/ext/oneapi/properties/property.hpp>        // for PropKind
-#include <sycl/ext/oneapi/properties/property_utils.hpp>  // for SizeListToStr
-#include <sycl/ext/oneapi/properties/property_value.hpp>  // for property_value
-#include <stddef.h>                                       // for size_t
-#include <stdint.h>                                       // for uint32_t
-#include <array>                                          // for array
-#include <type_traits>                                    // for true_type
-#include <utility>                                        // for declval
+#include <array>                                         // for array
+#include <stddef.h>                                      // for size_t
+#include <stdint.h>                                      // for uint32_t
+#include <sycl/aspects.hpp>                              // for aspect
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for SizeListToStr
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+#include <type_traits>                                   // for true_type
+#include <utility>                                       // for declval
 
 namespace sycl {
 inline namespace _V1 {

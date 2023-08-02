@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/bfloat16.hpp>  // for bfloat16, bfloat16ToBits
-#include <sycl/marray.hpp>               // for marray
-#include <stdint.h>                      // for uint32_t
-#include <cstring>                       // for size_t, memcpy
-#include <type_traits>                   // for enable_if_t, is_same
+#include <cstring>                      // for size_t, memcpy
+#include <stdint.h>                     // for uint32_t
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
+#include <sycl/marray.hpp>              // for marray
+#include <type_traits>                  // for enable_if_t, is_same
 
-#include <sycl/builtins.hpp>                  // for ceil, cos, exp, exp10, exp2
+#include <sycl/builtins.hpp> // for ceil, cos, exp, exp10, exp2
 
 namespace sycl {
 inline namespace _V1 {

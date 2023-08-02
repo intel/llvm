@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <tuple>    // for tuple
-#include <array>    // for tuple_element
-#include <cstddef>  // for size_t
-#include <utility>  // for make_index_sequence, index_sequence
-#include <variant>  // for tuple
+#include <array>   // for tuple_element
+#include <cstddef> // for size_t
+#include <tuple>   // for tuple
+#include <utility> // for make_index_sequence, index_sequence
+#include <variant> // for tuple
 
 namespace sycl {
 inline namespace _V1 {

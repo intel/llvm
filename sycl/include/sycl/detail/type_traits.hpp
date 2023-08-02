@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for decorated, address_space
-#include <sycl/detail/generic_type_lists.hpp>  // for vec, marray, integer_list
-#include <sycl/detail/type_list.hpp>           // for is_contained, find_twi...
-#include <array>                               // for array
-#include <tuple>                               // for tuple
-#include <type_traits>                         // for true_type, false_type
-#include <cstddef>                             // for size_t
+#include <array>                              // for array
+#include <cstddef>                            // for size_t
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <tuple>                              // for tuple
+#include <type_traits>                        // for true_type, false_type
 
-#include <sycl/half_type.hpp>                       // for half
+#include <sycl/half_type.hpp> // for half
 
 namespace sycl {
 inline namespace _V1 {

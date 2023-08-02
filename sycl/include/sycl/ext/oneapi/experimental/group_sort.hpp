@@ -9,15 +9,15 @@
 #pragma once
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <sycl/detail/type_traits.hpp>  // for is_generic_group
-#include <stddef.h>                     // for size_t
-#include <type_traits>                  // for enable_if_t, decay_t, false_type
-#include <system_error>                 // for error_code
-#include <utility>                      // for declval
+#include <stddef.h>                    // for size_t
+#include <sycl/detail/type_traits.hpp> // for is_generic_group
+#include <system_error>                // for error_code
+#include <type_traits>                 // for enable_if_t, decay_t, false_type
+#include <utility>                     // for declval
 
-#include "group_helpers_sorters.hpp"    // for default_sorter, group_with_sc...
+#include "group_helpers_sorters.hpp" // for default_sorter, group_with_sc...
 #include <sycl/detail/pi.h>          // for PI_ERROR_INVALID_DEVICE
-#include <sycl/exception.hpp>                // for sycl_category, exception
+#include <sycl/exception.hpp>        // for sycl_category, exception
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/impl_utils.hpp>            // for getSyclObjImpl
-#include <sycl/ext/oneapi/weak_object_base.hpp>  // for getSyclWeakObjImpl
+#include <sycl/detail/impl_utils.hpp>           // for getSyclObjImpl
+#include <sycl/ext/oneapi/weak_object_base.hpp> // for getSyclWeakObjImpl
 
 namespace sycl {
 inline namespace _V1 {

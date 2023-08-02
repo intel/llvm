@@ -124,13 +124,13 @@ template<class Container>
 
 */
 
-#include <array>        // for array
-#include <cassert>      // for assert
-#include <cstddef>      // for size_t, nullptr_t, ptrdiff_t
-#include <cstdint>      // for SIZE_MAX
-#include <iterator>     // for size, data, distance, reverse_iterator
-#include <type_traits>  // for enable_if_t, enable_if, remove_cv_t, false_type
-#include <utility>      // for declval
+#include <array>       // for array
+#include <cassert>     // for assert
+#include <cstddef>     // for size_t, nullptr_t, ptrdiff_t
+#include <cstdint>     // for SIZE_MAX
+#include <iterator>    // for size, data, distance, reverse_iterator
+#include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
+#include <utility>     // for declval
 
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline

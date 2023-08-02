@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>     // for address_space
-#include <sycl/detail/type_list.hpp>  // for type_list, address_space_list
-#include <sycl/half_type.hpp>         // for half
-#include <cstddef>                    // for byte, size_t
-#include <type_traits>                // for conditional_t, is_signed_v, is_...
+#include <cstddef>                   // for byte, size_t
+#include <sycl/access/access.hpp>    // for address_space
+#include <sycl/detail/type_list.hpp> // for type_list, address_space_list
+#include <sycl/half_type.hpp>        // for half
+#include <type_traits>               // for conditional_t, is_signed_v, is_...
 
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions

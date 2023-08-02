@@ -7,17 +7,17 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/context.hpp>        // for context
-#include <sycl/detail/common.hpp>  // for code_location
-#include <sycl/device.hpp>         // for device
-#include <sycl/exception.hpp>      // for memory_allocation_error
-#include <sycl/queue.hpp>          // for queue
-#include <sycl/usm/usm_enums.hpp>  // for alloc
-#include <cstdlib>                 // for size_t, aligned_alloc, free
-#include <type_traits>             // for true_type
+#include <cstdlib>                // for size_t, aligned_alloc, free
+#include <sycl/context.hpp>       // for context
+#include <sycl/detail/common.hpp> // for code_location
+#include <sycl/device.hpp>        // for device
+#include <sycl/exception.hpp>     // for memory_allocation_error
+#include <sycl/queue.hpp>         // for queue
+#include <sycl/usm/usm_enums.hpp> // for alloc
+#include <type_traits>            // for true_type
 
-#include <sycl/builtins.hpp>            // for max
-#include <sycl/property_list.hpp>       // for property_list
+#include <sycl/builtins.hpp>      // for max
+#include <sycl/property_list.hpp> // for property_list
 
 namespace sycl {
 inline namespace _V1 {

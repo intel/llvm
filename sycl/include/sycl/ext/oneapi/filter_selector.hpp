@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/device_selector.hpp>  // for device_selector
-#include <memory>                    // for shared_ptr
-#include <string>                    // for string
+#include <memory>                   // for shared_ptr
+#include <string>                   // for string
+#include <sycl/device_selector.hpp> // for device_selector
 
-#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include <sycl/device.hpp>                // for device
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/device.hpp>        // for device
 
 // 4.6.1 Device selection class
 

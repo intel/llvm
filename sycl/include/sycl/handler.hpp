@@ -8,6 +8,9 @@
 
 #pragma once
 
+#include <assert.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
@@ -31,26 +34,23 @@
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
-#include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <functional>
 #include <memory>
+#include <string>
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <tuple>
 #include <type_traits>
-#include <string>
 #include <utility>
 #include <vector>
 
-#include <sycl/detail/cl.h>
 #include <sycl/detail/array.hpp>
+#include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -59,7 +59,6 @@
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/pi.h>
 #include <sycl/detail/pi.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>

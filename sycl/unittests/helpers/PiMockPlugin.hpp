@@ -14,9 +14,9 @@
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstring>
-#include <cassert>
 
 // Helpers for dummy handles
 

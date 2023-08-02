@@ -15,10 +15,10 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/helpers.hpp>
+#include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
 #include <sycl/property_list.hpp>
 #include <sycl/stl.hpp>
 #include <sycl/types.hpp>
-#include <sycl/detail/stl_type_traits.hpp>                      // for iterator_to_const_type_t
 
 #include <cstdint>
 #include <functional>

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <functional>  // for function
+#include <functional> // for function
 
 namespace sycl {
 inline namespace _V1 {

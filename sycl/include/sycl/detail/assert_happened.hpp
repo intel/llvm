@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <cstdint>  // for uint64_t, int32_t
+#include <cstdint> // for uint64_t, int32_t
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Reads Flag of AssertHappened on device

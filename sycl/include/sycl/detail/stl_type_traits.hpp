@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <iterator>     // for iterator_traits
-#include <type_traits>  // for is_const, remove_pointer_t, void_t
-#include <utility>      // for declval
+#include <iterator>    // for iterator_traits
+#include <type_traits> // for is_const, remove_pointer_t, void_t
+#include <utility>     // for declval
 
 namespace sycl {
 inline namespace _V1 {

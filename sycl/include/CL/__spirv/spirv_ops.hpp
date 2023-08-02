@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>          // for Scope, __ocl_event_t
-#include <sycl/detail/defines_elementary.hpp>  // for __DPCPP_SYCL_EXTERNAL
-#include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
-#include <stddef.h>                            // for size_t
-#include <stdint.h>                            // for uint32_t
+#include <CL/__spirv/spirv_types.hpp>         // for Scope, __ocl_event_t
+#include <stddef.h>                           // for size_t
+#include <stdint.h>                           // for uint32_t
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__

@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/exception.hpp>             // for feature_not_supported
-#include <type_traits>                    // for remove_reference_t
+#include <sycl/exception.hpp> // for feature_not_supported
+#include <type_traits>        // for remove_reference_t
 
-#include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_OPERATION
+#include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERATION
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>

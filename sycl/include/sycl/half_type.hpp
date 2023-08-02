@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/bit_cast.hpp>              // for bit_cast
-#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
+#include <cstddef>                        // for size_t
 #include <cstdint>                        // for uint16_t, uint32_t, uint8_t
 #include <functional>                     // for hash
 #include <limits>                         // for float_denorm_style, float_r...
-#include <cstddef>                        // for size_t
-#include <sycl/detail/iostream_proxy.hpp>                         // for istream, ostream
 #include <string_view>                    // for hash
+#include <sycl/bit_cast.hpp>              // for bit_cast
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
+#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
 #include <type_traits>                    // for enable_if_t
 
 #ifdef __SYCL_DEVICE_ONLY__

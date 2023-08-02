@@ -9,18 +9,18 @@
 
 #pragma once
 
-#include <string>                         // for string
-#include <type_traits>                    // for enable_if_t
+#include <string>      // for string
+#include <type_traits> // for enable_if_t
 
-#include <sycl/backend_types.hpp>              // for backend
-#include <sycl/context.hpp>                    // for context
-#include <sycl/detail/backend_traits.hpp>      // for interop
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
-#include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                    // for pi_native_handle
-#include <sycl/device.hpp>                     // for device
-#include <sycl/platform.hpp>                   // for platform
-#include <sycl/queue.hpp>                      // for queue
+#include <sycl/backend_types.hpp>             // for backend
+#include <sycl/context.hpp>                   // for context
+#include <sycl/detail/backend_traits.hpp>     // for interop
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/device.hpp>                    // for device
+#include <sycl/platform.hpp>                  // for platform
+#include <sycl/queue.hpp>                     // for queue
 
 namespace sycl {
 inline namespace _V1 {

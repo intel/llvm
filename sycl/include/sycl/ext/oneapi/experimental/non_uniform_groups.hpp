@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/sub_group_mask.hpp>  // for sub_group_mask
-#include <sycl/types.hpp>                      // for vec
-#include <stddef.h>                            // for size_t
-#include <stdint.h>                            // for uint32_t
+#include <stddef.h>                           // for size_t
+#include <stdint.h>                           // for uint32_t
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/types.hpp>                     // for vec
 
-#include <sycl/marray.hpp>                          // for marray
+#include <sycl/marray.hpp> // for marray
 
 namespace sycl {
 inline namespace _V1 {

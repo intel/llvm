@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/context.hpp>                     // for context
-#include <sycl/detail/property_helper.hpp>      // for DataLessPropKind, Dat...
-#include <sycl/properties/property_traits.hpp>  // for is_property_of
-#include <type_traits>                          // for true_type
+#include <sycl/context.hpp>                    // for context
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property_of
+#include <type_traits>                         // for true_type
 
-#include <sycl/detail/defines_elementary.hpp>        // for __SYCL2020_DEPRECATED
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 namespace sycl {
 inline namespace _V1 {

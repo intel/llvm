@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp>  // for is_sigeninteger, is_s...
-#include <assert.h>                             // for assert
+#include <assert.h>                            // for assert
+#include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 
 // Define __NO_EXT_VECTOR_TYPE_ON_HOST__ to avoid using ext_vector_type
 // extension even if the host compiler supports it. The same can be
@@ -47,40 +47,40 @@
 #error "SYCL device compiler is built without ext_vector_type support"
 #endif // __HAS_EXT_VECTOR_TYPE__
 
-#include <sycl/access/access.hpp>               // for decorated, address_space
-#include <sycl/aliases.hpp>                     // for half, cl_char, cl_int
-#include <sycl/detail/common.hpp>               // for ArrayCreator, RepeatV...
-#include <sycl/detail/type_traits.hpp>          // for is_floating_point
-#include <sycl/exception.hpp>                   // for make_error_code, errc
-#include <sycl/half_type.hpp>                   // for StorageT, half, Vec16...
-#include <sycl/marray.hpp>                      // for __SYCL_BINOP, __SYCL_...
-#include <sycl/multi_ptr.hpp>                   // for multi_ptr
+#include <sycl/access/access.hpp>      // for decorated, address_space
+#include <sycl/aliases.hpp>            // for half, cl_char, cl_int
+#include <sycl/detail/common.hpp>      // for ArrayCreator, RepeatV...
+#include <sycl/detail/type_traits.hpp> // for is_floating_point
+#include <sycl/exception.hpp>          // for make_error_code, errc
+#include <sycl/half_type.hpp>          // for StorageT, half, Vec16...
+#include <sycl/marray.hpp>             // for __SYCL_BINOP, __SYCL_...
+#include <sycl/multi_ptr.hpp>          // for multi_ptr
 
 #ifndef __SYCL_USE_EXT_VECTOR_TYPE__
 #include <sycl/detail/cl.h>
 #endif
 
-#include <array>                                // for array
-#include <cmath>                                // for ceil, floor, rint, trunc
-#include <optional>                             // for optional
-#include <variant>                              // for tuple, variant
-#include <cstddef>                              // for size_t, NULL, byte
-#include <cstdint>                              // for uint8_t, int16_t, int...
-#include <functional>                           // for divides, multiplies
-#include <iterator>                             // for pair
-#include <ostream>                              // for operator<<, basic_ost...
-#include <tuple>                                // for tuple
-#include <type_traits>                          // for enable_if_t, is_same
-#include <utility>                              // for index_sequence, make_...
+#include <array>       // for array
+#include <cmath>       // for ceil, floor, rint, trunc
+#include <cstddef>     // for size_t, NULL, byte
+#include <cstdint>     // for uint8_t, int16_t, int...
+#include <functional>  // for divides, multiplies
+#include <iterator>    // for pair
+#include <optional>    // for optional
+#include <ostream>     // for operator<<, basic_ost...
+#include <tuple>       // for tuple
+#include <type_traits> // for enable_if_t, is_same
+#include <utility>     // for index_sequence, make_...
+#include <variant>     // for tuple, variant
 
-#include <sycl/detail/defines_elementary.hpp>        // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>        // for vector_basic_list
-#include <sycl/detail/iostream_proxy.hpp>            // for cout
-#include <sycl/detail/memcpy.hpp>                    // for memcpy
-#include <sycl/detail/type_list.hpp>                 // for is_contained
-#include <sycl/detail/vector_traits.hpp>             // for vector_alignment
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/generic_type_lists.hpp> // for vector_basic_list
+#include <sycl/detail/iostream_proxy.hpp>     // for cout
+#include <sycl/detail/memcpy.hpp>             // for memcpy
+#include <sycl/detail/type_list.hpp>          // for is_contained
+#include <sycl/detail/vector_traits.hpp>      // for vector_alignment
 #ifndef __SYCL_DEVICE_ONLY__
-#include <cfenv>                                // for fesetround, fegetround
+#include <cfenv> // for fesetround, fegetround
 #endif
 
 // 4.10.1: Scalar data types

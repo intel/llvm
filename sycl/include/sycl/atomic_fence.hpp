@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
+#include <sycl/memory_enums.hpp> // for getStdMemoryOrder, memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/spirv.hpp>
 #else
-#include <atomic>                 // for atomic_thread_fence
+#include <atomic> // for atomic_thread_fence
 #endif
 
 namespace sycl {

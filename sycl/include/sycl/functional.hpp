@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <functional>   // for logical_and, logical_or, bit_and, bit_or, bit...
-#include <type_traits>  // for common_type
-#include <utility>      // for forward
+#include <functional>  // for logical_and, logical_or, bit_and, bit_or, bit...
+#include <type_traits> // for common_type
+#include <utility>     // for forward
 
 namespace sycl {
 inline namespace _V1 {

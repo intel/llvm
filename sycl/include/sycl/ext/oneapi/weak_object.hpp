@@ -8,20 +8,20 @@
 
 #pragma once
 
-#include <sycl/buffer.hpp>                                  // for buffer
-#include <sycl/ext/oneapi/weak_object_base.hpp>             // for weak_obje...
-#include <sycl/stream.hpp>                                  // for stream
-#include <stddef.h>                                         // for size_t
-#include <optional>                                         // for optional
-#include <memory>                                           // for shared_ptr
+#include <memory>                               // for shared_ptr
+#include <optional>                             // for optional
+#include <stddef.h>                             // for size_t
+#include <sycl/buffer.hpp>                      // for buffer
+#include <sycl/ext/oneapi/weak_object_base.hpp> // for weak_obje...
+#include <sycl/stream.hpp>                      // for stream
 
-#include <sycl/access/access.hpp>                                // for target, mode
-#include <sycl/accessor.hpp>                                     // for accessor
-#include <sycl/detail/impl_utils.hpp>                            // for createSyc...
-#include <sycl/detail/memcpy.hpp>                                // for detail
-#include <sycl/exception.hpp>                                    // for make_erro...
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>  // for buffer
-#include <sycl/range.hpp>                                        // for range
+#include <sycl/access/access.hpp>     // for target, mode
+#include <sycl/accessor.hpp>          // for accessor
+#include <sycl/detail/impl_utils.hpp> // for createSyc...
+#include <sycl/detail/memcpy.hpp>     // for detail
+#include <sycl/exception.hpp>         // for make_erro...
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/range.hpp>                                       // for range
 
 namespace sycl {
 inline namespace _V1 {

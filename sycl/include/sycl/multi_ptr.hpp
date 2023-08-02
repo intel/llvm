@@ -7,16 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>       // for __spirv_ocl_prefetch
-#include <sycl/access/access.hpp>         // for address_space, decorated
-#include <sycl/detail/type_traits.hpp>    // for const_if_const_AS
-#include <cstddef>                        // for nullptr_t, ptrdiff_t, size_t
-#include <iterator>                       // for random_access_iterator_tag
-#include <type_traits>                    // for enable_if_t, add_pointer_t
+#include <CL/__spirv/spirv_ops.hpp>    // for __spirv_ocl_prefetch
+#include <cstddef>                     // for nullptr_t, ptrdiff_t, size_t
+#include <iterator>                    // for random_access_iterator_tag
+#include <sycl/access/access.hpp>      // for address_space, decorated
+#include <sycl/detail/type_traits.hpp> // for const_if_const_AS
+#include <type_traits>                 // for enable_if_t, add_pointer_t
 
-#include <sycl/aliases.hpp>                    // for half
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/half_type.hpp>                  // for BIsRepresentationT
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/half_type.hpp>                 // for BIsRepresentationT
 
 namespace sycl {
 inline namespace _V1 {

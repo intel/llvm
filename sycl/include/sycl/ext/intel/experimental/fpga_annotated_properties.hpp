@@ -9,9 +9,9 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <cstdint>
 #include <iosfwd>
+#include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <tuple>
 #include <type_traits>
 

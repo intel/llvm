@@ -8,21 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>              // for Boolean
-#include <sycl/detail/builtins.hpp>             // for __invoke_select, __in...
-#include <sycl/detail/generic_type_traits.hpp>  // for is_svgenfloat, is_sge...
-#include <sycl/types.hpp>                       // for vec
-#include <cstring>                              // for memcpy, size_t
-#include <type_traits>                          // for enable_if_t, conditio...
+#include <cstring>                             // for memcpy, size_t
+#include <sycl/detail/boolean.hpp>             // for Boolean
+#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
+#include <sycl/types.hpp>                      // for vec
+#include <type_traits>                         // for enable_if_t, conditio...
 
-#include <sycl/access/access.hpp>                    // for address_space, decorated
-#include <sycl/aliases.hpp>                          // for half
-#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/type_list.hpp>                 // for is_contained, type_list
-#include <sycl/detail/type_traits.hpp>               // for make_larger_t, marray...
-#include <sycl/half_type.hpp>                        // for half, intel
-#include <sycl/marray.hpp>                           // for marray
-#include <sycl/multi_ptr.hpp>                        // for address_space_cast
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/type_list.hpp>          // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>        // for make_larger_t, marray...
+#include <sycl/half_type.hpp>                 // for half, intel
+#include <sycl/marray.hpp>                    // for marray
+#include <sycl/multi_ptr.hpp>                 // for address_space_cast
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

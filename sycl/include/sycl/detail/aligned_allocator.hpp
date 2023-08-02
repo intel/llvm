@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/os_util.hpp>  // for OSUtil
-#include <stddef.h>                 // for size_t
-#include <limits>                   // for numeric_limits
-#include <memory>                   // for pointer_traits, allocator_traits
-#include <new>                      // for bad_alloc, operator new
-#include <type_traits>              // for false_type, is_empty, make_unsign...
+#include <limits>                  // for numeric_limits
+#include <memory>                  // for pointer_traits, allocator_traits
+#include <new>                     // for bad_alloc, operator new
+#include <stddef.h>                // for size_t
+#include <sycl/detail/os_util.hpp> // for OSUtil
+#include <type_traits>             // for false_type, is_empty, make_unsign...
 
 namespace sycl {
 inline namespace _V1 {

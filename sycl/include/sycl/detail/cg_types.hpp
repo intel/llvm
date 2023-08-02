@@ -8,28 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/host_profiling_info.hpp>  // for HostProfilingInfo
-#include <sycl/detail/kernel_desc.hpp>          // for kernel_param_kind_t
-#include <sycl/group.hpp>                       // for group
-#include <sycl/id.hpp>                          // for id
-#include <sycl/interop_handle.hpp>              // for interop_handle
-#include <sycl/kernel_handler.hpp>              // for kernel_handler
-#include <sycl/nd_item.hpp>                     // for nd_item
-#include <sycl/range.hpp>                       // for range, operator*
-#include <stddef.h>                             // for size_t
-#include <functional>                           // for function
-#include <type_traits>                          // for enable_if_t, false_type
-#include <utility>                              // for declval
+#include <functional>                          // for function
+#include <stddef.h>                            // for size_t
+#include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
+#include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
+#include <sycl/group.hpp>                      // for group
+#include <sycl/id.hpp>                         // for id
+#include <sycl/interop_handle.hpp>             // for interop_handle
+#include <sycl/kernel_handler.hpp>             // for kernel_handler
+#include <sycl/nd_item.hpp>                    // for nd_item
+#include <sycl/range.hpp>                      // for range, operator*
+#include <type_traits>                         // for enable_if_t, false_type
+#include <utility>                             // for declval
 
-#include <sycl/detail/array.hpp>                     // for array
-#include <sycl/detail/common.hpp>                    // for InitializedVal, NDLoop
-#include <sycl/detail/helpers.hpp>                   // for Builder
-#include <sycl/detail/item_base.hpp>                 // for id
-#include <sycl/detail/pi.h>                  // for PI_ERROR_INVALID_WORK...
-#include <sycl/exception.hpp>                        // for nd_range_error
-#include <sycl/h_item.hpp>                           // for h_item
-#include <sycl/item.hpp>                             // for item
-#include <sycl/nd_range.hpp>                         // for nd_range
+#include <sycl/detail/array.hpp>     // for array
+#include <sycl/detail/common.hpp>    // for InitializedVal, NDLoop
+#include <sycl/detail/helpers.hpp>   // for Builder
+#include <sycl/detail/item_base.hpp> // for id
+#include <sycl/detail/pi.h>          // for PI_ERROR_INVALID_WORK...
+#include <sycl/exception.hpp>        // for nd_range_error
+#include <sycl/h_item.hpp>           // for h_item
+#include <sycl/item.hpp>             // for item
+#include <sycl/nd_range.hpp>         // for nd_range
 
 namespace sycl {
 inline namespace _V1 {
