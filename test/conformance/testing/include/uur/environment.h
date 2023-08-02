@@ -28,6 +28,7 @@ struct PlatformEnvironment : ::testing::Environment {
     PlatformOptions parsePlatformOptions(int argc, char **argv);
 
     PlatformOptions platform_options;
+    std::vector<ur_adapter_handle_t> adapters{};
     ur_platform_handle_t platform = nullptr;
     std::string error;
     static PlatformEnvironment *instance;

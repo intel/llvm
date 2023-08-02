@@ -59,7 +59,8 @@ returned list of supported extensions.
 
     // Retrieve extension string 
     std::unique_ptr<char[]> returnedExtensions(new char[returnedSize]);
-    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, returnedSize, returnedExtensions.get(), nullptr);
+    ${x}DeviceGetInfo(hDevice, ${X}_DEVICE_INFO_EXTENSIONS, returnedSize, 
+                      returnedExtensions.get(), nullptr);
     
     std::string_view ExtensionsString(returnedExtensions.get());
     bool CmdBufferSupport = 
@@ -117,11 +118,15 @@ were obtained from.
     // Append a memcpy with no sync-point dependencies
     ${x}_exp_command_buffer_sync_point_t syncPoint;
 
-    ${x}CommandBufferAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size, 0, nullptr, &syncPoint);
+    ${x}CommandBufferAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size, 0, 
+                                        nullptr, &syncPoint);
     
     // Append a kernel launch with syncPoint as a dependency, ignore returned
     // sync-point
-    ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, 1, &syncPoint, nullptr);
+    ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim, 
+                                           pGlobalWorkOffset, pGlobalWorkSize, 
+                                           pLocalWorkSize, 1, &syncPoint, 
+                                           nullptr);
 
 Enqueueing Command-Buffers
 --------------------------------------------------------------------------------

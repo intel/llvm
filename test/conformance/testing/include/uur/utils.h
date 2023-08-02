@@ -14,6 +14,10 @@
 
 namespace uur {
 
+inline size_t RoundUpToNearestFactor(size_t num, size_t factor) {
+    return ((num + factor - 1) / factor) * factor;
+}
+
 /// @brief Make a string a valid identifier for gtest.
 /// @param str The string to sanitize.
 inline std::string GTestSanitizeString(const std::string &str) {

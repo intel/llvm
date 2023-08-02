@@ -54,7 +54,6 @@ inline bool hasDevicePartitionSupport(ur_device_handle_t device,
 }
 
 struct urAllDevicesTest : urPlatformTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         auto devicesPair = GetDevices(platform);
@@ -76,7 +75,6 @@ struct urAllDevicesTest : urPlatformTest {
 
 struct urDeviceTest : urPlatformTest,
                       ::testing::WithParamInterface<ur_device_handle_t> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urPlatformTest::SetUp());
         device = GetParam();
@@ -138,7 +136,6 @@ struct urContextTest : urDeviceTest {
 };
 
 struct urSamplerTest : urContextTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         sampler_desc = {
@@ -161,7 +158,6 @@ struct urSamplerTest : urContextTest {
 };
 
 struct urMemBufferTest : urContextTest {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE, 4096,
@@ -177,6 +173,38 @@ struct urMemBufferTest : urContextTest {
     }
 
     ur_mem_handle_t buffer = nullptr;
+};
+
+struct urMemImageTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+    }
+
+    void TearDown() override {
+        if (image) {
+            EXPECT_SUCCESS(urMemRelease(image));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
+    }
+
+    ur_image_format_t image_format = {
+        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
+        /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+    };
+    ur_image_desc_t image_desc = {
+        /*.stype =*/UR_STRUCTURE_TYPE_IMAGE_DESC,
+        /*.pNext =*/nullptr,
+        /*.type =*/UR_MEM_TYPE_IMAGE2D,
+        /*.width =*/16,
+        /*.height =*/16,
+        /*.depth =*/1,
+        /*.arraySize =*/1,
+        /*.rowPitch =*/16 * sizeof(char[4]),
+        /*.slicePitch =*/16 * 16 * sizeof(char[4]),
+        /*.numMipLevel =*/0,
+        /*.numSamples =*/0,
+    };
+    ur_mem_handle_t image = nullptr;
 };
 
 } // namespace uur
@@ -205,7 +233,6 @@ template <class T> struct urContextTestWithParam : urDeviceTestWithParam<T> {
 };
 
 template <class T> struct urSamplerTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         sampler_desc = {
@@ -242,6 +269,36 @@ template <class T> struct urMemBufferTestWithParam : urContextTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
     ur_mem_handle_t buffer = nullptr;
+};
+
+template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc, nullptr, &image));
+        ASSERT_NE(nullptr, image);
+    }
+
+    void TearDown() override {
+        if (image) {
+            EXPECT_SUCCESS(urMemRelease(image));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
+    }
+    ur_mem_handle_t image = nullptr;
+    ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
+                                UR_IMAGE_CHANNEL_TYPE_FLOAT};
+    ur_image_desc_t desc = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                            nullptr,                      // pNext
+                            UR_MEM_TYPE_IMAGE1D,          // mem object type
+                            1024,                         // image width
+                            1,                            // image height
+                            1,                            // image depth
+                            1,                            // array size
+                            0,                            // row pitch
+                            0,                            // slice pitch
+                            0,                            // mip levels
+                            0};                           // num samples
 };
 
 struct urQueueTest : urContextTest {
@@ -305,7 +362,6 @@ struct urHostPipeTest : urQueueTest {
 };
 
 template <class T> struct urQueueTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ASSERT_SUCCESS(urQueueCreate(this->context, this->device, 0, &queue));
@@ -468,6 +524,81 @@ struct urMemBufferQueueTest : urQueueTest {
     ur_mem_handle_t buffer = nullptr;
 };
 
+struct urMemImageQueueTest : urQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
+        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc1D, nullptr, &image1D));
+
+        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc2D, nullptr, &image2D));
+
+        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                        &format, &desc3D, nullptr, &image3D));
+    }
+
+    void TearDown() override {
+        if (image1D) {
+            EXPECT_SUCCESS(urMemRelease(image1D));
+        }
+        if (image2D) {
+            EXPECT_SUCCESS(urMemRelease(image2D));
+        }
+        if (image3D) {
+            EXPECT_SUCCESS(urMemRelease(image3D));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::TearDown());
+    }
+
+    const size_t width = 1024;
+    const size_t height = 8;
+    const size_t depth = 2;
+    ur_mem_handle_t image1D = nullptr;
+    ur_mem_handle_t image2D = nullptr;
+    ur_mem_handle_t image3D = nullptr;
+    ur_rect_region_t region1D{width, 1, 1};
+    ur_rect_region_t region2D{width, height, 1};
+    ur_rect_region_t region3D{width, height, depth};
+    ur_rect_offset_t origin{0, 0, 0};
+    ur_image_format_t format = {UR_IMAGE_CHANNEL_ORDER_RGBA,
+                                UR_IMAGE_CHANNEL_TYPE_FLOAT};
+    ur_image_desc_t desc1D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE1D,          // mem object type
+                              width,                        // image width
+                              1,                            // image height
+                              1,                            // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+
+    ur_image_desc_t desc2D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE2D,          // mem object type
+                              width,                        // image width
+                              height,                       // image height
+                              1,                            // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+
+    ur_image_desc_t desc3D = {UR_STRUCTURE_TYPE_IMAGE_DESC, // stype
+                              nullptr,                      // pNext
+                              UR_MEM_TYPE_IMAGE3D,          // mem object type
+                              width,                        // image width
+                              height,                       // image height
+                              depth,                        // image depth
+                              1,                            // array size
+                              0,                            // row pitch
+                              0,                            // slice pitch
+                              0,                            // mip levels
+                              0};                           // num samples
+};
+
 struct urUSMDeviceAllocTest : urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
@@ -504,7 +635,6 @@ struct urUSMPoolTest : urContextTest {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
-        ur_usm_pool_handle_t pool = nullptr;
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
     }
 
@@ -519,7 +649,6 @@ struct urUSMPoolTest : urContextTest {
 };
 
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
-
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
@@ -536,6 +665,152 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     }
 
     ur_usm_pool_handle_t pool;
+};
+
+struct urVirtualMemGranularityTest : urContextTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
+            sizeof(granularity), &granularity, nullptr));
+    }
+    size_t granularity;
+};
+
+template <class T>
+struct urVirtualMemGranularityTestWithParam : urContextTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            this->context, this->device,
+            UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM, sizeof(granularity),
+            &granularity, nullptr));
+        ASSERT_NE(granularity, 0);
+    }
+
+    size_t granularity = 0;
+};
+
+struct urPhysicalMemTest : urVirtualMemGranularityTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::SetUp());
+        size = granularity * 256;
+        ur_physical_mem_properties_t props{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+            nullptr,
+            0 /*flags*/,
+        };
+        ASSERT_SUCCESS(
+            urPhysicalMemCreate(context, device, size, &props, &physical_mem));
+        ASSERT_NE(physical_mem, nullptr);
+    }
+
+    void TearDown() override {
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemGranularityTest::TearDown());
+    }
+
+    size_t size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
+};
+
+template <class T>
+struct urPhysicalMemTestWithParam : urVirtualMemGranularityTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urVirtualMemGranularityTestWithParam<T>::SetUp());
+        size = this->granularity * 256;
+        ur_physical_mem_properties_t props{
+            UR_STRUCTURE_TYPE_PHYSICAL_MEM_PROPERTIES,
+            nullptr,
+            0 /*flags*/,
+        };
+        ASSERT_SUCCESS(urPhysicalMemCreate(this->context, this->device, size,
+                                           &props, &physical_mem));
+        ASSERT_NE(physical_mem, nullptr);
+    }
+
+    void TearDown() override {
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urVirtualMemGranularityTestWithParam<T>::TearDown());
+    }
+
+    size_t size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
+};
+
+struct urVirtualMemTest : urPhysicalMemTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTest::SetUp());
+        ASSERT_SUCCESS(
+            urVirtualMemReserve(context, nullptr, size, &virtual_ptr));
+        ASSERT_NE(virtual_ptr, nullptr);
+    }
+
+    void TearDown() override {
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(urVirtualMemFree(context, virtual_ptr, size));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTest::TearDown());
+    }
+
+    void *virtual_ptr = nullptr;
+};
+
+template <class T>
+struct urVirtualMemTestWithParam : urPhysicalMemTestWithParam<T> {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemReserve(this->context, nullptr, this->size,
+                                           &virtual_ptr));
+    }
+
+    void TearDown() override {
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(
+                urVirtualMemFree(this->context, virtual_ptr, this->size));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urPhysicalMemTestWithParam<T>::TearDown());
+    }
+
+    void *virtual_ptr = nullptr;
+};
+
+struct urVirtualMemMappedTest : urVirtualMemTest {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTest::SetUp());
+        ASSERT_SUCCESS(urVirtualMemMap(context, virtual_ptr, size, physical_mem,
+                                       0,
+                                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(urVirtualMemUnmap(context, virtual_ptr, size));
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTest::TearDown());
+    }
+};
+
+template <class T>
+struct urVirtualMemMappedTestWithParam : urVirtualMemTestWithParam<T> {
+
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTestWithParam<T>::SetUp());
+        ASSERT_SUCCESS(urVirtualMemMap(this->context, this->virtual_ptr,
+                                       this->size, this->physical_mem, 0,
+                                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE));
+    }
+
+    void TearDown() override {
+        EXPECT_SUCCESS(
+            urVirtualMemUnmap(this->context, this->virtual_ptr, this->size));
+        UUR_RETURN_ON_FATAL_FAILURE(urVirtualMemTestWithParam<T>::TearDown());
+    }
 };
 
 template <class T>
@@ -749,6 +1024,22 @@ struct urKernelExecutionTest : urKernelTest {
     std::vector<ur_mem_handle_t> buffer_args;
     uint32_t current_arg_index = 0;
 };
+
+template <class T> struct GlobalVar {
+    std::string name;
+    T value;
+};
+
+struct urGlobalVariableTest : uur::urKernelExecutionTest {
+    void SetUp() override {
+        program_name = "device_global";
+        global_var = {"_Z7dev_var", 0};
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+    }
+
+    GlobalVar<int> global_var;
+};
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED

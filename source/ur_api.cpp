@@ -13,6 +13,142 @@
 #include "ur_api.h"
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Create a loader config object.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phLoaderConfig`
+ur_result_t UR_APICALL urLoaderConfigCreate(
+    ur_loader_config_handle_t *
+        phLoaderConfig ///< [out] Pointer to handle of loader config object created.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the loader config object.
+///
+/// @details
+///     - Get a reference to the loader config handle. Increment its reference
+///       count
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+ur_result_t UR_APICALL urLoaderConfigRetain(
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in] loader config handle to retain
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Release config handle.
+///
+/// @details
+///     - Decrement reference count and destroy the config handle if reference
+///       count becomes zero.
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+ur_result_t UR_APICALL urLoaderConfigRelease(
+    ur_loader_config_handle_t hLoaderConfig ///< [in] config handle to release
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves various information about the loader.
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_LOADER_CONFIG_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the loader.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urLoaderConfigGetInfo(
+    ur_loader_config_handle_t
+        hLoaderConfig, ///< [in] handle of the loader config object
+    ur_loader_config_info_t propName, ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If propSize is not equal to or greater than the real number of bytes
+    ///< needed to return the info
+    ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is returned and
+    ///< pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual size in bytes of the queried propName.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enable a layer for the specified loader config.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hLoaderConfig`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pLayerName`
+///     - ::UR_RESULT_ERROR_LAYER_NOT_PRESENT
+///         + If layer specified with `pLayerName` can't be found by the loader.
+ur_result_t UR_APICALL urLoaderConfigEnableLayer(
+    ur_loader_config_handle_t
+        hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
+    const char *
+        pLayerName ///< [in] Null terminated string containing the name of the layer to
+                   ///< enable.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Initialize the 'oneAPI' adapter(s)
 ///
 /// @details
@@ -38,8 +174,10 @@
 ///         + `::UR_DEVICE_INIT_FLAGS_MASK & device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags ///< [in] device initialization flags.
+    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
+    ur_loader_config_handle_t
+        hLoaderConfig ///< [in][optional] Handle of loader config handle.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -64,7 +202,185 @@ ur_result_t UR_APICALL urTearDown(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Retrieves all available platforms
+/// @brief Retrieves all available adapters
+///
+/// @details
+///     - Adapter implementations must return exactly one adapter handle from
+///       this entry point.
+///     - The loader may return more than one adapter handle when there are
+///       multiple available.
+///     - Each returned adapter has its reference count incremented and should
+///       be released with a subsequent call to ::urAdapterRelease.
+///     - Adapters may perform adapter-specific state initialization when the
+///       first reference to them is taken.
+///     - An application may call this entry point multiple times to acquire
+///       multiple references to the adapter handle(s).
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+ur_result_t UR_APICALL urAdapterGet(
+    uint32_t
+        NumEntries, ///< [in] the number of adapters to be added to phAdapters.
+    ///< If phAdapters is not NULL, then NumEntries should be greater than
+    ///< zero, otherwise ::UR_RESULT_ERROR_INVALID_SIZE,
+    ///< will be returned.
+    ur_adapter_handle_t *
+        phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
+    ///< If NumEntries is less than the number of adapters available, then
+    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    uint32_t *
+        pNumAdapters ///< [out][optional] returns the total number of adapters available.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Releases the adapter handle reference indicating end of its usage
+///
+/// @details
+///     - When the reference count of the adapter reaches zero, the adapter may
+///       perform adapter-specififc resource teardown
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+ur_result_t UR_APICALL urAdapterRelease(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to release
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a reference to the adapter handle.
+///
+/// @details
+///     - Get a reference to the adapter handle. Increment its reference count
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+ur_result_t UR_APICALL urAdapterRetain(
+    ur_adapter_handle_t hAdapter ///< [in] Adapter handle to retain
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get the last adapter specific error.
+///
+/// @details
+/// To be used after another entry-point has returned
+/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
+/// the circumstances of the underlying driver error and the error code
+/// returned by the failed driver entry-point.
+///
+/// * Implementations *must* store the message and error code in thread-local
+///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The message and error code storage is will only be valid if a previously
+///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
+///
+/// * The memory pointed to by the C string returned in `ppMessage` is owned by
+///   the adapter and *must* be null terminated.
+///
+/// * The application *may* call this function from simultaneous threads.
+///
+/// * The implementation of this function *should* be lock-free.
+///
+/// Example usage:
+///
+/// ```cpp
+/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
+///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
+///     const char* pMessage;
+///     int32_t error;
+///     ::urAdapterGetLastError(hAdapter, &pMessage, &error);
+/// }
+/// ```
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == ppMessage`
+///         + `NULL == pError`
+ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter instance
+    const char **
+        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
+                   ///< will be stored.
+    int32_t *
+        pError ///< [out] pointer to an integer where the adapter specific error code will
+               ///< be stored.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves information about the adapter
+///
+/// @details
+///     - The application may call this function from simultaneous threads.
+///     - The implementation of this function should be lock-free.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hAdapter`
+///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
+///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+ur_result_t UR_APICALL urAdapterGetInfo(
+    ur_adapter_handle_t hAdapter, ///< [in] handle of the adapter
+    ur_adapter_info_t propName,   ///< [in] type of the info to retrieve
+    size_t propSize, ///< [in] the number of bytes pointed to by pPropValue.
+    void *
+        pPropValue, ///< [out][optional][typename(propName, propSize)] array of bytes holding
+                    ///< the info.
+    ///< If Size is not equal to or greater to the real number of bytes needed
+    ///< to return the info then the ::UR_RESULT_ERROR_INVALID_SIZE error is
+    ///< returned and pPropValue is not used.
+    size_t *
+        pPropSizeRet ///< [out][optional] pointer to the actual number of bytes being queried by pPropValue.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Retrieves all available platforms for the given adapters
 ///
 /// @details
 ///     - Multiple calls to this function will return identical platforms
@@ -81,8 +397,13 @@ ur_result_t UR_APICALL urTearDown(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *
+        phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
+    uint32_t NumAdapters, ///< [in] number of adapters pointed to by phAdapters
     uint32_t
         NumEntries, ///< [in] the number of platforms to be added to phPlatforms.
     ///< If phPlatforms is not NULL, then NumEntries should be greater than
@@ -192,6 +513,8 @@ ur_result_t UR_APICALL urPlatformGetApiVersion(
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativePlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ///< [in] handle of the platform.
     ur_native_handle_t *
@@ -215,13 +538,13 @@ ur_result_t UR_APICALL urPlatformGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativePlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPlatform`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t
-        hNativePlatform, ///< [in] the native handle of the platform.
+        hNativePlatform, ///< [in][nocheck] the native handle of the platform.
     const ur_platform_native_properties_t *
         pProperties, ///< [in][optional] pointer to native platform properties struct.
     ur_platform_handle_t *
@@ -263,62 +586,6 @@ ur_result_t UR_APICALL urPlatformGetBackendOption(
     const char **
         ppPlatformOption ///< [out] returns the correct platform specific compiler option based on
                          ///< the frontend option.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Get the last adapter specific error.
-///
-/// @details
-/// To be used after another entry-point has returned
-/// ::UR_RESULT_ERROR_ADAPTER_SPECIFIC in order to retrieve a message describing
-/// the circumstances of the underlying driver error and the error code
-/// returned by the failed driver entry-point.
-///
-/// * Implementations *must* store the message and error code in thread-local
-///   storage prior to returning ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The message and error code storage is will only be valid if a previously
-///   called entry-point returned ::UR_RESULT_ERROR_ADAPTER_SPECIFIC.
-///
-/// * The memory pointed to by the C string returned in `ppMessage` is owned by
-///   the adapter and *must* be null terminated.
-///
-/// * The application *may* call this function from simultaneous threads.
-///
-/// * The implementation of this function *should* be lock-free.
-///
-/// Example usage:
-///
-/// ```cpp
-/// if (::urQueueCreate(hContext, hDevice, nullptr, &hQueue) ==
-///         ::UR_RESULT_ERROR_ADAPTER_SPECIFIC) {
-///     const char* pMessage;
-///     int32_t error;
-///     ::urPlatformGetLastError(hPlatform, &pMessage, &error);
-/// }
-/// ```
-///
-/// @returns
-///     - ::UR_RESULT_SUCCESS
-///     - ::UR_RESULT_ERROR_UNINITIALIZED
-///     - ::UR_RESULT_ERROR_DEVICE_LOST
-///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hPlatform`
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == ppMessage`
-///         + `NULL == pError`
-ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
-    const char **
-        ppMessage, ///< [out] pointer to a C string where the adapter specific error message
-                   ///< will be stored.
-    int32_t *
-        pError ///< [out] pointer to an integer where the adapter specific error code will
-               ///< be stored.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -591,6 +858,8 @@ ur_result_t UR_APICALL urDeviceSelectBinary(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ///< [in] handle of the device.
     ur_native_handle_t
@@ -615,13 +884,15 @@ ur_result_t UR_APICALL urDeviceGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeDevice`
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevice`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
-    ur_native_handle_t hNativeDevice, ///< [in] the native handle of the device.
-    ur_platform_handle_t hPlatform,   ///< [in] handle of the platform instance
+    ur_native_handle_t
+        hNativeDevice, ///< [in][nocheck] the native handle of the device.
+    ur_platform_handle_t hPlatform, ///< [in] handle of the platform instance
     const ur_device_native_properties_t *
         pProperties, ///< [in][optional] pointer to native device properties struct.
     ur_device_handle_t
@@ -831,6 +1102,8 @@ ur_result_t UR_APICALL urContextGetInfo(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ///< [in] handle of the context.
     ur_native_handle_t *
@@ -854,14 +1127,14 @@ ur_result_t UR_APICALL urContextGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phDevices`
 ///         + `NULL == phContext`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeContext,  ///< [in] the native handle of the context.
+        hNativeContext,  ///< [in][nocheck] the native handle of the context.
     uint32_t numDevices, ///< [in] number of devices associated with the context
     const ur_device_handle_t *
         phDevices, ///< [in][range(0, numDevices)] list of devices associated with the context
@@ -1110,6 +1383,8 @@ ur_result_t UR_APICALL urMemBufferPartition(
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemGetNativeHandle(
     ur_mem_handle_t hMem, ///< [in] handle of the mem.
     ur_native_handle_t
@@ -1133,13 +1408,15 @@ ur_result_t UR_APICALL urMemGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_mem_native_properties_t *
         pProperties, ///< [in][optional] pointer to native memory creation properties.
     ur_mem_handle_t
@@ -1163,15 +1440,17 @@ ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeMem`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
 ///         + `NULL == phMem`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ///< [in] the native handle to the memory.
-    ur_context_handle_t hContext,  ///< [in] handle of the context object.
+    ur_native_handle_t
+        hNativeMem, ///< [in][nocheck] the native handle to the memory.
+    ur_context_handle_t hContext, ///< [in] handle of the context object.
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification.
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description.
@@ -1252,6 +1531,17 @@ ur_result_t UR_APICALL urMemGetInfo(
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_IMAGE_INFO_DEPTH < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urMemImageGetInfo(
     ur_mem_handle_t hMemory, ///< [in] handle to the image object being queried.
     ur_image_info_t propName, ///< [in] type of image info to retrieve.
@@ -1426,6 +1716,8 @@ ur_result_t UR_APICALL urSamplerGetInfo(
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ///< [in] handle of the sampler.
     ur_native_handle_t *
@@ -1450,13 +1742,14 @@ ur_result_t UR_APICALL urSamplerGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeSampler`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phSampler`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeSampler,           ///< [in] the native handle of the sampler.
+        hNativeSampler, ///< [in][nocheck] the native handle of the sampler.
     ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_sampler_native_properties_t *
         pProperties, ///< [in][optional] pointer to native sampler properties struct.
@@ -1796,6 +2089,18 @@ ur_result_t UR_APICALL urUSMPoolGetInfo(
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED < propName`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
+///         + If `propName` is not supported by the adapter.
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `propSize == 0 && pPropValue != NULL`
+///         + If `propSize` is less than the real number of bytes needed to return the info.
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `propSize != 0 && pPropValue == NULL`
+///         + `pPropValue == NULL && pPropSizeRet == NULL`
+///     - ::UR_RESULT_ERROR_INVALID_DEVICE
+///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t
@@ -1942,7 +2247,7 @@ ur_result_t UR_APICALL urVirtualMemSetAccess(
     ur_context_handle_t hContext, ///< [in] handle to the context object.
     const void
         *pStart, ///< [in] pointer to the start of the virtual memory range.
-    size_t size, ///< [in] size in bytes of the virutal memory range.
+    size_t size, ///< [in] size in bytes of the virtual memory range.
     ur_virtual_mem_access_flags_t
         flags ///< [in] access flags to set for the mapped virtual memory range.
 ) {
@@ -1997,11 +2302,13 @@ ur_result_t UR_APICALL urVirtualMemGetInfo(
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phPhysicalMem`
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If size is not a multiple of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
 ur_result_t UR_APICALL urPhysicalMemCreate(
     ur_context_handle_t hContext, ///< [in] handle of the context object.
     ur_device_handle_t hDevice,   ///< [in] handle of the device object.
     size_t
-        size, ///< [in] size in bytes of phyisical memory to allocate, must be a multiple
+        size, ///< [in] size in bytes of physical memory to allocate, must be a multiple
               ///< of ::UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM.
     const ur_physical_mem_properties_t *
         pProperties, ///< [in][optional] pointer to physical memory creation properties.
@@ -2136,7 +2443,7 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point, the program passed
+///     - Following a successful call to this entry point, the program passed
 ///       will contain a binary of the ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type
 ///       for each device in `hContext`.
 ///
@@ -2171,9 +2478,9 @@ ur_result_t UR_APICALL urProgramBuild(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point `hProgram` will contain
-///       a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type for each
-///       device in `hContext`.
+///     - Following a successful call to this entry point `hProgram` will
+///       contain a binary of the ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT type
+///       for each device in `hContext`.
 ///
 /// @remarks
 ///   _Analogues_
@@ -2207,8 +2514,8 @@ ur_result_t UR_APICALL urProgramCompile(
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
-///     - Following a succesful call to this entry point the program returned in
-///       `phProgram` will contain a binary of the
+///     - Following a successful call to this entry point the program returned
+///       in `phProgram` will contain a binary of the
 ///       ::UR_PROGRAM_BINARY_TYPE_EXECUTABLE type for each device in
 ///       `hContext`.
 ///
@@ -2480,6 +2787,8 @@ ur_result_t UR_APICALL urProgramSetSpecializationConstants(
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ///< [in] handle of the program.
     ur_native_handle_t *
@@ -2504,13 +2813,14 @@ ur_result_t UR_APICALL urProgramGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeProgram`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phProgram`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t
-        hNativeProgram,           ///< [in] the native handle of the program.
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
     ur_context_handle_t hContext, ///< [in] handle of the context instance
     const ur_program_native_properties_t *
         pProperties, ///< [in][optional] pointer to native program properties struct.
@@ -2964,6 +3274,8 @@ ur_result_t UR_APICALL urKernelSetSpecializationConstants(
 ///         + `NULL == hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ///< [in] handle of the kernel.
     ur_native_handle_t
@@ -2988,14 +3300,16 @@ ur_result_t UR_APICALL urKernelGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeKernel`
 ///         + `NULL == hContext`
 ///         + `NULL == hProgram`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phKernel`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
-    ur_native_handle_t hNativeKernel, ///< [in] the native handle of the kernel.
-    ur_context_handle_t hContext,     ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeKernel, ///< [in][nocheck] the native handle of the kernel.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     ur_program_handle_t
         hProgram, ///< [in] handle of the program associated with the kernel
     const ur_kernel_native_properties_t *
@@ -3168,6 +3482,8 @@ ur_result_t UR_APICALL urQueueRelease(
 ///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urQueueGetNativeHandle(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue.
     ur_queue_native_desc_t
@@ -3194,15 +3510,17 @@ ur_result_t UR_APICALL urQueueGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeQueue`
 ///         + `NULL == hContext`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phQueue`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ///< [in] the native handle of the queue.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
-    ur_device_handle_t hDevice,      ///< [in] handle of the device object
+    ur_native_handle_t
+        hNativeQueue, ///< [in][nocheck] the native handle of the queue.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_queue_native_properties_t *
         pProperties, ///< [in][optional] pointer to native queue properties struct
     ur_queue_handle_t
@@ -3452,6 +3770,8 @@ ur_result_t UR_APICALL urEventRelease(
 ///         + `NULL == hEvent`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phNativeEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_event_handle_t hEvent, ///< [in] handle of the event.
     ur_native_handle_t
@@ -3476,13 +3796,15 @@ ur_result_t UR_APICALL urEventGetNativeHandle(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hNativeEvent`
 ///         + `NULL == hContext`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the adapter has no underlying equivalent handle.
 ur_result_t UR_APICALL urEventCreateWithNativeHandle(
-    ur_native_handle_t hNativeEvent, ///< [in] the native handle of the event.
-    ur_context_handle_t hContext,    ///< [in] handle of the context object
+    ur_native_handle_t
+        hNativeEvent, ///< [in][nocheck] the native handle of the event.
+    ur_context_handle_t hContext, ///< [in] handle of the context object
     const ur_event_native_properties_t *
         pProperties, ///< [in][optional] pointer to native event properties struct
     ur_event_handle_t
@@ -4930,11 +5252,13 @@ ur_result_t UR_APICALL urUSMPitchedAllocExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -4956,11 +5280,13 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImage`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_handle_t
         hImage ///< [in] pointer to handle of image object to destroy
 ) {
@@ -4983,6 +5309,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
 ///         + `NULL == pImageDesc`
@@ -4995,6 +5322,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageHandleDestroyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
@@ -5019,11 +5347,13 @@ ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem ///< [in] handle of image memory to be freed
 ) {
@@ -5045,6 +5375,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -5059,6 +5390,7 @@ ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5086,6 +5418,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///         + `NULL == hSampler`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
@@ -5102,6 +5435,7 @@ ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem, ///< [in] handle to memory from which to create the image
     const ur_image_format_t
@@ -5132,7 +5466,7 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
-///         + `NULL == hContext`
+///         + `NULL == hQueue`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pDst`
 ///         + `NULL == pSrc`
@@ -5140,21 +5474,33 @@ ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
 ///         + `NULL == pImageDesc`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_EXP_IMAGE_COPY_FLAGS_MASK & imageCopyFlags`
-///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
-    ur_context_handle_t hContext, ///< [in] handle of the context object
-    void *pDst,                   ///< [in] location the data will be copied to
-    void *pSrc, ///< [in] location the data will be copied from
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    void *pDst,               ///< [in] location the data will be copied to
+    void *pSrc,               ///< [in] location the data will be copied from
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_image_copy_flags_t
         imageCopyFlags, ///< [in] flags describing copy direction e.g. H2D or D2H
+    ur_rect_offset_t
+        srcOffset, ///< [in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D
+                   ///< image
+    ur_rect_offset_t
+        dstOffset, ///< [in] defines the (x,y,z) destination offset in pixels in the 1D, 2D,
+                   ///< or 3D image
+    ur_rect_region_t
+        copyExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region to copy
+    ur_rect_region_t
+        hostExtent, ///< [in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D
+                    ///< region on the host
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
@@ -5215,6 +5561,7 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hImageMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == phImageMem`
@@ -5222,6 +5569,7 @@ ur_result_t UR_APICALL urBindlessImagesImageGetInfoExp(
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_image_mem_handle_t
         hImageMem,        ///< [in] memory handle to the mipmap image
     uint32_t mipmapLevel, ///< [in] requested level of the mipmap
@@ -5246,11 +5594,13 @@ ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
+    ur_device_handle_t hDevice,    ///< [in] handle of the device object
     ur_exp_image_mem_handle_t hMem ///< [in] handle of image memory to be freed
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5271,15 +5621,19 @@ ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pInteropMemDesc`
 ///         + `NULL == phInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     size_t size,                  ///< [in] size of the external memory
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_exp_interop_mem_desc_t
+        *pInteropMemDesc, ///< [in] the interop memory descriptor
     ur_exp_interop_mem_handle_t
         *phInteropMem ///< [out] interop memory handle to the external memory
 ) {
@@ -5297,6 +5651,7 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
 ///         + `NULL == pImageFormat`
@@ -5311,12 +5666,13 @@ ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     const ur_image_format_t
         *pImageFormat, ///< [in] pointer to image format specification
     const ur_image_desc_t *pImageDesc, ///< [in] pointer to image description
     ur_exp_interop_mem_handle_t
         hInteropMem, ///< [in] interop memory handle to the external memory
-    ur_exp_image_handle_t *
+    ur_exp_image_mem_handle_t *
         phImageMem ///< [out] image memory handle to the externally allocated memory
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -5337,11 +5693,13 @@ ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropMem`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_mem_handle_t
         hInteropMem ///< [in] handle of interop memory to be freed
 ) {
@@ -5363,15 +5721,19 @@ ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == phInteropSemaphoreHandle`
+///         + `NULL == pInteropSemaphoreDesc`
+///         + `NULL == phInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
-    uint32_t fileDescriptor,      ///< [in] the file descriptor
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
+    ur_exp_interop_semaphore_desc_t
+        *pInteropSemaphoreDesc, ///< [in] the interop semaphore descriptor
     ur_exp_interop_semaphore_handle_t *
-        phInteropSemaphoreHandle ///< [out] interop semaphore handle to the external semaphore
+        phInteropSemaphore ///< [out] interop semaphore handle to the external semaphore
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
@@ -5391,11 +5753,13 @@ ur_result_t UR_APICALL urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
+///         + `NULL == hDevice`
 ///         + `NULL == hInteropSemaphore`
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
+    ur_device_handle_t hDevice,   ///< [in] handle of the device object
     ur_exp_interop_semaphore_handle_t
         hInteropSemaphore ///< [in] handle of interop semaphore to be destroyed
 ) {

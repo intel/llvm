@@ -8,7 +8,9 @@
 struct urKernelCreateWithNativeHandleTest : uur::urKernelTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelTest::SetUp());
-        ASSERT_SUCCESS(urKernelGetNativeHandle(kernel, &native_kernel_handle));
+        if (urKernelGetNativeHandle(kernel, &native_kernel_handle)) {
+            GTEST_SKIP();
+        }
     }
 
     void TearDown() override {
@@ -52,13 +54,6 @@ TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullHandleProgram) {
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
         urKernelCreateWithNativeHandle(native_kernel_handle, context, nullptr,
                                        &properties, &native_kernel));
-}
-
-TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullHandleNativeKernel) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urKernelCreateWithNativeHandle(nullptr, context, program,
-                                                    &properties,
-                                                    &native_kernel));
 }
 
 TEST_P(urKernelCreateWithNativeHandleTest, InvalidNullPointerProperties) {

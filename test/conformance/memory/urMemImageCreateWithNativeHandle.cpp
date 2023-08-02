@@ -5,30 +5,25 @@
 
 #include <uur/fixtures.h>
 
-using urMemImageCreateWithNativeHandleTest = uur::urMemBufferTest;
+using urMemImageCreateWithNativeHandleTest = uur::urMemImageTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateWithNativeHandleTest);
 
-TEST_P(urMemImageCreateWithNativeHandleTest, InvalidNullHandleNativeMem) {
+TEST_P(urMemImageCreateWithNativeHandleTest, Success) {
+    ur_native_handle_t native_handle = nullptr;
+    if (urMemGetNativeHandle(image, &native_handle)) {
+        GTEST_SKIP();
+    }
+
     ur_mem_handle_t mem = nullptr;
-    ur_image_format_t imageFormat = {
-        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
-        /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
-    };
-    ur_image_desc_t imageDesc = {
-        /*.stype =*/UR_STRUCTURE_TYPE_IMAGE_DESC,
-        /*.pNext =*/nullptr,
-        /*.type =*/UR_MEM_TYPE_IMAGE2D,
-        /*.width =*/16,
-        /*.height =*/16,
-        /*.depth =*/1,
-        /*.arraySize =*/1,
-        /*.rowPitch =*/16,
-        /*.slicePitch =*/16 * 16,
-        /*.numMipLevel =*/0,
-        /*.numSamples =*/0,
-    };
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urMemImageCreateWithNativeHandle(nullptr, context,
-                                                      &imageFormat, &imageDesc,
-                                                      nullptr, &mem));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urMemImageCreateWithNativeHandle(native_handle, context, &image_format,
+                                         &image_desc, nullptr, &mem));
+    ASSERT_NE(nullptr, mem);
+
+    ur_context_handle_t mem_context = nullptr;
+    ASSERT_SUCCESS(urMemGetInfo(mem, UR_MEM_INFO_CONTEXT,
+                                sizeof(ur_context_handle_t), &mem_context,
+                                nullptr));
+    ASSERT_EQ(context, mem_context);
 }

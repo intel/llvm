@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2023 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -216,7 +216,7 @@ etors:
     - name: IMAGE2D_MAX_WIDTH
       desc: "[size_t] max width of Image2D object"
     - name: IMAGE2D_MAX_HEIGHT
-      desc: "[size_t] max heigh of Image2D object"
+      desc: "[size_t] max height of Image2D object"
     - name: IMAGE3D_MAX_WIDTH
       desc: "[size_t] max width of Image3D object"
     - name: IMAGE3D_MAX_HEIGHT
@@ -383,6 +383,8 @@ etors:
       desc: "[uint32_t] The maximum number of registers available per block."
     - name: IP_VERSION
       desc: "[uint32_t] The device IP version. The meaning of the device IP version is implementation-defined, but newer devices should have a higher version than older devices."
+    - name: VIRTUAL_MEMORY_SUPPORT
+      desc: "[$x_bool_t] return true if the device supports virtual memory."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves various information about device"
@@ -518,16 +520,20 @@ type: union
 desc: "Device partition value."
 name: $x_device_partition_value_t
 class: $xDevice
+tag: $x_device_partition_t
 members:
     - type: uint32_t
       name: equally
       desc: "[in] Number of compute units per sub-device when partitioning with $X_DEVICE_PARTITION_EQUALLY."
+      tag: $X_DEVICE_PARTITION_EQUALLY
     - type: uint32_t
       name: count
       desc: "[in] Number of compute units in a sub-device when partitioning with $X_DEVICE_PARTITION_BY_COUNTS."
+      tag: $X_DEVICE_PARTITION_BY_COUNTS
     - type: $x_device_affinity_domain_flags_t
       name: affinity_domain
-      desc: "[in] The affinity domain to partition for when partitioning with $UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
+      desc: "[in] The affinity domain to partition for when partitioning with $X_DEVICE_PARTITION_BY_AFFINITY_DOMAIN."
+      tag: $X_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Device partition property"
@@ -539,7 +545,7 @@ members:
       desc: "[in] The partitioning type to be used."
     - type: $x_device_partition_value_t
       name: value
-      desc: "[in] The paritioning value."
+      desc: "[in][tagged_by(type)] The partitioning value."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Device Partition Properties"
@@ -727,6 +733,9 @@ params:
       name: phNativeDevice
       desc: |
             [out] a pointer to the native handle of the device.
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Native device creation properties"
@@ -754,7 +763,7 @@ details:
 params:
     - type: $x_native_handle_t
       name: hNativeDevice
-      desc: "[in] the native handle of the device."
+      desc: "[in][nocheck] the native handle of the device."
     - type: $x_platform_handle_t
       name: hPlatform
       desc: "[in] handle of the platform instance"
@@ -764,6 +773,9 @@ params:
     - type: "$x_device_handle_t*"
       name: phDevice
       desc: "[out] pointer to the handle of the device object created."
+returns:
+    - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
+        - "If the adapter has no underlying equivalent handle."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Returns synchronized Host and Device global timestamps."

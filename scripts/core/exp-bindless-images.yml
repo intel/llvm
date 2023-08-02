@@ -32,15 +32,15 @@ etors:
     - name: BINDLESS_IMAGES_SUPPORT_EXP
       value: "0x2000"
       desc: "[$x_bool_t] returns true if the device supports the creation of bindless images"
-    - name: BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
+    - name: BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP
       value: "0x2001"
+      desc: "[$x_bool_t] returns true if the device supports the creation of bindless images backed by shared USM"
+    - name: BINDLESS_IMAGES_1D_USM_SUPPORT_EXP
+      value: "0x2002"
       desc: "[$x_bool_t] returns true if the device supports the creation of 1D bindless images backed by USM"
     - name: BINDLESS_IMAGES_2D_USM_SUPPORT_EXP
-      value: "0x2002"
-      desc: "[$x_bool_t] returns true if the device supports the creation of 2D bindless images backed by USM"
-    - name: BINDLESS_IMAGES_3D_USM_SUPPORT_EXP
       value: "0x2003"
-      desc: "[$x_bool_t] returns true if the device supports the creation of 3D bindless images backed by USM"
+      desc: "[$x_bool_t] returns true if the device supports the creation of 2D bindless images backed by USM"
     - name: IMAGE_PITCH_ALIGN_EXP
       value: "0x2004"
       desc: "[uint32_t] returns the required alignment of the pitch between two rows of an image in bytes"
@@ -86,6 +86,18 @@ etors:
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
       value: "0x2000"
+    - name: EXP_INTEROP_MEM_DESC
+      desc: $x_exp_interop_mem_desc_t
+      value: "0x2001"
+    - name: EXP_INTEROP_SEMAPHORE_DESC
+      desc: $x_exp_interop_semaphore_desc_t
+      value: "0x2002"
+    - name: EXP_FILE_DESCRIPTOR
+      desc: $x_exp_file_descriptor_t
+      value: "0x2003"
+    - name: EXP_WIN32_HANDLE
+      desc: $x_exp_win32_handle_t
+      value: "0x2004"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -105,11 +117,29 @@ class: $xBindlessImages
 name: $x_exp_image_copy_flags_t
 etors:
   - name: HOST_TO_DEVICE
-    desc: "Host to device."
+    desc: "Host to device"
   - name: DEVICE_TO_HOST
     desc: "Device to host"
   - name: DEVICE_TO_DEVICE
     desc: "Device to device"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "File descriptor"
+name: $x_exp_file_descriptor_t
+base: $x_base_desc_t
+members:
+    - type: int
+      name: fd
+      desc: "[in] A file descriptor used for Linux and & MacOS operating systems."
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Windows specific file handle"
+name: $x_exp_win32_handle_t
+base: $x_base_desc_t
+members:
+    - type: void*
+      name: handle
+      desc: "[in] A win32 file handle."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Describes mipmap sampler properties"
@@ -127,8 +157,25 @@ members:
       name: maxMipmapLevelClamp
       desc: "[in] maximum mipmap level from which we can sample, maximum value being the number of levels"
     - type: float
-      name: maxAnistropy
+      name: maxAnisotropy
       desc: "[in] anisotropic ratio used when samplling the mipmap with anisotropic filtering"
+    - type: $x_sampler_filter_mode_t
+      name: mipFilterMode
+      desc: "[in] mipmap filter mode used for filtering between mipmap levels"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes an interop memory resource descriptor"
+class: $xBindlessImages
+name: $x_exp_interop_mem_desc_t
+base: $x_base_desc_t
+members: []
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes an interop semaphore resource descriptor"
+class: $xBindlessImages
+name: $x_exp_interop_semaphore_desc_t
+base: $x_base_desc_t
+members: []
 --- #--------------------------------------------------------------------------
 type: function
 desc: "USM allocate pitched memory"
@@ -197,6 +244,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_handle_t
       name: hImage
       desc: "[in] pointer to handle of image object to destroy"
@@ -215,6 +265,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_handle_t
       name: hImage
       desc: "[in] pointer to handle of image object to destroy"
@@ -234,6 +287,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
@@ -262,6 +318,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hImageMem
       desc: "[in] handle of image memory to be freed"
@@ -280,6 +339,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hImageMem
       desc: "[in] handle to memory from which to create the image"
@@ -314,6 +376,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hImageMem
       desc: "[in] handle to memory from which to create the image"
@@ -352,9 +417,9 @@ analogue:
     - "**cuMemcpy2DAsync**"
     - "**cuMemcpy3DAsync**"
 params:
-    - type: $x_context_handle_t
-      name: hContext
-      desc: "[in] handle of the context object"
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
     - type: void*
       name: pDst
       desc: "[in] location the data will be copied to"
@@ -370,6 +435,18 @@ params:
     - type: $x_exp_image_copy_flags_t
       name: imageCopyFlags
       desc: "[in] flags describing copy direction e.g. H2D or D2H"
+    - type: $x_rect_offset_t
+      name: srcOffset
+      desc: "[in] defines the (x,y,z) source offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_offset_t
+      name: dstOffset
+      desc: "[in] defines the (x,y,z) destination offset in pixels in the 1D, 2D, or 3D image"
+    - type: $x_rect_region_t
+      name: copyExtent
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region to copy"
+    - type: $x_rect_region_t
+      name: hostExtent
+      desc: "[in] defines the (width, height, depth) in pixels of the 1D, 2D, or 3D region on the host"    
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -384,7 +461,7 @@ params:
       desc: |
             [out][optional] return an event object that identifies this particular command instance.
 returns:
-    - $X_RESULT_ERROR_INVALID_CONTEXT
+    - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
     - $X_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR:
       - "`pImageDesc && UR_MEM_TYPE_IMAGE1D_BUFFER < pImageDesc->type`"
@@ -431,6 +508,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hImageMem
       desc: "[in] memory handle to the mipmap image"
@@ -455,6 +535,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_image_mem_handle_t
       name: hMem
       desc: "[in] handle of image memory to be freed"
@@ -473,12 +556,15 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: size_t
       name: size
       desc: "[in] size of the external memory"
-    - type: uint32_t
-      name: fileDescriptor
-      desc: "[in] the file descriptor"
+    - type: $x_exp_interop_mem_desc_t*
+      name: pInteropMemDesc
+      desc: "[in] the interop memory descriptor"
     - type: $x_exp_interop_mem_handle_t*
       name: phInteropMem
       desc: "[out] interop memory handle to the external memory"
@@ -496,6 +582,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: "const $x_image_format_t*"
       name: pImageFormat
       desc: "[in] pointer to image format specification"
@@ -505,7 +594,7 @@ params:
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
       desc: "[in] interop memory handle to the external memory"
-    - type: $x_exp_image_handle_t*
+    - type: $x_exp_image_mem_handle_t*
       name: phImageMem
       desc: "[out] image memory handle to the externally allocated memory"
 returns:
@@ -528,6 +617,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_interop_mem_handle_t
       name: hInteropMem
       desc: "[in] handle of interop memory to be freed"
@@ -546,11 +638,14 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
-    - type: uint32_t
-      name: fileDescriptor
-      desc: "[in] the file descriptor"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
+    - type: $x_exp_interop_semaphore_desc_t*
+      name: pInteropSemaphoreDesc
+      desc: "[in] the interop semaphore descriptor"
     - type: $x_exp_interop_semaphore_handle_t*
-      name: phInteropSemaphoreHandle
+      name: phInteropSemaphore
       desc: "[out] interop semaphore handle to the external semaphore"
 returns:
     - $X_RESULT_ERROR_INVALID_CONTEXT
@@ -567,6 +662,9 @@ params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context object"
+    - type: $x_device_handle_t
+      name: hDevice
+      desc: "[in] handle of the device object"
     - type: $x_exp_interop_semaphore_handle_t
       name: hInteropSemaphore
       desc: "[in] handle of interop semaphore to be destroyed"
