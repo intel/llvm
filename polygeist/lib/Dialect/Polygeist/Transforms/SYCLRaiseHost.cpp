@@ -1755,8 +1755,13 @@ public:
     auto range = *setNDRangeOps.begin();
 
     // Extract the number of parameters and the pointer to the
-    // `kernel_signatures` data structure from annotations in the current block.
-    auto failureOrParamInfo = getKernelParameterInfo(op->getBlock());
+    // `kernel_signatures` data structure from annotations in the predecessor
+    // block (the `llvm.invoke` to `extractArgsAndReqsFromLambda` separates the
+    // annotations and the `set_kernel` op into different blocks).
+    auto *predBlock = op->getBlock()->getSinglePredecessor();
+    if (!predBlock)
+      return failure();
+    auto failureOrParamInfo = getKernelParameterInfo(predBlock);
     if (failed(failureOrParamInfo))
       return failure();
     auto [numParams, paramDesc] = *failureOrParamInfo;
@@ -1937,7 +1942,7 @@ private:
 
     auto kernelSignatures =
         SymbolTable::lookupNearestSymbolFrom<LLVM::GlobalOp>(
-            addressOf, kernelSignaturesRef);
+            paramDesc.getDefiningOp(), kernelSignaturesRef);
     if (!kernelSignatures)
       return failure();
 
