@@ -22,6 +22,10 @@
 
 #include "matrix-intel.hpp"
 
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#include "matrix-tensorcores.hpp"
+#endif
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

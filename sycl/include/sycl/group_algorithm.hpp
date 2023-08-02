@@ -28,6 +28,9 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#endif
 #endif
 
 namespace sycl {
