@@ -341,9 +341,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     }
 
     if (Device->isCCS()) {
-      ur_device_partition_property_t cslice = {
-          UR_DEVICE_PARTITION_BY_CSLICE,
-      };
+      ur_device_partition_property_t cslice{};
+      cslice.type = UR_DEVICE_PARTITION_BY_CSLICE;
 
       return ReturnValue(cslice);
     }
