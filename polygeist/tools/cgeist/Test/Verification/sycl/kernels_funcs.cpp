@@ -20,7 +20,7 @@
 // CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTS8kernel_1({{.*}}) #[[FUNCATTRS1:[0-9]+]]
 // CHECK-LLVM-DAG:      define weak_odr spir_kernel void @_ZTSZZ6host_2vENKUlRN4sycl3_V17handlerEE_clES2_E8kernel_2({{.*}}) #[[FUNCATTRS1]]
 
-// CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp" "uniform-work-group-size"="true" }
+// CHECK-LLVM: attributes #[[FUNCATTRS1]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/polygeist/tools/cgeist/Test/Verification/sycl/kernels_funcs.cpp" "sycl-optlevel"="0" "uniform-work-group-size"="true" }
 
 template <typename DataT,
           int Dimensions = 1,

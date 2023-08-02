@@ -258,7 +258,7 @@
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %t.o %s 2>&1     \
 // RUN: | FileCheck -check-prefix=CHK-UNBUNDLER-RAISE %s
 
-// CHK-UNBUNDLER-RAISE: "{{.*}}clang-offload-bundler" "-type=o" "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown-syclmlir"
+// CHK-UNBUNDLER-RAISE: "{{.*}}clang-offload-bundler" "-type=o" "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown"
 
 // RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \

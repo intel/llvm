@@ -4,7 +4,7 @@
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O3 -w %s -o %t.O3.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
 // RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -Ofast -w %s -o %t.Ofast.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
 
-// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
+// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fno-sycl-instrument-device-code -fsycl -fsycl-device-only -O0 -w -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o %t.bc
 
 // Test that the LLVMIR generated is verifiable.
 // RUN: opt -passes=verify -disable-output < %t.bc
