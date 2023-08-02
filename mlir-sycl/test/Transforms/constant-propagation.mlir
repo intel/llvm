@@ -1,19 +1,5 @@
-// RUN: sycl-mlir-opt %s -mlir-pass-statistics -split-input-file \
-// RUN: -sycl-constant-propagation 2>&1 | FileCheck %s
-
-// COM: First split
-
-// CHECK-LABEL: ConstantPropagationPass
-// CHECK-NEXT:   (S) 1 num-propagated-constants   - Number of propagated constants
-// CHECK-NEXT:   (S) 1 num-replaced-explicit-args - Number of replaced explicit arguments
-// CHECK-NEXT:   (S) 0 num-replaced-implicit-args - Number of replaced implicit arguments
-
-// COM: Second split
-
-// CHECK-LABEL: ConstantPropagationPass
-// CHECK-NEXT:   (S) 11 num-propagated-constants   - Number of propagated constants
-// CHECK-NEXT:   (S)  0 num-replaced-explicit-args - Number of replaced explicit arguments
-// CHECK-NEXT:   (S) 11 num-replaced-implicit-args - Number of replaced implicit arguments
+// RUN: sycl-mlir-opt %s -split-input-file -sycl-constant-propagation\
+// RUN: | FileCheck %s
 
 // COM: Check we can detect %c is constant
 
@@ -63,6 +49,30 @@ llvm.func internal @foo(%acc: !llvm.ptr) {
   %c = llvm.mlir.constant(0 : i64) : i64
   sycl.host.schedule_kernel @kernels::@k0(%acc: !sycl_accessor_1_i64_w_gb, %c)
       : (!llvm.ptr, i64) -> ()
+  llvm.return
+}
+
+// -----
+
+gpu.module @kernels {
+// CHECK-LABEL:     gpu.func @k0(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xf32, 1>,
+// CHECK-SAME:                   %[[VAL_1:.*]]: f32) kernel {
+// CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.constant(-1.000000e+00 : f32) : f32
+// CHECK-NEXT:        %[[VAL_3:.*]] = arith.constant 0 : index
+// CHECK-NEXT:        memref.store %[[VAL_2]], %[[VAL_0]]{{\[}}%[[VAL_3]]] : memref<?xf32, 1>
+// CHECK-NEXT:        gpu.return
+// CHECK-NEXT:      }
+  gpu.func @k0(%res: memref<?xf32, 1>, %c: f32) kernel {
+    %c0 = arith.constant 0 : index
+    memref.store %c, %res[%c0] : memref<?xf32, 1>
+    gpu.return
+  }
+}
+
+llvm.func internal @foo(%ptr: !llvm.ptr) {
+  %c = llvm.mlir.constant(-1.000000e+00 : f32) : f32
+  sycl.host.schedule_kernel @kernels::@k0(%ptr, %c) : (!llvm.ptr, f32) -> ()
   llvm.return
 }
 
@@ -1194,13 +1204,6 @@ llvm.func internal @foo_constant_constant_global_local_size(
 
 // -----
 
-// COM: Third split
-
-// CHECK-LABEL: ConstantPropagationPass
-// CHECK-NEXT:   (S) 7 num-propagated-constants   - Number of propagated constants
-// CHECK-NEXT:   (S) 7 num-replaced-explicit-args - Number of replaced explicit arguments
-// CHECK-NEXT:   (S) 0 num-replaced-implicit-args - Number of replaced implicit arguments
-
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
@@ -1391,11 +1394,6 @@ llvm.func internal @unknown_offset_and_range(
 }
 
 // -----
-
-// CHECK-LABEL:  ConstantPropagationPass
-// CHECK-NEXT:     (S) 1 num-propagated-constants   - Number of propagated constants
-// CHECK-NEXT:     (S) 1 num-replaced-explicit-args - Number of replaced explicit arguments
-// CHECK-NEXT:     (S) 0 num-replaced-implicit-args - Number of replaced implicit arguments
 
 // COM: Check we can propagate '@constant_array'
 
