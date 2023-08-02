@@ -6,7 +6,7 @@
 using namespace sycl;
 
 template <aspect asp, typename T>
-[[sycl::device_has(asp)]] void dummy_function_decorated(const T& acc) {
+[[sycl::device_has(asp)]] void dummy_function_decorated(const T &acc) {
   acc[0] = true;
 }
 
@@ -20,11 +20,9 @@ int main() {
 
   buffer<bool, 1> buf(&b, 1);
   try {
-    q.submit([&](handler &cgh){
+    q.submit([&](handler &cgh) {
       accessor acc(buf, cgh);
-      cgh.single_task([=]() {
-        dummy_function_decorated<aspect::fp64>(acc);
-      });
+      cgh.single_task([=]() { dummy_function_decorated<aspect::fp64>(acc); });
     });
     std::cout << "Exception should have been thrown!\n";
     return 1;
