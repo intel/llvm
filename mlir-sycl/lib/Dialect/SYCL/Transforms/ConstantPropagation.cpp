@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SYCL/Transforms/Passes.h"
 
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLAccessorAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/SYCLNDRangeAnalysis.h"
@@ -82,8 +83,10 @@ class ConstantArg {
 public:
   enum class Kind {
     ConstantArithArg,
+    ConstantArrayArg,
     ConstantAccessorArg,
     ConstantSYCLGridArgs,
+    OpArgEnd = ConstantAccessorArg,
     ExplicitEnd = ConstantSYCLGridArgs,
     ImplicitBegin = ExplicitEnd
   };
@@ -122,13 +125,34 @@ private:
   unsigned index;
 };
 
+/// Class representing a constant argument backed by an operation in host code
+class ConstantOpArg : public ConstantExplicitArg {
+public:
+  static bool classof(const ConstantArg *c) {
+    return c->getKind() < ConstantArg::Kind::OpArgEnd;
+  }
+
+protected:
+  ConstantOpArg(ConstantArg::Kind kind, unsigned index, Operation *definingOp)
+      : ConstantExplicitArg(kind, index), definingOp(definingOp) {
+    assert(definingOp && "Expecting valid operation");
+  }
+
+  Operation *getDefiningOp() const { return definingOp; }
+
+  template <typename OpTy> OpTy getDefiningOp() const {
+    return cast<OpTy>(definingOp);
+  }
+
+private:
+  Operation *definingOp;
+};
+
 /// Class representing a constant arithmetic argument.
-class ConstantArithArg : public ConstantExplicitArg {
+class ConstantArithArg : public ConstantOpArg {
 public:
   ConstantArithArg(unsigned index, Operation *definingOp)
-      : ConstantExplicitArg(ConstantArg::Kind::ConstantArithArg, index),
-        definingOp(definingOp) {
-    assert(definingOp && "Expecting valid operation");
+      : ConstantOpArg(ConstantArg::Kind::ConstantArithArg, index, definingOp) {
     assert(definingOp->hasTrait<OpTrait::ConstantLike>() &&
            "Expecting constant");
   }
@@ -136,16 +160,27 @@ public:
   /// Propagate the constant this argument represents.
   void propagate(OpBuilder &builder, Region &region) {
     Value toReplace = region.getArgument(getIndex());
-    toReplace.replaceAllUsesWith(builder.clone(*definingOp)->getResult(0));
+    toReplace.replaceAllUsesWith(builder.clone(*getDefiningOp())->getResult(0));
     recordHit();
   }
 
   static bool classof(const ConstantArg *c) {
     return c->getKind() == ConstantExplicitArg::Kind::ConstantArithArg;
   }
+};
 
-private:
-  Operation *definingOp;
+/// Class representing a constant arithmetic argument.
+class ConstantArrayArg : public ConstantOpArg {
+public:
+  ConstantArrayArg(unsigned index, LLVM::GlobalOp definingOp)
+      : ConstantOpArg(ConstantArg::Kind::ConstantArrayArg, index, definingOp) {}
+
+  /// Propagate the constant this argument represents.
+  void propagate(OpBuilder &builder, Region &region);
+
+  static bool classof(const ConstantArg *c) {
+    return c->getKind() == ConstantExplicitArg::Kind::ConstantArrayArg;
+  }
 };
 
 /// Class representing a constant implicit argument.
@@ -832,6 +867,33 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
 }
 
 //===----------------------------------------------------------------------===//
+// ConstantArrayArg
+//===----------------------------------------------------------------------===//
+
+void ConstantArrayArg::propagate(OpBuilder &builder, Region &region) {
+  unsigned index = getIndex();
+  Value toReplace = region.getArgument(index);
+  OpBuilder globalCloner(region.getParentOfType<gpu::GPUFuncOp>());
+  auto newGlobal =
+      globalCloner.cloneWithoutRegions(getDefiningOp<LLVM::GlobalOp>());
+  LLVM_DEBUG({
+    llvm::dbgs().indent(2) << "Handling constant array at pos #" << index
+                           << "\n";
+    llvm::dbgs().indent(4) << "Replacing using new global " << newGlobal
+                           << "\n";
+  });
+  Location loc = toReplace.getLoc();
+  Value addressof = builder.create<LLVM::AddressOfOp>(loc, newGlobal);
+  auto pt = cast<LLVM::LLVMPointerType>(toReplace.getType());
+  if (pt != addressof.getType()) {
+    LLVM_DEBUG(llvm::dbgs().indent(4) << "Performing cast to " << pt << "\n");
+    addressof = builder.create<LLVM::BitcastOp>(loc, pt, addressof);
+  }
+  toReplace.replaceAllUsesWith(addressof);
+  recordHit();
+}
+
+//===----------------------------------------------------------------------===//
 // ConstantPropagationPass
 //===----------------------------------------------------------------------===//
 
@@ -941,6 +1003,18 @@ static unsigned getTrueIndex(const RangeTy &typeAttrs, unsigned originalIndex) {
       });
 }
 
+static LLVM::GlobalOp
+getConstantArrayDefinition(Value value, SymbolTableCollection &symbolTable) {
+  auto addressOf = value.getDefiningOp<LLVM::AddressOfOp>();
+  if (!addressOf)
+    return nullptr;
+  LLVM::GlobalOp global = addressOf.getGlobal(symbolTable);
+  return global.getConstant() &&
+                 isa<LLVM::LLVMArrayType>(global.getGlobalType())
+             ? global
+             : nullptr;
+}
+
 auto ConstantPropagationPass::getConstantArgs(
     SYCLHostScheduleKernel op,
     polygeist::SYCLAccessorAnalysis &accessorAnalysis) {
@@ -949,6 +1023,8 @@ auto ConstantPropagationPass::getConstantArgs(
   // Map each argument to a ConstantExplicitArg and filter-out nullptr
   // (non-const) ones.
   auto types = op.getSyclTypes().getAsRange<TypeAttr>();
+
+  SymbolTableCollection symbolTable;
 
   // NOTE: We cannot filter here as `llvm::make_filter_range` does not work as
   // expected. (See comment at `llvm/ADT/STLExtras.h`).
@@ -965,6 +1041,15 @@ auto ConstantPropagationPass::getConstantArgs(
                      << "Arith constant: " << value << " at pos #" << trueIndex
                      << "\n");
           return res;
+        }
+        if (LLVM::GlobalOp arrayDefinitionOp =
+                getConstantArrayDefinition(value, symbolTable)) {
+          unsigned trueIndex = getTrueIndex(types, index);
+          LLVM_DEBUG(llvm::dbgs().indent(2)
+                     << "Array constant: " << arrayDefinitionOp << " at pos #"
+                     << trueIndex << "\n");
+          return std::make_unique<ConstantArrayArg>(trueIndex,
+                                                    arrayDefinitionOp);
         }
         auto accType = llvm::dyn_cast_or_null<AccessorType>(type.getValue());
         return accType ? getConstantAccessorArg(op, accessorAnalysis,
@@ -1003,7 +1088,7 @@ void ConstantPropagationPass::propagateConstantArgs(
     if (!arg)
       continue;
     TypeSwitch<ConstantExplicitArg *>(arg.get())
-        .Case<ConstantAccessorArg, ConstantArithArg>(
+        .Case<ConstantAccessorArg, ConstantArithArg, ConstantArrayArg>(
             [&](auto *arg) { arg->propagate(builder, *region); });
     size_t hits = arg->getNumHits();
     NumReplacedExplicitArguments += hits;

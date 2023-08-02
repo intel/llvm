@@ -1389,3 +1389,55 @@ llvm.func internal @unknown_offset_and_range(
       : (!llvm.ptr) -> ()
   llvm.return
 }
+
+// -----
+
+// CHECK-LABEL:  ConstantPropagationPass
+// CHECK-NEXT:     (S) 1 num-propagated-constants   - Number of propagated constants
+// CHECK-NEXT:     (S) 1 num-replaced-explicit-args - Number of replaced explicit arguments
+// CHECK-NEXT:     (S) 0 num-replaced-implicit-args - Number of replaced implicit arguments
+
+// COM: Check we can propagate '@constant_array'
+
+gpu.module @kernels {
+  // CHECK-LABEL:      llvm.mlir.global private unnamed_addr constant @constant_array(dense<[1.300000e+02, 1.200000e+02, 7.800000e+01, 0.000000e+00, -7.800000e+01, -1.200000e+02, -1.300000e+02, 1.800000e+02, 1.950000e+02, 1.560000e+02, 0.000000e+00, -1.560000e+02, -1.950000e+02, -1.800000e+02, 2.340000e+02, 3.120000e+02, 3.900000e+02, 0.000000e+00, -3.900000e+02, -3.120000e+02, -2.340000e+02, 2.600000e+02, 3.900000e+02, 7.800000e+02, 0.000000e+00, -7.800000e+02, -3.900000e+02, -2.600000e+02, 2.340000e+02, 3.120000e+02, 3.900000e+02, 0.000000e+00, -3.900000e+02, -3.120000e+02, -2.340000e+02, 1.800000e+02, 1.950000e+02, 1.560000e+02, 0.000000e+00, -1.560000e+02, -1.950000e+02, -1.800000e+02, 1.300000e+02, 1.200000e+02, 7.800000e+01, 0.000000e+00, -7.800000e+01, -1.200000e+02, -1.300000e+02]> : tensor<49xf32>) {addr_space = 0 : i32, alignment = 16 : i64, dso_local} : !llvm.array<49 x f32>
+
+// CHECK-LABEL:     gpu.func @k(
+// CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xf32, 1>,
+// CHECK-SAME:                  %[[VAL_1:.*]]: !llvm.ptr<struct<(array<49 x f32>)>> {llvm.align = 4 : i64, llvm.byval = !llvm.struct<(array<49 x f32>)>, llvm.noundef}) kernel {
+// CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.addressof @constant_array : !llvm.ptr<array<49 x f32>>
+// CHECK-NEXT:        %[[VAL_3:.*]] = llvm.bitcast %[[VAL_2]] : !llvm.ptr<array<49 x f32>> to !llvm.ptr<struct<(array<49 x f32>)>>
+// CHECK-NEXT:        %[[VAL_4:.*]] = arith.constant 49 : index
+// CHECK-NEXT:        affine.for %[[VAL_5:.*]] = 0 to %[[VAL_4]] {
+// CHECK-NEXT:          %[[VAL_6:.*]] = arith.index_cast %[[VAL_5]] : index to i64
+// CHECK-NEXT:          %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_3]][0, 0, %[[VAL_6]]] : (!llvm.ptr<struct<(array<49 x f32>)>>, i64) -> !llvm.ptr<f32>
+// CHECK-NEXT:          %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<f32>
+// CHECK-NEXT:          affine.store %[[VAL_8]], %[[VAL_0]]{{\[}}%[[VAL_5]]] : memref<?xf32, 1>
+// CHECK-NEXT:        }
+// CHECK-NEXT:        gpu.return
+// CHECK-NEXT:      }
+  gpu.func @k(%ptr: memref<?xf32, 1>,
+              %const_arr: !llvm.ptr<struct<(array<49 x f32>)>>
+                  {llvm.align = 4 : i64,
+                   llvm.byval = !llvm.struct<(array<49 x f32>)>,
+                   llvm.noundef})
+        kernel {
+    %c48 = arith.constant 49 : index
+    affine.for %i = 0 to %c48 {
+      %i_i32 = arith.index_cast %i : index to i64
+      %arr_ptr = llvm.getelementptr %const_arr[0, 0, %i_i32] : (!llvm.ptr<struct<(array<49 x f32>)>>, i64) -> !llvm.ptr<f32>
+      %val = llvm.load %arr_ptr : !llvm.ptr<f32>
+      affine.store %val, %ptr[%i] : memref<?xf32, 1>
+    }
+    gpu.return
+  }
+}
+
+llvm.mlir.global private unnamed_addr constant @constant_array(dense<[1.300000e+02, 1.200000e+02, 7.800000e+01, 0.000000e+00, -7.800000e+01, -1.200000e+02, -1.300000e+02, 1.800000e+02, 1.950000e+02, 1.560000e+02, 0.000000e+00, -1.560000e+02, -1.950000e+02, -1.800000e+02, 2.340000e+02, 3.120000e+02, 3.900000e+02, 0.000000e+00, -3.900000e+02, -3.120000e+02, -2.340000e+02, 2.600000e+02, 3.900000e+02, 7.800000e+02, 0.000000e+00, -7.800000e+02, -3.900000e+02, -2.600000e+02, 2.340000e+02, 3.120000e+02, 3.900000e+02, 0.000000e+00, -3.900000e+02, -3.120000e+02, -2.340000e+02, 1.800000e+02, 1.950000e+02, 1.560000e+02, 0.000000e+00, -1.560000e+02, -1.950000e+02, -1.800000e+02, 1.300000e+02, 1.200000e+02, 7.800000e+01, 0.000000e+00, -7.800000e+01, -1.200000e+02, -1.300000e+02]> : tensor<49xf32>) {addr_space = 0 : i32, alignment = 16 : i64, dso_local} : !llvm.array<49 x f32>
+
+llvm.func internal @propagate_array(%ptr: !llvm.ptr) {
+  %arr = llvm.mlir.addressof @constant_array : !llvm.ptr
+  sycl.host.schedule_kernel @kernels::@k(%ptr, %arr)
+      : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.return
+}
