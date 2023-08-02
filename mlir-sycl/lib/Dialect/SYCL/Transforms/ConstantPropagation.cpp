@@ -274,7 +274,7 @@ public:
   NDRInfo(polygeist::NDRangeInformation &&info) : info(std::move(info)) {}
 
   template <typename... Args>
-  NDRInfo(Args &&... args)
+  NDRInfo(Args &&...args)
       : info(std::in_place, std::in_place_type<RangeAndOffsetInfo>,
              std::forward<Args>(args)...) {}
 
@@ -522,8 +522,8 @@ void ConstantSYCLGridArgs::RewriterBase::rewrite(Operation *op,
   TypeSwitch<const RewriterBase *>(this)
       .Case<NumWorkItemsRewriter, NumWorkGroupsRewriter, WorkGroupSizeRewriter,
             GlobalOffsetRewriter>([&](const auto *rewriter) {
-        return rewriter->rewrite(cast<typename std::remove_pointer_t<decltype(
-                                     rewriter)>::operation_type>(op),
+        return rewriter->rewrite(cast<typename std::remove_pointer_t<
+                                     decltype(rewriter)>::operation_type>(op),
                                  info, builder);
       });
 }
