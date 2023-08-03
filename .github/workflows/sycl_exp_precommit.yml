@@ -10,7 +10,7 @@ on:
 jobs:
   fake:
     runs-on: [Linux]
-    steps: |
+    steps:
       - run: Build done
 
   # build:
