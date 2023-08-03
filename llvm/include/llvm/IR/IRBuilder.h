@@ -562,7 +562,7 @@ public:
 
   /// Fetch the type representing a pointer to an 8-bit integer value.
   PointerType *getInt8PtrTy(unsigned AddrSpace = 0) {
-    return getPtrTy(AddrSpace);
+    return Type::getInt8PtrTy(Context, AddrSpace);
   }
 
   /// Fetch the type of an integer with size at least as big as that of a

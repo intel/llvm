@@ -368,13 +368,12 @@ GlobalVariable *createFatbinDesc(Module &M, ArrayRef<char> Image, bool IsHIP) {
 Function *createRegisterGlobalsFunction(Module &M, bool IsHIP) {
   LLVMContext &C = M.getContext();
   // Get the __cudaRegisterFunction function declaration.
-  PointerType *Int8PtrTy = PointerType::get(C, 0);
-  PointerType *Int8PtrPtrTy = PointerType::get(C, 0);
-  PointerType *Int32PtrTy = PointerType::get(C, 0);
   auto *RegFuncTy = FunctionType::get(
       Type::getInt32Ty(C),
-      {Int8PtrPtrTy, Int8PtrTy, Int8PtrTy, Int8PtrTy, Type::getInt32Ty(C),
-       Int8PtrTy, Int8PtrTy, Int8PtrTy, Int8PtrTy, Int32PtrTy},
+      {Type::getInt8PtrTy(C)->getPointerTo(), Type::getInt8PtrTy(C),
+       Type::getInt8PtrTy(C), Type::getInt8PtrTy(C), Type::getInt32Ty(C),
+       Type::getInt8PtrTy(C), Type::getInt8PtrTy(C), Type::getInt8PtrTy(C),
+       Type::getInt8PtrTy(C), Type::getInt32PtrTy(C)},
       /*isVarArg*/ false);
   FunctionCallee RegFunc = M.getOrInsertFunction(
       IsHIP ? "__hipRegisterFunction" : "__cudaRegisterFunction", RegFuncTy);
@@ -382,7 +381,8 @@ Function *createRegisterGlobalsFunction(Module &M, bool IsHIP) {
   // Get the __cudaRegisterVar function declaration.
   auto *RegVarTy = FunctionType::get(
       Type::getVoidTy(C),
-      {Int8PtrPtrTy, Int8PtrTy, Int8PtrTy, Int8PtrTy, Type::getInt32Ty(C),
+      {Type::getInt8PtrTy(C)->getPointerTo(), Type::getInt8PtrTy(C),
+       Type::getInt8PtrTy(C), Type::getInt8PtrTy(C), Type::getInt32Ty(C),
        getSizeTTy(M), Type::getInt32Ty(C), Type::getInt32Ty(C)},
       /*isVarArg*/ false);
   FunctionCallee RegVar = M.getOrInsertFunction(
@@ -404,7 +404,8 @@ Function *createRegisterGlobalsFunction(Module &M, bool IsHIP) {
                                : "__stop_cuda_offloading_entries");
   EntriesE->setVisibility(GlobalValue::HiddenVisibility);
 
-  auto *RegGlobalsTy = FunctionType::get(Type::getVoidTy(C), Int8PtrPtrTy,
+  auto *RegGlobalsTy = FunctionType::get(Type::getVoidTy(C),
+                                         Type::getInt8PtrTy(C)->getPointerTo(),
                                          /*isVarArg*/ false);
   auto *RegGlobalsFn =
       Function::Create(RegGlobalsTy, GlobalValue::InternalLinkage,
@@ -431,12 +432,12 @@ Function *createRegisterGlobalsFunction(Module &M, bool IsHIP) {
       Builder.CreateInBoundsGEP(getEntryTy(M), Entry,
                                 {ConstantInt::get(getSizeTTy(M), 0),
                                  ConstantInt::get(Type::getInt32Ty(C), 0)});
-  auto *Addr = Builder.CreateLoad(Int8PtrTy, AddrPtr, "addr");
+  auto *Addr = Builder.CreateLoad(Type::getInt8PtrTy(C), AddrPtr, "addr");
   auto *NamePtr =
       Builder.CreateInBoundsGEP(getEntryTy(M), Entry,
                                 {ConstantInt::get(getSizeTTy(M), 0),
                                  ConstantInt::get(Type::getInt32Ty(C), 1)});
-  auto *Name = Builder.CreateLoad(Int8PtrTy, NamePtr, "name");
+  auto *Name = Builder.CreateLoad(Type::getInt8PtrTy(C), NamePtr, "name");
   auto *SizePtr =
       Builder.CreateInBoundsGEP(getEntryTy(M), Entry,
                                 {ConstantInt::get(getSizeTTy(M), 0),
@@ -453,13 +454,14 @@ Function *createRegisterGlobalsFunction(Module &M, bool IsHIP) {
 
   // Create kernel registration code.
   Builder.SetInsertPoint(IfThenBB);
-  Builder.CreateCall(RegFunc, {RegGlobalsFn->arg_begin(), Addr, Name, Name,
-                               ConstantInt::get(Type::getInt32Ty(C), -1),
-                               ConstantPointerNull::get(Int8PtrTy),
-                               ConstantPointerNull::get(Int8PtrTy),
-                               ConstantPointerNull::get(Int8PtrTy),
-                               ConstantPointerNull::get(Int8PtrTy),
-                               ConstantPointerNull::get(Int32PtrTy)});
+  Builder.CreateCall(RegFunc,
+                     {RegGlobalsFn->arg_begin(), Addr, Name, Name,
+                      ConstantInt::get(Type::getInt32Ty(C), -1),
+                      ConstantPointerNull::get(Type::getInt8PtrTy(C)),
+                      ConstantPointerNull::get(Type::getInt8PtrTy(C)),
+                      ConstantPointerNull::get(Type::getInt8PtrTy(C)),
+                      ConstantPointerNull::get(Type::getInt8PtrTy(C)),
+                      ConstantPointerNull::get(Type::getInt32PtrTy(C))});
   Builder.CreateBr(IfEndBB);
   Builder.SetInsertPoint(IfElseBB);
 

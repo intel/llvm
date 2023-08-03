@@ -401,7 +401,7 @@ public:
   void CreateNonTerminatorUnreachable(Instruction *InsertAt) {
     auto &Ctx = InsertAt->getContext();
     auto *SI = new StoreInst(ConstantInt::getTrue(Ctx),
-                             PoisonValue::get(PointerType::getUnqual(Ctx)),
+                             PoisonValue::get(Type::getInt1PtrTy(Ctx)),
                              /*isVolatile*/ false, Align(1));
     InsertNewInstBefore(SI, *InsertAt);
   }
