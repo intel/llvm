@@ -8,25 +8,25 @@
 
 #pragma once
 
-#include <stdint.h>                            // for uint32_t
 #include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for select_cl_scalar_inte...
+#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp>         // for is_scalar_arithmetic
+#include <sycl/exception.hpp>                  // for runtime_error, make_e...
 #include <sycl/id.hpp>                         // for id
 #include <sycl/memory_enums.hpp>               // for memory_scope
+#include <sycl/multi_ptr.hpp>                  // for multi_ptr
 #include <sycl/range.hpp>                      // for range
 #include <sycl/types.hpp>                      // for vec
-#include <tuple>                               // for _Swallow_assign, ignore
-#include <type_traits>                         // for enable_if_t, remove_cv_t
-
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
-#include <sycl/exception.hpp>                 // for runtime_error, make_e...
-#include <sycl/multi_ptr.hpp>                 // for multi_ptr
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
 #endif
+
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for _Swallow_assign, ignore
+#include <type_traits> // for enable_if_t, remove_cv_t
 
 namespace sycl {
 inline namespace _V1 {

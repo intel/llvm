@@ -8,28 +8,22 @@
 
 #pragma once
 
-#include <cstddef>                         // for size_t, byte
-#include <memory>                          // for hash, shared_ptr
-#include <stdint.h>                        // for uint16_t, uint8_t
-#include <sycl/builtins.hpp>               // for isinf, isnan, signbit
-#include <sycl/detail/defines.hpp>         // for __SYCL_SPECIAL_CLASS, __S...
-#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
-#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
-#include <sycl/handler.hpp>                // for handler
-#include <type_traits>                     // for enable_if_t, is_same, fal...
-#include <variant>                         // for hash
-
-#include <sycl/access/access.hpp>             // for target, mode, address_space
-#include <sycl/accessor.hpp>                  // for accessor
-#include <sycl/aliases.hpp>                   // for half
-#include <sycl/atomic.hpp>                    // for atomic
-#include <sycl/detail/array.hpp>              // for array
-#include <sycl/detail/cg.hpp>                 // for stream_impl
+#include <sycl/access/access.hpp>  // for target, mode, address_space
+#include <sycl/accessor.hpp>       // for accessor
+#include <sycl/aliases.hpp>        // for half
+#include <sycl/atomic.hpp>         // for atomic
+#include <sycl/builtins.hpp>       // for isinf, isnan, signbit
+#include <sycl/detail/array.hpp>   // for array
+#include <sycl/detail/cg.hpp>      // for stream_impl
+#include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/item_base.hpp>          // for id, range
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/group.hpp>                     // for group
 #include <sycl/h_item.hpp>                    // for h_item
 #include <sycl/half_type.hpp>                 // for half, operator-, operator<
+#include <sycl/handler.hpp>                   // for handler
 #include <sycl/item.hpp>                      // for item
 #include <sycl/nd_item.hpp>                   // for nd_item
 #include <sycl/nd_range.hpp>                  // for nd_range
@@ -37,6 +31,12 @@
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for multi_ptr
 #include <sycl/types.hpp>                     // for vec, SwizzleOp
+
+#include <cstddef>     // for size_t, byte
+#include <memory>      // for hash, shared_ptr
+#include <stdint.h>    // for uint16_t, uint8_t
+#include <type_traits> // for enable_if_t, is_same, fal...
+#include <variant>     // for hash
 
 namespace sycl {
 inline namespace _V1 {

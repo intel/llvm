@@ -8,20 +8,6 @@
 
 #pragma once
 
-#include <cstddef>                         // for size_t
-#include <functional>                      // for function
-#include <memory>                          // for shared_ptr, hash
-#include <stdint.h>                        // for int32_t
-#include <sycl/detail/assert_happened.hpp> // for AssertHappened
-#include <sycl/device_selector.hpp>        // for device_selector
-#include <sycl/exception_list.hpp>         // for defaultAsyncHa...
-#include <sycl/handler.hpp>                // for handler, isDev...
-#include <sycl/property_list.hpp>          // for property_list
-#include <tuple>                           // for tuple
-#include <type_traits>                     // for remove_all_ext...
-#include <variant>                         // for hash
-#include <vector>                          // for vector
-
 #include <sycl/access/access.hpp>             // for target, access...
 #include <sycl/accessor.hpp>                  // for accessor
 #include <sycl/aspects.hpp>                   // for aspect
@@ -29,6 +15,7 @@
 #include <sycl/backend_types.hpp>             // for backend, backe...
 #include <sycl/buffer.hpp>                    // for buffer
 #include <sycl/context.hpp>                   // for context
+#include <sycl/detail/assert_happened.hpp>    // for AssertHappened
 #include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
 #include <sycl/detail/common.hpp>             // for code_location
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
@@ -38,8 +25,10 @@
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_mem_advice
 #include <sycl/device.hpp>                    // for device
+#include <sycl/device_selector.hpp>           // for device_selector
 #include <sycl/event.hpp>                     // for event
 #include <sycl/exception.hpp>                 // for make_error_code
+#include <sycl/exception_list.hpp>            // for defaultAsyncHa...
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_descriptor
 #include <sycl/ext/oneapi/bindless_images_interop.hpp> // for interop_semaph...
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>  // for image_mem_handle
@@ -47,11 +36,22 @@
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
 #include <sycl/ext/oneapi/experimental/graph.hpp>       // for graph_state
 #include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
+#include <sycl/handler.hpp>                             // for handler, isDev...
 #include <sycl/id.hpp>                                  // for id
 #include <sycl/kernel.hpp>                              // for auto_name
 #include <sycl/kernel_handler.hpp>                      // for kernel_handler
 #include <sycl/nd_range.hpp>                            // for nd_range
+#include <sycl/property_list.hpp>                       // for property_list
 #include <sycl/range.hpp>                               // for range
+
+#include <cstddef>     // for size_t
+#include <functional>  // for function
+#include <memory>      // for shared_ptr, hash
+#include <stdint.h>    // for int32_t
+#include <tuple>       // for tuple
+#include <type_traits> // for remove_all_ext...
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be
