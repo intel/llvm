@@ -582,6 +582,18 @@ public:
   void makeEdge(std::shared_ptr<node_impl> Src,
                 std::shared_ptr<node_impl> Dest);
 
+  /// Throws an invalid exception if this function is called
+  /// while a queue is recording commands to the graph.
+  /// @param ExceptionMsg Message to append to the exception message
+  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const  {
+    if (MRecordingQueues.size()) {
+      throw sycl::exception(make_error_code(sycl::errc::invalid),
+                            ExceptionMsg +
+                                " cannot be called when a queue "
+                                "is currently recording commands to a graph.");
+    }
+  }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
