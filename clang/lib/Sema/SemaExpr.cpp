@@ -258,7 +258,7 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              Sema::DeviceDiagnosticReason::Sycl);
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
       // SYCL device function cannot be called from ESIMD context. However,
-      // there are some exceptions from this rule - funcitons that start
+      // there are some exceptions from this rule - functions that start
       // with '__spirv_', '__sycl_', '__assert_fail', etc.
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
