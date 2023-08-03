@@ -31,6 +31,7 @@
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
