@@ -44,3 +44,48 @@ public:
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
+
+namespace {
+/// RAII type to guarantee recovering original HIP context
+/// Scoped context is used across all UR HIP plugin implementation
+/// to activate the UR Context on the current thread, matching the
+/// HIP driver semantics where the context used for the HIP Driver
+/// API is the one active on the thread.
+/// The implementation tries to avoid replacing the hipCtx_t if it cans
+class ScopedDevice {
+  hipCtx_t Original;
+  bool NeedToRecover;
+
+public:
+  ScopedDevice(ur_device_handle_t hDevice) : NeedToRecover{false} {
+
+    if (!hDevice) {
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    }
+
+    // FIXME when multi device context are supported in HIP adapter
+    hipCtx_t Desired = hDevice->getNativeContext();
+    UR_CHECK_ERROR(hipCtxGetCurrent(&Original));
+    if (Original != Desired) {
+      // Sets the desired context as the active one for the thread
+      UR_CHECK_ERROR(hipCtxSetCurrent(Desired));
+      if (Original == nullptr) {
+        // No context is installed on the current thread
+        // This is the most common case. We can activate the context in the
+        // thread and leave it there until all the UR context referring to the
+        // same underlying HIP context are destroyed. This emulates
+        // the behaviour of the HIP runtime api, and avoids costly context
+        // switches. No action is required on this side of the if.
+      } else {
+        NeedToRecover = true;
+      }
+    }
+  }
+
+  ~ScopedDevice() {
+    if (NeedToRecover) {
+      UR_CHECK_ERROR(hipCtxSetCurrent(Original));
+    }
+  }
+};
+} // namespace
