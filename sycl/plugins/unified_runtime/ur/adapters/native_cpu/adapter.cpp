@@ -1,4 +1,4 @@
-//===---------------- runtime.cpp - Native CPU Adapter --------------------===//
+//===---------------- adapter.cpp - Native CPU Adapter --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -41,6 +41,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRetain(ur_adapter_handle_t) {
   Adapter.RefCount++;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
+    ur_adapter_handle_t, const char **ppMessage, int32_t *pError) {
+  *ppMessage = ErrorMessage;
+  *pError = ErrorMessageCode;
   return UR_RESULT_SUCCESS;
 }
 
