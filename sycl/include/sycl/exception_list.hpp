@@ -10,11 +10,12 @@
 
 // 4.9.2 Exception Class Interface
 
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for cerr
+
 #include <cstddef>                        // for size_t
 #include <exception>                      // for exception_ptr, exception
 #include <ostream>                        // for operator<<, basic_ostream
-#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
-#include <sycl/detail/iostream_proxy.hpp> // for cerr
 #include <vector>                         // for vector
 
 namespace sycl {

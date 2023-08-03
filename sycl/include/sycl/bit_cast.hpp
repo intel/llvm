@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <type_traits> // for is_trivially_copyable, enable_if_t
-
 #if __cpp_lib_bit_cast
 #include <bit>
 #elif !defined(__has_builtin) || !__has_builtin(__builtin_bit_cast)
 #include <sycl/detail/memcpy.hpp>
 #endif
+
+#include <type_traits> // for is_trivially_copyable, enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <stddef.h> // for size_t
-
 #include <sycl/detail/pi.h> // for pi_uint64
+
+#include <stddef.h> // for size_t
 
 namespace sycl {
 inline namespace _V1 {

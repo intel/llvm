@@ -8,21 +8,20 @@
 
 #pragma once
 
-#include <stddef.h>               // for size_t, ptrdiff_t
-#include <stdint.h>               // for uintptr_t, uint32_t, uint64_t
 #include <sycl/access/access.hpp> // for address_space
+#include <sycl/bit_cast.hpp>      // for bit_cast
 #include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/spirv.hpp>
 #include <sycl/multi_ptr.hpp>
-#endif
-
-#ifndef __SYCL_DEVICE_ONLY__
+#else
 #include <atomic> // for atomic
 #endif
-#include <type_traits> // for enable_if_t, bool_constant
 
-#include <sycl/bit_cast.hpp> // for bit_cast
+#include <stddef.h>    // for size_t, ptrdiff_t
+#include <stdint.h>    // for uintptr_t, uint32_t, uint64_t
+#include <type_traits> // for enable_if_t, bool_constant
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,10 +8,10 @@
 
 #pragma once
 
+#include <sycl/exception.hpp> // for make_error_code, errc, exception
+
 #include <stddef.h> // for size_t
 #include <stdint.h> // for int32_t
-
-#include <sycl/exception.hpp> // for make_error_code, errc, exception
 
 namespace sycl {
 inline namespace _V1 {

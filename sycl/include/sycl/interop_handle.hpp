@@ -8,15 +8,9 @@
 
 #pragma once
 
-#include <memory>                 // for shared_ptr
-#include <stdint.h>               // for int32_t
 #include <sycl/access/access.hpp> // for target, mode, place...
 #include <sycl/accessor.hpp>      // for AccessorBaseHost
 #include <sycl/backend_types.hpp> // for backend, backend_re...
-#include <type_traits>            // for enable_if_t
-#include <utility>                // for move, pair
-#include <vector>                 // for vector
-
 #include <sycl/context.hpp>           // for context
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/detail/helpers.hpp>    // for context_impl
@@ -29,6 +23,12 @@
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/image.hpp>                             // for image
 #include <sycl/properties/buffer_properties.hpp>      // for buffer
+
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move, pair
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

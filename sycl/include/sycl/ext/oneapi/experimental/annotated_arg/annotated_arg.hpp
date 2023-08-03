@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <cstddef>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+
+#include <cstddef>
 #include <type_traits>
 #include <utility>
 #include <variant>
-
-#include <sycl/detail/defines.hpp>
 
 namespace sycl {
 inline namespace _V1 {

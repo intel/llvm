@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <stdint.h>                                       // for int32_t
 #include <sycl/ext/oneapi/latency_control/properties.hpp> // for latency_co...
+
+#include <stdint.h>                                       // for int32_t
 #include <type_traits>                                    // for conditional_t
 
 namespace sycl {

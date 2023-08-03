@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <utility> // for declval
-
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+
+#include <utility> // for declval
 
 namespace sycl {
 inline namespace _V1 {

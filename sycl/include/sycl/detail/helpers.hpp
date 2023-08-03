@@ -9,21 +9,21 @@
 #pragma once
 
 #include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
-#include <cstddef>                    // for size_t
-#include <memory>                     // for shared_ptr
-#include <stdint.h>                   // for uint32_t
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/detail/pi.hpp>         // for PiEvent
-#include <type_traits>                // for enable_if_t, integral_constant
-#include <utility>                    // for forward, integer_sequence, mak...
-#include <vector>                     // for vector
-
 #include <sycl/memory_enums.hpp> // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
 #endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, integral_constant
+#include <utility>     // for forward, integer_sequence, mak...
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

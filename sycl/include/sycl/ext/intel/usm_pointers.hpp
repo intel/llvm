@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <sycl/access/access.hpp> // for decorated, address_space
 
 namespace sycl {

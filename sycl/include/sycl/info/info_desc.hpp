@@ -8,9 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
-
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
 
 // FIXME: .def files included to this file use all sorts of SYCL objects like
 // id, range, traits, etc. We have to include some headers before including .def

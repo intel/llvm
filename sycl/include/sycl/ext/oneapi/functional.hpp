@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 #include <sycl/detail/spirv.hpp>
 #include <sycl/functional.hpp> // for maximum, minimum
+
+#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 
 namespace sycl {
 inline namespace _V1 {

@@ -20,14 +20,14 @@
 
 #pragma once
 
-#include <cstddef>     // for size_t
-#include <stdint.h>    // for uint32_t, int8_t
-#include <type_traits> // for enable_if
-
 #include <sycl/aliases.hpp> // for half
 #include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for use, layout
 #include <sycl/ext/oneapi/matrix/matrix-unified.hpp>       // for joint_matrix
+
+#include <cstddef>     // for size_t
+#include <stdint.h>    // for uint32_t, int8_t
+#include <type_traits> // for enable_if
 
 namespace sycl {
 inline namespace _V1 {

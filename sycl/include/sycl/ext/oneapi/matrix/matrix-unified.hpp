@@ -7,10 +7,12 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
-#include <cstring>     // for size_t, memcpy
-#include <stdint.h>    // for uint32_t
-#include <tuple>       // for ignore, _Swall...
-#include <type_traits> // for is_same, remov...
+
+#include "matrix-intel.hpp"
+
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#include "matrix-tensorcores.hpp"
+#endif
 
 #include <sycl/access/access.hpp>             // for address_space
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
@@ -20,11 +22,10 @@
 #include <sycl/marray.hpp>                                 // for marray
 #include <sycl/multi_ptr.hpp>                              // for multi_ptr
 
-#include "matrix-intel.hpp"
-
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-#include "matrix-tensorcores.hpp"
-#endif
+#include <cstring>     // for size_t, memcpy
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for ignore, _Swall...
+#include <type_traits> // for is_same, remov...
 
 namespace sycl {
 inline namespace _V1 {

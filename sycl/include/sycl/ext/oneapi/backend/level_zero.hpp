@@ -8,14 +8,8 @@
 
 #pragma once
 
-#include <memory>           // for shared_ptr
-#include <stdint.h>         // for int32_t
-#include <sycl/backend.hpp> // for backend_i...
-#include <type_traits>      // for enable_if_t
-#include <variant>          // for get_if
-#include <vector>           // for vector
-
 #include <sycl/async_handler.hpp>                    // for async_han...
+#include <sycl/backend.hpp>                          // for backend_i...
 #include <sycl/backend_types.hpp>                    // for backend
 #include <sycl/buffer.hpp>                           // for buffer_al...
 #include <sycl/context.hpp>                          // for context
@@ -38,6 +32,12 @@
 #include <sycl/properties/image_properties.hpp> // for image
 #include <sycl/property_list.hpp>               // for property_...
 #include <sycl/queue.hpp>                       // for queue
+
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <variant>     // for get_if
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

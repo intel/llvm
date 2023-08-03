@@ -8,20 +8,20 @@
 
 #pragma once
 
-#include <cstddef>                           // for size_t
-#include <memory>                            // for shared_ptr, hash, opera...
-#include <sycl/detail/export.hpp>            // for __SYCL_EXPORT
-#include <sycl/detail/info_desc_helpers.hpp> // for is_kernel_device_specif...
-#include <sycl/detail/owner_less_base.hpp>   // for OwnerLessBase
-#include <sycl/detail/pi.h>                  // for pi_native_handle
-#include <sycl/kernel_bundle_enums.hpp>      // for bundle_state
-#include <variant>                           // for hash
-
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
 #include <sycl/context.hpp>                   // for context
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_native_handle
 #include <sycl/device.hpp>                    // for device
+#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
 #include <sycl/range.hpp>                     // for range
+
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash, opera...
+#include <variant> // for hash
 
 namespace sycl {
 inline namespace _V1 {

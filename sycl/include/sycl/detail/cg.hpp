@@ -8,24 +8,24 @@
 
 #pragma once
 
-#include <assert.h>                 // for assert
-#include <memory>                   // for shared_ptr, unique_ptr
-#include <stddef.h>                 // for size_t
-#include <stdint.h>                 // for int32_t
-#include <string>                   // for string
 #include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
 #include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
 #include <sycl/detail/common.hpp>   // for code_location
 #include <sycl/detail/helpers.hpp>  // for context_impl
+#include <sycl/detail/pi.h>         // for pi_mem_advice, _pi_ext_command_b...
+#include <sycl/detail/pi.hpp>       // for PiImageOffset, PiImageRegion
+#include <sycl/event.hpp>           // for event_impl
+#include <sycl/exception_list.hpp>  // for queue_impl
 #include <sycl/kernel.hpp>          // for kernel_impl
-#include <utility>                  // for move
-#include <vector>                   // for vector
+#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 
-#include <sycl/detail/pi.h>        // for pi_mem_advice, _pi_ext_command_b...
-#include <sycl/detail/pi.hpp>      // for PiImageOffset, PiImageRegion
-#include <sycl/event.hpp>          // for event_impl
-#include <sycl/exception_list.hpp> // for queue_impl
-#include <sycl/kernel_bundle.hpp>  // for kernel_bundle_impl
+#include <assert.h> // for assert
+#include <memory>   // for shared_ptr, unique_ptr
+#include <stddef.h> // for size_t
+#include <stdint.h> // for int32_t
+#include <string>   // for string
+#include <utility>  // for move
+#include <vector>   // for vector
 
 namespace sycl {
 inline namespace _V1 {

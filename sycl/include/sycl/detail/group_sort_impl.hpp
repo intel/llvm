@@ -11,6 +11,7 @@
 #pragma once
 
 #ifdef __SYCL_DEVICE_ONLY__
+
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 

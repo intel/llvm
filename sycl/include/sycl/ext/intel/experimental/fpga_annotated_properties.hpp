@@ -9,15 +9,15 @@
 
 #pragma once
 
-#include <cstdint>
-#include <iosfwd>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
-#include <tuple>
-#include <type_traits>
-
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+
+#include <cstdint>
+#include <iosfwd>
+#include <tuple>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {

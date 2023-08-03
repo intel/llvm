@@ -8,17 +8,17 @@
 
 #pragma once
 
-#include <cstring>                             // for memcpy, size_t
-#include <stdio.h>                             // for printf
+#include <sycl/aliases.hpp>                    // for half
 #include <sycl/builtins.hpp>                   // for to_vec2
 #include <sycl/detail/builtins.hpp>            // for __invoke_exp2, __invo...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloath, is_sv...
-#include <type_traits>                         // for enable_if_t
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/types.hpp>                      // for vec
 
-#include <sycl/aliases.hpp>                   // for half
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/marray.hpp>                    // for marray
-#include <sycl/types.hpp>                     // for vec
+#include <cstring>     // for memcpy, size_t
+#include <stdio.h>     // for printf
+#include <type_traits> // for enable_if_t
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

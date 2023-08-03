@@ -8,10 +8,11 @@
 
 #pragma once
 
-#include <cstdint>                                       // for uint16_t
-#include <iosfwd>                                        // for nullptr_t
 #include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <cstdint>                                       // for uint16_t
+#include <iosfwd>                                        // for nullptr_t
 #include <type_traits>                                   // for true_type
 
 namespace sycl {

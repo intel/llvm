@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERA...
 #include <sycl/detail/type_traits.hpp>        // for is_group
 #include <sycl/exception.hpp>                 // for feature_not_supported
-#include <type_traits>                        // for enable_if_t
+#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
 
-#include <sycl/access/access.hpp>          // for address_space, decorated
-#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_OPERA...
-#include <sycl/ext/intel/usm_pointers.hpp> // for multi_ptr
+#include <type_traits> // for enable_if_t
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Request a fixed-size allocation in local address space at kernel scope.

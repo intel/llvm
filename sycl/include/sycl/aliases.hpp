@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <cstdint>                            // for uint8_t, int16_t, int32_t
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-
 #include <sycl/half_type.hpp> // for half
+
+#include <cstdint> // for uint8_t, int16_t, int32_t
 
 namespace sycl {
 inline namespace _V1 {
