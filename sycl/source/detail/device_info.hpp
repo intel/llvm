@@ -568,6 +568,7 @@ struct get_device_info_impl<range<Dimensions>,
   }
 };
 
+// This macro is only for AMD, NVIDIA and Intel GPU architectures
 #define ARCHES(X)                                                              \
   X("5.0", oneapi_exp_arch::nvidia_gpu_sm_50)                                  \
   X("5.2", oneapi_exp_arch::nvidia_gpu_sm_52)                                  \
@@ -603,7 +604,27 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx1030", oneapi_exp_arch::amd_gpu_gfx1030)                               \
   X("gfx1031", oneapi_exp_arch::amd_gpu_gfx1031)                               \
   X("gfx1032", oneapi_exp_arch::amd_gpu_gfx1032)                               \
-  X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)
+  X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)                               \
+  X("0x02000000", oneapi_exp_arch::intel_gpu_bdw)                              \
+  X("0x02400009", oneapi_exp_arch::intel_gpu_skl)                              \
+  X("0x02404009", oneapi_exp_arch::intel_gpu_kbl)                              \
+  X("0x02408009", oneapi_exp_arch::intel_gpu_cfl)                              \
+  X("0x0240c000", oneapi_exp_arch::intel_gpu_apl)                              \
+  X("0x02410000", oneapi_exp_arch::intel_gpu_glk)                              \
+  X("0x02414000", oneapi_exp_arch::intel_gpu_whl)                              \
+  X("0x02418000", oneapi_exp_arch::intel_gpu_aml)                              \
+  X("0x0241c000", oneapi_exp_arch::intel_gpu_cml)                              \
+  X("0x02c00000", oneapi_exp_arch::intel_gpu_icllp)                            \
+  X("0x03000000", oneapi_exp_arch::intel_gpu_tgllp)                            \
+  X("0x03004000", oneapi_exp_arch::intel_gpu_rkl)                              \
+  X("0x03008000", oneapi_exp_arch::intel_gpu_adl_s)                            \
+  X("0x0300c000", oneapi_exp_arch::intel_gpu_adl_p)                            \
+  X("0x03010000", oneapi_exp_arch::intel_gpu_adl_n)                            \
+  X("0x03028000", oneapi_exp_arch::intel_gpu_dg1)                              \
+  X("0x030dc008", oneapi_exp_arch::intel_gpu_acm_g10)                          \
+  X("0x030e0005", oneapi_exp_arch::intel_gpu_acm_g11)                          \
+  X("0x030e4000", oneapi_exp_arch::intel_gpu_acm_g12)                          \
+  X("0x030f0007", oneapi_exp_arch::intel_gpu_pvc)
 
 #define CMP(s, i)                                                              \
   if (strcmp(s, arch) == 0)                                                    \
@@ -615,53 +636,7 @@ struct get_device_info_impl<
     ext::oneapi::experimental::info::device::architecture> {
   static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
     using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
-    auto ReturnHelper = [](auto MapDeviceIpToArch, auto DeviceIp) {
-      // TODO: use std::map::contains instead of try-catch when SYCL RT be moved
-      // to C++20
-      try {
-        oneapi_exp_arch Result = MapDeviceIpToArch.at(DeviceIp);
-        return Result;
-      } catch (std::out_of_range &) {
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
-      }
-    };
     backend CurrentBackend = Dev->getBackend();
-    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
-                          backend::opencl == CurrentBackend)) {
-      std::map<uint32_t, oneapi_exp_arch> MapDeviceIpToArch = {
-          {0x02000000, oneapi_exp_arch::intel_gpu_bdw},
-          {0x02400009, oneapi_exp_arch::intel_gpu_skl},
-          {0x02404009, oneapi_exp_arch::intel_gpu_kbl},
-          {0x02408009, oneapi_exp_arch::intel_gpu_cfl},
-          {0x0240c000, oneapi_exp_arch::intel_gpu_apl},
-          {0x02410000, oneapi_exp_arch::intel_gpu_glk},
-          {0x02414000, oneapi_exp_arch::intel_gpu_whl},
-          {0x02418000, oneapi_exp_arch::intel_gpu_aml},
-          {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
-          {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
-          {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
-          {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
-          {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
-          {0x0300c000, oneapi_exp_arch::intel_gpu_adl_p},
-          {0x03010000, oneapi_exp_arch::intel_gpu_adl_n},
-          {0x03028000, oneapi_exp_arch::intel_gpu_dg1},
-          {0x030dc008, oneapi_exp_arch::intel_gpu_acm_g10},
-          {0x030e0005, oneapi_exp_arch::intel_gpu_acm_g11},
-          {0x030e4000, oneapi_exp_arch::intel_gpu_acm_g12},
-          {0x030f0007, oneapi_exp_arch::intel_gpu_pvc},
-      };
-      uint32_t DeviceIp;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(),
-          PiInfoCode<
-              ext::oneapi::experimental::info::device::architecture>::value,
-          sizeof(DeviceIp), &DeviceIp, nullptr);
-      return ReturnHelper(MapDeviceIpToArch, DeviceIp);
-    } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
-                                 backend::ext_oneapi_hip == CurrentBackend)) {
       auto MapArchToDevice = [](const char *arch) {
         ARCHES(CMP);
         throw sycl::exception(
@@ -669,22 +644,32 @@ struct get_device_info_impl<
             "The current device architecture is not supported by "
             "sycl_ext_oneapi_device_architecture.");
       };
-      size_t resultSize = 0;
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
-          nullptr, &resultSize);
-
-      std::unique_ptr<char[]> DeviceArch(new char[resultSize]);
-      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
-          resultSize, DeviceArch.get(), nullptr);
-      return MapArchToDevice(DeviceArch.get());
-    } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
-      // TODO: add support of different CPU architectures to
-      // sycl_ext_oneapi_device_architecture
-      return sycl::ext::oneapi::experimental::architecture::x86_64;
+      if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                            backend::opencl == CurrentBackend)) {
+        uint32_t DeviceIp;
+        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(),
+            PiInfoCode<
+                ext::oneapi::experimental::info::device::architecture>::value,
+            sizeof(DeviceIp), &DeviceIp, nullptr);
+        return MapArchToDevice(std::to_string(DeviceIp).c_str());
+      } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                                   backend::ext_oneapi_hip == CurrentBackend)) {
+        size_t resultSize = 0;
+        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
+            nullptr, &resultSize);
+        std::unique_ptr<char[]> DeviceArch(new char[resultSize]);
+        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
+            resultSize, DeviceArch.get(), nullptr);
+        return MapArchToDevice(DeviceArch.get());
+      } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
+        // TODO: add support of different CPU architectures to
+        // sycl_ext_oneapi_device_architecture
+        return sycl::ext::oneapi::experimental::architecture::x86_64;
     } // else is not needed
-
+      // TODO: add support of other architectures by extending with else if
     // Generating a user-friendly error message
     std::string DeviceStr;
     if (Dev->is_gpu())
