@@ -454,6 +454,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
+  UR_ASSERT(!Buffer->isSubBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   // Default value for flags means UR_MEM_FLAG_READ_WRITE.
   if (flags == 0) {

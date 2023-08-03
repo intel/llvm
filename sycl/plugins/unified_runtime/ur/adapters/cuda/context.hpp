@@ -118,6 +118,9 @@ private:
 // This will be important for changing from device to device
 namespace {
 class ScopedContext {
+  CUcontext Original;
+  bool NeedToRecover = false;
+
 public:
   ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
   ScopedContext(ur_device_handle_t Device) {
@@ -127,13 +130,20 @@ public:
     setContext(Device->getNativeContext());
   }
 
-  ~ScopedContext() {}
+  ~ScopedContext() {
+    if (NeedToRecover) {
+      UR_CHECK_ERROR(cuCtxSetCurrent(Original));
+    }
+  }
 
 private:
   void setContext(CUcontext Desired) {
-    CUcontext Original = nullptr;
 
     UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
+
+    if (Original != nullptr) {
+      NeedToRecover = true;
+    }
 
     // Make sure the desired context is active on the current thread, setting
     // it if necessary
