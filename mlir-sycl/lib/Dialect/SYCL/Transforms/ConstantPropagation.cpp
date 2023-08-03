@@ -1016,23 +1016,32 @@ getConstantArrayDefinition(Value value, SymbolTableCollection &symbolTable) {
              : nullptr;
 }
 
+static LLVM::LLVMArrayType getArrayType(Type type) {
+  auto st = llvm::dyn_cast_or_null<LLVM::LLVMStructType>(type);
+  if (!st)
+    return LLVM::LLVMArrayType();
+  ArrayRef<Type> body = st.getBody();
+  return body.size() == 1 ? dyn_cast<LLVM::LLVMArrayType>(body.front())
+                          : LLVM::LLVMArrayType();
+}
+
 static bool isArrayArg(Type type, DictionaryAttr attrs) {
   constexpr auto isConstantArrayArgAttr = [](Attribute attr) {
-    return attr && TypeSwitch<Attribute, bool>(attr)
-                       .Case<TypeAttr>([](auto attr) {
-                         auto st = llvm::dyn_cast_or_null<LLVM::LLVMStructType>(
-                             attr.getValue());
-                         if (!st)
-                           return false;
-                         ArrayRef<Type> body = st.getBody();
-                         return body.size() == 1 &&
-                                isa<LLVM::LLVMArrayType>(body.front());
-                       })
-                       .Default(false);
+    return attr &&
+           TypeSwitch<Attribute, bool>(attr)
+               .Case<TypeAttr>([](auto attr) -> bool {
+                 return static_cast<bool>(getArrayType(attr.getValue()));
+               })
+               .Default(false);
   };
   return attrs && isa<LLVM::LLVMPointerType>(type) &&
          isConstantArrayArgAttr(
              attrs.get(LLVM::LLVMDialect::getByValAttrName()));
+}
+
+static bool canInitializeArgument(LLVM::GlobalOp arrayDefinitionOp,
+                                  Type arrayType) {
+  return arrayDefinitionOp.getGlobalType() == getArrayType(arrayType);
 }
 
 auto ConstantPropagationPass::getConstantArgs(
@@ -1064,10 +1073,18 @@ auto ConstantPropagationPass::getConstantArgs(
                                                       value.getDefiningOp());
           }
         }
-        if (argAttrs && isArrayArg(argumentTypes[trueIndex],
-                                   cast<DictionaryAttr>(argAttrs[trueIndex]))) {
+        auto currArgAttrs = argAttrs ? cast<DictionaryAttr>(argAttrs[trueIndex])
+                                     : DictionaryAttr();
+        if (currArgAttrs &&
+            isArrayArg(argumentTypes[trueIndex], currArgAttrs)) {
           if (LLVM::GlobalOp arrayDefinitionOp =
-                  getConstantArrayDefinition(value, symbolTable)) {
+                  getConstantArrayDefinition(value, symbolTable);
+              arrayDefinitionOp &&
+              canInitializeArgument(
+                  arrayDefinitionOp,
+                  cast<TypeAttr>(
+                      currArgAttrs.get(LLVM::LLVMDialect::getByValAttrName()))
+                      .getValue())) {
             LLVM_DEBUG(llvm::dbgs().indent(2)
                        << "Array constant: " << arrayDefinitionOp << " at pos #"
                        << trueIndex << "\n");
