@@ -617,8 +617,8 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 
 } // namespace
 
-/// Function replaces scalar Specialization Constants with the corresponding
-/// default value.
+/// Function takes CallInst to SpecConstant function that returns value (scalar
+/// or composite) and replaces it with the corresponding default value.
 ///
 /// Example:
 ///   %"spec_id" = type { i32 }
@@ -635,7 +635,7 @@ Instruction *emitSpecConstantRecursive(Type *Ty, Instruction *InsertBefore,
 ///   entry:
 ///     %scalar2 = add i32 123, 1
 ///   }
-static void replaceScalarSpecConstWithDefaultValue(CallInst *CI) {
+static void replaceSpecConstFuncWithDefaultValue(CallInst *CI) {
   Value *Src = CI->getArgOperand(1);
   Value *StripSrc = Src->stripPointerCasts();
   GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
@@ -647,8 +647,8 @@ static void replaceScalarSpecConstWithDefaultValue(CallInst *CI) {
   CI->deleteValue();
 }
 
-/// Function replaces a composite Specialization Constant with the 'store'
-/// instruction.
+/// Function takes CallInst to SpecConstant function that returns value by sret
+/// argument and replaces it with the 'store' instruction.
 ///
 /// Example:
 ///  %"spec_id" = type { %A }
@@ -669,7 +669,7 @@ static void replaceScalarSpecConstWithDefaultValue(CallInst *CI) {
 ///     %a.ascast.i = addrspacecast %A* %a.i to %A addrspace(4)*
 ///     store %A { i32 1 }, %A addrspace(4)* %a.ascast.i
 ///   }
-static void replaceCompositeSpecConstWithDefaultValue(CallInst *CI) {
+static void replaceSretSpecConstFuncWithDefaultValue(CallInst *CI) {
   Value *Dst = CI->getArgOperand(0);
   Value *Src = CI->getArgOperand(2);
   Value *StripSrc = Src->stripPointerCasts();
@@ -681,7 +681,7 @@ static void replaceCompositeSpecConstWithDefaultValue(CallInst *CI) {
   Type *PointerType =
       PointerType::get(EV->getType(), Dst->getType()->getPointerAddressSpace());
   Value *Bitcast = B.CreateBitCast(Dst, PointerType);
-  Value *S = B.CreateStore(EV, Bitcast);
+  B.CreateStore(EV, Bitcast);
   CI->removeFromParent();
   CI->deleteValue();
 }
@@ -707,11 +707,10 @@ static bool replaceSpecConstsWithDefaultValues(Module &M) {
   }
 
   for (CallInst *CI : CIs) {
-    if (CI->getCalledFunction()->getName().startswith(
-            SYCL_GET_SCALAR_2020_SPEC_CONST_VAL))
-      replaceScalarSpecConstWithDefaultValue(CI);
+    if (!CI->hasStructRetAttr())
+      replaceSpecConstFuncWithDefaultValue(CI);
     else
-      replaceCompositeSpecConstWithDefaultValue(CI);
+      replaceSretSpecConstFuncWithDefaultValue(CI);
   }
 
   for (Function *F : SpecConstDeclarations)

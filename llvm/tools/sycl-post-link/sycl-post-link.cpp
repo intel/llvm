@@ -729,7 +729,7 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   if (!checkModuleContainsSpecConsts(MD.getModule()))
     return NewModuleDesc;
 
-  NewModuleDesc = CloneModuleDesc(MD);
+  NewModuleDesc = MD.clone();
   NewModuleDesc->setSpecConstantDefault(true);
 
   ModulePassManager MPM;
@@ -1009,19 +1009,16 @@ processInputModule(std::unique_ptr<Module> M) {
     assert(MMs.size() && "at least one module is expected after ESIMD split");
 
     SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
-    for (size_t i = 0; i != MMs.size(); ++i) {
+    for (size_t I = 0; I != MMs.size(); ++I) {
       if (GenerateDeviceImageWithDefaultSpecConsts) {
         std::optional<module_split::ModuleDesc> NewMD =
-            processSpecConstantsWithDefaultValues(MMs[i]);
+            processSpecConstantsWithDefaultValues(MMs[I]);
         if (NewMD)
           MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
       }
 
-      Modified |= processSpecConstants(MMs[i]);
+      Modified |= processSpecConstants(MMs[I]);
     }
-
-    /*for (auto &MD : MMsWithDefaultSpecConsts)
-      MMs.push_back(std::move(MD));*/
 
     if (IROutputOnly) {
       if (SplitOccurred) {

@@ -570,10 +570,10 @@ void ModuleDesc::setSpecConstantDefault(bool Value) {
   Props.IsSpecConstantDefault = Value;
 }
 
-ModuleDesc CloneModuleDesc(const ModuleDesc &MD) {
-  std::unique_ptr<Module> NewModule = CloneModule(MD.getModule());
+ModuleDesc ModuleDesc::clone() const {
+  std::unique_ptr<Module> NewModule = CloneModule(getModule());
   ModuleDesc NewMD(std::move(NewModule));
-  NewMD.EntryPoints.Props = MD.EntryPoints.Props;
+  NewMD.EntryPoints.Props = EntryPoints.Props;
   return NewMD;
 }
 

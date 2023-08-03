@@ -187,15 +187,13 @@ public:
   bool isSpecConstantDefault() const;
   void setSpecConstantDefault(bool Value);
 
-  friend ModuleDesc CloneModuleDesc(const ModuleDesc &MD);
+  ModuleDesc clone() const;
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;
   void dump() const;
 #endif // NDEBUG
 };
-
-ModuleDesc CloneModuleDesc(const ModuleDesc &MD);
 
 // Module split support interface.
 // It gets a module (in a form of module descriptor, to get additional info) and
