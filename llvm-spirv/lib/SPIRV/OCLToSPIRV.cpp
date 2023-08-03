@@ -176,12 +176,8 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
 
   visit(*M);
 
-  for (auto &I : ValuesToDelete)
-    if (auto Inst = dyn_cast<Instruction>(I))
-      Inst->eraseFromParent();
-  for (auto &I : ValuesToDelete)
-    if (auto GV = dyn_cast<GlobalValue>(I))
-      GV->eraseFromParent();
+  for (Instruction *I : ValuesToDelete)
+    I->eraseFromParent();
 
   eraseUselessFunctions(M); // remove unused functions declarations
   LLVM_DEBUG(dbgs() << "After OCLToSPIRV:\n" << *M);
@@ -1060,7 +1056,6 @@ bool OCLToSPIRVBase::eraseUselessConvert(CallInst *CI, StringRef MangledName,
                     << *CI->getArgOperand(0) << '\n');
     CI->replaceAllUsesWith(CI->getArgOperand(0));
     ValuesToDelete.insert(CI);
-    ValuesToDelete.insert(CI->getCalledFunction());
     return true;
   }
   return false;
