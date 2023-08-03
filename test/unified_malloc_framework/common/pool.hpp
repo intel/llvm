@@ -131,9 +131,7 @@ struct proxy_pool : public pool_base {
 
         memset(ptr, 0, num * size);
 
-        if (ptr) {
-            EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
-        }
+        umf::getPoolLastStatusRef<proxy_pool>() = ret;
         return ptr;
     }
     void *realloc(void *ptr, size_t size) noexcept {
@@ -145,9 +143,7 @@ struct proxy_pool : public pool_base {
     void *aligned_malloc(size_t size, size_t alignment) noexcept {
         void *ptr;
         auto ret = umfMemoryProviderAlloc(provider, size, alignment, &ptr);
-        if (ptr) {
-            EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
-        }
+        umf::getPoolLastStatusRef<proxy_pool>() = ret;
         return ptr;
     }
     size_t malloc_usable_size(void *ptr) noexcept {
@@ -156,7 +152,6 @@ struct proxy_pool : public pool_base {
     }
     enum umf_result_t free(void *ptr) noexcept {
         auto ret = umfMemoryProviderFree(provider, ptr, 0);
-        EXPECT_EQ_NOEXCEPT(ret, UMF_RESULT_SUCCESS);
         return ret;
     }
     enum umf_result_t get_last_allocation_error() {
