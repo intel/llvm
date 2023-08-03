@@ -433,11 +433,14 @@ TEST(GetProfilingInfo, fallback_profiling) {
     cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
   });
   event.wait();
-  double submit_time = event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  double start_time = event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  double end_time = event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  double submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  double start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  double end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
 
-  std::cout << "+++++++++++++++++++++++++++++++++++++++++++++ 
+  std::cout << "++++++++++++++++++++++++++++++++++
       submit time : " << submit_time << std::endl;
                     std::cout
             << "start time: "
@@ -445,7 +448,7 @@ TEST(GetProfilingInfo, fallback_profiling) {
             << std::endl;
   std::cout << "end time: " << end_time << std::endl;
   std::cout << '\n';
-  FAIL() << "++++++++++++++++++++++++++++++++++++++++++++++ 
+  FAIL() << "+++++++++++++++++++++++++++++++++++++ 
       flush output ";
   }
 
