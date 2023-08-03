@@ -9,7 +9,10 @@
 #pragma once
 
 #include <type_traits> // for is_trivially_copyable, enable_if_t
-#include <version>     // defines __cpp_lib_bit_cast
+
+#if __cplusplus >= 202002L
+#include <version> // defines __cpp_lib_bit_cast
+#endif
 
 #if __cpp_lib_bit_cast
 #include <bit>
