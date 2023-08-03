@@ -882,65 +882,6 @@ createAndExecutePassPipeline(mlir::MLIRContext &Ctx,
   return success();
 }
 
-/// Run an optimization pipeline on the LLVM module.
-static void runOptimizationPipeline(llvm::Module &Module, Options &options) {
-  llvm::LoopAnalysisManager LAM;
-  llvm::FunctionAnalysisManager FAM;
-  llvm::CGSCCAnalysisManager CGAM;
-  llvm::ModuleAnalysisManager MAM;
-
-  llvm::PassInstrumentationCallbacks PIC;
-  llvm::PrintPassOptions PrintPassOpts;
-  PrintPassOpts.Verbose = true;
-  PrintPassOpts.SkipAnalyses = true;
-  llvm::StandardInstrumentations SI(Module.getContext(), false,
-                                    true /*VerifyEachPass*/, PrintPassOpts);
-  SI.registerCallbacks(PIC, &MAM);
-
-  llvm::TargetMachine *TM = nullptr;
-  llvm::PipelineTuningOptions PTO;
-
-  llvm::PassBuilder PB(TM, PTO, std::nullopt, &PIC);
-
-  // Register all the basic analyses with the managers.
-  PB.registerModuleAnalyses(MAM);
-  PB.registerCGSCCAnalyses(CGAM);
-  PB.registerFunctionAnalyses(FAM);
-  PB.registerLoopAnalyses(LAM);
-  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
-
-  const llvm::OptimizationLevel OptLevel =
-      options.getCgeistOpts().getOptimizationLevel();
-  llvm::ModulePassManager MPM =
-      (OptLevel == llvm::OptimizationLevel::O0)
-          ? PB.buildO0DefaultPipeline(OptLevel)
-          : PB.buildPerModuleDefaultPipeline(OptLevel);
-
-  // Before executing passes, print the final values of the LLVM options.
-  llvm::cl::PrintOptionValues();
-
-  // Print a textual representation of the LLVM pipeline.
-  LLVM_DEBUG({
-    llvm::dbgs() << "*** Run LLVM Optimization pipeline: ***\n";
-
-    std::string Pipeline;
-    llvm::raw_string_ostream OS(Pipeline);
-
-    MPM.printPipeline(OS, [&PIC](StringRef ClassName) {
-      auto PassName = PIC.getPassNameForClassName(ClassName);
-      return PassName.empty() ? ClassName : PassName;
-    });
-    llvm::dbgs() << Pipeline << "\n";
-  });
-
-  // Now that we have all of the passes ready, run them.
-  {
-    llvm::PrettyStackTraceString CrashInfo("Optimizer");
-    llvm::TimeTraceScope TimeScope("Optimizer");
-    MPM.run(Module, MAM);
-  }
-}
-
 static bool isStdout(StringRef Filename) { return Filename == "-"; }
 
 // Lower the MLIR in the given module, compile the generated LLVM IR.
