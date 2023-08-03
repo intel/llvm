@@ -3,7 +3,9 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "disjoint_pool.hpp"
 #include "pool.hpp"
+#include "provider.hpp"
 
 #include <array>
 #include <cstring>
@@ -51,6 +53,11 @@ struct umfMultiPoolTest : umfPoolTest {
     void TearDown() override { umfPoolTest::TearDown(); }
 
     std::vector<umf::pool_unique_handle_t> pools;
+};
+
+struct umfMemTest : umfPoolTest {
+    void SetUp() override { umfPoolTest::SetUp(); }
+    void TearDown() override { umfPoolTest::TearDown(); }
 };
 
 TEST_P(umfPoolTest, allocFree) {
@@ -248,6 +255,31 @@ TEST_P(umfPoolTest, multiThreadedMallocFreeRandomSizes) {
 
     for (auto &thread : threads) {
         thread.join();
+    }
+}
+
+TEST_P(umfMemTest, outOfMem) {
+    static constexpr size_t allocSize = 16;
+    auto hPool = pool.get();
+
+    std::vector<void *> allocations;
+
+    while (true) {
+        allocations.emplace_back(umfPoolMalloc(hPool, allocSize));
+        if (allocations.back() == nullptr &&
+            umfPoolGetLastAllocationError(hPool) ==
+                UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY) {
+            break;
+        }
+        ASSERT_NE(allocations.back(), nullptr);
+    }
+
+    // remove last nullptr from the allocations vector
+    ASSERT_EQ(allocations.back(), nullptr);
+    allocations.pop_back();
+
+    for (auto allocation : allocations) {
+        umfPoolFree(hPool, allocation);
     }
 }
 
