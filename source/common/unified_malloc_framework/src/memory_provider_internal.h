@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 void *umfMemoryProviderGetPriv(umf_memory_provider_handle_t hProvider);
-umf_memory_provider_handle_t *umfGetLastFailedMemoryProviderPtr();
+umf_memory_provider_handle_t *umfGetLastFailedMemoryProviderPtr(void);
 
 #ifdef __cplusplus
 }

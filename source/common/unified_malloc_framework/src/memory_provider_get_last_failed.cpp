@@ -14,7 +14,7 @@ extern "C" {
 
 static thread_local umf_memory_provider_handle_t lastFailedProvider = nullptr;
 
-umf_memory_provider_handle_t *umfGetLastFailedMemoryProviderPtr() {
+umf_memory_provider_handle_t *umfGetLastFailedMemoryProviderPtr(void) {
     return &lastFailedProvider;
 }
 }
