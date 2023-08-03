@@ -183,6 +183,9 @@ public:
   FunctionPassManager
   buildFunctionSimplificationPipeline(OptimizationLevel Level,
                                       ThinOrFullLTOPhase Phase);
+  FunctionPassManager
+  buildFunctionSimplificationPipelineSYCLRelaxed(OptimizationLevel Level,
+                                                 ThinOrFullLTOPhase Phase);
 
   /// Construct the core LLVM module canonicalization and simplification
   /// pipeline.
@@ -596,6 +599,9 @@ private:
   FunctionPassManager
   buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
                                         ThinOrFullLTOPhase Phase);
+  FunctionPassManager
+  buildO1FunctionSimplificationPipelineSYCLRelaxed(OptimizationLevel Level,
+                                                   ThinOrFullLTOPhase Phase);
 
   void addRequiredLTOPreLinkPasses(ModulePassManager &MPM);
 

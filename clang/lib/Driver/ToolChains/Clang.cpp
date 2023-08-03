@@ -5143,7 +5143,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else if (RawTriple.isSPIR() || IsSYCLNativeCPU) {
       // Set `sycl-opt` option to configure LLVM passes for SPIR target
       CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-sycl-opt");
+      if (Args.hasArg(options::OPT_fsycl_relaxed_opt))
+        CmdArgs.push_back("-sycl-relaxed-opt");
+      else
+        CmdArgs.push_back("-sycl-opt");
     }
     if (IsSYCLNativeCPU) {
       CmdArgs.push_back("-fsycl-is-native-cpu");

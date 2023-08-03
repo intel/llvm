@@ -5491,6 +5491,8 @@ def : Flag<["-"], "fno-sycl-explicit-simd">,
   HelpText<"Disable SYCL explicit SIMD extension. (deprecated)">;
 defm sycl_early_optimizations : OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard optimization pipeline for SYCL device compiler", [CoreOption]>,
   MarshallingInfoFlag<CodeGenOpts<"DisableSYCLEarlyOpts">>;
+def fsycl_relaxed_opt : Flag<["-"], "fsycl-relaxed-opt">, Flags<[NoXarchOption, CoreOption]>, Group<sycl_Group>,
+  HelpText<"Relax SYCL optimization tweaks (SPIR only)">;
 def fsycl_dead_args_optimization : Flag<["-"], "fsycl-dead-args-optimization">,
   Group<sycl_Group>, Flags<[CoreOption]>, HelpText<"Enables "
   "elimination of DPC++ dead kernel arguments">;
