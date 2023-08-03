@@ -1,4 +1,4 @@
-name: Allocate/Shutdown AWS CUDA Runner
+name: E2E on AWS CUDA
 
 on:
   workflow_run:
@@ -56,7 +56,7 @@ jobs:
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: CUDA E2E
-      runner: 'aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}'
+      runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all
       target_devices: ext_oneapi_cuda:gpu
@@ -64,9 +64,9 @@ jobs:
       merge_ref: ${{ github.event.pull_request.base.sha }}
       env: '{"LIT_FILTER":"Basic/accessor"}'
 
-      sycl_toolchain_artifact: sycl_linux_default
-      sycl_toolchain_archive: llvm_sycl.tar.zst
-      sycl_toolchain_decompress_command: zstd
+      # sycl_toolchain_artifact: sycl_linux_default
+      # sycl_toolchain_archive: llvm_sycl.tar.zst
+      # sycl_toolchain_decompress_command: zstd
 
   update-check:
     needs: [create-check, e2e-cuda]
