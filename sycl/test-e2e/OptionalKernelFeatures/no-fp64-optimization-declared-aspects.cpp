@@ -1,3 +1,4 @@
+// UNSUPPORTED: aspect-fp64
 // RUN: %{build} -o %t.out -O3
 // RUN: %{run} %t.out
 
@@ -13,10 +14,7 @@ template <aspect asp, typename T>
 int main() {
   queue q;
   bool b = false;
-  if (q.get_device().has(aspect::fp64)) {
-    std::cout << "Device has fp64, nothing to do.\n";
-    return 0;
-  }
+  assert(!q.get_device().has(aspect::fp64));
 
   buffer<bool, 1> buf(&b, 1);
   try {
