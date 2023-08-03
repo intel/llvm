@@ -1045,6 +1045,29 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
   }
 }
 
+template <typename StorageKey>
+RTDeviceBinaryImage *getBinImageFromMultiMap(
+    const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
+    const StorageKey &Key, const context &Context, const device &Device) {
+  auto [ItBegin, ItEnd] = ImagesSet.equal_range(Key);
+  if (ItBegin == ItEnd)
+    return nullptr;
+
+  std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
+  auto It = ItBegin;
+  for (unsigned I = 0; It != ItEnd; ++It, ++I)
+    RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
+
+  pi_uint32 ImgInd = 0;
+  getSyclObjImpl(Context)
+      ->getPlugin()
+      ->call<PiApiKind::piextDeviceSelectBinary>(
+          getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+          (pi_uint32)RawImgs.size(), &ImgInd);
+  std::advance(ItBegin, ImgInd);
+  return ItBegin->second;
+}
+
 RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(const std::string &KernelName,
                                const context &Context, const device &Device,
@@ -1075,37 +1098,12 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   RTDeviceBinaryImage *Img = nullptr;
   if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
       KernelId != m_KernelName2KernelIDs.end()) {
-    auto [ItBegin, ItEnd] = m_KernelIDs2BinImage.equal_range(KernelId->second);
-    std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
-    assert(RawImgs.size() && "No device image found for the given kernel id");
-    auto It = ItBegin;
-    for (unsigned I = 0; It != ItEnd; ++It, ++I)
-      RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
-
-    pi_uint32 ImgInd = 0;
-    getSyclObjImpl(Context)
-        ->getPlugin()
-        ->call<PiApiKind::piextDeviceSelectBinary>(
-            getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-            (pi_uint32)RawImgs.size(), &ImgInd);
-    std::advance(ItBegin, ImgInd);
-    Img = ItBegin->second;
-  } else if (auto [ItBegin, ItEnd] = m_ServiceKernels.equal_range(KernelName);
-             ItBegin != ItEnd) {
-    std::vector<pi_device_binary> RawImgs(std::distance(ItBegin, ItEnd));
-    assert(RawImgs.size() && "No device image found for the given kernel id");
-    auto It = ItBegin;
-    for (unsigned I = 0; It != ItEnd; ++It, ++I)
-      RawImgs[I] = const_cast<pi_device_binary>(&It->second->getRawData());
-
-    pi_uint32 ImgInd = 0;
-    getSyclObjImpl(Context)
-        ->getPlugin()
-        ->call<PiApiKind::piextDeviceSelectBinary>(
-            getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
-            (pi_uint32)RawImgs.size(), &ImgInd);
-    std::advance(ItBegin, ImgInd);
-    Img = ItBegin->second;
+    // Kernel ID presence guarantees that we have bin image in the storage.
+    Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
+                                  Context, Device);
+    assert(Img && "No binary image found for kernel id");
+  } else if (Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName,
+                                           Context, Device)) {
   } else if (m_UniversalKernelSet.size())
     return getDeviceImage(m_UniversalKernelSet, Context, Device,
                           JITCompilationIsRequired);
