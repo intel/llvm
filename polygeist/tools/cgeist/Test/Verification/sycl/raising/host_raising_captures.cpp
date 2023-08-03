@@ -12,7 +12,7 @@ class KernelName;
 // CHECK:         %[[bar_const:.*]] = llvm.mlir.constant(456 : i64) : i64
 // CHECK:         %[[accessor_2:.*]] = llvm.alloca %{{.*}} x !llvm.struct<"[[accessor_class_name_2:class\.sycl::_V1::accessor.*]]", ({{.*}})>
 // CHECK:         %[[accessor_1:.*]] = llvm.alloca %{{.*}} x !llvm.struct<"[[accessor_class_name_1:class\.sycl::_V1::accessor.*]]", ({{.*}})>
-// CHECK:         %[[lambda:.*]] = llvm.alloca %{{.*}} x !llvm.struct<"{{.*}}", (struct<"[[accessor_class_name_1]]", ({{.*}})>, struct<"[[accessor_class_name_2]]", ({{.*}})>, i16, i64, struct<"class.sycl::_V1::vec{{.*}}", (vector<4xf32>)>, struct<"class.sycl::_V1::vec{{.*}}", ({{.*}})>)>
+// CHECK:         %[[lambda:.*]] = llvm.alloca %{{.*}} x !llvm.struct<"{{.*}}", (struct<"[[accessor_class_name_1]]", ({{.*}})>, struct<"[[accessor_class_name_2]]", ({{.*}})>, i16, i64, struct<"class.sycl::_V1::vec{{.*}}", (struct<"struct.std::array", (array<4 x f32>)>)>, struct<"class.sycl::_V1::vec{{.*}}", ({{.*}})>)>
 // CHECK:         %[[cgf:.*]] = llvm.load %arg0 {{.*}} : !llvm.ptr -> !llvm.ptr
 
 // COM: check that we correctly identified the accessors.
@@ -29,15 +29,17 @@ class KernelName;
 // COM: the constant defined in the CGF can be matched directly.
 // CHECK:         sycl.host.set_captured %[[lambda]][3] = %[[bar_const]] : !llvm.ptr, i64
 
-// COM: float/double vectors are lowered to native MLIR types; again, just ensure that the value we marked comes from the CGF.
+// COM: vectors are passed as pointers to a struct; check that we matched the corresponding memcpy.
+// CHECK:         %[[lambda_capture_4_gep:.*]] = llvm.getelementptr inbounds %[[lambda]][0, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<{{.*}}>
 // CHECK:         %[[cgf_capture_3_gep:.*]] = llvm.getelementptr inbounds %[[cgf]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"{{.*}}", (ptr, ptr, ptr, ptr, ptr)>
 // CHECK:         %[[cgf_capture_3:.*]] = llvm.load %[[cgf_capture_3_gep]] {{.*}} : !llvm.ptr -> !llvm.ptr
-// CHECK:         %[[cgf_capture_3_load:.*]] = llvm.load %[[cgf_capture_3]] {{.*}} : !llvm.ptr -> vector<4xf32>
-// CHECK:         sycl.host.set_captured %[[lambda]][4] = %[[cgf_capture_3_load]] : !llvm.ptr, vector<4xf32>
+// CHECK:         "llvm.intr.memcpy"(%[[lambda_capture_4_gep]], %[[cgf_capture_3]], {{.*}}) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
+// CHECK:         sycl.host.set_captured %[[lambda]][4] = %[[cgf_capture_3]] : !llvm.ptr, !llvm.ptr
 
-// COM: the half vector is passed as a pointer to a struct; check that we matched the corresponding memcpy
+// CHECK:         %[[lambda_capture_5_gep:.*]] = llvm.getelementptr inbounds %[[lambda]][0, 5] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<{{.*}}>
 // CHECK:         %[[cgf_capture_4_gep:.*]] = llvm.getelementptr inbounds %[[cgf]][0, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"{{.*}}", (ptr, ptr, ptr, ptr, ptr)>
 // CHECK:         %[[cgf_capture_4:.*]] = llvm.load %[[cgf_capture_4_gep]] {{.*}} : !llvm.ptr -> !llvm.ptr
+// CHECK:         "llvm.intr.memcpy"(%[[lambda_capture_5_gep]], %[[cgf_capture_4]], {{.*}}) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i64) -> ()
 // CHECK:         sycl.host.set_captured %[[lambda]][5] = %[[cgf_capture_4]] : !llvm.ptr, !llvm.ptr
 
 int main() {
