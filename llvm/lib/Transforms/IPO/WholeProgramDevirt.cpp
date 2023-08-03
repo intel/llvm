@@ -590,7 +590,11 @@ struct DevirtModule {
       : M(M), AARGetter(AARGetter), LookupDomTree(LookupDomTree),
         ExportSummary(ExportSummary), ImportSummary(ImportSummary),
         Int8Ty(Type::getInt8Ty(M.getContext())),
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Int8PtrTy(Type::getInt8PtrTy(M.getContext())),
+#else
+        Int8PtrTy(PointerType::getUnqual(M.getContext())),
+#endif
         Int32Ty(Type::getInt32Ty(M.getContext())),
         Int64Ty(Type::getInt64Ty(M.getContext())),
         IntPtrTy(M.getDataLayout().getIntPtrType(M.getContext(), 0)),

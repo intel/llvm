@@ -132,9 +132,15 @@ Function *GenEmptyFunction(Module *M) {
   // Define a few arguments
   LLVMContext &Context = M->getContext();
   Type* ArgsTy[] = {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Type::getInt8PtrTy(Context),
     Type::getInt32PtrTy(Context),
     Type::getInt64PtrTy(Context),
+#else
+    PointerType::get(Context, 0),
+    PointerType::get(Context, 0),
+    PointerType::get(Context, 0),
+#endif
     Type::getInt32Ty(Context),
     Type::getInt64Ty(Context),
     Type::getInt8Ty(Context)

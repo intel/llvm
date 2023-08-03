@@ -4381,7 +4381,11 @@ struct AAKernelInfoFunction : AAKernelInfo {
 
     // Create local storage for the work function pointer.
     const DataLayout &DL = M.getDataLayout();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *VoidPtrTy = Type::getInt8PtrTy(Ctx);
+#else
+    Type *VoidPtrTy = PointerType::getUnqual(Ctx);
+#endif
     Instruction *WorkFnAI =
         new AllocaInst(VoidPtrTy, DL.getAllocaAddrSpace(), nullptr,
                        "worker.work_fn.addr", &Kernel->getEntryBlock().front());

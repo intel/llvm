@@ -2002,7 +2002,11 @@ void Function::allocHungoffUselist() {
   setNumHungOffUseOperands(3);
 
   // Initialize the uselist with placeholder operands to allow traversal.
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   auto *CPN = ConstantPointerNull::get(Type::getInt1PtrTy(getContext(), 0));
+#else
+  auto *CPN = ConstantPointerNull::get(PointerType::get(getContext(), 0));
+#endif
   Op<0>().set(CPN);
   Op<1>().set(CPN);
   Op<2>().set(CPN);
@@ -2014,8 +2018,12 @@ void Function::setHungoffOperand(Constant *C) {
     allocHungoffUselist();
     Op<Idx>().set(C);
   } else if (getNumOperands()) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Op<Idx>().set(
         ConstantPointerNull::get(Type::getInt1PtrTy(getContext(), 0)));
+#else
+    Op<Idx>().set(ConstantPointerNull::get(PointerType::get(getContext(), 0)));
+#endif
   }
 }
 
