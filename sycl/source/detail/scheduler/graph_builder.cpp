@@ -533,7 +533,8 @@ Scheduler::GraphBuilder::addHostAccessor(Requirement *Req,
 
   if (sameCtx(HostAllocaCmd->getQueue()->getContextImplPtr(),
               Record->MCurContext)) {
-    if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
+    if (!isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess) &&
+        HostAllocaCmd->MLinkedAllocaCmd)
       remapMemoryObject(Record, Req, HostAllocaCmd, ToEnqueue);
   } else
     insertMemoryMove(Record, Req, HostQueue, ToEnqueue);
@@ -1047,7 +1048,8 @@ void Scheduler::GraphBuilder::createGraphForCommand(
       // If the memory is already in the required host context, check if the
       // required access mode is valid, remap if not.
       if (Record->MCurContext->is_host() &&
-          !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess))
+          !isAccessModeAllowed(Req->MAccessMode, Record->MHostAccess) &&
+          AllocaCmd->MLinkedAllocaCmd)
         remapMemoryObject(Record, Req, AllocaCmd, ToEnqueue);
     } else {
       // Cannot directly copy memory from OpenCL device to OpenCL device -
