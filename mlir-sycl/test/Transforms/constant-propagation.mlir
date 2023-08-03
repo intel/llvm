@@ -1,5 +1,75 @@
 // RUN: sycl-mlir-opt %s -split-input-file -sycl-constant-propagation | FileCheck %s
 
+// COM: Check we do not break if no launch is found.
+
+gpu.module @kernels {
+// CHECK-LABEL: gpu.func @k0
+  gpu.func @k0(%ptr: memref<?xi64, 1>,
+               %c: i64) kernel {
+    affine.store %c, %ptr[0] : memref<?xi64, 1>
+    gpu.return
+  }
+}
+
+// -----
+
+// COM: Check we do not allow more than one launches
+
+gpu.module @kernels {
+// CHECK-LABEL:     gpu.func @k0(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: i64) kernel {
+// CHECK-NEXT:        affine.store %[[VAL_1]], %[[VAL_0]][0] : memref<?xi64, 1>
+// CHECK-NEXT:        gpu.return
+// CHECK-NEXT:      }
+  gpu.func @k0(%ptr: memref<?xi64, 1>,
+               %c: i64) kernel {
+    affine.store %c, %ptr[0] : memref<?xi64, 1>
+    gpu.return
+  }
+}
+
+llvm.func internal @foo.1(%handler: !llvm.ptr, %ptr: !llvm.ptr) {
+  %c = llvm.mlir.constant(0 : i64) : i64
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%ptr, %c)
+      : (!llvm.ptr, !llvm.ptr, i64) -> ()
+  llvm.return
+}
+
+llvm.func internal @foo.2(%handler: !llvm.ptr, %ptr: !llvm.ptr) {
+  %c = llvm.mlir.constant(0 : i64) : i64
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%ptr, %c)
+      : (!llvm.ptr, !llvm.ptr, i64) -> ()
+  llvm.return
+}
+
+// -----
+
+// COM: Check we allow other users
+
+gpu.module @kernels {
+// CHECK-LABEL:     gpu.func @k0(
+// CHECK-SAME:                   %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: i64) kernel {
+// CHECK-NEXT:        %[[C:.*]] = llvm.mlir.constant(0 : i64) : i64
+// CHECK-NEXT:        affine.store %[[C]], %[[VAL_0]][0] : memref<?xi64, 1>
+// CHECK-NEXT:        gpu.return
+// CHECK-NEXT:      }
+  gpu.func @k0(%ptr: memref<?xi64, 1>,
+               %c: i64) kernel {
+    affine.store %c, %ptr[0] : memref<?xi64, 1>
+    gpu.return
+  }
+}
+
+llvm.func internal @foo.1(%handler: !llvm.ptr, %ptr: !llvm.ptr) {
+  %c = llvm.mlir.constant(0 : i64) : i64
+  sycl.host.handler.set_kernel %handler -> @kernels::@k0 : !llvm.ptr
+  sycl.host.schedule_kernel %handler -> @kernels::@k0(%ptr, %c)
+      : (!llvm.ptr, !llvm.ptr, i64) -> ()
+  llvm.return
+}
+
+// -----
+
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
 !sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
