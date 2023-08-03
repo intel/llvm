@@ -634,7 +634,7 @@ struct urUSMPoolTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
-                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
+                                     0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
     }
 
@@ -645,14 +645,14 @@ struct urUSMPoolTest : urContextTest {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
-    ur_usm_pool_handle_t pool;
+    ur_usm_pool_handle_t pool = nullptr;
 };
 
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
-                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
+                                     0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
     }
 
@@ -663,7 +663,7 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
 
-    ur_usm_pool_handle_t pool;
+    ur_usm_pool_handle_t pool = nullptr;
 };
 
 struct urVirtualMemGranularityTest : urContextTest {
