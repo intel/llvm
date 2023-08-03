@@ -75,10 +75,17 @@ struct ur_context_handle_t_ {
   std::atomic_uint32_t RefCount;
 
   ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
-      : Devices{Devs, Devs + NumDevices}, NumDevices{NumDevices}, RefCount{
-                                                                      1} {};
+      : Devices{Devs, Devs + NumDevices}, NumDevices{NumDevices}, RefCount{1} {
+    for (auto &Dev : Devices) {
+      urDeviceRetain(Dev);
+    }
+  };
 
-  ~ur_context_handle_t_() {}
+  ~ur_context_handle_t_() {
+    for (auto &Dev : Devices) {
+      urDeviceRelease(Dev);
+    }
+  }
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
