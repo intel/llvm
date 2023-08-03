@@ -156,7 +156,8 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
   Function *F = dyn_cast<Function>(FC.getCallee());
   assert(F);
   F->setCallingConv(CallingConv::SPIR_FUNC);
-  CallInst *NewCall = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  CallInst *NewCall =
+      CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
   NewCall->setCallingConv(F->getCallingConv());
   return NewCall;
 }
