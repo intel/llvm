@@ -56,7 +56,7 @@ jobs:
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: CUDA E2E
-      runner: 'aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}'
+      runner: 'aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all
       target_devices: ext_oneapi_cuda:gpu
