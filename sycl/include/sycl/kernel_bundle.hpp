@@ -20,16 +20,16 @@
 #include <sycl/kernel_bundle_enums.hpp>    // for bundle_state
 #include <sycl/property_list.hpp>          // for property_list
 
-#include <array>                           // for array
-#include <cstring>                         // for size_t, memcpy
-#include <functional>                      // for function
-#include <iterator>                        // for distance
-#include <memory>                          // for shared_ptr, operator==, hash
-#include <string>                          // for string
-#include <type_traits>                     // for enable_if_t, remove_refer...
-#include <utility>                         // for move
-#include <variant>                         // for hash
-#include <vector>                          // for vector
+#include <array>       // for array
+#include <cstring>     // for size_t, memcpy
+#include <functional>  // for function
+#include <iterator>    // for distance
+#include <memory>      // for shared_ptr, operator==, hash
+#include <string>      // for string
+#include <type_traits> // for enable_if_t, remove_refer...
+#include <utility>     // for move
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

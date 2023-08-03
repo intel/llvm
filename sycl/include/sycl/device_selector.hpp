@@ -11,9 +11,9 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <functional>                         // for function
-#include <type_traits>                        // for enable_if_t
-#include <vector>                             // for vector
+#include <functional>  // for function
+#include <type_traits> // for enable_if_t
+#include <vector>      // for vector
 
 // 4.6.1 Device selection class
 

@@ -12,9 +12,9 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>                // for size_t
-#include <string>                 // for string
-#include <sys/stat.h>             // for stat
+#include <cstdlib>    // for size_t
+#include <string>     // for string
+#include <sys/stat.h> // for stat
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS

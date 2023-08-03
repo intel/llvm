@@ -13,9 +13,9 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
 #include <sycl/types.hpp>                                // for is_device_c...
 
-#include <tuple>                                         // for tuple, tupl...
-#include <type_traits>                                   // for enable_if_t
-#include <variant>                                       // for tuple
+#include <tuple>       // for tuple, tupl...
+#include <type_traits> // for enable_if_t
+#include <variant>     // for tuple
 
 namespace sycl {
 inline namespace _V1 {

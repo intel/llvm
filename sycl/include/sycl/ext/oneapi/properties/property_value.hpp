@@ -11,7 +11,7 @@
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsCompileTi...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for HasValue
 
-#include <type_traits>                                   // for enable_if_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

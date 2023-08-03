@@ -10,7 +10,7 @@
 
 #include <sycl/access/access.hpp> // for address_space
 
-#include <type_traits>            // for bool_constant, conditional_t, fals...
+#include <type_traits> // for bool_constant, conditional_t, fals...
 
 namespace sycl {
 inline namespace _V1 {

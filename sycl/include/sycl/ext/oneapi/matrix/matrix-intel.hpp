@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "matrix-unified-utils.hpp"     // for use, layout, tf32, matrix
-#include "utils.hpp"                    // for getDecorated
+#include "matrix-unified-utils.hpp" // for use, layout, tf32, matrix
+#include "utils.hpp"                // for getDecorated
 
 #include <CL/__spirv/spirv_types.hpp>         // for MatrixLayout, MatrixUse
 #include <sycl/access/access.hpp>             // for address_space, decorated

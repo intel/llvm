@@ -13,10 +13,10 @@
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
 #include <sycl/half_type.hpp>                 // for half
 
-#include <array>                              // for array
-#include <cstddef>                            // for size_t
-#include <tuple>                              // for tuple
-#include <type_traits>                        // for true_type, false_type
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for true_type, false_type
 
 namespace sycl {
 inline namespace _V1 {

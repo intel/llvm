@@ -10,9 +10,9 @@
 
 #include <sycl/detail/aligned_allocator.hpp> // for aligned_allocator
 
-#include <algorithm>                         // for max
-#include <cstddef>                           // for size_t
-#include <type_traits>                       // for enable_if_t
+#include <algorithm>   // for max
+#include <cstddef>     // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

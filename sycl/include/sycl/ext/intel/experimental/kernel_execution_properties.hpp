@@ -10,8 +10,8 @@
 
 #include <sycl/ext/oneapi/properties/property.hpp> // for PropKind, IsRunti...
 
-#include <cstdint>                                 // for uint16_t
-#include <type_traits>                             // for true_type
+#include <cstdint>     // for uint16_t
+#include <type_traits> // for true_type
 
 namespace sycl {
 inline namespace _V1 {

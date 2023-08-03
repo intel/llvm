@@ -11,10 +11,10 @@
 #include <sycl/detail/generic_type_traits.hpp> // for is_sgeninteger, msbIsSet
 #include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 
-#include <initializer_list>                    // for initializer_list
-#include <stddef.h>                            // for size_t
-#include <stdint.h>                            // for int8_t
-#include <type_traits>                         // for is_same
+#include <initializer_list> // for initializer_list
+#include <stddef.h>         // for size_t
+#include <stdint.h>         // for int8_t
+#include <type_traits>      // for is_same
 
 namespace sycl {
 inline namespace _V1 {
