@@ -13,26 +13,20 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @_ZTS7KernelA() local_unnamed_addr #0 {
 entry:
-  %0 = tail call spir_func i8 addrspace(3)* @__sycl_allocateLocalMemory(i64 128, i64 4) #2
-  %1 = bitcast i8 addrspace(3)* %0 to i32 addrspace(3)*
-  ; CHECK: i8 addrspace(3)* getelementptr inbounds ([128 x i8], [128 x i8] addrspace(3)* [[WGLOCALMEM_1]], i32 0, i32 0)
-  %2 = getelementptr inbounds i8, i8 addrspace(3)* %0, i64 4
-  ; CHECK: i8 addrspace(3)* getelementptr inbounds ([128 x i8], [128 x i8] addrspace(3)* [[WGLOCALMEM_1]], i32 0, i32 0)
-  %3 = tail call spir_func i8 addrspace(3)* @__sycl_allocateLocalMemory(i64 4, i64 4) #2
-  %4 = bitcast i8 addrspace(3)* %3 to float addrspace(3)*
-  ; CHECK: i8 addrspace(3)* getelementptr inbounds ([4 x i8], [4 x i8] addrspace(3)* [[WGLOCALMEM_2]], i32 0, i32 0)
+  %0 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 128, i64 4) #2
+  %1 = getelementptr inbounds i8, ptr addrspace(3) %0, i64 4
+  ; CHECK: ptr addrspace(3) [[WGLOCALMEM_1]]
+  %2 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 4, i64 4) #2
   ret void
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i8 addrspace(3)* @__sycl_allocateLocalMemory(i64, i64) local_unnamed_addr #1
+declare dso_local spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64, i64) local_unnamed_addr #1
 
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @_ZTS7KernelB() local_unnamed_addr #0 {
 entry:
-  %0 = tail call spir_func i8 addrspace(3)* @__sycl_allocateLocalMemory(i64 256, i64 8) #2
-  %1 = bitcast i8 addrspace(3)* %0 to i64 addrspace(3)*
-  ; CHECK: i8 addrspace(3)* getelementptr inbounds ([256 x i8], [256 x i8] addrspace(3)* [[WGLOCALMEM_3]], i32 0, i32 0)
+  %0 = tail call spir_func ptr addrspace(3) @__sycl_allocateLocalMemory(i64 256, i64 8) #2
   ret void
 }
 

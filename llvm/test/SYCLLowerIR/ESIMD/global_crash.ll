@@ -14,13 +14,11 @@ target triple = "spir64-unknown-unknown"
 
 define void @no_crash(<2512 x i32> %simd_val) {
 ; CHECK-LABEL: @no_crash(
-; CHECK-NEXT:    [[CAST:%.*]] = addrspacecast %"class.cl::sycl::INTEL::gpu::simd"* bitcast (<2512 x i32>* @Global to %"class.cl::sycl::INTEL::gpu::simd"*) to %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)*
-; CHECK-NEXT:    [[GEP:%.*]] = getelementptr %"class.cl::sycl::INTEL::gpu::simd", %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)* [[CAST]], i64 0, i32 0
-; CHECK-NEXT:    store <2512 x i32> [[SIMD_VAL:%.*]], <2512 x i32> addrspace(4)* [[GEP]], align 16384
+; CHECK-NEXT:    [[CAST:%.*]] = addrspacecast ptr @Global to ptr addrspace(4)
+; CHECK-NEXT:    store <2512 x i32> [[SIMD_VAL:%.*]], ptr addrspace(4) [[CAST]], align 16384
 ; CHECK-NEXT:    ret void
 ;
-  %cast = addrspacecast %"class.cl::sycl::INTEL::gpu::simd"* @Global to %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)*
-  %gep = getelementptr %"class.cl::sycl::INTEL::gpu::simd", %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)* %cast, i64 0, i32 0
-  store <2512 x i32> %simd_val, <2512 x i32> addrspace(4)* %gep, align 16384
+  %cast = addrspacecast ptr @Global to ptr addrspace(4)
+  store <2512 x i32> %simd_val, ptr addrspace(4) %cast, align 16384
   ret void
 }
