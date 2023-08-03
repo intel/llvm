@@ -585,7 +585,7 @@ public:
   /// Throws an invalid exception if this function is called
   /// while a queue is recording commands to the graph.
   /// @param ExceptionMsg Message to append to the exception message
-  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const  {
+  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const {
     if (MRecordingQueues.size()) {
       throw sycl::exception(make_error_code(sycl::errc::invalid),
                             ExceptionMsg +
