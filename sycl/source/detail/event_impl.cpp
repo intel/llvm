@@ -298,7 +298,7 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
 
   std::cout << "1) event_profiling::command_submit: MSubmitTime = "
             << MSubmitTime << std::endl;
-  return MSubmitTime; //device
+  return MSubmitTime; // device
 }
 
 template <>
@@ -320,14 +320,14 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   // 3. When API clGetDeviceAndHostTimer is not available, the return
   // value is the normalized timestamp that is computed with
   // backend event profiling START information, normalized by the
-  // backend event profiling QUEUED information 
+  // backend event profiling QUEUED information
   if (!MFallbackProfiling)
     return MHostProfilingInfo->getStartTime();
   else {
-      QueueImplPtr Queue = MQueue.lock();
-      MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
-                         (MHostSubmitTime - MDeviceSubmitTime);
-      return MDeviceStartTime;
+    QueueImplPtr Queue = MQueue.lock();
+    MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
+                        (MHostSubmitTime - MDeviceSubmitTime);
+    return MDeviceStartTime;
   }
 }
 
@@ -482,8 +482,7 @@ void event_impl::setSubmissionTime() {
       // to use it to normalize to the event profiling time base
       if (!MFallbackProfiling) {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-      }
-      else {
+      } else {
         MHostSubmitTime = getTimestamp();
         MDeviceSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
       }

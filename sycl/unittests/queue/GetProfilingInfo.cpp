@@ -423,8 +423,7 @@ TEST(GetProfilingInfo, fallback_profiling) {
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
   sycl::queue Queue{
-      Ctx, Dev,
-      sycl::property_list{sycl::property::queue::enable_profiling{}}};
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
       Ctx, {Dev}, {KernelID_1});
 
@@ -445,7 +444,7 @@ TEST(GetProfilingInfo, fallback_profiling) {
   std::cout << "end time: " << end_time << std::endl;
   std::cout << '\n';
   FAIL() << "+++++++flush output ";
-  }
+}
 
 // TEST(GetProfilingInfo, partial_profiling_workaround) {
 //   sycl::unittest::PiMock Mock;

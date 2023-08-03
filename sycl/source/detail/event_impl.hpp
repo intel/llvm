@@ -299,7 +299,6 @@ protected:
   uint64_t MDeviceSubmitTime = 0;
   uint64_t MDeviceStartTime = 0;
   uint64_t MDeviceEndTime = 0;
-    
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
