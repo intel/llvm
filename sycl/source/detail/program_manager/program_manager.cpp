@@ -1105,8 +1105,11 @@ ProgramManager::getDeviceImage(const std::string& KernelName, const context &Con
     std::advance(ItBegin, ImgInd);
     Img = ItBegin->second;
   }
-  else
+  else if (m_UniversalKernelSet.size())
     return getDeviceImage(m_UniversalKernelSet, Context, Device, JITCompilationIsRequired);
+  else
+    throw runtime_error("No kernel named " + KernelName + " was found",
+                      PI_ERROR_INVALID_KERNEL_NAME);
 
   CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
