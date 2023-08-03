@@ -637,37 +637,37 @@ struct get_device_info_impl<
   static ext::oneapi::experimental::architecture get(const DeviceImplPtr &Dev) {
     using oneapi_exp_arch = sycl::ext::oneapi::experimental::architecture;
     backend CurrentBackend = Dev->getBackend();
-      auto MapArchToDevice = [](const char *arch) {
-        ARCHES(CMP);
-        throw sycl::exception(
-            make_error_code(errc::runtime),
-            "The current device architecture is not supported by "
-            "sycl_ext_oneapi_device_architecture.");
-      };
-      if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
-                            backend::opencl == CurrentBackend)) {
-        uint32_t DeviceIp;
-        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(),
-            PiInfoCode<
-                ext::oneapi::experimental::info::device::architecture>::value,
-            sizeof(DeviceIp), &DeviceIp, nullptr);
-        return MapArchToDevice(std::to_string(DeviceIp).c_str());
-      } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
-                                   backend::ext_oneapi_hip == CurrentBackend)) {
-        size_t resultSize = 0;
-        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
-            nullptr, &resultSize);
-        std::unique_ptr<char[]> DeviceArch(new char[resultSize]);
-        Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-            Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
-            resultSize, DeviceArch.get(), nullptr);
-        return MapArchToDevice(DeviceArch.get());
-      } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
-        // TODO: add support of different CPU architectures to
-        // sycl_ext_oneapi_device_architecture
-        return sycl::ext::oneapi::experimental::architecture::x86_64;
+    auto MapArchToDevice = [](const char *arch) {
+      ARCHES(CMP);
+      throw sycl::exception(
+          make_error_code(errc::runtime),
+          "The current device architecture is not supported by "
+          "sycl_ext_oneapi_device_architecture.");
+    };
+    if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
+                          backend::opencl == CurrentBackend)) {
+      uint32_t DeviceIp;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(),
+          PiInfoCode<
+              ext::oneapi::experimental::info::device::architecture>::value,
+          sizeof(DeviceIp), &DeviceIp, nullptr);
+      return MapArchToDevice(std::to_string(DeviceIp).c_str());
+    } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
+                                 backend::ext_oneapi_hip == CurrentBackend)) {
+      size_t resultSize = 0;
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value, 0,
+          nullptr, &resultSize);
+      std::unique_ptr<char[]> DeviceArch(new char[resultSize]);
+      Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+          Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
+          resultSize, DeviceArch.get(), nullptr);
+      return MapArchToDevice(DeviceArch.get());
+    } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
+      // TODO: add support of different CPU architectures to
+      // sycl_ext_oneapi_device_architecture
+      return sycl::ext::oneapi::experimental::architecture::x86_64;
     } // else is not needed
       // TODO: add support of other architectures by extending with else if
     // Generating a user-friendly error message
