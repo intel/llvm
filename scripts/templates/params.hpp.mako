@@ -94,6 +94,16 @@ def findMemberType(_item):
 </%def>
 
 namespace ${x}_params {
+template <typename T> struct is_handle : std::false_type {};
+%for spec in specs:
+%for obj in spec['objects']:
+%if re.match(r"handle", obj['type']):
+template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_type {};
+%endif
+%endfor
+%endfor
+template <typename T>
+inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
 template <typename T> inline void serializeFlag(std::ostream &os, uint32_t flag);
 template <typename T> inline void serializeTagged(std::ostream &os, const void *ptr, T value, size_t size);
@@ -351,12 +361,6 @@ inline std::ostream &operator<<(std::ostream &os, const struct ${th.make_pfncb_p
 %endfor
 
 namespace ${x}_params {
-## This is needed to avoid dereferencing forward declared handles
-// https://devblogs.microsoft.com/oldnewthing/20190710-00/?p=102678
-template<typename, typename = void>
-constexpr bool is_type_complete_v = false;
-template<typename T>
-constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
 
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
     if (ptr == nullptr) {
@@ -365,7 +369,7 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
         os << (void *)(ptr) << " (";
         serializePtr(os, *ptr);
         os << ")";
-    } else if constexpr (std::is_void_v<T> || !is_type_complete_v<T>) {
+    } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
         os << (void *)ptr;
     } else if constexpr (std::is_same_v<std::remove_cv_t< T >, char>) {
         os << (void *)(ptr) << " (";
