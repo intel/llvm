@@ -654,11 +654,9 @@ Value *createLoadFromBuffer(CallInst *InsertBefore, Value *Buffer,
 ///   %A = type { i32 }
 ///   @value = constant %"spec_id" { %A { i32 1 } }, align 4
 ///   call spir_func void @getCompositeSpecConst(%1, %2, @value, %3)
-Constant *tryGetSpecConstInitializerFromCI(CallInst *CI, unsigned ArgIndex) {
-  auto *GV = dyn_cast<GlobalVariable>(
-      CI->getArgOperand(ArgIndex)->stripPointerCasts());
-  if (!GV)
-    return nullptr;
+Constant *getSpecConstInitializerFromCI(CallInst *CI, unsigned ArgIndex) {
+  auto *GV =
+      cast<GlobalVariable>(CI->getArgOperand(ArgIndex)->stripPointerCasts());
 
   // Go through global variable if the argument was not null.
   assert(GV->hasInitializer() && "GV is expected to have initializer");
@@ -777,8 +775,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       StringRef SymID = getStringLiteralArg(CI, NameArgNo, DelInsts);
       Value *Replacement = nullptr;
 
-      Constant *DefaultValue =
-          tryGetSpecConstInitializerFromCI(CI, NameArgNo + 1);
+      Constant *DefaultValue = getSpecConstInitializerFromCI(CI, NameArgNo + 1);
 
       bool IsNewSpecConstant = false;
       unsigned Padding = 0;
@@ -853,7 +850,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         Replacement = createLoadFromBuffer(CI, RTBuffer, CurrentOffset, SCTy);
       }
 
-      if (IsNewSpecConstant && DefaultValue) {
+      if (IsNewSpecConstant) {
         if (Padding != 0) {
           // Initialize the padding with null data
           auto PadTy = ArrayType::get(Type::getInt8Ty(Ctx), Padding);
