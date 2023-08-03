@@ -45,12 +45,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
-  // Enable SYSMAN support for obtaining the PCI address
-  // and maximum memory bandwidth.
-  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-    setEnvVar("ZES_ENABLE_SYSMAN", "1");
-  }
-
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
 
