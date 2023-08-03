@@ -18,11 +18,6 @@
 
 using namespace llvm;
 
-auto ExtractIntegerFromMDNodeOperand(const MDOperand &operand) {
-  Constant *C = cast<ConstantAsMetadata>(operand.get())->getValue();
-  return C->getUniqueInteger().getSExtValue();
-}
-
 void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
@@ -45,9 +40,7 @@ void llvm::getSYCLDeviceRequirements(
   // Scan the module and if the metadata is present fill the corresponing
   // property with metadata's aspects
   constexpr std::pair<const char *, const char *> ReqdMDs[] = {
-      {"sycl_used_aspects", "aspects"},
-      {"sycl_fixed_targets", "fixed_target"},
-      {"reqd_work_group_size", "reqd_work_group_size"}};
+      {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
 
   for (const auto &[MDName, MappedName] : ReqdMDs) {
     std::set<int64_t> Values;
@@ -78,15 +71,14 @@ void llvm::getSYCLDeviceRequirements(
   for (const Function &F : MD.getModule()) {
     if (const MDNode *MDN = F.getMetadata("reqd_work_group_size")) {
       llvm::SmallVector<int64_t, 3> NewReqdWorkGroupSize;
-      for (const auto &operand : MDN->operands())
+      for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
         NewReqdWorkGroupSize.push_back(
-            ExtractIntegerFromMDNodeOperand(operand));
+            ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!ReqdWorkGroupSize)
         ReqdWorkGroupSize = NewReqdWorkGroupSize;
-      else if (!std::equal(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end(),
-                           NewReqdWorkGroupSize.begin())) {
-        // two functions in the module have different required work group sizes
-      }
+      else
+        assert(std::equal(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end(),
+                          NewReqdWorkGroupSize.begin()));
     }
   }
 
