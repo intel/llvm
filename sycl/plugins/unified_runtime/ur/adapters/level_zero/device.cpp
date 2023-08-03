@@ -340,6 +340,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       return UR_RESULT_SUCCESS;
     }
 
+    if (Device->isCCS()) {
+      ur_device_partition_property_t cslice{};
+      cslice.type = UR_DEVICE_PARTITION_BY_CSLICE;
+
+      return ReturnValue(cslice);
+    }
+
     return ReturnValue(Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
@@ -861,7 +868,7 @@ ur_device_handle_t_::useImmediateCommandLists() {
         UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
-    return std::stoi(ImmediateCommandlistsSettingStr);
+    return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
   if (ImmediateCommandlistsSetting == -1)

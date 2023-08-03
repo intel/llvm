@@ -225,9 +225,9 @@ extern "C" SYCL_EXTERNAL void cons_7(float A, float B, float C, float D) {
 // CHECK:       func.func @[[VEC_COPY_CTR]](%{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}, %{{.*}}: memref<?x!sycl_vec_f64_16_, 4> {{{.*}}}) attributes {[[SPIR_FUNCCC]], [[LINKONCE]], {{.*}}}
 
 // CHECK-LLVM-LABEL:  define spir_func void @cons_8(
-// CHECK-LLVM-SAME:                                 ptr addrspace(4) noundef align 128 dereferenceable(128) %[[ARG0:.*]]) #[[FUNCATTRS]] {
+// CHECK-LLVM-SAME:                                 ptr addrspace(4) noundef align 64 dereferenceable(128) %[[ARG0:.*]]) #[[FUNCATTRS]] {
 // CHECK-LLVM:          call spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(ptr addrspace(4) %{{.*}}, ptr addrspace(4) %[[ARG0]])
-// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(ptr addrspace(4) noundef align 128 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 128 dereferenceable(128) %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:        define linkonce_odr spir_func void @_ZN4sycl3_V13vecIdLi16EEC1ERKS2_(ptr addrspace(4) noundef align 64 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 64 dereferenceable(128) %{{.*}}) #[[FUNCATTRS]] {
 extern "C" SYCL_EXTERNAL void cons_8(const sycl::vec<sycl::cl_double, 16> &Other) {
   auto vec = sycl::vec<sycl::cl_double, 16>{Other};
 }
@@ -253,7 +253,7 @@ extern "C" SYCL_EXTERNAL void cons_9(const sycl::vec<sycl::cl_char, 3>::vector_t
 // CHECK-LLVM-LABEL: define spir_func void @cons_10(
 // CHECK-LLVM-SAME:                                 ptr addrspace(4) noundef align 64 dereferenceable(64) %[[ARG0:.*]], ptr addrspace(4) noundef align 32 dereferenceable(32) %[[ARG1:.*]], ptr addrspace(4) noundef align 16 dereferenceable(16) %[[ARG2:.*]], i64 noundef %{{.*}}, i64 noundef %{{.*}}) #[[FUNCATTRS]] {
 // CHECK-LLVM:         call spir_func void @[[VEC_INITLIST_VEC_CTR:.*]](ptr addrspace(4) %{{.*}}, ptr addrspace(4) %[[ARG0]], ptr addrspace(4) %[[ARG1]], ptr addrspace(4) %[[ARG2]], ptr addrspace(4) %{{.*}}, ptr addrspace(4) %{{.*}})
-// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](ptr addrspace(4) noundef align 128 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 64 dereferenceable(64) %{{.*}}, ptr addrspace(4) noundef align 32 dereferenceable(32) %{{.*}}, ptr addrspace(4) noundef align 16 dereferenceable(16) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}) #[[FUNCATTRS]] {
+// CHECK-LLVM:       define linkonce_odr spir_func void @[[VEC_INITLIST_VEC_CTR]](ptr addrspace(4) noundef align 64 dereferenceable_or_null(128) %{{.*}}, ptr addrspace(4) noundef align 64 dereferenceable(64) %{{.*}}, ptr addrspace(4) noundef align 32 dereferenceable(32) %{{.*}}, ptr addrspace(4) noundef align 16 dereferenceable(16) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}, ptr addrspace(4) noundef align 8 dereferenceable(8) %{{.*}}) #[[FUNCATTRS]] {
 
 extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 				      const sycl::long4 &B,

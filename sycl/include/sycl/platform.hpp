@@ -30,7 +30,16 @@ auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
-}
+
+/// Allows to enable/disable "Default Context" extension
+///
+/// This API is in detail:: namespace because it's never supposed
+/// to be called by end-user. It's necessary for internal use of
+/// oneAPI components
+///
+/// \param Val Indicates if extension should be enabled/disabled
+void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
+} // namespace detail
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
