@@ -12,6 +12,8 @@
 
 #if __cpp_lib_bit_cast
 #include <bit>
+#elif !defined(__has_builtin) || !__has_builtin(__builtin_bit_cast)
+#include <sycl/detail/memcpy.hpp>
 #endif
 
 namespace sycl {
