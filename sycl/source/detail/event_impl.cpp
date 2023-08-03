@@ -326,7 +326,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   else {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
-                        (MHostSubmitTime - MDeviceSubmitTime);
+                       (MHostSubmitTime - MDeviceSubmitTime);
     return MDeviceStartTime;
   }
 }
