@@ -283,6 +283,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
+  hKernel->CachedEventsMutex.lock();
   for (auto i = 0u; i < numEventsInWaitList; ++i) {
     hKernel->CachedEvents.push_back(phEventWaitList[i]);
   }
@@ -303,9 +304,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // Early exit for zero size range kernel
   if (*pGlobalWorkSize == 0) {
     if (hKernel->CachedEvents.size()) {
-      return urEnqueueEventsWaitWithBarrier(hQueue,
+      auto Result = urEnqueueEventsWaitWithBarrier(hQueue,
                                             hKernel->CachedEvents.size(),
                                             &hKernel->CachedEvents[0], phEvent);
+      hKernel->CachedEventsMutex.unlock();
+      return Result;
     }
     return UR_RESULT_SUCCESS;
   }
@@ -390,6 +393,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       Result = enqueueEventsWait(CuStream, hKernel->CachedEvents.size(),
                                  &hKernel->CachedEvents[0]);
     }
+    hKernel->CachedEvents.clear();
+    hKernel->CachedEventsMutex.unlock();
 
     // For memory migration across devices in the same context
     for (auto &MemArg : hKernel->Args.MemObjArgs) {
@@ -467,7 +472,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
             (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_READ_ONLY)) {
           MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.get());
         }
-
         MemArg.Mem->MemoryMigrationMutex.unlock();
       }
       *phEvent = RetImplEvent.release();

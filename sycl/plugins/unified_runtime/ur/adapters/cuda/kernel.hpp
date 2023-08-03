@@ -53,6 +53,7 @@ struct ur_kernel_handle_t_ {
   static constexpr size_t CachedEventsSize =
       64; // Initial capacity of CachedEvents
           // TODO justify this number
+  ur_mutex CachedEventsMutex;
 
   /// Structure that holds the arguments to the kernel.
   /// Note each argument size is known, since it comes
