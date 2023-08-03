@@ -679,7 +679,7 @@ struct get_device_info_impl<
           ResultSize, DeviceArch.get(), nullptr);
       return MapArchToDevice(DeviceArch.get());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
-      // TODO: add support of different CPU architectures to
+    // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
       return sycl::ext::oneapi::experimental::architecture::x86_64;
     } // else is not needed
