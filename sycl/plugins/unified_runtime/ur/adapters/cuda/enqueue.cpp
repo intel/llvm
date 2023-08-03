@@ -283,10 +283,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
   UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  hKernel->CachedEventsMutex.lock();
-  for (auto i = 0u; i < numEventsInWaitList; ++i) {
-    hKernel->CachedEvents.push_back(phEventWaitList[i]);
-  }
+  std::vector<ur_event_handle_t> DepEvents(
+      phEventWaitList, phEventWaitList + numEventsInWaitList);
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
   // runtime. However since UR handles memory dependencies within a context
@@ -294,20 +292,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   for (auto &MemArg : hKernel->Args.MemObjArgs) {
     MemArg.Mem->MemoryMigrationMutex.lock();
     if (MemArg.Mem->LastEventWritingToMemObj &&
-        std::find(hKernel->CachedEvents.begin(), hKernel->CachedEvents.end(),
-                  MemArg.Mem->LastEventWritingToMemObj) ==
-            hKernel->CachedEvents.end()) {
-      hKernel->CachedEvents.push_back(MemArg.Mem->LastEventWritingToMemObj);
+        std::find(DepEvents.begin(), DepEvents.end(),
+                  MemArg.Mem->LastEventWritingToMemObj) == DepEvents.end()) {
+      DepEvents.push_back(MemArg.Mem->LastEventWritingToMemObj);
     }
   }
 
   // Early exit for zero size range kernel
   if (*pGlobalWorkSize == 0) {
-    if (hKernel->CachedEvents.size()) {
-      auto Result = urEnqueueEventsWaitWithBarrier(hQueue,
-                                            hKernel->CachedEvents.size(),
-                                            &hKernel->CachedEvents[0], phEvent);
-      hKernel->CachedEventsMutex.unlock();
+    if (DepEvents.size()) {
+      auto Result = urEnqueueEventsWaitWithBarrier(hQueue, DepEvents.size(),
+                                                   &DepEvents[0], phEvent);
       return Result;
     }
     return UR_RESULT_SUCCESS;
@@ -389,12 +384,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     CUfunction CuFunc = hKernel->get();
 
-    if (hKernel->CachedEvents.size()) {
-      Result = enqueueEventsWait(CuStream, hKernel->CachedEvents.size(),
-                                 &hKernel->CachedEvents[0]);
+    if (DepEvents.size()) {
+      Result = enqueueEventsWait(CuStream, DepEvents.size(), &DepEvents[0]);
     }
-    hKernel->CachedEvents.clear();
-    hKernel->CachedEventsMutex.unlock();
 
     // For memory migration across devices in the same context
     for (auto &MemArg : hKernel->Args.MemObjArgs) {

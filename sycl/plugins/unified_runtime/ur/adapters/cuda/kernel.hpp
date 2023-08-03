@@ -46,15 +46,6 @@ struct ur_kernel_handle_t_ {
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
   int RegsPerThread{0};
 
-  // The events that the kernel will need to wait on. Events will be pushed back
-  // onto this vector at urEnqueueKernelLaunch and cleared at the end so the
-  // same vec can be reused.
-  std::vector<ur_event_handle_t> CachedEvents;
-  static constexpr size_t CachedEventsSize =
-      64; // Initial capacity of CachedEvents
-          // TODO justify this number
-  ur_mutex CachedEventsMutex;
-
   /// Structure that holds the arguments to the kernel.
   /// Note each argument size is known, since it comes
   /// from the kernel signature.
@@ -163,7 +154,6 @@ struct ur_kernel_handle_t_ {
     assert(RetError == UR_RESULT_SUCCESS);
     UR_CHECK_ERROR(
         cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS, Func));
-    CachedEvents.reserve(CachedEventsSize);
   }
 
   ~ur_kernel_handle_t_() {
