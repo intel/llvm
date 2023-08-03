@@ -2456,7 +2456,8 @@ checkDevSupportDeviceRequirements(const device &Dev,
   };
 
   auto AspectsPropIt = getPropIt("aspects");
-  auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
+  auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
+  auto ReqdWGSizeSizeTPropIt = getPropIt("reqd_work_group_size_size_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
@@ -2475,18 +2476,21 @@ checkDevSupportDeviceRequirements(const device &Dev,
   }
 
   // Checking if device supports defined required work group size
-  if (ReqdWGSizePropIt) {
-    ByteArray ReqdWGSize =
-        DeviceBinaryProperty(*(ReqdWGSizePropIt.value())).asByteArray();
+  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeSizeTPropIt) {
+    bool usingSizeT = ReqdWGSizeSizeTPropIt.has_value();
+    auto it = usingSizeT ? ReqdWGSizeSizeTPropIt : ReqdWGSizeUint32TPropIt;
+
+    ByteArray ReqdWGSize = DeviceBinaryProperty(*(it.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
     ReqdWGSize.dropBytes(8);
-    uint64_t ReqdWGSizeAllDimsTotal = 1;
-    std::vector<uint64_t> ReqdWGSizeVec;
+    size_t ReqdWGSizeAllDimsTotal = 1;
+    std::vector<size_t> ReqdWGSizeVec;
     int Dims = 0;
     while (!ReqdWGSize.empty()) {
       // The reqd_work_group_size data is stored as uint32_t's,
       // but we'll widen the result to uint64_t.
-      uint64_t SingleDimSize = ReqdWGSize.consume<uint32_t>();
+      size_t SingleDimSize = usingSizeT ? ReqdWGSize.consume<size_t>()
+                                        : ReqdWGSize.consume<uint32_t>();
       if (auto res = multiply_with_overflow_check(ReqdWGSizeAllDimsTotal,
                                                   SingleDimSize))
         ReqdWGSizeAllDimsTotal = *res;

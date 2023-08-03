@@ -67,10 +67,10 @@ void llvm::getSYCLDeviceRequirements(
         std::vector<uint32_t>(Values.begin(), Values.end());
   }
 
-  std::optional<llvm::SmallVector<int64_t, 3>> ReqdWorkGroupSize;
+  std::optional<llvm::SmallVector<size_t, 3>> ReqdWorkGroupSize;
   for (const Function &F : MD.getModule()) {
     if (const MDNode *MDN = F.getMetadata("reqd_work_group_size")) {
-      llvm::SmallVector<int64_t, 3> NewReqdWorkGroupSize;
+      llvm::SmallVector<size_t, 3> NewReqdWorkGroupSize;
       for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
         NewReqdWorkGroupSize.push_back(
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
@@ -83,7 +83,7 @@ void llvm::getSYCLDeviceRequirements(
   }
 
   if (ReqdWorkGroupSize)
-    Requirements["reqd_work_group_size"] = std::vector<uint32_t>(
+    Requirements["reqd_work_group_size_size_t"] = std::vector<size_t>(
         ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end());
 
   // There should only be at most one function with

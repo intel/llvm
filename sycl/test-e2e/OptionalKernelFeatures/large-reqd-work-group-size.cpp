@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int -DNO_RANGE_GREATER_THAN_UINT32_MAX
+// RUN: %{build} -o %t.out -fno-sycl-id-queries-fit-in-int
 // RUN: %{run} %t.out
 
 #include <sycl/sycl.hpp>
