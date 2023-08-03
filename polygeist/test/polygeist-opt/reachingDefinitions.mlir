@@ -454,3 +454,14 @@ func.func @caller() {
   %0 = func.call @callee(%ptr) : (memref<i32>) -> memref<i32>
   return
 }
+
+// -----
+
+// COM: Test that the analysis does not break with non-functions
+
+llvm.mlir.global internal @init_glboal() : !llvm.struct<"foo", (i8)> {
+  %0 = llvm.mlir.constant(0 : i8) : i8
+  %1 = llvm.mlir.undef : !llvm.struct<"foo", (i8)>
+  %2 = llvm.insertvalue %0, %1[0] : !llvm.struct<"foo", (i8)>
+  llvm.return %2 : !llvm.struct<"foo", (i8)>
+}

@@ -260,6 +260,11 @@ void ReachingDefinitionAnalysis::visitOperation(
 
   // Retrieve the alias oracle for the function this operation belongs to.
   auto funcOp = op->getParentOfType<FunctionOpInterface>();
+  if (!funcOp) {
+    LLVM_DEBUG(llvm::dbgs()
+               << "Will not analyze operations not in a function\n");
+    return setToEntryState(after);
+  }
   AliasOracle &aliasOracle = *aliasOracles[funcOp];
 
   // Analyze the operation's memory effects.
