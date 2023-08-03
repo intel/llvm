@@ -16,7 +16,6 @@
 #include <sycl/detail/helpers.hpp>    // for context_impl
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/detail/pi.h>           // for _pi_mem, pi_native_...
-#include <sycl/detail/pi.h>           // for PI_ERROR_INVALID_ME...
 #include <sycl/device.hpp>            // for device, device_impl
 #include <sycl/exception.hpp>         // for invalid_object_error
 #include <sycl/exception_list.hpp>    // for queue_impl
