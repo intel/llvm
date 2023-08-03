@@ -1,0 +1,51 @@
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1  %{run} %t.out
+
+/*
+
+
+*/
+
+#include <sycl/sycl.hpp>
+
+int main(int argc, const char **argv) {
+
+  sycl::queue q;
+
+  {
+    sycl::range<1> bufRange(25);
+    sycl::buffer<double, 1> buf_b(bufRange);
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_buf_b = buf_b.get_access(cgh, sycl::write_only);
+      cgh.fill<double>(acc_buf_b, 1.0);
+    });
+
+    sycl::buffer<double, 1> buf_y(buf_b.get_range());
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_buf_y = buf_y.get_access(cgh, sycl::write_only);
+      cgh.fill<double>(acc_buf_y, -1.0);
+    });
+
+    sycl::buffer<double, 1> buf_b_sub(buf_b, 0, buf_b.get_range());
+
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_b_sub = buf_b_sub.get_host_access(cgh, sycl::read_only);
+      auto acc_buf_y = buf_y.get_host_access(cgh, sycl::read_write);
+
+      cgh.host_task([=]() { acc_buf_y[0] = 1.0 - acc_b_sub[0]; });
+    });
+
+    q.wait();
+
+    q.submit([&](sycl::handler &cgh) {
+      auto acc_buf_y = buf_y.get_host_access(cgh, sycl::read_only);
+      auto acc_b_sub = buf_b_sub.get_host_access(cgh, sycl::read_write);
+
+      cgh.host_task([=]() { acc_b_sub[0] = 1.0 + acc_buf_y[0]; });
+    });
+
+    q.wait();
+  }
+
+  return 0;
+}
