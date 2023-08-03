@@ -305,11 +305,7 @@ bool graph_impl::checkForCycles() {
 
 void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
                           std::shared_ptr<node_impl> Dest) {
-  if (MRecordingQueues.size()) {
-    throw sycl::exception(make_error_code(sycl::errc::invalid),
-                          "make_edge() cannot be called when a queue is "
-                          "currently recording commands to a graph.");
-  }
+  throwIfGraphRecordingQueue("make_edge()");
   if (Src == Dest) {
     throw sycl::exception(
         make_error_code(sycl::errc::invalid),
@@ -610,6 +606,7 @@ modifiable_command_graph::modifiable_command_graph(
                                                 PropList)) {}
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
+  impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
@@ -621,6 +618,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
                                        const std::vector<node> &Deps) {
+  impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
