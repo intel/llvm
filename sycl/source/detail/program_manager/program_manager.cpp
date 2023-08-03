@@ -1478,6 +1478,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           }
         }
       }
+      continue;
   }
     // Otherwise assume that the image contains all kernels associated with the
     // module
