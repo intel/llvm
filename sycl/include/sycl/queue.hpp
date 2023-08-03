@@ -37,9 +37,9 @@
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/detail/pi.h>                   // for pi_mem_advice
-#include <sycl/device.hpp>                                // for device
-#include <sycl/event.hpp>                                 // for event
-#include <sycl/exception.hpp>                             // for make_error_code
+#include <sycl/device.hpp>                    // for device
+#include <sycl/event.hpp>                     // for event
+#include <sycl/exception.hpp>                 // for make_error_code
 #include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_descriptor
 #include <sycl/ext/oneapi/bindless_images_interop.hpp> // for interop_semaph...
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>  // for image_mem_handle
