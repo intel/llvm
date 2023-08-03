@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 cmake_minimum_required(VERSION 3.14.0 FATAL_ERROR)
-project(unified-runtime VERSION 0.6.0)
+project(unified-runtime VERSION 0.7.0)
 
 include(GNUInstallDirs)
 include(CheckCXXSourceCompiles)
@@ -157,6 +157,7 @@ endif()
 
 # Obtain files for clang-format
 set(format_glob)
+set(license_glob)
 foreach(dir examples include source test tools)
     list(APPEND format_glob
         "${dir}/*.h"
@@ -167,8 +168,26 @@ foreach(dir examples include source test tools)
         "${dir}/**/*.hpp"
         "${dir}/**/*.c"
         "${dir}/**/*.cpp")
+    list(APPEND license_glob
+        "${dir}/*.yml"
+        "${dir}/**/*.yml"
+        "${dir}/*.py"
+        "${dir}/**/*.py"
+        "${dir}/**/CMakeLists.txt"
+        "${dir}/CMakeLists.txt"
+    )
 endforeach()
 file(GLOB_RECURSE format_src ${format_glob})
+file(GLOB_RECURSE license_src ${license_glob})
+
+# check for licence
+list(FILTER license_src EXCLUDE REGEX "registry.yml")
+add_custom_target(verify-licenses
+    COMMAND ${Python3_EXECUTABLE}
+        "${PROJECT_SOURCE_DIR}/scripts/verify_license.py"
+        "--files" ${format_src} ${license_src}
+    COMMENT "Verify all files contain a license."
+)
 
 # Add code formatter target
 add_custom_target(cppformat)
