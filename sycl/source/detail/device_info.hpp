@@ -662,7 +662,7 @@ struct get_device_info_impl<
       return MapIPToDevice(DeviceIp);
     } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                                  backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchToDevice = [](const char *arch) {
+      auto MapArchIDToDevice = [](const char *arch) {
         NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD);
         throw sycl::exception(
             make_error_code(errc::runtime),
@@ -677,7 +677,7 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
-      return MapArchToDevice(DeviceArch.get());
+      return MapArchIDToDevice(DeviceArch.get());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
