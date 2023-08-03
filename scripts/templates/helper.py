@@ -440,6 +440,14 @@ class function_traits:
         except:
             return False
 
+    @staticmethod
+    def is_loader_only(item):
+        try:
+            return item['loader_only']
+        except:
+            return False
+
+
 """
 Public:
     substitutes each tag['key'] with tag['value']
@@ -1047,6 +1055,9 @@ def get_pfntables(specs, meta, namespace, tags):
     tables = []
     for cname in sorted(meta['class'], key=lambda x: meta['class'][x]['ordinal']):
         objs, exp_objs = get_class_function_objs_exp(specs, cname)
+        objs = list(filter(lambda obj: not function_traits.is_loader_only(obj), objs))
+        exp_objs = list(filter(lambda obj: not function_traits.is_loader_only(obj), exp_objs))
+
         if len(objs) > 0:
             name = get_table_name(namespace, tags, objs[0])
             table = "%s_%s_dditable_t"%(namespace, _camel_to_snake(name))
@@ -1110,6 +1121,7 @@ def get_pfntables(specs, meta, namespace, tags):
 
 
     return tables
+
 
 """
 Private:
