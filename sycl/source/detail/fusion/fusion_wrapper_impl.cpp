@@ -27,6 +27,11 @@ bool fusion_wrapper_impl::is_in_fusion_mode() const {
 }
 
 void fusion_wrapper_impl::start_fusion() {
+  if (MQueue->getCommandGraph()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "SYCL kernel fusion can NOT be started "
+                          "on a queue that is in a recording state.");
+  }
   detail::Scheduler::getInstance().startFusion(MQueue);
 }
 
