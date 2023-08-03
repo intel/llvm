@@ -153,7 +153,12 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   FunctionCallee FC = M.getOrInsertFunction(FunctionName, FT);
   assert(FC.getCallee() && "Instruction creation failed");
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  Function *F = dyn_cast<Function>(FC.getCallee());
+  assert(F);
+  F->setCallingConv(CallingConv::SPIR_FUNC);
+  CallInst *NewCall = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  NewCall->setCallingConv(F->getCallingConv());
+  return NewCall;
 }
 
 // Insert instrumental annotation calls, that has no arguments (for example
