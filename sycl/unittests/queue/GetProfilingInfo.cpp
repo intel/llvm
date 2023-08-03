@@ -22,6 +22,9 @@
 
 #include <detail/context_impl.hpp>
 
+#include <iostream>
+// #include <iomanip>
+
 class InfoTestKernel;
 
 namespace sycl {
@@ -401,6 +404,45 @@ static pi_result redefinedDeviceGetInfoAcc(pi_device device,
   }
   return PI_SUCCESS;
 }
+
+TEST(GetProfilingInfo, fallback_profiling) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+
+  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
+
+  static sycl::unittest::PiImage DevImage_1 =
+      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev,
+      sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID_1});
+
+  const int globalWIs{512};
+  auto event = Queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  });
+  event.wait();
+  double submit_time = event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  double start_time = event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  double end_time = event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  
+  std::cout << "+++++++++++++++++++++++++++++++++++++++++++++ submit time: " << submit_time << std::endl;
+  std::cout << "start time: " << start_time << std::endl;
+  std::cout << "end time: " << end_time << std::endl;
+  std::cout << '\n';
+  FAIL() << "++++++++++++++++++++++++++++++++++++++++++++++ flush output";
+  }
 
 // TEST(GetProfilingInfo, partial_profiling_workaround) {
 //   sycl::unittest::PiMock Mock;
