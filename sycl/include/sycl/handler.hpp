@@ -1601,9 +1601,6 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
-    if (Acc.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1737,13 +1734,17 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
