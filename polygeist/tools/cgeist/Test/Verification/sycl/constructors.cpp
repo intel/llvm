@@ -282,4 +282,4 @@ extern "C" SYCL_EXTERNAL void cons_11() {
 }
 
 // Keep at the end.
-// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/Test/Verification/sycl/constructors.cpp" }
+// CHECK-LLVM: attributes #[[FUNCATTRS]] = { convergent mustprogress noinline norecurse nounwind optnone "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="{{.*}}/Test/Verification/sycl/constructors.cpp" "sycl-optlevel"="0" }

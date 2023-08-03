@@ -1634,6 +1634,7 @@ private:
   /// value.
   static std::tuple<Operation *, Value>
   getUniqueAssignment(Value ptr, Value allowStoreTo = Value()) {
+    bool ptrIsAlloca = isa_and_nonnull<LLVM::AllocaOp>(ptr.getDefiningOp());
     Operation *op = nullptr;
     Value value;
     for (auto *user : ptr.getUsers()) {
@@ -1657,6 +1658,16 @@ private:
         if (isa<LLVM::LifetimeStartOp, LLVM::LifetimeEndOp, LLVM::VarAnnotation,
                 LLVM::LoadOp, LLVM::MemcpyOp>(user))
           continue;
+
+        // Special case for the first capture: if `ptr` is an alloca, there may
+        // be a destructor call for it.
+        if (auto call = dyn_cast<CallOpInterface>(user); ptrIsAlloca && call) {
+          llvm::ItaniumPartialDemangler demangler;
+          auto res = partialDemangle(demangler, call);
+          if (succeeded(res) && demangler.isCtorOrDtor() &&
+              !isConstructor(demangler))
+            continue;
+        }
 
         // GEPs with only constant indices have a non-zero offset to `ptr`
         // (otherwise they would've been folded away).

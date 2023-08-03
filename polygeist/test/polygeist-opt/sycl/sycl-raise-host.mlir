@@ -744,6 +744,8 @@ llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_sp
 !lambda_class = !llvm.struct<"class.lambda", (i16, i32, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>, !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)>)>
 !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
 
+llvm.func @_ZN5DummyD2Ev(%arg0: !llvm.ptr)
+
 // COM: check that we correctly identify captured accessors, scalars and structs
 
 // CHECK-LABEL:   llvm.func @raise_set_captured(
@@ -772,6 +774,7 @@ llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_sp
 // CHECK:           sycl.host.set_captured %[[VAL_8]][3] = %[[VAL_7]] : !llvm.ptr, !llvm.ptr
 // CHECK:           %[[VAL_13:.*]] = llvm.alloca %[[VAL_4]] x !llvm.ptr : (i32) -> !llvm.ptr
 // CHECK:           llvm.store %[[VAL_8]], %[[VAL_13]] : !llvm.ptr, !llvm.ptr
+// CHECK:           llvm.call @_ZN5DummyD2Ev(%[[VAL_8]]) : (!llvm.ptr) -> ()
 // CHECK:           llvm.return
 // CHECK:         }
 
@@ -816,6 +819,9 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   %kernel_str = llvm.mlir.addressof @kernel_str : !llvm.ptr
   "llvm.intr.var.annotation"(%annotated_ptr, %kernel_str, %kernel_str, %c0, %nullptr) : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32, !llvm.ptr) -> ()
   
+  // COM: mockup destruction of lambda object, should not interfere with the raising
+  llvm.call @_ZN5DummyD2Ev(%lambda_obj) : (!llvm.ptr) -> ()
+
   llvm.return
 }
 

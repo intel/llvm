@@ -1001,8 +1001,9 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void parallel_for_lambda_impl(range<Dims> NumWorkItems, PropertiesT Props,
-                                KernelType KernelFunc) {
+  __SYCL_ALWAYS_INLINE void parallel_for_lambda_impl(range<Dims> NumWorkItems,
+                                                     PropertiesT Props,
+                                                     KernelType KernelFunc) {
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -1128,8 +1129,9 @@ private:
   /// \param KernelFunc is a SYCL kernel function.
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT>
-  void parallel_for_impl(nd_range<Dims> ExecutionRange, PropertiesT Props,
-                         _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_ALWAYS_INLINE void parallel_for_impl(nd_range<Dims> ExecutionRange,
+                                              PropertiesT Props,
+                                              _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1163,7 +1165,8 @@ private:
   /// \param NumWorkItems is a range defining indexing space.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
-  void parallel_for_impl(range<Dims> NumWorkItems, kernel Kernel) {
+  __SYCL_ALWAYS_INLINE void parallel_for_impl(range<Dims> NumWorkItems,
+                                              kernel Kernel) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
@@ -1224,10 +1227,9 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void parallel_for_work_group_lambda_impl(range<Dims> NumWorkGroups,
-                                           range<Dims> WorkGroupSize,
-                                           PropertiesT Props,
-                                           _KERNELFUNCPARAM(KernelFunc)) {
+  __SYCL_ALWAYS_INLINE void parallel_for_work_group_lambda_impl(
+      range<Dims> NumWorkGroups, range<Dims> WorkGroupSize, PropertiesT Props,
+      _KERNELFUNCPARAM(KernelFunc)) {
     throwIfActionIsCreated();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -1682,24 +1684,27 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
   }
 
   template <typename KernelName = detail::auto_name, typename KernelType>
-  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     parallel_for_lambda_impl<KernelName>(
         NumWorkItems, ext::oneapi::experimental::detail::empty_properties_t{},
         std::move(KernelFunc));
@@ -1731,9 +1736,10 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL2020")
-  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
-                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE
+      void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                        id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                        _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
@@ -1810,18 +1816,21 @@ public:
     MKernelName = getKernelName();
   }
 
-  void parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
-                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range),
+               kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
-                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range),
+               kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
-  void parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
-                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range),
+               kernel Kernel __SYCL_ANNOTATE(kernel)) {
     parallel_for_impl(NumWorkItems, Kernel);
   }
 
@@ -1835,9 +1844,10 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
-                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
-                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE
+      void parallel_for(range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                        id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                        kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
@@ -1856,8 +1866,9 @@ public:
   /// well as offset.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
-  void parallel_for(nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
-                    kernel Kernel __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+               kernel Kernel __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
@@ -1908,9 +1919,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel,
-                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(kernel Kernel, range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1947,10 +1958,11 @@ public:
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(kernel Kernel,
-                    range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
-                    id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE
+      void parallel_for(kernel Kernel,
+                        range<Dims> NumWorkItems __SYCL_ANNOTATE(range),
+                        id<Dims> WorkItemOffset __SYCL_ANNOTATE(offset),
+                        _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -1987,9 +1999,9 @@ public:
   /// is a host device.
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims>
-  void parallel_for(kernel Kernel,
-                    nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
-                    _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
+  __SYCL_ALWAYS_INLINE void
+  parallel_for(kernel Kernel, nd_range<Dims> NDRange __SYCL_ANNOTATE(nd_range),
+               _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
     throwIfActionIsCreated();
     // Ignore any set kernel bundles and use the one associated with the kernel
     setHandlerKernelBundle(Kernel);
@@ -2106,7 +2118,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
@@ -2116,7 +2128,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
@@ -2126,7 +2138,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> NumWorkItems __SYCL_ANNOTATE(range), PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc) __SYCL_ANNOTATE(kernel)) {
@@ -2136,7 +2148,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT, int Dims>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range __SYCL_ANNOTATE(nd_range),
                PropertiesT Properties,
@@ -2148,7 +2160,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
@@ -2159,7 +2171,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
@@ -2170,7 +2182,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
@@ -2180,24 +2192,27 @@ public:
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<1> Range, RestT &&...Rest) {
+  __SYCL_ALWAYS_INLINE
+      std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+      parallel_for(range<1> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<2> Range, RestT &&...Rest) {
+  __SYCL_ALWAYS_INLINE
+      std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+      parallel_for(range<2> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
   }
 
   template <typename KernelName = detail::auto_name, typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<3> Range, RestT &&...Rest) {
+  __SYCL_ALWAYS_INLINE
+      std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+      parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
@@ -2205,7 +2220,7 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  std::enable_if_t<
+  __SYCL_ALWAYS_INLINE std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
@@ -2216,8 +2231,9 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename... RestT>
-  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
+  __SYCL_ALWAYS_INLINE
+      std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+      parallel_for(nd_range<Dims> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
