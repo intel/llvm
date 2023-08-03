@@ -436,12 +436,17 @@ TEST(GetProfilingInfo, fallback_profiling) {
   double submit_time = event.get_profiling_info<sycl::info::event_profiling::command_submit>();
   double start_time = event.get_profiling_info<sycl::info::event_profiling::command_start>();
   double end_time = event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  
-  std::cout << "+++++++++++++++++++++++++++++++++++++++++++++ submit time: " << submit_time << std::endl;
-  std::cout << "start time: " << start_time << std::endl;
+
+  std::cout << "+++++++++++++++++++++++++++++++++++++++++++++ 
+      submit time : " << submit_time << std::endl;
+                    std::cout
+            << "start time: "
+            << start_time
+            << std::endl;
   std::cout << "end time: " << end_time << std::endl;
   std::cout << '\n';
-  FAIL() << "++++++++++++++++++++++++++++++++++++++++++++++ flush output";
+  FAIL() << "++++++++++++++++++++++++++++++++++++++++++++++ 
+      flush output ";
   }
 
 // TEST(GetProfilingInfo, partial_profiling_workaround) {

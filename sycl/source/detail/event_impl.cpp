@@ -293,8 +293,8 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
   // host and device submit time. The host timestamp in sycl runtime will be
   // return for the info::event_profiling::command_submit
-  // if (MFallbackProfiling)
-  //   MSubmitTime = getTimestamp(); //host
+  if (MFallbackProfiling)
+    MSubmitTime = getTimestamp(); // host
 
   std::cout << "1) event_profiling::command_submit: MSubmitTime = " << MSubmitTime << std::endl;
   return MSubmitTime; //device
