@@ -53,7 +53,7 @@ struct DeviceGlobalMapEntry {
   // Pointer to the device_global on host.
   const void *MDeviceGlobalPtr = nullptr;
   // Images device_global are used by.
-  std::unordered_set<RTDeviceBinaryImage*> MImages;
+  std::unordered_set<RTDeviceBinaryImage *> MImages;
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;
@@ -69,10 +69,11 @@ struct DeviceGlobalMapEntry {
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
-  DeviceGlobalMapEntry(std::string UniqueId, RTDeviceBinaryImage* Img,
+  DeviceGlobalMapEntry(std::string UniqueId, RTDeviceBinaryImage *Img,
                        std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MImages{Img}, MImageIdentifiers{reinterpret_cast<uintptr_t>(Img)},
+      : MUniqueId(UniqueId), MImages{Img},
+        MImageIdentifiers{reinterpret_cast<uintptr_t>(Img)},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 
@@ -86,8 +87,7 @@ struct DeviceGlobalMapEntry {
 
   // Initialize the device_global's element type size and the flag signalling
   // if the device_global has the device_image_scope property.
-  void initialize(RTDeviceBinaryImage* Img,
-                  std::uint32_t DeviceGlobalTSize,
+  void initialize(RTDeviceBinaryImage *Img, std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     if (MDeviceGlobalTSize != 0) {
       // The device global entry has already been initialized. This can happen

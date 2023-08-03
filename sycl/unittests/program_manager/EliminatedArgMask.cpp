@@ -194,7 +194,7 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   const sycl::detail::KernelArgMask *EliminatedArgMask =
       getKernelArgMaskFromBundle(KernelBundle,
                                  sycl::detail::getSyclObjImpl(Queue));
-  assert(EliminatedArgMask && "EliminatedArgMask must be not null" );
+  assert(EliminatedArgMask && "EliminatedArgMask must be not null");
 
   sycl::detail::KernelArgMask ExpElimArgMask(EAMTestKernelNumArgs);
   ExpElimArgMask[0] = ExpElimArgMask[2] = true;

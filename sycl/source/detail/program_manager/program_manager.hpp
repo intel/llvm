@@ -90,11 +90,11 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  
 
-  RTDeviceBinaryImage & getDeviceImage(const std::unordered_set<RTDeviceBinaryImage*>& ImagesToVerify, const context &Context,
-                               const device &Device,
-                               bool JITCompilationIsRequired = false);
+  RTDeviceBinaryImage &getDeviceImage(
+      const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
+      const context &Context, const device &Device,
+      bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
@@ -288,14 +288,15 @@ public:
                     sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
-  ~ProgramManager()
-  {
-    // unique_ptr could not be used in any map used in this class. When image is used as a key - no possible to wrap because we do search by raw pointer value, when uses as value - same image could be assigned to different keys.
-    // Release them explicitly.
-    for (auto& Image : m_BinImg2KernelIDs)
-        delete Image.first;
-    for (auto& Image : m_UniversalKernelSet)
-        delete Image;
+  ~ProgramManager() {
+    // unique_ptr could not be used in any map used in this class. When image is
+    // used as a key - no possible to wrap because we do search by raw pointer
+    // value, when uses as value - same image could be assigned to different
+    // keys. Release them explicitly.
+    for (auto &Image : m_BinImg2KernelIDs)
+      delete Image.first;
+    for (auto &Image : m_UniversalKernelSet)
+      delete Image;
   };
 
   bool kernelUsesAssert(const std::string &KernelName) const;
@@ -316,8 +317,7 @@ private:
                    const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
   /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img,
-                 uint32_t SequenceID = 0) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
@@ -325,7 +325,7 @@ private:
   /// The three maps below are used during kernel resolution. Any kernel is
   /// identified by its name. The following
   /// assumption is made: for any two device images in a SYCL application
-  /// their kernel sets are either identical or disjoint. 
+  /// their kernel sets are either identical or disjoint.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
 
   /// Maps names of kernels to their unique kernel IDs.
@@ -347,14 +347,14 @@ private:
   // The vector is initialized in addImages function and is supposed to be
   // immutable afterwards.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_map<RTDeviceBinaryImage*,
+  std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
   /// Keeps images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::unordered_set<RTDeviceBinaryImage*> m_UniversalKernelSet;
+  std::unordered_set<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
@@ -368,7 +368,7 @@ private:
   /// in the sycl::detail::__sycl_service_kernel__ namespace which is
   /// exclusively used for this purpose.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_multimap<std::string, RTDeviceBinaryImage*> m_ServiceKernels;
+  std::unordered_multimap<std::string, RTDeviceBinaryImage *> m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
