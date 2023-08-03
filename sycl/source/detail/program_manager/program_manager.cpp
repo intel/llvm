@@ -1103,7 +1103,8 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                   Context, Device);
     assert(Img && "No binary image found for kernel id");
   } else if (Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName,
-                                           Context, Device)) {
+                                           Context, Device);
+             Img) {
   } else if (m_UniversalKernelSet.size())
     return getDeviceImage(m_UniversalKernelSet, Context, Device,
                           JITCompilationIsRequired);
