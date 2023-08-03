@@ -1946,8 +1946,8 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
         // So, just call 'checkAddressOfFunctionIsAvailable' again but with
         // 'Complain' parameter to issue a deferred diagnostic.
         if (S.getLangOpts().SYCLIsDevice)
-          S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
-                                              DRE->getExprLoc());
+          (void)S.checkAddressOfFunctionIsAvailable(FD, /*Complain=*/true,
+                                                    DRE->getExprLoc());
       }
     }
 
