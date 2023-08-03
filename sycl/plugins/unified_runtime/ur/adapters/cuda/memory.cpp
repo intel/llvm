@@ -120,45 +120,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
     if (hMem->decrementReferenceCount() > 0) {
       return UR_RESULT_SUCCESS;
     }
-
-    // Free buffer
-    if (hMem->isBuffer()) {
-      // make sure hMem is released in case checkErrorUR throws
-      std::unique_ptr<ur_buffer_> Buffer(ur_cast<ur_buffer_ *>(hMem));
-      if (Buffer->isSubBuffer()) {
-        return UR_RESULT_SUCCESS;
-      }
-
-      switch (Buffer->MemAllocMode) {
-      case ur_buffer_::AllocMode::CopyIn:
-      case ur_buffer_::AllocMode::Classic:
-        for (auto i = 0u; i < hMem->getContext()->NumDevices; ++i) {
-          if (Buffer->getPtrs()[i] != ur_buffer_::native_type{0}) {
-            ScopedContext Active(Buffer->getContext()->getDevices()[i]);
-            Result = UR_CHECK_ERROR(cuMemFree(Buffer->Ptrs[i]));
-          }
-        }
-        break;
-      case ur_buffer_::AllocMode::UseHostPtr:
-        Result = UR_CHECK_ERROR(cuMemHostUnregister(Buffer->HostPtr));
-        break;
-      case ur_buffer_::AllocMode::AllocHostPtr:
-        Result = UR_CHECK_ERROR(cuMemFreeHost(Buffer->HostPtr));
-      };
-    } else {
-      UR_ASSERT(hMem->isImage(), UR_RESULT_ERROR_INVALID_VALUE);
-      // Images are allocated on the first device in a context
-      ScopedContext Active(hMem->getContext()->getDevices()[0]);
-      std::unique_ptr<ur_image_> Image(ur_cast<ur_image_ *>(hMem));
-      if (Image->Mem.SurfaceMem.getSurface() != CUsurfObject{0}) {
-        Result = UR_CHECK_ERROR(
-            cuSurfObjectDestroy(Image->Mem.SurfaceMem.getSurface()));
-      }
-      if (Image->Mem.SurfaceMem.getArray() != CUarray{0}) {
-        Result =
-            UR_CHECK_ERROR(cuArrayDestroy(Image->Mem.SurfaceMem.getArray()));
-      }
-    }
+    Result = hMem->clear();
   } catch (ur_result_t Err) {
     Result = Err;
   } catch (...) {

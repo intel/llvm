@@ -57,6 +57,8 @@ struct ur_mem_handle_t_ {
   virtual ur_result_t allocateMemObjOnDeviceIfNeeded(ur_device_handle_t) = 0;
   virtual ur_result_t migrateMemoryToDeviceIfNeeded(ur_device_handle_t) = 0;
 
+  virtual ur_result_t clear() = 0;
+
   virtual ~ur_mem_handle_t_() = 0;
 
   ur_mutex MemoryAllocationMutex; // A mutex for allocations
@@ -73,8 +75,8 @@ struct ur_mem_handle_t_ {
 
 protected:
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_flags_t MemFlags)
-      : Context{Context},
-        HaveMigratedToDevice(Context->NumDevices, false), MemFlags{MemFlags} {
+      : Context{Context}, HaveMigratedToDevice(Context->NumDevices, false),
+        MemFlags{MemFlags} {
     urContextRetain(Context);
   };
 
@@ -206,6 +208,31 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
     return Ptrs[hDevice->getIndex()];
   }
 
+  ur_result_t clear() override {
+    if (isSubBuffer()) {
+      return UR_RESULT_SUCCESS;
+    }
+    ur_result_t Result = UR_RESULT_SUCCESS;
+
+    switch (MemAllocMode) {
+    case ur_buffer_::AllocMode::CopyIn:
+    case ur_buffer_::AllocMode::Classic:
+      for (auto i = 0u; i < getContext()->NumDevices; ++i) {
+        if (getPtrs()[i] != ur_buffer_::native_type{0}) {
+          ScopedContext Active(getContext()->getDevices()[i]);
+          Result = UR_CHECK_ERROR(cuMemFree(Ptrs[i]));
+        }
+      }
+      break;
+    case ur_buffer_::AllocMode::UseHostPtr:
+      Result = UR_CHECK_ERROR(cuMemHostUnregister(HostPtr));
+      break;
+    case ur_buffer_::AllocMode::AllocHostPtr:
+      Result = UR_CHECK_ERROR(cuMemFreeHost(HostPtr));
+    };
+    return Result;
+  };
+
   ur_result_t allocateMemObjOnDeviceIfNeeded(ur_device_handle_t) override;
   ur_result_t migrateMemoryToDeviceIfNeeded(ur_device_handle_t) override;
 
@@ -226,7 +253,6 @@ struct ur_image_ final : ur_mem_handle_t_ {
     Mem.SurfaceMem.Array = Array;
     Mem.SurfaceMem.SurfObj = Surf;
     Mem.SurfaceMem.ImageType = ImageType;
-    urContextRetain(Context);
   }
 
   /// Constructs the UR allocation for an unsampled image object
@@ -237,7 +263,6 @@ struct ur_image_ final : ur_mem_handle_t_ {
     Mem.ImageMem.Handle = (void *)Surf;
     Mem.ImageMem.ImageType = ImageType;
     Mem.ImageMem.Sampler = nullptr;
-    urContextRetain(Context);
   }
 
   /// Constructs the UR allocation for a sampled image object
@@ -248,10 +273,9 @@ struct ur_image_ final : ur_mem_handle_t_ {
     Mem.ImageMem.Handle = (void *)Tex;
     Mem.ImageMem.ImageType = ImageType;
     Mem.ImageMem.Sampler = Sampler;
-    urContextRetain(Context);
   }
 
-  ~ur_image_() override { urContextRelease(Context); }
+  ~ur_image_() override {};
 
   enum class Type { Surface, Texture } MemType;
 
@@ -287,6 +311,19 @@ struct ur_image_ final : ur_mem_handle_t_ {
 
   bool isBuffer() const noexcept override { return false; }
   bool isImage() const noexcept override { return true; }
+
+  ur_result_t clear() override {
+    // Images are allocated on the first device in a context
+    ur_result_t Result = UR_RESULT_SUCCESS;
+    ScopedContext Active(getContext()->getDevices()[0]);
+    if (Mem.SurfaceMem.getSurface() != CUsurfObject{0}) {
+      Result = UR_CHECK_ERROR(cuSurfObjectDestroy(Mem.SurfaceMem.getSurface()));
+    }
+    if (Mem.SurfaceMem.getArray() != CUarray{0}) {
+      Result = UR_CHECK_ERROR(cuArrayDestroy(Mem.SurfaceMem.getArray()));
+    }
+    return Result;
+  };
 
   ur_result_t allocateMemObjOnDeviceIfNeeded(ur_device_handle_t) override;
   ur_result_t migrateMemoryToDeviceIfNeeded(ur_device_handle_t) override;
