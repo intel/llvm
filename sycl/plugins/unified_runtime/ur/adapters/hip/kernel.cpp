@@ -17,7 +17,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getContext()->getDevice());
+    ScopedDevice Active(hProgram->getContext()->getDevice());
 
     hipFunction_t HIPFunc;
     Result = UR_CHECK_ERROR(

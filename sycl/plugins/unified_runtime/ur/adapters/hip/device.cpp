@@ -929,7 +929,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
 
   ur_event_handle_t_::native_type Event;
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
 
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));
