@@ -55,9 +55,27 @@ struct umfMultiPoolTest : umfPoolTest {
     std::vector<umf::pool_unique_handle_t> pools;
 };
 
-struct umfMemTest : umfPoolTest {
-    void SetUp() override { umfPoolTest::SetUp(); }
-    void TearDown() override { umfPoolTest::TearDown(); }
+struct umfMemTest
+    : umf_test::test,
+      ::testing::WithParamInterface<
+          std::tuple<std::function<umf::pool_unique_handle_t(void)>, int>> {
+    umfMemTest() : pool(nullptr, nullptr), expectedRecycledPoolAllocs(0) {}
+    void SetUp() override {
+        test::SetUp();
+        initialize();
+    }
+
+    void TearDown() override { test::TearDown(); }
+
+    void initialize() {
+        auto [pool_fun, expectedRecycledPoolAllocs] = this->GetParam();
+        EXPECT_NE(pool_fun(), nullptr);
+        this->pool = pool_fun();
+        this->expectedRecycledPoolAllocs = expectedRecycledPoolAllocs;
+    }
+
+    umf::pool_unique_handle_t pool;
+    int expectedRecycledPoolAllocs;
 };
 
 TEST_P(umfPoolTest, allocFree) {
@@ -259,7 +277,7 @@ TEST_P(umfPoolTest, multiThreadedMallocFreeRandomSizes) {
 }
 
 TEST_P(umfMemTest, outOfMem) {
-    static constexpr size_t allocSize = 16;
+    static constexpr size_t allocSize = 4096;
     auto hPool = pool.get();
 
     std::vector<void *> allocations;
@@ -274,9 +292,24 @@ TEST_P(umfMemTest, outOfMem) {
         ASSERT_NE(allocations.back(), nullptr);
     }
 
+    // next part of the test- freeing some memory to allocate it again (as the memory
+    // should be acquired from the pool itself now, not from the provider),
+    // is done only for the disjoint pool for now
+
     // remove last nullptr from the allocations vector
     ASSERT_EQ(allocations.back(), nullptr);
     allocations.pop_back();
+
+    ASSERT_NE(allocations.back(), nullptr);
+    for (int i = 0; i < expectedRecycledPoolAllocs; i++) {
+        umfPoolFree(hPool, allocations.back());
+        allocations.pop_back();
+    }
+
+    for (int i = 0; i < expectedRecycledPoolAllocs; i++) {
+        allocations.emplace_back(umfPoolMalloc(hPool, allocSize));
+        ASSERT_NE(allocations.back(), nullptr);
+    }
 
     for (auto allocation : allocations) {
         umfPoolFree(hPool, allocation);
