@@ -1717,6 +1717,13 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     F.addFnAttr(llvm::Attribute::AlwaysInline);
     return true;
   };
+  auto markNoInline = [](Function &F) {
+    if (F.hasFnAttribute(llvm::Attribute::AlwaysInline))
+      F.removeFnAttr(llvm::Attribute::AlwaysInline);
+    if (F.hasFnAttribute(llvm::Attribute::InlineHint))
+      F.removeFnAttr(llvm::Attribute::InlineHint);
+    F.addFnAttr(llvm::Attribute::NoInline);
+  };
 
   bool NeedInline = false;
   for (auto &F : M) {
@@ -1743,12 +1750,17 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
     }
 
+    if (isAssertFail(F)) {
+      markNoInline(F);
+      continue;
+    }
+
     // TODO: The next code and comment was placed to ESIMDLoweringPass
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
     // it had noinline or VCStackCall attrubute.
     // This code migrated to here without changes, but... VC BE does support
-    //  the calls of spir_func these days, so this code may need re-visiting.
+    //  the calls of spir_func these days, so this code needs re-visiting.
     if (!F.hasFnAttribute(Attribute::NoInline))
       NeedInline |= markAlwaysInlined(F);
 

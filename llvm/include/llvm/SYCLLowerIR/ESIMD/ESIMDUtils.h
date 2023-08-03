@@ -31,6 +31,7 @@ bool isSlmAllocatorDestructor(const Function &F);
 bool isSlmInit(const Function &F);
 bool isSlmAlloc(const Function &F);
 bool isSlmFree(const Function &F);
+bool isAssertFail(const Function &F);
 
 // Tells whether given function is a ESIMD kernel.
 bool isESIMDKernel(const Function &F);

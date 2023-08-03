@@ -687,9 +687,6 @@ bool isGPUDriverGE(queue Q, GPUDriverOS OSCheck, std::string RequiredVersion,
     auto CurrentVersion = Dev.get_info<sycl::info::device::driver_version>();
     CurrentVersion = CurrentVersion.substr(Start, Length);
     verifyDriverVersionFormat(CurrentVersion, RequiredVersion);
-    std::cout << "RequiredVersion = " << RequiredVersion << ", Start=" << Start
-              << ", Length=" << Length << std::endl;
-    std::cout << "CurrentVersion = " << CurrentVersion << std::endl;
     IsGE &= CurrentVersion >= RequiredVersion;
   }
   return IsGE;

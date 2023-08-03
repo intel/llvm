@@ -36,7 +36,7 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL void func(int IArg) {
     // CHECK: llvm.genx.dummy.mov
   }
 
-  // Test case 3: check wait() that prevesrves one simd and lets
+  // Test case 3: check wait() that preserves one simd and lets
   // optimize away the other/unused one.
   {
     simd<uint64_t, 8> A = IArg;
