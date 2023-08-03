@@ -168,6 +168,8 @@ public:
 
   void rebuildEntryPoints(const Module &M) { EntryPoints.rebuild(M); }
 
+  void rebuildEntryPoints() { EntryPoints.rebuild(*M); }
+
   void renameDuplicatesOf(const Module &M, StringRef Suff);
 
   // Fixups an invoke_simd target linkage so that it is not dropped by global

@@ -644,6 +644,11 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
   });
 }
 
+void EntryPointGroup::rebuild(const Module &M) {
+  for (const Function &F : M.functions())
+    Functions.insert(const_cast<Function *>(&F));
+}
+
 namespace {
 // This is a helper class, which allows to group/categorize function based on
 // provided rules. It is intended to be used in device code split

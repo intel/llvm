@@ -1,12 +1,14 @@
 ; Test checks the content of simple generated device image.
 ; It checks scalar, sret and "return by value" versions of SpecConstant functions.
+; Also test checks generated symbols.
 
 ; RUN: sycl-post-link -split=auto -spec-const=rt -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE -DPATH=%t
-; RUN: cat %t_0.prop | FileCheck %s -check-prefix=CHECK-PROP0
-; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
-; RUN: cat %t_0.ll | FileCheck %s -check-prefix=CHECK-IR0
-; RUN: cat %t_1.ll | FileCheck %s -check-prefix=CHECK-IR1 --implicit-check-not "SpecConstant"
+; RUN: FileCheck %s -input-file %t.table -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: FileCheck %s -input-file %t_0.prop -check-prefix=CHECK-PROP0
+; RUN: FileCheck %s -input-file %t_1.prop -check-prefix=CHECK-PROP1
+; RUN: FileCheck %s -input-file %t_0.ll -check-prefix=CHECK-IR0
+; RUN: FileCheck %s -input-file %t_1.ll -check-prefix=CHECK-IR1 --implicit-check-not "SpecConstant"
+; RUN: FileCheck %s -input-file %t_0.sym -check-prefix=CHECK-SYM0
 
 ; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
 ; CHECK-TABLE: [[PATH]]_1.ll|[[PATH]]_1.prop|[[PATH]]_1.sym
@@ -28,6 +30,12 @@
 ; Check that %returned_spec_const value has been replaced by global value.
 ; CHECK-IR1-NOT: %returned_spec_const = call
 ; CHECK-IR1: %sc.e = extractvalue %struct.C { i32 1 }, 0
+
+; CHECK-SYM0: func1
+; CHECK-SYM1-EMPTY:
+
+; CHECK-SYM1: func1
+; CHECK-SYM1-EMPTY:
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

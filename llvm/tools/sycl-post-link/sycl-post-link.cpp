@@ -740,6 +740,7 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
 
   PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
   NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
+  NewModuleDesc->rebuildEntryPoints();
   return std::move(NewModuleDesc);
 }
 
