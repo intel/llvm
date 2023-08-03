@@ -109,13 +109,13 @@ def Action_Group : OptionGroup<"<action group>">, DocName<"Actions">,
 // Meta-group for options which are only used for compilation,
 // and not linking etc.
 def CompileOnly_Group : OptionGroup<"<CompileOnly group>">,
-                        DocName<"Compilation flags">, DocBrief<[{
+                        DocName<"Compilation options">, DocBrief<[{
 Flags controlling the behavior of Clang during compilation. These flags have
 no effect during actions that do not perform compilation.}]>;
 
 def Preprocessor_Group : OptionGroup<"<Preprocessor group>">,
                          Group<CompileOnly_Group>,
-                         DocName<"Preprocessor flags">, DocBrief<[{
+                         DocName<"Preprocessor options">, DocBrief<[{
 Flags controlling the behavior of the Clang preprocessor.}]>;
 
 def IncludePath_Group : OptionGroup<"<I/i group>">, Group<Preprocessor_Group>,
@@ -137,7 +137,7 @@ def d_Group : OptionGroup<"<d group>">, Group<Preprocessor_Group>,
 Flags allowing the state of the preprocessor to be dumped in various ways.}]>;
 
 def Diag_Group : OptionGroup<"<W/R group>">, Group<CompileOnly_Group>,
-                 DocName<"Diagnostic flags">, DocBrief<[{
+                 DocName<"Diagnostic options">, DocBrief<[{
 Flags controlling which warnings, errors, and remarks Clang will generate.
 See the :doc:`full list of warning and remark flags <DiagnosticsReference>`.}]>;
 
@@ -156,10 +156,10 @@ def f_clang_Group : OptionGroup<"<f (clang-only) group>">,
 def pedantic_Group : OptionGroup<"<pedantic group>">, Group<f_Group>,
                      DocFlatten;
 def opencl_Group : OptionGroup<"<opencl group>">, Group<f_Group>,
-                   DocName<"OpenCL flags">;
+                   DocName<"OpenCL options">;
 
 def sycl_Group : OptionGroup<"<SYCL group>">, Group<f_Group>,
-                 DocName<"SYCL flags">;
+                 DocName<"SYCL options">;
 
 def m_Group : OptionGroup<"<m group>">, Group<CompileOnly_Group>,
               DocName<"Target-dependent compilation options">;
@@ -218,20 +218,20 @@ def ggdbN_Group : OptionGroup<"<ggdbN group>">, Group<gN_Group>, DocFlatten;
 def gTune_Group : OptionGroup<"<gTune group>">, Group<g_Group>,
                   DocName<"Debugger to tune debug information for">;
 def g_flags_Group : OptionGroup<"<g flags group>">, Group<DebugInfo_Group>,
-                    DocName<"Debug information flags">;
+                    DocName<"Debug information options">;
 
 def StaticAnalyzer_Group : OptionGroup<"<Static analyzer group>">,
-                           DocName<"Static analyzer flags">, DocBrief<[{
+                           DocName<"Static analyzer options">, DocBrief<[{
 Flags controlling the behavior of the Clang Static Analyzer.}]>;
 
 // gfortran options that we recognize in the driver and pass along when
 // invoking GCC to compile Fortran code.
 def gfortran_Group : OptionGroup<"<gfortran group>">,
-                     DocName<"Fortran compilation flags">, DocBrief<[{
+                     DocName<"Fortran compilation options">, DocBrief<[{
 Flags that will be passed onto the ``gfortran`` compiler when Clang is given
 a Fortran input.}]>;
 
-def Link_Group : OptionGroup<"<T/e/s/t/u group>">, DocName<"Linker flags">,
+def Link_Group : OptionGroup<"<T/e/s/t/u group>">, DocName<"Linker options">,
                  DocBrief<[{Flags that are passed on to the linker}]>;
 def T_Group : OptionGroup<"<T group>">, Group<Link_Group>, DocFlatten;
 def u_Group : OptionGroup<"<u group>">, Group<Link_Group>, DocFlatten;
@@ -259,7 +259,7 @@ def clang_ignored_legacy_options_Group : OptionGroup<"<clang legacy flags>">,
   Group<f_Group>, Flags<[Ignored]>;
 
 def LongDouble_Group : OptionGroup<"<LongDouble group>">, Group<m_Group>,
-  DocName<"Long double flags">,
+  DocName<"Long double options">,
   DocBrief<[{Selects the long double implementation}]>;
 
 // Retired with clang-5.0
@@ -4972,7 +4972,6 @@ def _warn__EQ : Joined<["--"], "warn-=">, Alias<W_Joined>;
 def _warn_ : Joined<["--"], "warn-">, Alias<W_Joined>;
 def _write_dependencies : Flag<["--"], "write-dependencies">, Alias<MD>;
 def _write_user_dependencies : Flag<["--"], "write-user-dependencies">, Alias<MMD>;
-def _ : Joined<["--"], "">, Flags<[Unsupported]>;
 
 // Hexagon feature flags.
 let Flags = [TargetSpecific] in {
