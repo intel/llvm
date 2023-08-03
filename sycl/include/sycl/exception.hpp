@@ -10,8 +10,8 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/CL/cl_platform.h>              // for cl_int
 #include <sycl/backend_types.hpp>             // for backend
+#include <sycl/detail/cl.h>                   // for cl_int
 #include <sycl/detail/common.hpp>             // for codeToString
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
