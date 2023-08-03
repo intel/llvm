@@ -327,21 +327,6 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       QueueImplPtr Queue = MQueue.lock();
       MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
                          (MHostSubmitTime - MDeviceSubmitTime);
-      // std::cout << "3) event_profiling::command_start: MFallbackProfiling:
-      // ON,
-      //     MSubmitTime =
-      //     " << MSubmitTime << std::endl;
-      //     std::cout
-      //     << "3) event_profiling::command_start: MFallbackProfiling: ON,
-      //     MHostSubmitTime =
-      //         " << MHostSubmitTime << std::endl;
-      //         std::cout
-      //         << "3) event_profiling::command_start: MFallbackProfiling: ON,
-      //         MDeviceSubmitTime =
-      //             " << MDeviceSubmitTime << std::endl;
-      //             std::cout
-      //             << "3) event_profiling::command_start: MFallbackProfiling:
-      //             ON, MDeviceStartTime = " << MDeviceStartTime << std::endl;
       return MDeviceStartTime;
   }
 }
@@ -371,25 +356,6 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
                      (MHostSubmitTime - MDeviceSubmitTime);
-    // std::cout << "4) event_profiling::command_start: MFallbackProfiling: ON,
-    //     MSubmitTime =
-    //     " << MSubmitTime << std::endl;
-    //     std::cout
-    //     << "4) event_profiling::command_start: MFallbackProfiling: ON,
-    //     MHostSubmitTime =
-    //         " << MHostSubmitTime << std::endl;
-    //         std::cout
-    //         << "4) event_profiling::command_start: MFallbackProfiling: ON,
-    //         MDeviceSubmitTime =
-    //             " << MDeviceSubmitTime << std::endl;
-    //             std::cout
-    //             << "4) event_profiling::command_start: MFallbackProfiling:
-    //             ON, MDeviceStartTime =
-    //                 " << MDeviceStartTime << std::endl;
-    //                 std::cout
-    //                 << "4) event_profiling::command_start:
-    //                 MFallbackProfiling: ON, MDeviceEndTime = " <<
-    //                 MDeviceEndTime << std::endl;
     return MDeviceEndTime;
   }
 }
@@ -516,26 +482,10 @@ void event_impl::setSubmissionTime() {
       // to use it to normalize to the event profiling time base
       if (!MFallbackProfiling) {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-        // std::cout << "2) setSubmissionTime: MSubmitTime = " << MSubmitTime
-        //           << std::endl;
-        // std::cout << "2) setSubmissionTime: MSubmitTimeBase = "
-        //           << MHostSubmitTime << std::endl;
-        // std::cout << "2) setSubmissionTime: MDeviceSubmitTime = "
-        << MDeviceSubmitTime << std::endl;
       }
       else {
         MHostSubmitTime = getTimestamp();
         MDeviceSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-        // std::cout << "2) setSubmissionTime: MFallbackProfiling: ON,
-        //     MSubmitTime = " << MSubmitTime << std::endl;
-        //                   std::cout
-        //                   << "2) setSubmissionTime: MFallbackProfiling: ON,
-        //                   MHostSubmitTime =
-        //                       " << MHostSubmitTime << std::endl;
-        //                       std::cout
-        //                       << "2) setSubmissionTime: MFallbackProfiling:
-        //                       ON, MDeviceSubmitTime =
-        //                           " << MDeviceSubmitTime << std::endl;
       }
     } catch (feature_not_supported &e) {
       throw sycl::exception(
@@ -544,14 +494,6 @@ void event_impl::setSubmissionTime() {
               e.what());
     }
   }
-
-  // std::cout << "2) setSubmissionTime: MSubmitTime = " << MSubmitTime
-  //           << std::endl;
-  // std::cout << "2) setSubmissionTime: MHostSubmitTime = " << MHostSubmitTime
-  //           << std::endl;
-  // std::cout << "2) setSubmissionTime: MDeviceSubmitTime = " <<
-  // MDeviceSubmitTime
-  //           << std::endl;
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
