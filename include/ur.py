@@ -2265,53 +2265,6 @@ class ur_exp_peer_info_t(c_int):
 __use_win_types = "Windows" == platform.uname()[0]
 
 ###############################################################################
-## @brief Function-pointer for urLoaderConfigCreate
-if __use_win_types:
-    _urLoaderConfigCreate_t = WINFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
-else:
-    _urLoaderConfigCreate_t = CFUNCTYPE( ur_result_t, POINTER(ur_loader_config_handle_t) )
-
-###############################################################################
-## @brief Function-pointer for urLoaderConfigRetain
-if __use_win_types:
-    _urLoaderConfigRetain_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
-else:
-    _urLoaderConfigRetain_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urLoaderConfigRelease
-if __use_win_types:
-    _urLoaderConfigRelease_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
-else:
-    _urLoaderConfigRelease_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urLoaderConfigGetInfo
-if __use_win_types:
-    _urLoaderConfigGetInfo_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-else:
-    _urLoaderConfigGetInfo_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, ur_loader_config_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-
-###############################################################################
-## @brief Function-pointer for urLoaderConfigEnableLayer
-if __use_win_types:
-    _urLoaderConfigEnableLayer_t = WINFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
-else:
-    _urLoaderConfigEnableLayer_t = CFUNCTYPE( ur_result_t, ur_loader_config_handle_t, c_char_p )
-
-
-###############################################################################
-## @brief Table of LoaderConfig functions pointers
-class ur_loader_config_dditable_t(Structure):
-    _fields_ = [
-        ("pfnCreate", c_void_p),                                        ## _urLoaderConfigCreate_t
-        ("pfnRetain", c_void_p),                                        ## _urLoaderConfigRetain_t
-        ("pfnRelease", c_void_p),                                       ## _urLoaderConfigRelease_t
-        ("pfnGetInfo", c_void_p),                                       ## _urLoaderConfigGetInfo_t
-        ("pfnEnableLayer", c_void_p)                                    ## _urLoaderConfigEnableLayer_t
-    ]
-
-###############################################################################
 ## @brief Function-pointer for urPlatformGet
 if __use_win_types:
     _urPlatformGet_t = WINFUNCTYPE( ur_result_t, POINTER(ur_adapter_handle_t), c_ulong, c_ulong, POINTER(ur_platform_handle_t), POINTER(c_ulong) )
@@ -3792,7 +3745,6 @@ class ur_device_dditable_t(Structure):
 ###############################################################################
 class ur_dditable_t(Structure):
     _fields_ = [
-        ("LoaderConfig", ur_loader_config_dditable_t),
         ("Platform", ur_platform_dditable_t),
         ("Context", ur_context_dditable_t),
         ("Event", ur_event_dditable_t),

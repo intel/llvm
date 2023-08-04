@@ -634,7 +634,7 @@ struct urUSMPoolTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
-                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
+                                     0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
     }
 
@@ -645,15 +645,14 @@ struct urUSMPoolTest : urContextTest {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::TearDown());
     }
 
-    ur_usm_pool_handle_t pool;
+    ur_usm_pool_handle_t pool = nullptr;
 };
 
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
-                                     UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
-        ur_usm_pool_handle_t pool = nullptr;
+                                     0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
     }
 
@@ -664,7 +663,7 @@ template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::TearDown());
     }
 
-    ur_usm_pool_handle_t pool;
+    ur_usm_pool_handle_t pool = nullptr;
 };
 
 struct urVirtualMemGranularityTest : urContextTest {
@@ -841,8 +840,12 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
         if (!device_usm) {
             GTEST_SKIP() << "Device USM in not supported";
         }
+        if (use_pool) {
+            ur_usm_pool_desc_t pool_desc = {};
+            ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
+        }
         ASSERT_SUCCESS(urUSMDeviceAlloc(this->context, this->device, nullptr,
-                                        nullptr, allocation_size, &ptr));
+                                        pool, allocation_size, &ptr));
         ur_event_handle_t event = nullptr;
 
         uint8_t fillPattern = 0;
@@ -857,11 +860,17 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
 
     void TearDown() override {
         ASSERT_SUCCESS(urUSMFree(this->context, ptr));
+        if (pool) {
+            ASSERT_TRUE(use_pool);
+            ASSERT_SUCCESS(urUSMPoolRelease(pool));
+        }
         uur::urQueueTestWithParam<T>::TearDown();
     }
 
     size_t allocation_size = sizeof(int);
     void *ptr = nullptr;
+    bool use_pool = false;
+    ur_usm_pool_handle_t pool = nullptr;
 };
 
 /// @brief
@@ -878,6 +887,22 @@ std::string deviceTestWithParamPrinter(
     ss << param;
     return uur::GetPlatformAndDeviceName(device) + "__" + ss.str();
 }
+
+// Helper struct to allow bool param tests with meaningful names.
+struct BoolTestParam {
+    std::string name;
+    bool value;
+
+    // For use with testing::ValuesIn to generate the param values.
+    static std::vector<BoolTestParam> makeBoolParam(std::string name) {
+        return std::vector<BoolTestParam>({{name, true}, {name, false}});
+    }
+};
+
+template <>
+std::string deviceTestWithParamPrinter<BoolTestParam>(
+    const ::testing::TestParamInfo<
+        std::tuple<ur_device_handle_t, BoolTestParam>> &info);
 
 struct urProgramTest : urQueueTest {
     void SetUp() override {
