@@ -25,6 +25,7 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/ImplicitLocOpBuilder.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Demangle/Demangle.h"
@@ -1783,6 +1784,269 @@ private:
 
   AccessorTypeTag accessorTypeTag;
 };
+
+/// Starting from a `sycl.host.handler.set_kernel` op, this pattern discovers
+/// the corresponding `sycl.host.handler.set_nd_range` and
+/// `sycl.host.set_captured` ops in the CGF. The pattern relies on variable
+/// annotations in SYCL's `handler.hpp` to find the number and kinds of kernel
+/// parameters. This info is used to verify that suitable values/entities have
+/// been captured.
+///
+/// Known limitations:
+/// - This pattern only matches `parallel_for` launches with the kernel passed
+///   as a lambda function.
+/// - It requires that the actual `parallel_for` call was inlined, so that the
+///   precursor ops are all in the same function (= CGF).
+/// - Launches without arguments are currently not raised due to their limited
+///   practical relevance.
+class RaiseScheduleKernel
+    : public OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel> {
+public:
+  using OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel>::OpHostRaisePattern;
+
+  LogicalResult matchAndRewrite(sycl::SYCLHostHandlerSetKernel op,
+                                PatternRewriter &rewriter) const final {
+    // `set_kernel` op can only be raised in a CGF.
+    auto enclosingFunc = op->getParentOfType<LLVM::LLVMFuncOp>();
+    assert(enclosingFunc);
+    auto handler = op.getHandler();
+    assert(handler == getHandler(enclosingFunc));
+
+    // Discover `set_nd_range` ops in the CGF. We are currently only interested
+    // in `parallel_for` launches, hence there should be exactly one
+    // `set_nd_range` op in the function.
+    auto setNDRangeOps =
+        enclosingFunc.getOps<sycl::SYCLHostHandlerSetNDRange>();
+    if (!llvm::hasNItems(setNDRangeOps, 1))
+      return failure();
+    auto range = *setNDRangeOps.begin();
+
+    // Extract the number of parameters and the pointer to the
+    // `kernel_signatures` data structure from annotations in the predecessor
+    // block (the `llvm.invoke` to `extractArgsAndReqsFromLambda` separates the
+    // annotations and the `set_kernel` op into different blocks).
+    auto *predBlock = op->getBlock()->getSinglePredecessor();
+    if (!predBlock)
+      return failure();
+    auto failureOrParamInfo = getKernelParameterInfo(predBlock);
+    if (failed(failureOrParamInfo))
+      return failure();
+    auto [numParams, paramDesc] = *failureOrParamInfo;
+
+    // Parse `kernel_signatures` to get the parameter kinds.
+    auto failureOfParamKinds = getParameterKinds(numParams, paramDesc);
+    if (failed(failureOfParamKinds))
+      return failure();
+    auto paramKinds = *failureOfParamKinds;
+
+    // No point in trying to raise a `schedule_kernel` without arguments.
+    if (numParams == 0)
+      return failure();
+
+    // Discover `set_captured` ops in the CGF. We check that we have captured a
+    // value matching the expected kind for each parameter.
+    auto setCapturedOps = enclosingFunc.getOps<sycl::SYCLHostSetCaptured>();
+    unsigned numCaptured = llvm::range_size(setCapturedOps);
+
+    // Wrong number of `set_captured` ops.
+    if (numCaptured != numParams)
+      return failure();
+
+    SmallVector<Value> args(numCaptured);
+    SmallVector<Type> syclTypes(numCaptured, rewriter.getNoneType());
+    for (auto capture : setCapturedOps) {
+      unsigned idx = capture.getIndex();
+      // Index is out of bounds.
+      if (idx >= numCaptured)
+        return failure();
+
+      args[idx] = capture.getValue();
+
+      auto syclType = capture.getSyclType();
+      auto kind = paramKinds[idx];
+      switch (kind) {
+      case kernel_param_kind_t::kind_accessor:
+        // We expected an accessor, but the captured value isn't one.
+        if (!syclType.has_value() || !isa<sycl::AccessorType>(syclType.value()))
+          return failure();
+
+        syclTypes[idx] = syclType.value();
+        break;
+
+      case kernel_param_kind_t::kind_std_layout:
+        // We expected standard layout, but the captured value is an accessor.
+        if (syclType.has_value() && isa<sycl::AccessorType>(syclType.value()))
+          return failure();
+        break;
+
+      default:
+        // TODO: support other argument kinds as well
+        return failure();
+      }
+    }
+
+    // `set_captured` ops didn't cover all args.
+    if (!args.empty() &&
+        !llvm::all_of(args, [](auto v) { return static_cast<bool>(v); }))
+      return failure();
+
+    // Finally construct the op with the raised information.
+    rewriter.replaceOpWithNewOp<sycl::SYCLHostScheduleKernel>(
+        op, handler, op.getKernelName(), range.getRange(), range.getOffset(),
+        args, rewriter.getTypeArrayAttr(syclTypes), range.getNdRange());
+
+    return success();
+  }
+
+private:
+  // Copy of `sycl::_V1::detail::kernel_param_kind_t` from
+  // `sycl/include/sycl/detail/kernel_desc.hpp`.
+  enum class kernel_param_kind_t {
+    kind_accessor = 0,
+    kind_std_layout = 1, // standard layout object parameters
+    kind_sampler = 2,
+    kind_pointer = 3,
+    kind_specialization_constants_buffer = 4,
+    kind_stream = 5,
+    kind_invalid = 0xf, // not a valid kernel kind
+  };
+
+  /// Returns the unique value stored into the variable annotated by
+  /// \p annotation, or nullptr if there is no unique value, or the variable has
+  /// unexpected users.
+  static Value getAnnotatedValue(LLVM::VarAnnotation annotation) {
+    Value ptr = annotation.getVal();
+    if (!isa_and_nonnull<LLVM::AllocaOp>(ptr.getDefiningOp()))
+      return {};
+
+    Value value;
+    for (auto *user : ptr.getUsers()) {
+      if (user == annotation)
+        continue;
+      if (auto v = TypeSwitch<Operation *, Value>(user)
+                       .Case<LLVM::StoreOp>([&](auto st) {
+                         return st.getAddr() == ptr ? st.getValue() : Value();
+                       })
+                       .Default(Value())) {
+        if (value)
+          // Assignment is not unique.
+          return {};
+
+        value = v;
+      } else {
+        // Marker intrinsics are unproblematic.
+        if (isa<LLVM::LifetimeStartOp, LLVM::LifetimeEndOp>(user))
+          continue;
+
+        // Unexpected user; conservatively assume that assignment is not unique.
+        return {};
+      }
+    }
+
+    return value;
+  }
+
+  /// Scan \p block for `llvm.intr.var.annotation`s to try to extract the number
+  /// of kernel parameters and a pointer to the first descriptor.
+  static FailureOr<std::tuple<unsigned, Value>>
+  getKernelParameterInfo(Block *block) {
+    auto annotations = block->getOps<LLVM::VarAnnotation>();
+    if (!llvm::hasNItems(annotations, 2))
+      return failure();
+
+    LLVM::VarAnnotation numParamsAnn = *annotations.begin();
+    LLVM::VarAnnotation paramDescAnn = *std::next(annotations.begin());
+    FailureOr<StringRef> numParamsAnnStr = getAnnotation(numParamsAnn);
+    FailureOr<StringRef> paramDescAnnStr = getAnnotation(paramDescAnn);
+    if (failed(numParamsAnnStr) || failed(paramDescAnnStr) ||
+        *numParamsAnnStr != "kernel_num_params" ||
+        *paramDescAnnStr != "kernel_param_desc")
+      return failure();
+
+    Value numParams = getAnnotatedValue(numParamsAnn);
+    Value paramDesc = getAnnotatedValue(paramDescAnn);
+
+    APInt numParamsConst;
+    if (!matchPattern(numParams, m_ConstantInt(&numParamsConst)))
+      return failure();
+
+    return std::tuple<unsigned, Value>{numParamsConst.getZExtValue(),
+                                       paramDesc};
+  }
+
+  /// Try to parse \p numParams kernel parameter descriptors starting from the
+  /// \p paramDesc pointer into the `kernel_signatures` constant from the
+  /// integration header. If successful, return the descriptors' kinds.
+  static FailureOr<SmallVector<kernel_param_kind_t>>
+  getParameterKinds(unsigned numParams, Value paramDesc) {
+    FlatSymbolRefAttr kernelSignaturesRef;
+    unsigned offset = 0;
+    if (auto addressOf = paramDesc.getDefiningOp<LLVM::AddressOfOp>()) {
+      kernelSignaturesRef = addressOf.getGlobalNameAttr();
+    } else {
+      auto gep = paramDesc.getDefiningOp<LLVM::GEPOp>();
+      if (!gep || !gep.getDynamicIndices().empty())
+        return failure();
+
+      auto indices = gep.getRawConstantIndices();
+      if (indices.size() != 2 || indices[0] != 0)
+        return failure();
+      offset = indices[1];
+
+      addressOf = gep.getBase().getDefiningOp<LLVM::AddressOfOp>();
+      if (!addressOf)
+        return failure();
+      kernelSignaturesRef = addressOf.getGlobalNameAttr();
+    }
+
+    if (kernelSignaturesRef.getValue() !=
+        "_ZN4sycl3_V16detailL17kernel_signaturesE")
+      return failure();
+
+    auto kernelSignatures =
+        SymbolTable::lookupNearestSymbolFrom<LLVM::GlobalOp>(
+            paramDesc.getDefiningOp(), kernelSignaturesRef);
+    if (!kernelSignatures)
+      return failure();
+
+    // We have found the compiler-generated `kernel_signatures` constant from
+    // the integration header. From now on, assert on assumptions rather than
+    // returning `failure()`.
+
+    Value descArray =
+        kernelSignatures.getBody()->getTerminator()->getOperand(0);
+
+    auto extractKindFromDescriptor = [](Value desc) -> kernel_param_kind_t {
+      APInt kind;
+      bool match = matchPattern(
+          desc, m_Op<LLVM::InsertValueOp>(
+                    m_Op<LLVM::InsertValueOp>(
+                        m_Op<LLVM::InsertValueOp>(m_Op<LLVM::UndefOp>(),
+                                                  m_ConstantInt(&kind)),
+                        m_Constant()),
+                    m_Constant()));
+      assert(match);
+      return static_cast<kernel_param_kind_t>(kind.getZExtValue());
+    };
+
+    SmallVector<kernel_param_kind_t> paramKinds(
+        numParams, kernel_param_kind_t::kind_invalid);
+
+    Operation *currentOp = descArray.getDefiningOp();
+    while (isa_and_nonnull<LLVM::InsertValueOp>(currentOp)) {
+      auto insertValue = cast<LLVM::InsertValueOp>(currentOp);
+      auto positions = insertValue.getPosition();
+      assert(positions.size() == 1);
+      unsigned position = positions.front();
+      if (position >= offset && position < offset + numParams)
+        paramKinds[position - offset] =
+            extractKindFromDescriptor(insertValue.getValue());
+      currentOp = insertValue.getContainer().getDefiningOp();
+    }
+
+    return paramKinds;
+  }
+};
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -1809,12 +2073,13 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   rewritePatterns.add<RaiseIDDefaultConstructor, RaiseIDCopyConstructor,
                       RaiseRangeCopyConstructor, RaiseRangeCopyConstructor,
                       RaiseIDConstructor, RaiseRangeConstructor>(context,
-                                                                 /*benefit=*/3);
+                                                                 /*benefit=*/4);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
-                                               /*benefit=*/2);
+                                               /*benefit=*/3);
   rewritePatterns.add<RaiseSetNDRange, RaiseSetCaptured>(context,
-                                                         /*benefit=*/1);
-
+                                                         /*benefit=*/2);
+  rewritePatterns.add<RaiseScheduleKernel>(context,
+                                           /*benefit=*/1);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
   if (failed(applyPatternsAndFoldGreedily(scopeOp, frozen)))

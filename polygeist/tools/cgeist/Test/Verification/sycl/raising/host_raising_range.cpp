@@ -34,10 +34,10 @@ class KernelName;
 // CHECK:         sycl.host.constructor(%[[G_SIZE:.*]], %{{.*}}) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
 // CHECK:         sycl.host.handler.set_nd_range %[[HANDLER:.*]] -> range %[[G_SIZE]] : !llvm.ptr, !llvm.ptr
 
-// COM: Check we can detect kernel assignment to a sycl::handler:
+// COM: Check we can detect kernel assignment to a sycl::handler. In case of the actual kernel, this is raised further to a `schedule_kernel` op
 
 // CHECK-DAG: sycl.host.handler.set_kernel %[[HANDLER]] -> @device_functions::@_ZTSN4sycl3_V16detail19__pf_kernel_wrapperI10KernelNameEE : !llvm.ptr
-// CHECK-DAG: sycl.host.handler.set_kernel %[[HANDLER]] -> @device_functions::@_ZTS10KernelName : !llvm.ptr
+// CHECK-DAG: sycl.host.schedule_kernel %[[HANDLER]] -> @device_functions::@_ZTS10KernelName[range %[[G_SIZE]]]({{.*}}) : (!llvm.ptr, !llvm.ptr, {{.*}}) -> ()
 
 int main() {
   constexpr std::size_t N = 1024;

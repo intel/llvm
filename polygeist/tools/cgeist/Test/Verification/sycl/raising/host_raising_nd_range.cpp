@@ -39,9 +39,9 @@ class KernelName;
 // CHECK:         sycl.host.constructor(%[[ND_RANGE:.*]], %[[GS]], %[[LS]], %[[OFF]]) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:         sycl.host.handler.set_nd_range %[[HANDLER:.*]] -> nd_range %[[ND_RANGE]] : !llvm.ptr, !llvm.ptr
 
-// COM: Check we can detect kernel assignment to a sycl::handler:
+// COM: Check we can detect kernel assignment to a sycl::handler and subsequently raise it to a `schedule_kernel` op
 
-// CHECK-DAG: sycl.host.handler.set_kernel %[[HANDLER:.*]] -> @device_functions::@_ZTS10KernelName : !llvm.ptr
+// CHECK-DAG: sycl.host.schedule_kernel %[[HANDLER]] -> @device_functions::@_ZTS10KernelName[nd_range %[[ND_RANGE]]]({{.*}}) : (!llvm.ptr, !llvm.ptr, {{.*}}) -> ()
 
 int main() {
   constexpr std::size_t N = 1024;

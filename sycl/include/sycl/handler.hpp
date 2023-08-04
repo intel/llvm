@@ -763,9 +763,10 @@ private:
     if (KernelHasName) {
       // TODO support ESIMD in no-integration-header case too.
       MArgs.clear();
+      auto numParams __SYCL_ANNOTATE(kernel_num_params) = KI::getNumParams();
+      auto *paramDesc __SYCL_ANNOTATE(kernel_param_desc) = &KI::getParamDesc(0);
       extractArgsAndReqsFromLambda(reinterpret_cast<char *>(KernelPtr),
-                                   KI::getNumParams(), &KI::getParamDesc(0),
-                                   KI::isESIMD());
+                                   numParams, paramDesc, KI::isESIMD());
       MKernelName = KI::getName();
     } else {
       // In case w/o the integration header it is necessary to process
