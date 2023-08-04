@@ -2457,7 +2457,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 
   auto AspectsPropIt = getPropIt("aspects");
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
-  auto ReqdWGSizeSizeTPropIt = getPropIt("reqd_work_group_size_size_t");
+  auto ReqdWGSizeUint64TTPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
@@ -2476,34 +2476,40 @@ checkDevSupportDeviceRequirements(const device &Dev,
   }
 
   // Checking if device supports defined required work group size
-  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeSizeTPropIt) {
-    bool usingSizeT = ReqdWGSizeSizeTPropIt.has_value();
-    auto it = usingSizeT ? ReqdWGSizeSizeTPropIt : ReqdWGSizeUint32TPropIt;
+  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeUint64TTPropIt) {
+    bool usingUint64_t = ReqdWGSizeUint64TTPropIt.has_value();
+    auto it =
+        usingUint64_t ? ReqdWGSizeUint64TTPropIt : ReqdWGSizeUint32TPropIt;
 
     ByteArray ReqdWGSize = DeviceBinaryProperty(*(it.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
     ReqdWGSize.dropBytes(8);
-    size_t ReqdWGSizeAllDimsTotal = 1;
-    std::vector<size_t> ReqdWGSizeVec;
+    uint64_t ReqdWGSizeAllDimsTotal = 1;
+    std::vector<uint64_t> ReqdWGSizeVec;
     int Dims = 0;
     while (!ReqdWGSize.empty()) {
       // The reqd_work_group_size data is stored as uint32_t's,
       // but we'll widen the result to uint64_t.
-      size_t SingleDimSize = usingSizeT ? ReqdWGSize.consume<size_t>()
-                                        : ReqdWGSize.consume<uint32_t>();
+      uint64_t SingleDimSize = usingUint64_t ? ReqdWGSize.consume<uint64_t>()
+                                             : ReqdWGSize.consume<uint32_t>();
       if (auto res = multiply_with_overflow_check(ReqdWGSizeAllDimsTotal,
                                                   SingleDimSize))
         ReqdWGSizeAllDimsTotal = *res;
       else
-        return sycl::exception(sycl::errc::kernel_not_supported,
-                               "Required work-group size is not supported"
-                               " (too large)");
+        return sycl::exception(
+            sycl::errc::kernel_not_supported,
+            "Required work-group size is not supported"
+            " (total number of work-items requested can't fit into size_t)");
       ReqdWGSizeVec.push_back(SingleDimSize);
       Dims++;
     }
 
+    // The SingleDimSize was computed in an uint64_t; size_t does not
+    // necessarily have to be the same uint64_t (but should fit in an
+    // uint64_t).
     if (ReqdWGSizeAllDimsTotal >
-        Dev.get_info<info::device::max_work_group_size>())
+            Dev.get_info<info::device::max_work_group_size>() ||
+        ReqdWGSizeAllDimsTotal > std::numeric_limits<size_t>::max())
       return sycl::exception(sycl::errc::kernel_not_supported,
                              "Required work-group size " +
                                  std::to_string(ReqdWGSizeAllDimsTotal) +

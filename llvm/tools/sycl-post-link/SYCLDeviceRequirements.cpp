@@ -43,7 +43,7 @@ void llvm::getSYCLDeviceRequirements(
       {"sycl_used_aspects", "aspects"}, {"sycl_fixed_targets", "fixed_target"}};
 
   for (const auto &[MDName, MappedName] : ReqdMDs) {
-    std::set<int64_t> Values;
+    std::set<uint32_t> Values;
     for (const Function &F : MD.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MDName)) {
         for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
@@ -67,7 +67,7 @@ void llvm::getSYCLDeviceRequirements(
         std::vector<uint32_t>(Values.begin(), Values.end());
   }
 
-  std::optional<llvm::SmallVector<size_t, 3>> ReqdWorkGroupSize;
+  std::optional<llvm::SmallVector<uint64_t, 3>> ReqdWorkGroupSize;
   for (const Function &F : MD.getModule()) {
     if (const MDNode *MDN = F.getMetadata("reqd_work_group_size")) {
       llvm::SmallVector<size_t, 3> NewReqdWorkGroupSize;
@@ -76,15 +76,17 @@ void llvm::getSYCLDeviceRequirements(
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!ReqdWorkGroupSize)
         ReqdWorkGroupSize = NewReqdWorkGroupSize;
-      else
-        assert(std::equal(ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end(),
-                          NewReqdWorkGroupSize.begin()));
     }
   }
 
+  // TODO: Before intel/llvm#10620, the reqd_work_group_size attribute
+  // stores its values as uint32_t, but this needed to be expanded to
+  // uint64_t.  However, this change did not happen in ABI-breaking
+  // window, so we attach the required work-group size as the
+  // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
+  // window, this can be changed back to reqd_work_group_size.
   if (ReqdWorkGroupSize)
-    Requirements["reqd_work_group_size_size_t"] = std::vector<size_t>(
-        ReqdWorkGroupSize->begin(), ReqdWorkGroupSize->end());
+    Requirements["reqd_work_group_size_uint64_t"] = *ReqdWorkGroupSize;
 
   // There should only be at most one function with
   // intel_reqd_sub_group_size metadata when considering the entry
