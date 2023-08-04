@@ -63,7 +63,7 @@ public:
   range(range<Dimensions> &&rhs) = default;
   range<Dimensions> &operator=(const range<Dimensions> &rhs) = default;
   range<Dimensions> &operator=(range<Dimensions> &&rhs) = default;
-  range() = delete;
+  range() = default;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
