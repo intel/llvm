@@ -8,6 +8,11 @@ on:
     - '.github/workflows/**'
 
 jobs:
+  # fake:
+  #   runs-on: [Linux]
+  #   steps:
+  #     - run: echo "Build done"
+
   build:
     uses: ./.github/workflows/sycl_linux_build.yml
     with:

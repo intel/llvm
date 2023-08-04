@@ -1,4 +1,4 @@
-name: Allocate/Shutdown AWS CUDA Runner
+name: E2E on AWS CUDA
 
 on:
   workflow_run:
@@ -20,6 +20,20 @@ jobs:
             const run_id = '${{ github.run_id }}'
             const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
 
+            // TODO: Decide what we want to keep.
+
+            // Create commit status.
+            await github.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: 'pending',
+              target_url: this_run_url,
+              description: 'SYCL E2E on AWS CUDA',
+              context: 'SYCL E2E on AWS CUDA',
+            })
+
+            // Create check run.
             const result = await  github.request('POST /repos/{owner}/{repo}/check-runs', {
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -56,9 +70,9 @@ jobs:
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: CUDA E2E
-      runner: 'aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}'
+      runner: '["aws_cuda-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}"]'
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-      image_options: -u 1001 --gpus all
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
       target_devices: ext_oneapi_cuda:gpu
       ref: ${{ github.sha }}
       merge_ref: ${{ github.event.pull_request.base.sha }}
@@ -76,17 +90,36 @@ jobs:
       - uses: actions/github-script@v6
         with:
           script: |
+            const sha = context.payload.workflow_run.head_sha
+            const run_id = '${{ github.run_id }}'
+            const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
+
+            // TODO: Decide what we want to keep.
+
+            // Update commit status.
+            await github.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: '${{ needs.e2e-cuda.result }}',
+              target_url: this_run_url,
+              description: 'SYCL E2E on AWS CUDA',
+              context: 'SYCL E2E on AWS CUDA',
+            })
+
+            // Update check run.
             const result = await github.request('PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}', {
               owner: context.repo.owner,
               repo: context.repo.repo,
               check_run_id: '${{ needs.create-check.outputs.id }}',
               status: 'completed',
-              conclusion: '${{ needs.e2e-cuda.conclusion }}'
+              conclusion: '${{ needs.e2e-cuda.result }}'
             })
             console.log(result)
 
   aws-stop:
     needs: [aws-start, e2e-cuda]
+    if: always()
     runs-on: ubuntu-20.04
     environment: aws
     steps:

@@ -257,15 +257,16 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              diag::err_esimd_global_in_sycl_context,
                              Sema::DeviceDiagnosticReason::Sycl);
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
-      // SYCL device function cannot be called from an ESIMD context. However,
-      // funcitons that start with '__spirv_' or '__sycl_' are exceptions to
-      // this rule.
+      // SYCL device function cannot be called from ESIMD context. However,
+      // there are some exceptions from this rule - functions that start
+      // with '__spirv_', '__sycl_', '__assert_fail', etc.
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->getName().startswith("__spirv_") &&
           !Id->getName().startswith("__sycl_") &&
           !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
-          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL")) {
+          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL") &&
+          !Id->getName().startswith("__assert_fail")) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
