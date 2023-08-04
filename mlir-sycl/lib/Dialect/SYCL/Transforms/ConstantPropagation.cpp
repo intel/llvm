@@ -170,7 +170,7 @@ public:
   }
 };
 
-/// Class representing a constant arithmetic argument.
+/// Class representing a constant array argument.
 class ConstantArrayArg : public ConstantOpArg {
 public:
   ConstantArrayArg(unsigned index, LLVM::GlobalOp definingOp)
