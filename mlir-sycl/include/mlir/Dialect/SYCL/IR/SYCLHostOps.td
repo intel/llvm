@@ -107,7 +107,8 @@ def SYCLHostHandlerSetKernel
     Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
     and the kernel being launched.
   }];
-  let arguments = (ins LLVM_AnyPointer:$handler, SymbolRefAttr:$kernel_name);
+  let arguments = (ins Arg<LLVM_AnyPointer, "The handler", [MemWrite]>:$handler,
+                       SymbolRefAttr:$kernel_name);
   let assemblyFormat = [{
     $handler `->` $kernel_name attr-dict `:` type($handler)
   }];
@@ -123,9 +124,9 @@ def SYCLHostHandlerSetNDRange
     the latter case, an `id` pointer can be optionally given as the `offset`. In
     the former case, the `nd_range` attribute must be set.
   }];
-  let arguments = (ins LLVM_AnyPointer:$handler,
-                       LLVM_AnyPointer:$range,
-                       Optional<LLVM_AnyPointer>:$offset,
+  let arguments = (ins Arg<LLVM_AnyPointer, "The handler", [MemWrite]>:$handler,
+                       Arg<LLVM_AnyPointer, "The range", [MemRead]>:$range,
+                       Arg<Optional<LLVM_AnyPointer>, "The offset", [MemRead]>:$offset,
                        UnitAttr:$nd_range);
   let builders = [
     OpBuilder<(ins "::mlir::Value":$handler,
@@ -164,7 +165,9 @@ def SYCLHostSetCaptured : SYCL_HostOp<"set_captured"> {
     ```
   }];
   let arguments = (ins
-    LLVM_AnyPointer:$lambda, I64Attr:$index, AnyType:$value,
+    Arg<LLVM_AnyPointer, "The lambda", [MemWrite]>:$lambda,
+    I64Attr:$index,
+    Arg<AnyType, "The captured value", [MemRead]>:$value,
     OptionalAttr<TypeAttr>:$sycl_type
   );
   let assemblyFormat = [{
