@@ -1167,26 +1167,37 @@ void ConstantPropagationPass::runOnOperation() {
       return;
     }
 
-    constexpr auto isSingleton = [](auto range) {
-      return std::next(range.begin()) == range.end();
-    };
-
     auto module = op->getParentOfType<ModuleOp>();
-    std::optional<SymbolTable::UseRange> uses =
+    std::optional<SymbolTable::UseRange> optUses =
         SymbolTable::getSymbolUses(op, module);
-    if (!(uses && isSingleton(*uses))) {
+    if (!optUses) {
+      LLVM_DEBUG(llvm::dbgs().indent(2)
+                 << "SYCL constant propagation pass expects at least one "
+                    "kernel launch point\n");
+      return;
+    }
+
+    auto schedKernelOps = llvm::make_filter_range(
+        llvm::map_range(*optUses,
+                        [](const SymbolTable::SymbolUse &use) {
+                          return dyn_cast<SYCLHostScheduleKernel>(
+                              use.getUser());
+                        }),
+        llvm::identity<SYCLHostScheduleKernel>());
+
+    if (!llvm::hasSingleElement(schedKernelOps)) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "SYCL constant propagation pass expects a "
                     "single kernel launch point\n");
       return;
     }
 
-    auto launchPoint =
-        dyn_cast<SYCLHostScheduleKernel>(uses->begin()->getUser());
+    SYCLHostScheduleKernel launchPoint = *schedKernelOps.begin();
     if (!launchPoint) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
                  << "SYCL constant propagation pass expects launch "
                     "point to be 'sycl.host.schedule_kernel'\n");
+      return;
     }
 
     propagateConstantArgs(getConstantArgs(launchPoint, op.getArgumentTypes(),
