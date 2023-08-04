@@ -1,7 +1,5 @@
-// REQUIRES: level_zero, gpu, TEMPORARY_DISABLED
-// Disabled as thread safety not yet implemented
-
-// RUN: %clangxx -pthread -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
+// REQUIRES: level_zero, gpu
+// RUN: %{build_pthread_inc} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
@@ -46,8 +44,11 @@ int main() {
   run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
   Graph.end_recording();
 
+  Barrier SyncPoint{NumThreads};
+
   auto GraphExec = Graph.finalize();
   auto SubmitGraph = [&]() {
+    SyncPoint.wait();
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   };
 

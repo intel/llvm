@@ -683,6 +683,7 @@ public:
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
   }
 

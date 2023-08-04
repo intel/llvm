@@ -21,6 +21,7 @@
 #include <functional>
 #include <list>
 #include <set>
+#include <shared_mutex>
 
 namespace sycl {
 __SYCL_INLINE_VER_NAMESPACE(_V1) {
@@ -326,6 +327,16 @@ public:
     return true;
   }
 
+  /// Recusively computes the number of successor nodes
+  /// @return number of successor nodes
+  size_t depthSearchCount() const {
+    size_t NumberOfNodes = 1;
+    for (const auto &Succ : MSuccessors) {
+      NumberOfNodes += Succ->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
@@ -339,6 +350,12 @@ private:
 /// Implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device to create nodes with.
@@ -351,10 +368,6 @@ public:
       MSkipCycleChecks = true;
     }
   }
-
-  /// Insert node into list of root nodes.
-  /// @param Root Node to add to list of root nodes.
-  void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
@@ -429,13 +442,13 @@ public:
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
   getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
+    ReadLock Lock(MMutex);
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
             [NodeImpl](auto &it) { return it.second == NodeImpl; });
         EventImpl != MEventsMap.end()) {
       return EventImpl->first;
     }
-
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "No event has been recorded for the specified graph node");
@@ -594,6 +607,16 @@ public:
     }
   }
 
+  // Returns the number of nodes in the Graph
+  // @return Number of nodes in the Graph
+  size_t getNumberOfNodes() const {
+    size_t NumberOfNodes = 0;
+    for (const auto &Node : MRoots) {
+      NumberOfNodes += Node->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
   /// Iterate over the graph depth-first and run \p NodeFunc on each node.
   /// @param NodeFunc A function which receives as input a node in the graph to
@@ -632,11 +655,21 @@ private:
   /// Controls whether we skip the cycle checks in makeEdge, set by the presence
   /// of the no_cycle_check property on construction.
   bool MSkipCycleChecks = false;
+
+  /// Insert node into list of root nodes.
+  /// @param Root Node to add to list of root nodes.
+  void addRoot(const std::shared_ptr<node_impl> &Root);
 };
 
 /// Class representing the implementation of command_graph<executable>.
 class exec_graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
@@ -739,6 +772,10 @@ private:
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
+  /// Thread-safe implementation note: in the current implementation
+  /// multiple exec_graph_impl can reference the same graph_impl object.
+  /// This specificity must be taken into account when trying to lock
+  /// the graph_impl mutex from an exec_graph_impl to avoid deadlock.
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
