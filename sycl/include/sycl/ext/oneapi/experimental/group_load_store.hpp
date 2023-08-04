@@ -998,5 +998,5 @@ template <typename... Args> void group_store(Args...) {
 }
 #endif
 } // namespace ext::oneapi::experimental
-} // inline namespace _V1
+} // namespace _V1
 } // namespace sycl
