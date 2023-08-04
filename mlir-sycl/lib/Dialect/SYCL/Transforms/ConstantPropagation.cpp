@@ -58,7 +58,7 @@ private:
   /// Return a range with all of the constant arguments of \p op.
   static auto
   getConstantArgs(SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
-                  ArrayAttr argAttrs,
+                  ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
                   polygeist::SYCLAccessorAnalysis &accessorAnalysis);
 
   /// Return all of the constant implicit arguments of \p op.
@@ -1047,57 +1047,58 @@ static bool canInitializeArgument(LLVM::GlobalOp arrayDefinitionOp,
 
 auto ConstantPropagationPass::getConstantArgs(
     SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes, ArrayAttr argAttrs,
+    SymbolTableCollection &symbolTable,
     polygeist::SYCLAccessorAnalysis &accessorAnalysis) {
-  auto isConstant = m_Constant();
-
   // Map each argument to a ConstantExplicitArg and filter-out nullptr
   // (non-const) ones.
   auto types = op.getSyclTypes().getAsRange<TypeAttr>();
-
-  SymbolTableCollection symbolTable;
-
-  // NOTE: We cannot filter here as `llvm::make_filter_range` does not work as
-  // expected. (See comment at `llvm/ADT/STLExtras.h`).
-  return llvm::map_range(
-      llvm::enumerate(llvm::zip(op.getArgs(), types)),
-      [&, argumentTypes, argAttrs,
-       types](auto iter) -> std::unique_ptr<ConstantExplicitArg> {
-        auto [index, valueTypeIter] = iter;
-        auto [value, type] = valueTypeIter;
-        unsigned trueIndex = getTrueIndex(types, index);
-        if (matchPattern(value, isConstant)) {
-          if (value.getType() == argumentTypes[trueIndex]) {
-            LLVM_DEBUG(llvm::dbgs().indent(2)
-                       << "Arith constant: " << value << " at pos #"
-                       << trueIndex << "\n");
-            return std::make_unique<ConstantArithArg>(trueIndex,
-                                                      value.getDefiningOp());
-          }
-        }
-        auto currArgAttrs = argAttrs ? cast<DictionaryAttr>(argAttrs[trueIndex])
-                                     : DictionaryAttr();
-        if (currArgAttrs &&
-            isArrayArg(argumentTypes[trueIndex], currArgAttrs)) {
-          if (LLVM::GlobalOp arrayDefinitionOp =
-                  getConstantArrayDefinition(value, symbolTable);
-              arrayDefinitionOp &&
-              canInitializeArgument(
-                  arrayDefinitionOp,
-                  cast<TypeAttr>(
-                      currArgAttrs.get(LLVM::LLVMDialect::getByValAttrName()))
-                      .getValue())) {
-            LLVM_DEBUG(llvm::dbgs().indent(2)
-                       << "Array constant: " << arrayDefinitionOp << " at pos #"
-                       << trueIndex << "\n");
-            return std::make_unique<ConstantArrayArg>(trueIndex,
-                                                      arrayDefinitionOp);
-          }
-        }
-        auto accType = llvm::dyn_cast_or_null<AccessorType>(type.getValue());
-        return accType ? getConstantAccessorArg(op, accessorAnalysis, trueIndex,
-                                                value, accType)
-                       : nullptr;
-      });
+  return llvm::make_filter_range(
+      llvm::map_range(
+          llvm::enumerate(llvm::zip(op.getArgs(), types)),
+          // Do not default-capture; this lambda will outlive this scope and we
+          // want to make sure all captured values remain live.
+          [&accessorAnalysis, &symbolTable, op, argumentTypes, argAttrs, types,
+           isConstant = m_Constant()](
+              auto iter) -> std::unique_ptr<ConstantExplicitArg> {
+            auto [index, valueTypeIter] = iter;
+            auto [value, type] = valueTypeIter;
+            unsigned trueIndex = getTrueIndex(types, index);
+            if (matchPattern(value, isConstant)) {
+              if (value.getType() == argumentTypes[trueIndex]) {
+                LLVM_DEBUG(llvm::dbgs().indent(2)
+                           << "Arith constant: " << value << " at pos #"
+                           << trueIndex << "\n");
+                return std::make_unique<ConstantArithArg>(
+                    trueIndex, value.getDefiningOp());
+              }
+            }
+            auto currArgAttrs = argAttrs
+                                    ? cast<DictionaryAttr>(argAttrs[trueIndex])
+                                    : DictionaryAttr();
+            if (currArgAttrs &&
+                isArrayArg(argumentTypes[trueIndex], currArgAttrs)) {
+              if (LLVM::GlobalOp arrayDefinitionOp =
+                      getConstantArrayDefinition(value, symbolTable);
+                  arrayDefinitionOp &&
+                  canInitializeArgument(
+                      arrayDefinitionOp,
+                      cast<TypeAttr>(currArgAttrs.get(
+                                         LLVM::LLVMDialect::getByValAttrName()))
+                          .getValue())) {
+                LLVM_DEBUG(llvm::dbgs().indent(2)
+                           << "Array constant: " << arrayDefinitionOp
+                           << " at pos #" << trueIndex << "\n");
+                return std::make_unique<ConstantArrayArg>(trueIndex,
+                                                          arrayDefinitionOp);
+              }
+            }
+            auto accType =
+                llvm::dyn_cast_or_null<AccessorType>(type.getValue());
+            return accType ? getConstantAccessorArg(op, accessorAnalysis,
+                                                    trueIndex, value, accType)
+                           : nullptr;
+          }),
+      llvm::identity<std::unique_ptr<ConstantExplicitArg>>());
 }
 
 SmallVector<std::unique_ptr<ConstantImplicitArgBase>>
@@ -1124,10 +1125,6 @@ void ConstantPropagationPass::propagateConstantArgs(
   Region *region = op.getCallableRegion();
   OpBuilder builder(region);
   for (std::unique_ptr<ConstantExplicitArg> arg : constants) {
-    // NOTE: Filter here to avoid `make_filter_range` issues (See comment at
-    // `llvm/ADT/STLExtras.h`).
-    if (!arg)
-      continue;
     TypeSwitch<ConstantExplicitArg *>(arg.get())
         .Case<ConstantAccessorArg, ConstantArithArg, ConstantArrayArg>(
             [&](auto *arg) { arg->propagate(builder, *region); });
@@ -1149,6 +1146,7 @@ void ConstantPropagationPass::propagateImplicitConstantArgs(
 }
 
 void ConstantPropagationPass::runOnOperation() {
+  SymbolTableCollection symbolTable;
   auto &ndrAnalysis =
       getAnalysis<polygeist::SYCLNDRangeAnalysis>().initialize(relaxedAliasing);
   auto &idrAnalysis =
@@ -1201,7 +1199,7 @@ void ConstantPropagationPass::runOnOperation() {
     }
 
     propagateConstantArgs(getConstantArgs(launchPoint, op.getArgumentTypes(),
-                                          op.getArgAttrsAttr(),
+                                          op.getArgAttrsAttr(), symbolTable,
                                           accessorAnalysis),
                           op, launchPoint);
     propagateImplicitConstantArgs(
