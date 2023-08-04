@@ -9,6 +9,7 @@
 :encoding: utf-8
 :lang: en
 :sectnums:
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
