@@ -459,9 +459,16 @@ func.func @caller() {
 
 // COM: Test that the analysis does not break with non-functions
 
+// CHECK-LABEL: test_tag: last_insert:
+// CHECK-NEXT:   operand #0
+// CHECK-NEXT:   - mods: <unknown>
+// CHECK-NEXT:   - pMods: <unknown>
+// CHECK-NEXT:   operand #1
+// CHECK-NEXT:   - mods: <unknown>
+// CHECK-NEXT:   - pMods: <unknown>
 llvm.mlir.global internal @init_glboal() : !llvm.struct<"foo", (i8)> {
   %0 = llvm.mlir.constant(0 : i8) : i8
-  %1 = llvm.mlir.undef : !llvm.struct<"foo", (i8)>
-  %2 = llvm.insertvalue %0, %1[0] : !llvm.struct<"foo", (i8)>
+  %1 = llvm.mlir.undef {tag_name = "undef"} : !llvm.struct<"foo", (i8)>
+  %2 = llvm.insertvalue %0, %1[0] {tag = "last_insert"} : !llvm.struct<"foo", (i8)>
   llvm.return %2 : !llvm.struct<"foo", (i8)>
 }
