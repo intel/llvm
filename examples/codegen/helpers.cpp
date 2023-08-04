@@ -18,8 +18,6 @@ std::string generate_plus_one_spv() {
     module->setTargetTriple("spir-unknown-unknown");
     IRBuilder<> builder(ctx);
 
-    // std::vector<Type *> args{Type::getFloatPtrTy(ctx, 1),
-    //                          Type::getFloatPtrTy(ctx, 1)};
     std::vector<Type *> args{Type::getInt32PtrTy(ctx, 1),
                              Type::getInt32PtrTy(ctx, 1)};
     FunctionType *f_type = FunctionType::get(Type::getVoidTy(ctx), args, false);
@@ -40,11 +38,16 @@ std::string generate_plus_one_spv() {
 
     builder.SetInsertPoint(entry);
     Constant *zero = ConstantInt::get(Type::getInt32Ty(ctx), 0);
-    // Constant *onef = ConstantFP::get(ctx, APFloat(1.f));
     Constant *onei = ConstantInt::get(Type::getInt32Ty(ctx), 1);
     Value *idx = builder.CreateCall(get_global_idj, zero, "idx");
     auto argit = f->args().begin();
-#if LLVM_VERSION_MAJOR > 12
+#if LLVM_VERSION_MAJOR > 15
+    Value *firstElemSrc =
+        builder.CreateGEP(argit->getType(), argit, idx, "src.idx");
+    ++argit;
+    Value *firstElemDst =
+        builder.CreateGEP(argit->getType(), argit, idx, "dst.idx");
+#elif LLVM_VERSION_MAJOR > 12
     Value *firstElemSrc = builder.CreateGEP(
         argit->getType()->getPointerElementType(), argit, idx, "src.idx");
     ++argit;
@@ -54,9 +57,6 @@ std::string generate_plus_one_spv() {
     Value *firstElemSrc = builder.CreateGEP(f->args().begin(), idx, "src.idx");
     Value *firstElemDst = builder.CreateGEP(++argit, idx, "dst.idx");
 #endif
-    // Value *ldSrc =
-    //     builder.CreateLoad(Type::getFloatTy(ctx), firstElemSrc, "ld");
-    // Value *result = builder.CreateFAdd(ldSrc, onef, "foo");
     Value *ldSrc =
         builder.CreateLoad(Type::getInt32Ty(ctx), firstElemSrc, "ld");
     Value *result = builder.CreateAdd(ldSrc, onei, "foo");
