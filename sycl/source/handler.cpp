@@ -456,6 +456,11 @@ event handler::finalize() {
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
 
+    // GraphImpl is read and written in this scope so we lock this graph
+    // with full priviledges.
+    ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+        GraphImpl->MMutex);
+
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
       // In-order queues create implicit linear dependencies between nodes.
@@ -1304,6 +1309,10 @@ void handler::ext_oneapi_graph(
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
   auto GraphImpl = detail::getSyclObjImpl(Graph);
+  // GraphImpl is only read in this scope so we lock this graph for read only
+  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
+      GraphImpl->MMutex);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
   if (MQueue) {
     ParentGraph = MQueue->getCommandGraph();
@@ -1311,8 +1320,17 @@ void handler::ext_oneapi_graph(
     ParentGraph = MGraph;
   }
 
+  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
   // If a parent graph is set that means we are adding or recording a subgraph
   if (ParentGraph) {
+    // ParentGraph is read and written in this scope so we lock this graph
+    // with full priviledges.
+    // We only lock for Record&Replay API because the graph has already been
+    // lock if this function was called from the explicit API function add
+    if (MQueue) {
+      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+          ParentGraph->MMutex);
+    }
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
     MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
