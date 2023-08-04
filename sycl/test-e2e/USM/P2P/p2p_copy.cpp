@@ -14,13 +14,7 @@ constexpr int N = 100;
 
 int main() {
 
-  // Note that this code will largely be removed: it is temporary due to the
-  // temporary lack of multiple devices per sycl context in the Nvidia backend.
-  // A portable implementation, using a single gpu platform, should be possible
-  // once the Nvidia context issues are resolved.
-  ////////////////////////////////////////////////////////////////////////
-  const auto &Devs =
-      platform(gpu_selector_v).get_devices(info::device_type::gpu);
+  auto Devs = platform(gpu_selector_v).get_devices(info::device_type::gpu);
 
   if (Devs.size() < 2) {
     std::cout << "Cannot test P2P capabilities, at least two devices are "
