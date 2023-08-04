@@ -296,8 +296,9 @@ event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   if (MFallbackProfiling)
     MSubmitTime = getTimestamp(); // host
 
-  std::cout << "1) event_profiling::command_submit: MSubmitTime = "
-            << MSubmitTime << std::endl;
+  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling << std::endl;
+  std::cout << "+++1 MSubmitTime = " << MSubmitTime << std::endl;
+  std::cout.flush();
   return MSubmitTime; // device
 }
 
@@ -321,12 +322,21 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   // value is the normalized timestamp that is computed with
   // backend event profiling START information, normalized by the
   // backend event profiling QUEUED information
-  if (!MFallbackProfiling)
-    return MHostProfilingInfo->getStartTime();
-  else {
+  if (!MFallbackProfiling) {
+    std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
+              << std::endl;
+    auto temp = MHostProfilingInfo->getStartTime();
+    std::cout << "+++3 MDeviceStartTime: " << temp << std::endl;
+    // return MHostProfilingInfo->getStartTime();
+    return temp;
+  } else {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
                        (MHostSubmitTime - MDeviceSubmitTime);
+    std::cout << "===3 MFallbackProfiling = " << MFallbackProfiling
+              << std::endl;
+    std::cout << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
+    std::cout.flush();
     return MDeviceStartTime;
   }
 }
@@ -350,12 +360,21 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   // value is the normalized timestamp that is computed with
   // backend event profiling END information, normalized by the
   // MSubmitTimeBase
-  if (!MFallbackProfiling)
-    return MHostProfilingInfo->getEndTime();
-  else {
+  if (!MFallbackProfiling) {
+    auto temp = MHostProfilingInfo->getEndTime();
+    std::cout << "---4 MFallbackProfiling = " << MFallbackProfiling
+              << std::endl;
+    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
+    // return MHostProfilingInfo->getEndTime();
+    return temp;
+  } else {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
                      (MHostSubmitTime - MDeviceSubmitTime);
+    std::cout << "===4 MFallbackProfiling = " << MFallbackProfiling
+              << std::endl;
+    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
+    std::cout.flush();
     return MDeviceEndTime;
   }
 }
@@ -482,9 +501,18 @@ void event_impl::setSubmissionTime() {
       // to use it to normalize to the event profiling time base
       if (!MFallbackProfiling) {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+        std::cout << "---2 MFallbackProfiling = " << MFallbackProfiling
+                  << std::endl;
+        std::cout << "+++2 MSubmitTime: " << MSubmitTime << std::endl;
+        std::cout.flush();
       } else {
         MHostSubmitTime = getTimestamp();
+        std::cout << "===2 MFallbackProfiling = " << MFallbackProfiling
+                  << std::endl;
         MDeviceSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+        std::cout << "+++2 MDeviceSubmitTime: " << MDeviceSubmitTime
+                  << std::endl;
+        std::cout.flush();
       }
     } catch (feature_not_supported &e) {
       throw sycl::exception(
