@@ -250,8 +250,7 @@ void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
 template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
-template <size_t count, size_t limit, class F>
-void loop_unroll_up_to(F &&f) {
+template <size_t count, size_t limit, class F> void loop_unroll_up_to(F &&f) {
   if constexpr (count > limit)
     for (size_t i = 0; i < count; ++i)
       f(i);
@@ -259,8 +258,7 @@ void loop_unroll_up_to(F &&f) {
     loop<count>([&](auto i) { f(i); });
 }
 
-inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; 
-}
+inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 } // namespace detail
 
 } // namespace _V1

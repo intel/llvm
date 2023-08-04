@@ -63,8 +63,7 @@ struct IsCompileTimeProperty<property::full_sg_key> : std::true_type {};
 // Implementation helpers.
 
 #ifdef __SYCL_DEVICE_ONLY__
-template <typename Properties>
-constexpr bool isBlocked(Properties properties) {
+template <typename Properties> constexpr bool isBlocked(Properties properties) {
   namespace property = ext::oneapi::experimental::property;
   if constexpr (properties
                     .template has_property<property::data_placement_key>())
