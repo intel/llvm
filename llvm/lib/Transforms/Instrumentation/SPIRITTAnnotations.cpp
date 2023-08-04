@@ -153,8 +153,7 @@ Instruction *emitCall(Module &M, Type *RetTy, StringRef FunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   FunctionCallee FC = M.getOrInsertFunction(FunctionName, FT);
   assert(FC.getCallee() && "Instruction creation failed");
-  Function *F = dyn_cast<Function>(FC.getCallee());
-  assert(F);
+  Function *F = cast<Function>(FC.getCallee());
   F->setCallingConv(CallingConv::SPIR_FUNC);
   CallInst *NewCall =
       CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
