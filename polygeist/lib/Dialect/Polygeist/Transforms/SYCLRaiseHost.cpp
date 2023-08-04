@@ -27,6 +27,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/Debug.h"
@@ -37,11 +38,11 @@
 
 #define DEBUG_TYPE "sycl-raise-host"
 
-namespace mlir {
-namespace polygeist {
+    namespace mlir {
+  namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
-} // namespace polygeist
+  } // namespace polygeist
 } // namespace mlir
 
 using namespace mlir;
@@ -1611,13 +1612,18 @@ public:
 
     auto captureTypes = lambdaClassTy.getBody();
 
+    llvm::IndexedMap<ArrayCollector> idxToArrayComponents;
+    idxToArrayComponents.grow(captureTypes.size());
+
     auto createOps = [&, &lo = lambdaObj](Operation *captureOp,
                                           Value capturedVal, unsigned index) {
+      // TODO: Handle nullptr return for broadenedVal
       ImplicitLocOpBuilder builder(captureOp->getLoc(), rewriter);
       builder.setInsertionPointAfter(captureOp);
 
       auto adaptedValuesAndTypes =
-          tryToAdapt(capturedVal, captureTypes[index], builder);
+          tryToAdapt(capturedVal, captureTypes[index],
+                     idxToArrayComponents[index], builder);
       for (auto it : llvm::enumerate(adaptedValuesAndTypes)) {
         auto [adaptedVal, typeAttr] = it.value();
         builder.create<sycl::SYCLHostSetCaptured>(
@@ -1634,7 +1640,11 @@ public:
     if (auto [captureOp, capturedVal] =
             getUniqueAssignment(lambdaObj, annotatedPtr);
         captureOp) {
-      createOps(captureOp, capturedVal, 0);
+      auto completeArray = detectPartialArrayComponent(
+          0, captureOp, capturedVal, captureTypes[0], idxToArrayComponents[0]);
+      if (failed(completeArray) || *completeArray) {
+        createOps(captureOp, capturedVal, 0);
+      }
     }
 
     // All other captures are unique assignments to GEPs with two constant
@@ -1647,7 +1657,7 @@ public:
         continue;
 
       auto indices = gep.getRawConstantIndices();
-      if (indices.size() != 2 || indices[0] != 0)
+      if (indices.size() > 3 || indices[0] != 0)
         continue;
       unsigned captureIdx = indices[1];
 
@@ -1655,8 +1665,23 @@ public:
       if (!captureOp)
         continue;
 
+      auto arrayOffset = (indices.size() == 3) ? indices[2] : 0;
+      auto completeArray = detectPartialArrayComponent(
+          arrayOffset, captureOp, capturedVal, captureTypes[captureIdx],
+          idxToArrayComponents[captureIdx]);
+
+      if (succeeded(completeArray) && !*completeArray)
+        // Detected a partial component of a bigger array. The set_captured will
+        // ony be inserted later once all components have been found.
+        continue;
+
+      if (failed(completeArray) && indices.size() > 2)
+        continue;
+
       createOps(captureOp, capturedVal, captureIdx);
     }
+
+    enclosingFunc->dump();
 
     // Finally erase the annotation op.
     rewriter.eraseOp(op);
@@ -1735,11 +1760,24 @@ private:
     return {op, value};
   }
 
-  // Use domain knowledge to try to adapt an \p assigned value to match the
-  // \p expected type.
+  struct ArrayComponent {
+
+    ArrayComponent(size_t o, Value v, Operation *op)
+        : offset{o}, value{v}, captureOp{op} {}
+
+    size_t offset;
+    Value value;
+    Operation *captureOp;
+  };
+
+  using ArrayCollector = std::pair<size_t, SmallVector<ArrayComponent>>;
+
+  // Use the \p expected type as domain knowledge to try to broaden an
+  // \p assigned value to an entity of interest (e.g. an accessor).
   SmallVector<std::tuple<Value, TypeAttr>>
-  tryToAdapt(Value assigned, Type expected,
+  tryToAdapt(Value assigned, Type expected, ArrayCollector &collector,
              ImplicitLocOpBuilder &builder) const {
+    llvm::dbgs() << "Expected type: " << expected << "\n";
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier might not
       // address the entire accessor, but rather the first member in the
@@ -1766,6 +1804,80 @@ private:
                  << "tryToAdapt: Could not infer captured accessor\n");
     }
 
+    if (isa<LLVM::LLVMArrayType>(expected)) {
+      auto arrayTy = cast<LLVM::LLVMArrayType>(expected);
+      size_t expectedNumElements = arrayTy.getNumElements();
+      Type expectedElemType = arrayTy.getElementType();
+      assert(expectedNumElements == collector.first && "Incomplete collector");
+      SmallVector<ArrayComponent> &offsetAndValues = collector.second;
+      llvm::sort(offsetAndValues,
+                 [](const ArrayComponent &p1, const ArrayComponent &p2) {
+                   return p1.offset < p2.offset;
+                 });
+      auto allConstant = llvm::all_of(offsetAndValues, [](const auto &p) {
+        return matchPattern(p.value, m_Constant());
+      });
+      if (allConstant) {
+        builder.setInsertionPointToStart(
+            assigned.getDefiningOp()->getParentOfType<ModuleOp>().getBody());
+        auto failureOrConstArray = getConstantArray(offsetAndValues, arrayTy);
+        if (failed(failureOrConstArray)) {
+          return {{nullptr, TypeAttr()}};
+        }
+        failureOrConstArray->dump();
+        LLVM::GlobalOp constGlobal = builder.create<LLVM::GlobalOp>(
+            arrayTy,
+            // TODO Proper name
+            /* isConstant*/ true, LLVM::Linkage::Private, "foo",
+            *failureOrConstArray);
+
+        constGlobal->dump();
+
+        builder.setInsertionPointAfter(offsetAndValues.back().captureOp);
+        auto addrOfGlobal = builder.create<LLVM::AddressOfOp>(constGlobal);
+
+        addrOfGlobal->dump();
+
+        return {{addrOfGlobal, TypeAttr()}};
+      }
+      Value vecAccumulator = nullptr;
+      for (auto &component : offsetAndValues) {
+        builder.setInsertionPointAfter(component.captureOp);
+        if (!vecAccumulator)
+          vecAccumulator = builder.create<LLVM::UndefOp>(
+              VectorType::get(expectedNumElements, expectedElemType));
+
+        auto failureOrAcc =
+            TypeSwitch<Type, FailureOr<Value>>(component.value.getType())
+                .Case<VectorType>([&](VectorType ty) -> FailureOr<Value> {
+                  if (ty.getElementType() != expectedElemType)
+                    return failure();
+
+                  return builder
+                      .create<vector::InsertOp>(component.value.getLoc(),
+                                                component.value, vecAccumulator,
+                                                component.offset)
+                      ->getResult(0);
+                })
+                .Default([&](auto ty) -> FailureOr<Value> {
+                  if (ty != expectedElemType)
+                    return failure();
+
+                  return builder
+                      .create<vector::InsertOp>(component.value, vecAccumulator,
+                                                component.offset)
+                      ->getResult(0);
+                });
+
+        if (failed(failureOrAcc))
+          return {{nullptr, TypeAttr()}};
+
+        vecAccumulator = *failureOrAcc;
+      }
+
+      return {{vecAccumulator, TypeAttr()}};
+    }
+
     // The frontend sometimes groups multiple scalars in vectors - reverse that.
     if (auto vecTy = dyn_cast<VectorType>(assigned.getType());
         vecTy && vecTy.getElementType() == expected) {
@@ -1780,6 +1892,71 @@ private:
 
     // No special handling, just return the argument as-is.
     return {{assigned, TypeAttr()}};
+  }
+
+  static FailureOr<DenseElementsAttr>
+  getConstantArray(ArrayRef<ArrayComponent> components,
+                   LLVM::LLVMArrayType &arrTy) {
+    SmallVector<Attribute> constantValues(arrTy.getNumElements());
+    for (const auto &p : components) {
+      SmallVector<OpFoldResult> foldResults;
+      if (failed(p.value.getDefiningOp()->fold({}, foldResults)) ||
+          !foldResults.front().is<Attribute>())
+        return failure();
+
+      Attribute constantComponent = foldResults.front().get<Attribute>();
+      size_t offset = p.offset;
+
+      if (auto denseAttr = dyn_cast<DenseElementsAttr>(constantComponent)) {
+        denseAttr.dump();
+        for (auto attr : denseAttr.getValues<Attribute>()) {
+          constantValues[offset++] = attr;
+        }
+      } else if (isa<IntegerAttr, FloatAttr>(constantComponent)) {
+        constantValues[offset] = constantComponent;
+      } else {
+        return failure();
+      }
+    }
+    return DenseElementsAttr::get(
+        RankedTensorType::get(arrTy.getNumElements(), arrTy.getElementType()),
+        constantValues);
+  }
+
+  static FailureOr<bool>
+  detectPartialArrayComponent(size_t offset, Operation *captureOp,
+                              Value assigned, Type expected,
+                              ArrayCollector &collector) {
+    if (!isa<LLVM::LLVMArrayType>(expected))
+      return failure();
+
+    auto arrayTy = cast<LLVM::LLVMArrayType>(expected);
+    size_t expectedNumElements = arrayTy.getNumElements();
+    Type expectedElemTy = arrayTy.getElementType();
+
+    auto numElements =
+        TypeSwitch<Type, size_t>(assigned.getType())
+            .Case<LLVM::LLVMFixedVectorType, VectorType>([&](const auto &ty) {
+              return (ty.getElementType() == expectedElemTy)
+                         ? ty.getNumElements()
+                         : 0;
+            })
+            .Default(
+                [&](const Type &ty) { return (ty == expectedElemTy) ? 1 : 0; });
+
+    if (numElements == 0)
+      return failure();
+
+    // Store the assigned value as a part of the array at the offset.
+    collector.second.emplace_back(offset, assigned, captureOp);
+    // Increment count of how many elements we have found so far.
+    collector.first += numElements;
+    llvm::dbgs() << "Detected " << std::get<0>(collector)
+                 << " components, latest: " << assigned
+                 << " from: " << *captureOp << "\n";
+    // Return true in case we have reached the expected number of elements, to
+    // trigger insertion of the set_captured operation.
+    return std::get<0>(collector) == expectedNumElements;
   }
 
   AccessorTypeTag accessorTypeTag;
