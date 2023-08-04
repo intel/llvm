@@ -2120,7 +2120,11 @@ static void setUsedInitializer(GlobalVariable &V,
 
   // Type of pointer to the array of pointers.
   PointerType *PtrTy =
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PointerType::get(V.getContext(), VEPT->getAddressSpace());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      Type::getInt8PtrTy(V.getContext(), VEPT->getAddressSpace());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   SmallVector<Constant *, 8> UsedArray;
   for (GlobalValue *GV : Init) {

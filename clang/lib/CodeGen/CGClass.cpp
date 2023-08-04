@@ -428,9 +428,8 @@ CodeGenFunction::GetAddressOfDerivedClass(Address BaseAddr,
       getContext().getCanonicalType(getContext().getTagDeclType(Derived));
   llvm::Type *DerivedValueTy = ConvertType(DerivedTy);
 #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  unsigned AddrSpace = BaseAddr.getAddressSpace();
   llvm::Type *DerivedPtrTy =
-      llvm::PointerType::get(getLLVMContext(), AddrSpace);
+      DerivedValueTy->getPointerTo(BaseAddr.getAddressSpace());
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   llvm::Value *NonVirtualOffset =

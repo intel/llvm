@@ -2731,7 +2731,11 @@ class llvm::sroa::AllocaSliceRewriter
     if (!IsVolatile || AddrSpace == NewAI.getType()->getPointerAddressSpace())
       return &NewAI;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *AccessTy = IRB.getPtrTy(AddrSpace);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Type *AccessTy = NewAI.getAllocatedType()->getPointerTo(AddrSpace);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return IRB.CreateAddrSpaceCast(&NewAI, AccessTy);
   }
 

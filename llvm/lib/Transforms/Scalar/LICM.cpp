@@ -1057,8 +1057,13 @@ static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
 
   // if the type is ptr addrspace(x), we know this is the type of
   // llvm.invariant.start operand
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   auto *PtrASXTy = PointerType::get(LI->getContext(),
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  auto *PtrASXTy = PointerType::get(Type::getInt8Ty(LI->getContext()),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                                     LI->getPointerAddressSpace());
+
   unsigned BitcastsVisited = 0;
   // Look through bitcasts until we reach the PtrASXTy type (this is
   // invariant.start operand type).
