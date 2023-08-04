@@ -10699,7 +10699,11 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
     // Put in an sret pointer parameter before all the other parameters.
     SmallVector<EVT, 1> ValueVTs;
     ComputeValueVTs(*TLI, DAG.getDataLayout(),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                     PointerType::get(F.getContext(),
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+                    F.getReturnType()->getPointerTo(
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                                      DAG.getDataLayout().getAllocaAddrSpace()),
                     ValueVTs);
 

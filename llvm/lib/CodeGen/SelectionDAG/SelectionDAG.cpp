@@ -7726,7 +7726,11 @@ SDValue SelectionDAG::getMemcpy(SDValue Chain, const SDLoc &dl, SDValue Dst,
   // Emit a library call.
   TargetLowering::ArgListTy Args;
   TargetLowering::ArgListEntry Entry;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Entry.Ty = PointerType::getUnqual(*getContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Entry.Ty = Type::getInt8PtrTy(*getContext());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Entry.Node = Dst; Args.push_back(Entry);
   Entry.Node = Src; Args.push_back(Entry);
 
