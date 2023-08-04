@@ -726,109 +726,6 @@ void updatePaddingInLastMDNode(LLVMContext &Ctx,
 
 } // namespace
 
-/// Function takes CallInst to SpecConstant function that returns value (scalar
-/// or composite) and replaces it with the corresponding default value.
-///
-/// Example:
-///   %"spec_id" = type { i32 }
-///   @value = internal addrspace(1) constant %"spec_id" { i32 123 }, align 4
-///
-///   define spir_func void @func() {
-///   entry:
-///     %scalar = call spir_func i32 @_Z37__sycl_getScalar2020SpecConstant(%1,
-///     @value, %2) %scalar2 = add i32 %scalar, 1
-///   }
-///
-/// Becomes:
-///   define spir_func @func() {
-///   entry:
-///     %scalar2 = add i32 123, 1
-///   }
-static void replaceSpecConstFuncWithDefaultValue(CallInst *CI) {
-  Value *Src = CI->getArgOperand(1);
-  Value *StripSrc = Src->stripPointerCasts();
-  GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
-  Constant *InitializerValue = GV->getInitializer();
-  IRBuilder B(CI);
-  Value *EV = B.CreateExtractValue(InitializerValue, {0});
-  CI->replaceAllUsesWith(EV);
-  CI->removeFromParent();
-  CI->deleteValue();
-}
-
-/// Function takes CallInst to SpecConstant function that returns value by sret
-/// argument and replaces it with the 'store' instruction.
-///
-/// Example:
-///  %"spec_id" = type { %A }
-///  %A = type { i32 }
-///  @value = constant %"spec_id" { %A { i32 1 } }, align 4
-///
-///  define spir_func void @func() {
-///  entry:
-///    %a.i = alloca %A, align 4
-///    %a.ascast.i = addrspacecast %A* %a.i to %A addrspace(4)*
-///    call spir_func void @getCompositeSpecConst(%a.ascast.i, %2, @value, %3)
-///  }
-///
-///  Becomes:
-///   define spir_func void @func() {
-///   entry:
-///     %a.i = alloca %struct.A, align 4
-///     %a.ascast.i = addrspacecast %A* %a.i to %A addrspace(4)*
-///     store %A { i32 1 }, %A addrspace(4)* %a.ascast.i
-///   }
-static void replaceSretSpecConstFuncWithDefaultValue(CallInst *CI) {
-  Value *Dst = CI->getArgOperand(0);
-  Value *Src = CI->getArgOperand(2);
-  Value *StripSrc = Src->stripPointerCasts();
-  GlobalVariable *GV = cast<GlobalVariable>(StripSrc);
-  Constant *InitializerValue = GV->getInitializer();
-
-  IRBuilder B(CI);
-  Value *EV = B.CreateExtractValue(InitializerValue, {0});
-  Type *PointerType =
-      PointerType::get(EV->getType(), Dst->getType()->getPointerAddressSpace());
-  Value *Bitcast = B.CreateBitCast(Dst, PointerType);
-  B.CreateStore(EV, Bitcast);
-  CI->removeFromParent();
-  CI->deleteValue();
-}
-
-/// Function replaces Call instructions of Spec Constants with simple 'store'
-/// instructions.
-/// Function returns true if Module is changed somehow and false otherwise.
-static bool replaceSpecConstsWithDefaultValues(Module &M) {
-  std::vector<Function *> SpecConstDeclarations;
-  std::vector<CallInst *> CIs;
-  for (Function &F : M.functions()) {
-    if (!F.isDeclaration())
-      continue;
-
-    if (!F.getName().startswith(SYCL_GET_SCALAR_2020_SPEC_CONST_VAL) &&
-        !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
-      continue;
-
-    SpecConstDeclarations.push_back(&F);
-    for (User *U : F.users())
-      if (auto *CI = dyn_cast<CallInst>(U))
-        CIs.push_back(CI);
-  }
-
-  for (CallInst *CI : CIs) {
-    if (!CI->hasStructRetAttr())
-      replaceSpecConstFuncWithDefaultValue(CI);
-    else
-      replaceSretSpecConstFuncWithDefaultValue(CI);
-  }
-
-  for (Function *F : SpecConstDeclarations)
-    F->removeFromParent();
-
-  // The exact criteria that Module has been modified.
-  return !SpecConstDeclarations.empty();
-}
-
 PreservedAnalyses SpecConstantsPass::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   ID NextID = {0, false};
@@ -838,17 +735,13 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
 
-  bool IRModified = false;
-  if (Mode == HandlingMode::default_values) {
-    IRModified |= replaceSpecConstsWithDefaultValues(M);
-    return IRModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
-  }
-
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
   // intrinsic to find its calls and lower them depending on the SetValAtRT
   // setting (see below).
+  bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
+  std::vector<Function *> SpecConstDeclarations;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
@@ -857,6 +750,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
+    SpecConstDeclarations.push_back(&F);
     SmallVector<CallInst *, 32> SCIntrCalls;
     for (auto *U : F.users()) {
       if (auto *CI = dyn_cast<CallInst>(U))
@@ -918,7 +812,7 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
           SCMetadata[SymID] = generateSpecConstantMetadata(
               M, SymID, SCTy, IDs, /* is native spec constant */ true);
         }
-      } else {
+      } else if (Mode == HandlingMode::emulation) {
         // 2a. Spec constant will be passed as kernel argument;
 
         // Replace it with a load from the pointer to the specialization
@@ -960,7 +854,8 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
 
         Replacement = createLoadFromBuffer(CI, RTBuffer, CurrentOffset, SCTy);
-      }
+      } else if (Mode == HandlingMode::default_values)
+        Replacement = DefaultValue;
 
       if (IsNewSpecConstant) {
         if (Padding != 0) {
@@ -978,7 +873,12 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         // If __sycl_getCompositeSpecConstant returns through argument, then the
         // only thing we need to do here is to store into a memory pointed
         // by that argument
-        new StoreInst(Replacement, CI->getArgOperand(0), CI);
+        Value *Dst = CI->getArgOperand(0);
+        Type *PointerType = PointerType::get(
+            Replacement->getType(), Dst->getType()->getPointerAddressSpace());
+        IRBuilder B(CI);
+        Value *Bitcast = B.CreateBitCast(Dst, PointerType);
+        B.CreateStore(Replacement, Bitcast);
       } else {
         CI->replaceAllUsesWith(Replacement);
       }
@@ -989,6 +889,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
     }
   }
+
+  if (Mode == HandlingMode::default_values)
+    for (Function *F : SpecConstDeclarations)
+      F->removeFromParent();
 
   // Emit metadata about encountered specializaiton constants. This metadata
   // is later queried by sycl-post-link in order to be converted into device
