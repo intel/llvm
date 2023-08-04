@@ -887,6 +887,7 @@ void ConstantArrayArg::propagate(OpBuilder &builder, Region &region) {
   Value addressof = builder.create<LLVM::AddressOfOp>(loc, newGlobal);
   auto pt = cast<LLVM::LLVMPointerType>(toReplace.getType());
   if (pt != addressof.getType()) {
+    assert(!pt.isOpaque() && "Opaque pointers should not differ here");
     LLVM_DEBUG(llvm::dbgs().indent(4) << "Performing cast to " << pt << "\n");
     addressof = builder.create<LLVM::BitcastOp>(loc, pt, addressof);
   }
