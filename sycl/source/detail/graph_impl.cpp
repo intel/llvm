@@ -22,7 +22,7 @@
 #define FORCE_EMULATION_MODE 0
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace ext {
 namespace oneapi {
@@ -770,5 +770,5 @@ void executable_command_graph::update(
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

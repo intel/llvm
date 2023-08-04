@@ -8,422 +8,532 @@
 
 #pragma once
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_0__
+#ifndef __SYCL_ALL_DEVICES_HAVE_host__
 // __SYCL_ASPECT(host, 0)
-#define __SYCL_ALL_DEVICES_HAVE_0__ 0
+#define __SYCL_ALL_DEVICES_HAVE_host__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_1__
+#ifndef __SYCL_ALL_DEVICES_HAVE_cpu__
 // __SYCL_ASPECT(cpu, 1)
-#define __SYCL_ALL_DEVICES_HAVE_1__ 0
+#define __SYCL_ALL_DEVICES_HAVE_cpu__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_2__
+#ifndef __SYCL_ALL_DEVICES_HAVE_gpu__
 //__SYCL_ASPECT(gpu, 2)
-#define __SYCL_ALL_DEVICES_HAVE_2__ 0
+#define __SYCL_ALL_DEVICES_HAVE_gpu__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_3__
+#ifndef __SYCL_ALL_DEVICES_HAVE_accelerator__
 //__SYCL_ASPECT(accelerator, 3)
-#define __SYCL_ALL_DEVICES_HAVE_3__ 0
+#define __SYCL_ALL_DEVICES_HAVE_accelerator__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_4__
+#ifndef __SYCL_ALL_DEVICES_HAVE_custom__
 //__SYCL_ASPECT(custom, 4)
-#define __SYCL_ALL_DEVICES_HAVE_4__ 0
+#define __SYCL_ALL_DEVICES_HAVE_custom__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_5__
+#ifndef __SYCL_ALL_DEVICES_HAVE_fp16__
 // __SYCL_ASPECT(fp16, 5)
-#define __SYCL_ALL_DEVICES_HAVE_5__ 0
+#define __SYCL_ALL_DEVICES_HAVE_fp16__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_6__
+#ifndef __SYCL_ALL_DEVICES_HAVE_fp64__
 // __SYCL_ASPECT(fp64, 6)
-#define __SYCL_ALL_DEVICES_HAVE_6__ 0
+#define __SYCL_ALL_DEVICES_HAVE_fp64__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_7__
+#ifndef __SYCL_ALL_DEVICES_HAVE_int64_base_atomics__
 // __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7)
-#define __SYCL_ALL_DEVICES_HAVE_7__ 0
+#define __SYCL_ALL_DEVICES_HAVE_int64_base_atomics__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_8__
+#ifndef __SYCL_ALL_DEVICES_HAVE_int64_extended_atomics__
 // __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8)
-#define __SYCL_ALL_DEVICES_HAVE_8__ 0
+#define __SYCL_ALL_DEVICES_HAVE_int64_extended_atomics__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_9__
+#ifndef __SYCL_ALL_DEVICES_HAVE_image__
 // __SYCL_ASPECT(image, 9)
-#define __SYCL_ALL_DEVICES_HAVE_9__ 0
+#define __SYCL_ALL_DEVICES_HAVE_image__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_10__
+#ifndef __SYCL_ALL_DEVICES_HAVE_online_compiler__
 // __SYCL_ASPECT(online_compiler, 10)
-#define __SYCL_ALL_DEVICES_HAVE_10__ 0
+#define __SYCL_ALL_DEVICES_HAVE_online_compiler__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_11__
+#ifndef __SYCL_ALL_DEVICES_HAVE_online_linker__
 // __SYCL_ASPECT(online_linker, 11)
-#define __SYCL_ALL_DEVICES_HAVE_11__ 0
+#define __SYCL_ALL_DEVICES_HAVE_online_linker__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_12__
+#ifndef __SYCL_ALL_DEVICES_HAVE_queue_profiling__
 // __SYCL_ASPECT(queue_profiling, 12)
-#define __SYCL_ALL_DEVICES_HAVE_12__ 0
+#define __SYCL_ALL_DEVICES_HAVE_queue_profiling__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_13__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_device_allocations__
 // __SYCL_ASPECT(usm_device_allocations, 13)
-#define __SYCL_ALL_DEVICES_HAVE_13__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_device_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_14__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_host_allocations__
 // __SYCL_ASPECT(usm_host_allocations, 14)
-#define __SYCL_ALL_DEVICES_HAVE_14__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_host_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_15__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_shared_allocations__
 // __SYCL_ASPECT(usm_shared_allocations, 15)
-#define __SYCL_ALL_DEVICES_HAVE_15__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_16__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_restricted_shared_allocations__
 // __SYCL_ASPECT(usm_restricted_shared_allocations, 16)
-#define __SYCL_ALL_DEVICES_HAVE_16__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_restricted_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_17__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_system_allocations__
 // __SYCL_ASPECT(usm_system_allocations, 17)
-#define __SYCL_ALL_DEVICES_HAVE_17__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_system_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_18__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_pci_address__
 // __SYCL_ASPECT(ext_intel_pci_address, 18)
-#define __SYCL_ALL_DEVICES_HAVE_18__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_pci_address__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_19__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_count__
 // __SYCL_ASPECT(ext_intel_gpu_eu_count, 19)
-#define __SYCL_ALL_DEVICES_HAVE_19__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_count__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_20__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_simd_width__
 // __SYCL_ASPECT(ext_intel_gpu_eu_simd_width, 20)
-#define __SYCL_ALL_DEVICES_HAVE_20__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_simd_width__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_21__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_slices__
 // __SYCL_ASPECT(ext_intel_gpu_slices, 21)
-#define __SYCL_ALL_DEVICES_HAVE_21__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_slices__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_22__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_subslices_per_slice__
 // __SYCL_ASPECT(ext_intel_gpu_subslices_per_slice, 22)
-#define __SYCL_ALL_DEVICES_HAVE_22__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_subslices_per_slice__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_23__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_count_per_subslice__
 // __SYCL_ASPECT(ext_intel_gpu_eu_count_per_subslice, 23)
-#define __SYCL_ALL_DEVICES_HAVE_23__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_eu_count_per_subslice__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_24__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_max_mem_bandwidth__
 // __SYCL_ASPECT(ext_intel_max_mem_bandwidth, 24)
-#define __SYCL_ALL_DEVICES_HAVE_24__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_max_mem_bandwidth__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_25__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_mem_channel__
 // __SYCL_ASPECT(ext_intel_mem_channel, 25)
-#define __SYCL_ALL_DEVICES_HAVE_25__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_mem_channel__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_26__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_atomic_host_allocations__
 // __SYCL_ASPECT(usm_atomic_host_allocations, 26)
-#define __SYCL_ALL_DEVICES_HAVE_26__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_atomic_host_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_27__
+#ifndef __SYCL_ALL_DEVICES_HAVE_usm_atomic_shared_allocations__
 // __SYCL_ASPECT(usm_atomic_shared_allocations, 27)
-#define __SYCL_ALL_DEVICES_HAVE_27__ 0
+#define __SYCL_ALL_DEVICES_HAVE_usm_atomic_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_28__
+#ifndef __SYCL_ALL_DEVICES_HAVE_atomic64__
 // __SYCL_ASPECT(atomic64, 28)
-#define __SYCL_ALL_DEVICES_HAVE_28__ 0
+#define __SYCL_ALL_DEVICES_HAVE_atomic64__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_29__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_device_info_uuid__
 // __SYCL_ASPECT(ext_intel_device_info_uuid, 29)
-#define __SYCL_ALL_DEVICES_HAVE_29__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_device_info_uuid__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_30__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_srgb__
 // __SYCL_ASPECT(ext_oneapi_srgb, 30)
-#define __SYCL_ALL_DEVICES_HAVE_30__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_srgb__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_31__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_native_assert__
 // __SYCL_ASPECT(ext_oneapi_native_assert, 31)
-#define __SYCL_ALL_DEVICES_HAVE_31__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_native_assert__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_32__
+#ifndef __SYCL_ALL_DEVICES_HAVE_host_debuggable__
 // __SYCL_ASPECT(host_debuggable, 32)
-#define __SYCL_ALL_DEVICES_HAVE_32__ 0
+#define __SYCL_ALL_DEVICES_HAVE_host_debuggable__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_33__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_hw_threads_per_eu__
 // __SYCL_ASPECT(ext_intel_gpu_hw_threads_per_eu, 33)
-#define __SYCL_ALL_DEVICES_HAVE_33__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_gpu_hw_threads_per_eu__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_34__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_async_barrier__
 // __SYCL_ASPECT(ext_oneapi_cuda_async_barrier, 34)
-#define __SYCL_ALL_DEVICES_HAVE_34__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_cuda_async_barrier__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_35__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bfloat16_math_functions__
 // __SYCL_ASPECT(ext_oneapi_bfloat16_math_functions, 35)
-#define __SYCL_ALL_DEVICES_HAVE_35__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bfloat16_math_functions__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_36__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_free_memory__
 // __SYCL_ASPECT(ext_intel_free_memory, 36)
-#define __SYCL_ALL_DEVICES_HAVE_36__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_free_memory__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_37__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_device_id__
 // __SYCL_ASPECT(ext_intel_device_id, 37)
-#define __SYCL_ALL_DEVICES_HAVE_37__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_device_id__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_38__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_memory_clock_rate__
 // __SYCL_ASPECT(ext_intel_memory_clock_rate, 38)
-#define __SYCL_ALL_DEVICES_HAVE_38__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_memory_clock_rate__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_39__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_memory_bus_width__
 // __SYCL_ASPECT(ext_intel_memory_bus_width, 39)
-#define __SYCL_ALL_DEVICES_HAVE_39__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_memory_bus_width__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_40__
+#ifndef __SYCL_ALL_DEVICES_HAVE_emulated__
 // __SYCL_ASPECT(emulated, 40)
-#define __SYCL_ALL_DEVICES_HAVE_40__ 0
+#define __SYCL_ALL_DEVICES_HAVE_emulated__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_41__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_intel_legacy_image__
 // __SYCL_ASPECT(ext_intel_legacy_image, 41)
-#define __SYCL_ALL_DEVICES_HAVE_41__ 0
+#define __SYCL_ALL_DEVICES_HAVE_ext_intel_legacy_image__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_0__
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images__
+// __SYCL_ASPECT(ext_oneapi_bindless_images, 42)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_shared_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_shared_usm, 43)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_shared_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_1d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_1d_usm, 44)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_1d_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_2d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_2d_usm, 45)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_bindless_images_2d_usm__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_import__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_export__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_export, 47)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_memory_export__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_import__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_export__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_export, 49)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_interop_semaphore_export__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap__
+//__SYCL_ASPECT(ext_oneapi_mipmap, 50)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_anisotropy__
+//__SYCL_ASPECT(ext_oneapi_mipmap_anisotropy, 51)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_anisotropy__ 0
+#endif
+
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_level_reference__
+//__SYCL_ASPECT(ext_oneapi_mipmap_level_reference, 52)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_mipmap_level_reference__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
-#define __SYCL_ANY_DEVICE_HAS_0__ 0
+#define __SYCL_ANY_DEVICE_HAS_host__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_1__
+#ifndef __SYCL_ANY_DEVICE_HAS_cpu__
 // __SYCL_ASPECT(cpu, 1)
-#define __SYCL_ANY_DEVICE_HAS_1__ 0
+#define __SYCL_ANY_DEVICE_HAS_cpu__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_2__
+#ifndef __SYCL_ANY_DEVICE_HAS_gpu__
 //__SYCL_ASPECT(gpu, 2)
-#define __SYCL_ANY_DEVICE_HAS_2__ 0
+#define __SYCL_ANY_DEVICE_HAS_gpu__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_3__
+#ifndef __SYCL_ANY_DEVICE_HAS_accelerator__
 //__SYCL_ASPECT(accelerator, 3)
-#define __SYCL_ANY_DEVICE_HAS_3__ 0
+#define __SYCL_ANY_DEVICE_HAS_accelerator__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_4__
+#ifndef __SYCL_ANY_DEVICE_HAS_custom__
 //__SYCL_ASPECT(custom, 4)
-#define __SYCL_ANY_DEVICE_HAS_4__ 0
+#define __SYCL_ANY_DEVICE_HAS_custom__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_5__
+#ifndef __SYCL_ANY_DEVICE_HAS_fp16__
 // __SYCL_ASPECT(fp16, 5)
-#define __SYCL_ANY_DEVICE_HAS_5__ 0
+#define __SYCL_ANY_DEVICE_HAS_fp16__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_6__
+#ifndef __SYCL_ANY_DEVICE_HAS_fp64__
 // __SYCL_ASPECT(fp64, 6)
-#define __SYCL_ANY_DEVICE_HAS_6__ 0
+#define __SYCL_ANY_DEVICE_HAS_fp64__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_7__
+#ifndef __SYCL_ANY_DEVICE_HAS_int64_base_atomics__
 // __SYCL_ASPECT_DEPRECATED(int64_base_atomics, 7)
-#define __SYCL_ANY_DEVICE_HAS_7__ 0
+#define __SYCL_ANY_DEVICE_HAS_int64_base_atomics__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_8__
+#ifndef __SYCL_ANY_DEVICE_HAS_int64_extended_atomics__
 // __SYCL_ASPECT_DEPRECATED(int64_extended_atomics, 8)
-#define __SYCL_ANY_DEVICE_HAS_8__ 0
+#define __SYCL_ANY_DEVICE_HAS_int64_extended_atomics__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_9__
+#ifndef __SYCL_ANY_DEVICE_HAS_image__
 // __SYCL_ASPECT(image, 9)
-#define __SYCL_ANY_DEVICE_HAS_9__ 0
+#define __SYCL_ANY_DEVICE_HAS_image__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_10__
+#ifndef __SYCL_ANY_DEVICE_HAS_online_compiler__
 // __SYCL_ASPECT(online_compiler, 10)
-#define __SYCL_ANY_DEVICE_HAS_10__ 0
+#define __SYCL_ANY_DEVICE_HAS_online_compiler__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_11__
+#ifndef __SYCL_ANY_DEVICE_HAS_online_linker__
 // __SYCL_ASPECT(online_linker, 11)
-#define __SYCL_ANY_DEVICE_HAS_11__ 0
+#define __SYCL_ANY_DEVICE_HAS_online_linker__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_12__
+#ifndef __SYCL_ANY_DEVICE_HAS_queue_profiling__
 // __SYCL_ASPECT(queue_profiling, 12)
-#define __SYCL_ANY_DEVICE_HAS_12__ 0
+#define __SYCL_ANY_DEVICE_HAS_queue_profiling__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_13__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_device_allocations__
 // __SYCL_ASPECT(usm_device_allocations, 13)
-#define __SYCL_ANY_DEVICE_HAS_13__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_device_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_14__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_host_allocations__
 // __SYCL_ASPECT(usm_host_allocations, 14)
-#define __SYCL_ANY_DEVICE_HAS_14__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_host_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_15__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_shared_allocations__
 // __SYCL_ASPECT(usm_shared_allocations, 15)
-#define __SYCL_ANY_DEVICE_HAS_15__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_16__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_restricted_shared_allocations__
 // __SYCL_ASPECT(usm_restricted_shared_allocations, 16)
-#define __SYCL_ANY_DEVICE_HAS_16__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_restricted_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_17__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_system_allocations__
 // __SYCL_ASPECT(usm_system_allocations, 17)
-#define __SYCL_ANY_DEVICE_HAS_17__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_system_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_18__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_pci_address__
 // __SYCL_ASPECT(ext_intel_pci_address, 18)
-#define __SYCL_ANY_DEVICE_HAS_18__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_pci_address__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_19__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_count__
 // __SYCL_ASPECT(ext_intel_gpu_eu_count, 19)
-#define __SYCL_ANY_DEVICE_HAS_19__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_count__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_20__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_simd_width__
 // __SYCL_ASPECT(ext_intel_gpu_eu_simd_width, 20)
-#define __SYCL_ANY_DEVICE_HAS_20__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_simd_width__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_21__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_slices__
 // __SYCL_ASPECT(ext_intel_gpu_slices, 21)
-#define __SYCL_ANY_DEVICE_HAS_21__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_slices__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_22__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_subslices_per_slice__
 // __SYCL_ASPECT(ext_intel_gpu_subslices_per_slice, 22)
-#define __SYCL_ANY_DEVICE_HAS_22__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_subslices_per_slice__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_23__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_count_per_subslice__
 // __SYCL_ASPECT(ext_intel_gpu_eu_count_per_subslice, 23)
-#define __SYCL_ANY_DEVICE_HAS_23__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_eu_count_per_subslice__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_24__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_max_mem_bandwidth__
 // __SYCL_ASPECT(ext_intel_max_mem_bandwidth, 24)
-#define __SYCL_ANY_DEVICE_HAS_24__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_max_mem_bandwidth__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_25__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_mem_channel__
 // __SYCL_ASPECT(ext_intel_mem_channel, 25)
-#define __SYCL_ANY_DEVICE_HAS_25__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_mem_channel__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_26__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_atomic_host_allocations__
 // __SYCL_ASPECT(usm_atomic_host_allocations, 26)
-#define __SYCL_ANY_DEVICE_HAS_26__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_atomic_host_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_27__
+#ifndef __SYCL_ANY_DEVICE_HAS_usm_atomic_shared_allocations__
 // __SYCL_ASPECT(usm_atomic_shared_allocations, 27)
-#define __SYCL_ANY_DEVICE_HAS_27__ 0
+#define __SYCL_ANY_DEVICE_HAS_usm_atomic_shared_allocations__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_28__
+#ifndef __SYCL_ANY_DEVICE_HAS_atomic64__
 // __SYCL_ASPECT(atomic64, 28)
-#define __SYCL_ANY_DEVICE_HAS_28__ 0
+#define __SYCL_ANY_DEVICE_HAS_atomic64__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_29__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_device_info_uuid__
 // __SYCL_ASPECT(ext_intel_device_info_uuid, 29)
-#define __SYCL_ANY_DEVICE_HAS_29__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_device_info_uuid__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_30__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_srgb__
 // __SYCL_ASPECT(ext_oneapi_srgb, 30)
-#define __SYCL_ANY_DEVICE_HAS_30__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_srgb__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_31__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_native_assert__
 // __SYCL_ASPECT(ext_oneapi_native_assert, 31)
-#define __SYCL_ANY_DEVICE_HAS_31__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_native_assert__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_32__
+#ifndef __SYCL_ANY_DEVICE_HAS_host_debuggable__
 // __SYCL_ASPECT(host_debuggable, 32)
-#define __SYCL_ANY_DEVICE_HAS_32__ 0
+#define __SYCL_ANY_DEVICE_HAS_host_debuggable__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_33__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_hw_threads_per_eu__
 // __SYCL_ASPECT(ext_intel_gpu_hw_threads_per_eu, 33)
-#define __SYCL_ANY_DEVICE_HAS_33__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_gpu_hw_threads_per_eu__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_34__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_cuda_async_barrier__
 // __SYCL_ASPECT(ext_oneapi_cuda_async_barrier, 34)
-#define __SYCL_ANY_DEVICE_HAS_34__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_cuda_async_barrier__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_35__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bfloat16_math_functions__
 // __SYCL_ASPECT(ext_oneapi_bfloat16_math_functions, 35)
-#define __SYCL_ANY_DEVICE_HAS_35__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bfloat16_math_functions__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_36__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_free_memory__
 // __SYCL_ASPECT(ext_intel_free_memory, 36)
-#define __SYCL_ANY_DEVICE_HAS_36__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_free_memory__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_37__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_device_id__
 // __SYCL_ASPECT(ext_intel_device_id, 37)
-#define __SYCL_ANY_DEVICE_HAS_37__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_device_id__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_38__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_memory_clock_rate__
 // __SYCL_ASPECT(ext_intel_memory_clock_rate, 38)
-#define __SYCL_ANY_DEVICE_HAS_38__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_memory_clock_rate__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_39__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_memory_bus_width__
 // __SYCL_ASPECT(ext_intel_memory_bus_width, 39)
-#define __SYCL_ANY_DEVICE_HAS_39__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_memory_bus_width__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_40__
+#ifndef __SYCL_ANY_DEVICE_HAS_emulated__
 // __SYCL_ASPECT(emulated, 40)
-#define __SYCL_ANY_DEVICE_HAS_40__ 0
+#define __SYCL_ANY_DEVICE_HAS_emulated__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_41__
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_intel_legacy_image__
 // __SYCL_ASPECT(ext_intel_legacy_image, 41)
-#define __SYCL_ANY_DEVICE_HAS_41__ 0
+#define __SYCL_ANY_DEVICE_HAS_ext_intel_legacy_image__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images__
+// __SYCL_ASPECT(ext_oneapi_bindless_images, 42)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_shared_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_shared_usm, 43)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_shared_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_1d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_1d_usm, 44)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_1d_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_2d_usm__
+//__SYCL_ASPECT(ext_oneapi_bindless_images_2d_usm, 45)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_bindless_images_2d_usm__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_import, 46)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_import__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_export__
+//__SYCL_ASPECT(ext_oneapi_interop_memory_export, 47)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_memory_export__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_import, 48)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_import__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_export__
+//__SYCL_ASPECT(ext_oneapi_interop_semaphore_export, 49)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_interop_semaphore_export__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap__
+//__SYCL_ASPECT(ext_oneapi_mipmap, 50)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_anisotropy__
+//__SYCL_ASPECT(ext_oneapi_mipmap_anisotropy, 51)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_anisotropy__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__
+//__SYCL_ASPECT(ext_oneapi_mipmap_level_reference, 52)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_mipmap_level_reference__ 0
 #endif

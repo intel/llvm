@@ -18,7 +18,7 @@
 #include <climits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Builder;
 
@@ -252,6 +252,8 @@ struct sub_group_mask {
   sub_group_mask(const sub_group_mask &rhs)
       : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
 
+  sub_group_mask &operator=(const sub_group_mask &rhs) = delete;
+
   template <typename Group>
   friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,
                           sub_group_mask>
@@ -317,5 +319,5 @@ group_ballot(Group g, bool predicate) {
 #undef BITS_TYPE
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

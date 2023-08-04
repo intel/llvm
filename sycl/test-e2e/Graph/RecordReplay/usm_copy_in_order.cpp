@@ -1,19 +1,18 @@
 // REQUIRES: level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// Extra run to check for leaks in Level Zero using ZE_DEBUG
 // RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // CHECK-NOT: LEAK
 
 // Tests memcpy operation using device USM and an in-order queue.
-// The second run is to check that there are no leaks reported with the embedded
-// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
 
 int main() {
   property_list properties{property::queue::in_order()};
-  queue Queue{gpu_selector_v, properties};
+  queue Queue{properties};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -25,10 +24,9 @@ int main() {
   // Shouldn't be captured in graph as a dependency
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 0.0f;
-      Y[i] = 0.0f;
-      Z[i] = 0.0f;
+      X[it] = 0.0f;
+      Y[it] = 0.0f;
+      Z[it] = 0.0f;
     });
   });
 
@@ -36,10 +34,9 @@ int main() {
 
   auto InitEvent = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] = 1.0f;
-      Y[i] = 2.0f;
-      Z[i] = 3.0f;
+      X[it] = 1.0f;
+      Y[it] = 2.0f;
+      Z[it] = 3.0f;
     });
   });
   Graph.end_recording(Queue);
@@ -47,10 +44,9 @@ int main() {
   // Shouldn't be captured in graph as a dependency
   Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      const size_t i = it[0];
-      X[i] += 0.5f;
-      Y[i] += 0.5f;
-      Z[i] += 0.5f;
+      X[it] += 0.5f;
+      Y[it] += 0.5f;
+      Z[it] += 0.5f;
     });
   });
 
@@ -60,10 +56,7 @@ int main() {
 
   // Double Y to 2.0
   Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(range<1>{N}, [=](id<1> it) {
-      const size_t i = it[0];
-      Y[i] *= 2.0f;
-    });
+    CGH.parallel_for(range<1>{N}, [=](id<1> it) { Y[it] *= 2.0f; });
   });
 
   // memcpy from 2.0 Y values to Z

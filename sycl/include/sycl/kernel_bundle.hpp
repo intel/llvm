@@ -25,7 +25,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declaration
 template <backend Backend> class backend_traits;
 template <backend Backend, bundle_state State>
@@ -736,7 +736,7 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
   return build(InputBundle, InputBundle.get_devices(), PropList);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

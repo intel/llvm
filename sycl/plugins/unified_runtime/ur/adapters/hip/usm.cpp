@@ -8,6 +8,7 @@
 
 #include <cassert>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
@@ -24,7 +25,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hContext->getDevice());
     Result = UR_CHECK_ERROR(hipHostMalloc(ppMem, size));
   } catch (ur_result_t Error) {
     Result = Error;
@@ -49,7 +50,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hContext->getDevice());
     Result = UR_CHECK_ERROR(hipMalloc(ppMem, size));
   } catch (ur_result_t Error) {
     Result = Error;
@@ -74,7 +75,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hContext->getDevice());
     Result = UR_CHECK_ERROR(hipMallocManaged(ppMem, size, hipMemAttachGlobal));
   } catch (ur_result_t Error) {
     Result = Error;
@@ -93,7 +94,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hContext->getDevice());
     unsigned int Type;
     hipPointerAttribute_t hipPointerAttributeType;
     Result =
@@ -123,7 +124,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   try {
-    ScopedContext Active(hContext);
+    ScopedContext Active(hContext->getDevice());
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
       unsigned int Value;
@@ -174,7 +175,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // the same index
       std::vector<ur_platform_handle_t> Platforms;
       Platforms.resize(DeviceIdx + 1);
-      Result = urPlatformGet(DeviceIdx + 1, Platforms.data(), nullptr);
+      ur_adapter_handle_t AdapterHandle = &adapter;
+      Result = urPlatformGet(&AdapterHandle, 1, DeviceIdx + 1, Platforms.data(),
+                             nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = Platforms[DeviceIdx]->Devices[0].get();
@@ -187,4 +190,19 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
     Result = Error;
   }
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
+                                                   void *HostPtr, size_t Size) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
+                                                    void *HostPtr) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
 }

@@ -54,7 +54,7 @@
   } while (false)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail::test {
 
 // The test_proxy class.
@@ -103,7 +103,7 @@ public:
 };
 
 } // namespace ext::intel::esimd::detail::test
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #endif // __ESIMD_ENABLE_TEST_PROXY

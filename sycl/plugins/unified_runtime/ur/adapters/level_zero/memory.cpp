@@ -161,15 +161,10 @@ ur_result_t enqueueMemCopyRectHelper(
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (ZeCommandList, DstBuffer, &ZeDstRegion, DstPitch, DstSlicePitch,
-              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, nullptr,
+              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   urPrint("calling zeCommandListAppendMemoryCopyRegion()\n");
-
-  ZE2UR_CALL(zeCommandListAppendBarrier, (ZeCommandList, ZeEvent, 0, nullptr));
-
-  urPrint("calling zeCommandListAppendBarrier() with Event %#llx\n",
-          ur_cast<std::uintptr_t>(ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
 
@@ -2101,7 +2096,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     // The host allocation may already exists, e.g. with imported
     // host ptr, or in case of interop buffer.
     if (!HostAllocation.ZeHandle) {
-      if (USMAllocatorConfigInstance.EnableBuffers) {
+      if (DisjointPoolConfigInstance.EnableBuffers) {
         HostAllocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
@@ -2160,7 +2155,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       Allocation.Valid = true;
       return UR_RESULT_SUCCESS;
     } else { // Create device allocation
-      if (USMAllocatorConfigInstance.EnableBuffers) {
+      if (DisjointPoolConfigInstance.EnableBuffers) {
         Allocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
@@ -2224,7 +2219,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         // host ptr, or in case of interop buffer.
         if (!HostAllocation.ZeHandle) {
           void *ZeHandleHost;
-          if (USMAllocatorConfigInstance.EnableBuffers) {
+          if (DisjointPoolConfigInstance.EnableBuffers) {
             HostAllocation.ReleaseAction = allocation_t::free;
             ur_usm_desc_t USMDesc{};
             USMDesc.align = getAlignment();

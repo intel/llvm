@@ -26,7 +26,7 @@
                 "SYCL atomic function not available for float type")
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 template <typename pointerT, access::address_space addressSpace,
@@ -68,23 +68,22 @@ template <> struct GetSpirvMemoryScope<access::address_space::local_space> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifndef __SYCL_DEVICE_ONLY__
 // host implementation of SYCL atomics
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Translate sycl::memory_order or __spv::MemorySemanticsMask::Flag
 // into std::memory_order
 // Only relaxed memory semantics are supported currently
-static inline std::memory_order
-getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
+inline std::memory_order getStdMemoryOrder(__spv::MemorySemanticsMask::Flag) {
   return std::memory_order_relaxed;
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // std::atomic version of atomic SPIR-V builtins
@@ -166,7 +165,7 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
 #endif // !defined(__SYCL_DEVICE_ONLY__)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
@@ -402,7 +401,7 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
   return Object.fetch_max(Operand, MemoryOrder);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_STATIC_ASSERT_NOT_FLOAT

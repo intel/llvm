@@ -9,31 +9,37 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/context.hpp>
 #include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
 #include <sycl/device_selector.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/stl.hpp>
 
-// 4.6.2 Platform class
 #include <utility>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // TODO: make code thread-safe
 
 // Forward declaration
-class device_selector;
 class device;
+class context;
+
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
-}
+
+/// Allows to enable/disable "Default Context" extension
+///
+/// This API is in detail:: namespace because it's never supposed
+/// to be called by end-user. It's necessary for internal use of
+/// oneAPI components
+///
+/// \param Val Indicates if extension should be enabled/disabled
+void __SYCL_EXPORT enable_ext_oneapi_default_context(bool Val);
+} // namespace detail
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
@@ -187,7 +193,7 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 }; // class platform
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
