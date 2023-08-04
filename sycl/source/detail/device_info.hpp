@@ -606,8 +606,8 @@ struct get_device_info_impl<range<Dimensions>,
   X("gfx1032", oneapi_exp_arch::amd_gpu_gfx1032)                               \
   X("gfx1034", oneapi_exp_arch::amd_gpu_gfx1034)
 
-// This macro is only for Intel Device IPs
-#define INTEL_IPS(X)                                                           \
+// This macro is only for Intel GPU architectures
+#define INTEL_ARCHES(X)                                                        \
   X(0x02000000, oneapi_exp_arch::intel_gpu_bdw)                                \
   X(0x02400009, oneapi_exp_arch::intel_gpu_skl)                                \
   X(0x02404009, oneapi_exp_arch::intel_gpu_kbl)                                \
@@ -646,8 +646,8 @@ struct get_device_info_impl<
     backend CurrentBackend = Dev->getBackend();
     if (Dev->is_gpu() && (backend::ext_oneapi_level_zero == CurrentBackend ||
                           backend::opencl == CurrentBackend)) {
-      auto MapIPToDevice = [](const int arch) {
-        INTEL_IPS(CMP_INTEL);
+      auto MapArchIDToArchName = [](const int arch) {
+        INTEL_ARCHES(CMP_INTEL);
         throw sycl::exception(
             make_error_code(errc::runtime),
             "The current device architecture is not supported by "
@@ -659,10 +659,10 @@ struct get_device_info_impl<
           PiInfoCode<
               ext::oneapi::experimental::info::device::architecture>::value,
           sizeof(DeviceIp), &DeviceIp, nullptr);
-      return MapIPToDevice(DeviceIp);
+      return MapArchIDToArchName(DeviceIp);
     } else if (Dev->is_gpu() && (backend::ext_oneapi_cuda == CurrentBackend ||
                                  backend::ext_oneapi_hip == CurrentBackend)) {
-      auto MapArchIDToDevice = [](const char *arch) {
+      auto MapArchIDToArchName = [](const char *arch) {
         NVIDIA_AMD_ARCHES(CMP_NVIDIA_AMD);
         throw sycl::exception(
             make_error_code(errc::runtime),
@@ -677,7 +677,7 @@ struct get_device_info_impl<
       Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
           Dev->getHandleRef(), PiInfoCode<info::device::version>::value,
           ResultSize, DeviceArch.get(), nullptr);
-      return MapArchIDToDevice(DeviceArch.get());
+      return MapArchIDToArchName(DeviceArch.get());
     } else if (Dev->is_cpu() && backend::opencl == CurrentBackend) {
       // TODO: add support of different CPU architectures to
       // sycl_ext_oneapi_device_architecture
