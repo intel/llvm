@@ -155,9 +155,14 @@ Address CodeGenFunction::CreateMemTemp(QualType Ty, CharUnits Align,
     auto *VectorTy = llvm::FixedVectorType::get(ArrayTy->getElementType(),
                                                 ArrayTy->getNumElements());
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Result = Address(Result.getPointer(), VectorTy, Result.getAlignment(),
+                     KnownNonNull);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Result = Address(
         Builder.CreateBitCast(Result.getPointer(), VectorTy->getPointerTo()),
         VectorTy, Result.getAlignment(), KnownNonNull);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   return Result;
 }
@@ -761,9 +766,14 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
       llvm::Value *Min = Builder.getFalse();
       llvm::Value *NullIsUnknown = Builder.getFalse();
       llvm::Value *Dynamic = Builder.getFalse();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::Value *LargeEnough = Builder.CreateICmpUGE(
+          Builder.CreateCall(F, {Ptr, Min, NullIsUnknown, Dynamic}), Size);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *CastAddr = Builder.CreateBitCast(Ptr, Int8PtrTy);
       llvm::Value *LargeEnough = Builder.CreateICmpUGE(
           Builder.CreateCall(F, {CastAddr, Min, NullIsUnknown, Dynamic}), Size);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       Checks.push_back(std::make_pair(LargeEnough, SanitizerKind::ObjectSize));
     }
   }
@@ -840,9 +850,13 @@ void CodeGenFunction::EmitTypeCheck(TypeCheckKind TCK, SourceLocation Loc,
 
       // Load the vptr, and compute hash_16_bytes(TypeHash, vptr).
       llvm::Value *Low = llvm::ConstantInt::get(Int64Ty, TypeHash);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Address VPtrAddr(Ptr, IntPtrTy, getPointerAlign());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Type *VPtrTy = llvm::PointerType::get(IntPtrTy, 0);
       Address VPtrAddr(Builder.CreateBitCast(Ptr, VPtrTy), IntPtrTy,
                        getPointerAlign());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *VPtrVal = Builder.CreateLoad(VPtrAddr);
       llvm::Value *High = Builder.CreateZExt(VPtrVal, Int64Ty);
 
@@ -2534,6 +2548,7 @@ static void setObjCGCLValueClass(const ASTContext &Ctx, const Expr *E,
   }
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 static llvm::Value *
 EmitBitCastOfLValueToProperType(CodeGenFunction &CGF,
                                 llvm::Value *V, llvm::Type *IRType,
@@ -2541,6 +2556,7 @@ EmitBitCastOfLValueToProperType(CodeGenFunction &CGF,
   unsigned AS = cast<llvm::PointerType>(V->getType())->getAddressSpace();
   return CGF.Builder.CreateBitCast(V, IRType->getPointerTo(AS), Name);
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 static LValue EmitThreadPrivateVarDeclLValue(
     CodeGenFunction &CGF, const VarDecl *VD, QualType T, Address Addr,
@@ -2646,7 +2662,9 @@ static LValue EmitGlobalVarDeclLValue(CodeGenFunction &CGF,
     V = CGF.Builder.CreateThreadLocalAddress(V);
 
   llvm::Type *RealVarTy = CGF.getTypes().ConvertTypeForMem(VD->getType());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   V = EmitBitCastOfLValueToProperType(CGF, V, RealVarTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   CharUnits Alignment = CGF.getContext().getDeclAlign(VD);
   Address Addr(V, RealVarTy, Alignment);
   // Emit reference to the private copy of the variable if it is an OpenMP
@@ -3479,8 +3497,12 @@ void CodeGenFunction::EmitCfiSlowPathCheck(
         "__cfi_slowpath_diag",
         llvm::FunctionType::get(VoidTy, {Int64Ty, Int8PtrTy, Int8PtrTy},
                                 false));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    CheckCall = Builder.CreateCall(SlowPathFn, {TypeId, Ptr, InfoPtr});
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     CheckCall = Builder.CreateCall(
         SlowPathFn, {TypeId, Ptr, Builder.CreateBitCast(InfoPtr, Int8PtrTy)});
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     SlowPathFn = CGM.getModule().getOrInsertFunction(
         "__cfi_slowpath",
@@ -5539,8 +5561,12 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
         AlignedCalleePtr = CalleePtr;
       }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::Value *CalleePrefixStruct = AlignedCalleePtr;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *CalleePrefixStruct = Builder.CreateBitCast(
           AlignedCalleePtr, llvm::PointerType::getUnqual(PrefixStructTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *CalleeSigPtr =
           Builder.CreateConstGEP2_32(PrefixStructTy, CalleePrefixStruct, -1, 0);
       llvm::Value *CalleeSig =
@@ -5587,9 +5613,14 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
     llvm::Value *TypeId = llvm::MetadataAsValue::get(getLLVMContext(), MD);
 
     llvm::Value *CalleePtr = Callee.getFunctionPointer();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *TypeTest = Builder.CreateCall(
+        CGM.getIntrinsic(llvm::Intrinsic::type_test), {CalleePtr, TypeId});
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *CastedCallee = Builder.CreateBitCast(CalleePtr, Int8PtrTy);
     llvm::Value *TypeTest = Builder.CreateCall(
         CGM.getIntrinsic(llvm::Intrinsic::type_test), {CastedCallee, TypeId});
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     auto CrossDsoTypeId = CGM.CreateCrossDsoCfiTypeId(MD);
     llvm::Constant *StaticData[] = {
@@ -5599,18 +5630,30 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
     };
     if (CGM.getCodeGenOpts().SanitizeCfiCrossDso && CrossDsoTypeId) {
       EmitCfiSlowPathCheck(SanitizerKind::CFIICall, TypeTest, CrossDsoTypeId,
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+                           CalleePtr, StaticData);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
                            CastedCallee, StaticData);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     } else {
       EmitCheck(std::make_pair(TypeTest, SanitizerKind::CFIICall),
                 SanitizerHandler::CFICheckFail, StaticData,
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+                {CalleePtr, llvm::UndefValue::get(IntPtrTy)});
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
                 {CastedCallee, llvm::UndefValue::get(IntPtrTy)});
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
 
   CallArgList Args;
   if (Chain)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Args.add(RValue::get(Chain), CGM.getContext().VoidPtrTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Args.add(RValue::get(Builder.CreateBitCast(Chain, CGM.VoidPtrTy)),
              CGM.getContext().VoidPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // C++17 requires that we evaluate arguments to a call using assignment syntax
   // right-to-left, and that we evaluate arguments to certain other operators
@@ -5681,10 +5724,15 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, const CGCallee &OrigCallee
       isa<CUDAKernelCallExpr>(E) &&
       (!TargetDecl || !isa<FunctionDecl>(TargetDecl))) {
     llvm::Value *Handle = Callee.getFunctionPointer();
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    auto *Stub = Builder.CreateLoad(
+        Address(Handle, Handle->getType(), CGM.getPointerAlign()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     auto *Cast =
         Builder.CreateBitCast(Handle, Handle->getType()->getPointerTo());
     auto *Stub = Builder.CreateLoad(
         Address(Cast, Handle->getType(), CGM.getPointerAlign()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Callee.setFunctionPointer(Stub);
   }
   llvm::CallBase *CallOrInvoke = nullptr;

@@ -4031,9 +4031,9 @@ def mrvv_vector_bits_EQ : Joined<["-"], "mrvv-vector-bits=">, Group<m_Group>,
            "in __riscv_v_fixed_vlen preprocessor define (RISC-V only)">;
 
 def munaligned_access : Flag<["-"], "munaligned-access">, Group<m_Group>,
-  HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64/LoongArch only)">;
+  HelpText<"Allow memory accesses to be unaligned (AArch32/AArch64/LoongArch/RISC-V only)">;
 def mno_unaligned_access : Flag<["-"], "mno-unaligned-access">, Group<m_Group>,
-  HelpText<"Force all memory accesses to be aligned (AArch32/AArch64/LoongArch only)">;
+  HelpText<"Force all memory accesses to be aligned (AArch32/AArch64/LoongArch/RISC-V only)">;
 } // let Flags = [TargetSpecific]
 def mstrict_align : Flag<["-"], "mstrict-align">, Alias<mno_unaligned_access>, Flags<[CC1Option,HelpHidden]>,
   HelpText<"Force all memory accesses to be aligned (same as mno-unaligned-access)">;
@@ -4704,6 +4704,9 @@ def no_offload_add_rpath: Flag<["--"], "no-offload-add-rpath">, Flags<[NoArgumen
   Alias<frtlib_add_rpath>;
 def r : Flag<["-"], "r">, Flags<[LinkerInput,NoArgumentUnused]>,
         Group<Link_Group>;
+def regcall4 : Flag<["-"], "regcall4">, Group<m_Group>, Flags<[CC1Option]>,
+  HelpText<"Set __regcall4 as a default calling convention to respect __regcall ABI v.4">,
+  MarshallingInfoFlag<LangOpts<"RegCall4">>;
 def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[CC1Option, FlangOption, FC1Option, NoXarchOption]>,
   HelpText<"Save intermediate compilation results.">;
 def save_temps : Flag<["-", "--"], "save-temps">, Flags<[FlangOption, FC1Option, NoXarchOption]>,
@@ -7612,6 +7615,8 @@ def _SLASH_Gv : CLFlag<"Gv">,
   HelpText<"Set __vectorcall as a default calling convention">;
 def _SLASH_Gregcall : CLFlag<"Gregcall">,
   HelpText<"Set __regcall as a default calling convention">;
+def _SLASH_Gregcall4 : CLFlag<"Gregcall4">,
+  HelpText<"Set __regcall4 as a default calling convention to respect __regcall ABI v.4">;
 
 // GNU Driver aliases
 

@@ -3744,8 +3744,13 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
 
     index = CGF.Builder.CreateMul(index, objectSize);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *result =
+        CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *result = CGF.Builder.CreateBitCast(pointer, CGF.VoidPtrTy);
     result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return CGF.Builder.CreateBitCast(result, pointer->getType());
   }
 

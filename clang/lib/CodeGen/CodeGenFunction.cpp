@@ -2321,8 +2321,12 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
                                NullConstant, Twine());
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address SrcPtr(NullVariable, Builder.getInt8Ty(), NullAlign);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address SrcPtr(Builder.CreateBitCast(NullVariable, Builder.getInt8PtrTy()),
                    Builder.getInt8Ty(), NullAlign);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     if (vla) return emitNonZeroVLAInit(*this, Ty, DestPtr, SrcPtr, SizeVal);
 

@@ -216,20 +216,25 @@ static Value *MakeBinaryAtomicValue(
   assert(CGF.getContext().hasSameUnqualifiedType(T, E->getArg(1)->getType()));
 
   llvm::Value *DestPtr = CheckAtomicAlignment(CGF, E);
+
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::IntegerType *IntType = llvm::IntegerType::get(
+      CGF.getLLVMContext(), CGF.getContext().getTypeSize(T));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   unsigned AddrSpace = DestPtr->getType()->getPointerAddressSpace();
 
-  llvm::IntegerType *IntType =
-    llvm::IntegerType::get(CGF.getLLVMContext(),
-                           CGF.getContext().getTypeSize(T));
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::IntegerType *IntType = llvm::IntegerType::get(
+      CGF.getLLVMContext(), CGF.getContext().getTypeSize(T));
   llvm::Type *IntPtrType =
       llvm::PointerType::get(CGF.getLLVMContext(), AddrSpace);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  llvm::Type *IntPtrType = IntType->getPointerTo(AddrSpace);
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   llvm::Value *Args[2];
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Args[0] = DestPtr;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Args[0] = CGF.Builder.CreateBitCast(DestPtr, IntPtrType);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Args[1] = CGF.EmitScalarExpr(E->getArg(1));
   llvm::Type *ValueType = Args[1]->getType();
   Args[1] = EmitToInt(CGF, Args[1], T, IntType);
@@ -243,12 +248,17 @@ static Value *EmitNontemporalStore(CodeGenFunction &CGF, const CallExpr *E) {
   Value *Val = CGF.EmitScalarExpr(E->getArg(0));
   Value *Address = CGF.EmitScalarExpr(E->getArg(1));
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Val = CGF.EmitToMemory(Val, E->getArg(0)->getType());
+  LValue LV = CGF.MakeNaturalAlignAddrLValue(Address, E->getArg(0)->getType());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   // Convert the type of the pointer to a pointer to the stored type.
   Val = CGF.EmitToMemory(Val, E->getArg(0)->getType());
   unsigned SrcAddrSpace = Address->getType()->getPointerAddressSpace();
   Value *BC = CGF.Builder.CreateBitCast(
       Address, llvm::PointerType::get(Val->getType(), SrcAddrSpace), "cast");
   LValue LV = CGF.MakeNaturalAlignAddrLValue(BC, E->getArg(0)->getType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   LV.setNontemporal(true);
   CGF.EmitStoreOfScalar(Val, LV, false);
   return nullptr;
@@ -913,11 +923,12 @@ EncompassingIntegerType(ArrayRef<struct WidthAndSignedness> Types) {
 }
 
 Value *CodeGenFunction::EmitVAStartEnd(Value *ArgValue, bool IsStart) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *DestType = Int8PtrTy;
   if (ArgValue->getType() != DestType)
     ArgValue =
         Builder.CreateBitCast(ArgValue, DestType, ArgValue->getName().data());
-
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Intrinsic::ID inst = IsStart ? Intrinsic::vastart : Intrinsic::vaend;
   return Builder.CreateCall(CGM.getIntrinsic(inst), ArgValue);
 }
@@ -2768,11 +2779,12 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   case Builtin::BI__builtin_va_copy: {
     Value *DstPtr = EmitVAListRef(E->getArg(0)).getPointer();
     Value *SrcPtr = EmitVAListRef(E->getArg(1)).getPointer();
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Type = Int8PtrTy;
 
     DstPtr = Builder.CreateBitCast(DstPtr, Type);
     SrcPtr = Builder.CreateBitCast(SrcPtr, Type);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Builder.CreateCall(CGM.getIntrinsic(Intrinsic::vacopy), {DstPtr, SrcPtr});
     return RValue::get(nullptr);
   }
@@ -4072,7 +4084,9 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_longjmp: {
     Value *Buf = EmitScalarExpr(E->getArg(0));
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Buf = Builder.CreateBitCast(Buf, Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Call LLVM's EH longjmp, which is lightweight.
     Builder.CreateCall(CGM.getIntrinsic(Intrinsic::eh_sjlj_longjmp), Buf);
@@ -9515,8 +9529,10 @@ Value *CodeGenFunction::EmitSVEStructLoad(const SVETypeFlags &TypeFlags,
                                           SmallVectorImpl<Value*> &Ops,
                                           unsigned IntID) {
   llvm::ScalableVectorType *VTy = getSVEType(TypeFlags);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   auto VecPtrTy = llvm::PointerType::getUnqual(VTy);
   auto EltPtrTy = llvm::PointerType::getUnqual(VTy->getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   unsigned N;
   switch (IntID) {
@@ -9535,14 +9551,20 @@ Value *CodeGenFunction::EmitSVEStructLoad(const SVETypeFlags &TypeFlags,
   auto RetTy = llvm::VectorType::get(VTy->getElementType(),
                                      VTy->getElementCount() * N);
 
-	Value *Predicate = EmitSVEPredicateCast(Ops[0], VTy);
+  Value *Predicate = EmitSVEPredicateCast(Ops[0], VTy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *BasePtr = Ops[1];
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *BasePtr= Builder.CreateBitCast(Ops[1], VecPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Does the load have an offset?
   if (Ops.size() > 2)
     BasePtr = Builder.CreateGEP(VTy, BasePtr, Ops[2]);
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   BasePtr = Builder.CreateBitCast(BasePtr, EltPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Function *F = CGM.getIntrinsic(IntID, {VTy});
   Value *Call = Builder.CreateCall(F, {Predicate, BasePtr});
   unsigned MinElts = VTy->getMinNumElements();
@@ -9559,8 +9581,10 @@ Value *CodeGenFunction::EmitSVEStructStore(const SVETypeFlags &TypeFlags,
                                            SmallVectorImpl<Value*> &Ops,
                                            unsigned IntID) {
   llvm::ScalableVectorType *VTy = getSVEType(TypeFlags);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   auto VecPtrTy = llvm::PointerType::getUnqual(VTy);
   auto EltPtrTy = llvm::PointerType::getUnqual(VTy->getElementType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   unsigned N;
   switch (IntID) {
@@ -9578,13 +9602,19 @@ Value *CodeGenFunction::EmitSVEStructStore(const SVETypeFlags &TypeFlags,
   }
 
   Value *Predicate = EmitSVEPredicateCast(Ops[0], VTy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *BasePtr = Ops[1];
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *BasePtr = Builder.CreateBitCast(Ops[1], VecPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Does the store have an offset?
   if (Ops.size() > 3)
     BasePtr = Builder.CreateGEP(VTy, BasePtr, Ops[2]);
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   BasePtr = Builder.CreateBitCast(BasePtr, EltPtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *Val = Ops.back();
 
   // The llvm.aarch64.sve.st2/3/4 intrinsics take legal part vectors, so we
@@ -10484,8 +10514,12 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
                              : Intrinsic::aarch64_ldxp);
 
     Value *LdPtr = EmitScalarExpr(E->getArg(0));
-    Value *Val = Builder.CreateCall(F, Builder.CreateBitCast(LdPtr, Int8PtrTy),
-                                    "ldxp");
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Val = Builder.CreateCall(F, LdPtr, "ldxp");
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Val =
+        Builder.CreateCall(F, Builder.CreateBitCast(LdPtr, Int8PtrTy), "ldxp");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     Value *Val0 = Builder.CreateExtractValue(Val, 1);
     Value *Val1 = Builder.CreateExtractValue(Val, 0);
@@ -10547,8 +10581,12 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
 
     Value *Arg0 = Builder.CreateExtractValue(Val, 0);
     Value *Arg1 = Builder.CreateExtractValue(Val, 1);
-    Value *StPtr = Builder.CreateBitCast(EmitScalarExpr(E->getArg(1)),
-                                         Int8PtrTy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *StPtr = EmitScalarExpr(E->getArg(1));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *StPtr =
+        Builder.CreateBitCast(EmitScalarExpr(E->getArg(1)), Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateCall(F, {Arg0, Arg1, StPtr}, "stxp");
   }
 
@@ -10998,14 +11036,22 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vldrq_p128: {
     llvm::Type *Int128Ty = llvm::Type::getIntNTy(getLLVMContext(), 128);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Ptr = EmitScalarExpr(E->getArg(0));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Int128PTy = llvm::PointerType::get(Int128Ty, 0);
     Value *Ptr = Builder.CreateBitCast(EmitScalarExpr(E->getArg(0)), Int128PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateAlignedLoad(Int128Ty, Ptr,
                                      CharUnits::fromQuantity(16));
   }
   case NEON::BI__builtin_neon_vstrq_p128: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Int128PTy = llvm::Type::getIntNPtrTy(getLLVMContext(), 128);
     Value *Ptr = Builder.CreateBitCast(Ops[0], Int128PTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Ptr = Ops[0];
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(EmitScalarExpr(E->getArg(1)), Ptr);
   }
   case NEON::BI__builtin_neon_vcvts_f32_u32:
@@ -12523,19 +12569,25 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vld1_v:
   case NEON::BI__builtin_neon_vld1q_v: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(VTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateAlignedLoad(VTy, Ops[0], PtrOp0.getAlignment());
   }
   case NEON::BI__builtin_neon_vst1_v:
   case NEON::BI__builtin_neon_vst1q_v:
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(VTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[1] = Builder.CreateBitCast(Ops[1], VTy);
     return Builder.CreateAlignedStore(Ops[1], Ops[0], PtrOp0.getAlignment());
   case NEON::BI__builtin_neon_vld1_lane_v:
   case NEON::BI__builtin_neon_vld1q_lane_v: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0],
                                        PtrOp0.getAlignment());
     return Builder.CreateInsertElement(Ops[1], Ops[0], Ops[2], "vld1_lane");
@@ -12543,8 +12595,6 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vldap1_lane_s64:
   case NEON::BI__builtin_neon_vldap1q_lane_s64: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
-    Ty = llvm::PointerType::getUnqual(VTy->getElementType());
-    Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
     llvm::LoadInst *LI = Builder.CreateAlignedLoad(
         VTy->getElementType(), Ops[0], PtrOp0.getAlignment());
     LI->setAtomic(llvm::AtomicOrdering::Acquire);
@@ -12554,8 +12604,10 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vld1_dup_v:
   case NEON::BI__builtin_neon_vld1q_dup_v: {
     Value *V = PoisonValue::get(Ty);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateAlignedLoad(VTy->getElementType(), Ops[0],
                                        PtrOp0.getAlignment());
     llvm::Constant *CI = ConstantInt::get(Int32Ty, 0);
@@ -12573,38 +12625,59 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   case NEON::BI__builtin_neon_vstl1q_lane_s64: {
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[1] = Builder.CreateExtractElement(Ops[1], Ops[2]);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::StoreInst *SI =
+        Builder.CreateAlignedStore(Ops[1], Ops[0], PtrOp0.getAlignment());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(Ops[1]->getType());
     llvm::StoreInst *SI = Builder.CreateAlignedStore(
         Ops[1], Builder.CreateBitCast(Ops[0], Ty), PtrOp0.getAlignment());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     SI->setAtomic(llvm::AtomicOrdering::Release);
     return SI;
   }
   case NEON::BI__builtin_neon_vld2_v:
   case NEON::BI__builtin_neon_vld2q_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy = llvm::PointerType::getUnqual(VTy);
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld2, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld2");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0],
                 llvm::PointerType::getUnqual(Ops[1]->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld3_v:
   case NEON::BI__builtin_neon_vld3q_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy = llvm::PointerType::getUnqual(VTy);
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld3, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld3");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0],
                 llvm::PointerType::getUnqual(Ops[1]->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld4_v:
   case NEON::BI__builtin_neon_vld4q_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy = llvm::PointerType::getUnqual(VTy);
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld4, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld4");
@@ -12614,38 +12687,56 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vld2_dup_v:
   case NEON::BI__builtin_neon_vld2q_dup_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy =
       llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld2r, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld2");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0],
                 llvm::PointerType::getUnqual(Ops[1]->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld3_dup_v:
   case NEON::BI__builtin_neon_vld3q_dup_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy =
       llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld3r, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld3");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0],
                 llvm::PointerType::getUnqual(Ops[1]->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld4_dup_v:
   case NEON::BI__builtin_neon_vld4q_dup_v: {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Type *PTy = llvm::PointerType::getUnqual(getLLVMContext());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PTy =
       llvm::PointerType::getUnqual(VTy->getElementType());
     Ops[1] = Builder.CreateBitCast(Ops[1], PTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *Tys[2] = { VTy, PTy };
     Function *F = CGM.getIntrinsic(Intrinsic::aarch64_neon_ld4r, Tys);
     Ops[1] = Builder.CreateCall(F, Ops[1], "vld4");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0],
                 llvm::PointerType::getUnqual(Ops[1]->getType()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld2_lane_v:
@@ -12657,8 +12748,10 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Ops[2] = Builder.CreateBitCast(Ops[2], Ty);
     Ops[3] = Builder.CreateZExt(Ops[3], Int64Ty);
     Ops[1] = Builder.CreateCall(F, ArrayRef(Ops).slice(1), "vld2_lane");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(Ops[1]->getType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld3_lane_v:
@@ -12671,8 +12764,10 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Ops[3] = Builder.CreateBitCast(Ops[3], Ty);
     Ops[4] = Builder.CreateZExt(Ops[4], Int64Ty);
     Ops[1] = Builder.CreateCall(F, ArrayRef(Ops).slice(1), "vld3_lane");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(Ops[1]->getType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vld4_lane_v:
@@ -12686,8 +12781,10 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
     Ops[4] = Builder.CreateBitCast(Ops[4], Ty);
     Ops[5] = Builder.CreateZExt(Ops[5], Int64Ty);
     Ops[1] = Builder.CreateCall(F, ArrayRef(Ops).slice(1), "vld4_lane");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ty = llvm::PointerType::getUnqual(Ops[1]->getType());
     Ops[0] = Builder.CreateBitCast(Ops[0], Ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateDefaultAlignedStore(Ops[1], Ops[0]);
   }
   case NEON::BI__builtin_neon_vst2_v:
@@ -12737,7 +12834,9 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vtrn_v:
   case NEON::BI__builtin_neon_vtrnq_v: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(Ty));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[2] = Builder.CreateBitCast(Ops[2], Ty);
     Value *SV = nullptr;
@@ -12756,7 +12855,9 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vuzp_v:
   case NEON::BI__builtin_neon_vuzpq_v: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(Ty));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[2] = Builder.CreateBitCast(Ops[2], Ty);
     Value *SV = nullptr;
@@ -12774,7 +12875,9 @@ Value *CodeGenFunction::EmitAArch64BuiltinExpr(unsigned BuiltinID,
   }
   case NEON::BI__builtin_neon_vzip_v:
   case NEON::BI__builtin_neon_vzipq_v: {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[0] = Builder.CreateBitCast(Ops[0], llvm::PointerType::getUnqual(Ty));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Ops[1] = Builder.CreateBitCast(Ops[1], Ty);
     Ops[2] = Builder.CreateBitCast(Ops[2], Ty);
     Value *SV = nullptr;
@@ -12993,9 +13096,13 @@ static Value *getMaskVecValue(CodeGenFunction &CGF, Value *Mask,
 
 static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                  Align Alignment) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Cast the pointer to right type.
   Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *Ptr = Ops[0];
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2],
@@ -13006,10 +13113,13 @@ static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
 
 static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
                                 Align Alignment) {
-  // Cast the pointer to right type.
   llvm::Type *Ty = Ops[1]->getType();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       Ops[0], llvm::PointerType::getUnqual(Ty));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *Ptr = Ops[0];
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2], cast<llvm::FixedVectorType>(Ty)->getNumElements());
@@ -13020,11 +13130,15 @@ static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
 static Value *EmitX86ExpandLoad(CodeGenFunction &CGF,
                                 ArrayRef<Value *> Ops) {
   auto *ResultTy = cast<llvm::VectorType>(Ops[1]->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *Ptr = Ops[0];
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *PtrTy = ResultTy->getElementType();
 
   // Cast the pointer to element type.
   Value *Ptr = CGF.Builder.CreateBitCast(Ops[0],
                                          llvm::PointerType::getUnqual(PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(
       CGF, Ops[2], cast<FixedVectorType>(ResultTy)->getNumElements());
@@ -13050,11 +13164,15 @@ static Value *EmitX86CompressExpand(CodeGenFunction &CGF,
 static Value *EmitX86CompressStore(CodeGenFunction &CGF,
                                    ArrayRef<Value *> Ops) {
   auto *ResultTy = cast<llvm::FixedVectorType>(Ops[1]->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *Ptr = Ops[0];
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *PtrTy = ResultTy->getElementType();
 
   // Cast the pointer to element type.
   Value *Ptr = CGF.Builder.CreateBitCast(Ops[0],
                                          llvm::PointerType::getUnqual(PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(CGF, Ops[2], ResultTy->getNumElements());
 
@@ -13865,13 +13983,21 @@ Value *CodeGenFunction::EmitX86BuiltinExpr(unsigned BuiltinID,
     Address Tmp = CreateMemTemp(E->getArg(0)->getType());
     Builder.CreateStore(Ops[0], Tmp);
     return Builder.CreateCall(CGM.getIntrinsic(Intrinsic::x86_sse_ldmxcsr),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+                              Tmp.getPointer());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
                           Builder.CreateBitCast(Tmp.getPointer(), Int8PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   case X86::BI_mm_getcsr:
   case X86::BI__builtin_ia32_stmxcsr: {
     Address Tmp = CreateMemTemp(E->getType());
     Builder.CreateCall(CGM.getIntrinsic(Intrinsic::x86_sse_stmxcsr),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+                       Tmp.getPointer());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
                        Builder.CreateBitCast(Tmp.getPointer(), Int8PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateLoad(Tmp, "stmxcsr");
   }
   case X86::BI__builtin_ia32_xsave:
@@ -16221,11 +16347,16 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     SmallVector<Value *, 2> Ops;
     Ops.push_back(EmitScalarExpr(E->getArg(0)));
     Ops.push_back(EmitScalarExpr(E->getArg(1)));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (!(BuiltinID == PPC::BI__builtin_vsx_lxvl ||
+          BuiltinID == PPC::BI__builtin_vsx_lxvll)) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if(BuiltinID == PPC::BI__builtin_vsx_lxvl ||
        BuiltinID == PPC::BI__builtin_vsx_lxvll){
       Ops[0] = Builder.CreateBitCast(Ops[0], Int8PtrTy);
     }else {
       Ops[1] = Builder.CreateBitCast(Ops[1], Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       Ops[0] = Builder.CreateGEP(Int8Ty, Ops[1], Ops[0]);
       Ops.pop_back();
     }
@@ -16293,11 +16424,16 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
     Ops.push_back(EmitScalarExpr(E->getArg(0)));
     Ops.push_back(EmitScalarExpr(E->getArg(1)));
     Ops.push_back(EmitScalarExpr(E->getArg(2)));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (!(BuiltinID == PPC::BI__builtin_vsx_stxvl ||
+          BuiltinID == PPC::BI__builtin_vsx_stxvll)) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if(BuiltinID == PPC::BI__builtin_vsx_stxvl ||
       BuiltinID == PPC::BI__builtin_vsx_stxvll ){
       Ops[1] = Builder.CreateBitCast(Ops[1], Int8PtrTy);
     }else {
       Ops[2] = Builder.CreateBitCast(Ops[2], Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       Ops[1] = Builder.CreateGEP(Int8Ty, Ops[2], Ops[1]);
       Ops.pop_back();
     }
@@ -16846,7 +16982,7 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
   }
   case PPC::BI__builtin_ppc_load2r: {
     Function *F = CGM.getIntrinsic(Intrinsic::ppc_load2r);
-    Value *Op0 = Builder.CreateBitCast(EmitScalarExpr(E->getArg(0)), Int8PtrTy);
+    Value *Op0 = EmitScalarExpr(E->getArg(0));
     Value *LoadIntrinsic = Builder.CreateCall(F, {Op0});
     return Builder.CreateTrunc(LoadIntrinsic, Int16Ty);
   }
@@ -17071,7 +17207,11 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
 
   case PPC::BI__builtin_ppc_sthcx: {
     llvm::Function *F = CGM.getIntrinsic(Intrinsic::ppc_sthcx);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Op0 = EmitScalarExpr(E->getArg(0));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *Op0 = Builder.CreateBitCast(EmitScalarExpr(E->getArg(0)), Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     Value *Op1 = Builder.CreateSExt(EmitScalarExpr(E->getArg(1)), Int32Ty);
     return Builder.CreateCall(F, {Op0, Op1});
   }
@@ -17149,10 +17289,14 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
         BuiltinID == PPC::BI__builtin_mma_stxvp) {
       if (BuiltinID == PPC::BI__builtin_vsx_lxvp ||
           BuiltinID == PPC::BI__builtin_mma_lxvp) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Ops[1] = Builder.CreateBitCast(Ops[1], Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
         Ops[0] = Builder.CreateGEP(Int8Ty, Ops[1], Ops[0]);
       } else {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Ops[2] = Builder.CreateBitCast(Ops[2], Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
         Ops[1] = Builder.CreateGEP(Int8Ty, Ops[2], Ops[1]);
       }
       Ops.pop_back();
@@ -22346,8 +22490,12 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
   auto MakeCircOp = [this, E](unsigned IntID, bool IsLoad) {
     // The base pointer is passed by address, so it needs to be loaded.
     Address A = EmitPointerWithAlignment(E->getArg(0));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address BP = Address(A.getPointer(), Int8PtrTy, A.getAlignment());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address BP = Address(Builder.CreateBitCast(
         A.getPointer(), Int8PtrPtrTy), Int8PtrTy, A.getAlignment());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *Base = Builder.CreateLoad(BP);
     // The treatment of both loads and stores is the same: the arguments for
     // the builtin are the same as the arguments for the intrinsic.
@@ -22387,15 +22535,23 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
     // The intrinsic generates one result, which is the new value for the base
     // pointer. It needs to be returned. The result of the load instruction is
     // passed to intrinsic by address, so the value needs to be stored.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    llvm::Value *BaseAddress = EmitScalarExpr(E->getArg(0));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *BaseAddress =
         Builder.CreateBitCast(EmitScalarExpr(E->getArg(0)), Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Expressions like &(*pt++) will be incremented per evaluation.
     // EmitPointerWithAlignment and EmitScalarExpr evaluates the expression
     // per call.
     Address DestAddr = EmitPointerWithAlignment(E->getArg(1));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    DestAddr = Address(DestAddr.getPointer(), Int8Ty, DestAddr.getAlignment());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     DestAddr = Address(Builder.CreateBitCast(DestAddr.getPointer(), Int8PtrTy),
                        Int8Ty, DestAddr.getAlignment());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Value *DestAddress = DestAddr.getPointer();
 
     // Operands are Base, Dest, Modifier.

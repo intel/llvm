@@ -942,7 +942,11 @@ llvm::Value *CodeGenFunction::EmitBlockLiteral(const CGBlockInfo &blockInfo) {
       if (CI.isNested())
         byrefPointer = Builder.CreateLoad(src, "byref.capture");
       else
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        byrefPointer = src.getPointer();
+#else
         byrefPointer = Builder.CreateBitCast(src.getPointer(), VoidPtrTy);
+#endif
 
       // Write that void* into the capture field.
       Builder.CreateStore(byrefPointer, blockField);
@@ -1678,7 +1682,9 @@ struct CallBlockRelease final : EHScopeStack::Cleanup {
     llvm::Value *BlockVarAddr;
     if (LoadBlockVarAddr) {
       BlockVarAddr = CGF.Builder.CreateLoad(Addr);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       BlockVarAddr = CGF.Builder.CreateBitCast(BlockVarAddr, CGF.VoidPtrTy);
+#endif
     } else {
       BlockVarAddr = Addr.getPointer();
     }
@@ -1998,9 +2004,13 @@ CodeGenFunction::GenerateCopyHelperFunction(const CGBlockInfo &blockInfo) {
     }
     case BlockCaptureEntityKind::BlockObject: {
       llvm::Value *srcValue = Builder.CreateLoad(srcField, "blockcopy.src");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       srcValue = Builder.CreateBitCast(srcValue, VoidPtrTy);
       llvm::Value *dstAddr =
           Builder.CreateBitCast(dstField.getPointer(), VoidPtrTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::Value *dstAddr = dstField.getPointer();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *args[] = {
         dstAddr, srcValue, llvm::ConstantInt::get(Int32Ty, flags.getBitMask())
       };
@@ -2827,10 +2837,15 @@ void CodeGenFunction::emitByrefStructureInit(const AutoVarEmission &emission) {
 void CodeGenFunction::BuildBlockRelease(llvm::Value *V, BlockFieldFlags flags,
                                         bool CanThrow) {
   llvm::FunctionCallee F = CGM.getBlockObjectDispose();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *args[] = {
     Builder.CreateBitCast(V, Int8PtrTy),
     llvm::ConstantInt::get(Int32Ty, flags.getBitMask())
   };
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Value *args[] = {V,
+                         llvm::ConstantInt::get(Int32Ty, flags.getBitMask())};
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (CanThrow)
     EmitRuntimeCallOrInvoke(F, args);

@@ -71,6 +71,9 @@ Resolutions to C++ Defect Reports
 
 C Language Changes
 ------------------
+- ``structs``, ``unions``, and ``arrays`` that are const may now be used as
+  constant expressions.  This change is more consistent with the behavior of
+  GCC.
 
 C2x Feature Support
 ^^^^^^^^^^^^^^^^^^^
@@ -143,6 +146,10 @@ Miscellaneous Bug Fixes
 
 Miscellaneous Clang Crashes Fixed
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+- Fixed a crash when parsing top-level ObjC blocks that aren't properly
+  terminated. Clang should now also recover better when an @end is missing
+  between blocks.
+  `Issue 64065 <https://github.com/llvm/llvm-project/issues/64065>`_
 
 Target Specific Changes
 -----------------------
@@ -164,6 +171,8 @@ LoongArch Support
 
 RISC-V Support
 ^^^^^^^^^^^^^^
+- Unaligned memory accesses can be toggled by ``-m[no-]unaligned-access`` or the
+  aliases ``-m[no-]strict-align``.
 
 CUDA/HIP Language Changes
 ^^^^^^^^^^^^^^^^^^^^^^^^^
