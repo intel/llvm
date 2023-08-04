@@ -1046,8 +1046,8 @@ void ConstantPropagationPass::runOnOperation() {
         SymbolTable::getSymbolUses(op, module);
     if (!optUses) {
       LLVM_DEBUG(llvm::dbgs().indent(2)
-                 << "SYCL constant propagation pass expects a "
-                    "single kernel launch point\n");
+                 << "SYCL constant propagation pass expects at least one "
+                    "kernel launch point\n");
       return;
     }
 
