@@ -51,15 +51,11 @@ int main(int argc, char *argv[]) {
                                  [[sycl::reqd_work_group_size(N, N, N)]] {});
   });
 
-  // TODO: Due to truncation issues, this test cannot pass yet.
-  // Enable this test once fixed.
-#ifndef NO_RANGE_GREATER_THAN_UINT32_MAX
   throws_kernel_not_supported("uint32_max+2", [] {
     constexpr uint64_t N = 4294967297;
     q.parallel_for<class K3>(nd_range<1>(N, N),
                              [=](auto) [[sycl::reqd_work_group_size(N)]] {});
   });
-#endif
 
   return n_fail;
 }
