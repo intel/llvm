@@ -1,6 +1,6 @@
 // RUN: clang++ -O1 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
-// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s --check-prefixes CHECK,NO-O1
-// RUN: clang++ -O3 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s --check-prefixes CHECK,NO-O1
+// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
+// RUN: clang++ -O3 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers | FileCheck %s
 
 #include <sycl/sycl.hpp>
 
@@ -27,19 +27,15 @@ class KernelName;
 // CHECK-DAG:      %[[ZERO:.*]] = llvm.mlir.constant(0 : i64) : i64
 
 // COM: These three lines are needed to match the right GS, LS and OFF.
-// NO-O1:          sycl.host.constructor(%{{.*}}, %[[N]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// NO-O1:          sycl.host.constructor(%{{.*}}, %[[L]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// NO-O1:          sycl.host.constructor(%{{.*}}, %[[ZERO]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
-
-// CHECK:          sycl.host.constructor(%[[GS:.*]], %[[N]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// CHECK:          sycl.host.constructor(%[[LS:.*]], %[[L]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
-// CHECK:          sycl.host.constructor(%[[OFF:.*]], %[[ZERO]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_r_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:          sycl.host.constructor({{.*}}) {type = !sycl_accessor_1_21llvm2Evoid_w_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
 // COM: Check we can detect nd-range assignment with an nd_range argument
 
+// CHECK:         sycl.host.constructor(%[[GS:.*]], %[[N]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK:         sycl.host.constructor(%[[LS:.*]], %[[L]]) {type = !sycl_range_1_} : (!llvm.ptr, i64) -> ()
+// CHECK:         sycl.host.constructor(%[[OFF:.*]], %[[ZERO]]) {type = !sycl_id_1_} : (!llvm.ptr, i64) -> ()
 // CHECK:         sycl.host.constructor(%[[ND_RANGE:.*]], %[[GS]], %[[LS]], %[[OFF]]) {type = !sycl_nd_range_1_} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 // CHECK:         sycl.host.handler.set_nd_range %[[HANDLER:.*]] -> nd_range %[[ND_RANGE]] : !llvm.ptr, !llvm.ptr
 

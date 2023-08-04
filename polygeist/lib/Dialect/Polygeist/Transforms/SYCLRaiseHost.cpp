@@ -1262,8 +1262,7 @@ RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
     }
     // gep+store
     assert(ops.size() == dimensions && "Expecting a value per dimension");
-    OpBuilder::InsertionGuard IG(rewriter);
-    rewriter.setInsertionPoint(alloc);
+
     Type resultType = rewriter.getType<LLVM::LLVMPointerType>();
     Type elementType = cast<LLVM::LLVMStructType>(*alloc.getElemType())
                            .getBody()[iter.index()];
@@ -1293,10 +1292,14 @@ RaiseNDRangeConstructor::getArgs(FunctionOpInterface func, LLVM::AllocaOp alloc,
       for (Operation *op : ops)
         rewriter.eraseOp(op);
       // Create new alloca
-      Value arraySize =
-          rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), 1);
-      result = rewriter.create<LLVM::AllocaOp>(loc, resultType, elementType,
-                                               arraySize);
+      {
+        OpBuilder::InsertionGuard IG(rewriter);
+        Value arraySize =
+            rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), 1);
+        rewriter.setInsertionPoint(alloc);
+        result = rewriter.create<LLVM::AllocaOp>(loc, resultType, elementType,
+                                                 arraySize);
+      }
       // Construct it
       rewriter.create<sycl::SYCLHostConstructorOp>(loc, result, args,
                                                    TypeAttr::get(type));
