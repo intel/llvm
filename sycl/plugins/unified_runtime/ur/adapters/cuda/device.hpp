@@ -102,3 +102,42 @@ public:
 };
 
 int getAttribute(ur_device_handle_t Device, CUdevice_attribute Attribute);
+
+// This will be important for changing from device to device
+namespace {
+class ScopedDevice {
+  CUcontext Original;
+  bool NeedToRecover = false;
+
+public:
+  ScopedDevice(CUcontext NativeContext) { setContext(NativeContext); }
+  ScopedDevice(ur_device_handle_t Device) {
+    if (!Device) {
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    }
+    setContext(Device->getNativeContext());
+  }
+
+  ~ScopedDevice() {
+    if (NeedToRecover) {
+      UR_CHECK_ERROR(cuCtxSetCurrent(Original));
+    }
+  }
+
+private:
+  void setContext(CUcontext Desired) {
+
+    UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
+
+    if (Original != nullptr) {
+      NeedToRecover = true;
+    }
+
+    // Make sure the desired context is active on the current thread, setting
+    // it if necessary
+    if (Original != Desired) {
+      UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
+    }
+  }
+};
+} // namespace

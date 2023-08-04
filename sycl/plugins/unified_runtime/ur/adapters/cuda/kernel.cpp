@@ -17,7 +17,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> Kernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getDevice());
+    ScopedDevice Active(hProgram->getDevice());
 
     CUfunction CuFunc;
     CUresult FunctionResult =

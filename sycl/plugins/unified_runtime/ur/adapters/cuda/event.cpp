@@ -227,7 +227,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
     auto Context = phEventWaitList[0]->getContext();
-    ScopedContext Active(
+    ScopedDevice Active(
         phEventWaitList[0]->getQueue()->getDevice());
 
     auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
@@ -265,7 +265,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
     std::unique_ptr<ur_event_handle_t_> event_ptr{hEvent};
     ur_result_t Result = UR_RESULT_ERROR_INVALID_EVENT;
     try {
-      ScopedContext Active(hEvent->getQueue()->getDevice());
+      ScopedDevice Active(hEvent->getQueue()->getDevice());
       Result = hEvent->release();
     } catch (...) {
       Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;

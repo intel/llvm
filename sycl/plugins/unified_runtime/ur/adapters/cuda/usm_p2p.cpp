@@ -14,7 +14,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
 
   ur_result_t result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     UR_CHECK_ERROR(cuCtxEnablePeerAccess(peerDevice->getNativeContext(), 0));
   } catch (ur_result_t err) {
     result = err;
@@ -27,7 +27,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
 
   ur_result_t result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     UR_CHECK_ERROR(cuCtxDisablePeerAccess(peerDevice->getNativeContext()));
   } catch (ur_result_t err) {
     result = err;
@@ -45,7 +45,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   int value;
   CUdevice_P2PAttribute cu_attr;
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     switch (propName) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
       cu_attr = CU_DEVICE_P2P_ATTRIBUTE_ACCESS_SUPPORTED;

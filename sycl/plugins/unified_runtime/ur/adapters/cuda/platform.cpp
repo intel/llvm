@@ -86,7 +86,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               Result =
                   UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Context, Device));
 
-              ScopedContext active(Context);
+              ScopedDevice active(Context);
               CUevent EvBase;
               Result = UR_CHECK_ERROR(cuEventCreate(&EvBase, CU_EVENT_DEFAULT));
 

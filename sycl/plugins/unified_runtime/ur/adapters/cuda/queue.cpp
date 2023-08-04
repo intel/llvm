@@ -186,7 +186,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
     if (!hQueue->backendHasOwnership())
       return UR_RESULT_SUCCESS;
 
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->forEachStream([](CUstream S) {
       UR_CHECK_ERROR(cuStreamSynchronize(S));
@@ -206,7 +206,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 
   try {
     UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->syncStreams</*ResetUsed=*/true>([&Result](CUstream s) {
       Result = UR_CHECK_ERROR(cuStreamSynchronize(s));
@@ -237,7 +237,7 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *pDesc,
                        ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
 
-  ScopedContext Active(hQueue->getDevice());
+  ScopedDevice Active(hQueue->getDevice());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;

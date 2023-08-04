@@ -32,23 +32,24 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 /// with a given device and control access to said device from the user side.
 /// UR API context are objects that are passed to functions, and not bound
 /// to threads.
-/// The ur_context_handle_t_ object doesn't implement this behavior. It only
-/// holds the CUDA context data. The RAII object \ref ScopedContext implements
-/// the active context behavior.
 ///
-/// <b> Primary vs User-defined context </b>
+/// Since the ur_context_handle_t can contain multiple devices, and a CUcontext
+/// refers to only a single device, the CUcontext is more tightly coupled to a
+/// ur_device_handle_t than a ur_context_handle_t. In order to remove some
+/// ambiguities about the different semantics of ur_context_handle_t s and
+/// native CUcontext, we access the native CUcontext solely through the
+/// ur_device_handle_t class, by using the RAII object \ref ScopedDevice, which
+/// sets the active device (by setting the active native CUcontext).
 ///
-/// CUDA has two different types of context, the Primary context,
-/// which is usable by all threads on a given process for a given device, and
-/// the aforementioned custom contexts.
-/// The CUDA documentation, confirmed with performance analysis, suggest using
-/// the Primary context whenever possible.
-/// The Primary context is also used by the CUDA Runtime API.
-/// For UR applications to interop with CUDA Runtime API, they have to use
-/// the primary context - and make that active in the thread.
-/// The `ur_context_handle_t_` object can be constructed with a `kind` parameter
-/// that allows to construct a Primary or `user-defined` context, so that
-/// the UR object interface is always the same.
+/// <b> Primary vs User-defined CUcontext </b>
+///
+/// CUDA has two different types of CUcontext, the Primary context, which is
+/// usable by all threads on a given process for a given device, and the
+/// aforementioned custom CUcontexts. The CUDA documentation, confirmed with
+/// performance analysis, suggest using the Primary context whenever possible.
+/// The Primary context is also used by the CUDA Runtime API. For UR
+/// applications to interop with CUDA Runtime API, they have to use the primary
+/// context - and make that active in the thread.
 ///
 ///  <b> Destructor callback </b>
 ///
@@ -114,42 +115,3 @@ private:
   std::mutex Mutex;
   std::vector<deleter_data> ExtendedDeleters;
 };
-
-// This will be important for changing from device to device
-namespace {
-class ScopedContext {
-  CUcontext Original;
-  bool NeedToRecover = false;
-
-public:
-  ScopedContext(CUcontext NativeContext) { setContext(NativeContext); }
-  ScopedContext(ur_device_handle_t Device) {
-    if (!Device) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
-    }
-    setContext(Device->getNativeContext());
-  }
-
-  ~ScopedContext() {
-    if (NeedToRecover) {
-      UR_CHECK_ERROR(cuCtxSetCurrent(Original));
-    }
-  }
-
-private:
-  void setContext(CUcontext Desired) {
-
-    UR_CHECK_ERROR(cuCtxGetCurrent(&Original));
-
-    if (Original != nullptr) {
-      NeedToRecover = true;
-    }
-
-    // Make sure the desired context is active on the current thread, setting
-    // it if necessary
-    if (Original != Desired) {
-      UR_CHECK_ERROR(cuCtxSetCurrent(Desired));
-    }
-  }
-};
-} // namespace

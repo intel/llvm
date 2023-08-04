@@ -74,7 +74,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
           Result = URMemObj->allocateMemObjOnDeviceIfNeeded(Device);
 
           if (PerformInitialCopy && Result == UR_RESULT_SUCCESS && HostPtr) {
-            ScopedContext Active(Device);
+            ScopedDevice Active(Device);
             auto &Ptr = ur_cast<ur_buffer_ *>(URMemObj.get())->getPtrs()[0];
             Result = UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
             // Synchronize with default stream implicitly used by cuMemcpyHtoD
@@ -170,7 +170,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   // TODO(hdelan): I need to have some way to remember the last active device
   // in the context so I can give a handle to that. At the moment I am just
   // returning a handle to the allocation of device at index 0
-  ScopedContext Active(hMemory->getContext()->getDevices()[0]);
+  ScopedDevice Active(hMemory->getContext()->getDevices()[0]);
 
   switch (MemInfoType) {
   case UR_MEM_INFO_SIZE: {
@@ -312,7 +312,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
   // TODO make image support on multi device context. We are just using the
   // first device in context here
-  ScopedContext Active(hContext->getDevices()[0]);
+  ScopedDevice Active(hContext->getDevices()[0]);
   CUarray ImageArray = nullptr;
 
   try {
@@ -488,7 +488,7 @@ ur_result_t
 ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
   ur_lock_guard LockGuard(MemoryAllocationMutex);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -527,7 +527,7 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Ptrs[hDevice->getIndex()], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 

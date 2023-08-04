@@ -204,7 +204,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext Active(hProgram->getDevice());
+    ScopedDevice Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
 
@@ -234,7 +234,7 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext Active(phPrograms[0]->getDevice());
+    ScopedDevice Active(phPrograms[0]->getDevice());
 
     CUlinkState State;
     std::unique_ptr<ur_program_handle_t_> RetProgram{
@@ -361,7 +361,7 @@ urProgramRelease(ur_program_handle_t hProgram) {
     ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
 
     try {
-      ScopedContext Active(hProgram->getDevice());
+      ScopedDevice Active(hProgram->getDevice());
       auto cuModule = hProgram->get();
       // "0" is a valid handle for a cuModule, so the best way to check if we
       // actually loaded a module and need to unload it is to look at the build

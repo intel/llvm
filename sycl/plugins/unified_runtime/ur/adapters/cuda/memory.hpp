@@ -219,7 +219,7 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
     case ur_buffer_::AllocMode::Classic:
       for (auto i = 0u; i < getContext()->NumDevices; ++i) {
         if (getPtrs()[i] != ur_buffer_::native_type{0}) {
-          ScopedContext Active(getContext()->getDevices()[i]);
+          ScopedDevice Active(getContext()->getDevices()[i]);
           Result = UR_CHECK_ERROR(cuMemFree(Ptrs[i]));
         }
       }
@@ -315,7 +315,7 @@ struct ur_image_ final : ur_mem_handle_t_ {
   ur_result_t clear() override {
     // Images are allocated on the first device in a context
     ur_result_t Result = UR_RESULT_SUCCESS;
-    ScopedContext Active(getContext()->getDevices()[0]);
+    ScopedDevice Active(getContext()->getDevices()[0]);
     if (Mem.SurfaceMem.getSurface() != CUsurfObject{0}) {
       Result = UR_CHECK_ERROR(cuSurfObjectDestroy(Mem.SurfaceMem.getSurface()));
     }

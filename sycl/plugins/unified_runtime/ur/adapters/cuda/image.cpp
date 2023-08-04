@@ -231,7 +231,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
             UR_RESULT_ERROR_INVALID_VALUE);
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
     Result =
         UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
                                        widthInBytes, height, elementSizeBytes));
@@ -293,7 +293,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageAllocateExp(
     array_desc.Depth = pImageDesc->depth;
   }
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
 
   // Allocate a cuArray
   if (pImageDesc->numMipLevel == 1) {
@@ -336,7 +336,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageFreeExp(
   UR_ASSERT((hContext->getDevices()[0]->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
   try {
     UR_CHECK_ERROR(cuArrayDestroy((CUarray)hImageMem));
   } catch (ur_result_t Err) {
@@ -366,7 +366,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesUnsampledImageCreateExp(
 
   try {
 
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
 
     CUDA_RESOURCE_DESC image_res_desc = {};
 
@@ -406,7 +406,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
   UR_ASSERT((hContext->getDevices()[0]->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
 
   unsigned int NumChannels = 0;
   UR_CHECK_ERROR(
@@ -511,7 +511,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
   size_t PixelSizeBytes = PixelTypeSizeBytes * NumChannels;
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     CUstream Stream = hQueue->getNextTransferStream();
     enqueueEventsWait(Stream, numEventsInWaitList, phEventWaitList);
     // We have to use a different copy function for each image dimensionality.
@@ -698,7 +698,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapGetLevelExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
     CUarray ImageArray;
     UR_CHECK_ERROR(cuMipmappedArrayGetLevel(
         &ImageArray, (CUmipmappedArray)hImageMem, mipmapLevel));
@@ -718,7 +718,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMipmapFreeExp(
   UR_ASSERT((hContext->getDevices()[0]->get() == hDevice->get()),
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
   try {
     UR_CHECK_ERROR(cuMipmappedArrayDestroy((CUmipmappedArray)hMem));
   } catch (ur_result_t Err) {
@@ -737,7 +737,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesImportOpaqueFDExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
 
     CUDA_EXTERNAL_MEMORY_HANDLE_DESC extMemDesc = {};
     extMemDesc.size = size;
@@ -788,7 +788,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesMapExternalArrayExp(
       urToCudaImageChannelFormat(pImageFormat->channelType, &format, nullptr));
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
 
     CUDA_ARRAY3D_DESCRIPTOR ArrayDesc = {};
     ArrayDesc.Width = pImageDesc->width;
@@ -825,7 +825,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesReleaseInteropExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
     UR_CHECK_ERROR(cuDestroyExternalMemory((CUexternalMemory)hInteropMem));
   } catch (ur_result_t Err) {
     return Err;
@@ -844,7 +844,7 @@ urBindlessImagesImportExternalSemaphoreOpaqueFDExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
 
     CUDA_EXTERNAL_SEMAPHORE_HANDLE_DESC extSemDesc = {};
 
@@ -883,7 +883,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesDestroyExternalSemaphoreExp(
             UR_RESULT_ERROR_INVALID_CONTEXT);
 
   try {
-    ScopedContext Active(hDevice);
+    ScopedDevice Active(hDevice);
     UR_CHECK_ERROR(
         cuDestroyExternalSemaphore((CUexternalSemaphore)hInteropSemaphore));
   } catch (ur_result_t Err) {
@@ -900,7 +900,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ur_event_handle_t *phEvent) {
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     CUstream Stream = hQueue->getNextTransferStream();
 
     enqueueEventsWait(Stream, numEventsInWaitList, phEventWaitList);
@@ -932,7 +932,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ur_event_handle_t *phEvent) {
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     CUstream Stream = hQueue->getNextTransferStream();
 
     enqueueEventsWait(Stream, numEventsInWaitList, phEventWaitList);
