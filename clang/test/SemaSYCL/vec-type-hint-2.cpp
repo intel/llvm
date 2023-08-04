@@ -6,7 +6,7 @@
 // NOTE: This attribute is not supported in the SYCL backends.
 // To be minimally conformant with SYCL2020, attribute is
 // accepted by the Clang FE with a warning. No additional
-// semanatic handling or IR generation is done for this
+// semantic handling or IR generation is done for this
 // attribute.
 
 #include "sycl.hpp"
