@@ -198,9 +198,9 @@ jobs:
         name: ${{ inputs.sycl_toolchain_artifact }}
     - name: Debug prints [workflow_run]
       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
-      steps:
-        - run: pwd
-        - run: ls
+      run: |
+        pwd
+        ls
     - name: Download SYCL toolchain [workflow_run]
       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
       uses: actions/github-script@v6
