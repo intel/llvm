@@ -61,6 +61,11 @@ desc: "AMD GCN"
 name: "$X_DEVICE_BINARY_TARGET_AMDGCN"
 value: "\"amdgcn\""
 --- #--------------------------------------------------------------------------
+type: macro
+desc: "Native CPU"
+name: "$X_DEVICE_BINARY_TARGET_NATIVE_CPU"
+value: "\"native_cpu\""
+--- #--------------------------------------------------------------------------
 type: struct
 desc: "Device Binary Type"
 name: $x_device_binary_t
