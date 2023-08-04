@@ -818,6 +818,9 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       MDOmitArgs.push_back(AliveArg ? MDOmitArgFalse : MDOmitArgTrue);
     F->setMetadata("sycl_kernel_omit_args",
                    llvm::MDNode::get(F->getContext(), MDOmitArgs));
+
+    // Update metadata inserted by the SYCL FE to match the new kernel
+    // signature.
     auto FixupMetadata = [&](StringRef MDName) {
       auto MDToFixup = F->getMetadata(MDName);
       if (MDToFixup) {
