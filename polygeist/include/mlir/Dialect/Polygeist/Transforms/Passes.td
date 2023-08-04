@@ -194,7 +194,7 @@ def LICM : Pass<"licm"> {
 def SYCLRaiseHostConstructs : Pass<"sycl-raise-host"> {
   let summary = "Raise relevant sequences of host code to SYCL dialect operations";
   // TODO: Description
-  let dependentDialects = ["arith::ArithDialect", "sycl::SYCLDialect"];
+  let dependentDialects = ["arith::ArithDialect", "sycl::SYCLDialect", "vector::VectorDialect"];
   let constructor = "mlir::polygeist::createSYCLHostRaisingPass()";
   let options = RewritePassUtils.options;
   // TODO: Statistics

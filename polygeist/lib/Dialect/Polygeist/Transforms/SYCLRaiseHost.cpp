@@ -23,6 +23,8 @@
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/Polygeist/Utils/Utils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Demangle/Demangle.h"
@@ -1608,6 +1610,21 @@ public:
 
     auto captureTypes = lambdaClassTy.getBody();
 
+    auto createOps = [&, &lo = lambdaObj](Operation *captureOp,
+                                          Value capturedVal, unsigned index) {
+      ImplicitLocOpBuilder builder(captureOp->getLoc(), rewriter);
+      builder.setInsertionPointAfter(captureOp);
+
+      auto adaptedValuesAndTypes =
+          tryToAdapt(capturedVal, captureTypes[index], builder);
+      for (auto it : llvm::enumerate(adaptedValuesAndTypes)) {
+        auto [adaptedVal, typeAttr] = it.value();
+        builder.create<sycl::SYCLHostSetCaptured>(
+            lo, rewriter.getI64IntegerAttr(index + it.index()), adaptedVal,
+            typeAttr);
+      }
+    };
+
     // Look for unique assignments that represent the capturing of kernel args.
     // Assuming the no-op `getelementptr %lambdaObj[0, 0]` was folded, the
     // first capture is actually a store to the pointer.
@@ -1616,12 +1633,7 @@ public:
     if (auto [captureOp, capturedVal] =
             getUniqueAssignment(lambdaObj, annotatedPtr);
         captureOp) {
-      auto [broadenedVal, typeAttr] =
-          tryToBroaden(capturedVal, captureTypes[0]);
-      rewriter.setInsertionPointAfter(captureOp);
-      rewriter.create<sycl::SYCLHostSetCaptured>(captureOp->getLoc(), lambdaObj,
-                                                 rewriter.getI64IntegerAttr(0),
-                                                 broadenedVal, typeAttr);
+      createOps(captureOp, capturedVal, 0);
     }
 
     // All other captures are unique assignments to GEPs with two constant
@@ -1642,12 +1654,7 @@ public:
       if (!captureOp)
         continue;
 
-      auto [broadenedVal, typeAttr] =
-          tryToBroaden(capturedVal, captureTypes[captureIdx]);
-      rewriter.setInsertionPointAfter(captureOp);
-      rewriter.create<sycl::SYCLHostSetCaptured>(
-          captureOp->getLoc(), lambdaObj,
-          rewriter.getI64IntegerAttr(captureIdx), broadenedVal, typeAttr);
+      createOps(captureOp, capturedVal, captureIdx);
     }
 
     // Finally erase the annotation op.
@@ -1686,14 +1693,19 @@ private:
                 LLVM::LoadOp, LLVM::MemcpyOp>(user))
           continue;
 
-        // Special case for the first capture: if `ptr` is an alloca, there may
-        // be a destructor call for it.
+        // Special case for the first capture: if `ptr` is an alloca (= the
+        // lambda object), there may be calls to a destructor or certain API
+        // methods with it.
         if (auto call = dyn_cast<CallOpInterface>(user); ptrIsAlloca && call) {
           llvm::ItaniumPartialDemangler demangler;
           auto res = partialDemangle(demangler, call);
-          if (succeeded(res) && demangler.isCtorOrDtor() &&
-              !isConstructor(demangler))
-            continue;
+          if (succeeded(res)) {
+            if (demangler.isCtorOrDtor() && !isConstructor(demangler))
+              continue;
+            if (isMemberFunction(demangler, syclNamespace, "handler") &&
+                functionNameMatches(demangler, "unpack"))
+              continue;
+          }
         }
 
         // GEPs with only constant indices have a non-zero offset to `ptr`
@@ -1712,6 +1724,9 @@ private:
           continue;
 
         // Unexpected user; conservatively assume that assignment is not unique.
+        LLVM_DEBUG(llvm::dbgs() << "getUniqueAssignment: unexpected user\n";
+                   llvm::dbgs().indent(2) << "- " << ptr << '\n';
+                   llvm::dbgs().indent(2) << "- " << *user << '\n';);
         return {nullptr, Value()};
       }
     }
@@ -1719,10 +1734,11 @@ private:
     return {op, value};
   }
 
-  // Use the \p expected type as domain knowledge to try to broaden an
-  // \p assigned value to an entity of interest (e.g. an accessor).
-  std::tuple<Value, TypeAttr> tryToBroaden(Value assigned,
-                                           Type expected) const {
+  // Use domain knowledge to try to adapt an \p assigned value to match the
+  // \p expected type.
+  SmallVector<std::tuple<Value, TypeAttr>>
+  tryToAdapt(Value assigned, Type expected,
+             ImplicitLocOpBuilder &builder) const {
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier might not
       // address the entire accessor, but rather the first member in the
@@ -1742,15 +1758,27 @@ private:
                         dyn_cast<sycl::SYCLHostConstructorOp>(user)) {
                   assert(
                       isa<sycl::AccessorType>(hostCons.getType().getValue()));
-                  return {accessorAlloca, hostCons.getType()};
+                  return {{accessorAlloca, hostCons.getType()}};
                 }
 
       LLVM_DEBUG(llvm::dbgs()
-                 << "tryToBroaden: Could not infer captured accessor\n");
+                 << "tryToAdapt: Could not infer captured accessor\n");
+    }
+
+    // The frontend sometimes groups multiple scalars in vectors - reverse that.
+    if (auto vecTy = dyn_cast<VectorType>(assigned.getType());
+        vecTy && vecTy.getElementType() == expected) {
+      SmallVector<std::tuple<Value, TypeAttr>> scalars;
+      for (unsigned i = 0; i < vecTy.getNumElements(); ++i)
+        scalars.emplace_back(
+            builder.create<vector::ExtractElementOp>(
+                expected, assigned, builder.create<arith::ConstantIndexOp>(i)),
+            TypeAttr());
+      return scalars;
     }
 
     // No special handling, just return the argument as-is.
-    return {assigned, TypeAttr()};
+    return {{assigned, TypeAttr()}};
   }
 
   AccessorTypeTag accessorTypeTag;
