@@ -165,8 +165,6 @@ jobs:
     - name: Install drivers
       if: inputs.install_drivers == 'true'
       run: |
-        # TODO install into image
-        sudo apt install -yq jq
         sudo cp devops/scripts/get_release.py /opt/
         sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Install drivers (deprecated CI interface)
@@ -194,10 +192,37 @@ jobs:
         comm -13 env_before env_after >> $GITHUB_ENV
         rm env_before env_after
     - name: Download SYCL toolchain
-      if: inputs.sycl_toolchain_artifact != ''
+      if: inputs.sycl_toolchain_artifact != '' && github.event_name != 'workflow_run'
       uses: actions/download-artifact@v3
       with:
         name: ${{ inputs.sycl_toolchain_artifact }}
+    - name: Download SYCL toolchain [workflow_run]
+      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const name = '${{ inputs.sycl_toolchain_artifact }}'
+          let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             run_id: context.payload.workflow_run.id,
+          });
+          let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
+            return artifact.name == name
+          })[0];
+          let download = await github.rest.actions.downloadArtifact({
+             owner: context.repo.owner,
+             repo: context.repo.repo,
+             artifact_id: matchArtifact.id,
+             archive_format: 'zip',
+          });
+          let fs = require('fs');
+          fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/` + name + '.zip', Buffer.from(download.data));
+    - name: Unzip artifact [workflow_run]
+      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
+      run: |
+        unzip ${{ inputs.sycl_toolchain_artifact }}.zip
+        rm ${{ inputs.sycl_toolchain_artifact }}.zip
     - name: Extract/Setup SYCL toolchain
       if: inputs.sycl_toolchain_artifact != ''
       run: |
