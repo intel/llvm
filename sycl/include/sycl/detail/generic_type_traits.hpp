@@ -457,6 +457,13 @@ struct mptr_or_vec_elem_type<const multi_ptr<ElementType, Space, IsDecorated>>
 template <typename T>
 using mptr_or_vec_elem_type_t = typename mptr_or_vec_elem_type<T>::type;
 
+template <int Size>
+using cl_unsigned = std::conditional_t<
+    Size == 1, opencl::cl_uchar,
+    std::conditional_t<
+        Size == 2, opencl::cl_ushort,
+        std::conditional_t<Size == 4, opencl::cl_uint, opencl::cl_ulong>>>;
+
 // select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
 // sizeof(IN).  expected to handle scalar types.
 template <typename T, typename T8, typename T16, typename T32, typename T64>

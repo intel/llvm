@@ -65,6 +65,8 @@ template <typename T> struct is_group_helper : std::false_type {};
 template <typename Group, std::size_t Extent>
 struct is_group_helper<group_with_scratchpad<Group, Extent>> : std::true_type {
 };
+template <typename T>
+inline constexpr bool is_group_helper_v = is_group_helper<T>::value;
 } // namespace detail
 } // namespace experimental
 } // namespace ext::oneapi
@@ -85,6 +87,8 @@ template <typename T>
 struct is_generic_group
     : std::integral_constant<bool,
                              is_group<T>::value || is_sub_group<T>::value> {};
+template <typename T>
+inline constexpr bool is_generic_group_v = is_generic_group<T>::value;
 
 namespace half_impl {
 class half;
@@ -315,6 +319,17 @@ struct is_vector_bool
 template <typename T>
 struct is_bool
     : std::bool_constant<is_scalar_bool<vector_element_t<T>>::value> {};
+
+// is_multi_ptr
+template <typename T> struct is_multi_ptr_impl : public std::false_type {};
+
+template <typename T, access::address_space Space,
+          access::decorated DecorateAddress>
+struct is_multi_ptr_impl<multi_ptr<T, Space, DecorateAddress>>
+    : public std::true_type {};
+
+template <typename T>
+constexpr bool is_multi_ptr_v = is_multi_ptr_impl<std::remove_cv_t<T>>::value;
 
 // is_pointer
 template <typename T> struct is_pointer_impl : std::false_type {};

@@ -197,8 +197,10 @@ enum PropKind : uint32_t {
   RegisterAllocMode = 31,
   GRFSize = 32,
   GRFSizeAutomatic = 33,
+  DataPlacement = 34,
+  FullSG = 35,
   // PropKindSize must always be the last value.
-  PropKindSize = 34,
+  PropKindSize = 36,
 };
 
 // This trait must be specialized for all properties and must have a unique

@@ -53,9 +53,7 @@ public:
 
   size_t size() const {
     size_t size = 1;
-    for (int i = 0; i < Dimensions; ++i) {
-      size *= this->get(i);
-    }
+    detail::loop<dimensions>([&](auto i) { size *= this->get(i); });
     return size;
   }
 
