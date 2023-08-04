@@ -9,6 +9,14 @@ using urUSMPoolCreateTest = uur::urContextTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMPoolCreateTest);
 
 TEST_P(urUSMPoolCreateTest, Success) {
+    ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr, 0};
+    ur_usm_pool_handle_t pool = nullptr;
+    ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
+    ASSERT_NE(pool, nullptr);
+    EXPECT_SUCCESS(urUSMPoolRelease(pool));
+}
+
+TEST_P(urUSMPoolCreateTest, SuccessWithFlag) {
     ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                  UR_USM_POOL_FLAG_ZERO_INITIALIZE_BLOCK};
     ur_usm_pool_handle_t pool = nullptr;

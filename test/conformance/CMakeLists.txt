@@ -64,9 +64,10 @@ if(DEFINED UR_DPCXX)
         "${CMAKE_CURRENT_BINARY_DIR}/device_binaries/")
     file(MAKE_DIRECTORY ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
 
-    if(DEFINED UR_CONFORMANCE_TARGET_TRIPLES)
+    if(NOT "${UR_CONFORMANCE_TARGET_TRIPLES}" STREQUAL "")
         string(REPLACE "," ";" TARGET_TRIPLES ${UR_CONFORMANCE_TARGET_TRIPLES})
     else()
+        message(WARNING "UR_CONFORMANCE_TARGET_TRIPLES wasn't set, defaulting to only generate spir64 device binaries")
         list(APPEND TARGET_TRIPLES "spir64")
     endif()
 
