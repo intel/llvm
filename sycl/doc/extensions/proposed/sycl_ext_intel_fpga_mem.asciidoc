@@ -46,7 +46,7 @@ This extension also depends on the following other SYCL extensions:
 * link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
   sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
 
-Below is a list of interactions with other SYCL extensions. These extensions don't hve to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
+Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
 
 * link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
 * link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
@@ -72,7 +72,7 @@ related concepts, types, and mechanisms, and to give examples and context for th
 
 === Motivation
 `fpga_mem` is a class template templated on a type T, that represents an object of type T. It is a request to the compiler to implement that object, when present in FPGA device code, in off-datapath memory, as opposed to in the datapath.
-`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design, but doesn't change functional behavior.
+`fpga_mem` enables attaching compile-time hints which configure the memory resource and may impact the performance of the design, but don't change functional behavior.
 
 === Example
 [source,c++]
