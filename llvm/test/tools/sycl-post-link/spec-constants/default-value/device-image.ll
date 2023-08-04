@@ -9,6 +9,7 @@
 ; RUN: FileCheck %s -input-file %t_0.ll -check-prefix=CHECK-IR0
 ; RUN: FileCheck %s -input-file %t_1.ll -check-prefix=CHECK-IR1 --implicit-check-not "SpecConstant"
 ; RUN: FileCheck %s -input-file %t_0.sym -check-prefix=CHECK-SYM0
+; RUN: FileCheck %s -input-file %t_1.sym -check-prefix=CHECK-SYM1
 
 ; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
 ; CHECK-TABLE: [[PATH]]_1.ll|[[PATH]]_1.prop|[[PATH]]_1.sym
@@ -31,10 +32,10 @@
 ; CHECK-IR1-NOT: %returned_spec_const = call
 ; CHECK-IR1: %sc.e = extractvalue %struct.C { i32 1 }, 0
 
-; CHECK-SYM0: func1
-; CHECK-SYM1-EMPTY:
+; CHECK-SYM0: kernel
+; CHECK-SYM0-EMPTY:
 
-; CHECK-SYM1: func1
+; CHECK-SYM1: kernel
 ; CHECK-SYM1-EMPTY:
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -60,7 +61,12 @@ declare spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_P
 
 declare dso_local spir_func noundef i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
 
-define spir_kernel void @func1() {
+; Function for testing symbol generation
+define spir_func void @func() {
+  ret void
+}
+
+define spir_kernel void @kernel() {
 entry:
   %a.i = alloca %struct.A, align 4
   %a.ascast.i = addrspacecast %struct.A* %a.i to %struct.A addrspace(4)*
@@ -72,5 +78,7 @@ entry:
   %returned_spec_const = call spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str.2, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id.3" addrspace(1)* @_ZL1b to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
   %sc.e = extractvalue %struct.C %returned_spec_const, 0
   %scalar3 = add i32 %sc.e, 1
+
+  call void @func()
   ret void
 }

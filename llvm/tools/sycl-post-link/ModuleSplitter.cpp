@@ -646,7 +646,8 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
 
 void EntryPointGroup::rebuild(const Module &M) {
   for (const Function &F : M.functions())
-    Functions.insert(const_cast<Function *>(&F));
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Functions.insert(const_cast<Function *>(&F));
 }
 
 namespace {
