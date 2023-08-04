@@ -185,7 +185,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_api_version_t *Version    ///< [out] api version
 ) {
   std::ignore = Driver;
-  *Version = UR_API_VERSION_0_6;
+  *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
