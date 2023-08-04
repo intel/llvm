@@ -71,6 +71,7 @@ endif()
 if (XPTI_BUILD_SAMPLES)
   add_subdirectory(samples/basic_collector)
   add_subdirectory(samples/syclpi_collector)
+  add_subdirectory(samples/sycl_perf_collector)
   add_subdirectory(basic_test)
 endif()
 

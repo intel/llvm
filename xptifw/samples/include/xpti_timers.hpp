@@ -8,86 +8,166 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
+#include <functional>
+#include <iomanip>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <unordered_map>
 
 namespace xpti {
-class ThreadID {
+namespace utils {
+namespace timer {
+#define MAX_STR_SIZE 2048
+
+std::string get_timestamp_string() {
+  auto curr = std::chrono::system_clock::now();
+  auto local = std::chrono::system_clock::to_time_t(curr);
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&local), "%F_%H-%M-%S");
+  return ss.str();
+}
+
+#if defined(_WIN32) || defined(_WIN64)
+#include "windows.h"
+#include <intrin.h>
+class measurement_t {
 public:
-  using thread_lut_t = std::unordered_map<std::string, int>;
-
-  inline uint32_t enumID(std::thread::id &curr) {
-    std::stringstream s;
-    s << curr;
-    std::string str(s.str());
-
-    if (m_thread_lookup.count(str)) {
-      return m_thread_lookup[str];
-    } else {
-      uint32_t enumID = m_tid++;
-      m_thread_lookup[str] = enumID;
-      return enumID;
-    }
+  measurement_t() { m_frequency = frequency(); }
+  inline uint64_t clock() {
+    LARGE_INTEGER qpcnt;
+    int rval = QueryPerformanceCounter(&qpcnt);
+    return qpcnt.QuadPart;
   }
-
-  inline uint32_t enumID(const std::string &curr) {
-    if (m_thread_lookup.count(curr)) {
-      return m_thread_lookup[curr];
-    } else {
-      uint32_t enumID = m_tid++;
-      m_thread_lookup[curr] = enumID;
-      return enumID;
-    }
+  inline uint64_t frequency() {
+    LARGE_INTEGER freq;
+    QueryPerformanceFrequency(&freq);
+    return freq.QuadPart;
+  }
+  // https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+  inline double microseconds() { (double)(clock()) * 1000000 / m_frequency; }
+  inline double clock_to_microsecs(uint64_t clocks) {
+    return ((double)(clocks)*1000000.0 / m_frequency);
+  }
+#if (defined(__x86_64_) || defined(__i386__) || defined(_i386))
+  uint64_t clockticks() { return __rdtsc(); }
+#else
+  inline uint64_t clockticks() { return clock(); }
+#endif
+  inline uint64_t cpu() { return GetCurrentProcessorNumber(); }
+  inline uint64_t thread() {
+    std::hash<std::thread::id>{}(std::this_thread::get_id());
   }
 
 private:
-  std::atomic<uint32_t> m_tid = {0};
-  thread_lut_t m_thread_lookup;
+  uint64_t m_frequency;
+};
+#elif defined(__linux__)
+#include <sched.h>
+// https://stackoverflow.com/questions/42189976/calculate-system-time-using-rdtsc
+// Discussion describes how clock_gettime() costs about 4 ns per call
+class measurement_t {
+public:
+  measurement_t() { m_frequency = frequency(); }
+  inline uint64_t clock() {
+    struct timespec ts;
+    int status = clock_gettime(CLOCK_REALTIME, &ts);
+    return (static_cast<uint64_t>(1000000000UL) *
+                static_cast<uint64_t>(ts.tv_sec) +
+            static_cast<uint64_t>(ts.tv_nsec));
+  }
+#if defined(__x86_64_) || defined(__i386__) || defined(_i386)
+  inline uint64_t clockticks() {
+    unsigned int lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    return ((uint64_t)hi << 32) | lo;
+  }
+#else
+  inline uint64_t clockticks() { return clock(); }
+#endif
+
+  inline double microseconds() { return (double)clock() / 1000.0; }
+  inline uint64_t frequency() { return static_cast<uint64_t>(1E9); }
+  inline uint64_t cpu() { return sched_getcpu(); }
+  inline uint64_t thread() {
+    return std::hash<std::thread::id>{}(std::this_thread::get_id());
+  }
+  inline double clock_to_microsecs(uint64_t clocks) {
+    // since 'clocks' is in nanoseconds, conversion is a simple divide
+    return ((double)(clocks) / 1000.0);
+  }
+
+private:
+  uint64_t m_frequency;
 };
 
-namespace timer {
-#include <cstdint>
-using tick_t = uint64_t;
-#if defined(_WIN32) || defined(_WIN64)
-#include "windows.h"
-inline xpti::timer::tick_t rdtsc() {
-  LARGE_INTEGER qpcnt;
-  int rval = QueryPerformanceCounter(&qpcnt);
-  return qpcnt.QuadPart;
-}
-inline uint64_t getTSFrequency() {
-  LARGE_INTEGER freq;
-  QueryPerformanceFrequency(&freq);
-  return freq.QuadPart * 1000;
-}
-inline uint64_t getCPU() { return GetCurrentProcessorNumber(); }
-#else
-#include <sched.h>
-#include <time.h>
-#if __x86_64__ || __i386__ || __i386
-inline xpti::timer::tick_t rdtsc() {
-  struct timespec ts;
-  int status = clock_gettime(CLOCK_REALTIME, &ts);
-  (void)status;
-  return (static_cast<tick_t>(1000000000UL) * static_cast<tick_t>(ts.tv_sec) +
-          static_cast<tick_t>(ts.tv_nsec));
-}
+#else // For all other platforms, use std::chrono
+class measurement_t {
+public:
+  measurement_t() { m_frequency = frequency(); }
+  inline uint64_t clock() {
+    auto curr_time = std::chrono::high_resolution_clock::now();
+    uint64_t ts =
+        std::chrono::time_point_cast<std::chrono::nanoseconds>(curr_time)
+            .time_since_epoch()
+            .count();
+    return ts;
+  }
 
-inline uint64_t getTSFrequency() { return static_cast<uint64_t>(1E9); }
+  inline double microseconds() { return (double)clock() / 1000.0; }
+  inline uint64_t frequency() { return static_cast<uint64_t>(1E9); }
+  inline uint64_t cpu() { return 0; }
+  inline uint64_t thread() {
+    return std::hash<std::thread::id>{}(std::this_thread::get_id());
+  }
+  inline double clock_to_microsecs(uint64_t clocks) {
+    // since 'clocks' is in nanoseconds, conversion is a simple divide
+    return ((double)(clocks) / 1000.0);
+  }
 
-inline uint64_t getCPU() {
-#ifdef __linux__
-  return sched_getcpu();
-#else
-  return 0;
-#endif
-}
-#else
-#error Unsupported ISA
+private:
+  uint64_t m_frequency;
+};
+
 #endif
 
-inline std::thread::id getThreadID() { return std::this_thread::get_id(); }
-#endif
 } // namespace timer
+
+#if defined(_WIN32) || defined(_WIN64)
+#include <processthreadsapi.h>
+
+inline std::string get_application_name() {
+  char buffer[MAX_STR_SIZE] = {0};
+  DWORD status = GetModuleFileNameA(nullptr, buffer, MAX_STR_SIZE);
+  if (status < 0)
+    return "application";
+  else {
+    std::string path(buffer);
+    return path.substr(path.find_last_of("/\\") + 1);
+  }
+}
+
+inline uint64_t get_process_id() { return GetCurrentProcessId(); }
+
+#elif defined(__linux__)
+#include <unistd.h>
+
+inline std::string get_application_name() {
+  char buffer[MAX_STR_SIZE] = {0};
+  size_t status = readlink("/proc/self/exe", buffer, MAX_STR_SIZE);
+  if (status < 0)
+    return "application";
+  else {
+    std::string path(buffer);
+    return path.substr(path.find_last_of("/\\") + 1);
+  }
+}
+
+inline uint64_t get_process_id() { return getpid(); }
+#else
+#error Unsupported system
+#endif
+
+} // namespace utils
 } // namespace xpti
