@@ -741,49 +741,77 @@ gpu.module @device_functions {
 
 llvm.mlir.global private unnamed_addr constant @kernel_str("kernel\00") {addr_space = 0 : i32, alignment = 1 : i64, dso_local}
 
-!lambda_class = !llvm.struct<"class.lambda", (i16, i32, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>, !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)>
+!lambda_class = !llvm.struct<"class.lambda", (i16, i32, !llvm.struct<"class.sycl::_V1::accessor", (ptr)>, !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
 !sycl_accessor_1_21llvm2Evoid_rw_gb = !sycl.accessor<[1, !llvm.void, read_write, global_buffer], (!llvm.void)>
 
 llvm.func @_ZN5DummyD2Ev(%arg0: !llvm.ptr)
 llvm.func @_ZN4sycl3_V17handler6unpackEv(%arg0: !llvm.ptr)
 
-// COM: check that we correctly identify captured accessors, scalars and structs
+// COM: check that we correctly identify captured accessors, scalars, 
+//      arrays and structs
+
+// CHECK-LABEL:   llvm.mlir.global private constant @constant_array_0(dense<[1.000000e+00, 2.000000e+00, 3.000000e+00, 4.000000e+00, 5.000000e+00]> : tensor<5xf32>) {addr_space = 0 : i32} : !llvm.array<5 x f32>
 
 // CHECK-LABEL:   llvm.func @raise_set_captured(
 // CHECK-SAME:                                  %[[VAL_0:.*]]: !llvm.ptr) {
 // CHECK:           %[[VAL_1:.*]] = arith.constant 1.000000e+01 : f32
 // CHECK:           %[[VAL_2:.*]] = arith.constant 1.100000e+01 : f32
-// CHECK:           %[[VAL_3:.*]] = arith.constant dense<[1.000000e+01, 1.100000e+01]> : vector<2xf32>
-// CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(123 : i32) : i32
-// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(123 : i16) : i16
-// CHECK:           %[[VAL_6:.*]] = llvm.mlir.constant(32 : i32) : i32
-// CHECK:           %[[VAL_7:.*]] = llvm.mlir.constant(1 : i32) : i32
+// CHECK:           %[[VAL_3:.*]] = llvm.mlir.constant(6.000000e+00 : f32) : f32
+// CHECK:           %[[VAL_4:.*]] = llvm.mlir.constant(5.000000e+00 : f32) : f32
+// CHECK:           %[[VAL_5:.*]] = llvm.mlir.constant(dense<[3.000000e+00, 4.000000e+00]> : vector<2xf32>) : vector<2xf32>
+// CHECK:           %[[VAL_6:.*]] = llvm.mlir.constant(dense<[1.000000e+00, 2.000000e+00]> : vector<2xf32>) : vector<2xf32>
+// CHECK:           %[[VAL_7:.*]] = arith.constant dense<[1.000000e+01, 1.100000e+01]> : vector<2xf32>
+// CHECK:           %[[VAL_8:.*]] = llvm.mlir.constant(123 : i32) : i32
+// CHECK:           %[[VAL_9:.*]] = llvm.mlir.constant(123 : i16) : i16
+// CHECK:           %[[VAL_10:.*]] = llvm.mlir.constant(32 : i32) : i32
+// CHECK:           %[[VAL_11:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK:           sycl.host.handler.set_kernel %[[VAL_0]] -> @device_functions::@foo : !llvm.ptr
-// CHECK:           %[[VAL_8:.*]] = llvm.mlir.null : !llvm.ptr
-// CHECK:           %[[VAL_9:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
-// CHECK:           %[[VAL_10:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
-// CHECK:           sycl.host.constructor(%[[VAL_9]], %[[VAL_8]], %[[VAL_8]], %[[VAL_8]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
-// CHECK:           %[[VAL_11:.*]] = llvm.alloca %[[VAL_7]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)> : (i32) -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_5]], %[[VAL_11]] : i16, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_11]][0] = %[[VAL_5]] : !llvm.ptr, i16
-// CHECK:           %[[VAL_12:.*]] = llvm.getelementptr %[[VAL_11]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)>
-// CHECK:           llvm.store %[[VAL_4]], %[[VAL_12]] : i32, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_11]][1] = %[[VAL_4]] : !llvm.ptr, i32
-// CHECK:           %[[VAL_13:.*]] = llvm.getelementptr %[[VAL_11]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)>
-// CHECK:           %[[VAL_14:.*]] = llvm.load %[[VAL_9]] : !llvm.ptr -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_14]], %[[VAL_13]] : !llvm.ptr, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_11]][2] = %[[VAL_9]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
-// CHECK:           %[[VAL_15:.*]] = llvm.getelementptr %[[VAL_11]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)>
-// CHECK:           "llvm.intr.memcpy"(%[[VAL_15]], %[[VAL_10]], %[[VAL_6]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
-// CHECK:           sycl.host.set_captured %[[VAL_11]][3] = %[[VAL_10]] : !llvm.ptr, !llvm.ptr
-// CHECK:           %[[VAL_16:.*]] = llvm.getelementptr %[[VAL_11]][0, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32)>
-// CHECK:           llvm.store %[[VAL_3]], %[[VAL_16]] : vector<2xf32>, !llvm.ptr
-// CHECK:           sycl.host.set_captured %[[VAL_11]][4] = %[[VAL_1]] : !llvm.ptr, f32
-// CHECK:           sycl.host.set_captured %[[VAL_11]][5] = %[[VAL_2]] : !llvm.ptr, f32
-// CHECK:           %[[VAL_17:.*]] = llvm.alloca %[[VAL_7]] x !llvm.ptr : (i32) -> !llvm.ptr
-// CHECK:           llvm.store %[[VAL_11]], %[[VAL_17]] : !llvm.ptr, !llvm.ptr
-// CHECK:           llvm.call @_ZN5DummyD2Ev(%[[VAL_11]]) : (!llvm.ptr) -> ()
-// CHECK:           llvm.call @_ZN4sycl3_V17handler6unpackEv(%[[VAL_11]]) : (!llvm.ptr) -> ()
+// CHECK:           %[[VAL_12:.*]] = llvm.mlir.undef : vector<2xf32>
+// CHECK:           %[[VAL_13:.*]] = llvm.mlir.undef : vector<2xf32>
+// CHECK:           %[[VAL_14:.*]] = llvm.mlir.null : !llvm.ptr
+// CHECK:           %[[VAL_15:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_16:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_15]], %[[VAL_14]], %[[VAL_14]], %[[VAL_14]]) {type = !sycl_accessor_1_21llvm2Evoid_rw_gb} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           %[[VAL_17:.*]] = llvm.alloca %[[VAL_11]] x !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)> : (i32) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_9]], %[[VAL_17]] : i16, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_17]][0] = %[[VAL_9]] : !llvm.ptr, i16
+// CHECK:           %[[VAL_18:.*]] = llvm.getelementptr %[[VAL_17]][0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_8]], %[[VAL_18]] : i32, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_17]][1] = %[[VAL_8]] : !llvm.ptr, i32
+// CHECK:           %[[VAL_19:.*]] = llvm.getelementptr %[[VAL_17]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           %[[VAL_20:.*]] = llvm.load %[[VAL_15]] : !llvm.ptr -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_20]], %[[VAL_19]] : !llvm.ptr, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_17]][2] = %[[VAL_15]] : !llvm.ptr, !llvm.ptr (!sycl_accessor_1_21llvm2Evoid_rw_gb)
+// CHECK:           %[[VAL_21:.*]] = llvm.getelementptr %[[VAL_17]][0, 3] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           "llvm.intr.memcpy"(%[[VAL_21]], %[[VAL_16]], %[[VAL_10]]) <{isVolatile = false}> : (!llvm.ptr, !llvm.ptr, i32) -> ()
+// CHECK:           sycl.host.set_captured %[[VAL_17]][3] = %[[VAL_16]] : !llvm.ptr, !llvm.ptr
+// CHECK:           %[[VAL_22:.*]] = llvm.getelementptr %[[VAL_17]][0, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_7]], %[[VAL_22]] : vector<2xf32>, !llvm.ptr
+// CHECK:           sycl.host.set_captured %[[VAL_17]][4] = %[[VAL_1]] : !llvm.ptr, f32
+// CHECK:           sycl.host.set_captured %[[VAL_17]][5] = %[[VAL_2]] : !llvm.ptr, f32
+// CHECK:           %[[VAL_23:.*]] = llvm.getelementptr %[[VAL_17]][0, 6] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_6]], %[[VAL_23]] : vector<2xf32>, !llvm.ptr
+// CHECK:           %[[VAL_24:.*]] = llvm.getelementptr %[[VAL_17]][0, 6, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_5]], %[[VAL_24]] : vector<2xf32>, !llvm.ptr
+// CHECK:           %[[VAL_25:.*]] = llvm.getelementptr %[[VAL_17]][0, 6, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_4]], %[[VAL_25]] : f32, !llvm.ptr
+// CHECK:           %[[VAL_26:.*]] = llvm.mlir.addressof @constant_array_0 : !llvm.ptr<array<5 x f32>>
+// CHECK:           sycl.host.set_captured %[[VAL_17]][6] = %[[VAL_26]] : !llvm.ptr, !llvm.ptr<array<5 x f32>>
+// CHECK:           %[[VAL_27:.*]] = llvm.getelementptr %[[VAL_17]][0, 7] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_12]], %[[VAL_27]] : vector<2xf32>, !llvm.ptr
+// CHECK:           %[[VAL_28:.*]] = llvm.mlir.undef : vector<5xf32>
+// CHECK:           %[[VAL_29:.*]] = vector.insert_strided_slice %[[VAL_12]], %[[VAL_28]] {offsets = [0], strides = [1]} : vector<2xf32> into vector<5xf32>
+// CHECK:           %[[VAL_30:.*]] = llvm.getelementptr %[[VAL_17]][0, 7, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_13]], %[[VAL_30]] : vector<2xf32>, !llvm.ptr
+// CHECK:           %[[VAL_31:.*]] = vector.insert_strided_slice %[[VAL_13]], %[[VAL_29]] {offsets = [2], strides = [1]} : vector<2xf32> into vector<5xf32>
+// CHECK:           %[[VAL_32:.*]] = llvm.getelementptr %[[VAL_17]][0, 7, 4] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.lambda", (i16, i32, struct<"class.sycl::_V1::accessor", (ptr)>, struct<"class.sycl::_V1::vec", (array<16 x i16>)>, f32, f32, array<5 x f32>, array<5 x f32>)>
+// CHECK:           llvm.store %[[VAL_3]], %[[VAL_32]] : f32, !llvm.ptr
+// CHECK:           %[[VAL_33:.*]] = vector.insert %[[VAL_3]], %[[VAL_31]] [4] : f32 into vector<5xf32>
+// CHECK:           sycl.host.set_captured %[[VAL_17]][7] = %[[VAL_33]] : !llvm.ptr, vector<5xf32>
+// CHECK:           %[[VAL_34:.*]] = llvm.alloca %[[VAL_11]] x !llvm.ptr : (i32) -> !llvm.ptr
+// CHECK:           llvm.store %[[VAL_17]], %[[VAL_34]] : !llvm.ptr, !llvm.ptr
+// CHECK:           llvm.call @_ZN5DummyD2Ev(%[[VAL_17]]) : (!llvm.ptr) -> ()
+// CHECK:           llvm.call @_ZN4sycl3_V17handler6unpackEv(%[[VAL_17]]) : (!llvm.ptr) -> ()
 // CHECK:           llvm.return
 // CHECK:         }
 
@@ -797,6 +825,12 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   %c123_16 = llvm.mlir.constant (123 : i16) : i16
   %c123_32 = llvm.mlir.constant (123 : i32) : i32
   %vec_lit = arith.constant dense<[10.0, 11.0]> : vector<2xf32>
+  %vec_c1 = llvm.mlir.constant(dense<[1.0, 2.0]> : vector<2 x f32>) : vector<2 x f32>
+  %vec_c2 = llvm.mlir.constant(dense<[3.0, 4.0]> : vector<2 x f32>) : vector<2 x f32>
+  %c5 = llvm.mlir.constant(5.0 : f32) : f32
+  %vec_u1 = llvm.mlir.undef : vector<2 x f32>
+  %vec_u2 = llvm.mlir.undef : vector<2 x f32>
+  %c6 = llvm.mlir.constant(6.0 : f32) : f32
   %nullptr = llvm.mlir.null : !llvm.ptr
   %accessor = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::accessor", (ptr)> : (i32) -> !llvm.ptr
   %vector = llvm.alloca %c1 x !llvm.struct<"class.sycl::_V1::vec", (array<16 x i16>)> : (i32) -> !llvm.ptr
@@ -826,6 +860,22 @@ llvm.func @raise_set_captured(%handler: !llvm.ptr) {
   // COM: Frontend sometimes groups scalars into vectors
   %gep4 = llvm.getelementptr %lambda_obj[0, 4] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
   llvm.store %vec_lit, %gep4 : vector<2xf32>, !llvm.ptr
+
+  // COM: Capture a constant array
+  %gep6_0 = llvm.getelementptr %lambda_obj[0, 6] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %vec_c1, %gep6_0 : vector<2xf32>, !llvm.ptr
+  %gep6_2 = llvm.getelementptr %lambda_obj[0, 6, 2] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %vec_c2, %gep6_2 : vector<2xf32>, !llvm.ptr
+  %gep6_4 = llvm.getelementptr %lambda_obj[0, 6, 4] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %c5, %gep6_4 : f32, !llvm.ptr
+
+  // Capture a non-constant array
+  %gep7_0 = llvm.getelementptr %lambda_obj[0, 7] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %vec_u1, %gep7_0 : vector<2xf32>, !llvm.ptr
+  %gep7_2 = llvm.getelementptr %lambda_obj[0, 7, 2] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %vec_u2, %gep7_2 : vector<2xf32>, !llvm.ptr
+  %gep7_4 = llvm.getelementptr %lambda_obj[0, 7, 4] : (!llvm.ptr) -> !llvm.ptr, !lambda_class
+  llvm.store %c6, %gep7_4 : f32, !llvm.ptr
 
   // COM: the annotation (indirectly) marks the struct as the lambda object
   %annotated_ptr = llvm.alloca %c1 x !llvm.ptr : (i32) -> !llvm.ptr

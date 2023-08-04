@@ -38,11 +38,11 @@
 
 #define DEBUG_TYPE "sycl-raise-host"
 
-    namespace mlir {
-  namespace polygeist {
+namespace mlir {
+namespace polygeist {
 #define GEN_PASS_DEF_SYCLRAISEHOSTCONSTRUCTS
 #include "mlir/Dialect/Polygeist/Transforms/Passes.h.inc"
-  } // namespace polygeist
+} // namespace polygeist
 } // namespace mlir
 
 using namespace mlir;
@@ -1612,12 +1612,12 @@ public:
 
     auto captureTypes = lambdaClassTy.getBody();
 
+    // Map from index to a collection of array components.
     llvm::IndexedMap<ArrayCollector> idxToArrayComponents;
     idxToArrayComponents.grow(captureTypes.size());
 
     auto createOps = [&, &lo = lambdaObj](Operation *captureOp,
                                           Value capturedVal, unsigned index) {
-      // TODO: Handle nullptr return for broadenedVal
       ImplicitLocOpBuilder builder(captureOp->getLoc(), rewriter);
       builder.setInsertionPointAfter(captureOp);
 
@@ -1626,6 +1626,9 @@ public:
                      idxToArrayComponents[index], builder);
       for (auto it : llvm::enumerate(adaptedValuesAndTypes)) {
         auto [adaptedVal, typeAttr] = it.value();
+        if (!adaptedVal)
+          continue;
+
         builder.create<sycl::SYCLHostSetCaptured>(
             lo, rewriter.getI64IntegerAttr(index + it.index()), adaptedVal,
             typeAttr);
@@ -1643,12 +1646,15 @@ public:
       auto completeArray = detectPartialArrayComponent(
           0, captureOp, capturedVal, captureTypes[0], idxToArrayComponents[0]);
       if (failed(completeArray) || *completeArray) {
+        // Only create operations if the captured value was not a part of a
+        // bigger, yet incomplete array.
         createOps(captureOp, capturedVal, 0);
       }
     }
 
-    // All other captures are unique assignments to GEPs with two constant
-    // indices `[0, <capture #>]` to the lambda object.
+    // All other captures are unique assignments to GEPs with two or three
+    // constant indices `[0, <capture #>, [<offset>]?]` to the lambda object.
+    // The offset case can only happen for array members of the lambda.
     for (auto *user : lambdaObj.getUsers()) {
       auto gep = dyn_cast<LLVM::GEPOp>(user);
       if (!gep || !gep.getElemType().has_value() ||
@@ -1676,12 +1682,11 @@ public:
         continue;
 
       if (failed(completeArray) && indices.size() > 2)
+        // Not an array, so only two indices allowed in that case.
         continue;
 
       createOps(captureOp, capturedVal, captureIdx);
     }
-
-    enclosingFunc->dump();
 
     // Finally erase the annotation op.
     rewriter.eraseOp(op);
@@ -1760,8 +1765,9 @@ private:
     return {op, value};
   }
 
+  /// Represent a part of a bigger array by its offset, the value and the
+  /// operation that captured this part of the array.
   struct ArrayComponent {
-
     ArrayComponent(size_t o, Value v, Operation *op)
         : offset{o}, value{v}, captureOp{op} {}
 
@@ -1770,6 +1776,9 @@ private:
     Operation *captureOp;
   };
 
+  /// Collection of parts of a bigger array. The first element of the pair
+  /// indicates how many elements have been collected so far, the second element
+  /// is the list of components.
   using ArrayCollector = std::pair<size_t, SmallVector<ArrayComponent>>;
 
   // Use the \p expected type as domain knowledge to try to broaden an
@@ -1777,7 +1786,6 @@ private:
   SmallVector<std::tuple<Value, TypeAttr>>
   tryToAdapt(Value assigned, Type expected, ArrayCollector &collector,
              ImplicitLocOpBuilder &builder) const {
-    llvm::dbgs() << "Expected type: " << expected << "\n";
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier might not
       // address the entire accessor, but rather the first member in the
@@ -1803,13 +1811,13 @@ private:
       LLVM_DEBUG(llvm::dbgs()
                  << "tryToAdapt: Could not infer captured accessor\n");
     }
-
-    if (isa<LLVM::LLVMArrayType>(expected)) {
+    if (isa<LLVM::LLVMArrayType>(expected) && collector.first != 0) {
       auto arrayTy = cast<LLVM::LLVMArrayType>(expected);
       size_t expectedNumElements = arrayTy.getNumElements();
       Type expectedElemType = arrayTy.getElementType();
       assert(expectedNumElements == collector.first && "Incomplete collector");
       SmallVector<ArrayComponent> &offsetAndValues = collector.second;
+      // We need to sort them by index to ensure dominance.
       llvm::sort(offsetAndValues,
                  [](const ArrayComponent &p1, const ArrayComponent &p2) {
                    return p1.offset < p2.offset;
@@ -1817,6 +1825,9 @@ private:
       auto allConstant = llvm::all_of(offsetAndValues, [](const auto &p) {
         return matchPattern(p.value, m_Constant());
       });
+      // If all elements of the array are constant, we will insert a global
+      // array and capture the address of that global array containing the
+      // constant values of the array.
       if (allConstant) {
         builder.setInsertionPointToStart(
             assigned.getDefiningOp()->getParentOfType<ModuleOp>().getBody());
@@ -1824,22 +1835,21 @@ private:
         if (failed(failureOrConstArray)) {
           return {{nullptr, TypeAttr()}};
         }
-        failureOrConstArray->dump();
+        static size_t globalArrayCounter = 0;
+        std::string globalName =
+            ("constant_array_" + Twine(globalArrayCounter++)).str();
         LLVM::GlobalOp constGlobal = builder.create<LLVM::GlobalOp>(
             arrayTy,
-            // TODO Proper name
-            /* isConstant*/ true, LLVM::Linkage::Private, "foo",
+            /* isConstant*/ true, LLVM::Linkage::Private, globalName,
             *failureOrConstArray);
-
-        constGlobal->dump();
 
         builder.setInsertionPointAfter(offsetAndValues.back().captureOp);
         auto addrOfGlobal = builder.create<LLVM::AddressOfOp>(constGlobal);
 
-        addrOfGlobal->dump();
-
         return {{addrOfGlobal, TypeAttr()}};
       }
+      // If not all elements of the array are constant, we will construct a
+      // vector<N x Ty> using insert operations and capture that vector value.
       Value vecAccumulator = nullptr;
       for (auto &component : offsetAndValues) {
         builder.setInsertionPointAfter(component.captureOp);
@@ -1854,9 +1864,8 @@ private:
                     return failure();
 
                   return builder
-                      .create<vector::InsertOp>(component.value.getLoc(),
-                                                component.value, vecAccumulator,
-                                                component.offset)
+                      .create<vector::InsertStridedSliceOp>(
+                          component.value, vecAccumulator, component.offset, 1)
                       ->getResult(0);
                 })
                 .Default([&](auto ty) -> FailureOr<Value> {
@@ -1894,11 +1903,14 @@ private:
     return {{assigned, TypeAttr()}};
   }
 
+  /// Construct a DenseElementAttr to represent a constant array made up from \p
+  /// components.
   static FailureOr<DenseElementsAttr>
   getConstantArray(ArrayRef<ArrayComponent> components,
                    LLVM::LLVMArrayType &arrTy) {
     SmallVector<Attribute> constantValues(arrTy.getNumElements());
     for (const auto &p : components) {
+      // Retrieve constant value.
       SmallVector<OpFoldResult> foldResults;
       if (failed(p.value.getDefiningOp()->fold({}, foldResults)) ||
           !foldResults.front().is<Attribute>())
@@ -1907,22 +1919,36 @@ private:
       Attribute constantComponent = foldResults.front().get<Attribute>();
       size_t offset = p.offset;
 
-      if (auto denseAttr = dyn_cast<DenseElementsAttr>(constantComponent)) {
-        denseAttr.dump();
-        for (auto attr : denseAttr.getValues<Attribute>()) {
-          constantValues[offset++] = attr;
-        }
-      } else if (isa<IntegerAttr, FloatAttr>(constantComponent)) {
-        constantValues[offset] = constantComponent;
-      } else {
+      // Retrieve individual elements of the constant array and collect them.
+      auto result =
+          TypeSwitch<Attribute, LogicalResult>(constantComponent)
+              .Case<DenseElementsAttr>([&](auto &denseAttr) {
+                for (auto attr : denseAttr.template getValues<Attribute>()) {
+                  constantValues[offset++] = attr;
+                }
+                return success();
+              })
+              .Case<IntegerAttr, FloatAttr>([&](auto &attr) {
+                constantValues[offset] = attr;
+                return success();
+              })
+              .Default(failure());
+
+      if (failed(result))
         return failure();
-      }
     }
     return DenseElementsAttr::get(
         RankedTensorType::get(arrTy.getNumElements(), arrTy.getElementType()),
         constantValues);
   }
 
+  /// Detect if the \p assigned value is a partial component of a bigger array.
+  /// Returns:
+  ///  * failure() if it is not part of an array
+  ///  * false if it is part of a bigger array, but not all array components
+  ///  have been found so far
+  ///  * true if \p assigned was the last missing part of the bigger array and
+  ///  set_captured should be inserted now.
   static FailureOr<bool>
   detectPartialArrayComponent(size_t offset, Operation *captureOp,
                               Value assigned, Type expected,
@@ -1951,9 +1977,9 @@ private:
     collector.second.emplace_back(offset, assigned, captureOp);
     // Increment count of how many elements we have found so far.
     collector.first += numElements;
-    llvm::dbgs() << "Detected " << std::get<0>(collector)
-                 << " components, latest: " << assigned
-                 << " from: " << *captureOp << "\n";
+    LLVM_DEBUG(llvm::dbgs() << "Detected " << std::get<0>(collector)
+                            << " components, latest: " << assigned
+                            << " from: " << *captureOp << "\n";);
     // Return true in case we have reached the expected number of elements, to
     // trigger insertion of the set_captured operation.
     return std::get<0>(collector) == expectedNumElements;
