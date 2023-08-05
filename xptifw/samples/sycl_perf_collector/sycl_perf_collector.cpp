@@ -162,7 +162,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclPiCallback);
-  } /*else if (std::string("sycl.perf") == stream_name &&
+  } else if (std::string("sycl.perf") == stream_name &&
              Check != GStreamsToObserve.end()) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -171,9 +171,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclPerfCallback);
-  }*/
-  else if (std::string("sycl.experimental.level_zero.call") == stream_name &&
-           Check != GStreamsToObserve.end()) {
+  } else if (std::string("sycl.experimental.level_zero.call") == stream_name &&
+             Check != GStreamsToObserve.end()) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,

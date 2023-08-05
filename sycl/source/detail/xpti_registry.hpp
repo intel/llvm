@@ -336,7 +336,7 @@ private:
 
 #if XPTI_ENABLE_INSTRUMENTATION
 #define XPTI_LW_TRACE()                                                        \
-  XPTIPerfScope LWTrace(__builtin_FUNCTION());                                 \
+  detail::XPTIPerfScope LWTrace(__builtin_FUNCTION());                         \
   LWTrace.scopedNotify();
 
 #else
