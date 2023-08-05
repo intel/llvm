@@ -51,9 +51,13 @@ xpti_td *GPICallEvent = nullptr;
 /// Event to be used by PI layer calls with arguments
 xpti_td *GPIArgCallEvent = nullptr;
 xpti_td *GPIArgCallActiveEvent = nullptr;
+// Event to be used for lightweight performance tracing calls
+xpti_td *GSYCLPerfEvent = nullptr;
 
 uint8_t PiCallStreamID = 0;
 uint8_t PiDebugCallStreamID = 0;
+// Stream ID used to emit performance streams
+uint8_t GSyclPerfStreamID = 0;
 
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
@@ -283,6 +287,7 @@ std::shared_ptr<plugin> GlobalPlugin;
 
 // Find the plugin at the appropriate location and return the location.
 std::vector<std::pair<std::string, backend>> findPlugins() {
+  XPTI_LW_TRACE();
   std::vector<std::pair<std::string, backend>> PluginNames;
 
   // TODO: Based on final design discussions, change the location where the
@@ -436,6 +441,7 @@ std::vector<PluginPtr> &initialize() {
 }
 
 static void initializePlugins(std::vector<PluginPtr> &Plugins) {
+  XPTI_LW_TRACE();
   std::vector<std::pair<std::string, backend>> PluginNames = findPlugins();
 
   if (PluginNames.empty() && trace(PI_TRACE_ALL))
@@ -532,6 +538,16 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
 
   PiCallStreamID = xptiRegisterStream(SYCL_PICALL_STREAM_NAME);
   PiDebugCallStreamID = xptiRegisterStream(SYCL_PIDEBUGCALL_STREAM_NAME);
+  // Initialize the XPTI registery to create the performance stream and notify
+  // the framework
+  GlobalHandler::instance().getXPTIRegistry().initializeStream(
+      SYCL_PERF_STREAM_NAME, GMajVer, GMinVer, GVerStr);
+  GSyclPerfStreamID = xptiRegisterStream(SYCL_PERF_STREAM_NAME);
+  uint64_t SyclPerfEventInstanceNo;
+  xpti::payload_t SyclPerfPayload("SYCL Perf Layer");
+  GSYCLPerfEvent = xptiMakeEvent("SYCL Perf Layer", &SyclPerfPayload,
+                                 xpti::trace_algorithm_event, xpti_at::active,
+                                 &SyclPerfEventInstanceNo);
 #endif
 }
 

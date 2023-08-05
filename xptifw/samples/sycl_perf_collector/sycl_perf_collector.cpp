@@ -103,13 +103,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     GWriter = new xpti::json_writer();
   };
 
-  std::cout << "Initializing stream : " << stream_name << std::endl;
-
   auto Check = GStreamsToObserve.find(stream_name);
 
   if (std::string("sycl") == stream_name && Check != GStreamsToObserve.end()) {
-    std::cout << "Registering callbacks for stream : " << stream_name
-              << std::endl;
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::wait_begin,
@@ -138,8 +134,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                          graphCallback);
   } else if (std::string("sycl.experimental.mem.alloc") == stream_name &&
              Check != GStreamsToObserve.end()) {
-    std::cout << "Registering callbacks for stream : " << stream_name
-              << std::endl;
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::node_create,
@@ -168,7 +162,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclPiCallback);
-  } else if (std::string("sycl.perf") == stream_name &&
+  } /*else if (std::string("sycl.perf") == stream_name &&
              Check != GStreamsToObserve.end()) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -177,8 +171,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
                          syclPerfCallback);
-  } else if (std::string("sycl.experimental.level_zero.call") == stream_name &&
-             Check != GStreamsToObserve.end()) {
+  }*/
+  else if (std::string("sycl.experimental.level_zero.call") == stream_name &&
+           Check != GStreamsToObserve.end()) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
@@ -201,7 +196,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   std::lock_guard<std::mutex> _{GStreamMutex};
   // auto loc = GStreamsToObserve.find(stream_name);
-  std::cout << "Closing stream: " << stream_name << std::endl;
   // GStreamsToObserve.erase(stream_name);
   // std::cout << "Removed stream: " << stream_name << std::endl;
   // std::cout << "Stream count: " << GStreamsToObserve.size() << std::endl;
@@ -226,8 +220,6 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
   } else {
     Name = "unknown";
   }
-  std::cout << "Notification for '" << StreamName
-            << "' and trace type = " << TraceType << "\n";
   xpti::record_t r;
   uint64_t ID = 0;
 
@@ -252,12 +244,6 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
     }
     // We are operating on a copy, so no data races
     record_state(r, false);
-    if (r.Category == "sycl") {
-      std::cout << "Record <-- "
-                << "Stream: " << StreamName << " UID: " << ID
-                << " Instance: " << Instance << " End TS: " << r.TSEnd
-                << " Name: " << r.Name << std::endl;
-    }
     // Writer has its own lock
     if (GWriter)
       GWriter->write(r);
@@ -280,12 +266,6 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
         throw std::runtime_error("Instance id/correlation ID collision!");
       }
       IncompleteRecords[Instance] = r;
-      if (r.Category == "sycl") {
-        std::cout << "Record --> "
-                  << "Stream: " << StreamName << " UID: " << ID
-                  << " Instance: " << Instance << " Begin TS: " << r.TSBegin
-                  << " Name: " << r.Name << std::endl;
-      }
     }
   }
 }

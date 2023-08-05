@@ -45,7 +45,6 @@
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include "xpti/xpti_trace_framework.hpp"
-#include <detail/xpti_registry.hpp>
 #endif
 
 namespace sycl {
@@ -217,6 +216,7 @@ static std::string commandToName(Command::CommandType Type) {
 
 std::vector<sycl::detail::pi::PiEvent>
 Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
+  XPTI_LW_TRACE();
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
     if (EventImpl->getHandleRef() == nullptr)
@@ -245,6 +245,7 @@ Command::getPiEvents(const std::vector<EventImplPtr> &EventImpls) const {
 // completion.
 std::vector<sycl::detail::pi::PiEvent> Command::getPiEventsBlocking(
     const std::vector<EventImplPtr> &EventImpls) const {
+  XPTI_LW_TRACE();
   std::vector<sycl::detail::pi::PiEvent> RetPiEvents;
   for (auto &EventImpl : EventImpls) {
     // Throwaway events created with empty constructor will not have a context
@@ -298,6 +299,7 @@ class DispatchHostTask {
   std::vector<interop_handle::ReqToMem> MReqToMem;
 
   pi_result waitForEvents() const {
+    XPTI_LW_TRACE();
     std::map<const PluginPtr, std::vector<EventImplPtr>>
         RequiredEventsPerPlugin;
 
@@ -343,6 +345,7 @@ public:
       : MThisCmd{ThisCmd}, MReqToMem(std::move(ReqToMem)) {}
 
   void operator()() const {
+    XPTI_LW_TRACE();
     assert(MThisCmd->getCG().getType() == CG::CGTYPE::CodeplayHostTask);
 
     CGHostTask &HostTask = static_cast<CGHostTask &>(MThisCmd->getCG());
@@ -423,6 +426,7 @@ public:
 };
 
 void Command::waitForPreparedHostEvents() const {
+  XPTI_LW_TRACE();
   for (const EventImplPtr &HostEvent : MPreparedHostDepsEvents)
     HostEvent->waitInternal();
 }
@@ -430,6 +434,7 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
+  XPTI_LW_TRACE();
 
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
@@ -508,6 +513,7 @@ Command::Command(
 }
 
 void Command::emitInstrumentationDataProxy() {
+  XPTI_LW_TRACE();
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   emitInstrumentationData();
 #endif
@@ -2208,6 +2214,7 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, bool IsHost, detail::ArgDesc &Arg,
     size_t NextTrueIndex) {
+  XPTI_LW_TRACE();
   switch (Arg.MType) {
   case kernel_param_kind_t::kind_stream:
     break;
@@ -2292,6 +2299,7 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  XPTI_LW_TRACE();
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2337,6 +2345,7 @@ static pi_result SetKernelParamsAndLaunch(
 
 // The function initialize accessors and calls lambda.
 void DispatchNativeKernel(void *Blob) {
+  XPTI_LW_TRACE();
   void **CastedBlob = (void **)Blob;
 
   std::vector<Requirement *> *Reqs =
@@ -2367,6 +2376,7 @@ pi_int32 enqueueImpCommandBufferKernel(
     std::vector<sycl::detail::pi::PiExtSyncPoint> &SyncPoints,
     sycl::detail::pi::PiExtSyncPoint *OutSyncPoint,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+  XPTI_LW_TRACE();
   auto ContextImpl = sycl::detail::getSyclObjImpl(Ctx);
   const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
   pi_kernel PiKernel = nullptr;
@@ -2446,6 +2456,7 @@ pi_int32 enqueueImpKernel(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
 
+  XPTI_LW_TRACE();
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
   auto DeviceImpl = Queue->getDeviceImplPtr();
@@ -2560,6 +2571,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          sycl::detail::pi::PiEvent *OutEvent, bool read) {
+  XPTI_LW_TRACE();
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2605,6 +2617,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 }
 
 pi_int32 ExecCGCommand::enqueueImpCommandBuffer() {
+  XPTI_LW_TRACE();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
@@ -2711,6 +2724,7 @@ pi_int32 ExecCGCommand::enqueueImp() {
 }
 
 pi_int32 ExecCGCommand::enqueueImpQueue() {
+  XPTI_LW_TRACE();
   if (getCG().getType() != CG::CGTYPE::CodeplayHostTask)
     waitForPreparedHostEvents();
   std::vector<EventImplPtr> EventImpls = MPreparedDepsEvents;

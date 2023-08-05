@@ -69,7 +69,6 @@ public:
   ~json_writer() {}
 
   void init() final {
-    std::cout << "Created JSON Writer\n";
     m_file_name = xpti::utils::get_application_name();
     if (m_file_name.empty()) {
       m_file_name =
@@ -79,7 +78,6 @@ public:
     }
     std::cout << "Output file name: " << m_file_name << std::endl;
     if (m_synchronous) {
-      std::cout << "In synchronous mode\n";
       if (!m_file_name.empty()) {
         std::lock_guard<std::mutex> _{m_mutex};
         m_io.open(m_file_name);
@@ -97,7 +95,6 @@ public:
     }
   }
   void fini() final {
-    std::cout << "Dumping records and closing JSON Writer\n";
 
     std::lock_guard<std::mutex> _{m_mutex};
     if (m_synchronous && m_io.is_open() && !m_write_done) {
@@ -112,23 +109,14 @@ public:
     } else {
       // Burst write when the application exits
       if (!m_io.is_open() && !m_write_done) {
-        std::cout << "In burst mode\n";
         m_io.open(m_file_name);
         if (m_io.is_open()) {
           m_io << std::fixed;
-          // sort the vector first
-          // auto compare = [&](rec_tuple &a, rec_tuple &b) {
-          //   return a.first < b.first;
-          // };
-          // std::sort(m_records.begin(), m_records.end(), compare);
-          std::cout << "Writing header\n";
           m_io << "{\n";
           m_io << "  \"traceEvents\": [\n";
-          std::cout << "Writing records\n";
           for (auto &r : m_records) {
             fast_write(r.second);
           }
-          std::cout << "Writing footer\n";
           // add an empty element for not ending with '}, ]'
           m_io
               << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "

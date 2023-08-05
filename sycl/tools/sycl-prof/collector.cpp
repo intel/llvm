@@ -22,6 +22,35 @@
 namespace chrono = std::chrono;
 
 Writer *GWriter = nullptr;
+uint64_t GProcessID = 0;
+
+unsigned long process_id() { return static_cast<unsigned long>(getpid()); }
+
+struct stready_timer_t {
+#if defined(__linux__)
+#include <sched.h>
+  // https://stackoverflow.com/questions/42189976/calculate-system-time-using-rdtsc
+  // Discussion describes how clock_gettime() costs about 4 ns per call
+  inline size_t get() {
+    struct timespec ts;
+    int status = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (status == 0) {
+      return (static_cast<uint64_t>(1000000000UL) *
+                  static_cast<uint64_t>(ts.tv_sec) +
+              static_cast<uint64_t>(ts.tv_nsec));
+    } else {
+      return 0;
+    }
+  }
+#else
+  inline size_t get() {
+    auto ts = std::chrono::steady_clock::now();
+    return std::chrono::time_point_cast<chrono::nanoseconds>(ts)
+        .time_since_epoch()
+        .count();
+  }
+#endif
+};
 
 struct Measurements {
   size_t TID;
@@ -29,16 +58,11 @@ struct Measurements {
   size_t TimeStamp;
 };
 
-unsigned long process_id() { return static_cast<unsigned long>(getpid()); }
-
 static Measurements measure() {
+  stready_timer_t Timer;
   size_t TID = std::hash<std::thread::id>{}(std::this_thread::get_id());
-  size_t PID = process_id();
-  auto Now = chrono::high_resolution_clock::now();
-  size_t TS = chrono::time_point_cast<chrono::nanoseconds>(Now)
-                  .time_since_epoch()
-                  .count();
-
+  size_t PID = GProcessID;
+  size_t TS = Timer.get();
   return Measurements{TID, PID, TS};
 }
 
@@ -69,6 +93,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
           "SYCL_PROF_OUT_FILE environment variable is not specified");
     GWriter = new JSONWriter(ProfOutFile);
     GWriter->init();
+  }
+  if (GProcessID == 0) {
+    GProcessID = process_id();
   }
 
   std::string_view NameView{StreamName};
@@ -102,6 +129,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                          apiBeginEndCallback);
     xptiRegisterCallback(StreamID, xpti::trace_function_end,
                          apiBeginEndCallback);
+  } else if (NameView == "sycl.perf") {
+    uint8_t StreamID = xptiRegisterStream(StreamName);
+    xptiRegisterCallback(StreamID, xpti::trace_function_begin,
+                         apiBeginEndCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_end,
+                         apiBeginEndCallback);
   }
 }
 
@@ -114,10 +147,11 @@ XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
                                            const void *UserData) {
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_function_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "API", PID, TID,
-                        TS);
+    GWriter->writeBufferBegin(static_cast<const char *>(UserData), "API", PID,
+                              TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "API", PID, TID, TS);
+    GWriter->writeBufferEnd(static_cast<const char *>(UserData), "API", PID,
+                            TID, TS);
   }
 }
 
@@ -138,9 +172,9 @@ XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
 
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_task_begin) {
-    GWriter->writeBegin(Name, "SYCL", PID, TID, TS);
+    GWriter->writeBufferBegin(Name, "SYCL", PID, TID, TS);
   } else {
-    GWriter->writeEnd(Name, "SYCL", PID, TID, TS);
+    GWriter->writeBufferEnd(Name, "SYCL", PID, TID, TS);
   }
 }
 
@@ -152,10 +186,10 @@ XPTI_CALLBACK_API void waitBeginEndCallback(uint16_t TraceType,
   auto [TID, PID, TS] = measure();
   if (TraceType == xpti::trace_wait_begin ||
       TraceType == xpti::trace_barrier_begin) {
-    GWriter->writeBegin(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                        TS);
+    GWriter->writeBufferBegin(static_cast<const char *>(UserData), "SYCL", PID,
+                              TID, TS);
   } else {
-    GWriter->writeEnd(static_cast<const char *>(UserData), "SYCL", PID, TID,
-                      TS);
+    GWriter->writeBufferEnd(static_cast<const char *>(UserData), "SYCL", PID,
+                            TID, TS);
   }
 }
