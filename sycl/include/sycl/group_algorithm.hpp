@@ -7,23 +7,33 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <complex>
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#include <sycl/detail/array.hpp>       // for array
+#include <sycl/detail/helpers.hpp>     // for loop
+#include <sycl/detail/item_base.hpp>   // for id, range
+#include <sycl/detail/type_list.hpp>   // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp> // for remove_pointer, is_pointer
+#include <sycl/exception.hpp>          // for make_error_code, errc, exception
+#include <sycl/functional.hpp>         // for plus, multiplies, maximum
+#include <sycl/group.hpp>              // for group
+#include <sycl/half_type.hpp>          // for half
+#include <sycl/id.hpp>                 // for id
+#include <sycl/known_identity.hpp>     // for known_identity_v
+#include <sycl/nd_item.hpp>            // for nd_item
+#include <sycl/range.hpp>              // for range
+#include <sycl/sub_group.hpp>          // for sub_group
+#include <sycl/types.hpp>              // for vec
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
-#include <sycl/functional.hpp>
-#include <sycl/group.hpp>
-#include <sycl/group_barrier.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/sub_group.hpp>
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#endif
+#endif
+
+#include <complex>     // for complex
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t, decay_t, integra...
 
 namespace sycl {
 inline namespace _V1 {

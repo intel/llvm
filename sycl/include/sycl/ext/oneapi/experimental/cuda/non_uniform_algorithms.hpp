@@ -7,12 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/known_identity.hpp>
+
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 
 template <typename T, class BinaryOperation>
 using IsRedux = std::bool_constant<
@@ -331,7 +331,8 @@ masked_scan_cuda_shfls(Group g, T x, BinaryOperation binary_op,
   return x;
 }
 
-#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
+
+#endif // defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)

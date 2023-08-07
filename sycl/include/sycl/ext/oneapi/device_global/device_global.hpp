@@ -8,14 +8,16 @@
 
 #pragma once
 
-#include <cstddef>
-#include <type_traits>
+#include <sycl/access/access.hpp>                       // for address_space
+#include <sycl/exception.hpp>                           // for make_error_code
+#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image...
+#include <sycl/ext/oneapi/properties/properties.hpp>    // for properties_t
+#include <sycl/multi_ptr.hpp>                           // for multi_ptr
+#include <sycl/pointers.hpp>                            // for decorated_gl...
 
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/pointers.hpp>
+#include <cstddef>     // for ptrdiff_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for declval
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HOST_NOT_SUPPORTED(Op)
