@@ -166,18 +166,7 @@ created on UR command-buffer enqueue.
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
 
-```mermaid
-flowchart TB
-    subgraph Suffix
-    id1[Signal the UR command-buffer SignalEvent]
-    end
-    subgraph User Added Commands
-    id2[Command 1] -.-  id3[Command N]
-    end
-    subgraph Prefix
-    id4[Reset SignalEvent] ~~~ id5[Barrier waiting on WaitEvent]
-    end
-```
+![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two
@@ -187,15 +176,13 @@ after *CB*. These two new command-lists are retrieved from the UR queue, which
 will likely reuse existing command-lists and only create a new one in the worst
 case.
 
-```mermaid
-flowchart TB
-    subgraph L0 Command-list created on urCommandBufferEnqueueExp to execution before CB
-    id1[Barrier on EL that signals CB WaitEvent when completed]
-    end
-    subgraph L0 Command-list created on urCommandBufferEnqueueExp to execution after CB
-    id2[Barrier on CB SignalEvent that signals RE when completed]
-    end
-```
+The L0 command-list created on `urCommandBufferEnqueueExp` to execute **before**
+*CB* contains a single command. This command is a barrier on *EL* that signals
+*CB*'s *WaitEvent* when completed.
+
+The L0 command-list created on `urCommandBufferEnqueueExp` to execute **after**
+*CB* also contains a single command. This command is a barrier on *CB*'s
+*SignalEvent* that signals *RE* when completed.
 
 #### Drawbacks
 
