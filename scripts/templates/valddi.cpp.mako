@@ -24,7 +24,7 @@ from templates import helper as th
 
 namespace ur_validation_layer
 {
-    %for obj in th.extract_objs(specs, r"function"):
+    %for obj in th.get_adapter_functions(specs):
     <%
         func_name=th.make_func_name(n, tags, obj)
         object_param=th.make_param_lines(n, tags, obj, format=["name"])[-1]

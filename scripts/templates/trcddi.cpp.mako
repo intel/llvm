@@ -24,7 +24,7 @@ from templates import helper as th
 
 namespace ur_tracing_layer
 {
-    %for obj in th.extract_objs(specs, r"function"):
+    %for obj in th.get_adapter_functions(specs):
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:

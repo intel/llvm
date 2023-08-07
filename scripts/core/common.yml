@@ -62,6 +62,7 @@ value: uint8_t
 type: handle
 desc: "Handle of a loader config object"
 class: $xLoaderConfig
+loader_only: True
 name: "$x_loader_config_handle_t"
 --- #--------------------------------------------------------------------------
 type: handle

@@ -27,7 +27,7 @@ from templates import helper as th
 namespace ur_loader
 {
     ///////////////////////////////////////////////////////////////////////////////
-    %for obj in th.extract_objs(specs, r"handle"):
+    %for obj in th.get_adapter_handles(specs):
     %if 'class' in obj:
     <%
         _handle_t = th.subt(n, tags, obj['name'])

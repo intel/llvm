@@ -238,12 +238,13 @@ std::function<void(void*)> ur_callback_t;
 * A handle requires the following scalar fields: {`desc`, `name`}
   - `desc` will be used as the handles's description comment
   - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_handle_t`
-* A handle may take the following optional scalar fields: {`class`, `alias`, `condition`, `ordinal`, `version`}
+* A handle may take the following optional scalar fields: {`class`, `alias`, `condition`, `ordinal`, `version`, `loader_only`}
   - `class` will be used to scope the handles declaration within the specified C++ class
   - `alias` will be used to declare the handle as an alias of another handle; specifically, aliases in another namespace
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the handles appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the handles will appear; `default="1.0"` This will also affect the order in which the handles appears within its section.
+  - `loader_only` will be used to decide whether the handle can be instantiated and managed only by the loader.
 * A handle may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the handle's detailed comment
 

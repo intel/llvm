@@ -24,7 +24,7 @@ from templates import helper as th
 namespace ur_loader
 {
     ///////////////////////////////////////////////////////////////////////////////
-    %for obj in th.extract_objs(specs, r"handle"):
+    %for obj in th.get_adapter_handles(specs):
     %if 'class' in obj:
     <%
         _handle_t = th.subt(n, tags, obj['name'])
@@ -34,7 +34,7 @@ namespace ur_loader
     %endif
     %endfor
 
-    %for obj in th.extract_objs(specs, r"function"):
+    %for obj in th.get_adapter_functions(specs):
     ///////////////////////////////////////////////////////////////////////////////
     /// @brief Intercept function for ${th.make_func_name(n, tags, obj)}
     %if 'condition' in obj:
