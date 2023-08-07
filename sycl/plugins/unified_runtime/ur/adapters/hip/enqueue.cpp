@@ -1387,6 +1387,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
+#if HIP_VERSION_MAJOR >= 5
   UR_ASSERT(pMem && size > 0, UR_RESULT_ERROR_INVALID_VALUE);
   void *HIPDevicePtr = const_cast<void *>(pMem);
 
@@ -1464,6 +1465,9 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   }
 
   return Result;
+#else
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+#endif
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill2D(
