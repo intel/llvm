@@ -18,9 +18,6 @@ ur_mem_handle_t_::~ur_mem_handle_t_() {
   if (DeviceWithNativeAllocation) {
     urDeviceRelease(DeviceWithNativeAllocation);
   }
-  if (LastEventWritingToMemObj != nullptr) {
-    urEventRelease(LastEventWritingToMemObj);
-  }
 }
 
 /// Creates a UR Memory object using a CUDA memory allocation.
@@ -527,6 +524,12 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(Ptrs[hDevice->getIndex()], UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
+  // Device allocation has already been initialized with most up to date
+  // data in buffer
+  if (HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()]) {
+    return UR_RESULT_SUCCESS;
+  }
+
   ScopedDevice Active(hDevice);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
@@ -534,11 +537,6 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
   // If no kernels have written to the memobj then initialize the device
   // allocation from host if it has not been initialized already
   if (LastEventWritingToMemObj == nullptr) {
-    // Device allocation has already been initialized and no previously
-    // submitted kernel has written to MemObj
-    if (HaveMigratedToDevice[hDevice->getIndex()]) {
-      return Result;
-    }
     // Device allocation being initialized from host for the first time
     // TODO(hdelan): HostPtr is sometimes nullptr here. Why is that?
     if (HostPtr) {
@@ -560,7 +558,7 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
       Result = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
     }
   }
-  HaveMigratedToDevice[hDevice->getIndex()] = true;
+  HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()] = true;
 
   return Result;
 }

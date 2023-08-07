@@ -13,6 +13,7 @@
 
 #include "common.hpp"
 #include "context.hpp"
+#include "event.hpp"
 
 /// UR Mem mapping to CUDA memory allocations, both data and texture/surface.
 /// \brief Represents non-SVM allocations on the CUDA backend.
@@ -26,9 +27,6 @@ struct ur_mem_handle_t_ {
   // associate it with the device that holds the native allocation.
   ur_device_handle_t DeviceWithNativeAllocation{nullptr};
 
-  // Has the initial memcpy to device from host/another device happened?
-  std::vector<bool> HaveMigratedToDevice;
-
   /// Reference counting of the handler
   std::atomic_uint32_t RefCount{1};
 
@@ -37,10 +35,6 @@ struct ur_mem_handle_t_ {
 
   // Enumerates all possible types of accesses.
   enum access_mode_t { unknown, read_write, read_only, write_only };
-
-  // We should wait on this event prior to migrating memory across allocations
-  // in this ur_buffer_
-  ur_event_handle_t LastEventWritingToMemObj{nullptr};
 
   // Methods to get type of the derived object (image or buffer)
   virtual bool isBuffer() const = 0;
@@ -64,19 +58,9 @@ struct ur_mem_handle_t_ {
   ur_mutex MemoryAllocationMutex; // A mutex for allocations
   ur_mutex MemoryMigrationMutex;  // A mutex for memory transfers
 
-  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
-    assert(NewEvent && "Invalid event!");
-    if (LastEventWritingToMemObj != nullptr) {
-      urEventRelease(LastEventWritingToMemObj);
-    }
-    urEventRetain(NewEvent);
-    LastEventWritingToMemObj = NewEvent;
-  }
-
 protected:
   ur_mem_handle_t_(ur_context_handle_t Context, ur_mem_flags_t MemFlags)
-      : Context{Context}, HaveMigratedToDevice(Context->NumDevices, false),
-        MemFlags{MemFlags} {
+      : Context{Context}, MemFlags{MemFlags} {
     urContextRetain(Context);
   };
 
@@ -85,8 +69,8 @@ protected:
   // allocation so that we know not to free the memory on destruction
   ur_mem_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
                    ur_mem_flags_t MemFlags)
-      : Context{Context}, DeviceWithNativeAllocation{Device},
-        HaveMigratedToDevice(Context->NumDevices, false), MemFlags{MemFlags} {
+      : Context{Context}, DeviceWithNativeAllocation{Device}, MemFlags{
+                                                                  MemFlags} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   };
@@ -103,6 +87,9 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
   // context. Each device in the context is identified by its index
   std::vector<native_type> Ptrs;
 
+  // Has the memory been migrated to a device since the last write?
+  std::vector<bool> HaveMigratedToDeviceSinceLastWrite;
+
   /// Pointer associated with this device on the host
   void *HostPtr;
   /// Size of the allocation in bytes
@@ -113,6 +100,10 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
   void *MapPtr;
   /// Original flags for the mapped region
   ur_map_flags_t MapFlags;
+
+  // We should wait on this event prior to migrating memory across allocations
+  // in this ur_buffer_
+  ur_event_handle_t LastEventWritingToMemObj{nullptr};
 
   /** AllocMode
    * classic: Just a normal buffer allocated on the device via cuda malloc
@@ -132,9 +123,10 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
              ur_mem_flags_t MemFlags, AllocMode Mode, void *HostPtr,
              size_t Size)
       : ur_mem_handle_t_{Context, MemFlags}, Parent{Parent},
-        Ptrs(Context->NumDevices, native_type{0}), HostPtr{HostPtr}, Size{Size},
-        MapOffset{0}, MapPtr{nullptr}, MapFlags{UR_MAP_FLAG_WRITE},
-        MemAllocMode{Mode} {
+        Ptrs(Context->NumDevices, native_type{0}),
+        HaveMigratedToDeviceSinceLastWrite(Context->NumDevices, false),
+        HostPtr{HostPtr}, Size{Size}, MapOffset{0}, MapPtr{nullptr},
+        MapFlags{UR_MAP_FLAG_WRITE}, MemAllocMode{Mode} {
     if (isSubBuffer()) {
       urMemRetain(Parent);
     }
@@ -144,9 +136,10 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
              ur_buffer_ *Parent, ur_mem_flags_t MemFlags, AllocMode Mode,
              void *HostPtr, size_t Size)
       : ur_mem_handle_t_{Context, Device, MemFlags}, Parent{Parent},
-        Ptrs(Context->NumDevices, native_type{0}), HostPtr{HostPtr}, Size{Size},
-        MapOffset{0}, MapPtr{nullptr}, MapFlags{UR_MAP_FLAG_WRITE},
-        MemAllocMode{Mode} {
+        Ptrs(Context->NumDevices, native_type{0}),
+        HaveMigratedToDeviceSinceLastWrite(Context->NumDevices, false),
+        HostPtr{HostPtr}, Size{Size}, MapOffset{0}, MapPtr{nullptr},
+        MapFlags{UR_MAP_FLAG_WRITE}, MemAllocMode{Mode} {
     if (isSubBuffer()) {
       urMemRetain(Parent);
     }
@@ -155,6 +148,9 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
   ~ur_buffer_() override {
     if (isSubBuffer()) {
       urMemRelease(Parent);
+    }
+    if (LastEventWritingToMemObj != nullptr) {
+      urEventRelease(LastEventWritingToMemObj);
     }
   }
 
@@ -239,6 +235,22 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
   struct {
     size_t Origin; // only valid if Parent != nullptr
   } SubBuffer;
+
+  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
+    assert(NewEvent && "Invalid event!");
+    if (LastEventWritingToMemObj != nullptr) {
+      urEventRelease(LastEventWritingToMemObj);
+    }
+    urEventRetain(NewEvent);
+    LastEventWritingToMemObj = NewEvent;
+    for (auto i = 0u; i < Context->NumDevices; ++i) {
+      if (i == NewEvent->getDevice()->getIndex()) {
+        HaveMigratedToDeviceSinceLastWrite[i] = true;
+      } else {
+        HaveMigratedToDeviceSinceLastWrite[i] = false;
+      }
+    }
+  }
 };
 
 // Handler data for image object (i.e. surface/textures)
@@ -275,7 +287,7 @@ struct ur_image_ final : ur_mem_handle_t_ {
     Mem.ImageMem.Sampler = Sampler;
   }
 
-  ~ur_image_() override {};
+  ~ur_image_() override{};
 
   enum class Type { Surface, Texture } MemType;
 

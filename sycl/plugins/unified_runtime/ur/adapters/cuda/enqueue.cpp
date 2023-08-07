@@ -291,10 +291,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // we may need to add more events to our dependent events list
   for (auto &MemArg : hKernel->Args.MemObjArgs) {
     MemArg.Mem->MemoryMigrationMutex.lock();
-    if (MemArg.Mem->LastEventWritingToMemObj &&
-        std::find(DepEvents.begin(), DepEvents.end(),
-                  MemArg.Mem->LastEventWritingToMemObj) == DepEvents.end()) {
-      DepEvents.push_back(MemArg.Mem->LastEventWritingToMemObj);
+    if (MemArg.Mem->isBuffer()) {
+      auto MemDepEvent =
+          ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
+      if (MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
+                                   MemDepEvent) == DepEvents.end()) {
+        DepEvents.push_back(MemDepEvent);
+      }
     }
   }
 
@@ -461,8 +464,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         // Telling the ur_mem_handle_t that it will need to wait on this kernel
         // if it has been written to
         if (MemArg.AccessFlags &
-            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_READ_ONLY)) {
-          MemArg.Mem->setLastEventWritingToMemObj(RetImplEvent.get());
+            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+          ur_cast<ur_buffer_ *>(MemArg.Mem)
+              ->setLastEventWritingToMemObj(RetImplEvent.get());
         }
         MemArg.Mem->MemoryMigrationMutex.unlock();
       }
@@ -1530,7 +1534,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   if (phEventWaitList) {
     UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
@@ -1547,9 +1551,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   // Note that this entry point may be called on a specific queue that may not
   // be the last queue to write to the MemBuffer
 
-  auto DeviceToCopyFrom = hBuffer->LastEventWritingToMemObj == nullptr
+  auto DeviceToCopyFrom = Buffer->LastEventWritingToMemObj == nullptr
                               ? hQueue->getDevice()
-                              : hBuffer->LastEventWritingToMemObj->getDevice();
+                              : Buffer->LastEventWritingToMemObj->getDevice();
 
   CUdeviceptr DevPtr = Buffer->getNativePtr(DeviceToCopyFrom);
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -1560,9 +1564,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     // may not be the active queue
     CUstream CuStream{0};
 
-    if (hBuffer->LastEventWritingToMemObj != nullptr) {
+    if (Buffer->LastEventWritingToMemObj != nullptr) {
       Result = enqueueEventsWait(CuStream, numEventsInWaitList,
-                                 &hBuffer->LastEventWritingToMemObj);
+                                 &Buffer->LastEventWritingToMemObj);
     } else {
       Result =
           enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
@@ -1636,7 +1640,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     }
 
     UR_CHECK_ERROR(cuMemcpyHtoDAsync(DevPtr + offset, pSrc, size, CuStream));
-    Buffer->HaveMigratedToDevice[hQueue->getDevice()->getIndex()] = true;
+    Buffer
+        ->HaveMigratedToDeviceSinceLastWrite[hQueue->getDevice()->getIndex()] =
+        true;
 
     if (phEvent) {
       Result = RetImplEvent->record();
