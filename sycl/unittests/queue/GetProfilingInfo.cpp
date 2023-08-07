@@ -416,7 +416,7 @@ TEST(GetProfilingInfo, fallback_profiling) {
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
 
-  // ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
+  ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
 
   static sycl::unittest::PiImage DevImage_1 =
       generateTestImage<InfoTestKernel>();
@@ -443,7 +443,6 @@ TEST(GetProfilingInfo, fallback_profiling) {
   std::cout << "----start time: " << start_time << std::endl;
   std::cout << "----end time: " << end_time << std::endl;
   std::cout << '\n';
-  FAIL() << "//////////////////////////////////////////////";
 }
 
 // TEST(GetProfilingInfo, partial_profiling_workaround) {
