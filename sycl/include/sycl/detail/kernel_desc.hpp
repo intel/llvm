@@ -8,10 +8,11 @@
 
 #pragma once
 
-// This header file must not include any standard C++ header files.
-
-#include <sycl/detail/defines_elementary.hpp>
+// FIXME: include export.hpp because integration header emitted by the compiler
+// uses the macro defined in this header, but it doesn't explicitly include it.
 #include <sycl/detail/export.hpp>
+
+// This header file must not include any standard C++ header files.
 
 namespace sycl {
 inline namespace _V1 {

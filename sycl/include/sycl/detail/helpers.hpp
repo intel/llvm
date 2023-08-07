@@ -8,19 +8,22 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/memcpy.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
+#include <sycl/access/access.hpp>     // for fence_space
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/pi.hpp>         // for PiEvent
+#include <sycl/memory_enums.hpp>      // for memory_order
 
-#include <memory>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_vars.hpp>
+#endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, integral_constant
+#include <utility>     // for forward, integer_sequence, mak...
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
