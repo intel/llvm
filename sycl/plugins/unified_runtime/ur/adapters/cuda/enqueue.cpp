@@ -463,8 +463,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
         // Telling the ur_mem_handle_t that it will need to wait on this kernel
         // if it has been written to
-        if (MemArg.AccessFlags &
-            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+        if (MemArg.Mem->isBuffer() &&
+            MemArg.AccessFlags &
+                (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
           ur_cast<ur_buffer_ *>(MemArg.Mem)
               ->setLastEventWritingToMemObj(RetImplEvent.get());
         }
