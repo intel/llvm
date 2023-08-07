@@ -328,11 +328,7 @@ This function copies `Rows x Cols` elements of type `T1` from joint
 matrix `src` to `Rows x Cols` elements of type `T2` of joint matrix
 `dest`. The two matrices must have the same scope, shape, and
 layout. Use and type can be different so this function converts
-between different `use` of matrices. The application must ensure that
-the resulting matrix type is supported on the device where the kernel
-using this `joint_matrix` runs. The query functions (defined below)
-may be used to determine the set of combinations that are supported on
-a device.
+between different `use` of matrices.
 
 ==== Element-Wise Operations
 Besides matrix multiply and add, this extension aims to make it
@@ -419,6 +415,13 @@ void joint_matrix_load(Group g,
     layout::dynamic> &res,
     multi_ptr<const float, Space, IsDecorated> src, size_t stride, layout Layout);
 
+template <typename Group, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, precision::tf32, use::accumulator, Rows, Cols,
+    layout::dynamic> &res,
+    multi_ptr<float, Space, IsDecorated> src, size_t stride, layout Layout);
+
 // Only available when Layout != layout::dynamic
 template <typename Group, size_t Rows, size_t Cols,
           use Use, layout Layout,
@@ -426,6 +429,14 @@ template <typename Group, size_t Rows, size_t Cols,
 void joint_matrix_load(Group g,
     joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
     multi_ptr<const float, Space, IsDecorated> src, size_t stride);
+
+// Only available when Layout != layout::dynamic
+template <typename Group, size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, precision::tf32, Use, Rows, Cols, Layout> &res,
+    multi_ptr<float, Space, IsDecorated> src, size_t stride);
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
