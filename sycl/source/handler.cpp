@@ -12,6 +12,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
+#include <detail/image_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -38,6 +39,34 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+sycl::detail::pi::PiImageCopyFlags
+getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
+  if (DstPtrType == sycl::usm::alloc::device) {
+    // Dest is on device
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  if (DstPtrType == sycl::usm::alloc::host ||
+      DstPtrType == sycl::usm::alloc::unknown) {
+    // Dest is on host
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Cannot copy image from host to host");
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Unknown copy destination location");
 }
 
 } // namespace detail
@@ -372,6 +401,20 @@ event handler::finalize() {
       MLastEvent = GraphCompletionEvent;
       return MLastEvent;
     }
+    break;
+  case detail::CG::CopyImage:
+    CommandGroup.reset(new detail::CGCopyImage(
+        MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
+        MImpl->MImageCopyFlags, MImpl->MSrcOffset, MImpl->MDestOffset,
+        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreWait:
+    CommandGroup.reset(new detail::CGSemaphoreWait(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreSignal:
+    CommandGroup.reset(new detail::CGSemaphoreSignal(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
     break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
@@ -840,6 +883,220 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   MImpl->MWidth = Width;
   MImpl->MHeight = Height;
   setType(detail::CG::Memset2DUSM);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  MSrcPtr = Src;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent) {
+
+  MSrcPtr = Src;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = DestImgDesc.width;
+  PiDesc.image_height = DestImgDesc.height;
+  PiDesc.image_depth = DestImgDesc.depth;
+  PiDesc.image_type = DestImgDesc.depth > 0
+                          ? PI_MEM_TYPE_IMAGE3D
+                          : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(DestImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+    sycl::range<3> CopyExtent) {
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = SrcImgDesc.width;
+  PiDesc.image_height = SrcImgDesc.height;
+  PiDesc.image_depth = SrcImgDesc.depth;
+  PiDesc.image_type =
+      SrcImgDesc.depth > 0
+          ? PI_MEM_TYPE_IMAGE3D
+          : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(SrcImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  MSrcPtr = Src;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageDesc.image_row_pitch = Pitch;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    sycl::range<3> CopyExtent) {
+  MSrcPtr = Src;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = DeviceImgDesc.width;
+  PiDesc.image_height = DeviceImgDesc.height;
+  PiDesc.image_depth = DeviceImgDesc.depth;
+  PiDesc.image_type = DeviceImgDesc.depth > 0
+                          ? PI_MEM_TYPE_IMAGE3D
+                          : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                      : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreWait);
+}
+
+void handler::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreSignal);
 }
 
 void handler::use_kernel_bundle(

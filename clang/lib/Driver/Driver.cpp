@@ -122,8 +122,6 @@ using namespace llvm::opt;
 // triple. This routine transforms the triple specified by user as input to this
 // 'standardized' format to facilitate checks.
 static std::string standardizedTriple(std::string OrigTriple) {
-  if (OrigTriple.back() == '-') // Already standardized
-    return OrigTriple;
   llvm::Triple t = llvm::Triple(OrigTriple);
   return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
                       t.getEnvironmentName())
@@ -1107,6 +1105,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
       getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
   Arg *SYCLfpga = getArgRequiringSYCLRuntime(options::OPT_fintelfpga);
+  // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
+  Arg *SYCLHostCompiler =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
+  Arg *SYCLHostCompilerOptions =
+      getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_options_EQ);
 
   // -fsycl-targets cannot be used with -fsycl-link-targets
   if (SYCLTargets && SYCLLinkTargets)
@@ -1124,6 +1127,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   if (SYCLTargets && SYCLfpga)
     Diag(clang::diag::err_drv_option_conflict)
         << SYCLTargets->getSpelling() << SYCLfpga->getSpelling();
+  // -fsycl-host-compiler-options cannot be used without -fsycl-host-compiler
+  if (SYCLHostCompilerOptions && !SYCLHostCompiler)
+    Diag(clang::diag::warn_drv_opt_requires_opt)
+        << SYCLHostCompilerOptions->getSpelling().split('=').first
+        << "-fsycl-host-compiler";
 
   auto argSYCLIncompatible = [&](OptSpecifier OptId) {
     if (!HasValidSYCLRuntime)
@@ -6026,9 +6034,21 @@ class OffloadingActionBuilder final {
           // use the default FPGA triple to reduce possible match confusion.
           if (Arch.compare(0, 4, "fpga") == 0)
             Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
+
+          // The last component for the triple may be a GPU arch
+          auto TripleOrGPU = StringRef(Arch).rsplit('-');
+          if (clang::StringToCudaArch(TripleOrGPU.second.str()) !=
+              clang::CudaArch::UNKNOWN) {
+            Arch = standardizedTriple(TripleOrGPU.first.str());
+            Arch += TripleOrGPU.second.str();
+          } else {
+            Arch = standardizedTriple(Arch);
+          }
+
           if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
-              UniqueSections.end())
-            UniqueSections.push_back(standardizedTriple(Arch));
+              UniqueSections.end()) {
+            UniqueSections.push_back(Arch);
+          }
         }
       }
 
@@ -6037,11 +6057,10 @@ class OffloadingActionBuilder final {
 
       for (auto &SyclTarget : Targets) {
         std::string SectionTriple = SyclTarget.TC->getTriple().str();
+        SectionTriple = standardizedTriple(SectionTriple);
         if (SyclTarget.BoundArch) {
-          SectionTriple += "-";
           SectionTriple += SyclTarget.BoundArch;
         }
-        SectionTriple = standardizedTriple(SectionTriple);
         // If any matching section is found, we are good.
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
                       SectionTriple) != UniqueSections.end())

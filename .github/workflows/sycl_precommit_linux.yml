@@ -15,6 +15,8 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
+    # Changes in CI won't have any effect with pull_request_target
+    - '.github/workflows'
     # For CI-related files we explicitly skip all the jobs below even if there
     # were other (non-ignored) files modified in this PR.
     - 'devops/*/**'
@@ -87,7 +89,6 @@ jobs:
       build_ref: ${{ github.event.pull_request.head.sha }}
       merge_ref: ${{ github.event.pull_request.base.sha }}
       build_cache_root: "/__w/"
-      build_cache_size: "8G"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}

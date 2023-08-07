@@ -365,6 +365,16 @@ constexpr bool has_ref_ret(Ret (*)(Args...)) {
 }
 
 template <typename Ret, typename... Args>
+constexpr bool has_struct_arg(Ret (*)(Args...)) {
+  return (... || (std::is_class_v<Args> && !is_simd_or_mask_type<Args>::value));
+}
+
+template <typename Ret, typename... Args>
+constexpr bool has_struct_ret(Ret (*)(Args...)) {
+  return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value;
+}
+
+template <typename Ret, typename... Args>
 constexpr bool has_non_trivially_copyable_uniform_ret(Ret (*)(Args...)) {
   return is_non_trivially_copyable_uniform_v<Ret>;
 }
@@ -386,6 +396,16 @@ template <class Callable> constexpr void verify_callable() {
     static_assert(
         !callable_has_ref_arg,
         "invoke_simd does not support callables with reference arguments");
+#ifndef __INVOKE_SIMD_ENABLE_STRUCTS
+    constexpr bool callable_has_struct_ret = has_struct_ret(obj);
+    static_assert(
+        !callable_has_struct_ret,
+        "invoke_simd does not support callables returning structures");
+    constexpr bool callable_has_struct_arg = has_struct_arg(obj);
+    static_assert(
+        !callable_has_struct_arg,
+        "invoke_simd does not support callables with structure arguments");
+#endif
 #ifdef __SYCL_DEVICE_ONLY__
     constexpr bool callable_has_uniform_non_trivially_copyable_ret =
         has_non_trivially_copyable_uniform_ret(obj);

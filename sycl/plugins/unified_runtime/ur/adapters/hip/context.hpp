@@ -62,14 +62,11 @@ struct ur_context_handle_t_ {
 
   using native_type = hipCtx_t;
 
-  enum class kind { Primary, UserDefined } Kind;
-  native_type HIPContext;
   ur_device_handle_t DeviceId;
   std::atomic_uint32_t RefCount;
 
-  ur_context_handle_t_(kind K, hipCtx_t Ctxt, ur_device_handle_t DevId)
-      : Kind{K}, HIPContext{Ctxt}, DeviceId{DevId}, RefCount{1} {
-    DeviceId->setContext(this);
+  ur_context_handle_t_(ur_device_handle_t DevId)
+      : DeviceId{DevId}, RefCount{1} {
     urDeviceRetain(DeviceId);
   };
 
@@ -90,10 +87,6 @@ struct ur_context_handle_t_ {
 
   ur_device_handle_t getDevice() const noexcept { return DeviceId; }
 
-  native_type get() const noexcept { return HIPContext; }
-
-  bool isPrimary() const noexcept { return Kind == kind::Primary; }
-
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 
   uint32_t decrementReferenceCount() noexcept { return --RefCount; }
@@ -113,19 +106,18 @@ namespace {
 /// API is the one active on the thread.
 /// The implementation tries to avoid replacing the hipCtx_t if it cans
 class ScopedContext {
-  ur_context_handle_t PlacedContext;
   hipCtx_t Original;
   bool NeedToRecover;
 
 public:
-  ScopedContext(ur_context_handle_t Ctxt)
-      : PlacedContext{Ctxt}, NeedToRecover{false} {
+  ScopedContext(ur_device_handle_t hDevice) : NeedToRecover{false} {
 
-    if (!PlacedContext) {
-      throw UR_RESULT_ERROR_INVALID_CONTEXT;
+    if (!hDevice) {
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
     }
 
-    hipCtx_t Desired = PlacedContext->get();
+    // FIXME when multi device context are supported in HIP adapter
+    hipCtx_t Desired = hDevice->getNativeContext();
     UR_CHECK_ERROR(hipCtxGetCurrent(&Original));
     if (Original != Desired) {
       // Sets the desired context as the active one for the thread
