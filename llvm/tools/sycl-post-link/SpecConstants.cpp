@@ -724,6 +724,26 @@ void updatePaddingInLastMDNode(LLVMContext &Ctx,
   SCMetadata[Last.first] = MDNode::get(Ctx, MDOps);
 }
 
+/// Function creates 'store' instruction from the given Value @V into
+/// the given Value @Dst.
+/// Note: Types of values Dst and V might differ because of padding bytes
+/// inserted by Clang FE.
+/// For example:
+/// Type of specialization constant might be <{ i32, i8, [ 3 x i8 ] }>, where
+/// the last component are padding bytes.
+/// specialization id in this case could be { i32, i8 } { i32 1, i8 1 }.
+/// As you can see, padding bytes are absent. In order to mitigate this we
+/// perform bitcast from specialization id type to specialization constant
+/// type.
+void createStoreInstructionIntoSpecConstValue(Value *Dst, Value *V,
+                                              CallInst *InsertBefore) {
+  Type *PointerType =
+      PointerType::get(V->getType(), Dst->getType()->getPointerAddressSpace());
+  IRBuilder B(InsertBefore);
+  Value *Bitcast = B.CreateBitCast(Dst, PointerType);
+  B.CreateStore(V, Bitcast);
+}
+
 } // namespace
 
 PreservedAnalyses SpecConstantsPass::run(Module &M,
@@ -869,19 +889,11 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             generateSpecConstDefaultValueMetadata(DefaultValue));
       }
 
-      if (HasSretParameter) {
-        // If __sycl_getCompositeSpecConstant returns through argument, then the
-        // only thing we need to do here is to store into a memory pointed
-        // by that argument
-        Value *Dst = CI->getArgOperand(0);
-        Type *PointerType = PointerType::get(
-            Replacement->getType(), Dst->getType()->getPointerAddressSpace());
-        IRBuilder B(CI);
-        Value *Bitcast = B.CreateBitCast(Dst, PointerType);
-        B.CreateStore(Replacement, Bitcast);
-      } else {
+      if (HasSretParameter)
+        createStoreInstructionIntoSpecConstValue(CI->getArgOperand(0),
+                                                 Replacement, CI);
+      else
         CI->replaceAllUsesWith(Replacement);
-      }
 
       for (auto *I : DelInsts) {
         I->removeFromParent();

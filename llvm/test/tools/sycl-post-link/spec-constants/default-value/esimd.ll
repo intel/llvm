@@ -1,9 +1,9 @@
 ; Test checks generation of device image of esimd kernel.
 
-; RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=rt -device-globals -o %t.table %s -generate-device-image-default-spec-consts && \
-; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE -DPATH=%t && \
-; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP  && \
-; RUN: cat %t_esimd_1.prop | FileCheck %s -check-prefix=CHECK-ESIMD-PROP
+; RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=rt -device-globals -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
+; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP
 
 ; CHECK-TABLE: [[PATH]]_esimd_0.bc|[[PATH]]_esimd_0.prop|[[PATH]]_esimd_0.sym
 ; CHECK-TABLE: [[PATH]]_0.bc|[[PATH]]_0.prop|[[PATH]]_0.sym

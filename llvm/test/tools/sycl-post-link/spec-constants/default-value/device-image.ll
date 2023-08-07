@@ -55,6 +55,9 @@ target triple = "spir64-unknown-unknown"
 @_ZL6valueS = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.2" { i32 123 }, align 4
 @_ZL1b = internal addrspace(1) constant %"class.sycl::_V1::specialization_id.3" { %struct.C { i32 1 } }, align 4
 
+; This constant checks `zeroinitializer` field.
+@_ZL1d = internal addrspace(1) constant %"class.sycl::_V1::specialization_id" { %struct.A { i32 3, %struct.B zeroinitializer } }, align 4
+
 declare spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
 
 declare spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
@@ -78,6 +81,9 @@ entry:
   %returned_spec_const = call spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str.2, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id.3" addrspace(1)* @_ZL1b to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
   %sc.e = extractvalue %struct.C %returned_spec_const, 0
   %scalar3 = add i32 %sc.e, 1
+
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4 %a.ascast.i, i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id" addrspace(1)* @_ZL1d to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
+
 
   call void @func()
   ret void
