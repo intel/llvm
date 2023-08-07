@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=8
 // RUN: %{run} %t.out
 
-#define SG_SZ 8
+#define TN 8
 
 #include "../element_wise_abc_impl.hpp"

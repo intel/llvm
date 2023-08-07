@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -DSG_SZ=8
 // RUN: %{run} %t.out
 
 // XFAIL: gpu
@@ -20,6 +20,6 @@ using namespace sycl;
 using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 8
+#define TN 8
 
 #include "../element_wise_all_ops_int8_packed_impl.hpp"

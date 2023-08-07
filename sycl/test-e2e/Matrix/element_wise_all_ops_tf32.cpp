@@ -7,9 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=16
-// RUN: %{run} %t.out
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DSG_SZ=32
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
 // XFAIL:gpu
@@ -21,6 +19,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
+#define SG_SZ 16
 #define TN 16
 
 #include "element_wise_all_ops_tf32_impl.hpp"

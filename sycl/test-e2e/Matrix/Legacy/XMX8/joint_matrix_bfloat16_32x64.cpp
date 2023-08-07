@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix-xmx8
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1
+// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -DSG_SZ=8
 // RUN: %{run} %t.out
 
 // XFAIL: *
@@ -19,6 +19,6 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 8
+#define TN 8
 
 #include "../joint_matrix_bfloat16_32x64_impl.hpp"
