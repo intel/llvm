@@ -100,6 +100,8 @@ jobs:
       ref: ${{ github.sha }}
       merge_ref: ''
 
+      env: '{"LIT_FILTER":"accessor"}'
+
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
