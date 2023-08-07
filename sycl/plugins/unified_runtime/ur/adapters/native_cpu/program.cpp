@@ -24,11 +24,6 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   DIE_NO_IMPLEMENTATION
 }
 
-struct nativecpu_entry {
-  const char *kernelname;
-  const unsigned char *kernel_ptr;
-};
-
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
