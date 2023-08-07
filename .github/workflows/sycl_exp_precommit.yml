@@ -13,8 +13,6 @@ jobs:
 
   lint:
     needs: [detect_changes]
-    if: |
-      github.event.pull_request.head.repo.full_name == 'intel/llvm'
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
