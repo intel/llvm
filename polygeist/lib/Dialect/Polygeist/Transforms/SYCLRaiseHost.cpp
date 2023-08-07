@@ -645,7 +645,9 @@ struct AccessorInvokeConstructorPattern
       AccessorTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
-class LocalAccessorBaseTypeTag : public AccessorTypeTag {
+// TODO: This tag is limited to match the (deprecated) construction of a local
+//       accessor via `sycl::accessor` with `target::local`.
+class LocalAccessorTypeTag : public AccessorTypeTag {
 public:
   mlir::Type getTypeFromConstructor(CallOpInterface constructor) const {
     CallInterfaceCallable callableOp = constructor.getCallableForCallee();
@@ -654,10 +656,9 @@ public:
 
     auto demangledName = llvm::demangle(constructorName);
 
-    // Try to determine the parameters of the accessor by parsing the template
-    // parameter from the demangled name of the constructor.
-    llvm::Regex accessorTemplate("local_accessor_base<.*, ([0-9]+), "
-                                 "\\(sycl::_V1::access::mode\\)([0-9]+)");
+    // Try to determine the parameters of the local accessor by parsing the
+    // template parameter from the demangled name of the constructor.
+    llvm::Regex accessorTemplate("local_accessor_base<.*, ([0-9]+)");
     llvm::SmallVector<StringRef> matches;
     bool regexMatch = accessorTemplate.match(demangledName, &matches);
 
@@ -668,17 +669,10 @@ public:
       needsRange = paramList.find("sycl::_V1::range") != StringRef::npos;
     }
 
-    if (!regexMatch || !needsRange)
+    if (!regexMatch)
       return nullptr;
 
     unsigned dimensions = std::stoul(matches[1].str());
-    unsigned mode = std::stoul(matches[2].str());
-
-    auto accessModeOrNone = mlir::sycl::symbolizeAccessMode(mode);
-    if (!accessModeOrNone)
-      return nullptr;
-
-    sycl::AccessMode accessMode = *accessModeOrNone;
 
     auto *context = constructor->getContext();
     // FIXME: There's currently no good way to obtain the element type of the
@@ -688,19 +682,23 @@ public:
     Type elemTy = LLVM::LLVMVoidType::get(context);
 
     // On the host, the body type of the accessor currently has no relevance
-    // for the analyses, but it also cannot be left empty. For consistency with
-    // the raising of non-local accessors, we use the range type as the body
-    // type here.
-    return sycl::LocalAccessorBaseType::get(
-        context, elemTy, dimensions, accessMode,
-        {sycl::RangeType::get(context, dimensions, getEmptyBodyType(context))});
+    // for the analyses. However, to encode whether the constructed accessor
+    // requires the range parameter, the corresponding type is added to the list
+    // of body types, if it is required. Otherwise, the body remains empty,
+    // encoded by a single `!llvm.void` type, as leaving the body types empty
+    // leads to problems when parsing an MLIR file containing such an accessor
+    // type with empty body type list.
+    Type bodyTy = needsRange ? sycl::RangeType::get(context, dimensions,
+                                                    getEmptyBodyType(context))
+                             : getEmptyBodyType(context);
+    return sycl::LocalAccessorType::get(context, elemTy, dimensions, {bodyTy});
   }
 };
 
-struct LocalAccessorBaseInvokeConstructorPattern
-    : public RaiseInvokeConstructorBasePattern<LocalAccessorBaseTypeTag> {
+struct LocalAccessorInvokeConstructorPattern
+    : public RaiseInvokeConstructorBasePattern<LocalAccessorTypeTag> {
   using RaiseInvokeConstructorBasePattern<
-      LocalAccessorBaseTypeTag>::RaiseInvokeConstructorBasePattern;
+      LocalAccessorTypeTag>::RaiseInvokeConstructorBasePattern;
 };
 
 // `sycl::buffer::get_access` thinly wraps the construction of an accessor
@@ -1861,7 +1859,7 @@ private:
               for (auto *user : accessorAlloca->getUsers())
                 if (auto hostCons = dyn_cast<sycl::SYCLHostConstructorOp>(user);
                     hostCons &&
-                    isa<sycl::AccessorType, sycl::LocalAccessorBaseType>(
+                    isa<sycl::AccessorType, sycl::LocalAccessorType>(
                         hostCons.getType().getValue()))
                   return {{accessorAlloca, hostCons.getType()}};
 
@@ -2127,8 +2125,7 @@ public:
       case kernel_param_kind_t::kind_accessor:
         // We expected an accessor, but the captured value isn't one.
         if (!syclType.has_value() ||
-            !isa<sycl::AccessorType, sycl::LocalAccessorBaseType>(
-                syclType.value()))
+            !isa<sycl::AccessorType, sycl::LocalAccessorType>(syclType.value()))
           return failure();
 
         syclTypes[idx] = syclType.value();
@@ -2137,8 +2134,7 @@ public:
       case kernel_param_kind_t::kind_std_layout:
         // We expected standard layout, but the captured value is an accessor.
         if (syclType.has_value() &&
-            isa<sycl::AccessorType, sycl::LocalAccessorBaseType>(
-                syclType.value()))
+            isa<sycl::AccessorType, sycl::LocalAccessorType>(syclType.value()))
           return failure();
         break;
 
@@ -2323,7 +2319,7 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
   RewritePatternSet rewritePatterns{context};
   rewritePatterns
       .add<BufferInvokeConstructorPattern, AccessorInvokeConstructorPattern,
-           LocalAccessorBaseInvokeConstructorPattern, GetAccessCallPattern,
+           LocalAccessorInvokeConstructorPattern, GetAccessCallPattern,
            GetAccessInvokePattern>(context);
 
   // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
