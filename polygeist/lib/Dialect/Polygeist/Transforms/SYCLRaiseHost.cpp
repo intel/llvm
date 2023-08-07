@@ -1645,7 +1645,7 @@ public:
         captureOp) {
       auto completeArray = detectPartialArrayComponent(
           0, captureOp, capturedVal, captureTypes[0], idxToArrayComponents[0]);
-      if (failed(completeArray) || *completeArray) {
+      if (completeArray != ArrayResult::PARTIAL_ARRAY) {
         // Only create operations if the captured value was not a part of a
         // bigger, yet incomplete array.
         createOps(captureOp, capturedVal, 0);
@@ -1676,12 +1676,12 @@ public:
           arrayOffset, captureOp, capturedVal, captureTypes[captureIdx],
           idxToArrayComponents[captureIdx]);
 
-      if (succeeded(completeArray) && !*completeArray)
+      if (completeArray == ArrayResult::PARTIAL_ARRAY)
         // Detected a partial component of a bigger array. The set_captured will
         // ony be inserted later once all components have been found.
         continue;
 
-      if (failed(completeArray) && indices.size() > 2)
+      if (completeArray == ArrayResult::NO_ARRAY && indices.size() > 2)
         // Not an array, so only two indices allowed in that case.
         continue;
 
@@ -1811,8 +1811,8 @@ private:
       LLVM_DEBUG(llvm::dbgs()
                  << "tryToAdapt: Could not infer captured accessor\n");
     }
-    if (isa<LLVM::LLVMArrayType>(expected) && collector.first != 0) {
-      auto arrayTy = cast<LLVM::LLVMArrayType>(expected);
+    if (auto arrayTy = dyn_cast<LLVM::LLVMArrayType>(expected);
+        arrayTy && collector.first != 0) {
       size_t expectedNumElements = arrayTy.getNumElements();
       Type expectedElemType = arrayTy.getElementType();
       assert(expectedNumElements == collector.first && "Incomplete collector");
@@ -1829,8 +1829,8 @@ private:
       // array and capture the address of that global array containing the
       // constant values of the array.
       if (allConstant) {
-        builder.setInsertionPointToStart(
-            assigned.getDefiningOp()->getParentOfType<ModuleOp>().getBody());
+        builder.setInsertionPoint(
+            assigned.getDefiningOp()->getParentOfType<FunctionOpInterface>());
         auto failureOrConstArray = getConstantArray(offsetAndValues, arrayTy);
         if (failed(failureOrConstArray)) {
           return {{nullptr, TypeAttr()}};
@@ -1911,12 +1911,9 @@ private:
     SmallVector<Attribute> constantValues(arrTy.getNumElements());
     for (const auto &p : components) {
       // Retrieve constant value.
-      SmallVector<OpFoldResult> foldResults;
-      if (failed(p.value.getDefiningOp()->fold({}, foldResults)) ||
-          !foldResults.front().is<Attribute>())
+      Attribute constantComponent;
+      if (!matchPattern(p.value, m_Constant(&constantComponent)))
         return failure();
-
-      Attribute constantComponent = foldResults.front().get<Attribute>();
       size_t offset = p.offset;
 
       // Retrieve individual elements of the constant array and collect them.
@@ -1942,36 +1939,36 @@ private:
         constantValues);
   }
 
+  enum class ArrayResult { NO_ARRAY, PARTIAL_ARRAY, COMPLETE_ARRAY };
   /// Detect if the \p assigned value is a partial component of a bigger array.
   /// Returns:
-  ///  * failure() if it is not part of an array
-  ///  * false if it is part of a bigger array, but not all array components
-  ///  have been found so far
-  ///  * true if \p assigned was the last missing part of the bigger array and
-  ///  set_captured should be inserted now.
-  static FailureOr<bool>
-  detectPartialArrayComponent(size_t offset, Operation *captureOp,
-                              Value assigned, Type expected,
-                              ArrayCollector &collector) {
-    if (!isa<LLVM::LLVMArrayType>(expected))
-      return failure();
+  ///  * NO_ARRAY if it is not part of an array
+  ///  * PARTIAL_ARRAY if it is part of a bigger array, but not all array
+  ///  components have been found so far
+  ///  * COMPLETE_ARRAY if \p assigned was the last missing part of the bigger
+  ///  array and set_captured should be inserted now.
+  static ArrayResult detectPartialArrayComponent(size_t offset,
+                                                 Operation *captureOp,
+                                                 Value assigned, Type expected,
+                                                 ArrayCollector &collector) {
+    auto arrayTy = dyn_cast<LLVM::LLVMArrayType>(expected);
+    if (!arrayTy)
+      return ArrayResult::NO_ARRAY;
 
-    auto arrayTy = cast<LLVM::LLVMArrayType>(expected);
     size_t expectedNumElements = arrayTy.getNumElements();
     Type expectedElemTy = arrayTy.getElementType();
 
     auto numElements =
         TypeSwitch<Type, size_t>(assigned.getType())
-            .Case<LLVM::LLVMFixedVectorType, VectorType>([&](const auto &ty) {
+            .Case<LLVM::LLVMFixedVectorType, VectorType>([=](auto ty) {
               return (ty.getElementType() == expectedElemTy)
                          ? ty.getNumElements()
                          : 0;
             })
-            .Default(
-                [&](const Type &ty) { return (ty == expectedElemTy) ? 1 : 0; });
+            .Default([=](Type ty) { return (ty == expectedElemTy) ? 1 : 0; });
 
     if (numElements == 0)
-      return failure();
+      return ArrayResult::NO_ARRAY;
 
     // Store the assigned value as a part of the array at the offset.
     collector.second.emplace_back(offset, assigned, captureOp);
@@ -1982,7 +1979,9 @@ private:
                             << " from: " << *captureOp << "\n";);
     // Return true in case we have reached the expected number of elements, to
     // trigger insertion of the set_captured operation.
-    return std::get<0>(collector) == expectedNumElements;
+    return (std::get<0>(collector) == expectedNumElements)
+               ? ArrayResult::COMPLETE_ARRAY
+               : ArrayResult::PARTIAL_ARRAY;
   }
 
   AccessorTypeTag accessorTypeTag;
