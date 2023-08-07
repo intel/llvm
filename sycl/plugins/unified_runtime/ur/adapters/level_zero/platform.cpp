@@ -45,6 +45,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
+  if (getenv("SYCL_ENABLE_PCI") != nullptr) {
+    urPrint("WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
+  }
+
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
 
