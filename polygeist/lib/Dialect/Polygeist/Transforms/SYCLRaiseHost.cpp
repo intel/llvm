@@ -1781,8 +1781,8 @@ private:
   /// is the list of components.
   using ArrayCollector = std::pair<size_t, SmallVector<ArrayComponent>>;
 
-  // Use the \p expected type as domain knowledge to try to broaden an
-  // \p assigned value to an entity of interest (e.g. an accessor).
+  // Use domain knowledge to try to adapt an \p assigned value to match the
+  // \p expected type.
   SmallVector<std::tuple<Value, TypeAttr>>
   tryToAdapt(Value assigned, Type expected, ArrayCollector &collector,
              ImplicitLocOpBuilder &builder) const {
