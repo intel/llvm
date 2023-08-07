@@ -32,9 +32,7 @@ struct ur_program_handle_t_ {
   std::map<const char *, const unsigned char *, _compare> _kernels;
 };
 
-
 struct nativecpu_entry {
   const char *kernelname;
   const unsigned char *kernel_ptr;
 };
-
