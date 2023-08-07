@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -53,6 +54,8 @@ struct record_t {
 
 class writer {
 public:
+  using rec_tuple = std::pair<uint64_t, record_t>;
+  using records_t = std::vector<rec_tuple>;
   virtual void init() = 0;
   virtual void fini() = 0;
   virtual void write(record_t &r) = 0;
@@ -60,8 +63,6 @@ public:
 
 class json_writer : public writer {
 public:
-  using rec_tuple = std::pair<uint64_t, record_t>;
-  using records_t = std::vector<rec_tuple>;
   json_writer(bool synchronous = false)
       : m_synchronous(synchronous), m_write_done(false) {
     init();
@@ -133,6 +134,7 @@ public:
       }
     }
   }
+
   void write(record_t &r) override {
     std::lock_guard<std::mutex> _{m_mutex};
     if (m_synchronous && m_io.is_open()) {
@@ -172,5 +174,149 @@ private:
   std::ofstream m_io;
   records_t m_records;
   xpti::utils::timer::measurement_t m_measure;
+};
+
+class table_model {
+public:
+  using table_row_t = std::map<int, long double>;
+  using table_t = std::map<int, table_row_t>;
+  using titles_t = std::vector<std::string>;
+  using row_titles_t = std::map<int, std::string>;
+
+  table_model() {}
+
+  void set_headers(titles_t &Titles) { m_column_titles = Titles; }
+
+  table_row_t &add_row(int Row, std::string &RowName) {
+    if (m_row_titles.count(Row)) {
+      std::cout << "Warning: Row title already specified!\n";
+    }
+    m_row_titles[Row] = RowName;
+    return m_table[Row];
+  }
+
+  table_row_t &add_row(int Row, const char *RowName) {
+    if (m_row_titles.count(Row)) {
+      std::cout << "Warning: Row title already specified!\n";
+    }
+    m_row_titles[Row] = RowName;
+    return m_table[Row];
+  }
+
+  table_row_t &operator[](int Row) { return m_table[Row]; }
+
+  void print() {
+    std::cout << std::setw(35) << " ";
+    for (auto &Title : m_column_titles) {
+      std::cout << std::setw(14) << Title; // Column headers
+    }
+    std::cout << "\n";
+
+    for (auto &Row : m_table) {
+      std::cout << std::setw(35) << m_row_titles[Row.first];
+      for (auto &Data : Row.second) {
+        std::cout << std::fixed << std::setw(14) << std::setprecision(0)
+                  << Data.second;
+      }
+      std::cout << "\n";
+    }
+    std::cout << "\n";
+  }
+
+private:
+  titles_t m_column_titles;
+  row_titles_t m_row_titles;
+  table_t m_table;
+};
+
+class table_writer : public writer {
+public:
+  table_writer() { init(); }
+  ~table_writer() {}
+
+  void init() final {
+    m_file_name = xpti::utils::get_application_name();
+    if (m_file_name.empty()) {
+      m_file_name =
+          "report." + std::to_string(xpti::utils::get_process_id()) + ".csv";
+    } else {
+      m_file_name += "_" + xpti::utils::timer::get_timestamp_string() + ".csv";
+    }
+    if (m_file_name.empty()) {
+      throw std::runtime_error("Unable to generate file name for write!");
+    }
+  }
+
+  void write(record_t &r) override {
+    std::lock_guard<std::mutex> _{m_mutex};
+    m_records.push_back(std::make_pair(r.TSBegin, r));
+  }
+
+  void compute_stats(record_t &r) {
+    auto &func_stats = m_functions[r.Name];
+    func_stats.add_value((r.TSEnd - r.TSBegin));
+  }
+
+  void fini() final {
+    std::lock_guard<std::mutex> _{m_mutex};
+    enum class TableColumns : int {
+      Count,
+      Min,
+      Max,
+      Mean,
+      StandardDeviation,
+      Skewness,
+      Kurtosis
+    };
+    table_model::titles_t col_headers{
+        "Count", "Min (ns)", "Max (ns)", "Mean (ns)", "Std Dev (ns)",
+    };
+    m_model.set_headers(col_headers);
+    for (auto &r : m_records) {
+      compute_stats(r.second);
+    }
+    // Burst write when the application exits
+    if (!m_io.is_open()) {
+      m_io.open(m_file_name);
+      // Setup CSV file
+      m_io << "sep=|\n";
+      m_io << "Function|Count|Min|Max|Average|Std. Dev.\n";
+      int row_id = 0;
+      for (auto &stats : m_functions) {
+        // Output CSV line
+        m_io << stats.first << "|" << stats.second.count() << "|"
+             << stats.second.min() << "|" << stats.second.max() << "|"
+             << stats.second.mean() << "|" << stats.second.stddev() << "\n";
+        // Record data in table model for pretty printing
+        std::string func_name;
+        if (stats.first.length() > 25) {
+          func_name = stats.first.substr(0, 30);
+          func_name += "...";
+        } else
+          func_name = stats.first;
+
+        auto &row = m_model.add_row(row_id++, func_name.c_str());
+        row[(int)TableColumns::Count] = stats.second.count();
+        row[(int)TableColumns::Min] = stats.second.min();
+        row[(int)TableColumns::Max] = stats.second.max();
+        row[(int)TableColumns::Mean] = stats.second.mean();
+        row[(int)TableColumns::StandardDeviation] = stats.second.stddev();
+      }
+      m_io.close();
+      m_model.print();
+    } else {
+      std::cerr << "Error opening file for write: " << m_file_name << std::endl;
+    }
+  }
+
+protected:
+  std::mutex m_mutex;
+
+private:
+  table_model m_model;
+  std::string m_file_name;
+  std::ofstream m_io;
+  records_t m_records;
+  xpti::utils::function_stats_t m_functions;
 };
 } // namespace xpti

@@ -9,8 +9,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -18,6 +20,100 @@
 
 namespace xpti {
 namespace utils {
+class statistics_t;
+using function_stats_t = std::unordered_map<std::string, statistics_t>;
+/// @brief Statistics class to compute mean, stddev, etc
+/// @details This class can compute many staticsical values using running
+/// average and related techniques so they can be computed on the fly
+/// without any post processing times.
+///
+/// http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
+///
+class statistics_t {
+public:
+  statistics_t() {
+    //
+    //  Reset for streaming compute
+    //
+    clear();
+
+    m_min = std::numeric_limits<double>::max();
+    m_max = -std::numeric_limits<double>::max();
+  }
+
+  void clear() {
+    m_count = 0;
+    m_total = 0.0;
+    m_moment1 = 0.0;
+    m_moment2 = 0.0;
+    m_moment3 = 0.0;
+    m_moment4 = 0.0;
+  }
+  void add_value(uint64_t val) {
+    double delta, delta_by_n, delta_n_sq, temp;
+
+    uint64_t current_count = m_count;
+
+    if (m_min > val)
+      m_min = val;
+    if (m_max <= val)
+      m_max = val;
+    //
+    //  We have added a new value, so update the
+    //  count by 1
+    //
+    m_count++;
+    m_total += val;
+    delta = val - m_moment1;
+    delta_by_n = delta / m_count;
+    delta_n_sq = delta_by_n * delta_by_n;
+
+    temp = delta * delta_by_n * current_count;
+    //
+    // Accumulate the mean
+    //
+    m_moment1 += delta_by_n;
+    m_moment4 += temp * delta_n_sq * (m_count * m_count - 3 * m_count + 3) +
+                 (6 * delta_n_sq * m_moment2) - (4 * delta_by_n * m_moment3);
+    m_moment3 += temp * delta_by_n * (m_count - 2) - 3 * delta_by_n * m_moment2;
+    //
+    //  Accumulate the average variance
+    //
+    m_moment2 += temp;
+  }
+
+  double total() { return m_total; }
+  long count() { return m_count; }
+  //
+  //
+  //
+  double mean() { return m_moment1; }
+
+  double max() { return m_max; }
+
+  double min() { return m_min; }
+
+  double variance() {
+    if (m_count - 1)
+      return m_moment2 / (m_count - 1.0);
+    else
+      return 0.0;
+  }
+  double stddev() { return sqrt(variance()); }
+
+  double skewness() {
+    return sqrt((double)m_count) * m_moment3 / pow(m_moment2, 1.5);
+  }
+
+  double kurtosis() {
+    return ((double)m_count * m_moment4) / (m_moment2 * m_moment2) - 3.0;
+  }
+
+private:
+  uint64_t m_count;
+  double m_moment1, m_moment2, m_moment3, m_moment4, m_min, m_max, m_total;
+};
+
 namespace timer {
 #define MAX_STR_SIZE 2048
 

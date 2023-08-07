@@ -15,7 +15,7 @@
 #include <unordered_map>
 
 std::set<std::string> GStreamsToObserve;
-xpti::json_writer *GWriter = nullptr;
+xpti::writer *GWriter = nullptr;
 
 uint64_t GProcessID = 0;
 
@@ -100,7 +100,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     GProcessID = xpti::utils::get_process_id();
     InitStreams = false;
     std::cout << "Set up streams to observe\n";
-    GWriter = new xpti::json_writer();
+    GWriter = new xpti::table_writer();
   };
 
   auto Check = GStreamsToObserve.find(stream_name);
