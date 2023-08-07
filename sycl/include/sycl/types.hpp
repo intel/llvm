@@ -761,7 +761,6 @@ public:
     return *this;
   }
 
-  // CP
   template <typename T = void>
   using EnableIfUsingArray =
       typename std::enable_if_t<IsUsingArrayOnDevice || IsUsingArrayOnHost, T>;
@@ -778,7 +777,6 @@ public:
   template <typename T = void>
   using EnableIfHostHalf = typename std::enable_if_t<IsHostHalf, T>;
 
-  // CP
   template <typename T = void>
   using EnableIfUsingArrayOnDevice =
       typename std::enable_if_t<IsUsingArrayOnDevice, T>;
@@ -1244,45 +1242,44 @@ public:
   __SYCL_UOP(--, -=)
 #undef __SYCL_UOP
 
-  //
-  // Available only when: dataT != cl_float && dataT != cl_double
-  // && dataT != cl_half
+  // operator~() available only when: dataT != float && dataT != double
+  // && dataT != half
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>>, vec>
+  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>> &&
+                                (!IsUsingArrayOnDevice && !IsUsingArrayOnHost),
+                            vec>
   operator~() const {
-// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
-// by SYCL device compiler only.
-#ifdef __SYCL_DEVICE_ONLY__
     vec Ret{(typename vec::DataType) ~m_Data};
     if constexpr (std::is_same<Type, bool>::value) {
       Ret.ConvertToDataT();
     }
     return Ret;
-#else
+  }
+  template <typename T = DataT>
+  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>> &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec>
+  operator~() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I) {
       Ret.setValue(I, ~getValue(I));
     }
     return Ret;
-#endif
   }
 
-  vec<rel_t, NumElements> operator!() const {
-// Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
-// by SYCL device compiler only.
-#ifdef __SYCL_DEVICE_ONLY__
-    return vec<rel_t, NumElements>{
-        (typename vec<rel_t, NumElements>::DataType) !m_Data};
-#else
-    vec<rel_t, NumElements> Ret{};
-    for (size_t I = 0; I < NumElements; ++I) {
+  template <typename T = DataT, int N = NumElements>
+  EnableIfNotUsingArray<vec<T, N>> operator!() const {
+    return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
+  }
+
+  template <typename T = DataT, int N = NumElements>
+  EnableIfUsingArray<vec<T, N>> operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
-    }
     return Ret;
-#endif
   }
 
-  // CP
   template <typename T = vec> EnableIfNotUsingArray<T> operator+() const {
     return vec{+m_Data};
   }
@@ -1294,21 +1291,6 @@ public:
     return Ret;
   }
 
-  //   vec operator+() const {
-  // // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is
-  // defined
-  // // by SYCL device compiler only.
-  // #ifdef __SYCL_DEVICE_ONLY__
-  //     return vec{+m_Data};
-  // #else
-  //     vec Ret{};
-  //     for (size_t I = 0; I < NumElements; ++I)
-  //       Ret.setValue(I,
-  //       vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
-  //     return Ret;
-  // #endif
-  //   }
-
   template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
     return vec{-m_Data};
   }
@@ -1319,21 +1301,6 @@ public:
       Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
     return Ret;
   }
-
-  //   vec operator-() const {
-  // // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is
-  // defined
-  // // by SYCL device compiler only.
-  // #ifdef __SYCL_DEVICE_ONLY__
-  //     return vec{-m_Data};
-  // #else
-  //     vec Ret{};
-  //     for (size_t I = 0; I < NumElements; ++I)
-  //       Ret.setValue(I,
-  //       vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
-  //     return Ret;
-  // #endif
-  //   }
 
   // OP is: &&, ||
   // vec<RET, NumElements> operatorOP(const vec<DataT, NumElements> &Rhs) const;
