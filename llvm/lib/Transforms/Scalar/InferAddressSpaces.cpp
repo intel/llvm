@@ -145,6 +145,11 @@ static cl::opt<bool> AssumeDefaultIsFlatAddressSpace(
 static const unsigned UninitializedAddressSpace =
     std::numeric_limits<unsigned>::max();
 
+static cl::opt<int>
+    AddressSpaceArg("address-space", cl::init(UninitializedAddressSpace),
+                    cl::ReallyHidden,
+                    cl::desc("The parameter for testing from opt util."));
+
 namespace {
 
 using ValueToAddrSpaceMapTy = DenseMap<const Value *, unsigned>;
@@ -729,6 +734,7 @@ Value *InferAddressSpacesImpl::cloneInstructionWithNewAddressSpace(
         GEP->getSourceElementType(), NewPointerOperands[0],
         SmallVector<Value *, 4>(GEP->indices()));
     NewGEP->setIsInBounds(GEP->isInBounds());
+    NewGEP->copyMetadata(*GEP);
     return NewGEP;
   }
   case Instruction::Select:
@@ -1400,7 +1406,7 @@ FunctionPass *llvm::createInferAddressSpacesPass(unsigned AddressSpace) {
 }
 
 InferAddressSpacesPass::InferAddressSpacesPass()
-    : FlatAddrSpace(UninitializedAddressSpace) {}
+    : FlatAddrSpace(AddressSpaceArg) {}
 InferAddressSpacesPass::InferAddressSpacesPass(unsigned AddressSpace)
     : FlatAddrSpace(AddressSpace) {}
 
