@@ -8,7 +8,14 @@
 
 #pragma once
 
-#include <sycl/image.hpp>
+#include <sycl/detail/array.hpp> // for array
+#include <sycl/exception.hpp>    // for errc, exception
+#include <sycl/image.hpp>        // for image_channel_order, image_channel_type
+#include <sycl/range.hpp>        // for range
+
+#include <algorithm>    // for max
+#include <stddef.h>     // for size_t
+#include <system_error> // for error_code
 
 namespace sycl {
 inline namespace _V1 {

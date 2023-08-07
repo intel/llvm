@@ -8,18 +8,23 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>              // for bit_cast
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
+#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
-#include <sycl/bit_cast.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#endif
 
-#include <cstdint> // for uint16_t
-#include <functional>
-#include <limits>
+#include <cstddef>     // for size_t
+#include <cstdint>     // for uint16_t, uint32_t, uint8_t
+#include <functional>  // for hash
+#include <limits>      // for float_denorm_style, float_r...
+#include <string_view> // for hash
+#include <type_traits> // for enable_if_t
 
-#if !__has_builtin(__builtin_expect)
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
 #endif
 
@@ -27,7 +32,8 @@
 // `constexpr` could work because the implicit conversion from `float` to
 // `_Float16` can be `constexpr`.
 #define __SYCL_CONSTEXPR_HALF constexpr
-#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#elif __cpp_lib_bit_cast ||                                                    \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
 #define __SYCL_CONSTEXPR_HALF constexpr
 #else
 #define __SYCL_CONSTEXPR_HALF

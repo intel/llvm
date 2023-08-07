@@ -7,9 +7,8 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/usm/usm_enums.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/usm/usm_enums.hpp> // for alloc
 
 namespace sycl {
 inline namespace _V1 {

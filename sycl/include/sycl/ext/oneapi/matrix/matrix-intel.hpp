@@ -8,11 +8,23 @@
 
 #pragma once
 
-#include "matrix-unified-utils.hpp"
-#include "utils.hpp"
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/feature_test.hpp>
+#include "matrix-unified-utils.hpp" // for use, layout, tf32, matrix
+#include "utils.hpp"                // for getDecorated
+
+#include <CL/__spirv/spirv_types.hpp>         // for MatrixLayout, MatrixUse
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
+#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
+#include <sycl/group.hpp>                     // for group
+#include <sycl/multi_ptr.hpp>                 // for multi_ptr
+#include <sycl/sub_group.hpp>                 // for sub_group
+
+#include <cstddef>     // for size_t
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for ignore, tuple, _Swallo...
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,36 +8,56 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_iterator.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/image_accessor_util.hpp>
+#include <sycl/access/access.hpp>                     // for target, mode
+#include <sycl/aliases.hpp>                           // for float4, int4
+#include <sycl/aspects.hpp>                           // for aspect
+#include <sycl/atomic.hpp>                            // for atomic
+#include <sycl/buffer.hpp>                            // for range
+#include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
+#include <sycl/detail/common.hpp>                     // for code_location
+#include <sycl/detail/defines.hpp>                    // for __SYCL_SPECIAL...
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
+#include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
+#include <sycl/detail/helpers.hpp>                    // for loop
+#include <sycl/detail/image_accessor_util.hpp>        // for imageReadSampl...
+#include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
+#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
+#include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
+#include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
+#include <sycl/detail/type_list.hpp>                  // for is_contained
+#include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
+#include <sycl/device.hpp>                            // for device
+#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/ext/oneapi/weak_object_base.hpp>       // for getSyclWeakObj...
+#include <sycl/id.hpp>                                // for id
+#include <sycl/image.hpp>                             // for image, image_c...
+#include <sycl/multi_ptr.hpp>                         // for multi_ptr
+#include <sycl/pointers.hpp>                          // for local_ptr, glo...
+#include <sycl/properties/accessor_properties.hpp>    // for buffer_location
+#include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range
+#include <sycl/sampler.hpp>                           // for addressing_mode
+#include <sycl/types.hpp>                             // for vec
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/image_ocl_types.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/device.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/id.hpp>
-#include <sycl/image.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/properties/accessor_properties.hpp>
-#include <sycl/properties/buffer_properties.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/property_list_conversion.hpp>
-#include <sycl/sampler.hpp>
+#endif
 
-#include <iterator>
-#include <optional>
-#include <type_traits>
-
-#include <utility>
+#include <cstddef>     // for size_t
+#include <functional>  // for hash
+#include <iterator>    // for reverse_iterator
+#include <limits>      // for numeric_limits
+#include <memory>      // for shared_ptr
+#include <optional>    // for nullopt, optional
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for _Swallow_assign
+#include <type_traits> // for enable_if_t
+#include <typeinfo>    // for type_info
+#include <variant>     // for hash
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.

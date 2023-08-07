@@ -8,10 +8,9 @@
 
 #pragma once
 
-#include <stdexcept>
-#include <sycl/id.hpp>
-#include <sycl/range.hpp>
-#include <type_traits>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/id.hpp>                        // for id
+#include <sycl/range.hpp>                     // for range
 
 namespace sycl {
 inline namespace _V1 {

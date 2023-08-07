@@ -8,7 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/pi.h> // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
+
+#include <atomic> // for memory_order
+#include <vector> // for vector
 
 namespace sycl {
 inline namespace _V1 {

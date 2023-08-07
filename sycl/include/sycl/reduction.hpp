@@ -8,23 +8,55 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/atomic_ref.hpp>
-#include <sycl/detail/reduction_forward.hpp>
-#include <sycl/detail/tuple.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/properties/reduction_properties.hpp>
-#include <sycl/sycl_span.hpp>
-#include <sycl/usm.hpp>
+#include <sycl/access/access.hpp>              // for address_s...
+#include <sycl/accessor.hpp>                   // for local_acc...
+#include <sycl/aspects.hpp>                    // for aspect
+#include <sycl/atomic.hpp>                     // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                 // for atomic_ref
+#include <sycl/buffer.hpp>                     // for buffer
+#include <sycl/builtins.hpp>                   // for min
+#include <sycl/detail/export.hpp>              // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>          // for createSyc...
+#include <sycl/detail/item_base.hpp>           // for id
+#include <sycl/detail/reduction_forward.hpp>   // for strategy
+#include <sycl/detail/tuple.hpp>               // for make_tuple
+#include <sycl/device.hpp>                     // for device
+#include <sycl/event.hpp>                      // for event
+#include <sycl/exception.hpp>                  // for make_erro...
+#include <sycl/exception_list.hpp>             // for queue_impl
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/group.hpp>                           // for workGroup...
+#include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/handler.hpp>                         // for handler
+#include <sycl/id.hpp>                              // for getDeline...
+#include <sycl/kernel.hpp>                          // for auto_name
+#include <sycl/known_identity.hpp>                  // for IsKnownId...
+#include <sycl/marray.hpp>                          // for marray
+#include <sycl/memory_enums.hpp>                    // for memory_order
+#include <sycl/multi_ptr.hpp>                       // for address_s...
+#include <sycl/nd_item.hpp>                         // for nd_item
+#include <sycl/nd_range.hpp>                        // for nd_range
+#include <sycl/properties/accessor_properties.hpp>  // for no_init
+#include <sycl/properties/reduction_properties.hpp> // for initializ...
+#include <sycl/property_list.hpp>                   // for property_...
+#include <sycl/queue.hpp>                           // for queue
+#include <sycl/range.hpp>                           // for range
+#include <sycl/sycl_span.hpp>                       // for dynamic_e...
+#include <sycl/usm.hpp>                             // for malloc_de...
 
-#include <optional>
-#include <tuple>
+#include <algorithm>   // for min
+#include <array>       // for array
+#include <assert.h>    // for assert
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <optional>    // for nullopt
+#include <stdint.h>    // for uint32_t
+#include <string>      // for operator+
+#include <tuple>       // for _Swallow_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_seq...
+#include <variant>     // for tuple
 
 namespace sycl {
 inline namespace _V1 {

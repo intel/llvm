@@ -31,6 +31,7 @@
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/id.hpp>
 #include <sycl/image.hpp>
@@ -55,6 +56,7 @@
 #include <sycl/sub_group.hpp>
 #include <sycl/types.hpp>
 #include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/version.hpp>
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
@@ -63,6 +65,7 @@
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
@@ -77,6 +80,7 @@
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/ext/oneapi/functional.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>

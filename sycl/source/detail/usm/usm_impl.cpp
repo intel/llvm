@@ -13,6 +13,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <array>

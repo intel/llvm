@@ -8,9 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cassert>
+#include <cassert>     // for assert
+#include <type_traits> // for add_pointer_t
 
 namespace sycl {
 inline namespace _V1 {

@@ -8,20 +8,25 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/item.hpp>
-#include <sycl/nd_range.hpp>
-#include <sycl/range.hpp>
-#include <sycl/sub_group.hpp>
+#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ControlBarrier
+#include <CL/__spirv/spirv_types.hpp>         // for Scope
+#include <sycl/access/access.hpp>             // for mode, fence_space
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
+#include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
+#include <sycl/device_event.hpp>              // for device_event
+#include <sycl/exception.hpp> // for make_error_code, errc, exce...
+#include <sycl/group.hpp>     // for group
+#include <sycl/id.hpp>        // for id
+#include <sycl/item.hpp>      // for item
+#include <sycl/nd_range.hpp>  // for nd_range
+#include <sycl/pointers.hpp>  // for decorated_global_ptr, decor...
+#include <sycl/range.hpp>     // for range
+#include <sycl/sub_group.hpp> // for sub_group
 
-#include <cstddef>
-#include <stdexcept>
-#include <type_traits>
+#include <cstddef>     // for size_t
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, remove_const_t
 
 namespace sycl {
 inline namespace _V1 {

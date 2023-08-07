@@ -7,19 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <cstring>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+
+#include <cstring> // for std::memcpy
+
 namespace sycl {
 inline namespace _V1 {
 struct sub_group;

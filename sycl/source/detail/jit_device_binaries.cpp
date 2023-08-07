@@ -8,6 +8,8 @@
 
 #include <detail/jit_device_binaries.hpp>
 
+#include <cassert>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
