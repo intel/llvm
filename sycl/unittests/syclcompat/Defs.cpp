@@ -28,6 +28,7 @@ TEST(DEFS, Align) {
   struct __sycl_compat_align__(16) {
     int a;
     char c;
-  } s;
+  }
+  s;
   EXPECT_EQ(sizeof(s), 16);
 }
