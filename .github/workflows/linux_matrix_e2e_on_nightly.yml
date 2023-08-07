@@ -63,6 +63,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       reset_gpu: ${{ matrix.reset_gpu }}
       env: ${{ inputs.env }}
+      ref: ${{ github.sha }}
       merge_ref: ''
 
   aws_start:
@@ -84,6 +85,7 @@ jobs:
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
       target_devices: ext_oneapi_cuda:gpu
       env: ${{ inputs.env }}
+      ref: ${{ github.sha }}
       merge_ref: ''
 
   aws_stop:
