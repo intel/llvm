@@ -34,7 +34,7 @@ int main() {
       copyOut[i] = sycl::float4{0, 0, 0, 0};
     }
 
-    // Calulate expected output data
+    // Calculate expected output data
     float norm_coord = ((i + 0.5f) / (float)N);
     int x = norm_coord * (N >> 1);
     expected[i] = dataIn1[i][0] + dataIn2[x][0];
