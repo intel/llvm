@@ -1081,7 +1081,6 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     debugPrintBinaryImages();
   }
 
-  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   if (m_UseSpvFile) {
     assert(m_SpvFileImage);
     return getDeviceImage(
@@ -1096,29 +1095,35 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
   // Ask the native runtime under the given context to choose the device image
   // it prefers.
   RTDeviceBinaryImage *Img = nullptr;
-  if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
-      KernelId != m_KernelName2KernelIDs.end()) {
-    // Kernel ID presence guarantees that we have bin image in the storage.
-    Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
-                                  Context, Device);
-    assert(Img && "No binary image found for kernel id");
-  } else if (Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName,
-                                           Context, Device);
-             Img) {
-  } else if (m_UniversalKernelSet.size())
+  {
+    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    if (auto KernelId = m_KernelName2KernelIDs.find(KernelName);
+        KernelId != m_KernelName2KernelIDs.end()) {
+      // Kernel ID presence guarantees that we have bin image in the storage.
+      Img = getBinImageFromMultiMap(m_KernelIDs2BinImage, KernelId->second,
+                                    Context, Device);
+      assert(Img && "No binary image found for kernel id");
+    } else if (Img = getBinImageFromMultiMap(m_ServiceKernels, KernelName,
+                                             Context, Device);
+               Img) {
+    }
+    if (Img) {
+      CheckJITCompilationForImage(Img, JITCompilationIsRequired);
+
+      if (DbgProgMgr > 0) {
+        std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+        Img->print();
+      }
+      return *Img;
+    }
+  }
+
+  if (m_UniversalKernelSet.size())
     return getDeviceImage(m_UniversalKernelSet, Context, Device,
                           JITCompilationIsRequired);
   else
     throw runtime_error("No kernel named " + KernelName + " was found",
                         PI_ERROR_INVALID_KERNEL_NAME);
-
-  CheckJITCompilationForImage(Img, JITCompilationIsRequired);
-
-  if (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &Img->getRawData() << "\n";
-    Img->print();
-  }
-  return *Img;
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
