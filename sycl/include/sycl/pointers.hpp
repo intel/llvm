@@ -10,7 +10,7 @@
 #include <sycl/access/access.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
@@ -95,5 +95,5 @@ using decorated_private_ptr =
     multi_ptr<ElementType, access::address_space::private_space,
               access::decorated::yes>;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

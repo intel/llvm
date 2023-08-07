@@ -11,7 +11,7 @@ int main() {
   unsigned int *AllocSrc = nullptr;
   try {
     // CHECK: [USM] Function uses nullptr as kernel parameter with index = 0.
-    // CHECK: | kernel location: function main at {{.*}}/queue_single_task_nullptr.cpp:[[# @LINE + 1 ]]
+    // CHECK: | kernel location: function main at {{.*}}queue_single_task_nullptr.cpp:[[# @LINE + 1 ]]
     Q.single_task([=]() {
       if (AllocSrc == nullptr)
         sycl::ext::oneapi::experimental::printf("nullptr");

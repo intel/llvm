@@ -219,10 +219,6 @@ static cl::opt<bool> BatchMode(
              "a_1.bin|||"),
     cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<bool> NativeCPU("native-cpu", cl::NotHidden, cl::init(false),
-                               cl::Optional,
-                               cl::desc("Enable wrapping for SYCL Native CPU"));
-
 static StringRef offloadKindToString(OffloadKind Kind) {
   switch (Kind) {
   case OffloadKind::Unknown:
@@ -618,9 +614,12 @@ private:
       FTy = NativeCPUBuiltinTy;
     else
       FTy = NativeCPUFuncTy;
-    auto FCalle =
-        M.getOrInsertFunction(sycl::utils::addSYCLNativeCPUSuffix(Name), FTy);
-    return dyn_cast<Function>(FCalle.getCallee());
+    auto FCalle = M.getOrInsertFunction(
+        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
+    Function *F = dyn_cast<Function>(FCalle.getCallee());
+    if (F == nullptr)
+      report_fatal_error("Unexpected callee");
+    return F;
   }
 
   Expected<std::pair<Constant *, Constant *>>
@@ -1036,7 +1035,7 @@ private:
         Bin = addELFNotes(Bin, Img.File);
       }
       std::pair<Constant *, Constant *> Fbin;
-      if (NativeCPU) {
+      if (Img.Tgt == "native_cpu") {
         auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
         if (!FBinOrErr)
           return FBinOrErr.takeError();

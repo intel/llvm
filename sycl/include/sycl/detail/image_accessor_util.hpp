@@ -15,7 +15,6 @@
 #include <sycl/builtins.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/image.hpp>
 #include <sycl/sampler.hpp>
 #include <sycl/types.hpp>
@@ -24,7 +23,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T>
@@ -1153,6 +1152,6 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

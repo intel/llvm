@@ -43,8 +43,9 @@ sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
-# CUDA plugin
+# CUDA and HIP plugins
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
+sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
