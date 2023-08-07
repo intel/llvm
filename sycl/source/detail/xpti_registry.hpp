@@ -340,7 +340,7 @@ private:
   LWTrace.scopedNotify();
 
 #else
-define XPTI_LW_TRACE()
+#define XPTI_LW_TRACE()
 #endif
 
 } // namespace detail
