@@ -23,7 +23,7 @@
                                               static_cast<T>(init[i].im)};     \
       }                                                                        \
                                                                                \
-      sycl::marray<std::complex<T>, DEFAULT_TEST_CASE_SIZE> std_out{};         \
+      sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};         \
       auto *cplx_out = sycl::malloc_shared<                                    \
           sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1,   \
                                                                           Q);  \
@@ -45,11 +45,13 @@
       Q.single_task([=]() {                                                    \
          *cplx_out = experimental::func_name(cplx_in);                         \
        }).wait();                                                              \
-      pass &= check_results(*cplx_out, std_out, /*is_device*/ true);           \
+      pass &= check_results(*cplx_out, convert_marray<T>(std_out),             \
+                            /*is_device*/ true);                               \
                                                                                \
       /* Check cplx::complex output from host */                               \
       *cplx_out = experimental::func_name(cplx_in);                            \
-      pass &= check_results(*cplx_out, std_out, /*is_device*/ false);          \
+      pass &= check_results(*cplx_out, convert_marray<T>(std_out),             \
+                            /*is_device*/ false);                              \
                                                                                \
       sycl::free(cplx_out, Q);                                                 \
                                                                                \
@@ -203,7 +205,7 @@ template <typename T> struct test_pow_cplx_cplx {
                                             static_cast<T>(init[i].im)};
     }
 
-    sycl::marray<std::complex<T>, DEFAULT_TEST_CASE_SIZE> std_out{};
+    sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
     auto *cplx_out = sycl::malloc_shared<
         sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
 
@@ -224,11 +226,13 @@ template <typename T> struct test_pow_cplx_cplx {
     Q.single_task([=]() {
        *cplx_out = experimental::pow(cplx_in, cplx_in);
      }).wait();
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ true);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ true);
 
     /* Check cplx::complex output from host */
     *cplx_out = experimental::pow(cplx_in, cplx_in);
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ false);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ false);
 
     sycl::free(cplx_out, Q);
 
@@ -256,7 +260,7 @@ template <typename T> struct test_pow_cplx_deci {
                                             static_cast<T>(init[i].im)};
     }
 
-    sycl::marray<std::complex<T>, DEFAULT_TEST_CASE_SIZE> std_out{};
+    sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
     auto *cplx_out = sycl::malloc_shared<
         sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
 
@@ -277,11 +281,13 @@ template <typename T> struct test_pow_cplx_deci {
     Q.single_task([=]() {
        *cplx_out = experimental::pow(cplx_in, cplx_in.real());
      }).wait();
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ true);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ true);
 
     /* Check cplx::complex output from host */
     *cplx_out = experimental::pow(cplx_in, cplx_in.real());
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ false);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ false);
 
     sycl::free(cplx_out, Q);
 
@@ -309,7 +315,7 @@ template <typename T> struct test_pow_deci_cplx {
                                             static_cast<T>(init[i].im)};
     }
 
-    sycl::marray<std::complex<T>, DEFAULT_TEST_CASE_SIZE> std_out{};
+    sycl::marray<std::complex<X>, DEFAULT_TEST_CASE_SIZE> std_out{};
     auto *cplx_out = sycl::malloc_shared<
         sycl::marray<experimental::complex<T>, DEFAULT_TEST_CASE_SIZE>>(1, Q);
 
@@ -330,11 +336,13 @@ template <typename T> struct test_pow_deci_cplx {
     Q.single_task([=]() {
        *cplx_out = experimental::pow(cplx_in.real(), cplx_in);
      }).wait();
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ true);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ true);
 
     /* Check cplx::complex output from host */
     *cplx_out = experimental::pow(cplx_in.real(), cplx_in);
-    pass &= check_results(*cplx_out, std_out, /*is_device*/ false);
+    pass &= check_results(*cplx_out, convert_marray<T>(std_out),
+                          /*is_device*/ false);
 
     sycl::free(cplx_out, Q);
 
