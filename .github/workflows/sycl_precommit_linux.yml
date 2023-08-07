@@ -1,6 +1,4 @@
-# FIXME: Change before merging PR, can't test otherwise.
-# name: SYCL Pre Commit on Linux
-name: SYCL Experimental Pre-Commit
+name: SYCL Pre Commit on Linux
 
 on:
   # We rely on "Fork pull request workflows from outside collaborators" -

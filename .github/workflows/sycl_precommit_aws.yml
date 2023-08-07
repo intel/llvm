@@ -9,9 +9,7 @@ name: E2E on AWS CUDA
 
 on:
   workflow_run:
-    # FIXME: Change before merging PR, can't test otherwise.
-    # workflows: [SYCL Pre Commit on Linux]
-    workflows: [SYCL Experimental Pre-Commit]
+    workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
 
