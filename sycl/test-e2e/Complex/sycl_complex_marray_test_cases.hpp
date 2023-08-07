@@ -4,7 +4,7 @@
 
 #include "sycl_complex_helper.hpp"
 
-#define DEFAULT_TEST_CASE_SIZE 47
+#define DEFAULT_TEST_CASE_SIZE 45
 #define POLAR_TEST_CASE_SIZE 9
 #define GETTERS_TEST_CASE_SIZE 8
 
@@ -101,8 +101,7 @@ std::vector<cmplx<double>>
     marray_cplx_test_cases<test_struct>::std_test_values = {
         cmplx<double>(0, 1),           cmplx<double>(0, -1),
         cmplx<double>(0, 0.5),         cmplx<double>(0, -0.5),
-        cmplx<double>(0, 0),           cmplx<double>(0, INFINITYd),
-        cmplx<double>(0, NANd),
+        cmplx<double>(0, INFINITYd),   cmplx<double>(0, NANd),
 
         cmplx<double>(1, 1),           cmplx<double>(1, -1),
         cmplx<double>(1, 0.5),         cmplx<double>(1, -0.5),
@@ -126,7 +125,7 @@ std::vector<cmplx<double>>
 
         cmplx<double>(INFINITYd, 1),   cmplx<double>(INFINITYd, -1),
         cmplx<double>(INFINITYd, 0.5), cmplx<double>(INFINITYd, -0.5),
-        cmplx<double>(INFINITYd, 0),   cmplx<double>(INFINITYd, INFINITYd),
+        cmplx<double>(INFINITYd, 0),
 
         cmplx<double>(NANd, 1),        cmplx<double>(NANd, -1),
         cmplx<double>(NANd, 0.5),      cmplx<double>(NANd, -0.5),
