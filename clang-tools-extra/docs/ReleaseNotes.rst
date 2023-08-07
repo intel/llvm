@@ -156,6 +156,10 @@ New checks
 New check aliases
 ^^^^^^^^^^^^^^^^^
 
+- New alias :doc:`cppcoreguidelines-macro-to-enum
+  <clang-tidy/checks/cppcoreguidelines/macro-to-enum>` to :doc:`modernize-macro-to-enum
+  <clang-tidy/checks/modernize/macro-to-enum>` was added.
+
 Changes in existing checks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -168,6 +172,10 @@ Changes in existing checks
   to ignore ``static`` variables declared within the scope of
   ``class``/``struct``.
 
+- Improved :doc:`cppcoreguidelines-prefer-member-initializer
+  <clang-tidy/checks/cppcoreguidelines/prefer-member-initializer>` check to
+  ignore delegate constructors.
+
 - Improved :doc:`llvm-namespace-comment
   <clang-tidy/checks/llvm/namespace-comment>` check to provide fixes for
   ``inline`` namespaces in the same format as :program:`clang-format`.
@@ -175,6 +183,14 @@ Changes in existing checks
 - Improved :doc:`modernize-loop-convert
   <clang-tidy/checks/modernize/loop-convert>` to support for-loops with
   iterators initialized by free functions like ``begin``, ``end``, or ``size``.
+
+- Improved :doc:`performanc-noexcept-swap
+  <clang-tidy/checks/performance/noexcept-swap>` check to enforce a stricter
+  match with the swap function signature, eliminating false-positives.
+
+- Improved :doc:`readability-identifier-naming
+  <clang-tidy/checks/readability/identifier-naming>` check to emit proper
+  warnings when a type forward declaration precedes its definition.
 
 Removed checks
 ^^^^^^^^^^^^^^
