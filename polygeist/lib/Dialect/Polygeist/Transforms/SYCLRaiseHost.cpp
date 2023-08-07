@@ -27,6 +27,7 @@
 #include "mlir/IR/ImplicitLocOpBuilder.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "llvm/ADT/IndexedMap.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Demangle/Demangle.h"
 #include "llvm/Support/Debug.h"
@@ -1611,15 +1612,23 @@ public:
 
     auto captureTypes = lambdaClassTy.getBody();
 
+    // Map from index to a collection of array components.
+    llvm::IndexedMap<ArrayCollector> idxToArrayComponents;
+    idxToArrayComponents.grow(captureTypes.size());
+
     auto createOps = [&, &lo = lambdaObj](Operation *captureOp,
                                           Value capturedVal, unsigned index) {
       ImplicitLocOpBuilder builder(captureOp->getLoc(), rewriter);
       builder.setInsertionPointAfter(captureOp);
 
       auto adaptedValuesAndTypes =
-          tryToAdapt(capturedVal, captureTypes[index], builder);
+          tryToAdapt(capturedVal, captureTypes[index],
+                     idxToArrayComponents[index], builder);
       for (auto it : llvm::enumerate(adaptedValuesAndTypes)) {
         auto [adaptedVal, typeAttr] = it.value();
+        if (!adaptedVal)
+          continue;
+
         builder.create<sycl::SYCLHostSetCaptured>(
             lo, rewriter.getI64IntegerAttr(index + it.index()), adaptedVal,
             typeAttr);
@@ -1634,11 +1643,18 @@ public:
     if (auto [captureOp, capturedVal] =
             getUniqueAssignment(lambdaObj, annotatedPtr);
         captureOp) {
-      createOps(captureOp, capturedVal, 0);
+      auto completeArray = detectPartialArrayComponent(
+          0, captureOp, capturedVal, captureTypes[0], idxToArrayComponents[0]);
+      if (completeArray != ArrayResult::PARTIAL_ARRAY) {
+        // Only create operations if the captured value was not a part of a
+        // bigger, yet incomplete array.
+        createOps(captureOp, capturedVal, 0);
+      }
     }
 
-    // All other captures are unique assignments to GEPs with two constant
-    // indices `[0, <capture #>]` to the lambda object.
+    // All other captures are unique assignments to GEPs with two or three
+    // constant indices `[0, <capture #>, [<offset>]?]` to the lambda object.
+    // The offset case can only happen for array members of the lambda.
     for (auto *user : lambdaObj.getUsers()) {
       auto gep = dyn_cast<LLVM::GEPOp>(user);
       if (!gep || !gep.getElemType().has_value() ||
@@ -1647,12 +1663,26 @@ public:
         continue;
 
       auto indices = gep.getRawConstantIndices();
-      if (indices.size() != 2 || indices[0] != 0)
+      if (indices.size() > 3 || indices[0] != 0)
         continue;
       unsigned captureIdx = indices[1];
 
       auto [captureOp, capturedVal] = getUniqueAssignment(gep);
       if (!captureOp)
+        continue;
+
+      auto arrayOffset = (indices.size() == 3) ? indices[2] : 0;
+      auto completeArray = detectPartialArrayComponent(
+          arrayOffset, captureOp, capturedVal, captureTypes[captureIdx],
+          idxToArrayComponents[captureIdx]);
+
+      if (completeArray == ArrayResult::PARTIAL_ARRAY)
+        // Detected a partial component of a bigger array. The set_captured will
+        // ony be inserted later once all components have been found.
+        continue;
+
+      if (completeArray == ArrayResult::NO_ARRAY && indices.size() > 2)
+        // Not an array, so only two indices allowed in that case.
         continue;
 
       createOps(captureOp, capturedVal, captureIdx);
@@ -1735,10 +1765,26 @@ private:
     return {op, value};
   }
 
+  /// Represent a part of a bigger array by its offset, the value and the
+  /// operation that captured this part of the array.
+  struct ArrayComponent {
+    ArrayComponent(size_t o, Value v, Operation *op)
+        : offset{o}, value{v}, captureOp{op} {}
+
+    size_t offset;
+    Value value;
+    Operation *captureOp;
+  };
+
+  /// Collection of parts of a bigger array. The first element of the pair
+  /// indicates how many elements have been collected so far, the second element
+  /// is the list of components.
+  using ArrayCollector = std::pair<size_t, SmallVector<ArrayComponent>>;
+
   // Use domain knowledge to try to adapt an \p assigned value to match the
   // \p expected type.
   SmallVector<std::tuple<Value, TypeAttr>>
-  tryToAdapt(Value assigned, Type expected,
+  tryToAdapt(Value assigned, Type expected, ArrayCollector &collector,
              ImplicitLocOpBuilder &builder) const {
     if (isClassType(expected, accessorTypeTag.getTypeName())) {
       // The getelementpointer[0, <capture #>] we have matched earlier might not
@@ -1765,6 +1811,81 @@ private:
       LLVM_DEBUG(llvm::dbgs()
                  << "tryToAdapt: Could not infer captured accessor\n");
     }
+    if (auto arrayTy = dyn_cast<LLVM::LLVMArrayType>(expected);
+        arrayTy && collector.first != 0) {
+      size_t expectedNumElements = arrayTy.getNumElements();
+      Type expectedElemType = arrayTy.getElementType();
+      assert(expectedNumElements == collector.first && "Incomplete collector");
+      SmallVector<ArrayComponent> &offsetAndValues = collector.second;
+      // We need to sort them by index to ensure dominance.
+      llvm::sort(offsetAndValues,
+                 [](const ArrayComponent &p1, const ArrayComponent &p2) {
+                   return p1.offset < p2.offset;
+                 });
+      auto allConstant = llvm::all_of(offsetAndValues, [](const auto &p) {
+        return matchPattern(p.value, m_Constant());
+      });
+      // If all elements of the array are constant, we will insert a global
+      // array and capture the address of that global array containing the
+      // constant values of the array.
+      if (allConstant) {
+        builder.setInsertionPoint(
+            assigned.getDefiningOp()->getParentOfType<FunctionOpInterface>());
+        auto failureOrConstArray = getConstantArray(offsetAndValues, arrayTy);
+        if (failed(failureOrConstArray)) {
+          return {{nullptr, TypeAttr()}};
+        }
+        static size_t globalArrayCounter = 0;
+        std::string globalName =
+            ("constant_array_" + Twine(globalArrayCounter++)).str();
+        LLVM::GlobalOp constGlobal = builder.create<LLVM::GlobalOp>(
+            arrayTy,
+            /* isConstant*/ true, LLVM::Linkage::Private, globalName,
+            *failureOrConstArray);
+
+        builder.setInsertionPointAfter(offsetAndValues.back().captureOp);
+        auto addrOfGlobal = builder.create<LLVM::AddressOfOp>(constGlobal);
+
+        return {{addrOfGlobal, TypeAttr()}};
+      }
+      // If not all elements of the array are constant, we will construct a
+      // vector<N x Ty> using insert operations and capture that vector value.
+      Value vecAccumulator = nullptr;
+      for (auto &component : offsetAndValues) {
+        builder.setInsertionPointAfter(component.captureOp);
+        if (!vecAccumulator)
+          vecAccumulator = builder.create<LLVM::UndefOp>(
+              VectorType::get(expectedNumElements, expectedElemType));
+
+        auto failureOrAcc =
+            TypeSwitch<Type, FailureOr<Value>>(component.value.getType())
+                .Case<VectorType>([&](VectorType ty) -> FailureOr<Value> {
+                  if (ty.getElementType() != expectedElemType)
+                    return failure();
+
+                  return builder
+                      .create<vector::InsertStridedSliceOp>(
+                          component.value, vecAccumulator, component.offset, 1)
+                      ->getResult(0);
+                })
+                .Default([&](auto ty) -> FailureOr<Value> {
+                  if (ty != expectedElemType)
+                    return failure();
+
+                  return builder
+                      .create<vector::InsertOp>(component.value, vecAccumulator,
+                                                component.offset)
+                      ->getResult(0);
+                });
+
+        if (failed(failureOrAcc))
+          return {{nullptr, TypeAttr()}};
+
+        vecAccumulator = *failureOrAcc;
+      }
+
+      return {{vecAccumulator, TypeAttr()}};
+    }
 
     // The frontend sometimes groups multiple scalars in vectors - reverse that.
     if (auto vecTy = dyn_cast<VectorType>(assigned.getType());
@@ -1780,6 +1901,87 @@ private:
 
     // No special handling, just return the argument as-is.
     return {{assigned, TypeAttr()}};
+  }
+
+  /// Construct a DenseElementAttr to represent a constant array made up from \p
+  /// components.
+  static FailureOr<DenseElementsAttr>
+  getConstantArray(ArrayRef<ArrayComponent> components,
+                   LLVM::LLVMArrayType &arrTy) {
+    SmallVector<Attribute> constantValues(arrTy.getNumElements());
+    for (const auto &p : components) {
+      // Retrieve constant value.
+      Attribute constantComponent;
+      if (!matchPattern(p.value, m_Constant(&constantComponent)))
+        return failure();
+      size_t offset = p.offset;
+
+      // Retrieve individual elements of the constant array and collect them.
+      auto result =
+          TypeSwitch<Attribute, LogicalResult>(constantComponent)
+              .Case<DenseElementsAttr>([&](auto &denseAttr) {
+                for (auto attr : denseAttr.template getValues<Attribute>()) {
+                  constantValues[offset++] = attr;
+                }
+                return success();
+              })
+              .Case<IntegerAttr, FloatAttr>([&](auto &attr) {
+                constantValues[offset] = attr;
+                return success();
+              })
+              .Default(failure());
+
+      if (failed(result))
+        return failure();
+    }
+    return DenseElementsAttr::get(
+        RankedTensorType::get(arrTy.getNumElements(), arrTy.getElementType()),
+        constantValues);
+  }
+
+  enum class ArrayResult { NO_ARRAY, PARTIAL_ARRAY, COMPLETE_ARRAY };
+  /// Detect if the \p assigned value is a partial component of a bigger array.
+  /// Returns:
+  ///  * NO_ARRAY if it is not part of an array
+  ///  * PARTIAL_ARRAY if it is part of a bigger array, but not all array
+  ///  components have been found so far
+  ///  * COMPLETE_ARRAY if \p assigned was the last missing part of the bigger
+  ///  array and set_captured should be inserted now.
+  static ArrayResult detectPartialArrayComponent(size_t offset,
+                                                 Operation *captureOp,
+                                                 Value assigned, Type expected,
+                                                 ArrayCollector &collector) {
+    auto arrayTy = dyn_cast<LLVM::LLVMArrayType>(expected);
+    if (!arrayTy)
+      return ArrayResult::NO_ARRAY;
+
+    size_t expectedNumElements = arrayTy.getNumElements();
+    Type expectedElemTy = arrayTy.getElementType();
+
+    auto numElements =
+        TypeSwitch<Type, size_t>(assigned.getType())
+            .Case<LLVM::LLVMFixedVectorType, VectorType>([=](auto ty) {
+              return (ty.getElementType() == expectedElemTy)
+                         ? ty.getNumElements()
+                         : 0;
+            })
+            .Default([=](Type ty) { return (ty == expectedElemTy) ? 1 : 0; });
+
+    if (numElements == 0)
+      return ArrayResult::NO_ARRAY;
+
+    // Store the assigned value as a part of the array at the offset.
+    collector.second.emplace_back(offset, assigned, captureOp);
+    // Increment count of how many elements we have found so far.
+    collector.first += numElements;
+    LLVM_DEBUG(llvm::dbgs() << "Detected " << std::get<0>(collector)
+                            << " components, latest: " << assigned
+                            << " from: " << *captureOp << "\n";);
+    // Return true in case we have reached the expected number of elements, to
+    // trigger insertion of the set_captured operation.
+    return (std::get<0>(collector) == expectedNumElements)
+               ? ArrayResult::COMPLETE_ARRAY
+               : ArrayResult::PARTIAL_ARRAY;
   }
 
   AccessorTypeTag accessorTypeTag;
