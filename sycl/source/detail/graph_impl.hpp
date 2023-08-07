@@ -205,6 +205,16 @@ public:
     if (PropList.has_property<property::graph::no_cycle_check>()) {
       MSkipCycleChecks = true;
     }
+    if (SyclDevice.get_info<
+            ext::oneapi::experimental::info::device::graph_support>() ==
+        info::graph_support_level::unsupported) {
+      std::stringstream Stream;
+      Stream << SyclDevice.get_backend();
+      std::string BackendString = Stream.str();
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          BackendString + " backend is not supported by SYCL Graph extension.");
+    }
   }
 
   /// Insert node into list of root nodes.
