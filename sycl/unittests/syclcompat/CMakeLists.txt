@@ -16,18 +16,18 @@
 
 set(SYCL_EXTRA_FLAGS "-fsycl-unnamed-lambda;-fsycl-device-code-split=per_kernel")
 
-# add_custom_target(check-sycl-syclcompat)
-# add_dependencies(check-sycl-unittests check-sycl-syclcompat)
+if (UNIX)
+  add_custom_target(check-syclcompat)
+  add_dependencies(check-sycl-unittests check-syclcompat)
+endif()
 
-# add_sycl_library_unittest(syclcompat-base 
-#   SYCL_EXTRA_FLAGS
-#     ${SYCL_EXTRA_FLAGS}
-#   SOURCES
-#     Dim.cpp
-#     Defs.cpp)
+add_sycl_library_unittest(syclcompat-base
+  SYCL_EXTRA_FLAGS
+    ${SYCL_EXTRA_FLAGS}
+  SOURCES
+    Dim.cpp
+    Defs.cpp)
 
-# add_dependencies(check-sycl-syclcompat check-sycl-syclcompat-base)
-
-add_sycl_unittest(syclcompat-baseTests OBJECT
-  Dim.cpp
-  Defs.cpp)
+if (UNIX)
+  add_dependencies(check-syclcompat check-syclcompat-base)
+endif()
