@@ -474,7 +474,7 @@ TEST_F(CommandGraphTest, Finalize) {
   sycl::buffer<int> Buf(1);
   auto Node1 = Graph.add([&](sycl::handler &cgh) {
     sycl::accessor A(Buf, cgh, sycl::write_only, sycl::no_init);
-    cgh.single_task<class TestKernel1>([=]() { A[0] = 1; });
+    cgh.single_task<TestKernel<>>([]() {});
   });
 
   // Add independent node
@@ -484,7 +484,7 @@ TEST_F(CommandGraphTest, Finalize) {
   // Add a node that depends on Node1 due to the accessor
   auto Node3 = Graph.add([&](sycl::handler &cgh) {
     sycl::accessor A(Buf, cgh, sycl::write_only, sycl::no_init);
-    cgh.single_task<class TestKernel2>([=]() { A[0] = 3; });
+    cgh.single_task<TestKernel<>>([]() {});
   });
 
   // Guarantee order of independent nodes 1 and 2
