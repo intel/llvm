@@ -153,6 +153,39 @@ llvm.func @raise_accessor() -> !llvm.ptr attributes {personality = @__gxx_person
 // -----
 
 llvm.func @__gxx_personality_v0(...) -> i32
+
+// CHECK-LABEL:   !sycl_local_accessor_base_1_21llvm2Evoid_rw = !sycl.local_accessor_base<[1, !llvm.void, read_write], (!sycl_range_1_)>
+
+// CHECK-LABEL:   llvm.func @raise_local_accessor(
+// CHECK-SAME:                                    %[[VAL_0:.*]]: !llvm.ptr) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+// CHECK:           %[[VAL_1:.*]] = arith.constant 1 : i32
+// CHECK:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_3:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+// CHECK:           sycl.host.constructor(%[[VAL_2]], %[[VAL_3]], %[[VAL_0]], %[[VAL_4]]) {type = !sycl_local_accessor_base_1_21llvm2Evoid_rw} : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+// CHECK:           llvm.br ^bb1
+// CHECK:         ^bb1:
+// CHECK:           llvm.return %[[VAL_2]] : !llvm.ptr
+// CHECK:         }
+
+llvm.func @raise_local_accessor(%handler: !llvm.ptr) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
+  %0 = arith.constant 1 : i32
+  %acc = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::accessor", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %range = llvm.alloca %0 x !llvm.struct<"class.sycl::_V1::range", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+  %cl = llvm.alloca %0 x !llvm.struct<"struct.sycl::_V1::detail::code_location", ()> {alignment = 8 : i64} : (i32) -> !llvm.ptr
+
+  llvm.invoke @_ZN4sycl3_V119local_accessor_baseINS0_3vecIdLi4EEELi1ELNS0_6access4modeE1026ELNS4_11placeholderE0EEC2ILi1EvEENS0_5rangeILi1EEERNS0_7handlerENS0_6detail13code_locationE(%acc, %range, %handler, %cl) to ^bb1 unwind ^bb0 : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+
+^bb0:
+  %lp = llvm.landingpad cleanup : !llvm.struct<(ptr, i32)>
+  llvm.resume %lp : !llvm.struct<(ptr, i32)>
+^bb1:
+  llvm.return %acc : !llvm.ptr
+}
+
+// -----
+
+llvm.func @__gxx_personality_v0(...) -> i32
 llvm.func @_ZN4sycl3_V16bufferIfLi1ENS0_6detail17aligned_allocatorIfEEvE10get_accessILNS0_6access4modeE1024ELNS7_6targetE2014EEENS0_8accessorIfLi1EXT_EXT0_ELNS7_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEERNS0_7handlerENS2_13code_locationE(!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 
 // CHECK-LABEL: !sycl_accessor_1_21llvm2Evoid_r_gb = !sycl.accessor<[1, !llvm.void, read, global_buffer], (!llvm.void)>
