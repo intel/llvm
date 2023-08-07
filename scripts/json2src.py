@@ -23,33 +23,6 @@ def add_argument(parser, name, help, default=False):
     group.add_argument("--skip-" + name, dest=name, help="Skip "+help, action="store_false")
     parser.set_defaults(**{name:default})
 
-"""
-    helpers to strip loader only api constructs from the json
-"""
-def strip_specs_class(specs, strip_class):
-    for spec in specs:
-        remove_obj = []
-        for obj in spec["objects"]:
-            if "class" in obj and strip_class in obj["class"]:
-                remove_obj.append(obj)
-        for obj in remove_obj:
-            spec["objects"].remove(obj)
-
-def strip_meta_entry(meta, entry_name, pattern):
-    loader_entries = []
-    for entry in meta[entry_name]:
-        if pattern in entry:
-            loader_entries.append(entry)
-
-    for entry in loader_entries:
-        del meta[entry_name][entry]
-
-def strip_loader_meta(meta):
-    strip_meta_entry(meta, "class", "Loader")
-    strip_meta_entry(meta, "function", "Loader")
-    strip_meta_entry(meta, "enum", "loader")
-    strip_meta_entry(meta, "handle", "loader")
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_argument(parser, "lib", "generation of lib files.", True)
@@ -75,9 +48,6 @@ if __name__ == '__main__':
         if args.sections == None or config['name'] in args.sections:
             if args.lib:
                 generate_code.generate_lib(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
-            # From here only generate code for functions adapters can implement.
-            strip_specs_class(specs, "Loader")
-            strip_loader_meta(input['meta'])
             if args.loader:
                 generate_code.generate_loader(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
             if args.layers:

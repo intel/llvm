@@ -56,7 +56,7 @@ ${th.make_func_name(n, tags, obj)}(
     %endfor
     )
 try {
-%if th.function_traits.is_loader_only(obj):
+%if th.obj_traits.is_loader_only(obj):
     return ur_lib::${th.make_func_name(n, tags, obj)}(${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 %else:
 %if re.match("Init", obj['name']):
