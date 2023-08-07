@@ -469,6 +469,10 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
           *pValuePI = pValueUR->value.affinity_domain;
           break;
         }
+        case UR_DEVICE_PARTITION_BY_CSLICE: {
+          *pValuePI = 0;
+          break;
+        }
         default:
           die("UR_DEVICE_INFO_PARTITION_TYPE query returned unsupported type");
         }
@@ -719,6 +723,22 @@ namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
   std::ignore = PluginParameter;
+  // Fetch the single known adapter (the one which is statically linked) so we
+  // can release it. Fetching it for a second time (after piPlatformsGet)
+  // increases the reference count, so we need to release it twice.
+  // pi_unified_runtime has its own implementation of piTearDown.
+  static std::once_flag AdapterReleaseFlag;
+  ur_adapter_handle_t Adapter;
+  ur_result_t Ret = UR_RESULT_SUCCESS;
+  std::call_once(AdapterReleaseFlag, [&]() {
+    Ret = urAdapterGet(1, &Adapter, nullptr);
+    if (Ret == UR_RESULT_SUCCESS) {
+      Ret = urAdapterRelease(Adapter);
+      Ret = urAdapterRelease(Adapter);
+    }
+  });
+  HANDLE_ERRORS(Ret);
+
   // TODO: Dont check for errors in urTearDown, since
   // when using Level Zero plugin, the second urTearDown
   // will fail as ur_loader.so has already been unloaded,
@@ -731,9 +751,20 @@ inline pi_result piTearDown(void *PluginParameter) {
 inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                                 pi_uint32 *NumPlatforms) {
 
-  urInit(0);
+  urInit(0, nullptr);
+  // We're not going through the UR loader so we're guaranteed to have exactly
+  // one adapter (whichever is statically linked). The PI plugin for UR has its
+  // own implementation of piPlatformsGet.
+  static ur_adapter_handle_t Adapter;
+  static std::once_flag AdapterGetFlag;
+  ur_result_t Ret = UR_RESULT_SUCCESS;
+  std::call_once(AdapterGetFlag,
+                 [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
+  HANDLE_ERRORS(Ret);
+
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
-  HANDLE_ERRORS(urPlatformGet(NumEntries, phPlatforms, NumPlatforms));
+  HANDLE_ERRORS(
+      urPlatformGet(&Adapter, 1, NumEntries, phPlatforms, NumPlatforms));
   return PI_SUCCESS;
 }
 
@@ -894,9 +925,21 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **message) {
-  std::ignore = message;
-  return PI_SUCCESS;
+inline pi_result piPluginGetLastError(char **Message) {
+  // We're not going through the UR loader so we're guaranteed to have exactly
+  // one adapter (whichever is statically linked). The PI plugin for UR has its
+  // own implementation of piPluginGetLastError. Materialize the adapter
+  // reference for the urAdapterGetLastError call, then release it.
+  ur_adapter_handle_t Adapter;
+  urAdapterGet(1, &Adapter, nullptr);
+  // FIXME: ErrorCode should store a native error, but these are not being used
+  // in CUDA adapter at the moment
+  int32_t ErrorCode;
+  ur_result_t Res = urAdapterGetLastError(
+      Adapter, const_cast<const char **>(Message), &ErrorCode);
+  urAdapterRelease(Adapter);
+
+  return ur2piResult(Res);
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
@@ -1246,6 +1289,14 @@ inline pi_result piDevicePartition(
   }
 
   std::vector<ur_device_partition_property_t> UrProperties{};
+
+  // UR_DEVICE_PARTITION_BY_CSLICE doesn't have a value, so
+  // handle it outside the while loop below.
+  if (UrType == UR_DEVICE_PARTITION_BY_CSLICE) {
+    ur_device_partition_property_t UrProperty{};
+    UrProperty.type = UrType;
+    UrProperties.push_back(UrProperty);
+  }
   while (*(++Properties)) {
     ur_device_partition_property_t UrProperty;
     UrProperty.type = UrType;
@@ -1262,9 +1313,6 @@ inline pi_result piDevicePartition(
       /* No need to convert affinity domain enums from pi to ur because they
        * are equivalent */
       UrProperty.value.affinity_domain = *Properties;
-      break;
-    }
-    case UR_DEVICE_PARTITION_BY_CSLICE: {
       break;
     }
     default: {
@@ -1576,7 +1624,6 @@ inline pi_result piextQueueCreateWithNativeHandle(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);

@@ -8,10 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
-#include <sycl/id.hpp>
-#include <sycl/item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/helpers.hpp>   // for Builder, group
+#include <sycl/detail/item_base.hpp> // for id, range
+#include <sycl/id.hpp>               // for id
+#include <sycl/item.hpp>             // for item
+#include <sycl/range.hpp>            // for range
+
+#include <stddef.h> // for size_t
 
 namespace sycl {
 inline namespace _V1 {
