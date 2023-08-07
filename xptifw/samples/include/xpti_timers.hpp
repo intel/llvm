@@ -20,8 +20,6 @@
 
 namespace xpti {
 namespace utils {
-class statistics_t;
-using function_stats_t = std::unordered_map<std::string, statistics_t>;
 /// @brief Statistics class to compute mean, stddev, etc
 /// @details This class can compute many staticsical values using running
 /// average and related techniques so they can be computed on the fly

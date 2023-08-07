@@ -305,11 +305,16 @@ public:
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,
                             MCorrelationID,
                             static_cast<const void *>(MUserData));
+    } else {
+      // We did not send out the initial notification as not subscribers were
+      // subscribed to the trace typefor this stream
+      MCorrelationID = 0;
     }
     return *this;
   }
   ~XPTIPerfScope() {
-    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MScopedNotify) {
+    if (xptiCheckTraceEnabled(MStreamID, MTraceType) && MScopedNotify &&
+        MCorrelationID != 0) {
       MTraceType = MTraceType | 1;
       // Only notify for a trace type that has a begin/end
       xptiNotifySubscribers(MStreamID, MTraceType, nullptr, MTraceEvent,

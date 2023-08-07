@@ -117,14 +117,17 @@ void enableZeTracing() {
       const char *FuncName = #call;                                            \
       if (xptiCheckTraceEnabled(                                               \
               CallStreamID,                                                    \
-              (uint16_t)xpti::trace_point_type_t::function_end)) {             \
+              (uint16_t)xpti::trace_point_type_t::function_end) &&             \
+          CallStreamID != 0) {                                                 \
         xptiNotifySubscribers(                                                 \
             CallStreamID, (uint16_t)xpti::trace_point_type_t::function_end,    \
             GCallEvent, nullptr, CallCorrelationID, FuncName);                 \
+        CallCorrelationID = 0;                                                 \
       }                                                                        \
       if (xptiCheckTraceEnabled(                                               \
               DebugStreamID,                                                   \
-              (uint16_t)xpti::trace_point_type_t::function_with_args_end)) {   \
+              (uint16_t)xpti::trace_point_type_t::function_with_args_end) &&   \
+          DebugCorrelationID != 0) {                                           \
         uint32_t FuncID = static_cast<uint32_t>(ZEApiKind::call);              \
         xpti::function_with_args_t Payload{FuncID, FuncName, Params, &Result,  \
                                            nullptr};                           \
@@ -132,6 +135,7 @@ void enableZeTracing() {
             DebugStreamID,                                                     \
             (uint16_t)xpti::trace_point_type_t::function_with_args_end,        \
             GDebugEvent, nullptr, DebugCorrelationID, &Payload);               \
+        DebugCorrelationID = 0;                                                \
       }                                                                        \
     }                                                                          \
   };

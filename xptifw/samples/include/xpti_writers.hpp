@@ -231,6 +231,11 @@ private:
 
 class table_writer : public writer {
 public:
+  using function_stats_t =
+      std::unordered_map<std::string, xpti::utils::statistics_t>;
+  using stats_tuple_t = std::pair<std::string, xpti::utils::statistics_t>;
+  using duration_stats_t = std::multimap<double, stats_tuple_t>;
+
   table_writer() { init(); }
   ~table_writer() {}
 
@@ -275,6 +280,12 @@ public:
     for (auto &r : m_records) {
       compute_stats(r.second);
     }
+    // Reorder the stats in ascending order of mean times so all small functions
+    // are at the top
+    for (auto &f : m_functions) {
+      m_durations.insert(
+          std::make_pair(f.second.mean(), std::make_pair(f.first, f.second)));
+    }
     // Burst write when the application exits
     if (!m_io.is_open()) {
       m_io.open(m_file_name);
@@ -282,25 +293,28 @@ public:
       m_io << "sep=|\n";
       m_io << "Function|Count|Min|Max|Average|Std. Dev.\n";
       int row_id = 0;
-      for (auto &stats : m_functions) {
+      for (auto &stats : m_durations) {
+        uint64_t count = stats.second.second.count();
+        double mean = stats.second.second.mean(),
+               stddev = stats.second.second.stddev(),
+               min = stats.second.second.min(), max = stats.second.second.max();
         // Output CSV line
-        m_io << stats.first << "|" << stats.second.count() << "|"
-             << stats.second.min() << "|" << stats.second.max() << "|"
-             << stats.second.mean() << "|" << stats.second.stddev() << "\n";
+        m_io << stats.second.first << "|" << count << "|" << min << "|" << max
+             << "|" << mean << "|" << stddev << "\n";
         // Record data in table model for pretty printing
         std::string func_name;
-        if (stats.first.length() > 25) {
-          func_name = stats.first.substr(0, 30);
+        if (stats.second.first.length() > 25) {
+          func_name = stats.second.first.substr(0, 30);
           func_name += "...";
         } else
-          func_name = stats.first;
+          func_name = stats.second.first;
 
         auto &row = m_model.add_row(row_id++, func_name.c_str());
-        row[(int)TableColumns::Count] = stats.second.count();
-        row[(int)TableColumns::Min] = stats.second.min();
-        row[(int)TableColumns::Max] = stats.second.max();
-        row[(int)TableColumns::Mean] = stats.second.mean();
-        row[(int)TableColumns::StandardDeviation] = stats.second.stddev();
+        row[(int)TableColumns::Count] = count;
+        row[(int)TableColumns::Min] = min;
+        row[(int)TableColumns::Max] = max;
+        row[(int)TableColumns::Mean] = mean;
+        row[(int)TableColumns::StandardDeviation] = stddev;
       }
       m_io.close();
       m_model.print();
@@ -317,6 +331,7 @@ private:
   std::string m_file_name;
   std::ofstream m_io;
   records_t m_records;
-  xpti::utils::function_stats_t m_functions;
+  function_stats_t m_functions;
+  duration_stats_t m_durations;
 };
 } // namespace xpti

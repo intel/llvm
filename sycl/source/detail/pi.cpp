@@ -129,6 +129,8 @@ uint64_t emitFunctionBeginTrace(const char *FName) {
 
 void emitFunctionEndTrace(uint64_t CorrelationID, const char *FName) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (CorrelationID == 0)
+    return;
   constexpr uint16_t NotificationTraceType =
       (uint16_t)xpti::trace_point_type_t::function_end;
   if (xptiCheckTraceEnabled(PiCallStreamID, NotificationTraceType)) {
@@ -179,6 +181,8 @@ void emitFunctionWithArgsEndTrace(uint64_t CorrelationID, uint32_t FuncID,
                                   const char *FuncName, unsigned char *ArgsData,
                                   pi_result Result, pi_plugin Plugin) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (CorrelationID == 0)
+    return;
   constexpr uint16_t NotificationTraceType =
       (uint16_t)xpti::trace_point_type_t::function_with_args_end;
   if (xptiCheckTraceEnabled(PiDebugCallStreamID, NotificationTraceType)) {
