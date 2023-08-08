@@ -213,7 +213,7 @@ void LocalAccessorToSharedMemoryPass::postProcessKernels(
     KP.MD->replaceOperandWith(0, llvm::ConstantAsMetadata::get(F));
     // The MD node of the kernel has been altered, make sure that all the
     // dependent nodes are kept up to date.
-    for (auto *D : KP.DependentMDs)
+    for (MDNode *D : KP.DependentMDs)
       D->replaceOperandWith(0, llvm::ConstantAsMetadata::get(F));
   }
 }
