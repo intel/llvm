@@ -56,6 +56,7 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
   if (!AnnotationMetadata)
     return;
 
+  std::vector<MDNode *> PossibleDependencies;
   // It is possible that the annotations node contains multiple pointers to the
   // same metadata, recognise visited ones.
   SmallSet<MDNode *, 4> Visited;
@@ -70,9 +71,12 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
     auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(1));
     if (!Type)
       continue;
-    // Only process kernel entry points.
-    if (Type->getString() != "kernel")
+    // Only process kernel entry points,
+    if (Type->getString() != "kernel") {
+      // but keep track of other nodes that point to the same function.
+      PossibleDependencies.push_back(MetadataNode);
       continue;
+    }
 
     // Get a pointer to the entry point function from the metadata.
     const MDOperand &FuncOperand = MetadataNode->getOperand(0);
@@ -81,6 +85,36 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
     if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
       if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
         Kernels.push_back(KernelPayload(Func, MetadataNode));
+  }
+
+  // We need to match non-kernel metadata nodes using the kernel name to the
+  // kernel nodes.
+  for (auto &KP : Kernels) {
+    auto *KernelConstant = dyn_cast<ConstantAsMetadata>(KP.MD->getOperand(0));
+    assert(KernelConstant);
+    auto KernelName =
+        dyn_cast<Function>(KernelConstant->getValue())->getFunction().getName();
+    // Keep track of matched nodes, to decrease the search space with each
+    // iteration.
+    SmallVector<unsigned> ToDelete;
+    for (unsigned i = 0; i < PossibleDependencies.size(); ++i) {
+      auto *Dep = PossibleDependencies[i];
+      const MDOperand &FuncOperand = Dep->getOperand(0);
+      if (!FuncOperand)
+        continue;
+      if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
+        if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
+          // We've found a match, append the dependent node to the kernel
+          // payload.
+          if (KernelName == Func->getFunction().getName()) {
+            KP.DependentMDs.push_back(Dep);
+            ToDelete.push_back(i);
+          }
+
+      // Remove matched dependencies.
+      for (auto i = ToDelete.rbegin(); i != ToDelete.rend(); ++i)
+        PossibleDependencies.erase(PossibleDependencies.begin() + *i);
+    }
   }
 }
 
