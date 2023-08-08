@@ -1274,7 +1274,8 @@ public:
   }
 
   // std::byte neither supports ! unary op or casting, so special handling is
-  // needed.
+  // needed. And, worse, Windows has a conflict with 'byte'.
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
   template <typename T = DataT, int N = NumElements>
   typename std::enable_if_t<std::is_same<std::byte, T>::value &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
@@ -1297,6 +1298,15 @@ public:
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     return Ret;
   }
+#else
+  template <typename T = DataT, int N = NumElements>
+  EnableIfUsingArray<vec<T, N>> operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I)
+      Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
+    return Ret;
+  }
+#endif
 
   // operator +
   template <typename T = vec> EnableIfNotUsingArray<T> operator+() const {
