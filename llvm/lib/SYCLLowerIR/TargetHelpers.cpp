@@ -88,31 +88,28 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
   }
 
   // We need to match non-kernel metadata nodes using the kernel name to the
-  // kernel nodes.
+  // kernel nodes. To avoid checking matched nodes multiple times keep track of
+  // handled entries.
+  SmallSet<unsigned, 4> HandledNodes;
   for (auto &KP : Kernels) {
     auto *KernelConstant = cast<ConstantAsMetadata>(KP.MD->getOperand(0));
     auto KernelName =
         cast<Function>(KernelConstant->getValue())->getFunction().getName();
-    // Keep track of matched nodes, to decrease the search space with each
-    // iteration.
-    SmallVector<unsigned> ToDelete;
-    for (unsigned i = 0; i < PossibleDependencies.size(); ++i) {
-      auto *Dep = PossibleDependencies[i];
+    for (unsigned I = 0; I < PossibleDependencies.size(); ++I) {
+      if (HandledNodes.contains(I))
+        continue;
+      MDNode *Dep = PossibleDependencies[I];
       const MDOperand &FuncOperand = Dep->getOperand(0);
       if (!FuncOperand)
         continue;
       if (auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand))
         if (auto *Func = dyn_cast<Function>(FuncConstant->getValue()))
           // We've found a match, append the dependent node to the kernel
-          // payload.
+          // payload and keep track of matched entries.
           if (KernelName == Func->getFunction().getName()) {
             KP.DependentMDs.push_back(Dep);
-            ToDelete.push_back(i);
+            HandledNodes.insert(I);
           }
-
-      // Remove matched dependencies.
-      for (auto i = ToDelete.rbegin(); i != ToDelete.rend(); ++i)
-        PossibleDependencies.erase(PossibleDependencies.begin() + *i);
     }
   }
 }
