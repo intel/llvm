@@ -19,9 +19,7 @@
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Operator.h"
-#include "llvm/Transforms/Utils/Cloning.h"
 
-#include <memory>
 #include <vector>
 
 using namespace llvm;
@@ -757,11 +755,10 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)
-  // intrinsic to find its calls and lower them depending on the SetValAtRT
-  // setting (see below).
+  // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
-  std::vector<Function *> SpecConstDeclarations;
+  SmallVector<Function *, 10> SpecConstDeclarations;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;

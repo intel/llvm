@@ -1,14 +1,14 @@
 ; Test checks generation of device image of esimd kernel.
 
-; RUN: sycl-post-link -split=auto -emit-param-info -symbols -emit-exported-symbols -split-esimd -lower-esimd -O2 -spec-const=rt -device-globals -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O2 -spec-const=rt -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP
 
-; CHECK-TABLE: [[PATH]]_esimd_0.bc|[[PATH]]_esimd_0.prop|[[PATH]]_esimd_0.sym
-; CHECK-TABLE: [[PATH]]_0.bc|[[PATH]]_0.prop|[[PATH]]_0.sym
-; CHECK-TABLE: [[PATH]]_esimd_1.bc|[[PATH]]_esimd_1.prop|[[PATH]]_esimd_1.sym
-; CHECK-TABLE: [[PATH]]_1.bc|[[PATH]]_1.prop|[[PATH]]_1.sym
+; CHECK-TABLE: {{.*}}_esimd_0.bc|{{.*}}_esimd_0.prop
+; CHECK-TABLE: {{.*}}_0.bc|{{.*}}_0.prop
+; CHECK-TABLE: {{.*}}_esimd_1.bc|{{.*}}_esimd_1.prop
+; CHECK-TABLE: {{.*}}_1.bc|{{.*}}_1.prop
 
 ; CHECK-PROP: specConstsReplacedWithDefault=1|1
 

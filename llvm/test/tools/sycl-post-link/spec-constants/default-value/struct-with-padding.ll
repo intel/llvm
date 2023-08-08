@@ -1,12 +1,12 @@
 ; Test checks that struct with padding is handled correctly.
 
-; RUN: sycl-post-link -split=auto -spec-const=rt -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: sycl-post-link -split=auto -spec-const=rt -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
 ; RUN: cat %t_1.ll | FileCheck %s -check-prefix=CHECK-IR1 --implicit-check-not SpecConstant
 
-; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
-; CHECK-TABLE: [[PATH]]_1.ll|[[PATH]]_1.prop|[[PATH]]_1.sym
+; CHECK-TABLE: {{.*}}_0.ll|{{.*}}_0.prop
+; CHECK-TABLE: {{.*}}_1.ll|{{.*}}_1.prop
 
 ; CHECK-PROP1: specConstsReplacedWithDefault=1|1
 

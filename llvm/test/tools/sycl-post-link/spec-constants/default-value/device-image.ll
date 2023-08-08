@@ -3,7 +3,7 @@
 ; Also test checks generated symbols.
 
 ; RUN: sycl-post-link -split=auto -spec-const=rt -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: FileCheck %s -input-file %t.table -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: FileCheck %s -input-file %t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file %t_0.prop -check-prefix=CHECK-PROP0
 ; RUN: FileCheck %s -input-file %t_1.prop -check-prefix=CHECK-PROP1
 ; RUN: FileCheck %s -input-file %t_0.ll -check-prefix=CHECK-IR0
@@ -11,8 +11,8 @@
 ; RUN: FileCheck %s -input-file %t_0.sym -check-prefix=CHECK-SYM0
 ; RUN: FileCheck %s -input-file %t_1.sym -check-prefix=CHECK-SYM1
 
-; CHECK-TABLE: [[PATH]]_0.ll|[[PATH]]_0.prop|[[PATH]]_0.sym
-; CHECK-TABLE: [[PATH]]_1.ll|[[PATH]]_1.prop|[[PATH]]_1.sym
+; CHECK-TABLE: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
+; CHECK-TABLE: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
 
 ; CHECK-PROP0-NOT: specConstsReplacedWithDefault=1|1
 

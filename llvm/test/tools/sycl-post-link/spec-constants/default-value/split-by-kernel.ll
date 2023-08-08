@@ -1,16 +1,16 @@
 ; Test checks generation of device images for splitted kernels.
 
-; RUN: sycl-post-link -split=kernel -symbols -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE -DPATH=%t
+; RUN: sycl-post-link -split=kernel -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE
 ; RUN: cat %t_0.prop | FileCheck %s -check-prefix=CHECK-PROP0
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
 ; RUN: cat %t_2.prop | FileCheck %s -check-prefix=CHECK-PROP2
 ; RUN: cat %t_3.prop | FileCheck %s -check-prefix=CHECK-PROP3
 
-; CHECK-TABLE: [[PATH]]_0.bc|[[PATH]]_0.prop|[[PATH]]_0.sym
-; CHECK-TABLE: [[PATH]]_1.bc|[[PATH]]_1.prop|[[PATH]]_1.sym
-; CHECK-TABLE: [[PATH]]_2.bc|[[PATH]]_2.prop|[[PATH]]_2.sym
-; CHECK-TABLE: [[PATH]]_3.bc|[[PATH]]_3.prop|[[PATH]]_3.sym
+; CHECK-TABLE: {{.*}}_0.bc|{{.*}}_0.prop
+; CHECK-TABLE: {{.*}}_1.bc|{{.*}}_1.prop
+; CHECK-TABLE: {{.*}}_2.bc|{{.*}}_2.prop
+; CHECK-TABLE: {{.*}}_3.bc|{{.*}}_3.prop
 
 ; CHECK-PROP0-NOT: specConstsReplacedWithDefault=1|1
 

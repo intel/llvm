@@ -173,17 +173,17 @@ cl::opt<module_split::IRSplitMode> SplitMode(
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
-enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
+enum SpecConstLowerMode { SC_USE_NATIVE, SC_USE_EMULATION };
 
-cl::opt<SpecConstMode> SpecConstLower{
+cl::opt<SpecConstLowerMode> SpecConstLower{
     "spec-const",
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
-    cl::init(SC_USE_RT_VAL),
-    cl::values(
-        clEnumValN(SC_USE_RT_VAL, "rt", "spec constants are set at runtime"),
-        clEnumValN(SC_USE_DEFAULT_VAL, "default",
-                   "set spec constants to C++ defaults")),
+    cl::init(SC_USE_NATIVE),
+    cl::values(clEnumValN(SC_USE_NATIVE, "rt",
+                          "lower spec constants to native spirv instructions"),
+               clEnumValN(SC_USE_EMULATION, "default",
+                          "replace spec constants with emulation technique")),
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitKernelParamInfo{
@@ -211,8 +211,9 @@ cl::opt<bool> DeviceGlobals{
 
 cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
     "generate-device-image-default-spec-consts",
-    cl::desc("Generate device image which contains specialization constants "
-             "replaced by default values"),
+    cl::desc("Generate new device image(s) which is a copy of output images "
+             "but contain specialization constants "
+             "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
 struct GlobalBinImageProps {
@@ -705,8 +706,7 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
 
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
-  bool SetSpecConstAtRT = (SpecConstLower == SC_USE_RT_VAL);
-  SpecConstantsPass SCP(SetSpecConstAtRT
+  SpecConstantsPass SCP(SpecConstLower == SC_USE_NATIVE
                             ? SpecConstantsPass::HandlingMode::native
                             : SpecConstantsPass::HandlingMode::emulation);
   // Register required analysis
@@ -740,6 +740,9 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
 
   PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
   NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
+  assert(NewModuleDesc->Props.SpecConstsMet &&
+         "This property should be true since the presence of SpecConsts "
+         "has been checked before the run of the pass");
   NewModuleDesc->rebuildEntryPoints();
   return std::move(NewModuleDesc);
 }
@@ -1124,6 +1127,8 @@ int main(int argc, char **argv) {
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
+  bool DoGenerateDeviceImageWithDefaulValues =
+      GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
       !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
@@ -1159,6 +1164,11 @@ int main(int argc, char **argv) {
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoGenerateDeviceImageWithDefaulValues) {
+    errs() << "error: -" << GenerateDeviceImageWithDefaultSpecConsts.ArgStr
+           << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
 
