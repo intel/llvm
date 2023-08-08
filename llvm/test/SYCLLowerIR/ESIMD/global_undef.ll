@@ -14,9 +14,9 @@ target triple = "spir64-unknown-unknown"
 
 define void @f(<2512 x i32> %simd_val) {
 ; CHECK-LABEL: @f(
-; CHECK-NEXT:    store <2512 x i32> [[SIMD_VAL:%.*]], ptr addrspace(4) addrspacecast (ptr @Global to ptr addrspace(4)), align 16384
+; CHECK-NEXT:    store <2512 x i32> [[SIMD_VAL:%.*]], <2512 x i32> addrspace(4)* getelementptr (%"class.cl::sycl::INTEL::gpu::simd", %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)* addrspacecast (%"class.cl::sycl::INTEL::gpu::simd"* bitcast (<2512 x i32>* @Global to %"class.cl::sycl::INTEL::gpu::simd"*) to %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)*), i64 0, i32 0), align 16384
 ; CHECK-NEXT:    ret void
 ;
-  store <2512 x i32> %simd_val, ptr addrspace(4) addrspacecast (ptr @Global to ptr addrspace(4)), align 16384
+  store <2512 x i32> %simd_val, <2512 x i32> addrspace(4)* getelementptr (%"class.cl::sycl::INTEL::gpu::simd", %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)* addrspacecast (%"class.cl::sycl::INTEL::gpu::simd"* @Global to %"class.cl::sycl::INTEL::gpu::simd" addrspace(4)*), i64 0, i32 0), align 16384
   ret void
 }

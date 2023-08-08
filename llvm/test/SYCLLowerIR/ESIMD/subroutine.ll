@@ -20,61 +20,68 @@ entry:
 ; CHECK-NEXT: [[A:%[a-zA-Z0-9_]*]] = alloca {{.+}}
   %a = alloca %class._ZTS4simdIiLi16EE.simd, align 64
   %agg.tmp = alloca %class._ZTS4simdIiLi16EE.simd, align 64
-  store i32 %x, ptr %x.addr, align 4, !tbaa !4
-  call void @llvm.lifetime.start.p0(i64 64, ptr %a) #2
+  store i32 %x, i32* %x.addr, align 4, !tbaa !4
+  %0 = bitcast %class._ZTS4simdIiLi16EE.simd* %a to i8*
+  call void @llvm.lifetime.start.p0i8(i64 64, i8* %0) #2
 ; CHECK: [[ADDRSPCAST1:%[a-zA-Z0-9_]*]] = addrspacecast {{.+}} [[A]] to {{.+}}
-  %0 = addrspacecast ptr %agg.tmp to ptr addrspace(4)
-  %1 = addrspacecast ptr %a to ptr addrspace(4)
-; CHECK: call spir_func void @_ZN4simdIiLi16EEC1ERS0_(ptr addrspace(4) {{.+}}, ptr addrspace(4) [[ADDRSPCAST1]])
-  call spir_func void @_ZN4simdIiLi16EEC1ERS0_(ptr addrspace(4) %0, ptr addrspace(4) align 64 dereferenceable(64) %1)
-; CHECK: [[BITCASTRESULT2:%[a-zA-Z0-9_]*]] = bitcast {{.+}} to ptr
-; CHECK-NEXT: {{.+}} = call spir_func i32 {{.+}}bar{{.+}}(ptr [[BITCASTRESULT2]])
-  %call = call spir_func i32 @_Z3bar4simdIiLi16EE(ptr %agg.tmp)
-  call void @llvm.lifetime.end.p0(i64 64, ptr %a) #2
+  %1 = addrspacecast %class._ZTS4simdIiLi16EE.simd* %agg.tmp to %class._ZTS4simdIiLi16EE.simd addrspace(4)*
+  %2 = addrspacecast %class._ZTS4simdIiLi16EE.simd* %a to %class._ZTS4simdIiLi16EE.simd addrspace(4)*
+; CHECK: [[BITCASTRESULT1:%[a-zA-Z0-9_]*]] = bitcast {{.+}} addrspace(4)* [[ADDRSPCAST1]] to <16 x i32> addrspace(4)*
+; CHECK-NEXT: call spir_func void @_ZN4simdIiLi16EEC1ERS0_(<16 x i32> addrspace(4)* {{.+}}, <16 x i32> addrspace(4)* [[BITCASTRESULT1]])
+  call spir_func void @_ZN4simdIiLi16EEC1ERS0_(%class._ZTS4simdIiLi16EE.simd addrspace(4)* %1, %class._ZTS4simdIiLi16EE.simd addrspace(4)* align 64 dereferenceable(64) %2)
+; CHECK: [[BITCASTRESULT2:%[a-zA-Z0-9_]*]] = bitcast {{.+}} to <16 x i32>*
+; CHECK-NEXT: {{.+}} = call spir_func i32 {{.+}}bar{{.+}}(<16 x i32>* [[BITCASTRESULT2]])
+  %call = call spir_func i32 @_Z3bar4simdIiLi16EE(%class._ZTS4simdIiLi16EE.simd* %agg.tmp)
+  %3 = bitcast %class._ZTS4simdIiLi16EE.simd* %a to i8*
+  call void @llvm.lifetime.end.p0i8(i64 64, i8* %3) #2
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
 
 ; Function Attrs: norecurse nounwind
-; CHECK: define spir_func i32 @_Z3bar4simdIiLi16EE(ptr {{.+}}
-define spir_func i32 @_Z3bar4simdIiLi16EE(ptr %v) #0 {
+; CHECK: define spir_func i32 @_Z3bar4simdIiLi16EE(<16 x i32>* {{.+}}
+define spir_func i32 @_Z3bar4simdIiLi16EE(%class._ZTS4simdIiLi16EE.simd* %v) #0 {
 entry:
-; CHECK: {{.+}} = bitcast ptr {{.+}}
+; CHECK: {{.+}} = bitcast <16 x i32>* {{.+}}
   ret i32 1
 }
 
 ; Function Attrs: norecurse nounwind
-; CHECK: define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(ptr addrspace(4) [[OLDARG0:%[a-zA-Z0-9_]*]], ptr addrspace(4){{.*}} [[OLDARG1:%[a-zA-Z0-9_]*]]) unnamed_addr {{.+}}
-define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(ptr addrspace(4) %this, ptr addrspace(4) align 64 dereferenceable(64) %other) unnamed_addr #0 comdat align 2 {
+; CHECK: define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(<16 x i32> addrspace(4)* [[OLDARG0:%[a-zA-Z0-9_]*]], <16 x i32> addrspace(4)*{{.*}} [[OLDARG1:%[a-zA-Z0-9_]*]]) unnamed_addr {{.+}}
+define linkonce_odr spir_func void @_ZN4simdIiLi16EEC1ERS0_(%class._ZTS4simdIiLi16EE.simd addrspace(4)* %this, %class._ZTS4simdIiLi16EE.simd addrspace(4)* align 64 dereferenceable(64) %other) unnamed_addr #0 comdat align 2 {
 entry:
-  %this.addr = alloca ptr addrspace(4), align 8
-  %other.addr = alloca ptr addrspace(4), align 8
-; CHECK: store ptr addrspace(4) [[OLDARG0]], {{.+}}
-  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !8
-; CHECK-NEXT: store ptr addrspace(4) [[OLDARG1]], {{.+}}
-  store ptr addrspace(4) %other, ptr %other.addr, align 8, !tbaa !8
-  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
-  %0 = load ptr addrspace(4), ptr %other.addr, align 8
-  call spir_func void @_ZN4simdIiLi16EEC2ERS0_(ptr addrspace(4) %this1, ptr addrspace(4) align 64 dereferenceable(64) %0)
+; CHECK: [[NEWARG1:%[a-zA-Z0-9_]*]] = bitcast <16 x i32> addrspace(4)* [[OLDARG1]] to {{.+}}
+; CHECK-NEXT: [[NEWARG0:%[a-zA-Z0-9_]*]] = bitcast <16 x i32> addrspace(4)* [[OLDARG0]] to {{.+}}
+  %this.addr = alloca %class._ZTS4simdIiLi16EE.simd addrspace(4)*, align 8
+  %other.addr = alloca %class._ZTS4simdIiLi16EE.simd addrspace(4)*, align 8
+; CHECK: store {{.+}} addrspace(4)* [[NEWARG0]], {{.+}}
+  store %class._ZTS4simdIiLi16EE.simd addrspace(4)* %this, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %this.addr, align 8, !tbaa !8
+; CHECK-NEXT: store {{.+}} addrspace(4)* [[NEWARG1]], {{.+}}
+  store %class._ZTS4simdIiLi16EE.simd addrspace(4)* %other, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %other.addr, align 8, !tbaa !8
+  %this1 = load %class._ZTS4simdIiLi16EE.simd addrspace(4)*, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %this.addr, align 8
+  %0 = load %class._ZTS4simdIiLi16EE.simd addrspace(4)*, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %other.addr, align 8
+  call spir_func void @_ZN4simdIiLi16EEC2ERS0_(%class._ZTS4simdIiLi16EE.simd addrspace(4)* %this1, %class._ZTS4simdIiLi16EE.simd addrspace(4)* align 64 dereferenceable(64) %0)
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
 ; Function Attrs: norecurse nounwind
-define linkonce_odr spir_func void @_ZN4simdIiLi16EEC2ERS0_(ptr addrspace(4) %this, ptr addrspace(4) align 64 dereferenceable(64) %other) unnamed_addr #0 comdat align 2 {
+define linkonce_odr spir_func void @_ZN4simdIiLi16EEC2ERS0_(%class._ZTS4simdIiLi16EE.simd addrspace(4)* %this, %class._ZTS4simdIiLi16EE.simd addrspace(4)* align 64 dereferenceable(64) %other) unnamed_addr #0 comdat align 2 {
 entry:
-  %this.addr = alloca ptr addrspace(4), align 8
-  %other.addr = alloca ptr addrspace(4), align 8
-  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !8
-  store ptr addrspace(4) %other, ptr %other.addr, align 8, !tbaa !8
-  %this1 = load ptr addrspace(4), ptr %this.addr, align 8
-  %0 = load ptr addrspace(4), ptr %other.addr, align 8, !tbaa !8
-  %1 = load <16 x i32>, ptr addrspace(4) %0, align 64, !tbaa !10
-  store <16 x i32> %1, ptr addrspace(4) %this1, align 64, !tbaa !10
+  %this.addr = alloca %class._ZTS4simdIiLi16EE.simd addrspace(4)*, align 8
+  %other.addr = alloca %class._ZTS4simdIiLi16EE.simd addrspace(4)*, align 8
+  store %class._ZTS4simdIiLi16EE.simd addrspace(4)* %this, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %this.addr, align 8, !tbaa !8
+  store %class._ZTS4simdIiLi16EE.simd addrspace(4)* %other, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %other.addr, align 8, !tbaa !8
+  %this1 = load %class._ZTS4simdIiLi16EE.simd addrspace(4)*, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %this.addr, align 8
+  %0 = load %class._ZTS4simdIiLi16EE.simd addrspace(4)*, %class._ZTS4simdIiLi16EE.simd addrspace(4)** %other.addr, align 8, !tbaa !8
+  %__M_data = getelementptr inbounds %class._ZTS4simdIiLi16EE.simd, %class._ZTS4simdIiLi16EE.simd addrspace(4)* %0, i32 0, i32 0
+  %1 = load <16 x i32>, <16 x i32> addrspace(4)* %__M_data, align 64, !tbaa !10
+  %__M_data2 = getelementptr inbounds %class._ZTS4simdIiLi16EE.simd, %class._ZTS4simdIiLi16EE.simd addrspace(4)* %this1, i32 0, i32 0
+  store <16 x i32> %1, <16 x i32> addrspace(4)* %__M_data2, align 64, !tbaa !10
   ret void
 }
 
