@@ -12,7 +12,8 @@ TEST_P(urCudaGetDeviceNativeHandle, Success) {
     ur_native_handle_t native_handle;
     ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
-    CUdevice cuda_device = *reinterpret_cast<CUdevice *>(&native_handle);
+    CUdevice cuda_device;
+    memcpy(&cuda_device, &native_handle, sizeof(cuda_device));
 
     char cuda_device_name[256];
     ASSERT_SUCCESS_CUDA(cuDeviceGetName(cuda_device_name,
