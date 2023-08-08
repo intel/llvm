@@ -1267,19 +1267,38 @@ public:
     return Ret;
   }
 
+  // operator!
   template <typename T = DataT, int N = NumElements>
   EnableIfNotUsingArray<vec<T, N>> operator!() const {
     return vec<T, N>{(typename vec<DataT, NumElements>::DataType) !m_Data};
   }
 
+  // std::byte neither supports ! unary op or casting, so special handling is
+  // needed.
   template <typename T = DataT, int N = NumElements>
-  EnableIfUsingArray<vec<T, N>> operator!() const {
+  typename std::enable_if_t<std::is_same<std::byte, T>::value &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec<T, N>>
+  operator!() const {
+    vec Ret{};
+    for (size_t I = 0; I < NumElements; ++I) {
+      Ret.setValue(I, std::byte{!vec_data<DataT>::get(getValue(I))});
+    }
+    return Ret;
+  }
+
+  template <typename T = DataT, int N = NumElements>
+  typename std::enable_if_t<!std::is_same<std::byte, T>::value &&
+                                (IsUsingArrayOnDevice || IsUsingArrayOnHost),
+                            vec<T, N>>
+  operator!() const {
     vec Ret{};
     for (size_t I = 0; I < NumElements; ++I)
       Ret.setValue(I, !vec_data<DataT>::get(getValue(I)));
     return Ret;
   }
 
+  // operator +
   template <typename T = vec> EnableIfNotUsingArray<T> operator+() const {
     return vec{+m_Data};
   }
@@ -1291,6 +1310,7 @@ public:
     return Ret;
   }
 
+  // operator -
   template <typename T = vec> EnableIfNotUsingArray<T> operator-() const {
     return vec{-m_Data};
   }
