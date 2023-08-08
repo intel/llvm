@@ -180,7 +180,7 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   std::ignore = phProgram;
 
   detail::ur::die("urProgramCreateWithIL not implemented for CUDA adapter"
-                        " please use urProgramCreateWithBinary instead");
+                  " please use urProgramCreateWithBinary instead");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

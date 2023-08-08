@@ -147,4 +147,3 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
   hContext->setExtendedDeleter(pfnDeleter, pUserData);
   return UR_RESULT_SUCCESS;
 }
-

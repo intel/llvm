@@ -115,6 +115,7 @@ public:
 
 class ur_lock_guard {
   std::lock_guard<std::mutex> lock;
+
 public:
   explicit ur_lock_guard(ur_mutex &Mutex) : lock{Mutex.Mutex} {};
 };

@@ -227,8 +227,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urEventWait(uint32_t numEvents, const ur_event_handle_t *phEventWaitList) {
   try {
     auto Context = phEventWaitList[0]->getContext();
-    ScopedDevice Active(
-        phEventWaitList[0]->getQueue()->getDevice());
+    ScopedDevice Active(phEventWaitList[0]->getQueue()->getDevice());
 
     auto WaitFunc = [Context](ur_event_handle_t Event) -> ur_result_t {
       UR_ASSERT(Event, UR_RESULT_ERROR_INVALID_EVENT);

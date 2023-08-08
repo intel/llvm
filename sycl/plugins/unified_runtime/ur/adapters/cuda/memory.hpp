@@ -69,8 +69,8 @@ protected:
   // allocation so that we know not to free the memory on destruction
   ur_mem_handle_t_(ur_context_handle_t Context, ur_device_handle_t Device,
                    ur_mem_flags_t MemFlags)
-      : Context{Context}, DeviceWithNativeAllocation{Device}, MemFlags{
-                                                                  MemFlags} {
+      : Context{Context}, DeviceWithNativeAllocation{Device},
+        MemFlags{MemFlags} {
     urContextRetain(Context);
     urDeviceRetain(Device);
   };
