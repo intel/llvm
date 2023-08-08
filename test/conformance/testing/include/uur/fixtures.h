@@ -11,6 +11,8 @@
 #include <uur/environment.h>
 #include <uur/utils.h>
 
+#include <random>
+
 #define UUR_RETURN_ON_FATAL_FAILURE(...)                                       \
     __VA_ARGS__;                                                               \
     if (this->HasFatalFailure() || this->IsSkipped()) {                        \
@@ -845,6 +847,19 @@ struct urUSMDeviceAllocTestWithParam : urQueueTestWithParam<T> {
     size_t allocation_size = sizeof(int);
     void *ptr = nullptr;
 };
+
+// Generates a random byte pattern for MemFill type entry-points.
+inline void generateMemFillPattern(std::vector<uint8_t> &pattern) {
+    const size_t seed = 1;
+    std::mt19937 mersenne_engine{seed};
+    std::uniform_int_distribution<int> dist{0, 255};
+
+    auto gen = [&dist, &mersenne_engine]() {
+        return static_cast<uint8_t>(dist(mersenne_engine));
+    };
+
+    std::generate(begin(pattern), end(pattern), gen);
+}
 
 /// @brief
 /// @tparam T
