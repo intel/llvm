@@ -1741,10 +1741,13 @@ gpu.module @kernels0 {
 
 // CHECK-LABEL:     gpu.func @k(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
-// CHECK-NEXT:             %[[VAL_4:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
-// CHECK-NEXT:             %[[VAL_5:.*]] = memref.cast %[[VAL_4]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
-// CHECK-NEXT:             %[[VAL_6:.*]] = memref.alloca() : memref<1x!sycl_local_accessor_1_i64_>
-// CHECK-NEXT:             func.call @init(%[[VAL_6]], %[[VAL_0]], %[[VAL_2]], %[[VAL_2]], %[[VAL_5]]) : (memref<1x!sycl_local_accessor_1_i64_>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:             %[[C0:.*]] = arith.constant 0 : index
+// CHECK-NEXT:             %[[VAL_4:.*]] = sycl.range.constructor(%[[C0]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_5:.*]] = memref.cast %[[VAL_4]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_6:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_7:.*]] = memref.cast %[[VAL_6]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_8:.*]] = memref.alloca() : memref<1x!sycl_local_accessor_1_i64_>
+// CHECK-NEXT:             func.call @init(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]], %[[VAL_5]], %[[VAL_7]]) : (memref<1x!sycl_local_accessor_1_i64_>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
 // CHECK-NEXT:             gpu.return
 // CHECK-NEXT:           }
   gpu.func @k(%ptr: memref<?xi64, 1>,
@@ -1788,7 +1791,7 @@ gpu.module @kernels1 {
 // CHECK-NEXT:             %[[VAL_4:.*]] = arith.constant 512 : index
 // CHECK-NEXT:             %[[VAL_5:.*]] = sycl.range.constructor(%[[VAL_4]]) : (index) -> memref<1x!sycl_range_1_>
 // CHECK-NEXT:             %[[VAL_6:.*]] = memref.cast %[[VAL_5]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
-// CHECK-NEXT:             %[[VAL_7:.*]] = arith.constant 512 : index
+// CHECK-NEXT:             %[[VAL_7:.*]] = arith.constant 0 : index
 // CHECK-NEXT:             %[[VAL_8:.*]] = sycl.range.constructor(%[[VAL_7]]) : (index) -> memref<1x!sycl_range_1_>
 // CHECK-NEXT:             %[[VAL_9:.*]] = memref.cast %[[VAL_8]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
 // CHECK-NEXT:             %[[VAL_10:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>

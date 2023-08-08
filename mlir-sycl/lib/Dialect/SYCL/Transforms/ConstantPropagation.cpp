@@ -822,18 +822,6 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
         return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
                                                      accessRange);
       });
-      if (info.isLocalAccessor()) {
-        replace(memoryRangeMemberOffset, [&](Type type) {
-          return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
-                                                       accessRange);
-        });
-      }
-    } else if (info.isLocalAccessor()) {
-      LLVM_DEBUG(llvm::dbgs().indent(4)
-                 << "local_accessor can share access and memory range\n");
-      replace(accessRangeMemberOffset, [&](Type) {
-        return region.getArgument(index + memoryRangeMemberOffset);
-      });
     }
   } else {
     LLVM_DEBUG(
@@ -844,7 +832,14 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
     });
   }
 
-  if (info.hasBufferInformation()) {
+  if (info.isLocalAccessor()) {
+    replace(memoryRangeMemberOffset, [&](Type type) {
+      // Memory range is initialized to 0.
+      SmallVector<size_t> dimensions(getDimensions(type), 0);
+      return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                   dimensions);
+    });
+  } else if (info.hasBufferInformation()) {
     const polygeist::BufferInformation &bufferInfo = info.getBufferInfo();
     if (bufferInfo.hasConstantSize()) {
       ArrayRef<size_t> memoryRange = bufferInfo.getConstantSize();
