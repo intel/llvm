@@ -734,8 +734,8 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
+std::enable_if_t<__FAST_MATH_GENFLOAT(T) && detail::is_genfloatptr<T2>::value,
+                 T>
 sincos(T x, T2 cosval) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_sincos<T>(x, cosval);
@@ -2498,6 +2498,23 @@ inline __SYCL_ALWAYS_INLINE
 template <typename T>
 std::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
   return native::cos(x);
+}
+
+// svgenfloat sincos (svgenfloat x, genfloatptr cosval)
+// This is a performance optimization to ensure that sincos isn't slower than a
+// pair of sin/cos executed separately. Theoretically, calling non-native sincos
+// might be faster than calling native::sin plus native::cos separately and we'd
+// need some kind of cost model to make the right decision (and move this
+// entirely to the JIT/AOT compilers). However, in practice, this simpler
+// solution seems to work just fine and matches how sin/cos above are optimized
+// for the fast math path.
+template <typename T, typename T2>
+std::enable_if_t<
+    detail::is_svgenfloatf<T>::value && detail::is_genfloatptr<T2>::value, T>
+sincos(T x, T2 cosval) __NOEXC {
+  detail::check_vector_size<T, T2>();
+  *cosval = native::cos(x);
+  return native::sin(x);
 }
 
 // svgenfloatf exp (svgenfloatf x)
