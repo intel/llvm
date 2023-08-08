@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <climits>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/properties/all_properties.hpp>
