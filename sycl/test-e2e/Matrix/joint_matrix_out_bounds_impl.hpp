@@ -142,10 +142,6 @@ int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
       if ((fabs(C[i * MATRIX_N + j] - D[i * MATRIX_N + j])) > BF16_EPSILON) {
-        std::cout << "C is " << C[i * MATRIX_N + j] << " D is "
-                  << C[i * MATRIX_N + j] << " diff is "
-                  << fabs(C[i * MATRIX_N + j] - D[i * MATRIX_N + j])
-                  << std::endl;
         res = false;
       }
     }

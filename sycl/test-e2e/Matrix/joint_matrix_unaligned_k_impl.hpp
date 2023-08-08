@@ -102,7 +102,7 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
 }
 
 int main() {
-  // there will be 14*24 out of bounds in A matrix
+  // there will be 14*14 out of bounds in A matrix
   static constexpr size_t MATRIX_M = 1024 + 14;
   static constexpr size_t MATRIX_N = 1024;
   // K is not divisible by 8 bytes
@@ -143,10 +143,6 @@ int main() {
   for (int i = 0; i < MATRIX_M; i++) {
     for (int j = 0; j < MATRIX_N; j++) {
       if ((fabs(C[i * MATRIX_N + j] - D[i * MATRIX_N + j])) > BF16_EPSILON) {
-        std::cout << "C is " << C[i * MATRIX_N + j] << " D is "
-                  << C[i * MATRIX_N + j] << " diff is "
-                  << fabs(C[i * MATRIX_N + j] - D[i * MATRIX_N + j])
-                  << std::endl;
         res = false;
       }
     }
