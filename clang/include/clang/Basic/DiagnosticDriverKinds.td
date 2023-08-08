@@ -371,6 +371,8 @@ def warn_drv_opt_requires_opt
   : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
+def warn_drv_sycl_ignoring_no_opaque_pointer : Warning<
+  "-fsycl-raise-host is active, forcing -opaque-pointer">, InGroup<SyclTarget>;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;

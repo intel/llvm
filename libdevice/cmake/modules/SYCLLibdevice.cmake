@@ -30,6 +30,7 @@ set(compile_opts
   # we declare all functions as 'static'.
   -Wno-undefined-internal
   -sycl-std=2020
+  -fno-sycl-raise-host
   )
 
 if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
