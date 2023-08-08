@@ -277,7 +277,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
                                     std::move(TransferCuStreams),
                                     hContext,
-                                    hContext->getDevice(),
+                                    hDevice,
                                     CuFlags,
                                     Flags,
                                     /*backend_owns*/ false};
