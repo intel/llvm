@@ -7365,6 +7365,16 @@ public:
                                  NestedNameSpecInfo &IdInfo,
                                  bool EnteringContext);
 
+  /// The kind of conversion to check for. Either all attributes must match exactly,
+  /// or the converted type may add/drop '__arm_preserves_za'.
+  enum class AArch64SMECallConversionKind {
+    MatchExactly,
+    MayAddPreservesZA,
+    MayDropPreservesZA,
+  };
+  bool IsInvalidSMECallConversion(QualType FromType, QualType ToType,
+                                  AArch64SMECallConversionKind C);
+
   /// The parser has parsed a nested-name-specifier
   /// 'template[opt] template-name < template-args >::'.
   ///
@@ -11591,6 +11601,23 @@ private:
   /// All `omp assumes` we encountered so far.
   SmallVector<AssumptionAttr *, 4> OMPAssumeGlobal;
 
+  /// OMPD_loop is mapped to OMPD_for, OMPD_distribute or OMPD_simd depending
+  /// on the parameter of the bind clause. In the methods for the
+  /// mapped directives, check the parameters of the lastprivate clause.
+  bool checkLastPrivateForMappedDirectives(ArrayRef<OMPClause *> Clauses);
+  /// Depending on the bind clause of OMPD_loop map the directive to new
+  /// directives.
+  ///    1) loop bind(parallel) --> OMPD_for
+  ///    2) loop bind(teams) --> OMPD_distribute
+  ///    3) loop bind(thread) --> OMPD_simd
+  /// This is being handled in Sema instead of Codegen because of the need for
+  /// rigorous semantic checking in the new mapped directives.
+  bool mapLoopConstruct(llvm::SmallVector<OMPClause *> &ClausesWithoutBind,
+                        ArrayRef<OMPClause *> Clauses,
+                        OpenMPBindClauseKind BindKind,
+                        OpenMPDirectiveKind &Kind,
+                        OpenMPDirectiveKind &PrevMappedDirective);
+
 public:
   /// The declarator \p D defines a function in the scope \p S which is nested
   /// in an `omp begin/end declare variant` scope. In this method we create a
@@ -11886,7 +11913,8 @@ public:
   StmtResult ActOnOpenMPExecutableDirective(
       OpenMPDirectiveKind Kind, const DeclarationNameInfo &DirName,
       OpenMPDirectiveKind CancelRegion, ArrayRef<OMPClause *> Clauses,
-      Stmt *AStmt, SourceLocation StartLoc, SourceLocation EndLoc);
+      Stmt *AStmt, SourceLocation StartLoc, SourceLocation EndLoc,
+      OpenMPDirectiveKind PrevMappedDirective = llvm::omp::OMPD_unknown);
   /// Called on well-formed '\#pragma omp parallel' after parsing
   /// of the  associated statement.
   StmtResult ActOnOpenMPParallelDirective(ArrayRef<OMPClause *> Clauses,
@@ -13144,8 +13172,6 @@ public:
   QualType CheckBitwiseOperands( // C99 6.5.[10...12]
       ExprResult &LHS, ExprResult &RHS, SourceLocation Loc,
       BinaryOperatorKind Opc);
-  void diagnoseLogicalInsteadOfBitwise(Expr *Op1, Expr *Op2, SourceLocation Loc,
-                                       BinaryOperatorKind Opc);
   QualType CheckLogicalOperands( // C99 6.5.[13,14]
     ExprResult &LHS, ExprResult &RHS, SourceLocation Loc,
     BinaryOperatorKind Opc);
