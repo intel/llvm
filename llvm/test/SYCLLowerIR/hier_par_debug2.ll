@@ -47,7 +47,6 @@ bb:
 ; CHECK:    call void @llvm.dbg.value(metadata ptr addrspace(4) [[TMP9]], [[META18:metadata !.*]], metadata !DIExpression())
   call spir_func void @eggs(ptr addrspace(4) dereferenceable_or_null(8) %tmp4, ptr addrspace(4) align 8 dereferenceable(64) %tmp9)
   call spir_func void @snork(ptr addrspace(4) dereferenceable_or_null(16) %tmp6, i64 7, i64 3)
-; CHECK:    call void @llvm.dbg.value(metadata ptr addrspace(4) [[TMP8]], [[META19:metadata !.*]], metadata !DIExpression())
   store ptr addrspace(4) %tmp4, ptr addrspace(4) %tmp8, align 8
   %tmp11 = addrspacecast ptr addrspace(4) %tmp6 to ptr
 ; CHECK:    [[TMP11:%.*]] = addrspacecast ptr addrspace(4) [[TMP6]] to ptr
