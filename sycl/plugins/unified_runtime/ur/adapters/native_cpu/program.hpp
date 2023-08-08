@@ -32,7 +32,7 @@ struct ur_program_handle_t_ {
   std::map<const char *, const unsigned char *, _compare> _kernels;
 };
 
-// The nativecpu_entry struct is also defined as LLVM-IR in the 
+// The nativecpu_entry struct is also defined as LLVM-IR in the
 // clang-offload-wrapper tool. The two definitions need to match,
 // therefore any change to this struct needs to be reflected in the
 // offload-wrapper.
