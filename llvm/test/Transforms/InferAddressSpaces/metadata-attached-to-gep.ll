@@ -1,3 +1,4 @@
+; NOTE: address-space argument is crucial since we test SPIRV code.
 ; RUN: opt -S -passes=infer-address-spaces --address-space=4 %s | FileCheck %s
 
 ; Check that InferAddressSpacesPass doesn't removes metadata attached to GEPs.
