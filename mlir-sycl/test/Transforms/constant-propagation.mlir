@@ -1737,7 +1737,7 @@ gpu.module @kernels0 {
                           %memRange: memref<?x!sycl_range_1_>,
                           %offset: memref<?x!sycl_id_1_>)
 
-// COM: Check we omit offset and use same access and memory range for local_accessor
+// COM: Check we use zero-initialized range/id as memory range/offset
 
 // CHECK-LABEL:     gpu.func @k(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
@@ -1784,7 +1784,7 @@ gpu.module @kernels1 {
                           %memRange: memref<?x!sycl_range_1_>,
                           %offset: memref<?x!sycl_id_1_>)
 
-// COM: Check we omit offset and use constant access and memory range for local_accessor
+// COM: Check we use 0-initialized range/id as memory range/offset and constant access range
 
 // CHECK-LABEL:     gpu.func @k(
 // CHECK-SAME:        %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
