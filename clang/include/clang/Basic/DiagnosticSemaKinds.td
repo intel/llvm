@@ -11979,6 +11979,9 @@ def warn_ivdep_attribute_argument : Warning<
 def warn_attribute_spelling_deprecated : Warning<
   "attribute %0 is deprecated">,
   InGroup<DeprecatedAttributes>;
+def warn_attribute_deprecated_ignored : Warning<
+  "attribute %0 is deprecated; attribute ignored">,
+  InGroup<DeprecatedAttributes>;
 def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;
 def warn_attribute_requires_non_negative_integer_argument :
