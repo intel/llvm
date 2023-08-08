@@ -145,7 +145,7 @@ static cl::opt<bool> AssumeDefaultIsFlatAddressSpace(
 static const unsigned UninitializedAddressSpace =
     std::numeric_limits<unsigned>::max();
 
-static cl::opt<int>
+static cl::opt<unsigned>
     AddressSpaceArg("address-space", cl::init(UninitializedAddressSpace),
                     cl::ReallyHidden,
                     cl::desc("The parameter for testing from opt util."));
