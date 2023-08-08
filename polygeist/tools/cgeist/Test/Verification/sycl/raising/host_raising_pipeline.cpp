@@ -7,9 +7,10 @@
 // CHECK-SAME:    gpu.module(any({{.*}})))
 
 // CHECK-LABEL: Optimization pipeline:
-// CHECK:       Pass Manager with 5 passes:
+// CHECK:       Pass Manager with 6 passes:
 // CHECK:       any(
 // CHECK-SAME:    sycl-raise-host{ }
+// CHECK-SAME:    sycl-constant-propagation{relaxed-aliasing=false}
 // CHECK-SAME:    arg-promotion
 // CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false use-opaque-pointers=false}
 // CHECK-SAME:    gpu.module(any({{.*}}))
