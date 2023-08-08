@@ -394,7 +394,9 @@ SYCLAccessorAnalysis::getInformation(const Definition &def) {
                                    needsOffset, constOffset);
       })
       .Case<sycl::LocalAccessorType>([=](auto accessorTy) {
-        bool needsRange = constructor->getNumOperands() > 3;
+        bool needsRange = llvm::any_of(accessorTy.getBody(), [](Type ty) {
+          return isa<sycl::RangeType>(ty);
+        });
         ArrayRef<size_t> constRange = std::nullopt;
         if (needsRange) {
           // In the SYCL API, the range must be the first parameter to the

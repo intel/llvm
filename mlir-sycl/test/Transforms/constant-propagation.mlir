@@ -1721,3 +1721,114 @@ llvm.func internal @constant_acc(
       : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
   llvm.return
 }
+
+// -----
+
+!sycl_array_1_ = !sycl.array<[1], (memref<1xi64>)>
+!sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>
+!sycl_id_1_ = !sycl.id<[1], (!sycl_array_1_)>
+!sycl_local_accessor_1_i64 = !sycl.local_accessor<[1, i64], (memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>)>
+!sycl_local_accessor_host = !sycl.local_accessor<[1, !llvm.void], (!sycl_range_1_)>
+
+gpu.module @kernels0 {
+  func.func private @init(%acc: memref<1x!sycl_local_accessor_1_i64>,
+                          %ptr: memref<?xi64, 1>,
+                          %accRange: memref<?x!sycl_range_1_>,
+                          %memRange: memref<?x!sycl_range_1_>,
+                          %offset: memref<?x!sycl_id_1_>)
+
+// COM: Check we use zero-initialized range/id as memory range/offset
+
+// CHECK-LABEL:     gpu.func @k(
+// CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
+// CHECK-NEXT:             %[[C0:.*]] = arith.constant 0 : index
+// CHECK-NEXT:             %[[VAL_4:.*]] = sycl.range.constructor(%[[C0]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_5:.*]] = memref.cast %[[VAL_4]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_6:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_7:.*]] = memref.cast %[[VAL_6]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_8:.*]] = memref.alloca() : memref<1x!sycl_local_accessor_1_i64_>
+// CHECK-NEXT:             func.call @init(%[[VAL_8]], %[[VAL_0]], %[[VAL_1]], %[[VAL_5]], %[[VAL_7]]) : (memref<1x!sycl_local_accessor_1_i64_>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:             gpu.return
+// CHECK-NEXT:           }
+  gpu.func @k(%ptr: memref<?xi64, 1>,
+              %accRange: memref<?x!sycl_range_1_>,
+              %memRange: memref<?x!sycl_range_1_>,
+              %offset: memref<?x!sycl_id_1_>) kernel {
+    %acc = memref.alloca() : memref<1x!sycl_local_accessor_1_i64>
+    func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
+        : (memref<1x!sycl_local_accessor_1_i64>, memref<?xi64, 1>,
+           memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
+           memref<?x!sycl_id_1_>) -> ()
+    gpu.return
+  }
+}
+
+llvm.func internal @unknown_range(
+  %lambda: !llvm.ptr, %handler: !llvm.ptr, %range: !llvm.ptr) {
+  %c1_i32 = llvm.mlir.constant(1 : i32) : i32
+  %acc = llvm.alloca %c1_i32 x !llvm.struct<"sycl::_V1::local_accessor", opaque>
+      : (i32) -> !llvm.ptr
+  sycl.host.constructor(%acc, %range, %handler)
+      {type=!sycl_local_accessor_host}
+      : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.set_captured %lambda[0] = %acc : !llvm.ptr, !llvm.ptr (!sycl_local_accessor_host)
+  sycl.host.schedule_kernel %handler -> @kernels0::@k(%acc: !sycl_local_accessor_host)
+      : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.return
+}
+
+gpu.module @kernels1 {
+  func.func private @init(%acc: memref<1x!sycl_local_accessor_1_i64>,
+                          %ptr: memref<?xi64, 1>,
+                          %accRange: memref<?x!sycl_range_1_>,
+                          %memRange: memref<?x!sycl_range_1_>,
+                          %offset: memref<?x!sycl_id_1_>)
+
+// COM: Check we use 0-initialized range/id as memory range/offset and constant access range
+
+// CHECK-LABEL:     gpu.func @k(
+// CHECK-SAME:        %[[VAL_0:.*]]: memref<?xi64, 1>, %[[VAL_1:.*]]: memref<?x!sycl_range_1_>, %[[VAL_2:.*]]: memref<?x!sycl_range_1_>, %[[VAL_3:.*]]: memref<?x!sycl_id_1_>) kernel {
+// CHECK-NEXT:             %[[VAL_4:.*]] = arith.constant 512 : index
+// CHECK-NEXT:             %[[VAL_5:.*]] = sycl.range.constructor(%[[VAL_4]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_6:.*]] = memref.cast %[[VAL_5]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_7:.*]] = arith.constant 0 : index
+// CHECK-NEXT:             %[[VAL_8:.*]] = sycl.range.constructor(%[[VAL_7]]) : (index) -> memref<1x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_9:.*]] = memref.cast %[[VAL_8]] : memref<1x!sycl_range_1_> to memref<?x!sycl_range_1_>
+// CHECK-NEXT:             %[[VAL_10:.*]] = sycl.id.constructor() : () -> memref<1x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_11:.*]] = memref.cast %[[VAL_10]] : memref<1x!sycl_id_1_> to memref<?x!sycl_id_1_>
+// CHECK-NEXT:             %[[VAL_12:.*]] = memref.alloca() : memref<1x!sycl_local_accessor_1_i64_>
+// CHECK-NEXT:             func.call @init(%[[VAL_12]], %[[VAL_0]], %[[VAL_6]], %[[VAL_9]], %[[VAL_11]]) : (memref<1x!sycl_local_accessor_1_i64_>, memref<?xi64, 1>, memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>, memref<?x!sycl_id_1_>) -> ()
+// CHECK-NEXT:             gpu.return
+// CHECK-NEXT:           }
+  gpu.func @k(%ptr: memref<?xi64, 1>,
+              %accRange: memref<?x!sycl_range_1_>,
+              %memRange: memref<?x!sycl_range_1_>,
+              %offset: memref<?x!sycl_id_1_>) kernel {
+    %acc = memref.alloca() : memref<1x!sycl_local_accessor_1_i64>
+    func.call @init(%acc, %ptr, %accRange, %memRange, %offset)
+        : (memref<1x!sycl_local_accessor_1_i64>, memref<?xi64, 1>,
+           memref<?x!sycl_range_1_>, memref<?x!sycl_range_1_>,
+           memref<?x!sycl_id_1_>) -> ()
+    gpu.return
+  }
+}
+
+llvm.func internal @known_range(
+  %lambda: !llvm.ptr, %handler: !llvm.ptr) {
+  %c1_i32 = llvm.mlir.constant(1 : i32) : i32
+  %n = llvm.mlir.constant(512 : i64) : i64
+  %range = llvm.alloca %c1_i32 x !llvm.struct<"sycl::_V1::range.1", opaque>
+      : (i32) -> !llvm.ptr
+  %acc = llvm.alloca %c1_i32 x !llvm.struct<"sycl::_V1::local_accessor", opaque>
+      : (i32) -> !llvm.ptr
+  sycl.host.constructor(%range, %n)
+      {type=!sycl_range_1_}
+      : (!llvm.ptr, i64) -> ()
+  sycl.host.constructor(%acc, %range, %handler)
+      {type=!sycl_local_accessor_host}
+      : (!llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
+  sycl.host.set_captured %lambda[0] = %acc : !llvm.ptr, !llvm.ptr (!sycl_local_accessor_host)
+  sycl.host.schedule_kernel %handler -> @kernels1::@k(%acc: !sycl_local_accessor_host)
+      : (!llvm.ptr, !llvm.ptr) -> ()
+  llvm.return
+}
