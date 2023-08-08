@@ -2231,8 +2231,12 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       Address Addr = CGF.CreateDefaultAlignTempAlloca(SrcTy, "saved-value");
       LValue LV = CGF.MakeAddrLValue(Addr, E->getType());
       CGF.EmitStoreOfScalar(Src, LV);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
+#else
       Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy),
                                           "castFixedSve");
+#endif
       LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
       DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
       return EmitLoadOfLValue(DestLV, CE->getExprLoc());

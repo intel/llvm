@@ -2394,7 +2394,7 @@ generateByrefCopyHelper(CodeGenFunction &CGF, const BlockByrefInfo &byrefInfo,
     Address destField = CGF.GetAddrOfLocalVar(&Dst);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     destField = Address(CGF.Builder.CreateLoad(destField), byrefInfo.Type,
-
+                        byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     destField = Address(CGF.Builder.CreateLoad(destField), CGF.Int8Ty,
                         byrefInfo.ByrefAlignment);
@@ -2407,6 +2407,7 @@ generateByrefCopyHelper(CodeGenFunction &CGF, const BlockByrefInfo &byrefInfo,
     Address srcField = CGF.GetAddrOfLocalVar(&Src);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     srcField = Address(CGF.Builder.CreateLoad(srcField), byrefInfo.Type,
+                       byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     srcField = Address(CGF.Builder.CreateLoad(srcField), CGF.Int8Ty,
                        byrefInfo.ByrefAlignment);
@@ -2469,6 +2470,7 @@ generateByrefDisposeHelper(CodeGenFunction &CGF,
     Address addr = CGF.GetAddrOfLocalVar(&Src);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     addr = Address(CGF.Builder.CreateLoad(addr), byrefInfo.Type,
+                   byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     addr = Address(CGF.Builder.CreateLoad(addr), CGF.Int8Ty,
                    byrefInfo.ByrefAlignment);

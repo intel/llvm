@@ -2122,8 +2122,8 @@ Address CodeGenFunction::EmitExtVectorElementLValue(LValue LV) {
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
   Address CastToPointerElement =
     Builder.CreateElementBitCast(VectorAddress, VectorElementTy,
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                                  "conv.ptr.element");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   const llvm::Constant *Elts = LV.getExtVectorElts();
   unsigned ix = getAccessedFieldNo(0, Elts);
