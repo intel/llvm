@@ -12,7 +12,8 @@ TEST_P(urHipGetDeviceNativeHandle, Success) {
     ur_native_handle_t native_handle;
     ASSERT_SUCCESS(urDeviceGetNativeHandle(device, &native_handle));
 
-    hipDevice_t hip_device = *reinterpret_cast<hipDevice_t *>(&native_handle);
+    hipDevice_t hip_device;
+    memcpy(&hip_device, &native_handle, sizeof(hip_device));
 
     char hip_device_name[256];
     ASSERT_SUCCESS_HIP(
