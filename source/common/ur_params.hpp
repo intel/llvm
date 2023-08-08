@@ -17,6 +17,29 @@
 #include <ostream>
 
 namespace ur_params {
+template <typename T> struct is_handle : std::false_type {};
+template <> struct is_handle<ur_loader_config_handle_t> : std::true_type {};
+template <> struct is_handle<ur_adapter_handle_t> : std::true_type {};
+template <> struct is_handle<ur_platform_handle_t> : std::true_type {};
+template <> struct is_handle<ur_device_handle_t> : std::true_type {};
+template <> struct is_handle<ur_context_handle_t> : std::true_type {};
+template <> struct is_handle<ur_event_handle_t> : std::true_type {};
+template <> struct is_handle<ur_program_handle_t> : std::true_type {};
+template <> struct is_handle<ur_kernel_handle_t> : std::true_type {};
+template <> struct is_handle<ur_queue_handle_t> : std::true_type {};
+template <> struct is_handle<ur_native_handle_t> : std::true_type {};
+template <> struct is_handle<ur_sampler_handle_t> : std::true_type {};
+template <> struct is_handle<ur_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_physical_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_usm_pool_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_image_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_image_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_interop_mem_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
+template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
 template <typename T>
 inline void serializeFlag(std::ostream &os, uint32_t flag);
@@ -15268,10 +15291,6 @@ operator<<(std::ostream &os,
 }
 
 namespace ur_params {
-// https://devblogs.microsoft.com/oldnewthing/20190710-00/?p=102678
-template <typename, typename = void> constexpr bool is_type_complete_v = false;
-template <typename T>
-constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
 
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
     if (ptr == nullptr) {
@@ -15280,7 +15299,7 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
         os << (void *)(ptr) << " (";
         serializePtr(os, *ptr);
         os << ")";
-    } else if constexpr (std::is_void_v<T> || !is_type_complete_v<T>) {
+    } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
         os << (void *)ptr;
     } else if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
         os << (void *)(ptr) << " (";
