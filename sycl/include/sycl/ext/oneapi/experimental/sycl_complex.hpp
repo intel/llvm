@@ -1078,8 +1078,12 @@ public:
   iterator end() { return MData + NumElements; }
   const_iterator end() const { return MData + NumElements; }
 
-  // OP is: +, -, *, /
-#define OP(op)                                                                 \
+#ifdef MARRAY_CPLX_OP
+#error "Multiple definition of MARRAY_CPLX_OP"
+#endif
+
+  // MARRAY_CPLX_OP is: +, -, *, /
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray operator op(const marray &lhs, const marray &rhs) {            \
     marray rtn;                                                                \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
@@ -1104,20 +1108,20 @@ public:
     return rtn;                                                                \
   }
 
-  OP(+)
-  OP(-)
-  OP(*)
-  OP(/)
+  MARRAY_CPLX_OP(+)
+  MARRAY_CPLX_OP(-)
+  MARRAY_CPLX_OP(*)
+  MARRAY_CPLX_OP(/)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-  // OP is: %
+  // MARRAY_CPLX_OP is: %
   friend marray operator%(const marray &lhs, const marray &rhs) = delete;
   friend marray operator%(const marray &lhs, const value_type &rhs) = delete;
   friend marray operator%(const value_type &lhs, const marray &rhs) = delete;
 
-  // OP is: +=, -=, *=, /=
-#define OP(op)                                                                 \
+  // MARRAY_CPLX_OP is: +=, -=, *=, /=
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray &operator op(marray &lhs, const marray &rhs) {                 \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs[i];                                                        \
@@ -1138,30 +1142,30 @@ public:
     return lhs;                                                                \
   }
 
-  OP(+=)
-  OP(-=)
-  OP(*=)
-  OP(/=)
+  MARRAY_CPLX_OP(+=)
+  MARRAY_CPLX_OP(-=)
+  MARRAY_CPLX_OP(*=)
+  MARRAY_CPLX_OP(/=)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-  // OP is: %=
+  // MARRAY_CPLX_OP is: %=
   friend marray &operator%=(marray &lhs, const marray &rhs) = delete;
   friend marray &operator%=(marray &lhs, const value_type &rhs) = delete;
   friend marray &operator%=(value_type &lhs, const marray &rhs) = delete;
 
-// OP is: ++, --
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: ++, --
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray operator op(marray &lhs, int) = delete;                        \
   friend marray &operator op(marray &rhs) = delete;
 
-  OP(++)
-  OP(--)
+  MARRAY_CPLX_OP(++)
+  MARRAY_CPLX_OP(--)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: unary +, unary -
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: unary +, unary -
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray<value_type, NumElements> operator op(                          \
       const marray<value_type, NumElements> &rhs) {                            \
     marray<value_type, NumElements> rtn;                                       \
@@ -1171,36 +1175,36 @@ public:
     return rtn;                                                                \
   }
 
-  OP(+)
-  OP(-)
+  MARRAY_CPLX_OP(+)
+  MARRAY_CPLX_OP(-)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: &, |, ^
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: &, |, ^
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray operator op(const marray &lhs, const marray &rhs) = delete;    \
   friend marray operator op(const marray &lhs, const value_type &rhs) = delete;
 
-  OP(&)
-  OP(|)
-  OP(^)
+  MARRAY_CPLX_OP(&)
+  MARRAY_CPLX_OP(|)
+  MARRAY_CPLX_OP(^)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: &=, |=, ^=
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: &=, |=, ^=
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray &operator op(marray &lhs, const marray &rhs) = delete;         \
   friend marray &operator op(marray &lhs, const value_type &rhs) = delete;     \
   friend marray &operator op(value_type &lhs, const marray &rhs) = delete;
 
-  OP(&=)
-  OP(|=)
-  OP(^=)
+  MARRAY_CPLX_OP(&=)
+  MARRAY_CPLX_OP(|=)
+  MARRAY_CPLX_OP(^=)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: &&, ||
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: &&, ||
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray<bool, NumElements> operator op(const marray &lhs,              \
                                                const marray &rhs) = delete;    \
   friend marray<bool, NumElements> operator op(                                \
@@ -1208,35 +1212,35 @@ public:
   friend marray<bool, NumElements> operator op(const value_type &lhs,          \
                                                const marray &rhs) = delete;
 
-  OP(&&)
-  OP(||)
+  MARRAY_CPLX_OP(&&)
+  MARRAY_CPLX_OP(||)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: <<, >>
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: <<, >>
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray operator op(const marray &lhs, const marray &rhs) = delete;    \
   friend marray operator op(const marray &lhs, const value_type &rhs) =        \
       delete;                                                                  \
   friend marray operator op(const value_type &lhs, const marray &rhs) = delete;
 
-  OP(<<)
-  OP(>>)
+  MARRAY_CPLX_OP(<<)
+  MARRAY_CPLX_OP(>>)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-// OP is: <<=, >>=
-#define OP(op)                                                                 \
+// MARRAY_CPLX_OP is: <<=, >>=
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray &operator op(marray &lhs, const marray &rhs) = delete;         \
   friend marray &operator op(marray &lhs, const value_type &rhs) = delete;
 
-  OP(<<=)
-  OP(>>=)
+  MARRAY_CPLX_OP(<<=)
+  MARRAY_CPLX_OP(>>=)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-  // OP is: ==, !=
-#define OP(op)                                                                 \
+  // MARRAY_CPLX_OP is: ==, !=
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray<bool, NumElements> operator op(const marray &lhs,              \
                                                const marray &rhs) {            \
     marray<bool, NumElements> rtn;                                             \
@@ -1264,13 +1268,13 @@ public:
     return rtn;                                                                \
   }
 
-  OP(==)
-  OP(!=)
+  MARRAY_CPLX_OP(==)
+  MARRAY_CPLX_OP(!=)
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
-  // OP is: <, >, <=, >=
-#define OP(op)                                                                 \
+  // MARRAY_CPLX_OP is: <, >, <=, >=
+#define MARRAY_CPLX_OP(op)                                                     \
   friend marray<bool, NumElements> operator op(const marray &lhs,              \
                                                const marray &rhs) = delete;    \
   friend marray<bool, NumElements> operator op(                                \
@@ -1278,12 +1282,12 @@ public:
   friend marray<bool, NumElements> operator op(const value_type &lhs,          \
                                                const marray &rhs) = delete;
 
-  OP(<);
-  OP(>);
-  OP(<=);
-  OP(>=);
+  MARRAY_CPLX_OP(<);
+  MARRAY_CPLX_OP(>);
+  MARRAY_CPLX_OP(<=);
+  MARRAY_CPLX_OP(>=);
 
-#undef OP
+#undef MARRAY_CPLX_OP
 
   friend marray operator~(const marray &v) = delete;
 
@@ -1296,7 +1300,11 @@ namespace experimental {
 
 // Math marray overloads
 
-#define MATH_OP_ONE_PARAM(math_func, rtn_type, arg_type)                       \
+#ifdef MARRAY_CPLX_MATH_OP_ONE_PARAM
+#error "Multiple definition of MARRAY_CPLX_MATH_OP_ONE_PARAM"
+#endif
+
+#define MARRAY_CPLX_MATH_OP_ONE_PARAM(math_func, rtn_type, arg_type)           \
   template <typename T, std::size_t NumElements>                               \
   _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
       typename std::enable_if_t<is_genfloat<T>::value ||                       \
@@ -1310,32 +1318,37 @@ namespace experimental {
     return rtn;                                                                \
   }
 
-MATH_OP_ONE_PARAM(abs, T, complex<T>);
-MATH_OP_ONE_PARAM(acos, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(asin, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(atan, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(acosh, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(asinh, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(atanh, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(arg, T, complex<T>);
-MATH_OP_ONE_PARAM(conj, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(cos, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(cosh, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(exp, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(log, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(log10, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(norm, T, complex<T>);
-MATH_OP_ONE_PARAM(proj, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(proj, complex<T>, T);
-MATH_OP_ONE_PARAM(sin, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(sinh, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(sqrt, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(tan, complex<T>, complex<T>);
-MATH_OP_ONE_PARAM(tanh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(abs, T, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(acos, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(asin, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(atan, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(acosh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(asinh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(atanh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(arg, T, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(conj, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(cos, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(cosh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(exp, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(log, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(log10, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(norm, T, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(proj, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(proj, complex<T>, T);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(sin, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(sinh, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(sqrt, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(tan, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_ONE_PARAM(tanh, complex<T>, complex<T>);
 
-#undef MATH_OP_ONE_PARAM
+#undef MARRAY_CPLX_MATH_OP_ONE_PARAM
 
-#define MATH_OP_TWO_PARAM(math_func, rtn_type, arg_type1, arg_type2)           \
+#ifdef MARRAY_CPLX_MATH_OP_TWO_PARAM
+#error "Multiple definition of MARRAY_CPLX_MATH_OP_TWO_PARAM"
+#endif
+
+#define MARRAY_CPLX_MATH_OP_TWO_PARAM(math_func, rtn_type, arg_type1,          \
+                                      arg_type2)                               \
   template <typename T, std::size_t NumElements>                               \
   _SYCL_EXT_CPLX_INLINE_VISIBILITY                                             \
       typename std::enable_if_t<is_genfloat<T>::value ||                       \
@@ -1378,11 +1391,11 @@ MATH_OP_ONE_PARAM(tanh, complex<T>, complex<T>);
     return rtn;                                                                \
   }
 
-MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, T);
-MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, complex<T>);
-MATH_OP_TWO_PARAM(pow, complex<T>, T, complex<T>);
+MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, T);
+MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, complex<T>, complex<T>);
+MARRAY_CPLX_MATH_OP_TWO_PARAM(pow, complex<T>, T, complex<T>);
 
-#undef MATH_OP_TWO_PARAM
+#undef MARRAY_CPLX_MATH_OP_TWO_PARAM
 
 // Special definition as polar requires default argument
 
