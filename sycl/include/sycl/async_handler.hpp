@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <functional>
+#include <functional> // for function
 
 namespace sycl {
 inline namespace _V1 {

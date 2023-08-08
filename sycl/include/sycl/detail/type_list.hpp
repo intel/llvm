@@ -8,8 +8,9 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/access/access.hpp> // for address_space
+
+#include <type_traits> // for bool_constant, conditional_t, fals...
 
 namespace sycl {
 inline namespace _V1 {

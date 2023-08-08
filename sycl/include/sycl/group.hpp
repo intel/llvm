@@ -8,23 +8,30 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/device_event.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/h_item.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/range.hpp>
-#include <type_traits>
+#include <CL/__spirv/spirv_ops.hpp>            // for __spirv_MemoryBarrier
+#include <CL/__spirv/spirv_types.hpp>          // for Scope, __ocl_event_t
+#include <sycl/access/access.hpp>              // for decorated, mode, addr...
+#include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
+#include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/generic_type_traits.hpp> // for ConvertToOpenCLType_t
+#include <sycl/detail/helpers.hpp>             // for Builder, getSPIRVMemo...
+#include <sycl/detail/item_base.hpp>           // for id, range
+#include <sycl/detail/type_traits.hpp>         // for is_bool, change_base_...
+#include <sycl/device_event.hpp>               // for device_event
+#include <sycl/exception.hpp>                  // for make_error_code, errc
+#include <sycl/h_item.hpp>                     // for h_item
+#include <sycl/id.hpp>                         // for id
+#include <sycl/item.hpp>                       // for item
+#include <sycl/memory_enums.hpp>               // for memory_scope
+#include <sycl/multi_ptr.hpp>                  // for multi_ptr, address_sp...
+#include <sycl/pointers.hpp>                   // for decorated_global_ptr
+#include <sycl/range.hpp>                      // for range
 
-#include <stdexcept>
+#include <memory>      // for unique_ptr
+#include <stddef.h>    // for size_t
+#include <stdint.h>    // for uint8_t, uint32_t
+#include <type_traits> // for enable_if_t, remove_c...
 
 namespace sycl {
 inline namespace _V1 {
