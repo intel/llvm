@@ -33,7 +33,7 @@ SYCLcompat depends on specific oneAPI DPC++ compiler extensions that may not be 
 Specifically, this library depends on the following SYCL extensions:
 
 * [sycl_ext_oneapi_local_memory](../extensions/supported/sycl_ext_oneapi_local_memory.asciidoc)
-* [sycl_ext_oneapi_complex](../extensions/proposed/sycl_ext_oneapi_complex.asciidoc)
+* [sycl_ext_oneapi_complex](../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
 * [sycl_ext_oneapi_free_function_queries](../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
@@ -548,37 +548,37 @@ public:
 
   device_memory(const sycl::range<Dimension> &range_in);
 
-  /// Variadic constructor taking 1, 2 or 3 integers to be interpreted as a
-  /// sycl::range<Dim>.
+  // Variadic constructor taking 1, 2 or 3 integers to be interpreted as a
+  // sycl::range<Dim>.
   template <class... Args>
   device_memory(Args... Arguments);
 
   ~device_memory();
 
-  /// Allocate memory with default queue, and init memory if has initial value.
+  // Allocate memory with default queue, and init memory if has initial value.
   void init();
-  /// Allocate memory with specified queue, and init memory if has initial
-  /// value.
+  // Allocate memory with specified queue, and init memory if has initial
+  // value.
   void init(sycl::queue q);
 
-  /// The variable is assigned to a device pointer.
+  // The variable is assigned to a device pointer.
   void assign(value_t *src, size_t size);
 
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+  // Get memory pointer of the memory object, which is virtual pointer when
+  // usm is not used, and device pointer when usm is used.
   value_t *get_ptr();
-  /// Get memory pointer of the memory object, which is virtual pointer when
-  /// usm is not used, and device pointer when usm is used.
+  // Get memory pointer of the memory object, which is virtual pointer when
+  // usm is not used, and device pointer when usm is used.
   value_t *get_ptr(sycl::queue q);
 
-  /// Get the device memory object size in bytes.
+  // Get the device memory object size in bytes.
   size_t get_size();
 
   template <size_t D = Dimension>
   typename std::enable_if<D == 1, T>::type &operator[](size_t index);
 
-  /// Get accessor with dimension info for the device memory object
-  /// when usm is used and dimension is greater than 1.
+  // Get accessor with dimension info for the device memory object
+  // when usm is used and dimension is greater than 1.
   template <size_t D = Dimension>
   typename std::enable_if<D != 1, syclcompat_accessor_t>::type
   get_access(sycl::handler &cgh);
@@ -717,38 +717,38 @@ follows:
 ```c++
 namespace syclcompat {
 
-/// Util function to create a new queue for the current device
+// Util function to create a new queue for the current device
 sycl::queue create_queue(bool print_on_async_exceptions = false,
                          bool in_order = true);
 
-/// Util function to get the default queue of current device in
-/// device manager.
+// Util function to get the default queue of current device in
+// device manager.
 sycl::queue get_default_queue();
 
-/// Util function to wait for the queued kernels.
+// Util function to wait for the queued kernels.
 void wait(sycl::queue q = get_default_queue());
 
-/// Util function to wait for the queued kernels and throw unhandled errors.
+// Util function to wait for the queued kernels and throw unhandled errors.
 void wait_and_throw(sycl::queue q = get_default_queue());
 
-/// Util function to get the id of current device in
-/// device manager.
+// Util function to get the id of current device in
+// device manager.
 unsigned int get_current_device_id();
 
-/// Util function to get the current device.
+// Util function to get the current device.
 device_ext &get_current_device();
 
-/// Util function to get a device by id.
+// Util function to get a device by id.
 device_ext &get_device(unsigned int id);
 
-/// Util function to get the context of the default queue of current
-/// device in device manager.
+// Util function to get the context of the default queue of current
+// device in device manager.
 sycl::context get_default_context();
 
-/// Util function to get a CPU device.
+// Util function to get a CPU device.
 device_ext &cpu_device();
 
-/// Util function to select a device by its id
+// Util function to select a device by its id
 unsigned int select_device(unsigned int id);
 
 } // syclcompat
@@ -1119,17 +1119,6 @@ template <class... Args> class sycl_compat_kernel_name;
 template <int Arg> class sycl_compat_kernel_scalar;
 
 int get_sycl_language_version();
-
-} // namespace syclcompat
-```
-
-Compiler defs are used to provide compile-time `float` and `double` values for pi.
-
-``` c++
-namespace syclcompat {
-
-#define SYCL_COMPAT_PI_F (3.14159274101257f)
-#define SYCL_COMPAT_PI (3.141592653589793115998)
 
 } // namespace syclcompat
 ```
