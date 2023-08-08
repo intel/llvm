@@ -112,6 +112,9 @@ static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(const std::string &Str, SPIRVFunctionParameter *BA)>
         Func) {
+  assert(BF->getNumArguments() == MD->getNumOperands() &&
+         "Invalid kernel metadata: Number of metadata operands and kernel "
+         "arguments do not match");
   for (unsigned I = 0, E = MD->getNumOperands(); I != E; ++I) {
     SPIRVFunctionParameter *BA = BF->getArgument(I);
     Func(getMDOperandAsString(MD, I).str(), BA);
@@ -121,6 +124,9 @@ static void foreachKernelArgMD(
 static void foreachKernelArgMD(
     MDNode *MD, SPIRVFunction *BF,
     std::function<void(Metadata *MDOp, SPIRVFunctionParameter *BA)> Func) {
+  assert(BF->getNumArguments() == MD->getNumOperands() &&
+         "Invalid kernel metadata: Number of metadata operands and kernel "
+         "arguments do not match");
   for (unsigned I = 0, E = MD->getNumOperands(); I != E; ++I) {
     SPIRVFunctionParameter *BA = BF->getArgument(I);
     Func(MD->getOperand(I), BA);

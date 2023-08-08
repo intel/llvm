@@ -181,7 +181,7 @@ attributes #0 = { nofree norecurse nounwind writeonly "correctly-rounded-divide-
 
 !0 = !{i32 1, !"wchar_size", i32 4}
 !1 = !{i32 2, i32 0}
-!2 = !{i32 1, i32 0}
-!3 = !{!"none", !"none"}
-!4 = !{!"float*", !"int"}
-!5 = !{!"", !""}
+!2 = !{i32 1, i32 0, i32 0, i32 0}
+!3 = !{!"none", !"none", !"none", !"none"}
+!4 = !{!"float*", !"int", !"int", !"int"}
+!5 = !{!"", !"", !"", !""}
