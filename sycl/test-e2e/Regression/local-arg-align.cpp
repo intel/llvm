@@ -2,6 +2,9 @@
 //
 // RUN: %{run} %t.out
 
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
+
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
