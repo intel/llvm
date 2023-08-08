@@ -90,8 +90,7 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
   // We need to match non-kernel metadata nodes using the kernel name to the
   // kernel nodes.
   for (auto &KP : Kernels) {
-    auto *KernelConstant = dyn_cast<ConstantAsMetadata>(KP.MD->getOperand(0));
-    assert(KernelConstant);
+    auto *KernelConstant = cast<ConstantAsMetadata>(KP.MD->getOperand(0));
     auto KernelName =
         dyn_cast<Function>(KernelConstant->getValue())->getFunction().getName();
     // Keep track of matched nodes, to decrease the search space with each
