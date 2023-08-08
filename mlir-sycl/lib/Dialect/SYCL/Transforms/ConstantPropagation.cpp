@@ -899,6 +899,14 @@ void ConstantArrayArg::propagate(OpBuilder &builder, Region &region) {
 // ConstantPropagationPass
 //===----------------------------------------------------------------------===//
 
+template <typename OpTy> static OpTy getUniqueUserOp(Value range) {
+  auto allUsersOfType = llvm::make_filter_range(
+      range.getUsers(), [](Operation *op) { return isa<OpTy>(op); });
+  if (!llvm::hasSingleElement(allUsersOfType))
+    return nullptr;
+  return cast<OpTy>(*allUsersOfType.begin());
+}
+
 static std::optional<NDRInfo>
 getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
                       polygeist::SYCLIDAndRangeAnalysis &idrAnalysis,
@@ -907,10 +915,18 @@ getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
   if (!range)
     return std::nullopt;
 
+  auto setNDRangeOp = getUniqueUserOp<SYCLHostHandlerSetNDRange>(range);
+  if (!setNDRangeOp) {
+    LLVM_DEBUG(llvm::dbgs().indent(6)
+               << "Could not find unique 'sycl.host.nd_range.set_nd_range' "
+                  "operation\n");
+    return std::nullopt;
+  }
+
   if (op.getNdRange()) {
     // `parallel_for(nd_range, ...)` case
     std::optional<polygeist::NDRangeInformation> ndrInfo =
-        ndrAnalysis.getNDRangeInformationFromConstruction(op, range);
+        ndrAnalysis.getNDRangeInformationFromConstruction(setNDRangeOp, range);
     if (!ndrInfo)
       return std::nullopt;
     LLVM_DEBUG(llvm::dbgs().indent(6)
@@ -920,14 +936,15 @@ getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
 
   // `parallel_for(range, [offset], ...)` case
   std::optional<polygeist::IDRangeInformation> rangeInfo =
-      idrAnalysis.getIDRangeInformationFromConstruction<RangeType>(op, range);
+      idrAnalysis.getIDRangeInformationFromConstruction<RangeType>(setNDRangeOp,
+                                                                   range);
 
   auto offsetInfo = [&]() -> std::optional<OffsetInfo> {
     Value offset = op.getOffset();
     if (!offset)
       return DefaultOffset();
-    return idrAnalysis.getIDRangeInformationFromConstruction<IDType>(op,
-                                                                     offset);
+    return idrAnalysis.getIDRangeInformationFromConstruction<IDType>(
+        setNDRangeOp, offset);
   }();
 
   if (rangeInfo) {
@@ -971,8 +988,16 @@ getConstantAccessorArg(SYCLHostScheduleKernel op,
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Handling accessor at operand #" << index << "\n");
 
+  auto setCapturedOp = getUniqueUserOp<SYCLHostSetCaptured>(value);
+  if (!setCapturedOp) {
+    LLVM_DEBUG(llvm::dbgs().indent(6)
+               << "Could not find unique 'sycl.host.set_captured' operation\n");
+    return nullptr;
+  }
+
   std::optional<polygeist::AccessorInformation> accInfo =
-      accessorAnalysis.getAccessorInformationFromConstruction(op, value);
+      accessorAnalysis.getAccessorInformationFromConstruction(setCapturedOp,
+                                                              value);
   if (!accInfo) {
     LLVM_DEBUG(llvm::dbgs().indent(4)
                << "Could not get accessor analysis information\n");
