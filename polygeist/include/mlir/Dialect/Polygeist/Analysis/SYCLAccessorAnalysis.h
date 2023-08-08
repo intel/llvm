@@ -39,7 +39,8 @@ public:
         constantOffset{constOffset} {}
 
   AccessorInformation(bool hasRange, llvm::ArrayRef<size_t> constRange)
-      : isLocal{true}, needRange{hasRange}, constantRange{constRange} {}
+      : isLocal{true}, needRange{hasRange}, constantRange{constRange},
+        needOffset{false} {}
 
   /// Return whether the accessor is local.
   bool isLocalAccessor() const { return isLocal; }

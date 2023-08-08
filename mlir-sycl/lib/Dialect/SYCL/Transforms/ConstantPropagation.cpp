@@ -802,8 +802,12 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
     recordHit();
   };
 
-  LLVM_DEBUG(llvm::dbgs().indent(2)
-             << "Propagating accessor at position #" << index << "\n");
+  LLVM_DEBUG({
+    llvm::dbgs().indent(2) << "Propagating ";
+    if (info.isLocalAccessor())
+      llvm::dbgs() << "local_";
+    llvm::dbgs() << "accessor at position #" << index << "\n";
+  });
 
   if (info.needsRange()) {
     if (info.hasConstantRange()) {
@@ -817,6 +821,18 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
       replace(accessRangeMemberOffset, [&](Type type) {
         return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
                                                      accessRange);
+      });
+      if (info.isLocalAccessor()) {
+        replace(memoryRangeMemberOffset, [&](Type type) {
+          return createIDRange<SYCLRangeConstructorOp>(builder, loc, type,
+                                                       accessRange);
+        });
+      }
+    } else if (info.isLocalAccessor()) {
+      LLVM_DEBUG(llvm::dbgs().indent(4)
+                 << "local_accessor can share access and memory range\n");
+      replace(accessRangeMemberOffset, [&](Type) {
+        return region.getArgument(index + memoryRangeMemberOffset);
       });
     }
   } else {
@@ -984,7 +1000,7 @@ getSYCLGridPropagator(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
 static std::unique_ptr<ConstantAccessorArg>
 getConstantAccessorArg(SYCLHostScheduleKernel op,
                        polygeist::SYCLAccessorAnalysis &accessorAnalysis,
-                       unsigned index, Value value, AccessorType type) {
+                       unsigned index, Value value) {
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Handling accessor at operand #" << index << "\n");
 
@@ -1023,9 +1039,10 @@ static unsigned getTrueIndex(const RangeTy &typeAttrs, unsigned originalIndex) {
       begin, std::next(begin, originalIndex), 0,
       [](unsigned index, TypeAttr attr) {
         Type type = attr.getValue();
-        unsigned offset = TypeSwitch<Type, unsigned>(type)
-                              .Case<AccessorType>([](auto) { return 4; })
-                              .template Case<NoneType>([](auto) { return 1; });
+        unsigned offset =
+            TypeSwitch<Type, unsigned>(type)
+                .Case<AccessorType, LocalAccessorType>([](auto) { return 4; })
+                .template Case<NoneType>([](auto) { return 1; });
         return index + offset;
       });
 }
@@ -1117,11 +1134,13 @@ auto ConstantPropagationPass::getConstantArgs(
                                                           arrayDefinitionOp);
               }
             }
-            auto accType =
-                llvm::dyn_cast_or_null<AccessorType>(type.getValue());
-            return accType ? getConstantAccessorArg(op, accessorAnalysis,
-                                                    trueIndex, value, accType)
-                           : nullptr;
+            return TypeSwitch<Type, std::unique_ptr<ConstantExplicitArg>>(
+                       type.getValue())
+                .Case<AccessorType, LocalAccessorType>([&](auto) {
+                  return getConstantAccessorArg(op, accessorAnalysis, trueIndex,
+                                                value);
+                })
+                .template Case<NoneType>([](auto) { return nullptr; });
           }),
       llvm::identity<std::unique_ptr<ConstantExplicitArg>>());
 }
