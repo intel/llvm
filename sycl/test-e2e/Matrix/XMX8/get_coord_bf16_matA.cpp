@@ -16,7 +16,6 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 

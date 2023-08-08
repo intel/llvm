@@ -9,15 +9,20 @@
 #pragma once
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/group_sort_impl.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <type_traits>
 
-#include "group_helpers_sorters.hpp"
+#include "group_helpers_sorters.hpp" // for default_sorter, group_with_sc...
+
+#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp> // for is_generic_group
+#include <sycl/exception.hpp>          // for sycl_category, exception
+
+#include <stddef.h>     // for size_t
+#include <system_error> // for error_code
+#include <type_traits>  // for enable_if_t, decay_t, false_type
+#include <utility>      // for declval
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
@@ -132,6 +137,6 @@ joint_sort(experimental::group_with_scratchpad<Group, Extent> exec, Iter first,
 }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

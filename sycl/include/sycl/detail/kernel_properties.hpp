@@ -14,7 +14,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 enum class register_alloc_mode_enum : uint32_t {
   automatic = 0,
@@ -56,5 +56,5 @@ struct PropertyMetaInfo<sycl::detail::register_alloc_mode_key::value_t<Mode>> {
 };
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -8,17 +8,17 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/types.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+#include <sycl/types.hpp>                                // for is_device_c...
 
-#include <tuple>
-#include <type_traits>
+#include <tuple>       // for tuple, tupl...
+#include <type_traits> // for enable_if_t
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
@@ -250,5 +250,5 @@ struct is_device_copyable<
     std::enable_if_t<!std::is_trivially_copyable_v<
         ext::oneapi::experimental::properties<PropertiesT>>>>
     : is_device_copyable<PropertiesT> {};
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

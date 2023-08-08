@@ -8,21 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/detail/boolean.hpp>             // for Boolean
+#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
+#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>         // for make_larger_t, marray...
+#include <sycl/half_type.hpp>                  // for half, intel
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/multi_ptr.hpp>                  // for address_space_cast
+#include <sycl/types.hpp>                      // for vec
 
-#include <algorithm>
+#include <cstring>     // for memcpy, size_t
+#include <type_traits> // for enable_if_t, conditio...
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
 namespace sycl {
 
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
@@ -2560,7 +2567,7 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 }
 
 #endif // __FAST_MATH__
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__

@@ -350,11 +350,17 @@ and not recommended to use in production environment.
 
     Compile only device part of the code and ignore host part.
 
-**`-f[no-]sycl-use-bitcode`** [EXPERIMENTAL]
+**`-f[no-]sycl-use-bitcode`** [DEPRECATED]
 
     Emit SYCL device code in LLVM-IR bitcode format. When disabled, SPIR-V is
     emitted.
     Enabled by default.
+
+**`-fsycl-device-obj=<arg>`** [EXPERIMENTAL]
+
+    Specify format of device code stored in the resulting object. The <arg> can
+    be one of the following:  "spirv" - SPIR-V is emitted, "llvmir" - LLVM-IR
+    bitcode format is emitted (default).
 
 **`-fsycl-help[=backend]`**
 

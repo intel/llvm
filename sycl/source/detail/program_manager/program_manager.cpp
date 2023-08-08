@@ -43,7 +43,7 @@
 #include <variant>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
@@ -2552,7 +2552,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {

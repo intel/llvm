@@ -8,16 +8,14 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <functional>
+#include <functional> // for function
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class exception_list;
 
 using async_handler = std::function<void(sycl::exception_list)>;
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

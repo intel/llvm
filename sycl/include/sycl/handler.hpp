@@ -11,41 +11,68 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/item_base.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/types.hpp>
+#include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-
+#include <assert.h>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <stddef.h>
+#include <stdint.h>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
+
+// TODO: refactor this header
+// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
@@ -92,7 +119,7 @@ class __copyAcc2Acc;
 class MockHandler;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 
@@ -1598,9 +1625,6 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
-    if (Acc.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1734,13 +1758,17 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
@@ -2889,6 +2917,147 @@ public:
                         ext::oneapi::experimental::graph_state::executable>
                             Graph);
 
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor
+  void ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. Pixel size is determined
+  /// by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels as determined by \p DestImgDesc
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the source image descriptor
+  void ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p Extent are
+  /// used to determine the sub-region.  Pixel size is determined
+  /// by \p SrcImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  sycl::range<3> SrcOffset,
+                  const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+                  void *Dest, sycl::range<3> DestOffset,
+                  sycl::range<3> DestExtent, sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  void ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// Pixel size is determined by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the device image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent);
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
+
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
@@ -3208,5 +3377,5 @@ private:
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
 };
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

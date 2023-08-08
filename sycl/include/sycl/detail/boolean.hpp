@@ -8,14 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/generic_type_traits.hpp> // for is_sgeninteger, msbIsSet
+#include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 
-#include <initializer_list>
-#include <type_traits>
+#include <initializer_list> // for initializer_list
+#include <stddef.h>         // for size_t
+#include <stdint.h>         // for int8_t
+#include <type_traits>      // for is_same
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <int Num> struct Assigner {
@@ -127,5 +129,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
