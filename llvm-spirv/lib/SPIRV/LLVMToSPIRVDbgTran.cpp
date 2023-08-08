@@ -804,9 +804,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       case CountIdx:
         IntNode = ST->getCount().get<ConstantInt *>();
         break;
-      case StrideIdx:
-        IntNode = ST->getStride().get<ConstantInt *>();
-        break;
       }
       Ops[Idx] = IntNode ? SPIRVWriter->transValue(IntNode, nullptr)->getId()
                          : getDebugInfoNoneId();
