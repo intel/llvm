@@ -3,9 +3,8 @@
 SYCLcompat is a header-only library that intends to help developers familiar
 with other heterogeneous programming models (such as OpenMP, CUDA or HIP) to
 familiarize themselves with the SYCL programming API while porting their
-existing codes.
-Compatibility tools can also benefit from the reduced API size when converting
-legacy codebases.
+existing codes. Compatibility tools can also benefit from the reduced API size
+when converting legacy codebases.
 
 SYCLcompat provides:
 
@@ -22,32 +21,41 @@ separate namespaces.
 
 Copyright © 2023-2023 Codeplay Software Limited. All rights reserved.
 
-Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
-of The Khronos Group Inc.
-OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks of
+The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
 
 ## Support
 
-SYCLcompat depends on specific oneAPI DPC++ compiler extensions that may not be available to all the SYCL 2020 specification implementations.
+SYCLcompat depends on specific oneAPI DPC++ compiler extensions that may not be
+available to all the SYCL 2020 specification implementations.
 
 Specifically, this library depends on the following SYCL extensions:
 
-* [sycl_ext_oneapi_local_memory](../extensions/supported/sycl_ext_oneapi_local_memory.asciidoc)
-* [sycl_ext_oneapi_complex](../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
-* [sycl_ext_oneapi_free_function_queries](../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
-* [sycl_ext_oneapi_assert](../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
-* [sycl_ext_oneapi_enqueue_barrier](../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
+* [sycl_ext_oneapi_local_memory](
+    ../extensions/supported/sycl_ext_oneapi_local_memory.asciidoc)
+* [sycl_ext_oneapi_complex](
+    ../extensions/experimental/sycl_ext_oneapi_complex.asciidoc)
+* [sycl_ext_oneapi_free_function_queries](
+    ../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+* [sycl_ext_oneapi_assert](
+    ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
+* [sycl_ext_oneapi_enqueue_barrier](
+    ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 
 ## Usage
 
-All functionality is available under the `syclcompat::` namespace, imported through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not import the <sycl/sycl.hpp> header.
+All functionality is available under the `syclcompat::` namespace, imported
+through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not
+import the <sycl/sycl.hpp> header.
 
 ``` cpp
 #include <sycl/syclcompat.hpp>
 ```
 
-This document presents the public API under the [Features](#features) section, and provides a working [Sample code](#sample-code) using this library.
-Refer to those to learn to use the library.
+This document presents the public API under the [Features](#features) section,
+and provides a working [Sample code](#sample-code) using this library. Refer to
+those to learn to use the library.
 
 ## Features
 
@@ -83,12 +91,12 @@ dim3 operator-(const dim3 &a, const dim3 &b);
 } // syclcompat
 ```
 
-In SYCL, the fastest-moving dimension is the one with the highest index, e.g. in a
-SYCL 2D range iteration space, there are two dimensions, 0 and 1, and 1 will be
-the one that "moves faster". The compatibility headers for SYCL offer a number
-of convenience functions that help the mapping between xyz-based coordinates to
-SYCL iteration spaces in the different scopes available. In addition to the
-global range, the following helper functions are also provided:
+In SYCL, the fastest-moving dimension is the one with the highest index, e.g. in
+a SYCL 2D range iteration space, there are two dimensions, 0 and 1, and 1 will
+be the one that "moves faster". The compatibility headers for SYCL offer a
+number of convenience functions that help the mapping between xyz-based
+coordinates to SYCL iteration spaces in the different scopes available. In
+addition to the global range, the following helper functions are also provided:
 
 ``` c++
 namespace syclcompat {
@@ -151,35 +159,37 @@ template <typename AllocT> auto *local_mem();
 } // syclcompat
 ```
 
-`syclcompat::local_mem<AllocT>()` can be used as illustrated in the example below.
+`syclcompat::local_mem<AllocT>()` can be used as illustrated in the example
+below.
 
 ```c++
 // Sample kernel
+using namespace syclcompat;
 template <int BLOCK_SIZE>
 void local_mem_2d(int *d_A) {
   // Local memory extension wrapper, size defined at compile-time
-  auto As = syclcompat::local_mem<int[BLOCK_SIZE][BLOCK_SIZE]>();
-  int id_x = syclcompat::local_id::x();
-  int id_y = syclcompat::local_id::y();
+  auto As = local_mem<int[BLOCK_SIZE][BLOCK_SIZE]>();
+  int id_x = local_id::x();
+  int id_y = local_id::y();
   As[id_y][id_x] = id_x * BLOCK_SIZE + id_y;
-  syclcompat::wg_barrier();
+  wg_barrier();
   int val = As[BLOCK_SIZE - id_y - 1][BLOCK_SIZE - id_x - 1];
-  d_A[syclcompat::global_id::y() * BLOCK_SIZE + syclcompat::global_id::x()] = val;
+  d_A[global_id::y() * BLOCK_SIZE + global_id::x()] = val;
 }
 ```
 
 The second interface allows users to allocate device local memory at runtime.
-SYCLcompat provides this functionality through its kernel launch
-interface, `launch<function>`, defined in the following section.
+SYCLcompat provides this functionality through its kernel launch interface,
+`launch<function>`, defined in the following section.
 
 ### launch<function>
 
 SYCLcompat provides a kernel `launch` interface which accepts a function that
 executes on the device (a.k.a "kernel") instead of a lambda/functor. It can be
 called either by using a pair of "teams"/"blocks" and "threads", from
-OpenMP/CUDA terminology, or using a `sycl::nd_range`.
-The interface accepts a device _function_ with the use of an `auto F` template
-parameter, and a variadic `Args` for the function's arguments.
+OpenMP/CUDA terminology, or using a `sycl::nd_range`. The interface accepts a
+device _function_ with the use of an `auto F` template parameter, and a variadic
+`Args` for the function's arguments.
 
 Various overloads for `launch<function>` exist to permit the user to launch on a
 specific `queue`, or to define dynamically sized device local memory.
@@ -242,10 +252,10 @@ syclcompat::launch<vectorAdd>(range, d_A, d_B, d_C, n);
 ```
 
 For dynamic local memory allocation, `launch<function>` injects a pointer to a
-local `char *` accessor of `mem_size` as the last argument of the kernel function.
-For example, the previous function named `vectorAdd` can be modified with the
-following signature, which adds a `char *` pointer to access local memory inside the
-kernel:
+local `char *` accessor of `mem_size` as the last argument of the kernel
+function. For example, the previous function named `vectorAdd` can be modified
+with the following signature, which adds a `char *` pointer to access local
+memory inside the kernel:
 
 ``` c++
 void vectorAdd(const float *A, const float *B, float *C, int n,
@@ -255,8 +265,8 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
 Then, `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A, d_B,
-                              d_C, n);
+syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A, 
+                              d_B, d_C, n);
 ```
 
 or this:
@@ -272,11 +282,11 @@ within the kernel function.
 
 ### Utilities
 
-SYCLcompat introduces a set of utility functions designed to
-streamline the usage of the library and its `launch<function>` mechanism.
+SYCLcompat introduces a set of utility functions designed to streamline the
+usage of the library and its `launch<function>` mechanism.
 
-The first utility function is `syclcompat::wg_barrier()`, which provides a concise
-work-group barrier. `syclcompat::wg_barrier()` uses the
+The first utility function is `syclcompat::wg_barrier()`, which provides a
+concise work-group barrier. `syclcompat::wg_barrier()` uses the
 _SYCL_INTEL_free_function_queries_ extension to provide this functionality.
 
 The second utility function, `syclcompat::compute_nd_range`, ensures that the
@@ -317,10 +327,10 @@ sycl::queue create_queue(bool print_on_async_exceptions = false,
 
 However, SYCLcompat does not implement any mechanisms to deal with this case.
 The rationale for this is that a user wanting the full power of SYCL's
-dependency management shouldn't be using the this library.
-As such, support for out-of-order queues is very limited. The only way to safely
-use an out-of-order queue at present is to explicitly `q.wait()` or `e.wait()`
-where `e` is the `sycl::event` returned through a `syclcompat::async` API.
+dependency management shouldn't be using the this library. As such, support for
+out-of-order queues is very limited. The only way to safely use an out-of-order
+queue at present is to explicitly `q.wait()` or `e.wait()` where `e` is the
+`sycl::event` returned through a `syclcompat::async` API.
 
 To facilitate machine translation from other heterogeneous programming models to
 SYCL, SYCLcompat provides the following pointer aliases for `sycl::event` and
@@ -341,10 +351,10 @@ static void destroy_event(event_ptr event);
 
 ### Memory Allocation
 
-This library provides interfaces to allocate memory to be accessed within
-kernel functions and on the host. The `syclcompat::malloc` function allocates device
-USM memory, the `syclcompat::malloc_host` function allocates host USM memory, and
-the `syclcompat::malloc_shared` function allocates shared USM memory.
+This library provides interfaces to allocate memory to be accessed within kernel
+functions and on the host. The `syclcompat::malloc` function allocates device
+USM memory, the `syclcompat::malloc_host` function allocates host USM memory,
+and the `syclcompat::malloc_shared` function allocates shared USM memory.
 
 In each case we provide a template and non-templated interface for allocating
 memory, taking the number of elements or number of bytes respectively.
@@ -755,18 +765,18 @@ unsigned int select_device(unsigned int id);
 ```
 
 The exposed functionalities include creation and destruction of queues, through
-`syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the ability to
-wait for submitted kernels using `syclcompat::wait` or `syclcompat::wait_and_throw`. Any
-async errors will be output to `stderr` if `print_on_async_exceptions`.
-Synchronous exceptions have to be managed by users independently of what is set
-in this parameter.
+`syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
+ability to wait for submitted kernels using `syclcompat::wait` or
+`syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
+`print_on_async_exceptions`. Synchronous exceptions have to be managed by users
+independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
 destructor waits on a set of `sycl::event` which can be added to via
 `add_event`. This is used, for example, to implement `syclcompat::free_async` to
-schedule release of memory after a kernel or `mempcy`.
-SYCL device properties can be queried through `device_ext` as well.
+schedule release of memory after a kernel or `mempcy`. SYCL device properties
+can be queried through `device_ext` as well.
 
 The class is exposed as follows:
 
@@ -804,24 +814,23 @@ class device_ext : public sycl::device {
 
 #### Multiple devices
 
-SYCLcompat allows you to manage multiple devices through `syclcompat::select_device`
-and `syclcompat::create_queue`.
-The library uses the default SYCL device (i.e. the device returned by
-`sycl::default_selector_v`) as the default device, and exposes all other devices
-available on the system through the `syclcompat::select_device(unsigned int id)`
-member function.
+SYCLcompat allows you to manage multiple devices through
+`syclcompat::select_device` and `syclcompat::create_queue`. The library uses the
+default SYCL device (i.e. the device returned by `sycl::default_selector_v`) as
+the default device, and exposes all other devices available on the system
+through the `syclcompat::select_device(unsigned int id)` member function.
 
-The interface uses the `syclcompat::device_ext::get_current_device_id()` to get the
-current CPU thread, and returns the associated device stored internally as a map
-with that thread.
-The map is constructed using calls to `syclcompat::select_device(unsigned int id)`.
-Any thread which hasn't used this member function to select a device will be
-given the default device.
-Note that this implies multiple threads on a single device by default.
+The interface uses the `syclcompat::device_ext::get_current_device_id()` to get
+the current CPU thread, and returns the associated device stored internally as a
+map with that thread. The map is constructed using calls to
+`syclcompat::select_device(unsigned int id)`. Any thread which hasn't used this
+member function to select a device will be given the default device. Note that
+this implies multiple threads on a single device by default.
 
-Be aware that targetting multiple devices may lead to unintended behavior caused by
-developers, as SYCLcompat does not implement a mechanism to warn when the wrong queue
-is used as an argument in any of the member functions of the `syclcompat` namespace.
+Be aware that targetting multiple devices may lead to unintended behavior caused
+by developers, as SYCLcompat does not implement a mechanism to warn when the
+wrong queue is used as an argument in any of the member functions of the
+`syclcompat` namespace.
 
 #### Atomic Operations
 
@@ -830,14 +839,13 @@ SYCLcompat provides an interface for common atomic operations (`add`, `sub`,
 exposes atomic operations through member functions of `sycl::atomic_ref`, this
 library provides access via functions taking a standard pointer argument.
 Template arguments control the `sycl::memory_scope`, `sycl::memory_order` and
-`sycl::access::address_space` of these atomic operations.
-SYCLcompat also exposes overloads for these atomic functions which take a runtime
-memoryScope argument.
-Every atomic operation is implemented via an API function taking a raw pointer
-as the target. Additional overloads for `syclcompat::compare_exchange_strong`
-are provided which take a `sycl::multi_ptr` instead of a raw pointer. Addition
-and subtraction make use of `arith_t` to differentiate between numeric and
-pointer arithmetics.
+`sycl::access::address_space` of these atomic operations. SYCLcompat also
+exposes overloads for these atomic functions which take a runtime memoryScope
+argument. Every atomic operation is implemented via an API function taking a raw
+pointer as the target. Additional overloads for
+`syclcompat::compare_exchange_strong` are provided which take a
+`sycl::multi_ptr` instead of a raw pointer. Addition and subtraction make use of
+`arith_t` to differentiate between numeric and pointer arithmetics.
 
 The available operations are exposed as follows:
 
@@ -970,13 +978,13 @@ T atomic_compare_exchange_strong(
 
 This library provides a number of small compatibility utilities which exist to
 facilitate machine translation of code from other programming models to SYCL.
-These functions are part of the public API, but they are not
-expected to be useful to developers writing their own code.
+These functions are part of the public API, but they are not expected to be
+useful to developers writing their own code.
 
 Functionality is provided to represent a pair of integers as a `double`.
-`cast_ints_to_double(int, int)` returns a `double` containing the given
-integers in the high & low 32-bits respectively. `cast_double_to_int` casts the
-high or low 32-bits back into an integer.
+`cast_ints_to_double(int, int)` returns a `double` containing the given integers
+in the high & low 32-bits respectively. `cast_double_to_int` casts the high or
+low 32-bits back into an integer.
 
 `syclcompat::fast_length` provides a wrapper to SYCL's
 `fast_length(sycl::vec<float,N>)` that accepts arguments for a C++ array and a
@@ -996,8 +1004,7 @@ with bytes selected according to a third unsigned integer argument.
 There is also an `experimental::logical_group` class which allows
 `sycl::sub_group`s to be further subdivided into 'logical' groups to perform
 sub-group level operations. This class provides methods to get the local & group
-id and range.
-The functions `select_from_sub_group`, `shift_sub_group_left`,
+id and range. The functions `select_from_sub_group`, `shift_sub_group_left`,
 `shift_sub_group_right` and `permute_sub_group_by_xor` provide equivalent
 functionality to `sycl::select_from_group`, `sycl::shift_group_left`,
 `sycl::shift_group_right` and `sycl::permute_group_by_xor`, respectively.
@@ -1063,14 +1070,13 @@ template <typename T> sycl::vec<T, 2> conj(sycl::vec<T, 2> x);
 ```
 
 The function `experimental::nd_range_barrier` synchronizes work items from all
-work groups within a SYCL kernel.
-This is not officially supported by the SYCL spec, and so should be used with
-caution.
+work groups within a SYCL kernel. This is not officially supported by the SYCL
+spec, and so should be used with caution.
 
 ```c++
 namespace syclcompat {
-
 namespace experimental {
+
 template <int dimensions = 3>
 inline void nd_range_barrier(
     sycl::nd_item<dimensions> item,
@@ -1093,8 +1099,8 @@ public:
   uint32_t get_group_linear_id() const;
   uint32_t get_local_linear_range() const;
   uint32_t get_group_linear_range() const;
-  }
 };
+
 } // namespace experimental
 } // namespace syclcompat
 ```
@@ -1128,9 +1134,8 @@ int get_sycl_language_version();
 Kernel helper functions provide a structure `kernel_function_info` to keep SYCL
 kernel information, and provide a utility function `get_kernel_function_info()`
 to get the kernel information. Overloads are provided to allow either returning
-a `kernel_function_info` object, or to return by pointer argument.
-In the current version, `kernel_function_info` describes only maximum work-group
-size.
+a `kernel_function_info` object, or to return by pointer argument. In the
+current version, `kernel_function_info` describes only maximum work-group size.
 
 ``` c++
 namespace syclcompat {
@@ -1260,21 +1265,17 @@ int main(int argc, char **argv) {
 
 ## Maintainers
 
-To report problems with this library, please open a new issue with the
-[COMPAT] tag at:
+To report problems with this library, please open a new issue with the [COMPAT]
+tag at:
 
 <https://github.com/intel/llvm/issues>
 
 ## Contributors
 
-Alberto Cabrera, Codeplay
-\
-Gordon Brown, Codeplay
-\
-Joe Todd, Codeplay
-\
-Pietro Ghiglio, Codeplay
-\
+Alberto Cabrera, Codeplay \
+Gordon Brown, Codeplay \
+Joe Todd, Codeplay \
+Pietro Ghiglio, Codeplay \
 Ruyman Reyes, Codeplay/Intel
 
 ## Contributions
