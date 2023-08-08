@@ -197,7 +197,16 @@ def SYCLRaiseHostConstructs : Pass<"sycl-raise-host"> {
   let dependentDialects = ["arith::ArithDialect", "sycl::SYCLDialect", "vector::VectorDialect"];
   let constructor = "mlir::polygeist::createSYCLHostRaisingPass()";
   let options = RewritePassUtils.options;
-  // TODO: Statistics
+  let statistics = [
+    Statistic<"NumRaisedSetCapturedOps", "num-raised-set-captured-ops",
+              "Number of raised `sycl.host.set_captured` ops">,
+    Statistic<"NumRaisedSetNDRangeOps", "num-raised-set-nd-range-ops",
+              "Number of raised `sycl.host.handler.set_nd_range` ops">,
+    Statistic<"NumRaisedSetKernelOps", "num-raised-set-kernel-ops",
+              "Number of raised `sycl.host.handler.set_kernel` ops">,
+    Statistic<"NumRaisedScheduleKernelOps", "num-raised-schedule-kernel-ops",
+              "Number of raised `sycl.host.schedule_kernel` ops">
+  ];
 }
 
 def OpenMPOptPass : Pass<"openmp-opt"> {
