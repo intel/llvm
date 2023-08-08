@@ -15,6 +15,8 @@
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 
+#include "llvm/ADT/TypeSwitch.h"
+
 #define DEBUG_TYPE "sycl-accessor-analysis"
 
 namespace mlir {
@@ -25,7 +27,8 @@ namespace polygeist {
 //===----------------------------------------------------------------------===//
 
 raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
-
+  if (info.isTop)
+    return os.indent(4) << "<TOP>\n";
   os.indent(4) << "Needs range: " << ((info.needsRange()) ? "Yes" : "No")
                << "\n";
   os.indent(4) << "Range: ";
@@ -36,6 +39,9 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
   } else {
     os << "<unknown>\n";
   }
+
+  if (info.isLocalAccessor())
+    return os;
 
   os.indent(4) << "Needs offset: " << ((info.needsOffset()) ? "Yes" : "No")
                << "\n";
@@ -68,6 +74,22 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
 const AccessorInformation
 AccessorInformation::join(const AccessorInformation &other,
                           AliasAnalysis &aliasAnalysis) const {
+  // Return top
+  if (other.isLocal != isLocal)
+    return AccessorInformation();
+
+  // The range can only be omitted if this and the incoming info agree it is
+  // not needed, otherwise the conservative default is to assume the range is
+  // needed.
+  bool jointNeedsRange =
+      (needsRange() == other.needsRange()) ? needsRange() : true;
+  SmallVector<size_t, 3> jointRange = (constantRange == other.constantRange)
+                                          ? constantRange
+                                          : SmallVector<size_t, 3>{};
+
+  if (isLocalAccessor())
+    return AccessorInformation(jointNeedsRange, jointRange);
+
   Value jointBuf = nullptr;
   if (hasKnownBuffer() && other.hasKnownBuffer() &&
       (getBuffer() == other.getBuffer() ||
@@ -78,15 +100,6 @@ AccessorInformation::join(const AccessorInformation &other,
   std::optional<BufferInformation> jointBufInfo = std::nullopt;
   if (hasBufferInformation() && other.hasBufferInformation())
     jointBufInfo = getBufferInfo().join(other.getBufferInfo(), aliasAnalysis);
-
-  // The range can only be omitted if this and the incoming info agree it is
-  // not needed, otherwise the conservative default is to assume the range is
-  // needed.
-  bool jointNeedsRange =
-      (needsRange() == other.needsRange()) ? needsRange() : true;
-  SmallVector<size_t, 3> jointRange = (constantRange == other.constantRange)
-                                          ? constantRange
-                                          : SmallVector<size_t, 3>{};
 
   // The offset can only be omitted if this and the incoming info agree it is
   // not needed, otherwise the conservative default is to assume the offset is
@@ -103,6 +116,14 @@ AccessorInformation::join(const AccessorInformation &other,
 
 AliasResult AccessorInformation::alias(const AccessorInformation &other,
                                        AliasAnalysis &aliasAnalysis) const {
+  if (isTop || other.isTop)
+    return AliasResult::MayAlias;
+
+  // A local accessor cannot alias with another accessor unless they are aliased
+  // (catched by other analysis).
+  if (other.isLocal || isLocal)
+    return AliasResult::NoAlias;
+
   // If we can't analyze the underlying buffer, can't determine aliasing, so
   // must assume they may alias.
   if (!hasKnownBuffer() || !other.hasKnownBuffer())
@@ -291,7 +312,7 @@ SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
       first = false;
     } else {
       info = info.join(getInformation(def), *aliasAnalysis);
-      if (info.isTop())
+      if (info.isTopAccessor())
         // Early return: As soon as joining of the different information has
         // reached the top of the lattice, we can end the processing.
         return info;
@@ -301,7 +322,7 @@ SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
   if (pMods) {
     for (const Definition &def : *pMods) {
       info = info.join(getInformation(def), *aliasAnalysis);
-      if (info.isTop())
+      if (info.isTopAccessor())
         // Early return: As soon as joining of the different information has
         // reached the top of the lattice, we can end the processing.
         return info;
@@ -319,59 +340,73 @@ bool SYCLAccessorAnalysis::isConstructor(const Definition &def) {
   if (!constructor)
     return false;
 
-  return isa<sycl::AccessorType>(constructor.getType().getValue());
+  return isa<sycl::AccessorType, sycl::LocalAccessorType>(
+      constructor.getType().getValue());
 }
 
 AccessorInformation
 SYCLAccessorAnalysis::getInformation(const Definition &def) {
   assert(def.isOperation() && "Expecting operation");
-
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
+  return TypeSwitch<Type, AccessorInformation>(constructor.getType().getValue())
+      .Case<sycl::AccessorType>([=](auto accessorTy) {
+        Value buffer = nullptr;
+        std::optional<BufferInformation> bufferInfo = std::nullopt;
+        if (constructor->getNumOperands() > 2) {
+          buffer = constructor->getOperand(1);
+          bufferInfo = bufferAnalysis.getBufferInformationFromConstruction(
+              constructor, constructor->getOperand(1));
+        }
 
-  Value buffer = nullptr;
-  std::optional<BufferInformation> bufferInfo = std::nullopt;
-  if (constructor->getNumOperands() > 2) {
-    buffer = constructor->getOperand(1);
-    bufferInfo = bufferAnalysis.getBufferInformationFromConstruction(
-        constructor, constructor->getOperand(1));
-  }
+        // Whether the range and offset parameter are required by the accessor
+        // constructed is encoded in the list of body types.
+        bool needsRange = llvm::any_of(accessorTy.getBody(), [](Type ty) {
+          return isa<sycl::RangeType>(ty);
+        });
+        bool needsOffset = llvm::any_of(accessorTy.getBody(), [](Type ty) {
+          return isa<sycl::IDType>(ty);
+        });
+        SmallVector<size_t, 3> constRange;
+        SmallVector<size_t, 3> constOffset;
+        if (needsRange) {
+          // In the SYCL API, the range can either be the second or third
+          // parameter to the constructor.
+          std::optional<IDRangeInformation> optRangeInfo =
+              getOperandInfo<sycl::RangeType>(constructor, {2, 3});
+          if (optRangeInfo.has_value() && optRangeInfo->isConstant())
+            constRange = optRangeInfo->getConstantValues();
+        }
+        if (needsOffset) {
+          // In the SYCL API, the offset can either be the third or fourth
+          // parameter to the constructor.
+          std::optional<IDRangeInformation> optIDInfo =
+              getOperandInfo<sycl::IDType>(constructor, {3, 4});
+          if (optIDInfo.has_value() && optIDInfo->isConstant())
+            constOffset = optIDInfo->getConstantValues();
+        }
 
-  auto accessorTy = cast<sycl::AccessorType>(constructor.getType().getValue());
-  // Whether the range and offset parameter are required by the accessor
-  // constructed is encoded in the list of body types.
-  bool needsRange = llvm::any_of(
-      accessorTy.getBody(), [](Type ty) { return isa<sycl::RangeType>(ty); });
-  bool needsOffset = llvm::any_of(
-      accessorTy.getBody(), [](Type ty) { return isa<sycl::IDType>(ty); });
-  SmallVector<size_t, 3> constRange;
-  SmallVector<size_t, 3> constOffset;
-  if (needsRange) {
-    // In the SYCL API, the range can either be the second or third parameter to
-    // the constructor.
-    std::optional<IDRangeInformation> optRangeInfo =
-        getOperandInfo<sycl::RangeType>(constructor, 2, 3);
-    if (optRangeInfo.has_value() && optRangeInfo->isConstant())
-      constRange = optRangeInfo->getConstantValues();
-  }
-  if (needsOffset) {
-    // In the SYCL API, the offset can either be the third or fourth parameter
-    // to the constructor.
-    std::optional<IDRangeInformation> optIDInfo =
-        getOperandInfo<sycl::IDType>(constructor, 3, 4);
-    if (optIDInfo.has_value() && optIDInfo->isConstant())
-      constOffset = optIDInfo->getConstantValues();
-  }
-
-  return AccessorInformation(buffer, bufferInfo, needsRange, constRange,
-                             needsOffset, constOffset);
+        return AccessorInformation(buffer, bufferInfo, needsRange, constRange,
+                                   needsOffset, constOffset);
+      })
+      .Case<sycl::LocalAccessorType>([=](auto accessorTy) {
+        bool needsRange = constructor->getNumOperands() > 3;
+        ArrayRef<size_t> constRange = std::nullopt;
+        if (needsRange) {
+          // In the SYCL API, the range must be the first parameter to the
+          // constructor.
+          std::optional<IDRangeInformation> optRangeInfo =
+              getOperandInfo<sycl::RangeType>(constructor, 1);
+          if (optRangeInfo.has_value() && optRangeInfo->isConstant())
+            constRange = optRangeInfo->getConstantValues();
+        }
+        return AccessorInformation(needsRange, constRange);
+      });
 }
 
 template <typename OperandType>
 std::optional<IDRangeInformation>
 SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
-                                     size_t possibleIndex1,
-                                     size_t possibleIndex2) {
-
+                                     ArrayRef<size_t> possibleIndices) {
   auto getInfo = [&](size_t index) -> std::optional<IDRangeInformation> {
     if (index < constructor->getNumOperands()) {
       auto *defOp = constructor->getOperand(index).getDefiningOp();
@@ -393,11 +428,13 @@ SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
     }
     return std::nullopt;
   };
-  std::optional<IDRangeInformation> firstInfo = getInfo(possibleIndex1);
-  if (firstInfo)
-    return firstInfo;
 
-  return getInfo(possibleIndex2);
+  for (size_t index : possibleIndices) {
+    std::optional<IDRangeInformation> info = getInfo(index);
+    if (info)
+      return info;
+  }
+  return std::nullopt;
 }
 
 } // namespace polygeist
