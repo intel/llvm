@@ -102,7 +102,7 @@ void SPIRVFunction::decode(std::istream &I) {
 
     switch (Decoder.OpCode) {
     case OpFunctionParameter: {
-      auto Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
+      auto *Param = static_cast<SPIRVFunctionParameter *>(Decoder.getEntry());
       assert(Param);
       Module->add(Param);
       Param->setParent(this);

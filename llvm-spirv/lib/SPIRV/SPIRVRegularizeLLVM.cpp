@@ -437,7 +437,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
     std::vector<Instruction *> ToErase;
     for (BasicBlock &BB : *F) {
       for (Instruction &II : BB) {
-        if (auto Call = dyn_cast<CallInst>(&II)) {
+        if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
           if (CF && CF->isIntrinsic()) {
@@ -470,7 +470,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         }
 
         // Remove optimization info not supported by SPIRV
-        if (auto BO = dyn_cast<BinaryOperator>(&II)) {
+        if (auto *BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
@@ -496,7 +496,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             II.setMetadata(MDName, nullptr);
           }
         }
-        if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
+        if (auto *Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
           // Transform:
           // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
           // To:

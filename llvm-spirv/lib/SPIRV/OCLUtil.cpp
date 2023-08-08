@@ -783,7 +783,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   // If the module was linked with another module, there may be multiple
   // operands.
   auto GetVer = [=](unsigned I) {
-    auto MD = NamedMD->getOperand(I);
+    auto *MD = NamedMD->getOperand(I);
     return std::make_pair(getMDOperandAsInt(MD, 0), getMDOperandAsInt(MD, 1));
   };
   auto Ver = GetVer(0);

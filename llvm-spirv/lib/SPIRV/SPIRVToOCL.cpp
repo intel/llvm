@@ -50,7 +50,7 @@ namespace SPIRV {
 
 void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
-  auto F = CI.getCalledFunction();
+  auto *F = CI.getCalledFunction();
   if (!F)
     return;
 
