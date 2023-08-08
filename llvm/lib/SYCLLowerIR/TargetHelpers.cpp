@@ -92,7 +92,7 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
   for (auto &KP : Kernels) {
     auto *KernelConstant = cast<ConstantAsMetadata>(KP.MD->getOperand(0));
     auto KernelName =
-        dyn_cast<Function>(KernelConstant->getValue())->getFunction().getName();
+        cast<Function>(KernelConstant->getValue())->getFunction().getName();
     // Keep track of matched nodes, to decrease the search space with each
     // iteration.
     SmallVector<unsigned> ToDelete;
