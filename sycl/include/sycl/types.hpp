@@ -1245,7 +1245,7 @@ public:
   // operator~() available only when: dataT != float && dataT != double
   // && dataT != half
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>> &&
+  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
                                 (!IsUsingArrayOnDevice && !IsUsingArrayOnHost),
                             vec>
   operator~() const {
@@ -1256,7 +1256,7 @@ public:
     return Ret;
   }
   template <typename T = DataT>
-  typename std::enable_if_t<std::is_integral_v<vec_data_t<T>> &&
+  typename std::enable_if_t<!std::is_floating_point_v<vec_data_t<T>> &&
                                 (IsUsingArrayOnDevice || IsUsingArrayOnHost),
                             vec>
   operator~() const {
