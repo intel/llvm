@@ -28,19 +28,19 @@ OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
 
 ## Support
 
-SYCLcompat depends on specific DPCPP compiler extensions that may not be available to all the SYCL 2020 specification implementations.
+SYCLcompat depends on specific oneAPI DPC++ compiler extensions that may not be available to all the SYCL 2020 specification implementations.
 
 Specifically, this library depends on the following SYCL extensions:
 
 * [sycl_ext_oneapi_local_memory](../extensions/supported/sycl_ext_oneapi_local_memory.asciidoc)
 * [sycl_ext_oneapi_complex](../extensions/proposed/sycl_ext_oneapi_complex.asciidoc)
-* [SYCL_INTEL_free_function_queries](../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
+* [sycl_ext_oneapi_free_function_queries](../extensions/experimental/sycl_ext_oneapi_free_function_queries.asciidoc)
 * [sycl_ext_oneapi_assert](../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
 
 ## Usage
 
-All functionality is available under the `syclcompat::` namespace, imported through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not import the sycl headers.
+All functionality is available under the `syclcompat::` namespace, imported through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not import the <sycl/sycl.hpp> header.
 
 ``` cpp
 #include <sycl/syclcompat.hpp>
@@ -267,7 +267,7 @@ syclcompat::launch<vectorAdd>(range, mem_size, d_A, d_B, d_C, n);
 ```
 
 This `launch` interface allows users to define an internal memory pool, or
-scratchpad, that can then be reinterpreted as the datetype required by the user
+scratchpad, that can then be reinterpreted as the datatype required by the user
 within the kernel function.
 
 ### Utilities
@@ -434,7 +434,7 @@ sycl::event free_async(const std::vector<void *> &pointers,
                        const std::vector<sycl::event> &events,
                        sycl::queue q = get_default_queue());
 
-/// Queries pointer allocation type
+// Queries pointer allocation type
 class pointer_attributes {
 public:
   void init(const void *ptr, sycl::queue q = get_default_queue());
