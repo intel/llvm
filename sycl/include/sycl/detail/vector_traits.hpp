@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/stl_type_traits.hpp>
-
-#include <type_traits>
+#include <type_traits> // for integral_constant, conditional_t, remove_cv_t
 
 namespace sycl {
 inline namespace _V1 {
