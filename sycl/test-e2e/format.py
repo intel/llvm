@@ -101,16 +101,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -other restrictions).
         substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s'))
 
-        # get GIT root path
-        stream = os.popen('git rev-parse --show-toplevel')
-        git_root_path = stream.read()[:-1]
-
-        if 'windows' in test.config.available_features:
-            source_files_path = git_root_path+"\sycl\source" 
-        else:
-            source_files_path = git_root_path+"/sycl/source"
-            
-        compilation_cmd_pthread = "%clangxx -I" + source_files_path + " -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
+        compilation_cmd_pthread = "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
         substitutions.append(('%{build_pthread_inc}', compilation_cmd_pthread))
         
         def get_extra_env(sycl_devices):

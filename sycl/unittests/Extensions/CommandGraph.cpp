@@ -311,18 +311,18 @@ bool depthSearchSuccessorCheck(
 /// @param Q Queue to submit nodes to.
 void runKernels(queue Q) {
   auto NodeA = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto NodeB = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(NodeA);
-    cgh.single_task<class TestKernel>([]() {});
+    cgh.single_task<TestKernel<>>([]() {});
   });
   auto NodeC = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(NodeA);
-    cgh.single_task<class TestKernel>([]() {});
+    cgh.single_task<TestKernel<>>([]() {});
   });
   auto NodeD = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on({NodeB, NodeC});
-    cgh.single_task<class TestKernel>([]() {});
+    cgh.single_task<TestKernel<>>([]() {});
   });
 }
 
@@ -330,13 +330,13 @@ void runKernels(queue Q) {
 /// @param Q Queue to submit nodes to.
 void runKernelsInOrder(queue Q) {
   auto NodeA = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto NodeB = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto NodeC = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
   auto NodeD = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
 }
 
 /// Adds four kernels with diamond dependency to the Graph G
@@ -344,16 +344,40 @@ void runKernelsInOrder(queue Q) {
 void addKernels(
     experimental::command_graph<experimental::graph_state::modifiable> G) {
   auto NodeA = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); });
-  auto NodeB = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); },
-      {experimental::property::node::depends_on(NodeA)});
-  auto NodeC = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); },
-      {experimental::property::node::depends_on(NodeA)});
-  auto NodeD = G.add(
-      [&](sycl::handler &cgh) { cgh.single_task<class TestKernel>([]() {}); },
-      {experimental::property::node::depends_on(NodeB, NodeC)});
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  auto NodeB =
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+            {experimental::property::node::depends_on(NodeA)});
+  auto NodeC =
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+            {experimental::property::node::depends_on(NodeA)});
+  auto NodeD =
+      G.add([&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); },
+            {experimental::property::node::depends_on(NodeB, NodeC)});
+}
+
+bool checkExecGraphSchedule(
+    std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
+        GraphA,
+    std::shared_ptr<sycl::ext::oneapi::experimental::detail::exec_graph_impl>
+        GraphB) {
+  auto ScheduleA = GraphA->getSchedule();
+  auto ScheduleB = GraphB->getSchedule();
+  if (ScheduleA.size() != ScheduleB.size())
+    return false;
+
+  std::vector<
+      std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl>>
+      VScheduleA{std::begin(ScheduleA), std::end(ScheduleA)};
+  std::vector<
+      std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl>>
+      VScheduleB{std::begin(ScheduleB), std::end(ScheduleB)};
+
+  for (size_t i = 0; i < VScheduleA.size(); i++) {
+    if (!VScheduleA[i]->isSimilar(VScheduleB[i]))
+      return false;
+  }
+  return true;
 }
 
 } // anonymous namespace
@@ -1300,5 +1324,48 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
   // Check structure graph
   for (auto Node : GraphImpl->MRoots) {
     ASSERT_EQ(depthSearchSuccessorCheck(Node), true);
+  }
+}
+
+TEST_F(MultiThreadGraphTest, Finalize) {
+  addKernels(Graph);
+
+  std::map<int,
+           experimental::command_graph<experimental::graph_state::executable>>
+      GraphsExecMap;
+  auto FinalizeGraph = [&](int ThreadNum) {
+    SyncPoint.wait();
+    auto GraphExec = Graph.finalize();
+
+    GraphsExecMap.insert(
+        std::map<int, experimental::command_graph<
+                          experimental::graph_state::executable>>::
+            value_type(ThreadNum, GraphExec));
+    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+  };
+
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    Threads.emplace_back(FinalizeGraph, i);
+  }
+
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    Threads[i].join();
+  }
+
+  // Reference computation
+  queue QueueRef;
+  experimental::command_graph<experimental::graph_state::modifiable> GraphRef{
+      Queue.get_context(), Queue.get_device()};
+
+  addKernels(GraphRef);
+
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    auto GraphExecRef = GraphRef.finalize();
+    QueueRef.submit(
+        [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExecRef); });
+    auto GraphExecImpl =
+        sycl::detail::getSyclObjImpl(GraphsExecMap.find(i)->second);
+    auto GraphExecRefImpl = sycl::detail::getSyclObjImpl(GraphExecRef);
+    ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
   }
 }
