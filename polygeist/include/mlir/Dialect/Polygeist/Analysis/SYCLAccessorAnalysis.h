@@ -29,7 +29,7 @@ namespace polygeist {
 /// construction.
 class AccessorInformation {
 public:
-  AccessorInformation() = default;
+  AccessorInformation() : isTop{true} {}
 
   AccessorInformation(Value buf, std::optional<BufferInformation> bufInfo,
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
@@ -37,6 +37,12 @@ public:
       : buffer{buf}, bufferInfo{bufInfo}, needRange{hasRange},
         constantRange{constRange}, needOffset{hasOffset},
         constantOffset{constOffset} {}
+
+  AccessorInformation(bool hasRange, llvm::ArrayRef<size_t> constRange)
+      : isLocal{true}, needRange{hasRange}, constantRange{constRange} {}
+
+  /// Return whether the accessor is local.
+  bool isLocalAccessor() const { return isLocal; }
 
   /// Returns true if the underlying buffer of this accessor is known.
   bool hasKnownBuffer() const { return buffer != nullptr; }
@@ -85,10 +91,7 @@ public:
 
   /// Returns true if the top of the lattice has been reached, i.e., it is not
   /// possible to further refine the information known about this accessor.
-  bool isTop() const {
-    return !hasKnownBuffer() && !hasBufferInformation() && needsRange() &&
-           needsOffset() && !hasConstantRange() && !hasConstantOffset();
-  }
+  bool isTopAccessor() const { return isTop; }
 
   const AccessorInformation join(const AccessorInformation &other,
                                  AliasAnalysis &aliasAnalysis) const;
@@ -99,6 +102,9 @@ public:
                     AliasAnalysis &aliasAnalysis) const;
 
 private:
+  bool isTop = false;
+  bool isLocal = false;
+
   Value buffer;
 
   std::optional<BufferInformation> bufferInfo;
@@ -136,8 +142,8 @@ private:
 
   template <typename OperandType>
   std::optional<IDRangeInformation>
-  getOperandInfo(sycl::SYCLHostConstructorOp constructor, size_t possibleIndex1,
-                 size_t possibleIndex2);
+  getOperandInfo(sycl::SYCLHostConstructorOp constructor,
+                 ArrayRef<size_t> possibleIndices);
 
   Operation *operation;
 
