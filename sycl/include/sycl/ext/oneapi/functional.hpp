@@ -7,11 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/functional.hpp>
-#include <sycl/half_type.hpp>
 
-#include <complex>
-#include <functional>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/functional.hpp> // for maximum, minimum
+
+#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 
 namespace sycl {
 inline namespace _V1 {
