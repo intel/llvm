@@ -35,8 +35,8 @@ public:
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
                       bool hasOffset, llvm::ArrayRef<size_t> constOffset)
       : buffer{buf}, bufferInfo{bufInfo}, needRange{hasRange},
-        constantRange{constRange}, needOffset{hasOffset}, constantOffset{
-                                                              constOffset} {}
+        constantRange{constRange}, needOffset{hasOffset},
+        constantOffset{constOffset} {}
 
   AccessorInformation(bool hasRange, llvm::ArrayRef<size_t> constRange)
       : isLocal{true}, needRange{hasRange}, constantRange{constRange} {}
