@@ -2457,7 +2457,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
 
   auto AspectsPropIt = getPropIt("aspects");
   auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
-  auto ReqdWGSizeUint64TTPropIt = getPropIt("reqd_work_group_size_uint64_t");
+  auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
@@ -2476,10 +2476,16 @@ checkDevSupportDeviceRequirements(const device &Dev,
   }
 
   // Checking if device supports defined required work group size
-  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeUint64TTPropIt) {
-    bool usingUint64_t = ReqdWGSizeUint64TTPropIt.has_value();
+  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeUint64TPropIt) {
+    /// TODO: Before intel/llvm#10620, the reqd_work_group_size attribute
+    // stores its values as uint32_t, but this needed to be expanded to
+    // uint64_t.  However, this change did not happen in ABI-breaking
+    // window, so we attach the required work-group size as the
+    // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
+    // window, we can remove the logic for the 32 bit property.
+    bool usingUint64_t = ReqdWGSizeUint64TPropIt.has_value();
     auto it =
-        usingUint64_t ? ReqdWGSizeUint64TTPropIt : ReqdWGSizeUint32TPropIt;
+        usingUint64_t ? ReqdWGSizeUint64TPropIt : ReqdWGSizeUint32TPropIt;
 
     ByteArray ReqdWGSize = DeviceBinaryProperty(*(it.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
@@ -2488,8 +2494,6 @@ checkDevSupportDeviceRequirements(const device &Dev,
     std::vector<uint64_t> ReqdWGSizeVec;
     int Dims = 0;
     while (!ReqdWGSize.empty()) {
-      // The reqd_work_group_size data is stored as uint32_t's,
-      // but we'll widen the result to uint64_t.
       uint64_t SingleDimSize = usingUint64_t ? ReqdWGSize.consume<uint64_t>()
                                              : ReqdWGSize.consume<uint32_t>();
       if (auto res = multiply_with_overflow_check(ReqdWGSizeAllDimsTotal,
