@@ -938,13 +938,6 @@ static LogicalResult checkAliasInfoConsistency(Operation *op,
     if (!options.isOpAllowed(op.getOperation()))
       return WalkResult::advance();
 
-    // Input IR may not contain any ToMemrefOps. These are not supported because
-    // the analysis cannot follow the data flow through memrefs.
-    if (isa<ToMemrefOp>(op.getOperation())) {
-      op->emitError("to_memref ops are not supported by One-Shot Analysis");
-      return WalkResult::interrupt();
-    }
-
     // Input IR may not contain any ToTensorOps without the "restrict"
     // attribute. Such tensors may alias any other tensor, which is currently
     // not handled in the analysis.
@@ -995,7 +988,7 @@ static void annotateOpsWithAliasSets(Operation *op,
   op->walk([&](Operation *op) {
     SmallVector<Attribute> aliasSets;
     for (OpResult opResult : op->getOpResults()) {
-      if (opResult.getType().isa<TensorType>()) {
+      if (llvm::isa<TensorType>(opResult.getType())) {
         SmallVector<Attribute> aliases;
         state.applyOnAliases(opResult, [&](Value alias) {
           std::string buffer;

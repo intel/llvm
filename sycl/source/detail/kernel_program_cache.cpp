@@ -11,12 +11,12 @@
 #include <detail/plugin.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 KernelProgramCache::~KernelProgramCache() {
   for (auto &ProgIt : MCachedPrograms.Cache) {
     ProgramWithBuildStateT &ProgWithState = ProgIt.second;
-    RT::PiProgram *ToBeDeleted = ProgWithState.Ptr.load();
+    sycl::detail::pi::PiProgram *ToBeDeleted = ProgWithState.Ptr.load();
 
     if (!ToBeDeleted)
       continue;
@@ -41,5 +41,5 @@ KernelProgramCache::~KernelProgramCache() {
   }
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

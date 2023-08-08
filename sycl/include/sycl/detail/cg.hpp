@@ -8,30 +8,27 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
-#include <sycl/interop_handler.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
+#include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
+#include <sycl/detail/common.hpp>   // for code_location
+#include <sycl/detail/helpers.hpp>  // for context_impl
+#include <sycl/detail/pi.h>         // for pi_mem_advice, _pi_ext_command_b...
+#include <sycl/detail/pi.hpp>       // for PiImageOffset, PiImageRegion
+#include <sycl/event.hpp>           // for event_impl
+#include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/kernel.hpp>          // for kernel_impl
+#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 
-#include <memory>
-#include <string>
-#include <type_traits>
-#include <vector>
+#include <assert.h> // for assert
+#include <memory>   // for shared_ptr, unique_ptr
+#include <stddef.h> // for size_t
+#include <stdint.h> // for int32_t
+#include <string>   // for string
+#include <utility>  // for move
+#include <vector>   // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class queue;
@@ -62,11 +59,9 @@ public:
     BarrierWaitlist = 6,
     Fill = 7,
     UpdateHost = 8,
-    RunOnHostIntel = 9,
     CopyUSM = 10,
     FillUSM = 11,
     PrefetchUSM = 12,
-    CodeplayInteropTask = 13,
     CodeplayHostTask = 14,
     AdviseUSM = 15,
     Copy2DUSM = 16,
@@ -75,6 +70,10 @@ public:
     CopyToDeviceGlobal = 19,
     CopyFromDeviceGlobal = 20,
     ReadWriteHostPipe = 21,
+    ExecCommandBuffer = 22,
+    CopyImage = 23,
+    SemaphoreWait = 24,
+    SemaphoreSignal = 25,
   };
 
   struct StorageInitHelper {
@@ -89,6 +88,7 @@ public:
           MSharedPtrStorage(std::move(SharedPtrStorage)),
           MRequirements(std::move(Requirements)), MEvents(std::move(Events)) {}
     StorageInitHelper(StorageInitHelper &&) = default;
+    StorageInitHelper(const StorageInitHelper &) = default;
     // The following storages are needed to ensure that arguments won't die
     // while we are using them.
     /// Storage for standard layout arguments.
@@ -119,17 +119,30 @@ public:
   }
 
   CG(CG &&CommandGroup) = default;
+  CG(const CG &CommandGroup) = default;
 
   CGTYPE getType() { return MType; }
 
-  std::vector<std::vector<char>> &getArgsStorage() { return MData.MArgsStorage; }
-  std::vector<detail::AccessorImplPtr> &getAccStorage() { return MData.MAccStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return MData.MArgsStorage;
+  }
+  std::vector<detail::AccessorImplPtr> &getAccStorage() {
+    return MData.MAccStorage;
+  }
   std::vector<std::shared_ptr<const void>> &getSharedPtrStorage() {
     return MData.MSharedPtrStorage;
   }
 
-  std::vector<AccessorImplHost *> &getRequirements() { return MData.MRequirements; }
+  std::vector<AccessorImplHost *> &getRequirements() {
+    return MData.MRequirements;
+  }
   std::vector<detail::EventImplPtr> &getEvents() { return MData.MEvents; }
+
+  virtual std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const {
+    return {};
+  }
+  virtual void clearAuxiliaryResources(){};
 
   virtual ~CG() = default;
 
@@ -151,36 +164,36 @@ class CGExecKernel : public CG {
 public:
   /// Stores ND-range description.
   NDRDescT MNDRDesc;
-  std::unique_ptr<HostKernelBase> MHostKernel;
+  std::shared_ptr<HostKernelBase> MHostKernel;
   std::shared_ptr<detail::kernel_impl> MSyclKernel;
   std::shared_ptr<detail::kernel_bundle_impl> MKernelBundle;
   std::vector<ArgDesc> MArgs;
   std::string MKernelName;
-  detail::OSModuleHandle MOSModuleHandle;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
-  RT::PiKernelCacheConfig MKernelCacheConfig;
+  sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig;
 
-  CGExecKernel(NDRDescT NDRDesc, std::unique_ptr<HostKernelBase> HKernel,
+  CGExecKernel(NDRDescT NDRDesc, std::shared_ptr<HostKernelBase> HKernel,
                std::shared_ptr<detail::kernel_impl> SyclKernel,
                std::shared_ptr<detail::kernel_bundle_impl> KernelBundle,
                CG::StorageInitHelper CGData, std::vector<ArgDesc> Args,
-               std::string KernelName, detail::OSModuleHandle OSModuleHandle,
+               std::string KernelName,
                std::vector<std::shared_ptr<detail::stream_impl>> Streams,
                std::vector<std::shared_ptr<const void>> AuxiliaryResources,
-               CGTYPE Type, RT::PiKernelCacheConfig KernelCacheConfig,
+               CGTYPE Type,
+               sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
                detail::code_location loc = {})
       : CG(Type, std::move(CGData), std::move(loc)),
         MNDRDesc(std::move(NDRDesc)), MHostKernel(std::move(HKernel)),
         MSyclKernel(std::move(SyclKernel)),
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
-        MKernelName(std::move(KernelName)), MOSModuleHandle(OSModuleHandle),
-        MStreams(std::move(Streams)),
+        MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
         MKernelCacheConfig(std::move(KernelCacheConfig)) {
-    assert((getType() == RunOnHostIntel || getType() == Kernel) &&
-           "Wrong type of exec kernel CG.");
+    assert(getType() == Kernel && "Wrong type of exec kernel CG.");
   }
+
+  CGExecKernel(const CGExecKernel &CGExec) = default;
 
   std::vector<ArgDesc> getArguments() const { return MArgs; }
   std::string getKernelName() const { return MKernelName; }
@@ -188,9 +201,11 @@ public:
     return MStreams;
   }
 
-  std::vector<std::shared_ptr<const void>> getAuxiliaryResources() const {
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
     return MAuxiliaryResources;
   }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 
   std::shared_ptr<detail::kernel_bundle_impl> getKernelBundle() {
     return MKernelBundle;
@@ -198,22 +213,28 @@ public:
 
   void clearStreams() { MStreams.clear(); }
   bool hasStreams() { return !MStreams.empty(); }
-
-  void clearAuxiliaryResources() { MAuxiliaryResources.clear(); }
-  bool hasAuxiliaryResources() { return !MAuxiliaryResources.empty(); }
 };
 
 /// "Copy memory" command group class.
 class CGCopy : public CG {
   void *MSrc;
   void *MDst;
+  std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
 
 public:
   CGCopy(CGTYPE CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
+         std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst) {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
+
+  std::vector<std::shared_ptr<const void>>
+  getAuxiliaryResources() const override {
+    return MAuxiliaryResources;
+  }
+  void clearAuxiliaryResources() override { MAuxiliaryResources.clear(); }
 };
 
 /// "Fill memory" command group class.
@@ -304,17 +325,6 @@ public:
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
   pi_mem_advice getAdvice() { return MAdvice; }
-};
-
-class CGInteropTask : public CG {
-public:
-  std::unique_ptr<InteropTask> MInteropTask;
-
-  CGInteropTask(std::unique_ptr<InteropTask> InteropTask,
-                CG::StorageInitHelper CGData, CGTYPE Type,
-                detail::code_location loc = {})
-      : CG(Type, std::move(CGData), std::move(loc)),
-        MInteropTask(std::move(InteropTask)) {}
 };
 
 class CGHostTask : public CG {
@@ -445,25 +455,22 @@ class CGCopyToDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyToDeviceGlobal(void *Src, void *DeviceGlobalPtr,
                        bool IsDeviceImageScoped, size_t NumBytes, size_t Offset,
                        CG::StorageInitHelper CGData,
-                       detail::OSModuleHandle OSModuleHandle,
                        detail::code_location loc = {})
       : CG(CopyToDeviceGlobal, std::move(CGData), std::move(loc)), MSrc(Src),
         MDeviceGlobalPtr(DeviceGlobalPtr),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getSrc() { return MSrc; }
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
 };
 
 /// "Copy to device_global" command group class.
@@ -473,27 +480,106 @@ class CGCopyFromDeviceGlobal : public CG {
   bool MIsDeviceImageScoped;
   size_t MNumBytes;
   size_t MOffset;
-  detail::OSModuleHandle MOSModuleHandle;
 
 public:
   CGCopyFromDeviceGlobal(void *DeviceGlobalPtr, void *Dest,
                          bool IsDeviceImageScoped, size_t NumBytes,
                          size_t Offset, CG::StorageInitHelper CGData,
-                         detail::OSModuleHandle OSModuleHandle,
                          detail::code_location loc = {})
       : CG(CopyFromDeviceGlobal, std::move(CGData), std::move(loc)),
         MDeviceGlobalPtr(DeviceGlobalPtr), MDest(Dest),
         MIsDeviceImageScoped(IsDeviceImageScoped), MNumBytes(NumBytes),
-        MOffset(Offset), MOSModuleHandle(OSModuleHandle) {}
+        MOffset(Offset) {}
 
   void *getDeviceGlobalPtr() { return MDeviceGlobalPtr; }
   void *getDest() { return MDest; }
   bool isDeviceImageScoped() { return MIsDeviceImageScoped; }
   size_t getNumBytes() { return MNumBytes; }
   size_t getOffset() { return MOffset; }
-  detail::OSModuleHandle getOSModuleHandle() { return MOSModuleHandle; }
+};
+/// "Copy Image" command group class.
+class CGCopyImage : public CG {
+  void *MSrc;
+  void *MDst;
+  sycl::detail::pi::PiMemImageDesc MImageDesc;
+  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+  sycl::detail::pi::PiImageOffset MSrcOffset;
+  sycl::detail::pi::PiImageOffset MDstOffset;
+  sycl::detail::pi::PiImageRegion MHostExtent;
+  sycl::detail::pi::PiImageRegion MCopyExtent;
+
+public:
+  CGCopyImage(void *Src, void *Dst, sycl::detail::pi::PiMemImageDesc ImageDesc,
+              sycl::detail::pi::PiMemImageFormat ImageFormat,
+              sycl::detail::pi::PiImageCopyFlags ImageCopyFlags,
+              sycl::detail::pi::PiImageOffset SrcOffset,
+              sycl::detail::pi::PiImageOffset DstOffset,
+              sycl::detail::pi::PiImageRegion HostExtent,
+              sycl::detail::pi::PiImageRegion CopyExtent,
+              CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(CopyImage, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
+        MImageDesc(ImageDesc), MImageFormat(ImageFormat),
+        MImageCopyFlags(ImageCopyFlags), MSrcOffset(SrcOffset),
+        MDstOffset(DstOffset), MHostExtent(HostExtent),
+        MCopyExtent(CopyExtent) {}
+
+  void *getSrc() const { return MSrc; }
+  void *getDst() const { return MDst; }
+  sycl::detail::pi::PiMemImageDesc getDesc() const { return MImageDesc; }
+  sycl::detail::pi::PiMemImageFormat getFormat() const { return MImageFormat; }
+  sycl::detail::pi::PiImageCopyFlags getCopyFlags() const {
+    return MImageCopyFlags;
+  }
+  sycl::detail::pi::PiImageOffset getSrcOffset() const { return MSrcOffset; }
+  sycl::detail::pi::PiImageOffset getDstOffset() const { return MDstOffset; }
+  sycl::detail::pi::PiImageRegion getHostExtent() const { return MHostExtent; }
+  sycl::detail::pi::PiImageRegion getCopyExtent() const { return MCopyExtent; }
+};
+
+/// "Semaphore Wait" command group class.
+class CGSemaphoreWait : public CG {
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreWait(
+      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(SemaphoreWait, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
+};
+
+/// "Semaphore Signal" command group class.
+class CGSemaphoreSignal : public CG {
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
+
+public:
+  CGSemaphoreSignal(
+      sycl::detail::pi::PiInteropSemaphoreHandle InteropSemaphoreHandle,
+      CG::StorageInitHelper CGData, detail::code_location loc = {})
+      : CG(SemaphoreSignal, std::move(CGData), std::move(loc)),
+        MInteropSemaphoreHandle(InteropSemaphoreHandle) {}
+
+  sycl::detail::pi::PiInteropSemaphoreHandle getInteropSemaphoreHandle() const {
+    return MInteropSemaphoreHandle;
+  }
+};
+
+/// "Execute command-buffer" command group class.
+class CGExecCommandBuffer : public CG {
+public:
+  sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
+
+  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+                      CG::StorageInitHelper CGData)
+      : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
+        MCommandBuffer(CommandBuffer) {}
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

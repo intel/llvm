@@ -1,6 +1,9 @@
 // Test hangs on AMD with https://github.com/intel/llvm/pull/8412
 // UNSUPPORTED: hip_amd
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -88,7 +91,7 @@ int main() {
     }
     for (int j = 0; j < NV; j++) {
       auto d = s[j] - r[k * NV + j];
-      if (abs(d) > 1e-10) {
+      if (std::abs(d) > 1e-10) {
         printf("partial fail ");
         printf("%i\t%i\t%g\t%g\n", k, j, s[j], r[k * NV + j]);
         fails++;

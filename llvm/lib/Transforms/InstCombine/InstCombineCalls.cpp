@@ -988,7 +988,7 @@ Instruction *InstCombinerImpl::foldIntrinsicIsFPClass(IntrinsicInst &II) {
   }
 
   KnownFPClass Known = computeKnownFPClass(
-      Src0, DL, Mask, 0, &getTargetLibraryInfo(), &AC, &II, &DT, &ORE);
+      Src0, DL, Mask, 0, &getTargetLibraryInfo(), &AC, &II, &DT);
 
   // Clear test bits we know must be false from the source value.
   // fp_class (nnan x), qnan|snan|other -> fp_class (nnan x), other
@@ -1709,15 +1709,21 @@ Instruction *InstCombinerImpl::visitCallInst(CallInst &CI) {
     break;
   }
   case Intrinsic::bitreverse: {
+    Value *IIOperand = II->getArgOperand(0);
     // bitrev (zext i1 X to ?) --> X ? SignBitC : 0
     Value *X;
-    if (match(II->getArgOperand(0), m_ZExt(m_Value(X))) &&
+    if (match(IIOperand, m_ZExt(m_Value(X))) &&
         X->getType()->isIntOrIntVectorTy(1)) {
       Type *Ty = II->getType();
       APInt SignBit = APInt::getSignMask(Ty->getScalarSizeInBits());
       return SelectInst::Create(X, ConstantInt::get(Ty, SignBit),
                                 ConstantInt::getNullValue(Ty));
     }
+
+    if (Instruction *crossLogicOpFold =
+        foldBitOrderCrossLogicOp<Intrinsic::bitreverse>(IIOperand, Builder))
+      return crossLogicOpFold;
+
     break;
   }
   case Intrinsic::bswap: {

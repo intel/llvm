@@ -1068,7 +1068,7 @@ def Consumed       : DiagGroup<"consumed">;
 // warning should be active _only_ when -Wall is passed in, mark it as
 // DefaultIgnore in addition to putting it here.
 def All : DiagGroup<"all", [Most, Parentheses, Switch, SwitchBool,
-                            MisleadingIndentation]>;
+                            MisleadingIndentation, PackedNonPod]>;
 
 // Warnings that should be in clang-cl /w4.
 def : DiagGroup<"CL4", [All, Extra]>;
@@ -1293,6 +1293,7 @@ def SyclStrict : DiagGroup<"sycl-strict", [ Sycl2017Compat, Sycl2020Compat]>;
 def SyclTarget : DiagGroup<"sycl-target">;
 def SyclFPGAMismatch : DiagGroup<"sycl-fpga-mismatch">;
 def SyclAspectMismatch : DiagGroup<"sycl-aspect-mismatch">;
+def SyclNativeCPUTargets: DiagGroup<"sycl-native-cpu-targets">;
 
 // Backend warnings.
 def BackendInlineAsm : DiagGroup<"inline-asm">;

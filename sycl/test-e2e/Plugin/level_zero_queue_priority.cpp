@@ -6,11 +6,12 @@
 // Check that queue priority is passed to Level Zero runtime
 // This is the last value in the ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC
 //
-// With immediate command lists the command lists are recycled between queues.
+// With immediate command lists the command lists are recycled between queues in
+// a context.
 #include <sycl/sycl.hpp>
 
-void test(sycl::property_list Props) {
-  sycl::queue Q(Props);
+void test(sycl::context &C, sycl::device &D, sycl::property_list Props) {
+  sycl::queue Q(C, D, Props);
   (void)Q.submit([&](sycl::handler &CGH) {
     CGH.single_task<class EmptyKernel>([=]() {});
   });
@@ -18,28 +19,31 @@ void test(sycl::property_list Props) {
 }
 
 int main(int Argc, const char *Argv[]) {
+  sycl::device D;
+  sycl::context C{D};
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Normal
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = Normal
-  test(sycl::property_list{});
+  test(C, D, sycl::property_list{});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Normal
   // With immediate command list recycling, a new IMM is not created here.
   // CHECK-IMM-NOT: [getZeQueue]: create queue {{.*}} priority = Normal
-  test({sycl::ext::oneapi::property::queue::priority_normal{}});
+  test(C, D, {sycl::ext::oneapi::property::queue::priority_normal{}});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = Low
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = Low
-  test({sycl::ext::oneapi::property::queue::priority_low{}});
+  test(C, D, {sycl::ext::oneapi::property::queue::priority_low{}});
 
   // CHECK-STD: [getZeQueue]: create queue {{.*}} priority = High
   // CHECK-IMM: [getZeQueue]: create queue {{.*}} priority = High
-  test({sycl::ext::oneapi::property::queue::priority_high{}});
+  test(C, D, {sycl::ext::oneapi::property::queue::priority_high{}});
 
   // CHECK-STD: Queue cannot be constructed with different priorities.
   // CHECK-IMM: Queue cannot be constructed with different priorities.
   try {
-    test({sycl::ext::oneapi::property::queue::priority_low{},
+    test(C, D,
+         {sycl::ext::oneapi::property::queue::priority_low{},
           sycl::ext::oneapi::property::queue::priority_high{}});
   } catch (sycl::exception &E) {
     std::cerr << E.what() << std::endl;

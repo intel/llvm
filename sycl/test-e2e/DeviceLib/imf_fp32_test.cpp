@@ -6,6 +6,9 @@
 //
 // UNSUPPORTED: cuda || hip
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 namespace s = sycl;
@@ -18,6 +21,8 @@ unsigned long long __imf_brevll(unsigned long long);
 unsigned __imf_byte_perm(unsigned, unsigned, unsigned);
 long long __imf_llmax(long long x, long long y);
 long long __imf_llmin(long long x, long long y);
+int __imf_max(int x, int y);
+int __imf_min(int x, int y);
 unsigned long long __imf_ullmax(unsigned long long x, unsigned long long y);
 unsigned long long __imf_ullmin(unsigned long long x, unsigned long long y);
 unsigned __imf_umax(unsigned x, unsigned y);
@@ -32,6 +37,7 @@ long long __imf_mul64hi(long long, long long);
 int __imf_popc(unsigned);
 int __imf_popcll(unsigned long long);
 int __imf_rhadd(int, int);
+int __imf_hadd(int, int);
 unsigned __imf_sad(int, int, unsigned);
 unsigned __imf_uhadd(unsigned, unsigned);
 unsigned __imf_umul24(unsigned, unsigned);
@@ -511,11 +517,25 @@ int main(int, char **) {
     std::initializer_list<int> input_vals2 = {99,          819933,     -322,
                                               6832322,     1992983587, 6666483,
                                               -2000002194, 2147483646};
-    std::initializer_list<int> ref_vals = {50,          410466,     4141757,
-                                           3416078,     1912741435, 2771496,
-                                           -1558824202, 2147483647};
-    test2(device_queue, input_vals1, input_vals2, ref_vals, F2(__imf_rhadd));
+    std::initializer_list<int> ref_vals1 = {99,          819933,     8283835,
+                                            6832322,     1992983587, 6666483,
+                                            -1117646211, 2147483647};
+    std::initializer_list<int> ref_vals2 = {
+        0, 999, -322, -166, 1832499282, -1123492, -2000002194, 2147483646};
+    std::initializer_list<int> ref_vals3 = {50,          410466,     4141757,
+                                            3416078,     1912741435, 2771496,
+                                            -1558824202, 2147483647};
+    std::initializer_list<int> ref_vals4 = {49,          410466,     4141756,
+                                            3416078,     1912741434, 2771495,
+                                            -1558824203, 2147483646};
+    test2(device_queue, input_vals1, input_vals2, ref_vals1, F2(__imf_max));
+    std::cout << "max passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals2, F2(__imf_min));
+    std::cout << "min passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals3, F2(__imf_rhadd));
     std::cout << "rhadd passes." << std::endl;
+    test2(device_queue, input_vals1, input_vals2, ref_vals4, F2(__imf_hadd));
+    std::cout << "hadd passes." << std::endl;
   }
 
   {

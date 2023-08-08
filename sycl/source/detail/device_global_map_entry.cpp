@@ -14,7 +14,7 @@
 #include <detail/usm/usm_impl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
@@ -70,9 +70,10 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
   // Zero-initialize here and save the event.
   {
     std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
-    RT::PiEvent InitEvent;
+    sycl::detail::pi::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
-                            std::vector<RT::PiEvent>{}, &InitEvent);
+                            std::vector<sycl::detail::pi::PiEvent>{},
+                            &InitEvent);
     NewAlloc.MZeroInitEvent = InitEvent;
   }
 
@@ -104,5 +105,5 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

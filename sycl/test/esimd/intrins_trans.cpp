@@ -1,4 +1,4 @@
-// RUN: %clangxx -O0 -fsycl -fsycl-device-only -Xclang -emit-llvm %s -o %t
+// RUN: %clangxx -O0 -fsycl -fno-sycl-esimd-force-stateless-mem -fsycl-device-only -Xclang -emit-llvm -Xclang -no-opaque-pointers %s -o %t
 // RUN: sycl-post-link -split-esimd -lower-esimd -O0 -S %t -o %t.table
 // RUN: FileCheck %s -input-file=%t_esimd_0.ll
 
@@ -36,6 +36,8 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   // CHECK-LABEL: @_Z3foov
   constexpr int VL = 32;
   uint32_t *ptr = 0;
+  using VecT = typename simd<uint32_t, VL>::raw_vector_type;
+  VecT *vec_ptr = 0;
 
   int x = 0, y = 0, z = 0;
 
@@ -55,11 +57,10 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
       v_addr.data(), v1.data(), v1.data(), pred.data());
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.atomic.cmpxchg.v32i32.v32i1.v32i64(<32 x i1> %{{[0-9a-zA-Z_.]+}}, <32 x i64> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}}, <32 x i32> undef)
 
-  uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
-  simd<uint32_t, VL> v00 = __esimd_svm_block_ld_unaligned<uint32_t, VL>(addr);
-  // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.svm.block.ld.unaligned.v32i32.i64(i64 %{{[0-9a-zA-Z_.]+}})
-  __esimd_svm_block_st<uint32_t, VL>(addr, v00.data());
-  // CHECK: call void @llvm.genx.svm.block.st.i64.v32i32(i64 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
+  simd<uint32_t, VL> v00 = __esimd_svm_block_ld<uint32_t, VL, 4>(vec_ptr);
+  // CHECK: %[[VAR1:[0-9a-zA-Z_.]+]] = load <32 x i32>, <32 x i32> addrspace(4)* %{{[a-zA-Z0-9.]+}}, align 4
+  __esimd_svm_block_st<uint32_t, VL, 128>(vec_ptr, v00.data());
+  // CHECK-NEXT: store <32 x i32> %[[VAR1]], <32 x i32> addrspace(4)* %{{[a-zA-Z0-9.]+}}, align 128
 
   simd<uint32_t, VL> v01 =
       __esimd_svm_gather<uint32_t, VL>(v_addr.data(), pred.data());
@@ -102,14 +103,14 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
   simd<int, 32> va;
   va = media_block_load<int, 4, 8>(pA, x, y);
-  // CHECK: %[[SI0_VAL:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_ro_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: %[[SI0_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(%opencl.image2d_ro_t addrspace(1)* %{{[0-9a-zA-Z_.]+}})
   // CHECK: store i32 %[[SI0_VAL]], i32 addrspace(4)* %[[SI0_ADDR:[0-9a-zA-Z_.]+]]
   // CHECK: %[[SI0:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI0_ADDR]]
   // CHECK: %{{[0-9a-zA-Z_.]+}} = call <32 x i32> @llvm.genx.media.ld.v32i32(i32 0, i32 %[[SI0]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}})
 
   simd<int, 32> vb = va + 1;
   media_block_store<int, 4, 8>(pB, x, y, vb);
-  // CHECK: %[[SI2_VAL:[0-9a-zA-Z_.]+]] = ptrtoint %opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+  // CHECK: %[[SI2_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(%opencl.image2d_wo_t addrspace(1)* %{{[0-9a-zA-Z_.]+}})
   // CHECK: store i32 %[[SI2_VAL]], i32 addrspace(4)* %[[SI2_ADDR:[0-9a-zA-Z_.]+]]
   // CHECK: %[[SI2:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI2_ADDR]]
   // CHECK: call void @llvm.genx.media.st.v32i32(i32 0, i32 %[[SI2]], i32 0, i32 32, i32 %{{[0-9a-zA-Z_.]+}}, i32 %{{[0-9a-zA-Z_.]+}}, <32 x i32> %{{[0-9a-zA-Z_.]+}})
@@ -128,28 +129,28 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
 
     // 4-byte element gather
     simd<int, 8> v = gather<int, 8>(acc, offsets, 100);
-    // CHECK: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI3_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(i32 addrspace(1)* noundef %{{[0-9a-zA-Z_.]+}})
     // CHECK: store i32 %[[SI3_VAL]], i32 addrspace(4)* %[[SI3_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI3:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI3_ADDR]]
     // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 2, i16 0, i32 %[[SI3]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
 
     // 4-byte element scatter
     scatter<int, 8>(acc, offsets, v, 100, pred);
-    // CHECK: %[[SI4_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI4_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(i32 addrspace(1)* noundef %{{[0-9a-zA-Z_.]+}})
     // CHECK: store i32 %[[SI4_VAL]], i32 addrspace(4)* %[[SI4_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI4:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI4_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 2, i16 0, i32 %[[SI4]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element gather
     simd<unsigned char, 8> v1 = gather<unsigned char, 8>(acc, offsets, 100);
-    // CHECK: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI5_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(i32 addrspace(1)* noundef %{{[0-9a-zA-Z_.]+}})
     // CHECK: store i32 %[[SI5_VAL]], i32 addrspace(4)* %[[SI5_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI5:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI5_ADDR]]
     // CHECK: %{{[0-9a-zA-Z_.]+}} = call <8 x i32> @llvm.genx.gather.masked.scaled2.v8i32.v8i32.v8i1(i32 0, i16 0, i32 %[[SI5]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i1> %{{[0-9a-zA-Z_.]+}})
 
     // 1-byte element scatter
     scatter<unsigned char, 8>(acc, offsets, v1, 100, pred);
-    // CHECK: %[[SI6_VAL:[0-9a-zA-Z_.]+]] = ptrtoint i32 addrspace(1)* %{{[0-9a-zA-Z_.]+}} to i32
+    // CHECK: %[[SI6_VAL:[0-9a-zA-Z_.]+]] = call spir_func noundef i32 @_Z21__spirv_ConvertPtrToU{{.*}}(i32 addrspace(1)* noundef %{{[0-9a-zA-Z_.]+}})
     // CHECK: store i32 %[[SI6_VAL]], i32 addrspace(4)* %[[SI6_ADDR:[0-9a-zA-Z_.]+]]
     // CHECK: %[[SI6:[0-9a-zA-Z_.]+]] = load i32, i32 addrspace(4)* %[[SI6_ADDR]]
     // CHECK: call void @llvm.genx.scatter.scaled.v8i1.v8i32.v8i32(<8 x i1> %{{[0-9a-zA-Z_.]+}}, i32 0, i16 0, i32 %[[SI6]], i32 %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}}, <8 x i32> %{{[0-9a-zA-Z_.]+}})
@@ -196,7 +197,7 @@ SYCL_EXTERNAL vec<unsigned short, 8> get8ui16() SYCL_ESIMD_FUNCTION;
 SYCL_EXTERNAL vec<unsigned char, 8> get8ui8() SYCL_ESIMD_FUNCTION;
 
 SYCL_EXTERNAL void
-test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
+test_mem_intrins(int *addr, const vec<float, 8> &xf,
                  const vec<float, 8> &xi) SYCL_ESIMD_FUNCTION {
   {
     constexpr SurfaceIndex si = 0;
@@ -216,18 +217,24 @@ test_mem_intrins(uint64_t addr, const vec<float, 8> &xf,
     // CHECK-LABEL: call void @llvm.genx.oword.st.v8f32(i32 0, i32 0, <8 x float> %{{[a-zA-Z0-9.]+}})
   }
   {
-    vec<int, 8> x = __esimd_svm_block_ld_unaligned<int, 8>(addr);
-    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.unaligned.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    vec<int, 8> x = __esimd_svm_block_ld<int, 8, 4>(vec_addr);
+    // CHECK-LABEL: load <8 x i32>, <8 x i32> addrspace(4)* %{{[a-zA-Z0-9.]+}}, align 4
     use(x);
   }
   {
-    vec<int, 8> x = __esimd_svm_block_ld<int, 8>(addr);
-    // CHECK-LABEL: %{{[a-zA-Z0-9.]+}} = call <8 x i32> @llvm.genx.svm.block.ld.v8i32.i64(i64 %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    vec<int, 8> x = __esimd_svm_block_ld<int, 8, 32>(vec_addr);
+    // CHECK-LABEL: load <8 x i32>, <8 x i32> addrspace(4)* %{{[a-zA-Z0-9.]+}}, align 32
     use(x);
   }
   {
-    __esimd_svm_block_st<int, 8>(addr, get8i());
-    // CHECK-LABEL: call void @llvm.genx.svm.block.st.i64.v8i32(i64 %{{[a-zA-Z0-9.]+}}, <8 x i32> %{{[a-zA-Z0-9.]+}})
+    using VecT = typename simd<int, 8>::raw_vector_type;
+    VecT *vec_addr = reinterpret_cast<VecT *>(addr);
+    __esimd_svm_block_st<int, 8, 32>(vec_addr, get8i());
+    // CHECK-LABEL: store <8 x i32> %{{[a-zA-Z0-9.]+}}, <8 x i32> addrspace(4)* %{{[a-zA-Z0-9.]+}}, align 32
   }
   {
     auto x = __esimd_svm_gather<unsigned char, 8>(get8ui64(), get8ui16());

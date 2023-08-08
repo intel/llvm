@@ -35,14 +35,14 @@ int main() {
                                                                      0, 1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
           sycl::ext::intel::esimd::atomic_op::store, uint32_t, 1>(
-          int_sync, 1, int_result, 1);
+          int_sync, sizeof(uint32_t), int_result, 1);
       float fp_result =
           sycl::ext::intel::experimental::esimd::lsc_atomic_update<
               sycl::ext::intel::esimd::atomic_op::load, float, 1>(fp_sync, 0,
                                                                   1)[0];
       sycl::ext::intel::experimental::esimd::lsc_atomic_update<
-          sycl::ext::intel::esimd::atomic_op::store, float, 1>(fp_sync, 1,
-                                                               fp_result, 1);
+          sycl::ext::intel::esimd::atomic_op::store, float, 1>(
+          fp_sync, sizeof(float), fp_result, 1);
     });
   });
   q.wait();

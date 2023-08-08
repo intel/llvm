@@ -19,7 +19,7 @@
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
@@ -54,7 +54,7 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
-std::pair<const RTDeviceBinaryImage *, RT::PiProgram>
+std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
 retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
   auto KernelName = KernelCG->getKernelName();
 
@@ -78,14 +78,14 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    RT::PiProgram Program =
+    sycl::detail::pi::PiProgram Program =
         detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
                                                               Context, Device);
     return {*DeviceImage, Program};
   }
 
   const RTDeviceBinaryImage *DeviceImage = nullptr;
-  RT::PiProgram Program = nullptr;
+  sycl::detail::pi::PiProgram Program = nullptr;
   if (KernelCG->getKernelBundle() != nullptr) {
     // Retrieve the device image from the kernel bundle.
     auto KernelBundle = KernelCG->getKernelBundle();
@@ -106,7 +106,7 @@ retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelCG->MOSModuleHandle, KernelName, Context, Device);
+        KernelName, Context, Device);
     Program = detail::ProgramManager::getInstance().createPIProgram(
         *DeviceImage, Context, Device);
   }
@@ -636,7 +636,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  RT::PiKernelCacheConfig KernelCacheConfig =
+  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
@@ -667,7 +667,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                     !KernelCG->MSyclKernel->isCreatedFromSource())) {
       EliminatedArgs =
           detail::ProgramManager::getInstance().getEliminatedKernelArgMask(
-              KernelCG->MOSModuleHandle, Program, KernelName);
+              Program, KernelName);
     }
 
     // Collect information about the arguments of this kernel.
@@ -854,19 +854,13 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }(FusedKernelInfo.NDR);
   updatePromotedArgs(FusedKernelInfo, NDRDesc, FusedArgs, ArgsStorage);
 
-  OSModuleHandle Handle = OSUtil::DummyModuleHandle;
   if (!FusionResult.cached()) {
     auto PIDeviceBinaries = createPIDeviceBinary(FusedKernelInfo, TargetFormat);
     detail::ProgramManager::getInstance().addImages(PIDeviceBinaries);
-    Handle = OSUtil::getOSModuleHandle(PIDeviceBinaries->DeviceBinaries);
-    CachedModules.emplace(FusedKernelInfo.Name, Handle);
   } else {
     if (DebugEnabled) {
       std::cerr << "INFO: Re-using existing device binary for fused kernel\n";
     }
-    // Retrieve an OSModuleHandle for the cached binary.
-    assert(CachedModules.count(FusedKernelInfo.Name) && "No cached binary");
-    Handle = CachedModules.at(FusedKernelInfo.Name);
   }
 
   // Create a kernel bundle for the fused kernel.
@@ -883,8 +877,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, Handle, {},
-      {}, CG::CGTYPE::Kernel, KernelCacheConfig));
+      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
+      CG::CGTYPE::Kernel, KernelCacheConfig));
   return FusedCG;
 }
 
@@ -1015,7 +1009,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION

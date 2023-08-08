@@ -104,6 +104,7 @@ private:
   llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
+  MDNode *transDebugInlinedNonSemanticShader200(const SPIRVExtInst *Inst);
 
   DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst,
                                       const std::string CompilerVersion = "",
@@ -128,7 +129,13 @@ private:
 
   DIStringType *transTypeString(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeMember(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMember(const SPIRVExtInst *DebugInst,
+                          const SPIRVExtInst *ParentInst = nullptr,
+                          DIScope *Scope = nullptr);
+  DINode *transTypeMemberOpenCL(const SPIRVExtInst *DebugInst);
+  DINode *transTypeMemberNonSemantic(const SPIRVExtInst *DebugInst,
+                                     const SPIRVExtInst *ParentInst,
+                                     DIScope *Scope);
 
   DINode *transTypeEnum(const SPIRVExtInst *DebugInst);
 
@@ -160,7 +167,8 @@ private:
 
   DINode *transTypedef(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst);
+  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst,
+                               DIType *ChildClass = nullptr);
 
   DINode *transImportedEntry(const SPIRVExtInst *DebugInst);
 

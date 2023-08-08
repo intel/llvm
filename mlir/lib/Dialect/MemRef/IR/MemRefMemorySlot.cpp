@@ -23,6 +23,7 @@
 #include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 using namespace mlir;
 
@@ -64,7 +65,7 @@ static void walkIndicesAsAttr(MLIRContext *ctx, ArrayRef<int64_t> shape,
 //===----------------------------------------------------------------------===//
 
 static bool isSupportedElementType(Type type) {
-  return type.isa<MemRefType>() ||
+  return llvm::isa<MemRefType>(type) ||
          OpBuilder(type.getContext()).getZeroAttr(type);
 }
 
@@ -110,11 +111,11 @@ void memref::AllocaOp::handleBlockArgument(const MemorySlot &slot,
 SmallVector<DestructurableMemorySlot>
 memref::AllocaOp::getDestructurableSlots() {
   MemRefType memrefType = getType();
-  auto destructurable = memrefType.dyn_cast<DestructurableTypeInterface>();
+  auto destructurable = llvm::dyn_cast<DestructurableTypeInterface>(memrefType);
   if (!destructurable)
     return {};
 
-  Optional<DenseMap<Attribute, Type>> destructuredType =
+  std::optional<DenseMap<Attribute, Type>> destructuredType =
       destructurable.getSubelementIndexMap();
   if (!destructuredType)
     return {};
@@ -134,7 +135,7 @@ memref::AllocaOp::destructure(const DestructurableMemorySlot &slot,
 
   DenseMap<Attribute, MemorySlot> slotMap;
 
-  auto memrefType = getType().cast<DestructurableTypeInterface>();
+  auto memrefType = llvm::cast<DestructurableTypeInterface>(getType());
   for (Attribute usedIndex : usedIndices) {
     Type elemType = memrefType.getTypeAtIndex(usedIndex);
     MemRefType elemPtr = MemRefType::get({}, elemType);
@@ -160,7 +161,12 @@ bool memref::LoadOp::loadsFrom(const MemorySlot &slot) {
   return getMemRef() == slot.ptr;
 }
 
-Value memref::LoadOp::getStored(const MemorySlot &slot) { return {}; }
+bool memref::LoadOp::storesTo(const MemorySlot &slot) { return false; }
+
+Value memref::LoadOp::getStored(const MemorySlot &slot,
+                                RewriterBase &rewriter) {
+  llvm_unreachable("getStored should not be called on LoadOp");
+}
 
 bool memref::LoadOp::canUsesBeRemoved(
     const MemorySlot &slot, const SmallPtrSetImpl<OpOperand *> &blockingUses,
@@ -222,9 +228,12 @@ DeletionKind memref::LoadOp::rewire(const DestructurableMemorySlot &slot,
 
 bool memref::StoreOp::loadsFrom(const MemorySlot &slot) { return false; }
 
-Value memref::StoreOp::getStored(const MemorySlot &slot) {
-  if (getMemRef() != slot.ptr)
-    return {};
+bool memref::StoreOp::storesTo(const MemorySlot &slot) {
+  return getMemRef() == slot.ptr;
+}
+
+Value memref::StoreOp::getStored(const MemorySlot &slot,
+                                 RewriterBase &rewriter) {
   return getValue();
 }
 
@@ -281,7 +290,7 @@ struct MemRefDestructurableTypeExternalModel
           MemRefDestructurableTypeExternalModel, MemRefType> {
   std::optional<DenseMap<Attribute, Type>>
   getSubelementIndexMap(Type type) const {
-    auto memrefType = type.cast<MemRefType>();
+    auto memrefType = llvm::cast<MemRefType>(type);
     constexpr int64_t maxMemrefSizeForDestructuring = 16;
     if (!memrefType.hasStaticShape() ||
         memrefType.getNumElements() > maxMemrefSizeForDestructuring ||
@@ -298,15 +307,15 @@ struct MemRefDestructurableTypeExternalModel
   }
 
   Type getTypeAtIndex(Type type, Attribute index) const {
-    auto memrefType = type.cast<MemRefType>();
-    auto coordArrAttr = index.dyn_cast<ArrayAttr>();
+    auto memrefType = llvm::cast<MemRefType>(type);
+    auto coordArrAttr = llvm::dyn_cast<ArrayAttr>(index);
     if (!coordArrAttr || coordArrAttr.size() != memrefType.getShape().size())
       return {};
 
     Type indexType = IndexType::get(memrefType.getContext());
     for (const auto &[coordAttr, dimSize] :
          llvm::zip(coordArrAttr, memrefType.getShape())) {
-      auto coord = coordAttr.dyn_cast<IntegerAttr>();
+      auto coord = llvm::dyn_cast<IntegerAttr>(coordAttr);
       if (!coord || coord.getType() != indexType || coord.getInt() < 0 ||
           coord.getInt() >= dimSize)
         return {};

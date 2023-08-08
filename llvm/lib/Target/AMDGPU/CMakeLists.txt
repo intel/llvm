@@ -67,7 +67,6 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPULegalizerInfo.cpp
   AMDGPULibCalls.cpp
   AMDGPULibFunc.cpp
-  AMDGPULowerIntrinsics.cpp
   AMDGPULowerKernelArguments.cpp
   AMDGPULowerKernelAttributes.cpp
   AMDGPULowerModuleLDSPass.cpp
@@ -84,12 +83,10 @@ add_llvm_target(AMDGPUCodeGen
   AMDGPUPreLegalizerCombiner.cpp
   AMDGPUPrintfRuntimeBinding.cpp
   AMDGPUPromoteAlloca.cpp
-  AMDGPUPropagateAttributes.cpp
   AMDGPUPromoteKernelArguments.cpp
   AMDGPURegBankCombiner.cpp
   AMDGPURegBankSelect.cpp
   AMDGPURegisterBankInfo.cpp
-  AMDGPUReleaseVGPRs.cpp
   AMDGPURemoveIncompatibleFunctions.cpp
   AMDGPUResourceUsageAnalysis.cpp
   AMDGPURewriteOutArguments.cpp
@@ -111,6 +108,7 @@ add_llvm_target(AMDGPUCodeGen
   GCNNSAReassign.cpp
   GCNPreRAOptimizations.cpp
   GCNRegPressure.cpp
+  GCNRewritePartialRegUses.cpp
   GCNSchedStrategy.cpp
   GCNVOPDUtils.cpp
   R600AsmPrinter.cpp

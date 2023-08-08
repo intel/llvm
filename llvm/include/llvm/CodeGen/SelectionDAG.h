@@ -948,6 +948,13 @@ public:
   /// integer type VT, by either zero-extending or truncating it.
   SDValue getZExtOrTrunc(SDValue Op, const SDLoc &DL, EVT VT);
 
+  /// Convert Op, which must be of integer type, to the
+  /// integer type VT, by either sign/zero-extending (depending on IsSigned) or
+  /// truncating it.
+  SDValue getExtOrTrunc(bool IsSigned, SDValue Op, const SDLoc &DL, EVT VT) {
+    return IsSigned ? getSExtOrTrunc(Op, DL, VT) : getZExtOrTrunc(Op, DL, VT);
+  }
+
   /// Return the expression required to zero extend the Op
   /// value assuming it was the smaller SrcTy value.
   SDValue getZeroExtendInReg(SDValue Op, const SDLoc &DL, EVT VT);
@@ -1065,6 +1072,9 @@ public:
   /// Return a node that represents the runtime scaling 'MulImm * RuntimeVL'.
   SDValue getVScale(const SDLoc &DL, EVT VT, APInt MulImm,
                     bool ConstantFold = true);
+
+  SDValue getElementCount(const SDLoc &DL, EVT VT, ElementCount EC,
+                          bool ConstantFold = true);
 
   /// Return a GLOBAL_OFFSET_TABLE node. This does not have a useful SDLoc.
   SDValue getGLOBAL_OFFSET_TABLE(EVT VT) {
@@ -1578,6 +1588,11 @@ public:
                            ArrayRef<SDValue> Ops, MachineMemOperand *MMO,
                            ISD::MemIndexType IndexType,
                            bool IsTruncating = false);
+
+  SDValue getGetFPEnv(SDValue Chain, const SDLoc &dl, SDValue Ptr, EVT MemVT,
+                      MachineMemOperand *MMO);
+  SDValue getSetFPEnv(SDValue Chain, const SDLoc &dl, SDValue Ptr, EVT MemVT,
+                      MachineMemOperand *MMO);
 
   /// Construct a node to track a Value* through the backend.
   SDValue getSrcValue(const Value *v);
@@ -2340,6 +2355,9 @@ public:
       return true;
     }
   }
+
+  SDValue makeStateFunctionCall(unsigned LibFunc, SDValue Ptr, SDValue InChain,
+                                const SDLoc &DLoc);
 
 private:
   void InsertNode(SDNode *N);

@@ -7,11 +7,28 @@
 // ===--------------------------------------------------------------------=== //
 
 #pragma once
+
 #include "matrix-intel.hpp"
-#include "utils.hpp"
-#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
+
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+#include "matrix-tensorcores.hpp"
+#endif
+
+#include <sycl/access/access.hpp>             // for address_space
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_...
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVAL...
+#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for layout, use, tf32
+#include <sycl/marray.hpp>                                 // for marray
+#include <sycl/multi_ptr.hpp>                              // for multi_ptr
+
+#include <cstring>     // for size_t, memcpy
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for ignore, _Swall...
+#include <type_traits> // for is_same, remov...
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -42,6 +59,23 @@ struct joint_matrix {
                         PI_ERROR_INVALID_DEVICE);
 #endif
   }
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__)
+  // Generate a non-trivial assignment operator and copy c'tor that prevents
+  // memcpy from being generated.
+  // TODO: to remove, when either IGC can handle alloca JointMatrix or
+  // combination of InstCombine + SROA + mem2reg can remove it
+  joint_matrix(const joint_matrix &other) {
+    spvm = other.spvm;
+    return *this;
+  }
+
+  joint_matrix &operator=(const joint_matrix &rhs) {
+    spvm = rhs.spvm;
+    return *this;
+  }
+#endif // defined(__SPIR__)
+#endif
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -423,5 +457,5 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

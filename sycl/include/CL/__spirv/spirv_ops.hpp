@@ -7,13 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_types.hpp>
-#include <complex>
-#include <cstddef>
-#include <cstdint>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+
+#include <CL/__spirv/spirv_types.hpp>         // for Scope, __ocl_event_t
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+
+#include <stddef.h> // for size_t
+#include <stdint.h> // for uint32_t
 
 // Convergent attribute
 #ifdef __SYCL_DEVICE_ONLY__
@@ -257,6 +257,10 @@ extern __DPCPP_SYCL_EXTERNAL SampledType __spirv_SampledImage(ImageT,
 template <typename SampledType, typename TempRetT, typename TempArgT>
 extern __DPCPP_SYCL_EXTERNAL TempRetT
 __spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, float);
+
+template <typename SampledType, typename TempRetT, typename TempArgT>
+extern __DPCPP_SYCL_EXTERNAL TempRetT
+__spirv_ImageSampleExplicitLod(SampledType, TempArgT, int, TempArgT, TempArgT);
 
 #define __SYCL_OpGroupAsyncCopyGlobalToLocal __spirv_GroupAsyncCopy
 #define __SYCL_OpGroupAsyncCopyLocalToGlobal __spirv_GroupAsyncCopy
@@ -1224,6 +1228,11 @@ __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInGlobalHWThreadIDINTEL();
 extern __DPCPP_SYCL_EXTERNAL int32_t __spirv_BuiltInSubDeviceIDINTEL();
 
+template <typename from, typename to>
+extern __DPCPP_SYCL_EXTERNAL
+    std::enable_if_t<std::is_integral_v<to> && std::is_unsigned_v<to>, to>
+    __spirv_ConvertPtrToU(from val) noexcept;
+
 #else // if !__SYCL_DEVICE_ONLY__
 
 template <typename dataT>
@@ -1263,5 +1272,4 @@ __spirv_MemoryBarrier(__spv::Scope Memory, uint32_t Semantics) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __spirv_GroupWaitEvents(__spv::Scope Execution, uint32_t NumEvents,
                         __ocl_event_t *WaitEvents) noexcept;
-
 #endif // !__SYCL_DEVICE_ONLY__

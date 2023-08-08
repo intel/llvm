@@ -6,6 +6,9 @@
 ; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv -r -emit-opaque-pointers --spirv-target-env=SPV-IR %t.spv -o %t.rev.bc.spvir
+; RUN: llvm-dis < %t.rev.bc.spvir | FileCheck %s --check-prefix=CHECK-SPV-IR
+
 ; CHECK-ERROR: Feature requires the following SPIR-V extension:
 ; CHECK-ERROR-NEXT: SPV_KHR_integer_dot_product
 
@@ -41,6 +44,21 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: call spir_func i16 @_Z29__spirv_SUDotAccSatKHR_Rshortiisi(
 ; CHECK-LLVM: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_Rintiiii(
 ; CHECK-LLVM: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_Rlongiili(
+
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_SDotAccSatKHR_Rchariici(
+; CHECK-SPV-IR: call spir_func i16 @_Z28__spirv_SDotAccSatKHR_Rshortiisi(
+; CHECK-SPV-IR: call spir_func i32 @_Z26__spirv_SDotAccSatKHR_Rintiiii(
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_SDotAccSatKHR_Rlongiili(
+
+; CHECK-SPV-IR: call spir_func i8 @_Z28__spirv_UDotAccSatKHR_Rucharjjhj(
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_UDotAccSatKHR_Rushortjjtj(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_UDotAccSatKHR_Ruintjjjj(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_UDotAccSatKHR_Rulongjjmj(
+
+; CHECK-SPV-IR: call spir_func i8 @_Z28__spirv_SUDotAccSatKHR_Rcharijci(
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_SUDotAccSatKHR_Rshortijsi(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_Rintijii(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_Rlongijli(
 
 ; CHECK-SPIRV: 7 SDotAccSatKHR [[#I8]] [[#]] [[#]] [[#]] [[#]] 0
 ; CHECK-SPIRV: 7 SDotAccSatKHR [[#I16]] [[#]] [[#]] [[#]] [[#]] 0
@@ -95,6 +113,21 @@ define spir_kernel void @TestSatPacked(i32 %0, i32 %1, i8 %acc8, i16 %acc16, i32
 ; CHECK-LLVM: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_RintDv4_cS_i(
 ; CHECK-LLVM: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_RlongDv4_cS_l(
 
+; CHECK-SPV-IR: call spir_func i8 @_Z27__spirv_SDotAccSatKHR_RcharDv4_cS_c(
+; CHECK-SPV-IR: call spir_func i16 @_Z28__spirv_SDotAccSatKHR_RshortDv4_cS_s(
+; CHECK-SPV-IR: call spir_func i32 @_Z26__spirv_SDotAccSatKHR_RintDv4_cS_i(
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_SDotAccSatKHR_RlongDv4_cS_l(
+
+; CHECK-SPV-IR: call spir_func i8 @_Z28__spirv_UDotAccSatKHR_RucharDv4_hS_h(
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_UDotAccSatKHR_RushortDv4_hS_t(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_UDotAccSatKHR_RuintDv4_hS_j(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_UDotAccSatKHR_RulongDv4_hS_m(
+
+; CHECK-SPV-IR: call spir_func i8 @_Z28__spirv_SUDotAccSatKHR_RcharDv4_cDv4_hc(
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_SUDotAccSatKHR_RshortDv4_cDv4_hs(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_RintDv4_cDv4_hi(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_RlongDv4_cDv4_hl(
+
 ; CHECK-SPIRV: 6 SDotAccSatKHR [[#I8]]
 ; CHECK-SPIRV: 6 SDotAccSatKHR [[#I16]]
 ; CHECK-SPIRV: 6 SDotAccSatKHR [[#I32]]
@@ -144,6 +177,18 @@ define spir_kernel void @TestSatVec(<4 x i8> %0, <4 x i8> %1, i8 %acc8, i16 %acc
 ; CHECK-LLVM: call spir_func i16 @_Z29__spirv_SUDotAccSatKHR_RshortDv2_sS_s(
 ; CHECK-LLVM: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_RintDv2_sS_i(
 ; CHECK-LLVM: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_RlongDv2_sS_l(
+
+; CHECK-SPV-IR: call spir_func i16 @_Z28__spirv_SDotAccSatKHR_RshortDv2_sS_s(
+; CHECK-SPV-IR: call spir_func i32 @_Z26__spirv_SDotAccSatKHR_RintDv2_sS_i(
+; CHECK-SPV-IR: call spir_func i64 @_Z27__spirv_SDotAccSatKHR_RlongDv2_sS_l(
+
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_UDotAccSatKHR_RushortDv2_tS_t(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_UDotAccSatKHR_RuintDv2_tS_j(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_UDotAccSatKHR_RulongDv2_tS_m(
+
+; CHECK-SPV-IR: call spir_func i16 @_Z29__spirv_SUDotAccSatKHR_RshortDv2_sDv2_ts(
+; CHECK-SPV-IR: call spir_func i32 @_Z27__spirv_SUDotAccSatKHR_RintDv2_sDv2_ti(
+; CHECK-SPV-IR: call spir_func i64 @_Z28__spirv_SUDotAccSatKHR_RlongDv2_sDv2_tl(
 
 ; CHECK-SPIRV: 6 SDotAccSatKHR [[#I16]]
 ; CHECK-SPIRV: 6 SDotAccSatKHR [[#I32]]

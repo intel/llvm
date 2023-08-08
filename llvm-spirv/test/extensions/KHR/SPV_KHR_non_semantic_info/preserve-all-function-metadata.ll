@@ -32,7 +32,7 @@ ret void
 }
 
 ; CHECK-LLVM: define spir_func void @test_string() {{.*}} !bar ![[#LLVMStr:]]
-define spir_func void @test_string() #1 !bar !2 {
+define spir_func void @test_string() #1 !bar !2 !spirv.Decorations !4 !spirv.ParameterDecorations !3 {
 ret void
 }
 
@@ -40,3 +40,8 @@ ret void
 !1 = !{i32 5}
 ; CHECK-LLVM ![[#LLVMSTR]] = !{!"baz"}
 !2 = !{!"baz"}
+!3 = !{!4, !7, !4}
+!4 = !{!5, !6}
+!5 = !{i32 0, i32 2}
+!6 = !{i32 0, i32 8}
+!7 = !{!6}

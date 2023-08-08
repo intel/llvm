@@ -37,7 +37,13 @@ const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
 #endif // ifndef __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+
+namespace ext::intel::esimd {
+template <typename AccessorTy>
+__ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc);
+} // namespace ext::intel::esimd
+
 namespace ext::intel::esimd::detail {
 
 // Provides access to sycl accessor class' private members.
@@ -83,7 +89,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // flat_read does flat-address gather
@@ -152,57 +158,6 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// flat_block_read reads a block of data from one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_block_ld_unaligned(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Read a block of data from the given address. Address must be 16-byte aligned.
-template <typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_block_ld(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_block_write writes a block of data using one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
-                                         __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    *Addr = vals[I];
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
 // Reads a block of data from given surface at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
@@ -247,16 +202,11 @@ __esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// Writes given block of data to a surface with given index at given offset.
+#ifndef __SYCL_DEVICE_ONLY__
 template <typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
-                                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  offset <<= 4;
-
+__ESIMD_INTRIN void
+__esimd_oword_st_unaligned(SurfIndAliasTy surf_ind, uint32_t offset,
+                           __ESIMD_DNS::vector_type_t<Ty, N> vals) {
   sycl::detail::ESIMDDeviceInterface *I =
       sycl::detail::getESIMDDeviceInterface();
   if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
@@ -290,6 +240,76 @@ __ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
     // TODO : Optimize
     I->cm_fence_ptr();
   }
+}
+#endif // !__SYCL_DEVICE_ONLY__
+
+// Writes given block of data to a surface with given index at given offset.
+template <typename Ty, int N, typename SurfIndAliasTy>
+__ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind,
+                                     uint32_t owords_offset,
+                                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __esimd_oword_st_unaligned<Ty, N>(surf_ind, owords_offset << 4, vals);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// Read a block of data from the given address.
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_svm_block_ld(const __ESIMD_DNS::vector_type_t<Ty, N> *addr)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  __ESIMD_DNS::vector_type_t<Ty, N> V;
+  const Ty *Addr = reinterpret_cast<const Ty *>(addr);
+  for (int I = 0; I < N; I++)
+    V[I] = *(Addr + I);
+  return V;
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// flat_block_write writes a block of data using one flat address
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN void __esimd_slm_block_st(uint32_t offset,
+                                         __ESIMD_DNS::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  auto SI = __ESIMD_NS::get_surface_index(__ESIMD_DNS::LocalAccessorMarker());
+  __esimd_oword_st_unaligned<Ty, N>(SI, offset, vals);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// Read a block of data from SLM at the given offset.
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_slm_block_ld(uint32_t offset)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  auto SI = __ESIMD_NS::get_surface_index(__ESIMD_DNS::LocalAccessorMarker());
+  return __esimd_oword_ld_unaligned<Ty, N>(SI, offset);
+}
+#endif // __SYCL_DEVICE_ONLY__
+
+// flat_block_write writes a block of data using one flat address
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN void
+__esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
+                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
+#ifdef __SYCL_DEVICE_ONLY__
+    ;
+#else
+{
+  Ty *Addr = reinterpret_cast<Ty *>(addr);
+  for (int I = 0; I < N; I++)
+    *(Addr + I) = vals[I];
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -540,13 +560,13 @@ __esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
                          (Op == __ESIMD_NS::atomic_op::fsub)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::minsint) ||
-                         (Op == __ESIMD_NS::atomic_op::min) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smin) ||
+                         (Op == __ESIMD_NS::atomic_op::umin) ||
                          (Op == __ESIMD_NS::atomic_op::fmin)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::maxsint) ||
-                         (Op == __ESIMD_NS::atomic_op::max) ||
+    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smax) ||
+                         (Op == __ESIMD_NS::atomic_op::umax) ||
                          (Op == __ESIMD_NS::atomic_op::fmax)) {
       Oldval[AddrIdx] =
           __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
@@ -756,50 +776,16 @@ __esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// Reads a block of data from given surface at given offset, offset must be
-// 16-byte-aligned.
+// Reads a block of data from given surface at given `offset` counted
+// in 16-byte chunks.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
+__esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t owords_offset)
 #ifdef __SYCL_DEVICE_ONLY__
     ;
 #else
 {
-  addr <<= 4;
-
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
-      retv[i] = *SlmAddr;
-      addr += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (addr >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + addr));
-      }
-      addr += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
+  return __esimd_oword_ld_unaligned<Ty, N>(surf_ind, owords_offset << 4);
 }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -1164,10 +1150,6 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 }
 #endif // __SYCL_DEVICE_ONLY__
 
-// getter methods returning surface index are not available when stateless
-// memory accesses are enforced.
-#ifndef __ESIMD_FORCE_STATELESS_MEM
-
 // \brief Converts given value to a surface index.
 // The input must always be a result of
 //   detail::AccessorPrivateProxy::getQualifiedPtrOrImageObj(acc)
@@ -1178,27 +1160,27 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // or
 //   image{1,2,3}d_t OpenCL type for an image
 // But when doing code generation, FE replaces e.g. '__read_only image2d_t' FE
-// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type.
-// image2d_t can neither be reinterpret_cast'ed from pointer to intptr_t
-// (because it is not a pointer at FE translation time), nor it can be
-// bit_cast'ed to intptr_t (because it is not trivially copyable). This
-// intrinsic takes advantage of the fact that in LLVM IR 'obj' is always a
-// pointer, where we can do ptr to uint32_t conversion.
-// This intrinsic can be called only from the device code, as
+// type with '%opencl.image2d_ro_t addrspace(1) *' LLVM type or a Target
+// Extension Type if using opaque pointers. These types can neither be
+// reinterpret_cast'ed from pointer to intptr_t (because they are not a pointer
+// at FE translation time), nor can they be bit_cast'ed to intptr_t (because
+// they are not trivially copyable). This function takes advantage of the fact
+// that in SPIR-V 'obj' is always a pointer, where we can do ptr to uint32_t
+// conversion. This function can be called only from the device code, as
 // accessor => memory handle translation for host is different.
 // @param acc the SYCL accessor.
 // Returns the binding table index value.
 template <typename MemObjTy>
-__ESIMD_INTRIN __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
 #ifdef __SYCL_DEVICE_ONLY__
-    ;
+{
+  return __spirv_ConvertPtrToU<MemObjTy, uint32_t>(obj);
+}
 #else  // __SYCL_DEVICE_ONLY__
 {
   return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
       __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
 }
 #endif // __SYCL_DEVICE_ONLY__
-
-#endif // !__ESIMD_FORCE_STATELESS_MEM
 
 /// @endcond ESIMD_DETAIL

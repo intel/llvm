@@ -7,7 +7,8 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9 || gpu-intel-pvc || esimd_emulator
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+// RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks ieee_sqrt() and ieee_sqrt() with float and double types.

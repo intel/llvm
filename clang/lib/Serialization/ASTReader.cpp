@@ -1973,10 +1973,11 @@ HeaderFileInfoTrait::ReadData(internal_key_ref key, const unsigned char *d,
     std::string Filename = std::string(key.Filename);
     if (key.Imported)
       Reader.ResolveImportedPath(M, Filename);
-    // FIXME: NameAsWritten
-    Module::Header H = {std::string(key.Filename), "",
-                        FileMgr.getOptionalFileRef(Filename)};
-    ModMap.addHeader(Mod, H, HeaderRole, /*Imported*/true);
+    if (auto FE = FileMgr.getOptionalFileRef(Filename)) {
+      // FIXME: NameAsWritten
+      Module::Header H = {std::string(key.Filename), "", *FE};
+      ModMap.addHeader(Mod, H, HeaderRole, /*Imported=*/true);
+    }
     HFI.isModuleHeader |= ModuleMap::isModular(HeaderRole);
   }
 
@@ -5713,9 +5714,9 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       std::string Filename = std::string(Blob);
       ResolveImportedPath(F, Filename);
       if (auto Umbrella = PP.getFileManager().getOptionalFileRef(Filename)) {
-        if (!CurrentModule->getUmbrellaHeader()) {
+        if (!CurrentModule->getUmbrellaHeaderAsWritten()) {
           // FIXME: NameAsWritten
-          ModMap.setUmbrellaHeader(CurrentModule, *Umbrella, Blob, "");
+          ModMap.setUmbrellaHeaderAsWritten(CurrentModule, *Umbrella, Blob, "");
         }
         // Note that it's too late at this point to return out of date if the
         // name from the PCM doesn't match up with the one in the module map,
@@ -5750,10 +5751,11 @@ llvm::Error ASTReader::ReadSubmoduleBlock(ModuleFile &F,
       // See comments in SUBMODULE_UMBRELLA_HEADER
       std::string Dirname = std::string(Blob);
       ResolveImportedPath(F, Dirname);
-      if (auto Umbrella = PP.getFileManager().getDirectory(Dirname)) {
-        if (!CurrentModule->getUmbrellaDir()) {
+      if (auto Umbrella =
+              PP.getFileManager().getOptionalDirectoryRef(Dirname)) {
+        if (!CurrentModule->getUmbrellaDirAsWritten()) {
           // FIXME: NameAsWritten
-          ModMap.setUmbrellaDir(CurrentModule, *Umbrella, Blob, "");
+          ModMap.setUmbrellaDirAsWritten(CurrentModule, *Umbrella, Blob, "");
         }
       }
       break;
@@ -6981,6 +6983,10 @@ QualType ASTReader::GetType(TypeID ID) {
   if (Index < NUM_PREDEF_TYPE_IDS) {
     QualType T;
     switch ((PredefinedTypeIDs)Index) {
+    case PREDEF_TYPE_LAST_ID:
+      // We should never use this one.
+      llvm_unreachable("Invalid predefined type");
+      break;
     case PREDEF_TYPE_NULL_ID:
       return QualType();
     case PREDEF_TYPE_VOID_ID:

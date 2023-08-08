@@ -5,7 +5,7 @@ FROM $base_image:$base_tag
 
 COPY scripts/drivers_entrypoint.sh /drivers_entrypoint.sh
 RUN mkdir -p /opt/sycl
-ADD llvm_sycl.tar.xz /opt/sycl
+ADD sycl_linux.tar.gz /opt/sycl/
 
 ENV PATH /opt/sycl/bin:$PATH
 ENV LD_LIBRARY_PATH /opt/sycl/lib:$LD_LIBRARY_PATH

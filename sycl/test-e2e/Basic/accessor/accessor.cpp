@@ -76,6 +76,18 @@ void implicit_conversion(const AccT &acc, const ResAccT &res_acc) {
   res_acc[0] = v;
 }
 
+void implicit_conversion(const sycl::local_accessor<const int, 1> &acc,
+                         const ResAccT &res_acc) {
+  auto v = acc[0];
+  res_acc[0] = v;
+}
+
+int implicit_conversion(
+    const sycl::host_accessor<const int, 1, sycl::access_mode::read> &acc) {
+  auto v = acc[0];
+  return v;
+}
+
 template <typename T> void TestAccSizeFuncs(const std::vector<T> &vec) {
   auto test = [=](auto &Res, const auto &Acc) {
     Res[0] = Acc.byte_size();
@@ -684,7 +696,7 @@ int main() {
           acc(b);
 
       q.submit([&](sycl::handler &cgh) {
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         cgh.parallel_for<class ph1>(r,
                                     [=](sycl::id<1> index) { acc[index] = 0; });
@@ -715,7 +727,7 @@ int main() {
       AccT acc(b);
 
       q.submit([&](sycl::handler &cgh) {
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         // The difference with the previous test is that the use of acc
         // is usually optimized away for this particular scenario, but the
@@ -750,14 +762,14 @@ int main() {
 
       q.submit([&](sycl::handler &cgh) {
         AccT acc2(b, cgh);
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         // The particularity of this test is that it passes to a command
         // one bound accessor and one unbound accessor. In the past, this
         // has led to throw the wrong exception.
         cgh.single_task<class ph3>([=] {
-          volatile int x = acc[0];
-          volatile int y = acc2[0];
+          int x = acc[0];
+          int y = acc2[0];
         });
       });
       q.wait_and_throw();
@@ -772,7 +784,41 @@ int main() {
     }
   }
 
-  // SYCL2020 4.9.4.1: calling require() on empty accessor should throw
+  // placeholder accessor exception (4)  // SYCL2020 4.7.6.9
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    // is no good way to throw an exception at this time.
+    sycl::range<1> r(4);
+    sycl::buffer<int, 1> b(r);
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+                                  sycl::access::target::device,
+                                  sycl::access::placeholder::true_t>;
+      AccT acc(b);
+
+      q.submit([&](sycl::handler &cgh) {
+        AccT acc2(b, cgh);
+        // Pass placeholder accessor to command, but having required a different
+        // accessor in the command. In past versions, we used to compare the
+        // number of accessors with the number of requirements, and if they
+        // matched, we did not throw, allowing this scenario that shouldn't be
+        // allowed.
+        cgh.single_task<class ph4>([=] { int x = acc[0]; });
+      });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::kernel_argument && "incorrect error code");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
+  // SYCL2020 4.9.4.1: calling require() on empty accessor should not throw.
   {
     sycl::queue q;
     try {
@@ -780,12 +826,10 @@ int main() {
 
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
       q.wait_and_throw();
-      assert(false && "we should not be here, missing exception");
     } catch (sycl::exception &e) {
-      std::cout << "exception received: " << e.what() << std::endl;
-      assert(e.code() == sycl::errc::invalid && "error code should be invalid");
+      assert("Unexpected exception");
     } catch (...) {
-      std::cout << "Some other exception (line " << __LINE__ << ")"
+      std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                 << std::endl;
       return 1;
     }
@@ -822,34 +866,6 @@ int main() {
         assert(host_acc[0] == 798);
       }
 
-    } catch (sycl::exception e) {
-      std::cout << "SYCL exception caught: " << e.what();
-      return 1;
-    }
-  }
-
-  // Accessor with buffer size 0.
-  {
-    try {
-      int data[10] = {0};
-      {
-        sycl::buffer<int, 1> b{&data[0], 10};
-        sycl::buffer<int, 1> b1{0};
-
-        sycl::queue queue;
-        queue.submit([&](sycl::handler &cgh) {
-          sycl::accessor<int, 1, sycl::access::mode::read_write,
-                         sycl::target::device>
-              B(b, cgh);
-          auto B1 = b1.template get_access<sycl::access::mode::read_write>(cgh);
-
-          cgh.single_task<class acc_with_zero_sized_buffer>(
-              [=]() { B[0] = 1; });
-        });
-      }
-      assert(!"invalid device accessor buffer size exception wasn't caught");
-    } catch (const sycl::invalid_object_error &e) {
-      assert(e.get_cl_code() == CL_INVALID_VALUE);
     } catch (sycl::exception e) {
       std::cout << "SYCL exception caught: " << e.what();
       return 1;
@@ -1340,7 +1356,8 @@ int main() {
     const int data = 123;
     int result = 0;
 
-    // accessor<const T, read_only> to accessor<T, read_only> implicit conversion.
+    // accessor<const T, read_only> to accessor<T, read_only> implicit
+    // conversion.
     {
       sycl::buffer<const int, 1> data_buf(&data, 1);
       sycl::buffer<int, 1> res_buf(&result, 1);
@@ -1357,6 +1374,37 @@ int main() {
           .wait_and_throw();
     }
     assert(result == 123 && "Expected value not seen.");
+  }
+
+  // local_accessor<T> to local_accessor<const T> implicit conversion.
+  {
+    int data = 123;
+    int result = 0;
+    {
+      sycl::buffer<int, 1> res_buf(&result, 1);
+      sycl::queue queue;
+      queue
+          .submit([&](sycl::handler &cgh) {
+            ResAccT res_acc = res_buf.get_access(cgh);
+            sycl::local_accessor<int, 1> locAcc(1, cgh);
+            cgh.parallel_for(sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+              locAcc[0] = 123;
+              implicit_conversion(locAcc, res_acc);
+            });
+          })
+          .wait_and_throw();
+    }
+    assert(result == 123 && "Expected value not seen.");
+  }
+
+  // host_accessor<T, read_write> to host_accessor<const T, read> implicit
+  // conversion.
+  {
+    int data = -1;
+    sycl::buffer<int, 1> d(&data, sycl::range<1>(1));
+    sycl::host_accessor host_acc(d, sycl::read_write);
+    host_acc[0] = 399;
+    assert(implicit_conversion(host_acc) == 399);
   }
 
   // accessor swap
@@ -1389,6 +1437,58 @@ int main() {
     }
     assert(results[0] == 123 && "Unexpected value!");
     assert(results[1] == 6 && "Unexpected value!");
+  }
+
+  // accessor with buffer size 0.
+  {
+    sycl::buffer<int, 1> Buf{0};
+    sycl::buffer<int, 1> Buf2{200};
+
+    {
+      sycl::queue queue;
+      for (auto IBuf : {Buf, Buf2}) {
+        queue
+            .submit([&](sycl::handler &cgh) {
+              auto B =
+                  IBuf.template get_access<sycl::access::mode::read_write>(cgh);
+
+              cgh.single_task<class fill_with_potentially_zero_size>([=]() {
+                for (size_t I = 0; I < B.size(); ++I)
+                  B[I] = 1;
+              });
+            })
+            .wait();
+      }
+    }
+  }
+
+  // default constructed accessor is not a placeholder
+  {
+    AccT acc;
+    assert(!acc.is_placeholder());
+    sycl::queue q;
+    bool result;
+    {
+      sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
+      // As a non-placeholder accessor, make sure no exception is thrown when
+      // passed to a command. However, we cannot access it, because there's
+      // no underlying storage.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          sycl::accessor res_acc{Buf, cgh};
+          cgh.single_task<class def_ctor>(
+              [=] { res_acc[0] = acc.is_placeholder(); });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
   }
 
   std::cout << "Test passed" << std::endl;

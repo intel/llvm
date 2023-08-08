@@ -167,6 +167,13 @@ def err_intel_fpga_mem_arg_mismatch
             "a pointer"
             "|a non-negative integer constant}0">;
 
+def err_intel_sycl_ptr_annotation_arg_number_mismatch
+    :Error<"number of parameters must be odd number">;
+def err_intel_sycl_ptr_annotation_mismatch
+    : Error<"builtin parameter must be %select{"
+            "a pointer"
+            "|a string literal or constexpr const char*}0">;
+
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
   InGroup<VLAExtension>;
@@ -2692,10 +2699,23 @@ def warn_cxx14_compat_constexpr_not_const : Warning<
   "in C++14; add 'const' to avoid a change in behavior">,
   InGroup<DiagGroup<"constexpr-not-const">>;
 def err_invalid_consteval_take_address : Error<
-  "cannot take address of consteval %select{function|call operator of}1 %0 outside"
+  "cannot take address of %select{immediate|consteval}2 "
+  "%select{function|call operator of}1 %0 outside"
   " of an immediate invocation">;
 def err_invalid_consteval_call : Error<
-  "call to consteval function %q0 is not a constant expression">;
+  "call to %select{immediate|consteval}1 function "
+  "%q0 is not a constant expression">;
+
+def err_immediate_function_used_before_definition : Error<
+  "immediate function %0 used before it is defined">;
+
+def note_immediate_function_reason : Note<
+  "%0 is an immediate function because its body "
+  "%select{evaluates the address of %select{an immediate|a consteval}2 "
+  "function %1|contains a call to %select{an immediate|a consteval}2 "
+  "%select{function|constructor}4 %1 and that call is not a constant "
+  "expression}3">;
+
 def note_invalid_consteval_initializer : Note<
   "in the default initalizer of %0">;
 def note_invalid_consteval_initializer_here : Note<
@@ -3058,7 +3078,7 @@ def err_musttail_no_variadic : Error<
 def err_nsobject_attribute : Error<
   "'NSObject' attribute is for pointer types only">;
 def err_attributes_are_not_compatible : Error<
-  "%0 and %1 attributes are not compatible">;
+  "%0 and %1%select{ attributes|}2 are not compatible">;
 def err_attribute_invalid_argument : Error<
   "%select{a reference type|an array type|a non-vector or "
   "non-vectorizable scalar type}0 is an invalid argument to attribute %1">;
@@ -3107,8 +3127,8 @@ def err_attribute_riscv_rvv_bits_unsupported : Error<
   "%0 is only supported when '-mrvv-vector-bits=<bits>' is specified with a "
   "value of \"zvl\" or a power 2 in the range [64,65536]">;
 def err_attribute_bad_rvv_vector_size : Error<
-  "invalid RVV vector size '%0', must match value set by "
-  "'-mrvv-vector-bits' ('%1')">;
+  "invalid RVV vector size '%0', expected size is '%1' based on LMUL of type "
+  "and '-mrvv-vector-bits'">;
 def err_attribute_invalid_rvv_type : Error<
   "%0 attribute applied to non-RVV type %1">;
 def err_attribute_requires_positive_integer : Error<
@@ -3479,9 +3499,9 @@ def warn_attribute_has_no_effect_on_compile_time_if : Warning<
 def note_attribute_has_no_effect_on_compile_time_if_here : Note<
   "annotating the 'if %select{constexpr|consteval}0' statement here">;
 def err_decl_attribute_invalid_on_stmt : Error<
-  "%0 attribute cannot be applied to a statement">;
+  "%0%select{ attribute|}1 cannot be applied to a statement">;
 def err_attribute_invalid_on_decl : Error<
-  "%0 attribute cannot be applied to a declaration">;
+  "%0%select{ attribute|}1 cannot be applied to a declaration">;
 def warn_type_attribute_deprecated_on_decl : Warning<
   "applying attribute %0 to a declaration is deprecated; apply it to the type instead">,
   InGroup<DeprecatedAttributes>;
@@ -3489,6 +3509,10 @@ def warn_declspec_attribute_ignored : Warning<
   "attribute %0 is ignored, place it after "
   "\"%select{class|struct|interface|union|enum|enum class|enum struct}1\" to apply attribute to "
   "type declaration">, InGroup<IgnoredAttributes>;
+def err_declspec_keyword_has_no_effect : Error<
+  "%0 cannot appear here, place it after "
+  "\"%select{class|struct|interface|union|enum}1\" to apply it to the "
+  "type declaration">;
 def warn_attribute_precede_definition : Warning<
   "attribute declaration must precede definition">,
   InGroup<IgnoredAttributes>;
@@ -3587,13 +3611,13 @@ def err_attribute_weakref_without_alias : Error<
 def err_alias_not_supported_on_darwin : Error <
   "aliases are not supported on darwin">;
 def warn_attribute_wrong_decl_type_str : Warning<
-  "%0 attribute only applies to %1">, InGroup<IgnoredAttributes>;
+  "%0%select{ attribute|}1 only applies to %2">, InGroup<IgnoredAttributes>;
 def err_attribute_wrong_decl_type_str : Error<
   warn_attribute_wrong_decl_type_str.Summary>;
 def err_attribute_only_system_header : Error<
   "%0 attribute only supported within a system header">;
 def warn_attribute_wrong_decl_type : Warning<
-  "%0 attribute only applies to %select{"
+  "%0%select{ attribute|}1 only applies to %select{"
   "functions"
   "|unions"
   "|variables and functions"
@@ -3606,13 +3630,15 @@ def warn_attribute_wrong_decl_type : Warning<
   "|types and namespaces"
   "|variables, functions and classes"
   "|kernel functions"
-  "|non-K&R-style functions}1">,
+  "|non-K&R-style functions}2">,
   InGroup<IgnoredAttributes>;
 def err_attribute_wrong_decl_type : Error<warn_attribute_wrong_decl_type.Summary>;
 def warn_type_attribute_wrong_type : Warning<
   "'%0' only applies to %select{function|pointer|"
   "Objective-C object or block pointer}1 types; type here is %2">,
   InGroup<IgnoredAttributes>;
+def err_type_attribute_wrong_type : Error<
+  warn_type_attribute_wrong_type.Summary>;
 def warn_incomplete_encoded_type : Warning<
   "encoding of %0 type is incomplete because %1 component has unknown encoding">,
   InGroup<DiagGroup<"encode-type">>;
@@ -3663,7 +3689,7 @@ def err_invalid_pcs : Error<"invalid PCS type">;
 def warn_attribute_not_on_decl : Warning<
   "%0 attribute ignored when parsing type">, InGroup<IgnoredAttributes>;
 def err_base_specifier_attribute : Error<
-  "%0 attribute cannot be applied to a base specifier">;
+  "%0%select{ attribute|}1 cannot be applied to a base specifier">;
 def warn_declspec_allocator_nonpointer : Warning<
   "ignoring __declspec(allocator) because the function return type %0 is not "
   "a pointer or reference type">, InGroup<IgnoredAttributes>;
@@ -7719,7 +7745,7 @@ def warn_increment_bool : Warning<
   "incompatible with C++17">, InGroup<DeprecatedIncrementBool>;
 def ext_increment_bool : ExtWarn<
   "ISO C++17 does not allow incrementing expression of type bool">,
-  DefaultError, InGroup<IncrementBool>;
+  DefaultError, SFINAEFailure, InGroup<IncrementBool>;
 def err_increment_decrement_enum : Error<
   "cannot %select{decrement|increment}0 expression of enum type %1">;
 
@@ -8591,6 +8617,9 @@ def err_atomic_op_needs_atomic_int_ptr_or_fp : Error<
 def err_atomic_op_needs_atomic_int_or_ptr : Error<
   "address argument to atomic operation must be a pointer to %select{|atomic }0"
   "integer or pointer (%1 invalid)">;
+def err_atomic_op_needs_atomic_int_or_fp : Error<
+  "address argument to atomic operation must be a pointer to %select{|atomic }0"
+  "integer or supported floating point type (%1 invalid)">;
 def err_atomic_op_needs_atomic_int : Error<
   "address argument to atomic operation must be a pointer to "
   "%select{|atomic }0integer (%1 invalid)">;
@@ -8815,8 +8844,6 @@ def err_cast_pointer_to_non_pointer_int : Error<
 def err_nullptr_cast : Error<
   "cannot cast an object of type %select{'nullptr_t' to %1|%1 to 'nullptr_t'}0"
 >;
-def err_cast_to_bfloat16 : Error<"cannot type-cast to __bf16">;
-def err_cast_from_bfloat16 : Error<"cannot type-cast from __bf16">;
 def err_typecheck_expect_scalar_operand : Error<
   "operand of type %0 where arithmetic or pointer type is required">;
 def err_typecheck_cond_incompatible_operands : Error<
@@ -9523,6 +9550,10 @@ def note_defaulted_comparison_not_constexpr_here : Note<
 def note_in_declaration_of_implicit_equality_comparison : Note<
   "while declaring the corresponding implicit 'operator==' "
   "for this defaulted 'operator<=>'">;
+def err_volatile_comparison_operator : Error<
+  "defaulted comparison function must not be volatile">;
+def err_ref_qualifier_comparison_operator : Error<
+  "ref-qualifier '&&' is not allowed on a defaulted comparison operator">;
 
 def ext_implicit_exception_spec_mismatch : ExtWarn<
   "function previously declared with an %select{explicit|implicit}0 exception "
@@ -12064,8 +12095,8 @@ def warn_unsafe_buffer_operation : Warning<
   InGroup<UnsafeBufferUsage>, DefaultIgnore;
 def note_unsafe_buffer_operation : Note<
   "used%select{| in pointer arithmetic| in buffer access}0 here">;
-def note_unsafe_buffer_variable_fixit : Note<
-  "change type of '%0' to '%select{std::span|std::array|std::span::iterator}1' to preserve bounds information">;
+def note_unsafe_buffer_variable_fixit_group : Note<
+  "change type of %0 to '%select{std::span|std::array|std::span::iterator}1' to preserve bounds information%select{|, and change %2 to '%select{std::span|std::array|std::span::iterator}1' to propagate bounds information between them}3">;
 def note_safe_buffer_usage_suggestions_disabled : Note<
   "pass -fsafe-buffer-usage-suggestions to receive code hardening suggestions">;
 def err_loongarch_builtin_requires_la32 : Error<
@@ -12082,4 +12113,34 @@ def err_wasm_ca_reference : Error<
   "cannot %select{capture|take address of}0 WebAssembly reference">;
 def err_wasm_funcref_not_wasm : Error<
   "invalid use of '__funcref' keyword outside the WebAssembly triple">;
+def err_wasm_table_pr : Error<
+  "cannot form a %select{pointer|reference}0 to a WebAssembly table">;
+def err_typecheck_wasm_table_must_have_zero_length : Error<
+  "only zero-length WebAssembly tables are currently supported">;
+def err_wasm_table_in_function : Error<
+  "WebAssembly table cannot be declared within a function">;
+def err_wasm_table_as_function_parameter : Error<
+  "cannot use WebAssembly table as a function parameter">;
+def err_wasm_table_invalid_uett_operand : Error<
+  "invalid application of '%0' to WebAssembly table">;
+def err_wasm_cast_table : Error<
+  "cannot cast %select{to|from}0 a WebAssembly table">;
+def err_wasm_table_conditional_expression : Error<
+  "cannot use a WebAssembly table within a branch of a conditional expression">;
+def err_wasm_table_art : Error<
+  "cannot %select{assign|return|throw|subscript}0 a WebAssembly table">;
+def err_wasm_reftype_tc : Error<
+  "cannot %select{throw|catch}0 a WebAssembly reference type">;
+def err_wasm_reftype_exception_spec : Error<
+  "WebAssembly reference type not allowed in exception specification">;
+def err_wasm_table_must_be_static : Error<
+  "WebAssembly table must be static">;
+def err_wasm_reftype_multidimensional_array : Error<
+  "multi-dimensional arrays of WebAssembly references are not allowed">;
+def err_wasm_builtin_arg_must_be_table_type : Error <
+  "%ordinal0 argument must be a WebAssembly table">;
+def err_wasm_builtin_arg_must_match_table_element_type : Error <
+  "%ordinal0 argument must match the element type of the WebAssembly table in the %ordinal1 argument">;
+def err_wasm_builtin_arg_must_be_integer_type : Error <
+  "%ordinal0 argument must be an integer">;
 } // end of sema component.

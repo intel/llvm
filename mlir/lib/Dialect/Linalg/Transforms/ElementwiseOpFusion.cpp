@@ -422,11 +422,20 @@ public:
       if (!controlFn(&opOperand))
         continue;
 
+      // Find the producer of the operand.
       FailureOr<ElementwiseOpFusionResult> fusionResult =
           fuseElementwiseOps(rewriter, &opOperand);
       if (failed(fusionResult))
         return rewriter.notifyMatchFailure(genericOp, "fusion failed");
       Operation *producer = opOperand.get().getDefiningOp();
+
+      // Do not fuse a sparse-in/dense-out operation, as the
+      // result is too often not sparsifiable anymore.
+      if (sparse_tensor::hasAnySparseOperand(producer) &&
+          !sparse_tensor::hasAnySparseResult(producer))
+        return failure();
+
+      // Perform the fusion.
       for (auto [origVal, replacement] : fusionResult->replacements) {
         rewriter.replaceUsesWithIf(origVal, replacement, [&](OpOperand &use) {
           // Only replace consumer uses.
@@ -1447,7 +1456,7 @@ FailureOr<SmallVector<Value>> mlir::linalg::collapseGenericOpIterationDims(
       cast<LinalgOp>(genericOp.getOperation())
           .createLoopRanges(rewriter, genericOp.getLoc());
   auto opFoldIsConstantValue = [](OpFoldResult ofr, int64_t value) {
-    if (auto attr = ofr.dyn_cast<Attribute>())
+    if (auto attr = llvm::dyn_cast_if_present<Attribute>(ofr))
       return cast<IntegerAttr>(attr).getInt() == value;
     llvm::APInt actual;
     return matchPattern(ofr.get<Value>(), m_ConstantInt(&actual)) &&

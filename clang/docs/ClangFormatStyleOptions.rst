@@ -3555,6 +3555,11 @@ the configuration (without a prefix: ``Auto``).
      false:
      import {VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying, VeryLongImportsAreAnnoying,} from "some/module.js"
 
+.. _KeepEmptyLinesAtEOF:
+
+**KeepEmptyLinesAtEOF** (``Boolean``) :versionbadge:`clang-format 17` :ref:`¶ <KeepEmptyLinesAtEOF>`
+  Keep empty lines (up to ``MaxEmptyLinesToKeep``) at end of file.
+
 .. _KeepEmptyLinesAtTheStartOfBlocks:
 
 **KeepEmptyLinesAtTheStartOfBlocks** (``Boolean``) :versionbadge:`clang-format 3.7` :ref:`¶ <KeepEmptyLinesAtTheStartOfBlocks>`
@@ -4561,11 +4566,6 @@ the configuration (without a prefix: ``Auto``).
 
 **SortIncludes** (``SortIncludesOptions``) :versionbadge:`clang-format 3.8` :ref:`¶ <SortIncludes>`
   Controls if and how clang-format will sort ``#includes``.
-  If ``Never``, includes are never sorted.
-  If ``CaseInsensitive``, includes are sorted in an ASCIIbetical or case
-  insensitive fashion.
-  If ``CaseSensitive``, includes are sorted in an alphabetical or case
-  sensitive fashion.
 
   Possible values:
 

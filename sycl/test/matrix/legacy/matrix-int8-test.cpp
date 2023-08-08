@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -O2 -DSYCL_EXT_ONEAPI_MATRIX_VERSION=1 -S -emit-llvm -o - %s | FileCheck %s
 
-// CHECK-DAG: %spirv.JointMatrixINTEL._char_12_48_0_3 = type opaque
-// CHECK-DAG: %spirv.JointMatrixINTEL._int_12_12_0_3 = type opaque
-// CHECK-DAG: %spirv.JointMatrixINTEL._char_48_12_3_3 = type opaque
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 12, 48, 0, 3)
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i32, 12, 12, 0, 3)
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 48, 12, 3, 3)
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -64,7 +64,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
            joint_matrix<int8_t, TM, TK> sub_a(sg);
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the updated VNNI sizes along with

@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/functional.hpp>
-#include <sycl/half_type.hpp>
 
-#include <complex>
-#include <functional>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/functional.hpp> // for maximum, minimum
+
+#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
@@ -34,6 +34,7 @@ struct GroupOpISigned {};
 struct GroupOpIUnsigned {};
 struct GroupOpFP {};
 struct GroupOpC {};
+struct GroupOpBool {};
 
 template <typename T, typename = void> struct GroupOpTag;
 
@@ -58,6 +59,11 @@ struct GroupOpTag<
                         std::is_same<T, std::complex<float>>::value ||
                         std::is_same<T, std::complex<double>>::value>> {
   using type = GroupOpC;
+};
+
+template <typename T>
+struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
+  using type = GroupOpBool;
 };
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
@@ -91,6 +97,16 @@ __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
 __SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
 
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalAndKHR, sycl::logical_and<T>)
+
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOrKHR, sycl::logical_or<T>)
+
 #undef __SYCL_CALC_OVERLOAD
 
 template <__spv::GroupOperation O, typename Group, typename T,
@@ -103,5 +119,5 @@ static T calc(Group g, typename GroupOpTag<T>::type, T x,
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -14,35 +14,6 @@ constexpr size_t IMAGE_DEPTH = 2;
 constexpr size_t IMAGE_PITCH_WIDTH = 7;
 constexpr size_t IMAGE_PITCH_HEIGHT = 5 * IMAGE_PITCH_WIDTH;
 
-// Implemented as specified by the OpenCL 1.2 specification for
-// CLK_FILTER_NEAREST.
-template <image_format Format, addressing_mode AddrMode, int Dims>
-typename FormatTraits<Format>::pixel_type
-ReadNearest(typename FormatTraits<Format>::rep_elem_type *RefData,
-            CoordT<ImageType::Sampled, Dims> Coord, range<2> ImagePitch,
-            range<Dims> ImageRange, bool Normalized) {
-  CoordT<ImageType::Sampled, Dims> AdjCoord = Coord;
-  if constexpr (AddrMode == addressing_mode::repeat) {
-    assert(Normalized);
-    AdjCoord -= sycl::floor(AdjCoord);
-    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
-    AdjCoord = sycl::floor(AdjCoord);
-  } else if constexpr (AddrMode == addressing_mode::mirrored_repeat) {
-    assert(Normalized);
-    AdjCoord = 2.0f * sycl::rint(0.5f * Coord);
-    AdjCoord = sycl::fabs(Coord - AdjCoord);
-    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
-    AdjCoord = sycl::floor(AdjCoord);
-  } else {
-    if (Normalized)
-      AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
-    AdjCoord = sycl::floor(AdjCoord);
-  }
-  AdjCoord = ApplyAddressingMode<AddrMode>(AdjCoord, ImageRange);
-  return SimulateRead<Format, ImageType::Sampled>(RefData, AdjCoord, ImagePitch,
-                                                  ImageRange, false);
-}
-
 template <image_format Format, addressing_mode AddrMode,
           coordinate_normalization_mode CoordNormMode, int Dims>
 bool checkSampledImageHostReadNearest(

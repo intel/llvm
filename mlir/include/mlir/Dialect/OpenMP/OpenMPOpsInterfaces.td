@@ -95,7 +95,7 @@ def DeclareTargetInterface : OpInterface<"DeclareTargetInterface"> {
       /*methodName=*/"getDeclareTargetDeviceType",
       (ins), [{}], [{
         if (mlir::Attribute dTar = $_op->getAttr("omp.declare_target"))
-          if (auto dAttr = dTar.dyn_cast_or_null<mlir::omp::DeclareTargetAttr>())
+          if (auto dAttr = llvm::dyn_cast_or_null<mlir::omp::DeclareTargetAttr>(dTar))
             return dAttr.getDeviceType().getValue();
         return {};
       }]>,
@@ -108,7 +108,7 @@ def DeclareTargetInterface : OpInterface<"DeclareTargetInterface"> {
       /*methodName=*/"getDeclareTargetCaptureClause",
       (ins), [{}], [{
         if (mlir::Attribute dTar = $_op->getAttr("omp.declare_target"))
-          if (auto dAttr = dTar.dyn_cast_or_null<mlir::omp::DeclareTargetAttr>())
+          if (auto dAttr = llvm::dyn_cast_or_null<mlir::omp::DeclareTargetAttr>(dTar))
             return dAttr.getCaptureClause().getValue();
         return {};
       }]>
@@ -126,30 +126,30 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
   let methods = [
     InterfaceMethod<
       /*description=*/[{
-        Set the attribute IsDeviceAttr on the current module with the
-        specified boolean argument.
+      Set the attribute on the current module with the specified boolean
+      argument.
       }],
       /*retTy=*/"void",
       /*methodName=*/"setIsDevice",
       (ins "bool":$isDevice), [{}], [{
         $_op->setAttr(
           mlir::StringAttr::get($_op->getContext(), llvm::Twine{"omp.is_device"}),
-            mlir::omp::IsDeviceAttr::get($_op->getContext(), isDevice));
+            mlir::BoolAttr::get($_op->getContext(), isDevice));
       }]>,
-      InterfaceMethod<
+    InterfaceMethod<
       /*description=*/[{
-        Get the IsDeviceAttr attribute on the current module if it exists and return
-        its value, if it doesn't exist it returns false by default.
+        Get the attribute on the current module if it exists and
+        return its value, if it doesn't exist it returns false by default.
       }],
       /*retTy=*/"bool",
       /*methodName=*/"getIsDevice",
       (ins), [{}], [{
         if (Attribute isDevice = $_op->getAttr("omp.is_device"))
-          if (::llvm::isa<mlir::omp::IsDeviceAttr>(isDevice))
-            return ::llvm::dyn_cast<IsDeviceAttr>(isDevice).getIsDevice();
+          if (isDevice.isa<mlir::BoolAttr>())
+           return isDevice.dyn_cast<BoolAttr>().getValue();
         return false;
       }]>,
-      InterfaceMethod<
+    InterfaceMethod<
       /*description=*/[{
         Get the FlagsAttr attribute on the current module if it exists
         and return the attribute, if it doesn't exit it returns a nullptr
@@ -158,7 +158,7 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
       /*methodName=*/"getFlags",
       (ins), [{}], [{
         if (Attribute flags = $_op->getAttr("omp.flags"))
-          return flags.dyn_cast_or_null<mlir::omp::FlagsAttr>();
+          return ::llvm::dyn_cast_or_null<mlir::omp::FlagsAttr>(flags);
         return nullptr;
       }]>,
       InterfaceMethod<
@@ -188,7 +188,7 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
       /*methodName=*/"getTarget",
       (ins), [{}], [{
         if (Attribute flags = $_op->getAttr("omp.target"))
-          return flags.dyn_cast_or_null<mlir::omp::TargetAttr>();
+          return ::llvm::dyn_cast_or_null<mlir::omp::TargetAttr>(flags);
         return nullptr;
       }]>,
     InterfaceMethod<
@@ -207,7 +207,7 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
                                              targetCPU.str(),
                                              targetFeatures.str()));
       }]>,
-      InterfaceMethod<
+    InterfaceMethod<
       /*description=*/[{
         Set a StringAttr on the current module containing the host IR file path. This
         file path is used in two-phase compilation during the device phase to generate
@@ -220,7 +220,7 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
           mlir::StringAttr::get($_op->getContext(), llvm::Twine{"omp.host_ir_filepath"}),
             mlir::StringAttr::get($_op->getContext(), hostIRFilePath));
        }]>,
-      InterfaceMethod<
+    InterfaceMethod<
       /*description=*/[{
         Find the host-ir file path StringAttr from the current module if it exists and
         return its contained value, if it doesn't exist it returns an empty string. This
@@ -234,6 +234,30 @@ def OffloadModuleInterface : OpInterface<"OffloadModuleInterface"> {
           if (::llvm::isa<mlir::StringAttr>(filepath))
             return ::llvm::dyn_cast<mlir::StringAttr>(filepath).getValue();
         return {};
+      }]>,
+    InterfaceMethod<
+      /*description=*/[{
+        Get the omp.requires attribute on the operator if it's present and
+        return its value. If it doesn't exist, return `ClauseRequires::none` by
+        default.
+      }],
+      /*retTy=*/"::mlir::omp::ClauseRequires",
+      /*methodName=*/"getRequires",
+      (ins), [{}], [{
+        if (Attribute requiresAttr = $_op->getAttr("omp.requires"))
+          if (auto requiresVal = requiresAttr.dyn_cast<mlir::omp::ClauseRequiresAttr>())
+            return requiresVal.getValue();
+        return mlir::omp::ClauseRequires::none;
+      }]>,
+    InterfaceMethod<
+      /*description=*/[{
+        Set the omp.requires attribute on the operator to the specified clauses.
+      }],
+      /*retTy=*/"void",
+      /*methodName=*/"setRequires",
+      (ins "::mlir::omp::ClauseRequires":$clauses), [{}], [{
+        $_op->setAttr(mlir::StringAttr::get($_op->getContext(), "omp.requires"),
+          mlir::omp::ClauseRequiresAttr::get($_op->getContext(), clauses));
       }]>
   ];
 }

@@ -2126,7 +2126,6 @@ void ExprEngine::Visit(const Stmt *S, ExplodedNode *Pred,
           }
         }
       }
-      // FALLTHROUGH
       [[fallthrough]];
     }
 

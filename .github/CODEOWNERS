@@ -30,7 +30,7 @@ sycl/ @intel/llvm-reviewers-runtime
 # Documentation
 sycl/ReleaseNotes.md @intel/dpcpp-doc-reviewers @tfzhu
 sycl/doc/ @intel/dpcpp-doc-reviewers
-sycl/doc/design/ @intel/dpcpp-specification-reviewers
+sycl/doc/design/ @intel/llvm-reviewers-runtime
 sycl/doc/design/spirv-extensions/ @intel/dpcpp-spirv-doc-reviewers
 sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
@@ -43,8 +43,9 @@ sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
-# CUDA plugin
-sycl/plugins/cuda/ @intel/llvm-reviewers-cuda
+# CUDA and HIP plugins
+sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
+sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -74,7 +75,7 @@ clang/tools/clang-offload-*/ @intel/dpcpp-tools-reviewers
 ESIMD/ @intel/dpcpp-esimd-reviewers
 esimd/ @intel/dpcpp-esimd-reviewers
 sycl/include/sycl/ext/intel/esimd.hpp @intel/dpcpp-esimd-reviewers
-sycl/doc/extensions/experimental/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
+sycl/doc/extensions/**/sycl_ext_intel_esimd/ @intel/dpcpp-esimd-reviewers
 llvm/lib/SYCLLowerIR/CMakeLists.txt @intel/dpcpp-tools-reviewers @intel/dpcpp-esimd-reviewers
 
 # invoke_simd
@@ -105,3 +106,23 @@ sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
 
 # Matrix tests
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
+
+# Native CPU
+llvm/**/*SYCLNativeCPU* @intel/dpcpp-nativecpu-pi-reviewers 
+clang/include/clang/Basic/SYCLNativeCPUHelpers.h @intel/dpcpp-nativecpu-pi-reviewers 
+clang/test/CodeGenSYCL/native_cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
+clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers 
+sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
+sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
+sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
+
+# SYCL-Graphs extensions
+sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
+sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
+sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
+sycl/unittests/Extensions/CommandGraph.cpp @intel/sycl-graphs-reviewers
+
+# syclcompat library
+sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
+sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
+sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers

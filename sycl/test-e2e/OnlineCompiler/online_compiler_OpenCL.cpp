@@ -1,4 +1,5 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out
@@ -8,7 +9,7 @@
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
 #include <sycl/backend/opencl.hpp>
-#include <sycl/ext/intel/online_compiler.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 #include <sycl/sycl.hpp>
 
 #include <vector>

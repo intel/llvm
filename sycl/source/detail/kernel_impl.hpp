@@ -22,7 +22,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Forward declaration
 class program_impl;
@@ -42,7 +42,7 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param Context is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr Context,
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr Context,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask = nullptr);
 
@@ -59,7 +59,7 @@ public:
   /// \param IsCreatedFromSource is a flag that indicates whether program
   /// is created from source code
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               ProgramImplPtr ProgramImpl, bool IsCreatedFromSource,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask);
@@ -70,7 +70,7 @@ public:
   /// \param Kernel is a valid PiKernel instance
   /// \param ContextImpl is a valid SYCL context
   /// \param KernelBundleImpl is a valid instance of kernel_bundle_impl
-  kernel_impl(RT::PiKernel Kernel, ContextImplPtr ContextImpl,
+  kernel_impl(sycl::detail::pi::PiKernel Kernel, ContextImplPtr ContextImpl,
               DeviceImageImplPtr DeviceImageImpl,
               KernelBundleImplPtr KernelBundleImpl,
               const KernelArgMask *ArgMask);
@@ -144,12 +144,12 @@ public:
   /// Get a reference to a raw kernel object.
   ///
   /// \return a reference to a valid PiKernel instance with raw kernel object.
-  RT::PiKernel &getHandleRef() { return MKernel; }
+  sycl::detail::pi::PiKernel &getHandleRef() { return MKernel; }
   /// Get a constant reference to a raw kernel object.
   ///
   /// \return a constant reference to a valid PiKernel instance with raw
   /// kernel object.
-  const RT::PiKernel &getHandleRef() const { return MKernel; }
+  const sycl::detail::pi::PiKernel &getHandleRef() const { return MKernel; }
 
   /// Check if kernel was created from a program that had been created from
   /// source.
@@ -185,7 +185,7 @@ public:
   const KernelArgMask *getKernelArgMask() const { return MKernelArgMaskPtr; }
 
 private:
-  RT::PiKernel MKernel;
+  sycl::detail::pi::PiKernel MKernel;
   const ContextImplPtr MContext;
   const ProgramImplPtr MProgramImpl;
   bool MCreatedFromSource = true;
@@ -256,5 +256,5 @@ kernel_impl::get_info(const device &Device,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

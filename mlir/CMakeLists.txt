@@ -1,5 +1,5 @@
 # MLIR project.
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.20.0)
 
 if(NOT DEFINED LLVM_COMMON_CMAKE_UTILS)
   set(LLVM_COMMON_CMAKE_UTILS ${CMAKE_CURRENT_SOURCE_DIR}/../cmake)
@@ -11,13 +11,6 @@ include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(mlir)
   set(MLIR_STANDALONE_BUILD TRUE)
-  if ("${CMAKE_VERSION}" VERSION_LESS "3.20.0")
-    message(WARNING
-      "Your CMake version is ${CMAKE_VERSION}. Starting with LLVM 17.0.0, the "
-      "minimum version of CMake required to build LLVM will become 3.20.0, and "
-      "using an older CMake will become an error. Please upgrade your CMake to "
-      "at least 3.20.0 now to avoid issues in the future!")
-  endif()
 endif()
 
 # Must go below project(..)
@@ -41,6 +34,11 @@ if(MLIR_STANDALONE_BUILD)
   set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
+
+  # Some LLVM CMake utilities use these aliases for the CMake builtin variables.
+  # We set them for compatibility.
+  set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+  set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
   set(LLVM_LIT_ARGS "-sv" CACHE STRING "Default options for lit")
 endif()

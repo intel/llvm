@@ -684,7 +684,8 @@ struct AddressSanitizer {
                      const DataLayout &DL);
   void instrumentPointerComparisonOrSubtraction(Instruction *I);
   void instrumentAddress(Instruction *OrigIns, Instruction *InsertBefore,
-                         Value *Addr, uint32_t TypeStoreSize, bool IsWrite,
+                         Value *Addr, MaybeAlign Alignment,
+                         uint32_t TypeStoreSize, bool IsWrite,
                          Value *SizeArgument, bool UseCalls, uint32_t Exp);
   Instruction *instrumentAMDGPUAddress(Instruction *OrigIns,
                                        Instruction *InsertBefore, Value *Addr,
@@ -1378,6 +1379,21 @@ void AddressSanitizer::getInterestingMemoryOperands(
                                Stride);
       break;
     }
+    case Intrinsic::vp_gather:
+    case Intrinsic::vp_scatter: {
+      auto *VPI = cast<VPIntrinsic>(CI);
+      unsigned IID = CI->getIntrinsicID();
+      bool IsWrite = IID == Intrinsic::vp_scatter;
+      if (IsWrite ? !ClInstrumentWrites : !ClInstrumentReads)
+        return;
+      unsigned PtrOpNo = *VPI->getMemoryPointerParamPos(IID);
+      Type *Ty = IsWrite ? CI->getArgOperand(0)->getType() : CI->getType();
+      MaybeAlign Alignment = VPI->getPointerAlignment();
+      Interesting.emplace_back(I, PtrOpNo, IsWrite, Ty, Alignment,
+                               VPI->getMaskParam(),
+                               VPI->getVectorLengthParam());
+      break;
+    }
     default:
       for (unsigned ArgNo = 0; ArgNo < CI->arg_size(); ArgNo++) {
         if (!ClInstrumentByval || !CI->isByValArgument(ArgNo) ||
@@ -1465,8 +1481,9 @@ static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
     case 128:
       if (!Alignment || *Alignment >= Granularity ||
           *Alignment >= FixedSize / 8)
-        return Pass->instrumentAddress(I, InsertBefore, Addr, FixedSize,
-                                       IsWrite, nullptr, UseCalls, Exp);
+        return Pass->instrumentAddress(I, InsertBefore, Addr, Alignment,
+                                       FixedSize, IsWrite, nullptr, UseCalls,
+                                       Exp);
     }
   }
   Pass->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeStoreSize,
@@ -1521,7 +1538,12 @@ void AddressSanitizer::instrumentMaskedLoadOrStore(
     }
 
     Value *InstrumentedAddress;
-    if (Stride) {
+    if (isa<VectorType>(Addr->getType())) {
+      assert(
+          cast<VectorType>(Addr->getType())->getElementType()->isPointerTy() &&
+          "Expected vector of pointer.");
+      InstrumentedAddress = IRB.CreateExtractElement(Addr, Index);
+    } else if (Stride) {
       Index = IRB.CreateMul(Index, Stride);
       Addr = IRB.CreateBitCast(Addr, Type::getInt8PtrTy(*C));
       InstrumentedAddress = IRB.CreateGEP(Type::getInt8Ty(*C), Addr, {Index});
@@ -1661,6 +1683,7 @@ Instruction *AddressSanitizer::instrumentAMDGPUAddress(
 
 void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
                                          Instruction *InsertBefore, Value *Addr,
+                                         MaybeAlign Alignment,
                                          uint32_t TypeStoreSize, bool IsWrite,
                                          Value *SizeArgument, bool UseCalls,
                                          uint32_t Exp) {
@@ -1700,8 +1723,10 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       IntegerType::get(*C, std::max(8U, TypeStoreSize >> Mapping.Scale));
   Type *ShadowPtrTy = PointerType::get(ShadowTy, 0);
   Value *ShadowPtr = memToShadow(AddrLong, IRB);
-  Value *ShadowValue =
-      IRB.CreateLoad(ShadowTy, IRB.CreateIntToPtr(ShadowPtr, ShadowPtrTy));
+  const uint64_t ShadowAlign =
+      std::max<uint64_t>(Alignment.valueOrOne().value() >> Mapping.Scale, 1);
+  Value *ShadowValue = IRB.CreateAlignedLoad(
+      ShadowTy, IRB.CreateIntToPtr(ShadowPtr, ShadowPtrTy), Align(ShadowAlign));
 
   Value *Cmp = IRB.CreateIsNotNull(ShadowValue);
   size_t Granularity = 1ULL << Mapping.Scale;
@@ -1758,8 +1783,9 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     Value *LastByte = IRB.CreateIntToPtr(
         IRB.CreateAdd(AddrLong, SizeMinusOne),
         Addr->getType());
-    instrumentAddress(I, InsertBefore, Addr, 8, IsWrite, Size, false, Exp);
-    instrumentAddress(I, InsertBefore, LastByte, 8, IsWrite, Size, false, Exp);
+    instrumentAddress(I, InsertBefore, Addr, {}, 8, IsWrite, Size, false, Exp);
+    instrumentAddress(I, InsertBefore, LastByte, {}, 8, IsWrite, Size, false,
+                      Exp);
   }
 }
 

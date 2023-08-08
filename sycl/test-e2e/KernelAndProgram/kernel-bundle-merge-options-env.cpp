@@ -3,7 +3,7 @@
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -o %t.out %debug_option
 // RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %{run} %t.out | FileCheck %s
 // Check that options are overrided
-// RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -Xsycl-target-linker=spir64 -bar -Xsycl-target-frontend=spir64 -bar_compile -o %t.out
+// RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -Xsycl-target-linker=spir64 -DBAR -Xsycl-target-frontend=spir64 -DBAR_COMPILE -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
 

@@ -15,6 +15,9 @@
 // Failing on HIP AMD
 // UNSUPPORTED: hip_amd
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 #include <sycl/sycl.hpp>
 
 int main() {

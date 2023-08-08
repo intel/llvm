@@ -26,7 +26,7 @@ struct pi_device_binaries_struct;
 struct _pi_offload_entry_struct;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 class jit_compiler {
@@ -62,11 +62,9 @@ private:
   // Manages the lifetime of the PI structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
-  std::unordered_map<std::string, OSModuleHandle> CachedModules;
-
   std::unique_ptr<::jit_compiler::JITContext> MJITContext;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -644,24 +644,10 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
         return I;
       assert(!Known.hasConflict() && "Bits known to be one AND zero?");
 
-      bool SignBitZero = Known.Zero.isSignBitSet();
-      bool SignBitOne = Known.One.isSignBitSet();
-      Known.Zero <<= ShiftAmt;
-      Known.One  <<= ShiftAmt;
-      // low bits known zero.
-      if (ShiftAmt)
-        Known.Zero.setLowBits(ShiftAmt);
-
-      // If this shift has "nsw" keyword, then the result is either a poison
-      // value or has the same sign bit as the first operand.
-      if (IOp->hasNoSignedWrap()) {
-        if (SignBitZero)
-          Known.Zero.setSignBit();
-        else if (SignBitOne)
-          Known.One.setSignBit();
-        if (Known.hasConflict())
-          return PoisonValue::get(VTy);
-      }
+      Known = KnownBits::shl(Known,
+                             KnownBits::makeConstant(APInt(BitWidth, ShiftAmt)),
+                             /* NUW */ IOp->hasNoUnsignedWrap(),
+                             /* NSW */ IOp->hasNoSignedWrap());
     } else {
       // This is a variable shift, so we can't shift the demand mask by a known
       // amount. But if we are not demanding high bits, then we are not
@@ -926,9 +912,26 @@ Value *InstCombinerImpl::SimplifyDemandedUseBits(Value *V, APInt DemandedMask,
 
         APInt DemandedMaskLHS(DemandedMask.lshr(ShiftAmt));
         APInt DemandedMaskRHS(DemandedMask.shl(BitWidth - ShiftAmt));
-        if (SimplifyDemandedBits(I, 0, DemandedMaskLHS, LHSKnown, Depth + 1) ||
-            SimplifyDemandedBits(I, 1, DemandedMaskRHS, RHSKnown, Depth + 1))
-          return I;
+        if (I->getOperand(0) != I->getOperand(1)) {
+          if (SimplifyDemandedBits(I, 0, DemandedMaskLHS, LHSKnown,
+                                   Depth + 1) ||
+              SimplifyDemandedBits(I, 1, DemandedMaskRHS, RHSKnown, Depth + 1))
+            return I;
+        } else { // fshl is a rotate
+        // Avoid converting rotate into funnel shift. 
+        // Only simplify if one operand is constant.
+          KnownBits LHSKnown = computeKnownBits(I->getOperand(0), Depth + 1, I);
+          if (DemandedMaskLHS.isSubsetOf(LHSKnown.Zero | LHSKnown.One)) {
+            replaceOperand(*I, 0, Constant::getIntegerValue(VTy, LHSKnown.One));
+            return I;
+          }
+
+          KnownBits RHSKnown = computeKnownBits(I->getOperand(1), Depth + 1, I);
+          if (DemandedMaskRHS.isSubsetOf(RHSKnown.Zero | RHSKnown.One)) {
+            replaceOperand(*I, 1, Constant::getIntegerValue(VTy, RHSKnown.One));
+            return I;
+          }
+        }
 
         Known.Zero = LHSKnown.Zero.shl(ShiftAmt) |
                      RHSKnown.Zero.lshr(BitWidth - ShiftAmt);
@@ -1005,6 +1008,7 @@ Value *InstCombinerImpl::SimplifyMultipleUseDemandedBits(
     computeKnownBits(I->getOperand(1), RHSKnown, Depth + 1, CxtI);
     computeKnownBits(I->getOperand(0), LHSKnown, Depth + 1, CxtI);
     Known = LHSKnown & RHSKnown;
+    computeKnownBitsFromAssume(I, Known, Depth, SQ.getWithInstruction(CxtI));
 
     // If the client is only demanding bits that we know, return the known
     // constant.
@@ -1024,6 +1028,7 @@ Value *InstCombinerImpl::SimplifyMultipleUseDemandedBits(
     computeKnownBits(I->getOperand(1), RHSKnown, Depth + 1, CxtI);
     computeKnownBits(I->getOperand(0), LHSKnown, Depth + 1, CxtI);
     Known = LHSKnown | RHSKnown;
+    computeKnownBitsFromAssume(I, Known, Depth, SQ.getWithInstruction(CxtI));
 
     // If the client is only demanding bits that we know, return the known
     // constant.
@@ -1045,6 +1050,7 @@ Value *InstCombinerImpl::SimplifyMultipleUseDemandedBits(
     computeKnownBits(I->getOperand(1), RHSKnown, Depth + 1, CxtI);
     computeKnownBits(I->getOperand(0), LHSKnown, Depth + 1, CxtI);
     Known = LHSKnown ^ RHSKnown;
+    computeKnownBitsFromAssume(I, Known, Depth, SQ.getWithInstruction(CxtI));
 
     // If the client is only demanding bits that we know, return the known
     // constant.
@@ -1077,6 +1083,7 @@ Value *InstCombinerImpl::SimplifyMultipleUseDemandedBits(
 
     bool NSW = cast<OverflowingBinaryOperator>(I)->hasNoSignedWrap();
     Known = KnownBits::computeForAddSub(/*Add*/ true, NSW, LHSKnown, RHSKnown);
+    computeKnownBitsFromAssume(I, Known, Depth, SQ.getWithInstruction(CxtI));
     break;
   }
   case Instruction::Sub: {
@@ -1092,6 +1099,7 @@ Value *InstCombinerImpl::SimplifyMultipleUseDemandedBits(
     bool NSW = cast<OverflowingBinaryOperator>(I)->hasNoSignedWrap();
     computeKnownBits(I->getOperand(0), LHSKnown, Depth + 1, CxtI);
     Known = KnownBits::computeForAddSub(/*Add*/ false, NSW, LHSKnown, RHSKnown);
+    computeKnownBitsFromAssume(I, Known, Depth, SQ.getWithInstruction(CxtI));
     break;
   }
   case Instruction::AShr: {
@@ -1767,7 +1775,7 @@ Value *InstCombinerImpl::SimplifyDemandedVectorElts(Value *V,
   // If we've proven all of the lanes undef, return an undef value.
   // TODO: Intersect w/demanded lanes
   if (UndefElts.isAllOnes())
-    return UndefValue::get(I->getType());;
+    return UndefValue::get(I->getType());
 
   return MadeChange ? I : nullptr;
 }

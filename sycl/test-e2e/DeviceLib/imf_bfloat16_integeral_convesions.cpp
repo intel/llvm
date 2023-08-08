@@ -6,6 +6,9 @@
 //
 // UNSUPPORTED: cuda || hip
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>
 #include <sycl/sycl.hpp>

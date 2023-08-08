@@ -14,7 +14,7 @@
 #include <detail/sycl_mem_obj_t.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -38,7 +38,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "not allowed",
         PI_ERROR_INVALID_CONTEXT);
 
-  RT::PiContext Context = nullptr;
+  sycl::detail::pi::PiContext Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
   Plugin->call<detail::PiApiKind::piextMemCreateWithNativeHandle>(
@@ -61,7 +61,7 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
     Plugin->call<PiApiKind::piMemRetain>(MInteropMemObject);
 }
 
-RT::PiMemObjectType getImageType(int Dimensions) {
+sycl::detail::pi::PiMemObjectType getImageType(int Dimensions) {
   if (Dimensions == 1)
     return PI_MEM_TYPE_IMAGE1D;
   if (Dimensions == 2)
@@ -72,8 +72,8 @@ RT::PiMemObjectType getImageType(int Dimensions) {
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
                          bool OwnNativeHandle, event AvailableEvent,
                          std::unique_ptr<SYCLMemObjAllocator> Allocator,
-                         RT::PiMemImageChannelOrder Order,
-                         RT::PiMemImageChannelType Type,
+                         sycl::detail::pi::PiMemImageChannelOrder Order,
+                         sycl::detail::pi::PiMemImageChannelType Type,
                          range<3> Range3WithOnes, unsigned Dimensions,
                          size_t ElementSize)
     : MAllocator(std::move(Allocator)), MProps(),
@@ -88,11 +88,11 @@ SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
         "not allowed",
         PI_ERROR_INVALID_CONTEXT);
 
-  RT::PiContext Context = nullptr;
+  sycl::detail::pi::PiContext Context = nullptr;
   const PluginPtr &Plugin = getPlugin();
 
-  RT::PiMemImageFormat Format{Order, Type};
-  RT::PiMemImageDesc Desc;
+  sycl::detail::pi::PiMemImageFormat Format{Order, Type};
+  sycl::detail::pi::PiMemImageDesc Desc;
   Desc.image_type = getImageType(Dimensions);
   Desc.image_width = Range3WithOnes[0];
   Desc.image_height = Range3WithOnes[1];
@@ -161,7 +161,7 @@ void SYCLMemObjT::updateHostMemory() {
   if (MOpenCLInterop) {
     const PluginPtr &Plugin = getPlugin();
     Plugin->call<PiApiKind::piMemRelease>(
-        pi::cast<RT::PiMem>(MInteropMemObject));
+        pi::cast<sycl::detail::pi::PiMem>(MInteropMemObject));
   }
 }
 const PluginPtr &SYCLMemObjT::getPlugin() const {
@@ -176,7 +176,7 @@ size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
   const PluginPtr &Plugin = Context->getPlugin();
   // TODO is there something required to support non-OpenCL backends?
   Plugin->call<detail::PiApiKind::piMemGetInfo>(
-      detail::pi::cast<detail::RT::PiMem>(MemObject), PI_MEM_SIZE,
+      detail::pi::cast<sycl::detail::pi::PiMem>(MemObject), PI_MEM_SIZE,
       sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
@@ -219,13 +219,10 @@ void SYCLMemObjT::detachMemoryObject(
   // buffer creation and set to meaningfull
   // value only if any operation on buffer submitted inside addCG call. addCG is
   // called from queue::submit and buffer destruction could not overlap with it.
-  // ForceDeferredMemObjRelease is a workaround for managing auxiliary resources
-  // while preserving backward compatibility, see the comment for
-  // ForceDeferredMemObjRelease in scheduler.
-  if (MRecord && (!MHostPtrProvided || Scheduler::ForceDeferredMemObjRelease))
+  if (MRecord && (!MHostPtrProvided || MIsInternal))
     Scheduler::getInstance().deferMemObjRelease(Self);
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

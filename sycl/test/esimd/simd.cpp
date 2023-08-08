@@ -33,11 +33,11 @@ template <class T> void test_simd_class_traits() SYCL_ESIMD_FUNCTION {
                 "type trait mismatch");
   static_assert(std::is_copy_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
-  static_assert(std::is_trivially_copy_assignable<simd<T, 4>>::value,
+  static_assert(!std::is_trivially_copy_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
   static_assert(std::is_move_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
-  static_assert(std::is_trivially_move_assignable<simd<T, 4>>::value,
+  static_assert(!std::is_trivially_move_assignable<simd<T, 4>>::value,
                 "type trait mismatch");
 }
 

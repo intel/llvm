@@ -26,7 +26,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -126,6 +126,11 @@ public:
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
 
+  /// Copy assignment operator.
+  simd &operator=(const simd &other) noexcept {
+    return base_type::operator=(other);
+  }
+
   /// Prefix increment, increments elements of this object.
   /// @return Reference to this object.
   simd &operator++() {
@@ -200,7 +205,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @ingroup sycl_esimd_misc

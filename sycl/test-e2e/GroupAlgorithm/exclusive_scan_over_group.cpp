@@ -2,7 +2,6 @@
 // Unsupported SPIR-V module SPIRV module requires unsupported capability 6400
 // REQUIRES: gpu
 
-// UNSUPPORTED: hip
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

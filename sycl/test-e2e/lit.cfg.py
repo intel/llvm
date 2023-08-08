@@ -2,6 +2,7 @@
 
 import os
 import platform
+import copy
 import re
 import subprocess
 import tempfile
@@ -196,7 +197,7 @@ if config.opencl_libs_dir:
 config.substitutions.append( ('%opencl_include_dir',  config.opencl_include_dir) )
 
 if cl_options:
-    config.substitutions.append( ('%sycl_options',  ' ' + config.sycl_libs_dir + '/../lib/sycl7.lib /I' +
+    config.substitutions.append( ('%sycl_options',  ' ' + os.path.normpath(os.path.join(config.sycl_libs_dir + '/../lib/sycl7.lib')) + ' /I' +
                                 config.sycl_include + ' /I' + os.path.join(config.sycl_include, 'sycl')) )
     config.substitutions.append( ('%include_option',  '/FI' ) )
     config.substitutions.append( ('%debug_option',  '/DEBUG' ) )
@@ -218,6 +219,16 @@ else:
     config.substitutions.append( ('%fPIC', ('' if platform.system() == 'Windows' else '-fPIC')) )
     config.substitutions.append( ('%shared_lib', '-shared') )
 
+
+config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
+config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
+
+vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+
+if config.vulkan_found == "TRUE":
+    config.available_features.add('vulkan')
+
 if not config.gpu_aot_target_opts:
     config.gpu_aot_target_opts = '"-device *"'
 
@@ -228,10 +239,14 @@ if config.dump_ir_supported:
 
 lit_config.note("Targeted devices: {}".format(', '.join(config.sycl_devices)))
 
+sycl_ls = FindTool('sycl-ls').resolve(llvm_config, config.llvm_tools_dir)
+if not sycl_ls:
+    lit_config.fatal("can't find `sycl-ls`")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
-    sp = subprocess.getstatusoutput('sycl-ls')
-    for line in sp[1].split('\n'):
+    sp = subprocess.check_output(sycl_ls, text=True)
+    for line in sp.splitlines():
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
@@ -243,7 +258,8 @@ available_devices = {'opencl': ('cpu', 'gpu', 'acc'),
                      'ext_oneapi_cuda':('gpu'),
                      'ext_oneapi_level_zero':('gpu'),
                      'ext_oneapi_hip':('gpu'),
-                     'ext_intel_esimd_emulator':('gpu')}
+                     'ext_intel_esimd_emulator':('gpu'),
+                     'native_cpu':('cpu')}
 for d in config.sycl_devices:
      be, dev = d.split(':')
      if be not in available_devices or dev not in available_devices[be]:
@@ -315,7 +331,7 @@ tools = [
   # behaviour.
   ToolSubst(r'\| \bnot\b', command=FindTool('not'),
     verbatim=True, unresolved='ignore'),
-  ToolSubst('sycl-ls', unresolved='ignore'),
+  ToolSubst('sycl-ls', command=sycl_ls, unresolved='ignore'),
 ] + feature_tools
 
 # Try and find each of these tools in the llvm tools directory or the PATH, in
@@ -372,46 +388,54 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 for sycl_device in config.sycl_devices:
-    cmd = 'env '
+    env = copy.copy(llvm_config.config.environment)
+    env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
     if sycl_device.startswith('ext_oneapi_cuda:'):
-        cmd += 'SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 '
-    cmd += 'ONEAPI_DEVICE_SELECTOR={} sycl-ls --verbose'.format(sycl_device)
-    sp = subprocess.run((cmd), env=llvm_config.config.environment,
-                        shell=True, capture_output=True, text=True)
-    if sp.returncode != 0:
-        lit_config.error('Cannot list device aspects for {}:{}\nstdout:\n{}\nstderr:\n'.format(
-            be, device, sp.stdout, sp.stderr))
+        env['SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT'] = '1'
+    # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
+    # prints warnings that might derail a user thinking something is wrong
+    # with their test run. It's just us filtering here, so silence them unless
+    # we get an exit status.
+    try:
+        sp = subprocess.run([sycl_ls, '--verbose'], env=env, text=True,
+                            capture_output=True)
+        sp.check_returncode()
+    except subprocess.CalledProcessError as e:
+        # capturing e allows us to see path resolution errors / system
+        # permissions errors etc
+        lit_config.fatal(f'Cannot list device aspects for {sycl_device}\n'
+                         f'{e}\n'
+                         f'stdout:{sp.stdout}\n'
+                         f'stderr:{sp.stderr}\n')
 
     dev_aspects = []
     dev_sg_sizes = []
-    for line in sp.stdout.split('\n'):
+    for line in sp.stdout.splitlines():
         if re.search(r'^ *Aspects *:', line):
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))
         if re.search(r'^ *info::device::sub_group_sizes:', line):
-            _, sg_sizes_str = line.split(':', 1)
+            # str.removeprefix isn't universally available...
+            sg_sizes_str = line.strip().replace('info::device::sub_group_sizes: ', '')
             dev_sg_sizes.append(sg_sizes_str.strip().split(' '))
 
     if dev_aspects == []:
-        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n'.format(
+        lit_config.error('Cannot detect device aspect for {}\nstdout:\n{}\nstderr:\n{}'.format(
             sycl_device, sp.stdout, sp.stderr))
         dev_aspects.append(set())
-    else:
-        # We might have several devices matching the same filter in the system.
-        # Compute intersection of aspects.
-        aspects = set(dev_aspects[0]).intersection(*dev_aspects)
-        lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    aspects = set(dev_aspects[0]).intersection(*dev_aspects)
+    lit_config.note('Aspects for {}: {}'.format(sycl_device, ', '.join(aspects)))
 
     if dev_sg_sizes == []:
-        lit_config.error('Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n'.format(
+        lit_config.error('Cannot detect device SG sizes for {}\nstdout:\n{}\nstderr:\n{}'.format(
             sycl_device, sp.stdout, sp.stderr))
         dev_sg_sizes.append(set())
-    else:
-        # We might have several devices matching the same filter in the system.
-        # Compute intersection of aspects.
-        sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
-        lit_config.note('SG sizes for {}: {}'.format(sycl_device, ', '.join(sg_sizes)))
-
+    # We might have several devices matching the same filter in the system.
+    # Compute intersection of aspects.
+    sg_sizes = set(dev_sg_sizes[0]).intersection(*dev_sg_sizes)
+    lit_config.note('SG sizes for {}: {}'.format(sycl_device, ', '.join(sg_sizes)))
 
     aspect_features = set('aspect-' + a for a in aspects)
     sg_size_features = set('sg-' + s for s in sg_sizes)

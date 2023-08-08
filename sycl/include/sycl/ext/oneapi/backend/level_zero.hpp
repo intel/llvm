@@ -8,12 +8,39 @@
 
 #pragma once
 
-#include <sycl/backend.hpp>
+#include <sycl/async_handler.hpp>                    // for async_han...
+#include <sycl/backend.hpp>                          // for backend_i...
+#include <sycl/backend_types.hpp>                    // for backend
+#include <sycl/buffer.hpp>                           // for buffer_al...
+#include <sycl/context.hpp>                          // for context
+#include <sycl/detail/backend_traits.hpp>            // for interop
+#include <sycl/detail/backend_traits_level_zero.hpp> // for ze_comman...
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_DE...
+#include <sycl/detail/export.hpp>                    // for __SYCL_EX...
+#include <sycl/detail/impl_utils.hpp>                // for createSyc...
+#include <sycl/detail/pi.h>                          // for pi_native...
+#include <sycl/detail/pi.hpp>                        // for cast
+#include <sycl/device.hpp>                           // for device
+#include <sycl/event.hpp>                            // for event
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>     // for ownership
+#include <sycl/image.hpp>                                       // for image
+#include <sycl/kernel.hpp>                                      // for kernel
+#include <sycl/kernel_bundle.hpp>               // for kernel_bu...
+#include <sycl/kernel_bundle_enums.hpp>         // for bundle_state
+#include <sycl/platform.hpp>                    // for platform
+#include <sycl/properties/image_properties.hpp> // for image
+#include <sycl/property_list.hpp>               // for property_...
+#include <sycl/queue.hpp>                       // for queue
 
-#include <vector>
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <variant>     // for get_if
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::level_zero {
 // Implementation of various "make" functions resides in libsycl.so and thus
 // their interface needs to be backend agnostic.
@@ -229,5 +256,5 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi::level_zero' instead")
 using namespace ext::oneapi::level_zero;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

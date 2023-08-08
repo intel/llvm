@@ -7,6 +7,9 @@
 // HIP backend does not currently implement linking.
 // UNSUPPORTED: hip
 
+// This test uses interop that has the ownership on a kernel.
+// UNSUPPORTED: ze_debug
+
 // This test checks that specialization constant information is available on
 // kernel bundles produced by sycl::link.
 

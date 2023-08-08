@@ -95,7 +95,7 @@ getOverloadedDeclaration(CallIntrinsicOp &op, llvm::Intrinsic::ID id,
 
 /// Builder for LLVM_CallIntrinsicOp
 static LogicalResult
-convertCallLLVMIntrinsicOp(CallIntrinsicOp &op, llvm::IRBuilderBase &builder,
+convertCallLLVMIntrinsicOp(CallIntrinsicOp op, llvm::IRBuilderBase &builder,
                            LLVM::ModuleTranslation &moduleTranslation) {
   llvm::Module *module = builder.GetInsertBlock()->getModule();
   llvm::Intrinsic::ID id =
@@ -114,6 +114,8 @@ convertCallLLVMIntrinsicOp(CallIntrinsicOp &op, llvm::IRBuilderBase &builder,
   } else {
     fn = llvm::Intrinsic::getDeclaration(module, id, {});
   }
+  FastmathFlagsInterface itf = op;
+  builder.setFastMathFlags(getFastmathFlags(itf));
 
   auto *inst =
       builder.CreateCall(fn, moduleTranslation.lookupValues(op.getOperands()));
@@ -131,7 +133,7 @@ convertBranchWeights(std::optional<ElementsAttr> weights,
     return nullptr;
   SmallVector<uint32_t> weightValues;
   weightValues.reserve(weights->size());
-  for (APInt weight : weights->cast<DenseIntElementsAttr>())
+  for (APInt weight : llvm::cast<DenseIntElementsAttr>(*weights))
     weightValues.push_back(weight.getLimitedValue());
   return llvm::MDBuilder(moduleTranslation.getLLVMContext())
       .createBranchWeights(weightValues);
@@ -184,6 +186,9 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
         convertBranchWeights(callOp.getBranchWeights(), moduleTranslation);
     if (branchWeights)
       call->setMetadata(llvm::LLVMContext::MD_prof, branchWeights);
+    moduleTranslation.setAccessGroupsMetadata(callOp, call);
+    moduleTranslation.setAliasScopeMetadata(callOp, call);
+    moduleTranslation.setTBAAMetadata(callOp, call);
     // If the called function has a result, remap the corresponding value.  Note
     // that LLVM IR dialect CallOp has either 0 or 1 result.
     if (opInst.getNumResults() != 0) {
@@ -330,7 +335,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
     auto *ty = llvm::cast<llvm::IntegerType>(
         moduleTranslation.convertType(switchOp.getValue().getType()));
     for (auto i :
-         llvm::zip(switchOp.getCaseValues()->cast<DenseIntElementsAttr>(),
+         llvm::zip(llvm::cast<DenseIntElementsAttr>(*switchOp.getCaseValues()),
                    switchOp.getCaseDestinations()))
       switchInst->addCase(
           llvm::ConstantInt::get(ty, std::get<0>(i).getLimitedValue()),

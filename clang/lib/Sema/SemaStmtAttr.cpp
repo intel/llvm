@@ -291,12 +291,11 @@ Sema::BuildSYCLIntelIVDepAttr(const AttributeCommonInfo &CI, Expr *Expr1,
   }
 
   // Try to put Safelen in the 1st one so codegen can count on the ordering.
-  Expr *SafeLenExpr;
-  Expr *ArrayExpr;
-  if (E1 == IVDepExprResult::SafeLen) {
-    SafeLenExpr = Expr1;
-    ArrayExpr = Expr2;
-  } else {
+  Expr *SafeLenExpr = Expr1;
+  Expr *ArrayExpr = Expr2;
+
+  // Both can be null or dependent, so swap if we're really sure.
+  if (E2 == IVDepExprResult::SafeLen || E1 == IVDepExprResult::Array) {
     SafeLenExpr = Expr2;
     ArrayExpr = Expr1;
   }
@@ -997,7 +996,9 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
       !(A.existsInTarget(S.Context.getTargetInfo()) ||
         (S.Context.getLangOpts().SYCLIsDevice && Aux &&
          A.existsInTarget(*Aux)))) {
-    S.Diag(A.getLoc(), A.isDeclspecAttribute()
+    S.Diag(A.getLoc(), A.isRegularKeywordAttribute()
+                           ? (unsigned)diag::err_keyword_not_supported_on_target
+                       : A.isDeclspecAttribute()
                            ? (unsigned)diag::warn_unhandled_ms_attribute_ignored
                            : (unsigned)diag::warn_unknown_attribute_ignored)
         << A << A.getRange();
@@ -1056,7 +1057,7 @@ static Attr *ProcessStmtAttribute(Sema &S, Stmt *St, const ParsedAttr &A,
     // declaration attribute is not written on a statement, but this code is
     // needed for attributes in Attr.td that do not list any subjects.
     S.Diag(A.getRange().getBegin(), diag::err_decl_attribute_invalid_on_stmt)
-        << A << St->getBeginLoc();
+        << A << A.isRegularKeywordAttribute() << St->getBeginLoc();
     return nullptr;
   }
 }

@@ -200,7 +200,7 @@ CoordT<ImgT, Dims> DelinearizeToCoord(size_t Idx, range<Dims> ImageRange,
   } else if constexpr (Dims == 2) {
     Out = CoordT<ImgT, Dims>{Idx % ImageRange[0], Idx / ImageRange[0]};
   } else {
-    Out = CoordT<ImgT, Dims>{Idx % ImageRange[0] % ImageRange[1],
+    Out = CoordT<ImgT, Dims>{Idx % ImageRange[0],
                              Idx / ImageRange[0] % ImageRange[1],
                              Idx / ImageRange[0] / ImageRange[1], 0};
   }
@@ -327,4 +327,118 @@ ApplyAddressingMode(CoordT<ImageType::Sampled, Dims> Coord,
       return NewCoord;
     }
   }
+}
+
+template <image_format Format>
+typename FormatTraits<Format>::pixel_type PickNewColor(size_t I,
+                                                       size_t AccSize) {
+  using RepElemT = typename FormatTraits<Format>::rep_elem_type;
+  using PixelType = typename FormatTraits<Format>::pixel_type;
+
+  size_t Idx = I * 4;
+
+  // Pick a new color. Make sure it isn't too big for the data type.
+  PixelType NewColor{Idx, Idx + 1, Idx + 2, Idx + 3};
+  PixelType MaxPixelVal{std::numeric_limits<RepElemT>::max()};
+  NewColor = sycl::min(NewColor, MaxPixelVal);
+  if constexpr (FormatTraits<Format>::Normalized)
+    NewColor /= AccSize * 4;
+  return NewColor;
+}
+
+// Implemented as specified by the OpenCL 1.2 specification for
+// CLK_FILTER_NEAREST.
+template <image_format Format, addressing_mode AddrMode, int Dims>
+typename FormatTraits<Format>::pixel_type
+ReadNearest(typename FormatTraits<Format>::rep_elem_type *RefData,
+            CoordT<ImageType::Sampled, Dims> Coord, range<2> ImagePitch,
+            range<Dims> ImageRange, bool Normalized) {
+  CoordT<ImageType::Sampled, Dims> AdjCoord = Coord;
+  if constexpr (AddrMode == addressing_mode::repeat) {
+    assert(Normalized);
+    AdjCoord -= sycl::floor(AdjCoord);
+    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+    AdjCoord = sycl::floor(AdjCoord);
+  } else if constexpr (AddrMode == addressing_mode::mirrored_repeat) {
+    assert(Normalized);
+    AdjCoord = 2.0f * sycl::rint(0.5f * Coord);
+    AdjCoord = sycl::fabs(Coord - AdjCoord);
+    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+    AdjCoord = sycl::floor(AdjCoord);
+  } else {
+    if (Normalized)
+      AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+    AdjCoord = sycl::floor(AdjCoord);
+  }
+  AdjCoord = ApplyAddressingMode<AddrMode>(AdjCoord, ImageRange);
+  return SimulateRead<Format, ImageType::Sampled>(RefData, AdjCoord, ImagePitch,
+                                                  ImageRange, false);
+}
+
+// Implemented as specified by the OpenCL 1.2 specification for
+// CLK_FILTER_LINEAR.
+template <image_format Format, addressing_mode AddrMode, int Dims>
+float4 CalcLinearRead(typename FormatTraits<Format>::rep_elem_type *RefData,
+                      CoordT<ImageType::Sampled, Dims> Coord,
+                      range<2> ImagePitch, range<Dims> ImageRange,
+                      bool Normalized) {
+  using UpscaledCoordT = CoordT<ImageType::Sampled, 3>;
+
+  auto Read = [&](UpscaledCoordT UpCoord) {
+    auto DownCoord = DownscaleCoord<Dims>(UpCoord);
+    return SimulateRead<Format, ImageType::Sampled>(
+        RefData, DownCoord, ImagePitch, ImageRange, false);
+  };
+
+  CoordT<ImageType::Sampled, Dims> AdjCoord = Coord;
+  if constexpr (AddrMode == addressing_mode::repeat) {
+    assert(Normalized);
+    AdjCoord -= sycl::floor(AdjCoord);
+    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+  } else if constexpr (AddrMode == addressing_mode::mirrored_repeat) {
+    assert(Normalized);
+    AdjCoord = 2.0f * sycl::rint(0.5f * Coord);
+    AdjCoord = sycl::fabs(Coord - AdjCoord);
+    AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+  } else {
+    if (Normalized)
+      AdjCoord *= RangeToCoord<ImageType::Sampled, Dims>(ImageRange);
+  }
+
+  auto Prev = sycl::floor(AdjCoord - 0.5f);
+  auto Next = Prev + 1;
+  auto CA = (AdjCoord - 0.5f) - Prev;
+
+  Prev = ApplyAddressingMode<AddrMode>(Prev, ImageRange);
+  Next = ApplyAddressingMode<AddrMode>(Next, ImageRange);
+
+  auto UPrev = UpscaleCoord<Dims>(Prev);
+  auto UNext = UpscaleCoord<Dims>(Next);
+  auto UCA = UpscaleCoord<Dims>(CA, 1);
+
+  auto CA000 = Read(UpscaledCoordT{UPrev[0], UPrev[1], UPrev[2], 0})
+                   .template convert<float>() *
+               (1 - UCA[0]) * (1 - UCA[1]) * (1 - UCA[2]);
+  auto CA100 = Read(UpscaledCoordT{UNext[0], UPrev[1], UPrev[2], 0})
+                   .template convert<float>() *
+               UCA[0] * (1 - UCA[1]) * (1 - UCA[2]);
+  auto CA010 = Read(UpscaledCoordT{UPrev[0], UNext[1], UPrev[2], 0})
+                   .template convert<float>() *
+               (1 - UCA[0]) * UCA[1] * (1 - UCA[2]);
+  auto CA110 = Read(UpscaledCoordT{UNext[0], UNext[1], UPrev[2], 0})
+                   .template convert<float>() *
+               UCA[0] * UCA[1] * (1 - UCA[2]);
+  auto CA001 = Read(UpscaledCoordT{UPrev[0], UPrev[1], UNext[2], 0})
+                   .template convert<float>() *
+               (1 - UCA[0]) * (1 - UCA[1]) * UCA[2];
+  auto CA101 = Read(UpscaledCoordT{UNext[0], UPrev[1], UNext[2], 0})
+                   .template convert<float>() *
+               UCA[0] * (1 - UCA[1]) * UCA[2];
+  auto CA011 = Read(UpscaledCoordT{UPrev[0], UNext[1], UNext[2], 0})
+                   .template convert<float>() *
+               (1 - UCA[0]) * UCA[1] * UCA[2];
+  auto CA111 = Read(UpscaledCoordT{UNext[0], UNext[1], UNext[2], 0})
+                   .template convert<float>() *
+               UCA[0] * UCA[1] * UCA[2];
+  return CA000 + CA100 + CA010 + CA110 + CA001 + CA101 + CA011 + CA111;
 }

@@ -7,24 +7,36 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <complex>
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/array.hpp>       // for array
+#include <sycl/detail/helpers.hpp>     // for loop
+#include <sycl/detail/item_base.hpp>   // for id, range
+#include <sycl/detail/type_list.hpp>   // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp> // for remove_pointer, is_pointer
+#include <sycl/exception.hpp>          // for make_error_code, errc, exception
+#include <sycl/functional.hpp>         // for plus, multiplies, maximum
+#include <sycl/group.hpp>              // for group
+#include <sycl/half_type.hpp>          // for half
+#include <sycl/id.hpp>                 // for id
+#include <sycl/known_identity.hpp>     // for known_identity_v
+#include <sycl/nd_item.hpp>            // for nd_item
+#include <sycl/range.hpp>              // for range
+#include <sycl/sub_group.hpp>          // for sub_group
+#include <sycl/types.hpp>              // for vec
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>
-#include <sycl/functional.hpp>
-#include <sycl/group.hpp>
-#include <sycl/group_barrier.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/sub_group.hpp>
+#if defined(__NVPTX__)
+#include <sycl/ext/oneapi/experimental/cuda/non_uniform_algorithms.hpp>
+#endif
+#endif
+
+#include <complex>     // for complex
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t, decay_t, integra...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // ---- linear_id_to_id
@@ -59,8 +71,7 @@ template <> inline size_t get_local_linear_range<group<3>>(group<3> g) {
   return g.get_local_range(0) * g.get_local_range(1) * g.get_local_range(2);
 }
 template <>
-inline size_t
-get_local_linear_range<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline size_t get_local_linear_range<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_range()[0];
 }
 
@@ -82,8 +93,8 @@ __SYCL_GROUP_GET_LOCAL_LINEAR_ID(3);
 #endif // __SYCL_DEVICE_ONLY__
 
 template <>
-inline ext::oneapi::sub_group::linear_id_type
-get_local_linear_id<ext::oneapi::sub_group>(ext::oneapi::sub_group g) {
+inline sycl::sub_group::linear_id_type
+get_local_linear_id<sycl::sub_group>(sycl::sub_group g) {
   return g.get_local_id()[0];
 }
 
@@ -92,7 +103,7 @@ template <typename T>
 using native_op_list =
     type_list<sycl::plus<T>, sycl::bit_or<T>, sycl::bit_xor<T>,
               sycl::bit_and<T>, sycl::maximum<T>, sycl::minimum<T>,
-              sycl::multiplies<T>>;
+              sycl::multiplies<T>, sycl::logical_or<T>, sycl::logical_and<T>>;
 
 template <typename T, typename BinaryOperation> struct is_native_op {
   static constexpr bool value =
@@ -143,6 +154,26 @@ using is_plus_or_multiplies_if_complex = std::integral_constant<
                                    is_multiplies<T, BinaryOperation>::value)
                                 : std::true_type::value)>;
 
+// used to transform a vector op to a scalar op;
+// e.g. sycl::plus<std::vec<T, N>> to sycl::plus<T>
+template <typename T> struct get_scalar_binary_op;
+
+template <template <typename> typename F, typename T, int n>
+struct get_scalar_binary_op<F<sycl::vec<T, n>>> {
+  using type = F<T>;
+};
+
+template <template <typename> typename F> struct get_scalar_binary_op<F<void>> {
+  using type = F<void>;
+};
+
+// ---- is_max_or_min
+template <typename T> struct is_max_or_min : std::false_type {};
+template <typename T>
+struct is_max_or_min<sycl::maximum<T>> : std::true_type {};
+template <typename T>
+struct is_max_or_min<sycl::minimum<T>> : std::true_type {};
+
 // ---- identity_for_ga_op
 //   the group algorithms support std::complex, limited to sycl::plus operation
 //   get the correct identity for group algorithm operation.
@@ -182,8 +213,8 @@ Function for_each(Group g, Ptr first, Ptr last, Function f) {
   (void)first;
   (void)last;
   (void)f;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace detail
@@ -200,19 +231,27 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(x, x)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(x, x)), float>),
+      std::is_same_v<decltype(binary_op(x, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    sycl::vec<unsigned, 4> MemberMask =
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g));
+#if (__SYCL_CUDA_ARCH__ >= 800)
+    return detail::masked_reduction_cuda_sm80(g, x, binary_op, MemberMask[0]);
+#else
+    return detail::masked_reduction_cuda_shfls(g, x, binary_op, MemberMask[0]);
+#endif
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::Reduce>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -234,29 +273,26 @@ reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
-template <typename Group, typename T, int N, class BinaryOperation>
-std::enable_if_t<
-    (is_group_v<std::decay_t<Group>> &&
-     detail::is_vector_arithmetic_or_complex<sycl::vec<T, N>>::value &&
-     detail::is_native_op<sycl::vec<T, N>, BinaryOperation>::value),
-    sycl::vec<T, N>>
-reduce_over_group(Group g, sycl::vec<T, N> x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
+template <typename Group, typename T, class BinaryOperation>
+std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
+                  detail::is_vector_arithmetic_or_complex<T>::value &&
+                  detail::is_native_op<T, BinaryOperation>::value),
+                 T>
+reduce_over_group(Group g, T x, BinaryOperation binary_op) {
   static_assert(
-      std::is_same_v<decltype(binary_op(x[0], x[0])),
-                     typename sycl::vec<T, N>::element_type> ||
-          (std::is_same_v<sycl::vec<T, N>, half> &&
-           std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+      std::is_same_v<decltype(binary_op(x, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
-  sycl::vec<T, N> result;
-
-  detail::loop<N>(
-      [&](size_t s) { result[s] = reduce_over_group(g, x[s], binary_op); });
+  T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
+  detail::loop<x.size()>([&](size_t s) {
+    result[s] = reduce_over_group(g, x[s], scalar_binary_op);
+  });
   return result;
 }
 
@@ -272,18 +308,15 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init, x)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init, x)), float>),
+      std::is_same_v<decltype(binary_op(init, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   return binary_op(init, reduce_over_group(g, T(x), binary_op));
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -295,23 +328,22 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 reduce_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init[0], x[0])),
-                     typename T::element_type> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+      std::is_same_v<decltype(binary_op(init, x)), T>,
       "Result type of binary_op must match reduction accumulation type.");
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
 #ifdef __SYCL_DEVICE_ONLY__
   T result = init;
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = binary_op(init[s], reduce_over_group(g, x[s], binary_op));
+    result[s] =
+        scalar_binary_op(init[s], reduce_over_group(g, x[s], scalar_binary_op));
   }
   return result;
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -326,11 +358,8 @@ std::enable_if_t<
      detail::is_native_op<T, BinaryOperation>::value),
     T>
 joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
   static_assert(
-      std::is_same_v<decltype(binary_op(init, *first)), T> ||
-          (std::is_same_v<T, half> &&
-           std::is_same_v<decltype(binary_op(init, *first)), float>),
+      std::is_same_v<decltype(binary_op(init, *first)), T>,
       "Result type of binary_op must match reduction accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   T partial = detail::identity_for_ga_op<T, BinaryOperation>();
@@ -342,8 +371,8 @@ joint_reduce(Group g, Ptr first, Ptr last, T init, BinaryOperation binary_op) {
 #else
   (void)g;
   (void)last;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -365,8 +394,8 @@ joint_reduce(Group g, Ptr first, Ptr last, BinaryOperation binary_op) {
   (void)first;
   (void)last;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -375,12 +404,18 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 any_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_any_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAny(g, pred);
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -405,8 +440,8 @@ joint_any_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -415,12 +450,18 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 all_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, pred);
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -445,8 +486,8 @@ joint_all_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -455,12 +496,18 @@ template <typename Group>
 std::enable_if_t<is_group_v<std::decay_t<Group>>, bool>
 none_of_group(Group g, bool pred) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return __nvvm_vote_all_sync(detail::ExtractMask(detail::GetMask(g))[0],
+                                !pred);
+  }
+#endif
   return sycl::detail::spirv::GroupAll(g, !pred);
 #else
   (void)g;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -482,8 +529,8 @@ joint_none_of(Group g, Ptr first, Ptr last, Predicate pred) {
   (void)first;
   (void)last;
   (void)pred;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -501,8 +548,8 @@ shift_group_left(Group, T x, typename Group::linear_id_type delta = 1) {
 #else
   (void)x;
   (void)delta;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -520,8 +567,8 @@ shift_group_right(Group, T x, typename Group::linear_id_type delta = 1) {
 #else
   (void)x;
   (void)delta;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -539,8 +586,8 @@ permute_group_by_xor(Group, T x, typename Group::linear_id_type mask) {
 #else
   (void)x;
   (void)mask;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -558,8 +605,8 @@ select_from_group(Group, T x, typename Group::id_type local_id) {
 #else
   (void)x;
   (void)local_id;
-  throw runtime_error("Sub-groups are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Sub-groups are not supported on host.");
 #endif
 }
 
@@ -573,13 +620,20 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                  T>
 group_broadcast(Group g, T x, typename Group::id_type local_id) {
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    auto LocalId = detail::IdToMaskPosition(g, local_id);
+    return __nvvm_shfl_sync_idx_i32(detail::ExtractMask(detail::GetMask(g))[0],
+                                    x, LocalId, 31);
+  }
+#endif
   return sycl::detail::spirv::GroupBroadcast(g, x, local_id);
 #else
   (void)g;
   (void)x;
   (void)local_id;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -597,8 +651,8 @@ group_broadcast(Group g, T x, typename Group::linear_id_type linear_local_id) {
   (void)g;
   (void)x;
   (void)linear_local_id;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -613,8 +667,8 @@ group_broadcast(Group g, T x) {
 #else
   (void)g;
   (void)x;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -630,18 +684,48 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
-  return sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::ExclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
+  // For the first work item in the group, we cannot return the result
+  // of calc when T is a signed char or short type and the
+  // BinaryOperation is maximum or minimum.  calc uses SPIRV group
+  // collective instructions, which only operate on 32 or 64 bit
+  // integers. So, when using calc with a short or char type, the
+  // argument is converted to a 32 bit integer, the 32 bit group
+  // operation is performed, and then converted back to the original
+  // short or char type. For an exclusive scan, the first work item
+  // returns the identity for the supplied operation. However, the
+  // identity of a 32 bit signed integer maximum or minimum when
+  // converted to a signed char or short does not correspond to the
+  // identity of a signed char or short maximum or minimum. For
+  // example, the identity of a signed 32 bit maximum is
+  // INT_MIN=-2**31, and when converted to a signed char, results in
+  // 0. However, the identity of a signed char maximum is
+  // SCHAR_MIN=-2**7. Therefore, we need the following check to
+  // circumvent this issue.
+  auto res = sycl::detail::calc<__spv::GroupOperation::ExclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
+  if constexpr ((std::is_same_v<signed char, T> ||
+                 std::is_same_v<signed short, T> ||
+                 (std::is_signed_v<char> && std::is_same_v<char, T>)) &&
+                detail::is_max_or_min<BinaryOperation>::value) {
+    auto local_id = sycl::detail::get_local_linear_id(g);
+    if (local_id == 0)
+      return sycl::known_identity_v<BinaryOperation, T>;
+  }
+  return res;
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -663,8 +747,8 @@ exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -674,15 +758,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], binary_op);
+    result[s] = exclusive_scan_over_group(g, x[s], scalar_binary_op);
   }
   return result;
 }
@@ -697,15 +779,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = exclusive_scan_over_group(g, x[s], init[s], binary_op);
+    result[s] = exclusive_scan_over_group(g, x[s], init[s], scalar_binary_op);
   }
   return result;
 }
@@ -720,10 +800,7 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   typename Group::linear_id_type local_linear_id =
@@ -739,8 +816,8 @@ exclusive_scan_over_group(Group g, V x, T init, BinaryOperation binary_op) {
   return scan;
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -760,10 +837,7 @@ std::enable_if_t<
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
@@ -793,8 +867,8 @@ joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result, T init,
   (void)last;
   (void)result;
   (void)init;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -815,14 +889,9 @@ std::enable_if_t<
     OutPtr>
 joint_exclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(*first, *first)),
-                     typename detail::remove_pointer<OutPtr>::type> ||
-          (std::is_same_v<typename detail::remove_pointer<OutPtr>::type,
-                          half> &&
-           std::is_same_v<decltype(binary_op(*first, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
+                               typename detail::remove_pointer<OutPtr>::type>,
+                "Result type of binary_op must match scan accumulation type.");
   using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
   return joint_exclusive_scan(g, first, last, result, init, binary_op);
@@ -838,15 +907,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x[0], x[0])),
-                               typename T::element_type> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], binary_op);
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op);
   }
   return result;
 }
@@ -859,18 +926,22 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(x, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(x, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(x, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__NVPTX__)
+  if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<Group>) {
+    return detail::masked_scan_cuda_shfls<__spv::GroupOperation::InclusiveScan>(
+        g, x, binary_op,
+        sycl::detail::ExtractMask(sycl::detail::GetMask(g))[0]);
+  }
+#endif
   return sycl::detail::calc<__spv::GroupOperation::InclusiveScan>(
       g, typename sycl::detail::GroupOpTag<T>::type(), x, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -891,8 +962,8 @@ inclusive_scan_over_group(Group g, T x, BinaryOperation binary_op) {
   (void)g;
   (void)x;
   (void)binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -908,10 +979,7 @@ std::enable_if_t<
      std::is_convertible_v<V, T>),
     T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, x)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, x)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   T y = x;
@@ -921,8 +989,8 @@ inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
   return inclusive_scan_over_group(g, y, binary_op);
 #else
   (void)g;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -934,14 +1002,13 @@ std::enable_if_t<(is_group_v<std::decay_t<Group>> &&
                   detail::is_native_op<T, BinaryOperation>::value),
                  T>
 inclusive_scan_over_group(Group g, V x, BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init[0], x[0])), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init[0], x[0])), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, x)), T>,
                 "Result type of binary_op must match scan accumulation type.");
   T result;
+  typename detail::get_scalar_binary_op<BinaryOperation>::type
+      scalar_binary_op{};
   for (int s = 0; s < x.size(); ++s) {
-    result[s] = inclusive_scan_over_group(g, x[s], binary_op, init[s]);
+    result[s] = inclusive_scan_over_group(g, x[s], scalar_binary_op, init[s]);
   }
   return result;
 }
@@ -962,10 +1029,7 @@ std::enable_if_t<
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op, T init) {
-  // FIXME: Do not special-case for half precision
-  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T> ||
-                    (std::is_same_v<T, half> &&
-                     std::is_same_v<decltype(binary_op(init, *first)), float>),
+  static_assert(std::is_same_v<decltype(binary_op(init, *first)), T>,
                 "Result type of binary_op must match scan accumulation type.");
 #ifdef __SYCL_DEVICE_ONLY__
   ptrdiff_t offset = sycl::detail::get_local_linear_id(g);
@@ -994,8 +1058,8 @@ joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
   (void)g;
   (void)last;
   (void)result;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw sycl::exception(make_error_code(errc::feature_not_supported),
+                        "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -1014,19 +1078,14 @@ std::enable_if_t<
     OutPtr>
 joint_inclusive_scan(Group g, InPtr first, InPtr last, OutPtr result,
                      BinaryOperation binary_op) {
-  // FIXME: Do not special-case for half precision
-  static_assert(
-      std::is_same_v<decltype(binary_op(*first, *first)),
-                     typename detail::remove_pointer<OutPtr>::type> ||
-          (std::is_same_v<typename detail::remove_pointer<OutPtr>::type,
-                          half> &&
-           std::is_same_v<decltype(binary_op(*first, *first)), float>),
-      "Result type of binary_op must match scan accumulation type.");
+  static_assert(std::is_same_v<decltype(binary_op(*first, *first)),
+                               typename detail::remove_pointer<OutPtr>::type>,
+                "Result type of binary_op must match scan accumulation type.");
 
   using T = typename detail::remove_pointer<OutPtr>::type;
   T init = detail::identity_for_ga_op<T, BinaryOperation>();
   return joint_inclusive_scan(g, first, last, result, binary_op, init);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

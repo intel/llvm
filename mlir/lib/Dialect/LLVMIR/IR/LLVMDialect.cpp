@@ -266,8 +266,19 @@ static LogicalResult verifyOpaquePtr(Operation *op, LLVMPointerType ptrType,
 }
 
 LogicalResult AllocaOp::verify() {
-  return verifyOpaquePtr(getOperation(), llvm::cast<LLVMPointerType>(getType()),
-                         getElemType());
+  LLVMPointerType ptrType = llvm::cast<LLVMPointerType>(getType());
+  if (failed(verifyOpaquePtr(getOperation(), ptrType, getElemType())))
+    return failure();
+
+  Type elemTy =
+      (ptrType.isOpaque()) ? *getElemType() : ptrType.getElementType();
+  // Only certain target extension types can be used in 'alloca'.
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(elemTy);
+      targetExtType && !targetExtType.supportsMemOps())
+    return emitOpError()
+           << "this target extension type cannot be used in alloca";
+
+  return success();
 }
 
 //===----------------------------------------------------------------------===//
@@ -493,7 +504,7 @@ static void destructureIndices(Type currType, ArrayRef<GEPArg> indices,
     // error. All other canonicalization is done in the fold method.
     bool requiresConst = !rawConstantIndices.empty() &&
                          currType.isa_and_nonnull<LLVMStructType>();
-    if (Value val = iter.dyn_cast<Value>()) {
+    if (Value val = llvm::dyn_cast_if_present<Value>(iter)) {
       APInt intC;
       if (requiresConst && matchPattern(val, m_ConstantInt(&intC)) &&
           intC.isSignedIntN(kGEPConstantBitWidth)) {
@@ -598,7 +609,7 @@ static void printGEPIndices(OpAsmPrinter &printer, LLVM::GEPOp gepOp,
   llvm::interleaveComma(
       GEPIndicesAdaptor<OperandRange>(rawConstantIndices, indices), printer,
       [&](PointerUnion<IntegerAttr, Value> cst) {
-        if (Value val = cst.dyn_cast<Value>())
+        if (Value val = llvm::dyn_cast_if_present<Value>(cst))
           printer.printOperand(val);
         else
           printer << cst.get<IntegerAttr>().getInt();
@@ -905,13 +916,15 @@ void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
 
 void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
                    StringAttr callee, ValueRange args) {
-  build(builder, state, results, SymbolRefAttr::get(callee), args, nullptr,
-        nullptr);
+  build(builder, state, results, SymbolRefAttr::get(callee), args);
 }
 
 void CallOp::build(OpBuilder &builder, OperationState &state, TypeRange results,
                    FlatSymbolRefAttr callee, ValueRange args) {
-  build(builder, state, results, callee, args, nullptr, nullptr);
+  build(builder, state, results, callee, args, /*fastmathFlags=*/nullptr,
+        /*branch_weights=*/nullptr,
+        /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+        /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 void CallOp::build(OpBuilder &builder, OperationState &state, LLVMFuncOp func,
@@ -920,8 +933,11 @@ void CallOp::build(OpBuilder &builder, OperationState &state, LLVMFuncOp func,
   Type resultType = func.getFunctionType().getReturnType();
   if (!llvm::isa<LLVM::LLVMVoidType>(resultType))
     results.push_back(resultType);
-  build(builder, state, results, SymbolRefAttr::get(func), args, nullptr,
-        nullptr);
+  build(builder, state, results, SymbolRefAttr::get(func), args,
+        /*fastmathFlags=*/nullptr,
+        /*branch_weights=*/nullptr,
+        /*access_groups=*/nullptr, /*alias_scopes=*/nullptr,
+        /*noalias_scopes=*/nullptr, /*tbaa=*/nullptr);
 }
 
 CallInterfaceCallable CallOp::getCallableForCallee() {
@@ -1594,13 +1610,35 @@ AddressOfOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
 }
 
 //===----------------------------------------------------------------------===//
+// Verifier for LLVM::ComdatOp.
+//===----------------------------------------------------------------------===//
+
+void ComdatOp::build(OpBuilder &builder, OperationState &result,
+                     StringRef symName) {
+  result.addAttribute(getSymNameAttrName(result.name),
+                      builder.getStringAttr(symName));
+  Region *body = result.addRegion();
+  body->emplaceBlock();
+}
+
+LogicalResult ComdatOp::verifyRegions() {
+  Region &body = getBody();
+  for (Operation &op : body.getOps())
+    if (!isa<ComdatSelectorOp>(op))
+      return op.emitError(
+          "only comdat selector symbols can appear in a comdat region");
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
 // Builder, printer and verifier for LLVM::GlobalOp.
 //===----------------------------------------------------------------------===//
 
 void GlobalOp::build(OpBuilder &builder, OperationState &result, Type type,
                      bool isConstant, Linkage linkage, StringRef name,
                      Attribute value, uint64_t alignment, unsigned addrSpace,
-                     bool dsoLocal, bool threadLocal,
+                     bool dsoLocal, bool threadLocal, SymbolRefAttr comdat,
                      ArrayRef<NamedAttribute> attrs) {
   result.addAttribute(getSymNameAttrName(result.name),
                       builder.getStringAttr(name));
@@ -1616,6 +1654,8 @@ void GlobalOp::build(OpBuilder &builder, OperationState &result, Type type,
   if (threadLocal)
     result.addAttribute(getThreadLocal_AttrName(result.name),
                         builder.getUnitAttr());
+  if (comdat)
+    result.addAttribute(getComdatAttrName(result.name), comdat);
 
   // Only add an alignment attribute if the "alignment" input
   // is different from 0. The value must also be a power of two, but
@@ -1652,6 +1692,9 @@ void GlobalOp::print(OpAsmPrinter &p) {
   if (auto value = getValueOrNull())
     p.printAttribute(value);
   p << ')';
+  if (auto comdat = getComdat())
+    p << " comdat(" << *comdat << ')';
+
   // Note that the alignment attribute is printed using the
   // default syntax here, even though it is an inherent attribute
   // (as defined in https://mlir.llvm.org/docs/LangRef/#attributes)
@@ -1660,7 +1703,7 @@ void GlobalOp::print(OpAsmPrinter &p) {
                            getGlobalTypeAttrName(), getConstantAttrName(),
                            getValueAttrName(), getLinkageAttrName(),
                            getUnnamedAddrAttrName(), getThreadLocal_AttrName(),
-                           getVisibility_AttrName()});
+                           getVisibility_AttrName(), getComdatAttrName()});
 
   // Print the trailing type unless it's a string global.
   if (llvm::dyn_cast_or_null<StringAttr>(getValueOrNull()))
@@ -1720,6 +1763,18 @@ static RetTy parseOptionalLLVMKeyword(OpAsmParser &parser,
   return static_cast<RetTy>(index);
 }
 
+static LogicalResult verifyComdat(Operation *op,
+                                  std::optional<SymbolRefAttr> attr) {
+  if (!attr)
+    return success();
+
+  auto *comdatSelector = SymbolTable::lookupNearestSymbolFrom(op, *attr);
+  if (!isa_and_nonnull<ComdatSelectorOp>(comdatSelector))
+    return op->emitError() << "expected comdat symbol";
+
+  return success();
+}
+
 // operation ::= `llvm.mlir.global` linkage? `constant`? `@` identifier
 //               `(` attribute? `)` align? attribute-list? (`:` type)? region?
 // align     ::= `align` `=` UINT64
@@ -1766,6 +1821,15 @@ ParseResult GlobalOp::parse(OpAsmParser &parser, OperationState &result) {
                               result.attributes) ||
         parser.parseRParen())
       return failure();
+  }
+
+  if (succeeded(parser.parseOptionalKeyword("comdat"))) {
+    SymbolRefAttr comdat;
+    if (parser.parseLParen() || parser.parseAttribute(comdat) ||
+        parser.parseRParen())
+      return failure();
+
+    result.addAttribute(getComdatAttrName(result.name), comdat);
   }
 
   SmallVector<Type, 1> types;
@@ -1832,6 +1896,22 @@ LogicalResult GlobalOp::verify() {
           "attribute");
   }
 
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
+    if (!targetExtType.hasProperty(LLVMTargetExtType::CanBeGlobal))
+      return emitOpError()
+             << "this target extension type cannot be used in a global";
+
+    if (Attribute value = getValueOrNull()) {
+      // Only a single, zero integer attribute (=zeroinitializer) is allowed for
+      // a global value with TargetExtType.
+      // TODO: Replace with 'zeroinitializer' once there is a dedicated
+      // zeroinitializer operation in the LLVM dialect.
+      if (!isa<IntegerAttr>(value) || !isZeroAttribute(value))
+        return emitOpError()
+               << "expected zero value for global with target extension type";
+    }
+  }
+
   if (getLinkage() == Linkage::Common) {
     if (Attribute value = getValueOrNull()) {
       if (!isZeroAttribute(value)) {
@@ -1849,6 +1929,9 @@ LogicalResult GlobalOp::verify() {
                            << "' linkage";
     }
   }
+
+  if (failed(verifyComdat(*this, getComdat())))
+    return failure();
 
   std::optional<uint64_t> alignAttr = getAlignment();
   if (alignAttr.has_value()) {
@@ -2288,6 +2371,18 @@ LogicalResult LLVM::ConstantOp::verify() {
     }
     return success();
   }
+  if (auto targetExtType = dyn_cast<LLVMTargetExtType>(getType())) {
+    if (!targetExtType.hasProperty(LLVM::LLVMTargetExtType::HasZeroInit))
+      return emitOpError()
+             << "target extension type does not support zero-initializer";
+    // Only a single, zero integer attribute (=zeroinitializer) is allowed for a
+    // global value with TargetExtType.
+    if (!isa<IntegerAttr>(getValue()) || !isZeroAttribute(getValue()))
+      return emitOpError()
+             << "only zero-initializer allowed for target extension types";
+
+    return success();
+  }
   if (!llvm::isa<IntegerAttr, ArrayAttr, FloatAttr, ElementsAttr>(getValue()))
     return emitOpError()
            << "only supports integer, float, string or elements attributes";
@@ -2495,7 +2590,7 @@ OpFoldResult LLVM::GEPOp::fold(FoldAdaptor adaptor) {
         !integer.getValue().isSignedIntN(kGEPConstantBitWidth)) {
 
       PointerUnion<IntegerAttr, Value> existing = getIndices()[iter.index()];
-      if (Value val = existing.dyn_cast<Value>())
+      if (Value val = llvm::dyn_cast_if_present<Value>(existing))
         gepArgs.emplace_back(val);
       else
         gepArgs.emplace_back(existing.get<IntegerAttr>().getInt());

@@ -1,8 +1,8 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -O2 -S -emit-llvm -o - %s | FileCheck %s
 
-// CHECK-DAG: %spirv.JointMatrixINTEL._char_12_48_0_3_0 = type opaque
-// CHECK-DAG: %spirv.JointMatrixINTEL._int_12_12_3_3_2 = type opaque
-// CHECK-DAG: %spirv.JointMatrixINTEL._char_48_12_2_3_1 = type opaque
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 12, 48, 0, 3, 0)
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i32, 12, 12, 3, 3, 2)
+// CHECK-DAG: target("spirv.JointMatrixINTEL", i8, 48, 12, 2, 3, 1)
 
 #include <iostream>
 #include <sycl/sycl.hpp>

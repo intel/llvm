@@ -331,10 +331,7 @@ struct SimplifyAllocConst : public OpRewritePattern<AllocLikeOp> {
         alloc.getLoc(), newMemRefType, dynamicSizes, alloc.getSymbolOperands(),
         alloc.getAlignmentAttr());
     // Insert a cast so we have the same type as the old alloc.
-    auto resultCast =
-        rewriter.create<CastOp>(alloc.getLoc(), alloc.getType(), newAlloc);
-
-    rewriter.replaceOp(alloc, {resultCast});
+    rewriter.replaceOpWithNewOp<CastOp>(alloc, alloc.getType(), newAlloc);
     return success();
   }
 };
@@ -970,7 +967,7 @@ computeMemRefRankReductionMask(MemRefType originalType, MemRefType reducedType,
     return unusedDims;
 
   for (const auto &dim : llvm::enumerate(sizes))
-    if (auto attr = dim.value().dyn_cast<Attribute>())
+    if (auto attr = llvm::dyn_cast_if_present<Attribute>(dim.value()))
       if (llvm::cast<IntegerAttr>(attr).getInt() == 1)
         unusedDims.set(dim.index());
 
@@ -1042,7 +1039,7 @@ llvm::SmallBitVector SubViewOp::getDroppedDims() {
 
 OpFoldResult DimOp::fold(FoldAdaptor adaptor) {
   // All forms of folding require a known index.
-  auto index = adaptor.getIndex().dyn_cast_or_null<IntegerAttr>();
+  auto index = llvm::dyn_cast_if_present<IntegerAttr>(adaptor.getIndex());
   if (!index)
     return {};
 

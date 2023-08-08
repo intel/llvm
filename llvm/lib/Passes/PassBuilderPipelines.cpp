@@ -155,9 +155,6 @@ static cl::opt<bool>
                             cl::Hidden,
                             cl::desc("Enable inline deferral during PGO"));
 
-static cl::opt<bool> EnableMemProfiler("enable-mem-prof", cl::Hidden,
-                                       cl::desc("Enable memory profiler"));
-
 static cl::opt<bool> EnableModuleInliner("enable-module-inliner",
                                          cl::init(false), cl::Hidden,
                                          cl::desc("Enable module inliner"));
@@ -989,6 +986,10 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
                                                ThinOrFullLTOPhase Phase) {
   assert(Level != OptimizationLevel::O0 &&
          "Should not be used for O0 pipeline");
+
+  assert(Phase != ThinOrFullLTOPhase::FullLTOPostLink &&
+         "FullLTOPostLink shouldn't call buildModuleSimplificationPipeline!");
+
   ModulePassManager MPM;
 
   // Place pseudo probe instrumentation as the first pass of the pipeline to
@@ -1023,25 +1024,28 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   if (Phase == ThinOrFullLTOPhase::ThinLTOPostLink && !LoadSampleProfile)
     MPM.addPass(PGOIndirectCallPromotion(true /* InLTO */, HasSampleProfile));
 
-  // Do basic inference of function attributes from known properties of system
-  // libraries and other oracles.
-  MPM.addPass(InferFunctionAttrsPass());
-  MPM.addPass(CoroEarlyPass());
-
   // Create an early function pass manager to cleanup the output of the
-  // frontend.
-  FunctionPassManager EarlyFPM;
-  // Lower llvm.expect to metadata before attempting transforms.
-  // Compare/branch metadata may alter the behavior of passes like SimplifyCFG.
-  EarlyFPM.addPass(LowerExpectIntrinsicPass());
-  EarlyFPM.addPass(SimplifyCFGPass());
-  EarlyFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
-  EarlyFPM.addPass(EarlyCSEPass());
-  if (Level == OptimizationLevel::O3)
-    EarlyFPM.addPass(CallSiteSplittingPass());
+  // frontend. Not necessary with LTO post link pipelines since the pre link
+  // pipeline already cleaned up the frontend output.
+  if (Phase != ThinOrFullLTOPhase::ThinLTOPostLink) {
+    // Do basic inference of function attributes from known properties of system
+    // libraries and other oracles.
+    MPM.addPass(InferFunctionAttrsPass());
+    MPM.addPass(CoroEarlyPass());
 
-  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(EarlyFPM),
-                                                PTO.EagerlyInvalidateAnalyses));
+    FunctionPassManager EarlyFPM;
+    // Lower llvm.expect to metadata before attempting transforms.
+    // Compare/branch metadata may alter the behavior of passes like
+    // SimplifyCFG.
+    EarlyFPM.addPass(LowerExpectIntrinsicPass());
+    EarlyFPM.addPass(SimplifyCFGPass());
+    EarlyFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
+    EarlyFPM.addPass(EarlyCSEPass());
+    if (Level == OptimizationLevel::O3)
+      EarlyFPM.addPass(CallSiteSplittingPass());
+    MPM.addPass(createModuleToFunctionPassAdaptor(
+        std::move(EarlyFPM), PTO.EagerlyInvalidateAnalyses));
+  }
 
   if (LoadSampleProfile) {
     // Annotate sample profile right after early FPM to ensure freshness of
@@ -1138,11 +1142,6 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   // Optimize globals now that functions are fully simplified.
   MPM.addPass(GlobalOptPass());
   MPM.addPass(GlobalDCEPass());
-
-  if (EnableMemProfiler && Phase != ThinOrFullLTOPhase::ThinLTOPreLink) {
-    MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
-    MPM.addPass(ModuleMemProfilerPass());
-  }
 
   return MPM;
 }

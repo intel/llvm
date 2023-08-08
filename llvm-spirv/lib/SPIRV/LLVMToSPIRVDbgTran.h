@@ -119,6 +119,8 @@ private:
   SPIRVEntry *transDbgEnumType(const DICompositeType *ET);
   SPIRVEntry *transDbgCompositeType(const DICompositeType *CT);
   SPIRVEntry *transDbgMemberType(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeOpenCL(const DIDerivedType *MT);
+  SPIRVEntry *transDbgMemberTypeNonSemantic(const DIDerivedType *MT);
   SPIRVEntry *transDbgInheritance(const DIDerivedType *DT);
   SPIRVEntry *transDbgPtrToMember(const DIDerivedType *DT);
 
@@ -142,6 +144,7 @@ private:
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,
                             SPIRVInstruction *InsertBefore = nullptr);
   SPIRVEntry *transDbgInlinedAt(const DILocation *D);
+  SPIRVEntry *transDbgInlinedAtNonSemanticShader200(const DILocation *D);
 
   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
   SPIRVEntry *transDbgFileType(const DIFile *F);
@@ -161,6 +164,10 @@ private:
 
   // A module in programming language. Example - Fortran module, clang module.
   SPIRVEntry *transDbgModule(const DIModule *IE);
+
+  // Flags
+  SPIRVWord mapDebugFlags(DINode::DIFlags DFlags);
+  SPIRVWord transDebugFlags(const DINode *DN);
 
   SPIRVModule *BM;
   Module *M;

@@ -874,9 +874,7 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
 
     BM->setName(BF, F->getName().str());
   }
-  if (isKernel(F))
-    BM->addEntryPoint(ExecutionModelKernel, BF->getId());
-  else if (F->getLinkage() != GlobalValue::InternalLinkage)
+  if (!isKernel(F) && F->getLinkage() != GlobalValue::InternalLinkage)
     BF->setLinkageType(transLinkageType(F));
 
   // Translate OpenCL/SYCL buffer_location metadata if it's attached to the
@@ -1199,13 +1197,22 @@ void LLVMToSPIRVBase::transAuxDataInst(SPIRVFunction *BF, Function *F) {
   F->getContext().getMDKindNames(MDNames);
   F->getAllMetadata(AllMD);
   for (auto MD : AllMD) {
+    std::string MDName = MDNames[MD.first].str();
+
+    // spirv.Decorations and spirv.ParameterDecorations are handled
+    // elsewhere for both forward and reverse translation and are complicated
+    // to support here, so just skip them.
+    if (MDName == SPIRV_MD_DECORATIONS ||
+        MDName == SPIRV_MD_PARAMETER_DECORATIONS)
+      continue;
+
     // Format for metadata is:
     // NonSemanticAuxDataFunctionMetadata Fcn MDName MDVals...
     // MDName is always a String, MDVals have different types as explained
     // below. Also note this instruction has a variable number of operands
     std::vector<SPIRVWord> Ops;
     Ops.push_back(BF->getId());
-    Ops.push_back(BM->getString(MDNames[MD.first].str())->getId());
+    Ops.push_back(BM->getString(MDName)->getId());
     for (unsigned int OpIdx = 0; OpIdx < MD.second->getNumOperands(); OpIdx++) {
       const auto &CurOp = MD.second->getOperand(OpIdx);
       if (auto *MDStr = dyn_cast<MDString>(CurOp)) {
@@ -3692,23 +3699,30 @@ static bool allowsApproxFunction(IntrinsicInst *II) {
            cast<VectorType>(Ty)->getElementType()->isFloatTy()));
 }
 
-bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
-  SmallVector<Value *, 8> UserList;
+namespace {
+bool checkMemUser(User *User) {
+  if (isa<LoadInst>(User) || isa<StoreInst>(User))
+    return true;
+  if (auto *III = dyn_cast<IntrinsicInst>(User)) {
+    if (III->getIntrinsicID() == Intrinsic::memcpy)
+      return true;
+  }
+  return false;
+}
+} // namespace
 
+bool allowDecorateWithBufferLocationOrLatencyControlINTEL(IntrinsicInst *II) {
   for (auto *Inst : II->users()) {
-    // if castInst, push Successors
+    // if castInst, check Successors
     if (auto *Cast = dyn_cast<CastInst>(Inst)) {
       for (auto *Successor : Cast->users())
-        UserList.push_back(Successor);
+        if (checkMemUser(Successor))
+          return true;
     } else {
-      UserList.push_back(Inst);
+      if (checkMemUser(Inst))
+        return true;
     }
   }
-
-  for (auto &Inst : UserList)
-    if (isa<LoadInst>(Inst) || isa<StoreInst>(Inst))
-      return true;
-
   return false;
 }
 
@@ -4081,11 +4095,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return DbgTran->createDebugValuePlaceholder(cast<DbgValueInst>(II), BB);
   case Intrinsic::annotation: {
     SPIRVType *Ty = transScavengedType(II);
-
-    GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(II->getArgOperand(1));
-    if (!GEP)
-      return nullptr;
-    Constant *C = cast<Constant>(GEP->getOperand(0));
+    Constant *C = cast<Constant>(II->getArgOperand(1)->stripPointerCasts());
     StringRef AnnotationString;
     if (!getConstantStringInfo(C, AnnotationString))
       return nullptr;
@@ -4886,12 +4896,15 @@ bool LLVMToSPIRVBase::isAnyFunctionReachableFromFunction(
   return false;
 }
 
-void LLVMToSPIRVBase::collectInputOutputVariables(SPIRVFunction *SF,
-                                                  Function *F) {
+std::vector<SPIRVId>
+LLVMToSPIRVBase::collectEntryPointInterfaces(SPIRVFunction *SF, Function *F) {
+  std::vector<SPIRVId> Interface;
   for (auto &GV : M->globals()) {
     const auto AS = GV.getAddressSpace();
-    if (AS != SPIRAS_Input && AS != SPIRAS_Output)
-      continue;
+    SPIRVModule *BM = SF->getModule();
+    if (!BM->isAllowedToUseVersion(VersionNumber::SPIRV_1_4))
+      if (AS != SPIRAS_Input && AS != SPIRAS_Output)
+        continue;
 
     std::unordered_set<const Function *> Funcs;
 
@@ -4903,9 +4916,14 @@ void LLVMToSPIRVBase::collectInputOutputVariables(SPIRVFunction *SF,
     }
 
     if (isAnyFunctionReachableFromFunction(F, Funcs)) {
-      SF->addVariable(ValueMap[&GV]);
+      SPIRVWord ModuleVersion = static_cast<SPIRVWord>(BM->getSPIRVVersion());
+      if (AS != SPIRAS_Input && AS != SPIRAS_Output &&
+          ModuleVersion < static_cast<SPIRVWord>(VersionNumber::SPIRV_1_4))
+        BM->setMinSPIRVVersion(VersionNumber::SPIRV_1_4);
+      Interface.push_back(ValueMap[&GV]->getId());
     }
   }
+  return Interface;
 }
 
 void LLVMToSPIRVBase::mutateFuncArgType(
@@ -5106,10 +5124,10 @@ void LLVMToSPIRVBase::transFunction(Function *I) {
   joinFPContract(I, FPContract::ENABLED);
   fpContractUpdateRecursive(I, getFPContract(I));
 
-  bool IsKernelEntryPoint = isKernel(I);
-
-  if (IsKernelEntryPoint) {
-    collectInputOutputVariables(BF, I);
+  if (isKernel(I)) {
+    auto Interface = collectEntryPointInterfaces(BF, I);
+    BM->addEntryPoint(ExecutionModelKernel, BF->getId(), I->getName().str(),
+                      Interface);
   }
 }
 

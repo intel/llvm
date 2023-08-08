@@ -31,8 +31,8 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK: .debug_info contents:
 ; CHECK: Compile Unit
-; CHECK: Compile Unit
 ; CHECK: .debug_info.dwo contents:
+; CHECK: Compile Unit
 
 
 declare void @_Z2f1v()

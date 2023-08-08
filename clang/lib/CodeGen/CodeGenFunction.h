@@ -1597,6 +1597,28 @@ private:
   SourceLocation LastStopPoint;
 
 public:
+  /// Class to manage the BuiltinID for the current builtin expression during
+  /// processing in EmitBuiltinExpr.
+  class CurrentBuiltinIDRAII {
+    CodeGenFunction &CGF;
+    unsigned SavedBuiltinID;
+
+  public:
+    CurrentBuiltinIDRAII(CodeGenFunction &CGF, unsigned BuiltinID)
+        : CGF(CGF), SavedBuiltinID(CGF.CurrentBuiltinID) {
+      CGF.CurrentBuiltinID = BuiltinID;
+    }
+    ~CurrentBuiltinIDRAII() { CGF.CurrentBuiltinID = SavedBuiltinID; }
+  };
+
+private:
+  unsigned CurrentBuiltinID = /*NotBuiltin*/ 0;
+
+public:
+  unsigned getCurrentBuiltinID() const {
+    assert(CurrentBuiltinID != /*NotBuiltin*/ 0);
+    return CurrentBuiltinID;
+  }
   /// Source location information about the default argument or member
   /// initializer expression we're evaluating, if any.
   CurrentSourceLocExprScope CurSourceLocExprScope;
@@ -1963,6 +1985,9 @@ private:
   /// Check if the return value of this function requires sanitization.
   bool requiresReturnValueCheck() const;
 
+  bool isInAllocaArgument(CGCXXABI &ABI, QualType Ty);
+  bool hasInAllocaArg(const CXXMethodDecl *MD);
+
   llvm::BasicBlock *TerminateLandingPad = nullptr;
   llvm::BasicBlock *TerminateHandler = nullptr;
   llvm::SmallVector<llvm::BasicBlock *, 2> TrapBBs;
@@ -2225,10 +2250,17 @@ public:
   void EmitBlockWithFallThrough(llvm::BasicBlock *BB, const Stmt *S);
 
   void EmitForwardingCallToLambda(const CXXMethodDecl *LambdaCallOperator,
-                                  CallArgList &CallArgs);
+                                  CallArgList &CallArgs,
+                                  const CGFunctionInfo *CallOpFnInfo = nullptr,
+                                  llvm::Constant *CallOpFn = nullptr);
   void EmitLambdaBlockInvokeBody();
-  void EmitLambdaDelegatingInvokeBody(const CXXMethodDecl *MD);
   void EmitLambdaStaticInvokeBody(const CXXMethodDecl *MD);
+  void EmitLambdaDelegatingInvokeBody(const CXXMethodDecl *MD,
+                                      CallArgList &CallArgs);
+  void EmitLambdaInAllocaImplFn(const CXXMethodDecl *CallOp,
+                                const CGFunctionInfo **ImplFnInfo,
+                                llvm::Function **ImplFn);
+  void EmitLambdaInAllocaCallOpBody(const CXXMethodDecl *MD);
   void EmitLambdaVLACapture(const VariableArrayType *VAT, LValue LV) {
     EmitStoreThroughLValue(RValue::get(VLASizeMap[VAT->getSizeExpr()]), LV);
   }
@@ -4245,6 +4277,7 @@ public:
   llvm::Value *EmitSVEMaskedStore(const CallExpr *,
                                   SmallVectorImpl<llvm::Value *> &Ops,
                                   unsigned BuiltinID);
+  llvm::Value *EmitTileslice(llvm::Value *Offset, llvm::Value *Base);
   llvm::Value *EmitSVEPrefetchLoad(const SVETypeFlags &TypeFlags,
                                    SmallVectorImpl<llvm::Value *> &Ops,
                                    unsigned BuiltinID);
@@ -4258,6 +4291,11 @@ public:
                                   SmallVectorImpl<llvm::Value *> &Ops,
                                   unsigned IntID);
   llvm::Value *EmitAArch64SVEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
+
+  llvm::Value *EmitSMELd1St1(SVETypeFlags TypeFlags,
+                             llvm::SmallVectorImpl<llvm::Value *> &Ops,
+                             unsigned IntID);
+  llvm::Value *EmitAArch64SMEBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                       llvm::Triple::ArchType Arch);
@@ -4282,6 +4320,13 @@ public:
   RValue EmitIntelFPGARegBuiltin(const CallExpr *E,
                                  ReturnValueSlot ReturnValue);
   RValue EmitIntelFPGAMemBuiltin(const CallExpr *E);
+
+  RValue EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E);
+
+  llvm::CallInst *
+  EmitFPBuiltinIndirectCall(llvm::FunctionType *IRFuncTy,
+                            const SmallVectorImpl<llvm::Value *> &IRArgs,
+                            llvm::Value *FnPtr, const FunctionDecl *FD);
 
   enum class MSVCIntrin;
   llvm::Value *EmitMSVCBuiltinExpr(MSVCIntrin BuiltinID, const CallExpr *E);
@@ -4545,6 +4590,11 @@ public:
   EmitSYCLAnnotationCall(llvm::Function *AnnotationFn,
                          llvm::Value *AnnotatedVal, SourceLocation Location,
                          const SYCLAddIRAnnotationsMemberAttr *Attr);
+
+  llvm::Value *EmitSYCLAnnotationCall(
+      llvm::Function *AnnotationFn, llvm::Value *AnnotatedVal,
+      SourceLocation Location,
+      llvm::SmallVectorImpl<std::pair<std::string, std::string>> &Pair);
 
   /// Emit sycl field annotations for given field & value. Returns the
   /// annotation result.

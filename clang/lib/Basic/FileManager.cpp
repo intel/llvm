@@ -319,7 +319,7 @@ FileManager::getFileRef(StringRef Filename, bool openFile, bool CacheFailure) {
 
     // Cache the redirection in the previously-inserted entry, still available
     // in the tentative return value.
-    NamedFileEnt->second = FileEntryRef::MapValue(Redirection);
+    NamedFileEnt->second = FileEntryRef::MapValue(Redirection, DirInfo);
   }
 
   FileEntryRef ReturnedRef(*NamedFileEnt);
@@ -631,16 +631,15 @@ void FileManager::GetUniqueIDMapping(
     UIDToFiles[VFE->getUID()] = VFE;
 }
 
-StringRef FileManager::getCanonicalName(const DirectoryEntry *Dir) {
-  llvm::DenseMap<const void *, llvm::StringRef>::iterator Known
-    = CanonicalNames.find(Dir);
+StringRef FileManager::getCanonicalName(DirectoryEntryRef Dir) {
+  auto Known = CanonicalNames.find(Dir);
   if (Known != CanonicalNames.end())
     return Known->second;
 
-  StringRef CanonicalName(Dir->getName());
+  StringRef CanonicalName(Dir.getName());
 
   SmallString<4096> CanonicalNameBuf;
-  if (!FS->getRealPath(Dir->getName(), CanonicalNameBuf))
+  if (!FS->getRealPath(Dir.getName(), CanonicalNameBuf))
     CanonicalName = CanonicalNameBuf.str().copy(CanonicalNameStorage);
 
   CanonicalNames.insert({Dir, CanonicalName});

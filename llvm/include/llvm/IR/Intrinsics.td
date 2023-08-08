@@ -1037,6 +1037,10 @@ let IntrProperties = [IntrNoMem, IntrSpeculatable, IntrWillReturn] in {
   def int_llround : DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_anyfloat_ty]>;
   def int_lrint : DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_anyfloat_ty]>;
   def int_llrint : DefaultAttrsIntrinsic<[llvm_anyint_ty], [llvm_anyfloat_ty]>;
+
+  // TODO: int operand should be constrained to same number of elements as the result.
+  def int_ldexp : DefaultAttrsIntrinsic<[llvm_anyfloat_ty], [LLVMMatchType<0>,
+                                                             llvm_anyint_ty]>;
 }
 
 def int_minnum : DefaultAttrsIntrinsic<[llvm_anyfloat_ty],
@@ -1071,6 +1075,9 @@ def int_objectsize : DefaultAttrsIntrinsic<[llvm_anyint_ty],
 let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
   def int_get_rounding  : DefaultAttrsIntrinsic<[llvm_i32_ty], []>;
   def int_set_rounding  : DefaultAttrsIntrinsic<[], [llvm_i32_ty]>;
+  def int_get_fpenv     : DefaultAttrsIntrinsic<[llvm_anyint_ty], []>;
+  def int_set_fpenv     : DefaultAttrsIntrinsic<[], [llvm_anyint_ty]>;
+  def int_reset_fpenv   : DefaultAttrsIntrinsic<[], []>;
 }
 
 //===--------------- Floating Point Properties ----------------------------===//
@@ -1265,6 +1272,11 @@ let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
   def int_experimental_constrained_powi : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
                                                     [ LLVMMatchType<0>,
                                                       llvm_i32_ty,
+                                                      llvm_metadata_ty,
+                                                      llvm_metadata_ty ]>;
+  def int_experimental_constrained_ldexp : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
+                                                    [ LLVMMatchType<0>,
+                                                      llvm_anyint_ty,
                                                       llvm_metadata_ty,
                                                       llvm_metadata_ty ]>;
   def int_experimental_constrained_sin  : DefaultAttrsIntrinsic<[ llvm_anyfloat_ty ],
@@ -2251,6 +2263,12 @@ def int_get_active_lane_mask:
             [llvm_anyint_ty, LLVMMatchType<1>],
             [IntrNoMem, IntrNoSync, IntrWillReturn]>;
 
+def int_experimental_get_vector_length:
+  DefaultAttrsIntrinsic<[llvm_i32_ty],
+                        [llvm_anyint_ty, llvm_i32_ty, llvm_i1_ty],
+                        [IntrNoMem, IntrNoSync, IntrWillReturn,
+                         ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
 def int_experimental_vp_splice:
   DefaultAttrsIntrinsic<[llvm_anyvector_ty],
             [LLVMMatchType<0>,
@@ -2337,12 +2355,12 @@ def int_hwasan_check_memaccess_shortgranules :
 //===----------------------------------------------------------------------===//
 // Custom event logging for x-ray.
 // Takes a pointer to a string and the length of the string.
-def int_xray_customevent : Intrinsic<[], [llvm_ptr_ty, llvm_i32_ty],
+def int_xray_customevent : Intrinsic<[], [llvm_ptr_ty, llvm_i64_ty],
                                      [IntrWriteMem, NoCapture<ArgIndex<0>>,
                                       ReadOnly<ArgIndex<0>>]>;
 // Typed event logging for x-ray.
 // Takes a numeric type tag, a pointer to a string and the length of the string.
-def int_xray_typedevent : Intrinsic<[], [llvm_i16_ty, llvm_ptr_ty, llvm_i32_ty],
+def int_xray_typedevent : Intrinsic<[], [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                         [IntrWriteMem, NoCapture<ArgIndex<1>>,
                                          ReadOnly<ArgIndex<1>>]>;
 //===----------------------------------------------------------------------===//
@@ -2406,6 +2424,10 @@ let IntrProperties = [IntrNoMem, IntrSpeculatable] in {
   def int_vector_reduce_fmax : DefaultAttrsIntrinsic<[LLVMVectorElementType<0>],
                                          [llvm_anyvector_ty]>;
   def int_vector_reduce_fmin : DefaultAttrsIntrinsic<[LLVMVectorElementType<0>],
+                                         [llvm_anyvector_ty]>;
+  def int_vector_reduce_fminimum: DefaultAttrsIntrinsic<[LLVMVectorElementType<0>],
+                                         [llvm_anyvector_ty]>;
+  def int_vector_reduce_fmaximum: DefaultAttrsIntrinsic<[LLVMVectorElementType<0>],
                                          [llvm_anyvector_ty]>;
 }
 

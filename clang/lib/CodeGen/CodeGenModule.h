@@ -602,8 +602,6 @@ private:
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
 
-  llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
-
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
   // Helps squashing blocks of TopLevelStmtDecl into a single llvm::Function
@@ -1384,8 +1382,8 @@ public:
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
   /// Emit additional args of the annotation.
-  llvm::Constant *
-  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
+  llvm::Constant *EmitSYCLAnnotationArgs(
+      SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
@@ -1541,9 +1539,6 @@ public:
   std::vector<const CXXRecordDecl *>
   getMostBaseClasses(const CXXRecordDecl *RD);
 
-  llvm::GlobalVariable *
-  GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr);
-
   /// Get the declaration of std::terminate for the platform.
   llvm::FunctionCallee getTerminateFn();
 
@@ -1593,6 +1588,11 @@ public:
   /// because we'll lose all important information after each repl.
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
+  void getFPAccuracyFuncAttributes(StringRef Name,
+                                   llvm::AttributeList &AttrList,
+                                   llvm::Metadata *&MDs, unsigned ID,
+                                   const llvm::Type *FuncType);
+
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
       StringRef MangledName, llvm::Type *Ty, GlobalDecl D, bool ForVTable,
@@ -1621,7 +1621,8 @@ private:
                         ForDefinition_t IsForDefinition = NotForDefinition);
 
   bool GetCPUAndFeaturesAttributes(GlobalDecl GD,
-                                   llvm::AttrBuilder &AttrBuilder);
+                                   llvm::AttrBuilder &AttrBuilder,
+                                   bool SetTargetFeatures = true);
   void setNonAliasAttributes(GlobalDecl GD, llvm::GlobalObject *GO);
 
   /// Set function attributes for a function declaration.
@@ -1786,6 +1787,11 @@ private:
   void getDefaultFunctionAttributes(StringRef Name, bool HasOptnone,
                                     bool AttrOnCallSite,
                                     llvm::AttrBuilder &FuncAttrs);
+
+  void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
+                                              llvm::AttrBuilder &FuncAttrs,
+                                              llvm::Metadata *&MD, unsigned ID,
+                                              const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,
                                                StringRef Suffix);

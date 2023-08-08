@@ -1,9 +1,6 @@
 // NOTE: named barrier supported only since PVC
 // REQUIRES: gpu-intel-pvc
 //
-// TODO: enable when Jira issue resolved, currently fail with VISALTO enable
-// XFAIL: gpu-intel-pvc
-//
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
@@ -56,7 +53,9 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
 
   esimd::simd<int, VL> val(local_id);
 
-  unsigned int slm_base = static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(local_acc.get_pointer()));
+  unsigned int slm_base =
+      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+          local_acc.get_multi_ptr<access::decorated::no>().get_raw()));
 
   /* Each thread operates on a region of memory (global or slm) that overlaps
    * with that of the previous and next threads.

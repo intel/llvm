@@ -9,8 +9,9 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "clang/Driver/ToolChain.h"
+#include "clang/Driver/Options.h"
 #include "clang/Driver/Tool.h"
+#include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
@@ -179,7 +180,11 @@ public:
                           StringRef Device) const;
 
   bool useIntegratedAs() const override { return true; }
-  bool isPICDefault() const override { return false; }
+  bool isPICDefault() const override {
+    if (this->IsSYCLNativeCPU)
+      return this->HostTC.isPICDefault();
+    return false;
+  }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
@@ -203,12 +208,21 @@ protected:
   Tool *buildLinker() const override;
 
 private:
+  bool IsSYCLNativeCPU;
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
 };
 
 } // end namespace toolchains
+
+template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
+  if (auto SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    if (SYCLTargets->containsValue("native_cpu"))
+      return true;
+  }
+  return false;
+}
 } // end namespace driver
 } // end namespace clang
 

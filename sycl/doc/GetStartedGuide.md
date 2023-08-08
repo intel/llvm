@@ -39,15 +39,12 @@ and a wide range of compute accelerators such as GPU and FPGA.
 ## Prerequisites
 
 * `git` - [Download](https://git-scm.com/downloads)
-* `cmake` version 3.14 or later - [Download](http://www.cmake.org/download/)
+* `cmake` version 3.20 or later - [Download](http://www.cmake.org/download/)
 * `python` - [Download](https://www.python.org/downloads/)
 * `ninja` -
 [Download](https://github.com/ninja-build/ninja/wiki/Pre-built-Ninja-packages)
 * C++ compiler
-  * Linux: `GCC` version 7.1.0 or later (including libstdc++) -
-    [Download](https://gcc.gnu.org/install/)
-  * Windows: `Visual Studio` version 15.7 preview 4 or later -
-    [Download](https://visualstudio.microsoft.com/downloads/)
+  * See LLVM's [host compiler toolchain requirements](../../llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
 Alternatively, you can use a Docker image that has everything you need for building
 pre-installed:
@@ -350,7 +347,7 @@ the following section [Find More](#find-more).
 The Level Zero RT for `GPU`, OpenCL RT for `GPU`, OpenCL RT for `CPU`, FPGA
 emulation RT and TBB runtime which are needed to run DPC++ application
 on Intel `GPU` or Intel `CPU` devices can be downloaded using links in
-[the dependency configuration file](../../buildbot/dependency.conf)
+[the dependency configuration file](../../devops/dependencies.json)
 and installed following the instructions below. The same versions are used in
 PR testing.
 
@@ -383,7 +380,7 @@ run the following commands
     ```
 
 3) Extract or build TBB libraries using links in
-[the dependency configuration file](../../buildbot/dependency.conf). For example,
+[the dependency configuration file](../../devops/dependencies.json). For example,
 for the archive oneapi-tbb-<tbb_version>-lin.tgz:
 
     ```bash
@@ -436,11 +433,11 @@ not working properly.
 
 2) Extract the archive with OpenCL runtime for Intel `CPU` and/or for Intel
 `FPGA` emulation using links in
-[the dependency configuration file](../../buildbot/dependency.conf).  For
+[the dependency configuration file](../../devops/dependencies.json).  For
 example, to `c:\oclcpu_rt_<cpu_version>`.
 
 3) Extract the archive with TBB runtime or build it from sources using links
-in [the dependency configuration file](../../buildbot/dependency.conf).  For
+in [the dependency configuration file](../../devops/dependencies.json).  For
 example, to `c:\oneapi-tbb-<tbb_version>`.
 
 4) Run `Command Prompt` as `Administrator`. To do that click `Start` button,
@@ -743,8 +740,6 @@ compiler and by adding the SYCL specific flags. For example assuming `clang++`
 is on the `PATH`, a minimal `CMakeLists.txt` file for the sample above would be:
 
 ```cmake
-cmake_minimum_required(VERSION 3.14)
-
 # Modifying the compiler should be done before the project line
 set(CMAKE_CXX_COMPILER "clang++")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")

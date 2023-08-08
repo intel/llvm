@@ -1821,8 +1821,14 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
+    // A ptr.annotation may have been generated for the destination variable.
+    replaceOperandWithAnnotationIntrinsicCallResult(F, Dst);
+
     if (!CI) {
       llvm::Value *Src = transValue(BC->getSource(), F, BB);
+
+      // A ptr.annotation may have been generated for the source variable.
+      replaceOperandWithAnnotationIntrinsicCallResult(F, Src);
       CI = Builder.CreateMemCpy(Dst, Align, Src, Align, Size, IsVolatile);
     }
     if (isFuncNoUnwind())
@@ -3350,14 +3356,15 @@ bool SPIRVToLLVM::translate() {
     if (!postProcessBuiltinsReturningStruct(M, IsCpp))
       return false;
   }
-  eraseUselessFunctions(M);
-
-  DbgTran->addDbgInfoVersion();
-  DbgTran->finalize();
 
   for (SPIRVExtInst *EI : BM->getAuxDataInstVec()) {
     transAuxDataInst(EI);
   }
+
+  eraseUselessFunctions(M);
+
+  DbgTran->addDbgInfoVersion();
+  DbgTran->finalize();
 
   return true;
 }

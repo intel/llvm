@@ -42,25 +42,6 @@ const ur_device_info_t UR_EXT_DEVICE_INFO_OPENCL_C_VERSION =
 const ur_command_t UR_EXT_COMMAND_TYPE_USER =
     (ur_command_t)((uint32_t)UR_COMMAND_FORCE_UINT32 - 1);
 
-const ur_kernel_exec_info_t UR_EXT_KERNEL_EXEC_INFO_CACHE_CONFIG =
-    (ur_kernel_exec_info_t)(UR_KERNEL_EXEC_INFO_FORCE_UINT32 - 1);
-
-typedef enum {
-  // No preference for SLM or data cache.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT = 0x0,
-  // Large SLM size.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_SLM = 0x1,
-  // Large General Data size.
-  UR_EXT_KERNEL_EXEC_INFO_CACHE_LARGE_DATA = 0x2
-} ur_kernel_cache_config;
-
-// TODO(ur): These CUDA specific queue properties should live in the UR spec. In
-// the mean time just use the PI values.
-// PI Command Queue using Default stream
-#define __SYCL_UR_CUDA_USE_DEFAULT_STREAM (0xFF03)
-// PI Command queue will sync with default stream
-#define __SYCL_UR_CUDA_SYNC_WITH_DEFAULT (0xFF04)
-
 /// Program metadata tags recognized by the UR adapters. For kernels the tag
 /// must appear after the kernel name.
 #define __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE                    \
@@ -191,21 +172,25 @@ extern bool PrintTrace;
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for these global variables reclaimed only at
 // explicit tear-down.
-extern std::vector<ur_platform_handle_t> *PiPlatformsCache;
-extern SpinLock *PiPlatformsCacheMutex;
-extern bool PiPlatformCachePopulated;
+extern std::vector<ur_platform_handle_t> *URPlatformsCache;
+extern SpinLock *URPlatformsCacheMutex;
+extern bool URPlatformCachePopulated;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.
+namespace ur {
 template <typename T, typename Assign>
 ur_result_t getInfoImpl(size_t param_value_size, void *param_value,
                         size_t *param_value_size_ret, T value,
                         size_t value_size, Assign &&assign_func) {
+  if (!param_value && !param_value_size_ret) {
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  }
 
   if (param_value != nullptr) {
 
     if (param_value_size < value_size) {
-      return UR_RESULT_ERROR_INVALID_VALUE;
+      return UR_RESULT_ERROR_INVALID_SIZE;
     }
 
     assign_func(param_value, value, value_size);
@@ -260,6 +245,7 @@ getInfo<const char *>(size_t param_value_size, void *param_value,
   return getInfoArray(strlen(value) + 1, param_value_size, param_value,
                       param_value_size_ret, value);
 }
+} // namespace ur
 
 class UrReturnHelper {
 public:
@@ -276,20 +262,20 @@ public:
 
   // Scalar return value
   template <class T> ur_result_t operator()(const T &t) {
-    return getInfo(param_value_size, param_value, param_value_size_ret, t);
+    return ur::getInfo(param_value_size, param_value, param_value_size_ret, t);
   }
 
   // Array return value
   template <class T> ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray(s, param_value_size, param_value, param_value_size_ret,
-                        t);
+    return ur::getInfoArray(s, param_value_size, param_value,
+                            param_value_size_ret, t);
   }
 
   // Array return value where element type is differrent from T
   template <class RetType, class T>
   ur_result_t operator()(const T *t, size_t s) {
-    return getInfoArray<T, RetType>(s, param_value_size, param_value,
-                                    param_value_size_ret, t);
+    return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,
+                                        param_value_size_ret, t);
   }
 
 protected:

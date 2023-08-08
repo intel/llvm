@@ -14,7 +14,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 device_impl::device_impl()
@@ -26,17 +26,19 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
                          const PluginPtr &Plugin)
     : device_impl(InteropDeviceHandle, nullptr, nullptr, Plugin) {}
 
-device_impl::device_impl(RT::PiDevice Device, PlatformImplPtr Platform)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device,
+                         PlatformImplPtr Platform)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, Platform,
                   Platform->getPlugin()) {}
 
-device_impl::device_impl(RT::PiDevice Device, const PluginPtr &Plugin)
+device_impl::device_impl(sycl::detail::pi::PiDevice Device,
+                         const PluginPtr &Plugin)
     : device_impl(reinterpret_cast<pi_native_handle>(nullptr), Device, nullptr,
                   Plugin) {}
 
 device_impl::device_impl(pi_native_handle InteropDeviceHandle,
-                         RT::PiDevice Device, PlatformImplPtr Platform,
-                         const PluginPtr &Plugin)
+                         sycl::detail::pi::PiDevice Device,
+                         PlatformImplPtr Platform, const PluginPtr &Plugin)
     : MDevice(Device), MIsHostDevice(false),
       MDeviceHostBaseTime(std::make_pair(0, 0)) {
 
@@ -53,14 +55,15 @@ device_impl::device_impl(pi_native_handle InteropDeviceHandle,
 
   // TODO catch an exception and put it to list of asynchronous exceptions
   Plugin->call<PiApiKind::piDeviceGetInfo>(
-      MDevice, PI_DEVICE_INFO_TYPE, sizeof(RT::PiDeviceType), &MType, nullptr);
+      MDevice, PI_DEVICE_INFO_TYPE, sizeof(sycl::detail::pi::PiDeviceType),
+      &MType, nullptr);
 
   // No need to set MRootDevice when MAlwaysRootDevice is true
   if ((Platform == nullptr) || !Platform->MAlwaysRootDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     Plugin->call<PiApiKind::piDeviceGetInfo>(
-        MDevice, PI_DEVICE_INFO_PARENT_DEVICE, sizeof(RT::PiDevice),
-        &MRootDevice, nullptr);
+        MDevice, PI_DEVICE_INFO_PARENT_DEVICE,
+        sizeof(sycl::detail::pi::PiDevice), &MRootDevice, nullptr);
   }
 
   if (!InteroperabilityConstructor) {
@@ -84,7 +87,7 @@ device_impl::~device_impl() {
   if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const PluginPtr &Plugin = getPlugin();
-    RT::PiResult Err =
+    sycl::detail::pi::PiResult Err =
         Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
     __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
@@ -159,7 +162,7 @@ std::vector<device>
 device_impl::create_sub_devices(const cl_device_partition_property *Properties,
                                 size_t SubDevicesCount) const {
 
-  std::vector<RT::PiDevice> SubDevices(SubDevicesCount);
+  std::vector<sycl::detail::pi::PiDevice> SubDevices(SubDevicesCount);
   pi_uint32 ReturnedSubDevices = 0;
   const PluginPtr &Plugin = getPlugin();
   Plugin->call<sycl::errc::invalid, PiApiKind::piDevicePartition>(
@@ -176,7 +179,7 @@ device_impl::create_sub_devices(const cl_device_partition_property *Properties,
   //
   std::vector<device> res;
   std::for_each(SubDevices.begin(), SubDevices.end(),
-                [&res, this](const RT::PiDevice &a_pi_device) {
+                [&res, this](const sycl::detail::pi::PiDevice &a_pi_device) {
                   device sycl_device = detail::createSyclObjFromImpl<device>(
                       MPlatform->getOrMakeDeviceImpl(a_pi_device, MPlatform));
                   res.push_back(sycl_device);
@@ -454,6 +457,95 @@ bool device_impl::has(aspect Aspect) const {
             &legacy_image_support, nullptr) == PI_SUCCESS;
     return call_successful && legacy_image_support;
   }
+  case aspect::ext_oneapi_bindless_images: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_shared_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice,
+            PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_1d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_bindless_images_2d_usm: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_interop_memory_import: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_interop_memory_export: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_interop_semaphore_import: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_interop_semaphore_export: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_mipmap: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_SUPPORT, sizeof(pi_bool),
+            &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_mipmap_anisotropy: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
+  case aspect::ext_oneapi_mipmap_level_reference: {
+    pi_bool support = PI_FALSE;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
+  }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
                       PI_ERROR_INVALID_DEVICE);
@@ -475,6 +567,15 @@ std::string device_impl::getDeviceName() const {
                  [this]() { MDeviceName = get_info<info::device::name>(); });
 
   return MDeviceName;
+}
+
+ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
+  std::call_once(MDeviceArchFlag, [this]() {
+    MDeviceArch =
+        get_info<ext::oneapi::experimental::info::device::architecture>();
+  });
+
+  return MDeviceArch;
 }
 
 // On first call this function queries for device timestamp
@@ -528,5 +629,5 @@ uint64_t device_impl::getCurrentDeviceTime() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

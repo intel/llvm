@@ -8,24 +8,33 @@
 
 #pragma once
 
-#include "fpga_utils.hpp"
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/context.hpp>
-#include <sycl/device.hpp>
-#include <sycl/ext/intel/experimental/pipe_properties.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/queue.hpp>
-#include <sycl/stl.hpp>
-#include <type_traits>
+#include <sycl/detail/export.hpp>                          // for __SYCL_EX...
+#include <sycl/device.hpp>                                 // for device
+#include <sycl/event.hpp>                                  // for event
+#include <sycl/exception.hpp>                              // for make_erro...
+#include <sycl/ext/intel/experimental/pipe_properties.hpp> // for protocol_...
+#include <sycl/ext/oneapi/properties/properties.hpp>       // for ValueOrDe...
+#include <sycl/handler.hpp>                                // for handler
+#include <sycl/info/info_desc.hpp>                         // for event_com...
+#include <sycl/memory_enums.hpp>                           // for memory_order
+#include <sycl/queue.hpp>                                  // for queue
+
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/ext/intel/experimental/fpga_utils.hpp>
+#include <sycl/ext/oneapi/latency_control/properties.hpp>
+#endif
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 #include <xpti/xpti_data_types.h>
 #include <xpti/xpti_trace_framework.hpp>
 #endif
 
+#include <stdint.h> // for int32_t
+#include <string>   // for string
+#include <tuple>    // for _Swallow_...
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -445,5 +454,5 @@ private:
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

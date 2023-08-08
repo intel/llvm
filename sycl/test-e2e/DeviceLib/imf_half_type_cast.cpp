@@ -1,12 +1,16 @@
 // REQUIRES: gpu
 // REQUIRES: aspect-fp16
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: cuda || hip
+
+// UNSUPPORTED: cuda
+
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
 
 #include "imf_utils.hpp"
 #include <sycl/ext/intel/math.hpp>

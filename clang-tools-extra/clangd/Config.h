@@ -108,7 +108,7 @@ struct Config {
     /// Enable emitting diagnostics using stale preambles.
     bool AllowStalePreamble = false;
 
-    IncludesPolicy UnusedIncludes = IncludesPolicy::None;
+    IncludesPolicy UnusedIncludes = IncludesPolicy::Strict;
     IncludesPolicy MissingIncludes = IncludesPolicy::None;
 
     /// IncludeCleaner will not diagnose usages of these headers matched by
@@ -150,6 +150,13 @@ struct Config {
     // Limit the length of type names in inlay hints. (0 means no limit)
     uint32_t TypeNameLimit = 32;
   } InlayHints;
+
+  struct {
+    /// Controls highlighting kinds that are disabled.
+    std::vector<std::string> DisabledKinds;
+    /// Controls highlighting modifiers that are disabled.
+    std::vector<std::string> DisabledModifiers;
+  } SemanticTokens;
 };
 
 } // namespace clangd

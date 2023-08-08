@@ -19,14 +19,14 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, std::string>::value,
     std::string>::type
-get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
+get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
   static_assert(detail::is_kernel_info_desc<Param>::value,
                 "Invalid kernel information descriptor");
   size_t ResultSize = 0;
@@ -47,7 +47,7 @@ get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
 template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, uint32_t>::value, uint32_t>::type
-get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
+get_kernel_info(sycl::detail::pi::PiKernel Kernel, const PluginPtr &Plugin) {
   uint32_t Result = 0;
 
   // TODO catch an exception and put it to list of asynchronous exceptions
@@ -59,7 +59,8 @@ get_kernel_info(RT::PiKernel Kernel, const PluginPtr &Plugin) {
 // Device-specific methods
 template <typename Param>
 typename std::enable_if<IsSubGroupInfo<Param>::value>::type
-get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
+get_kernel_device_specific_info_helper(sycl::detail::pi::PiKernel Kernel,
+                                       sycl::detail::pi::PiDevice Device,
                                        const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
   Plugin->call<PiApiKind::piKernelGetSubGroupInfo>(
@@ -69,11 +70,13 @@ get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
 
 template <typename Param>
 typename std::enable_if<!IsSubGroupInfo<Param>::value>::type
-get_kernel_device_specific_info_helper(RT::PiKernel Kernel, RT::PiDevice Device,
+get_kernel_device_specific_info_helper(sycl::detail::pi::PiKernel Kernel,
+                                       sycl::detail::pi::PiDevice Device,
                                        const PluginPtr &Plugin, void *Result,
                                        size_t Size) {
-  RT::PiResult Error = Plugin->call_nocheck<PiApiKind::piKernelGetGroupInfo>(
-      Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
+  sycl::detail::pi::PiResult Error =
+      Plugin->call_nocheck<PiApiKind::piKernelGetGroupInfo>(
+          Kernel, Device, PiInfoCode<Param>::value, Size, Result, nullptr);
   if (Error != PI_SUCCESS)
     kernel_get_group_info::handleErrorOrWarning(Error, PiInfoCode<Param>::value,
                                                 Plugin);
@@ -83,7 +86,8 @@ template <typename Param>
 typename std::enable_if<
     !std::is_same<typename Param::return_type, sycl::range<3>>::value,
     typename Param::return_type>::type
-get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
+get_kernel_device_specific_info(sycl::detail::pi::PiKernel Kernel,
+                                sycl::detail::pi::PiDevice Device,
                                 const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
@@ -98,7 +102,8 @@ template <typename Param>
 typename std::enable_if<
     std::is_same<typename Param::return_type, sycl::range<3>>::value,
     sycl::range<3>>::type
-get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
+get_kernel_device_specific_info(sycl::detail::pi::PiKernel Kernel,
+                                sycl::detail::pi::PiDevice Device,
                                 const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
@@ -113,10 +118,9 @@ get_kernel_device_specific_info(RT::PiKernel Kernel, RT::PiDevice Device,
 // info::kernel_device_specific::max_sub_group_size taking an input paramter.
 // This should be removed when the deprecated info query is removed.
 template <typename Param>
-uint32_t get_kernel_device_specific_info_with_input(RT::PiKernel Kernel,
-                                                    RT::PiDevice Device,
-                                                    sycl::range<3> In,
-                                                    const PluginPtr &Plugin) {
+uint32_t get_kernel_device_specific_info_with_input(
+    sycl::detail::pi::PiKernel Kernel, sycl::detail::pi::PiDevice Device,
+    sycl::range<3> In, const PluginPtr &Plugin) {
   static_assert(is_kernel_device_specific_info_desc<Param>::value,
                 "Unexpected kernel_device_specific information descriptor");
   static_assert(std::is_same<typename Param::return_type, uint32_t>::value,
@@ -208,5 +212,5 @@ inline uint32_t get_kernel_device_specific_info_host<
                              PI_ERROR_INVALID_KERNEL);
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

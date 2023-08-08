@@ -113,6 +113,9 @@ void AMDGPUTTIImpl::getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
   // manipulations in average.
   UP.BEInsns += 3;
 
+  // We want to run unroll even for the loops which have been vectorized.
+  UP.UnrollVectorizedLoop = true;
+
   // TODO: Do we want runtime unrolling?
 
   // Maximum alloca size than can fit registers. Reserve 16 registers.
@@ -264,6 +267,10 @@ void AMDGPUTTIImpl::getPeelingPreferences(Loop *L, ScalarEvolution &SE,
   BaseT::getPeelingPreferences(L, SE, PP);
 }
 
+int64_t AMDGPUTTIImpl::getMaxInlineSizeThreshold() const {
+  return 1024;
+}
+
 const FeatureBitset GCNTTIImpl::InlineFeatureIgnoreList = {
     // Codegen control options which don't matter.
     AMDGPU::FeatureEnableLoadStoreOpt, AMDGPU::FeatureEnableSIScheduler,
@@ -292,6 +299,10 @@ GCNTTIImpl::GCNTTIImpl(const AMDGPUTargetMachine *TM, const Function &F)
   SIModeRegisterDefaults Mode(F);
   HasFP32Denormals = Mode.allFP32Denormals();
   HasFP64FP16Denormals = Mode.allFP64FP16Denormals();
+}
+
+bool GCNTTIImpl::hasBranchDivergence(const Function *F) const {
+  return true;
 }
 
 unsigned GCNTTIImpl::getNumberOfRegisters(unsigned RCID) const {
@@ -390,6 +401,10 @@ bool GCNTTIImpl::isLegalToVectorizeStoreChain(unsigned ChainSizeInBytes,
                                               Align Alignment,
                                               unsigned AddrSpace) const {
   return isLegalToVectorizeMemChain(ChainSizeInBytes, Alignment, AddrSpace);
+}
+
+int64_t GCNTTIImpl::getMaxInlineSizeThreshold() const {
+  return 1024;
 }
 
 // FIXME: Really we would like to issue multiple 128-bit loads and stores per

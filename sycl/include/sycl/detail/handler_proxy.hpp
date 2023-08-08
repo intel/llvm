@@ -8,27 +8,34 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/access/access.hpp> // for image_target, target
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 
 namespace detail {
 
 class AccessorBaseHost;
+class UnsampledImageAccessorBaseHost;
+class SampledImageAccessorBaseHost;
 
 #ifdef __SYCL_DEVICE_ONLY__
-// In device compilation accessor isn't inherited from AccessorBaseHost, so
+// In device compilation accessor isn't inherited from host base classes, so
 // can't detect by it. Since we don't expect it to be ever called in device
 // execution, just use blind void *.
 inline void associateWithHandler(handler &, void *, access::target) {}
+inline void associateWithHandler(handler &, void *, image_target) {}
 #else
 __SYCL_EXPORT void associateWithHandler(handler &, AccessorBaseHost *,
                                         access::target);
+__SYCL_EXPORT void
+associateWithHandler(handler &, UnsampledImageAccessorBaseHost *, image_target);
+__SYCL_EXPORT void
+associateWithHandler(handler &, SampledImageAccessorBaseHost *, image_target);
 #endif
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

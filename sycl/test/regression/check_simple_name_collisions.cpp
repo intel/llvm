@@ -10,7 +10,6 @@
 #define BARRIER_WAITLIST
 #define FILL
 #define UPDATE_HOST
-#define RUN_ON_HOST_INTEL
 #define COPY_USM
 #define FILL_USM
 #define PREFETCH_USM

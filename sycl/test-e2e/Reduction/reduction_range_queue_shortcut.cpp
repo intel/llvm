@@ -4,6 +4,9 @@
 // Group algorithms are not supported on NVidia.
 // XFAIL: hip_nvidia
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 // This test only checks that the shortcut method queue::parallel_for()
 // can accept 2 or more reduction variables.
 

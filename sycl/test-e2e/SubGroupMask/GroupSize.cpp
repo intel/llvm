@@ -1,8 +1,10 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+
 // REQUIRES: gpu
-// UNSUPPORTED: hip
+
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
+
 // UNSUPPORTED: ze_debug
 
 //==- GroupSize.cpp - sub-group mask dependency on group size --*- C++ -*---==//

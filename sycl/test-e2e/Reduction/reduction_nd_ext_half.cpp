@@ -6,6 +6,9 @@
 // work group size not bigger than 1` on Nvidia.
 // XFAIL: hip_amd || hip_nvidia
 
+// Windows doesn't yet have full shutdown().
+// UNSUPPORTED: ze_debug && windows
+
 // This test performs basic checks of parallel_for(nd_range, reduction, func)
 // used with 'half' type.
 

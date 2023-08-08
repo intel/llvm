@@ -61,6 +61,33 @@ void ivdep_multiple_arrays() {
   }
 }
 
+// CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_multiple_arrays_templateIiEvv()
+template <typename T>
+void ivdep_multiple_arrays_template() {
+  // CHECK: %[[ARRAY_A:[0-9a-z]+]] = alloca [10 x i32]
+  T a[10];
+  // CHECK: %[[ARRAY_B:[0-9a-z]+]] = alloca [10 x i32]
+  T b[10];
+  // CHECK: %[[ARRAY_C:[0-9a-z]+]] = alloca [10 x i32]
+  T c[10];
+  // CHECK: %[[ARRAY_D:[0-9a-z]+]] = alloca [10 x i32]
+  T d[10];
+  [[intel::ivdep(a, 5)]]
+  [[intel::ivdep(b, 5)]]
+  [[intel::ivdep(c)]]
+  [[intel::ivdep(d)]] for (int i = 0; i != 10; ++i) {
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_A]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_A_MUL_ARR:[0-9]+]]
+    a[i] = 0;
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_B]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_B_MUL_ARR:[0-9]+]]
+    b[i] = 0;
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_C]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_C_MUL_ARR:[0-9]+]]
+    c[i] = 0;
+    // CHECK:  %{{[0-9a-z]+}} = getelementptr inbounds [10 x i32], ptr addrspace(4) %[[ARRAY_D]].ascast, i64 0, i64 %{{[0-9a-z]+}}, !llvm.index.group ![[IDX_GROUP_D_MUL_ARR:[0-9]+]]
+    d[i] = 0;
+    // CHECK: br label %for.cond, !llvm.loop ![[MD_LOOP_MUL_ARR:[0-9]+]]
+  }
+}
+
 // Global ivdep with INF safelen & array-specific ivdep with the same safelen
 //
 // CHECK: define {{.*}}spir_func void @_Z{{[0-9]+}}ivdep_array_and_globalv()
@@ -180,6 +207,7 @@ int main() {
     ivdep_array_no_safelen();
     ivdep_array_with_safelen();
     ivdep_multiple_arrays();
+    ivdep_multiple_arrays_template<int>();
     ivdep_array_and_global();
     ivdep_array_and_inf_global();
     ivdep_array_and_greater_global();

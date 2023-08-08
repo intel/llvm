@@ -5,9 +5,9 @@
 
 // TODO currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
-//
-// Not currently supported on HIP.
-// UNSUPPORTED: hip
+
+// FIXME: enable opaque pointers support on CPU.
+// UNSUPPORTED: cpu
 
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//
 //

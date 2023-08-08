@@ -911,6 +911,7 @@ void OrderedAssignmentRewriter::generateSaveEntity(
     auto inserted =
         savedInCurrentRunBeforeUse.try_emplace(&region, entity, oldYield);
     assert(inserted.second && "entity must have been emplaced");
+    (void)inserted;
   } else {
     generateCleanupIfAny(oldYield);
   }
@@ -921,7 +922,7 @@ void OrderedAssignmentRewriter::generateSaveEntity(
 static void lower(hlfir::OrderedAssignmentTreeOpInterface root,
                   mlir::PatternRewriter &rewriter, hlfir::Schedule &schedule) {
   auto module = root->getParentOfType<mlir::ModuleOp>();
-  fir::FirOpBuilder builder(rewriter, fir::getKindMapping(module));
+  fir::FirOpBuilder builder(rewriter, module);
   OrderedAssignmentRewriter assignmentRewriter(builder, root);
   for (auto &run : schedule)
     assignmentRewriter.lowerRun(run);

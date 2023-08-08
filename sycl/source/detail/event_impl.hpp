@@ -22,7 +22,10 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 class context;
 namespace detail {
 class plugin;
@@ -57,7 +60,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(RT::PiEvent Event, const context &SyclContext);
+  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Checks if this event is a SYCL host event.
@@ -115,12 +118,12 @@ public:
   /// invalid if event_impl was destroyed.
   ///
   /// \return a reference to an instance of plug-in event handle.
-  RT::PiEvent &getHandleRef();
+  sycl::detail::pi::PiEvent &getHandleRef();
   /// Returns raw interoperability event handle. Returned reference will be]
   /// invalid if event_impl was destroyed.
   ///
   /// \return a const reference to an instance of plug-in event handle.
-  const RT::PiEvent &getHandleRef() const;
+  const sycl::detail::pi::PiEvent &getHandleRef() const;
 
   /// Returns context that is associated with this event.
   ///
@@ -256,6 +259,25 @@ public:
     return MContext;
   }
 
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // Command Bufferr.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
+
+  // Get the sync point associated with this event.
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    MGraph = Graph;
+  }
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const {
+    return MGraph.lock();
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -270,7 +292,7 @@ protected:
   void ensureContextInitialized();
   bool MIsInitialized = true;
   bool MIsContextInitialized = false;
-  RT::PiEvent MEvent = nullptr;
+  sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   ContextImplPtr MContext;
@@ -302,11 +324,20 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
-  friend std::vector<RT::PiEvent>
+  /// Store the command graph associated with this event, if any.
+  /// This event is also be stored in the graph so a weak_ptr is used.
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+
+  friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

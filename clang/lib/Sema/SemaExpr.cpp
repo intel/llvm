@@ -257,15 +257,16 @@ bool Sema::DiagnoseUseOfDecl(NamedDecl *D, ArrayRef<SourceLocation> Locs,
                              diag::err_esimd_global_in_sycl_context,
                              Sema::DeviceDiagnosticReason::Sycl);
     } else if (auto *FDecl = dyn_cast<FunctionDecl>(D)) {
-      // SYCL device function cannot be called from an ESIMD context. However,
-      // funcitons that start with '__spirv_' or '__sycl_' are exceptions to
-      // this rule.
+      // SYCL device function cannot be called from ESIMD context. However,
+      // there are some exceptions from this rule - functions that start
+      // with '__spirv_', '__sycl_', '__assert_fail', etc.
       const IdentifierInfo *Id = FDecl->getIdentifier();
       if ((getEmissionReason(FDecl) == Sema::DeviceDiagnosticReason::Sycl) &&
           Id && !Id->getName().startswith("__spirv_") &&
           !Id->getName().startswith("__sycl_") &&
           !Id->getName().startswith("__devicelib_ConvertBF16ToFINTEL") &&
-          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL")) {
+          !Id->getName().startswith("__devicelib_ConvertFToBF16INTEL") &&
+          !Id->getName().startswith("__assert_fail")) {
         SYCLDiagIfDeviceCode(
             *Locs.begin(), diag::err_sycl_device_function_is_called_from_esimd,
             Sema::DeviceDiagnosticReason::Esimd);
@@ -987,7 +988,7 @@ Sema::VarArgKind Sema::isValidVarArgType(const QualType &Ty) {
     return VAK_Invalid;
 
   if (Context.getTargetInfo().getTriple().isWasm() &&
-      Ty->isWebAssemblyReferenceType()) {
+      Ty.isWebAssemblyReferenceType()) {
     return VAK_Invalid;
   }
 
@@ -1658,13 +1659,10 @@ QualType Sema::UsualArithmeticConversions(ExprResult &LHS, ExprResult &RHS,
 //===----------------------------------------------------------------------===//
 
 
-ExprResult
-Sema::ActOnGenericSelectionExpr(SourceLocation KeyLoc,
-                                SourceLocation DefaultLoc,
-                                SourceLocation RParenLoc,
-                                Expr *ControllingExpr,
-                                ArrayRef<ParsedType> ArgTypes,
-                                ArrayRef<Expr *> ArgExprs) {
+ExprResult Sema::ActOnGenericSelectionExpr(
+    SourceLocation KeyLoc, SourceLocation DefaultLoc, SourceLocation RParenLoc,
+    bool PredicateIsExpr, void *ControllingExprOrType,
+    ArrayRef<ParsedType> ArgTypes, ArrayRef<Expr *> ArgExprs) {
   unsigned NumAssocs = ArgTypes.size();
   assert(NumAssocs == ArgExprs.size());
 
@@ -1676,42 +1674,64 @@ Sema::ActOnGenericSelectionExpr(SourceLocation KeyLoc,
       Types[i] = nullptr;
   }
 
-  ExprResult ER =
-      CreateGenericSelectionExpr(KeyLoc, DefaultLoc, RParenLoc, ControllingExpr,
-                                 llvm::ArrayRef(Types, NumAssocs), ArgExprs);
+  // If we have a controlling type, we need to convert it from a parsed type
+  // into a semantic type and then pass that along.
+  if (!PredicateIsExpr) {
+    TypeSourceInfo *ControllingType;
+    (void)GetTypeFromParser(ParsedType::getFromOpaquePtr(ControllingExprOrType),
+                            &ControllingType);
+    assert(ControllingType && "couldn't get the type out of the parser");
+    ControllingExprOrType = ControllingType;
+  }
+
+  ExprResult ER = CreateGenericSelectionExpr(
+      KeyLoc, DefaultLoc, RParenLoc, PredicateIsExpr, ControllingExprOrType,
+      llvm::ArrayRef(Types, NumAssocs), ArgExprs);
   delete [] Types;
   return ER;
 }
 
-ExprResult
-Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
-                                 SourceLocation DefaultLoc,
-                                 SourceLocation RParenLoc,
-                                 Expr *ControllingExpr,
-                                 ArrayRef<TypeSourceInfo *> Types,
-                                 ArrayRef<Expr *> Exprs) {
+ExprResult Sema::CreateGenericSelectionExpr(
+    SourceLocation KeyLoc, SourceLocation DefaultLoc, SourceLocation RParenLoc,
+    bool PredicateIsExpr, void *ControllingExprOrType,
+    ArrayRef<TypeSourceInfo *> Types, ArrayRef<Expr *> Exprs) {
   unsigned NumAssocs = Types.size();
   assert(NumAssocs == Exprs.size());
+  assert(ControllingExprOrType &&
+         "Must have either a controlling expression or a controlling type");
 
-  // Decay and strip qualifiers for the controlling expression type, and handle
-  // placeholder type replacement. See committee discussion from WG14 DR423.
-  {
+  Expr *ControllingExpr = nullptr;
+  TypeSourceInfo *ControllingType = nullptr;
+  if (PredicateIsExpr) {
+    // Decay and strip qualifiers for the controlling expression type, and
+    // handle placeholder type replacement. See committee discussion from WG14
+    // DR423.
     EnterExpressionEvaluationContext Unevaluated(
         *this, Sema::ExpressionEvaluationContext::Unevaluated);
-    ExprResult R = DefaultFunctionArrayLvalueConversion(ControllingExpr);
+    ExprResult R = DefaultFunctionArrayLvalueConversion(
+        reinterpret_cast<Expr *>(ControllingExprOrType));
     if (R.isInvalid())
       return ExprError();
     ControllingExpr = R.get();
+  } else {
+    // The extension form uses the type directly rather than converting it.
+    ControllingType = reinterpret_cast<TypeSourceInfo *>(ControllingExprOrType);
+    if (!ControllingType)
+      return ExprError();
   }
 
   bool TypeErrorFound = false,
-       IsResultDependent = ControllingExpr->isTypeDependent(),
-       ContainsUnexpandedParameterPack
-         = ControllingExpr->containsUnexpandedParameterPack();
+       IsResultDependent = ControllingExpr
+                               ? ControllingExpr->isTypeDependent()
+                               : ControllingType->getType()->isDependentType(),
+       ContainsUnexpandedParameterPack =
+           ControllingExpr
+               ? ControllingExpr->containsUnexpandedParameterPack()
+               : ControllingType->getType()->containsUnexpandedParameterPack();
 
   // The controlling expression is an unevaluated operand, so side effects are
   // likely unintended.
-  if (!inTemplateInstantiation() && !IsResultDependent &&
+  if (!inTemplateInstantiation() && !IsResultDependent && ControllingExpr &&
       ControllingExpr->HasSideEffects(Context, false))
     Diag(ControllingExpr->getExprLoc(),
          diag::warn_side_effects_unevaluated_context);
@@ -1727,16 +1747,24 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
       if (Types[i]->getType()->isDependentType()) {
         IsResultDependent = true;
       } else {
+        // We relax the restriction on use of incomplete types and non-object
+        // types with the type-based extension of _Generic. Allowing incomplete
+        // objects means those can be used as "tags" for a type-safe way to map
+        // to a value. Similarly, matching on function types rather than
+        // function pointer types can be useful. However, the restriction on VM
+        // types makes sense to retain as there are open questions about how
+        // the selection can be made at compile time.
+        //
         // C11 6.5.1.1p2 "The type name in a generic association shall specify a
         // complete object type other than a variably modified type."
         unsigned D = 0;
-        if (Types[i]->getType()->isIncompleteType())
+        if (ControllingExpr && Types[i]->getType()->isIncompleteType())
           D = diag::err_assoc_type_incomplete;
-        else if (!Types[i]->getType()->isObjectType())
+        else if (ControllingExpr && !Types[i]->getType()->isObjectType())
           D = diag::err_assoc_type_nonobject;
         else if (Types[i]->getType()->isVariablyModifiedType())
           D = diag::err_assoc_type_variably_modified;
-        else {
+        else if (ControllingExpr) {
           // Because the controlling expression undergoes lvalue conversion,
           // array conversion, and function conversion, an association which is
           // of array type, function type, or is qualified can never be
@@ -1751,6 +1779,10 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
           // The result of these rules is that all qualified types in an
           // association in C are unreachable, and in C++, only qualified non-
           // class types are unreachable.
+          //
+          // NB: this does not apply when the first operand is a type rather
+          // than an expression, because the type form does not undergo
+          // conversion.
           unsigned Reason = 0;
           QualType QT = Types[i]->getType();
           if (QT->isArrayType())
@@ -1797,10 +1829,15 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
 
   // If we determined that the generic selection is result-dependent, don't
   // try to compute the result expression.
-  if (IsResultDependent)
-    return GenericSelectionExpr::Create(Context, KeyLoc, ControllingExpr, Types,
+  if (IsResultDependent) {
+    if (ControllingExpr)
+      return GenericSelectionExpr::Create(Context, KeyLoc, ControllingExpr,
+                                          Types, Exprs, DefaultLoc, RParenLoc,
+                                          ContainsUnexpandedParameterPack);
+    return GenericSelectionExpr::Create(Context, KeyLoc, ControllingType, Types,
                                         Exprs, DefaultLoc, RParenLoc,
                                         ContainsUnexpandedParameterPack);
+  }
 
   SmallVector<unsigned, 1> CompatIndices;
   unsigned DefaultIndex = -1U;
@@ -1810,22 +1847,42 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
   for (unsigned i = 0; i < NumAssocs; ++i) {
     if (!Types[i])
       DefaultIndex = i;
-    else if (Context.typesAreCompatible(
+    else if (ControllingExpr &&
+             Context.typesAreCompatible(
                  ControllingExpr->getType().getCanonicalType(),
-                                        Types[i]->getType()))
+                 Types[i]->getType()))
+      CompatIndices.push_back(i);
+    else if (ControllingType &&
+             Context.typesAreCompatible(
+                 ControllingType->getType().getCanonicalType(),
+                 Types[i]->getType()))
       CompatIndices.push_back(i);
   }
+
+  auto GetControllingRangeAndType = [](Expr *ControllingExpr,
+                                       TypeSourceInfo *ControllingType) {
+    // We strip parens here because the controlling expression is typically
+    // parenthesized in macro definitions.
+    if (ControllingExpr)
+      ControllingExpr = ControllingExpr->IgnoreParens();
+
+    SourceRange SR = ControllingExpr
+                         ? ControllingExpr->getSourceRange()
+                         : ControllingType->getTypeLoc().getSourceRange();
+    QualType QT = ControllingExpr ? ControllingExpr->getType()
+                                  : ControllingType->getType();
+
+    return std::make_pair(SR, QT);
+  };
 
   // C11 6.5.1.1p2 "The controlling expression of a generic selection shall have
   // type compatible with at most one of the types named in its generic
   // association list."
   if (CompatIndices.size() > 1) {
-    // We strip parens here because the controlling expression is typically
-    // parenthesized in macro definitions.
-    ControllingExpr = ControllingExpr->IgnoreParens();
-    Diag(ControllingExpr->getBeginLoc(), diag::err_generic_sel_multi_match)
-        << ControllingExpr->getSourceRange() << ControllingExpr->getType()
-        << (unsigned)CompatIndices.size();
+    auto P = GetControllingRangeAndType(ControllingExpr, ControllingType);
+    SourceRange SR = P.first;
+    Diag(SR.getBegin(), diag::err_generic_sel_multi_match)
+        << SR << P.second << (unsigned)CompatIndices.size();
     for (unsigned I : CompatIndices) {
       Diag(Types[I]->getTypeLoc().getBeginLoc(),
            diag::note_compat_assoc)
@@ -1839,11 +1896,9 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
   // its controlling expression shall have type compatible with exactly one of
   // the types named in its generic association list."
   if (DefaultIndex == -1U && CompatIndices.size() == 0) {
-    // We strip parens here because the controlling expression is typically
-    // parenthesized in macro definitions.
-    ControllingExpr = ControllingExpr->IgnoreParens();
-    Diag(ControllingExpr->getBeginLoc(), diag::err_generic_sel_no_match)
-        << ControllingExpr->getSourceRange() << ControllingExpr->getType();
+    auto P = GetControllingRangeAndType(ControllingExpr, ControllingType);
+    SourceRange SR = P.first;
+    Diag(SR.getBegin(), diag::err_generic_sel_no_match) << SR << P.second;
     return ExprError();
   }
 
@@ -1855,8 +1910,13 @@ Sema::CreateGenericSelectionExpr(SourceLocation KeyLoc,
   unsigned ResultIndex =
     CompatIndices.size() ? CompatIndices[0] : DefaultIndex;
 
+  if (ControllingExpr) {
+    return GenericSelectionExpr::Create(
+        Context, KeyLoc, ControllingExpr, Types, Exprs, DefaultLoc, RParenLoc,
+        ContainsUnexpandedParameterPack, ResultIndex);
+  }
   return GenericSelectionExpr::Create(
-      Context, KeyLoc, ControllingExpr, Types, Exprs, DefaultLoc, RParenLoc,
+      Context, KeyLoc, ControllingType, Types, Exprs, DefaultLoc, RParenLoc,
       ContainsUnexpandedParameterPack, ResultIndex);
 }
 
@@ -4381,6 +4441,15 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
                                       E->getSourceRange(), ExprKind))
     return false;
 
+  // WebAssembly tables are always illegal operands to unary expressions and
+  // type traits.
+  if (Context.getTargetInfo().getTriple().isWasm() &&
+      E->getType()->isWebAssemblyTableType()) {
+    Diag(E->getExprLoc(), diag::err_wasm_table_invalid_uett_operand)
+        << getTraitSpelling(ExprKind);
+    return true;
+  }
+
   // 'alignof' applied to an expression only requires the base element type of
   // the expression to be complete. 'sizeof' requires the expression's type to
   // be complete (and will attempt to complete it if it's an array of unknown
@@ -4435,70 +4504,6 @@ bool Sema::CheckUnaryExprOrTypeTraitOperand(Expr *E,
                                BO->getRHS());
     }
   }
-
-  return false;
-}
-
-/// Check the constraints on operands to unary expression and type
-/// traits.
-///
-/// This will complete any types necessary, and validate the various constraints
-/// on those operands.
-///
-/// The UsualUnaryConversions() function is *not* called by this routine.
-/// C99 6.3.2.1p[2-4] all state:
-///   Except when it is the operand of the sizeof operator ...
-///
-/// C++ [expr.sizeof]p4
-///   The lvalue-to-rvalue, array-to-pointer, and function-to-pointer
-///   standard conversions are not applied to the operand of sizeof.
-///
-/// This policy is followed for all of the unary trait expressions.
-bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
-                                            SourceLocation OpLoc,
-                                            SourceRange ExprRange,
-                                            UnaryExprOrTypeTrait ExprKind) {
-  if (ExprType->isDependentType())
-    return false;
-
-  // C++ [expr.sizeof]p2:
-  //     When applied to a reference or a reference type, the result
-  //     is the size of the referenced type.
-  // C++11 [expr.alignof]p3:
-  //     When alignof is applied to a reference type, the result
-  //     shall be the alignment of the referenced type.
-  if (const ReferenceType *Ref = ExprType->getAs<ReferenceType>())
-    ExprType = Ref->getPointeeType();
-
-  // C11 6.5.3.4/3, C++11 [expr.alignof]p3:
-  //   When alignof or _Alignof is applied to an array type, the result
-  //   is the alignment of the element type.
-  if (ExprKind == UETT_AlignOf || ExprKind == UETT_PreferredAlignOf ||
-      ExprKind == UETT_OpenMPRequiredSimdAlign)
-    ExprType = Context.getBaseElementType(ExprType);
-
-  if (ExprKind == UETT_VecStep)
-    return CheckVecStepTraitOperandType(*this, ExprType, OpLoc, ExprRange);
-
-  // Explicitly list some types as extensions.
-  if (!CheckExtensionTraitOperandType(*this, ExprType, OpLoc, ExprRange,
-                                      ExprKind))
-    return false;
-
-  if (RequireCompleteSizedType(
-          OpLoc, ExprType, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
-          getTraitSpelling(ExprKind), ExprRange))
-    return true;
-
-  if (ExprType->isFunctionType()) {
-    Diag(OpLoc, diag::err_sizeof_alignof_function_type)
-        << getTraitSpelling(ExprKind) << ExprRange;
-    return true;
-  }
-
-  if (CheckObjCTraitOperandConstraints(*this, ExprType, OpLoc, ExprRange,
-                                       ExprKind))
-    return true;
 
   return false;
 }
@@ -4680,23 +4685,78 @@ static void captureVariablyModifiedType(ASTContext &Context, QualType T,
   } while (!T.isNull() && T->isVariablyModifiedType());
 }
 
-/// Build a sizeof or alignof expression given a type operand.
-ExprResult
-Sema::CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
-                                     SourceLocation OpLoc,
-                                     UnaryExprOrTypeTrait ExprKind,
-                                     SourceRange R) {
-  if (!TInfo)
-    return ExprError();
+/// Check the constraints on operands to unary expression and type
+/// traits.
+///
+/// This will complete any types necessary, and validate the various constraints
+/// on those operands.
+///
+/// The UsualUnaryConversions() function is *not* called by this routine.
+/// C99 6.3.2.1p[2-4] all state:
+///   Except when it is the operand of the sizeof operator ...
+///
+/// C++ [expr.sizeof]p4
+///   The lvalue-to-rvalue, array-to-pointer, and function-to-pointer
+///   standard conversions are not applied to the operand of sizeof.
+///
+/// This policy is followed for all of the unary trait expressions.
+bool Sema::CheckUnaryExprOrTypeTraitOperand(QualType ExprType,
+                                            SourceLocation OpLoc,
+                                            SourceRange ExprRange,
+                                            UnaryExprOrTypeTrait ExprKind,
+                                            StringRef KWName) {
+  if (ExprType->isDependentType())
+    return false;
 
-  QualType T = TInfo->getType();
+  // C++ [expr.sizeof]p2:
+  //     When applied to a reference or a reference type, the result
+  //     is the size of the referenced type.
+  // C++11 [expr.alignof]p3:
+  //     When alignof is applied to a reference type, the result
+  //     shall be the alignment of the referenced type.
+  if (const ReferenceType *Ref = ExprType->getAs<ReferenceType>())
+    ExprType = Ref->getPointeeType();
 
-  if (!T->isDependentType() &&
-      CheckUnaryExprOrTypeTraitOperand(T, OpLoc, R, ExprKind))
-    return ExprError();
+  // C11 6.5.3.4/3, C++11 [expr.alignof]p3:
+  //   When alignof or _Alignof is applied to an array type, the result
+  //   is the alignment of the element type.
+  if (ExprKind == UETT_AlignOf || ExprKind == UETT_PreferredAlignOf ||
+      ExprKind == UETT_OpenMPRequiredSimdAlign)
+    ExprType = Context.getBaseElementType(ExprType);
 
-  if (T->isVariablyModifiedType() && FunctionScopes.size() > 1) {
-    if (auto *TT = T->getAs<TypedefType>()) {
+  if (ExprKind == UETT_VecStep)
+    return CheckVecStepTraitOperandType(*this, ExprType, OpLoc, ExprRange);
+
+  // Explicitly list some types as extensions.
+  if (!CheckExtensionTraitOperandType(*this, ExprType, OpLoc, ExprRange,
+                                      ExprKind))
+    return false;
+
+  if (RequireCompleteSizedType(
+          OpLoc, ExprType, diag::err_sizeof_alignof_incomplete_or_sizeless_type,
+          KWName, ExprRange))
+    return true;
+
+  if (ExprType->isFunctionType()) {
+    Diag(OpLoc, diag::err_sizeof_alignof_function_type) << KWName << ExprRange;
+    return true;
+  }
+
+  // WebAssembly tables are always illegal operands to unary expressions and
+  // type traits.
+  if (Context.getTargetInfo().getTriple().isWasm() &&
+      ExprType->isWebAssemblyTableType()) {
+    Diag(OpLoc, diag::err_wasm_table_invalid_uett_operand)
+        << getTraitSpelling(ExprKind);
+    return true;
+  }
+
+  if (CheckObjCTraitOperandConstraints(*this, ExprType, OpLoc, ExprRange,
+                                       ExprKind))
+    return true;
+
+  if (ExprType->isVariablyModifiedType() && FunctionScopes.size() > 1) {
+    if (auto *TT = ExprType->getAs<TypedefType>()) {
       for (auto I = FunctionScopes.rbegin(),
                 E = std::prev(FunctionScopes.rend());
            I != E; ++I) {
@@ -4713,17 +4773,37 @@ Sema::CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
         if (DC) {
           if (DC->containsDecl(TT->getDecl()))
             break;
-          captureVariablyModifiedType(Context, T, CSI);
+          captureVariablyModifiedType(Context, ExprType, CSI);
         }
       }
     }
   }
 
-  // C99 6.5.3.4p4: the type (an unsigned integer type) is size_t.
+  return false;
+}
+
+/// Build a sizeof or alignof expression given a type operand.
+ExprResult Sema::CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
+                                                SourceLocation OpLoc,
+                                                UnaryExprOrTypeTrait ExprKind,
+                                                SourceRange R) {
+  if (!TInfo)
+    return ExprError();
+
+  QualType T = TInfo->getType();
+
+  if (!T->isDependentType() &&
+      CheckUnaryExprOrTypeTraitOperand(T, OpLoc, R, ExprKind,
+                                       getTraitSpelling(ExprKind)))
+    return ExprError();
+
+  // Adds overload of TransformToPotentiallyEvaluated for TypeSourceInfo to
+  // properly deal with VLAs in nested calls of sizeof and typeof.
   if (isUnevaluatedContext() && ExprKind == UETT_SizeOf &&
       TInfo->getType()->isVariablyModifiedType())
     TInfo = TransformToPotentiallyEvaluated(TInfo);
 
+  // C99 6.5.3.4p4: the type (an unsigned integer type) is size_t.
   return new (Context) UnaryExprOrTypeTraitExpr(
       ExprKind, TInfo, Context.getSizeType(), OpLoc, R.getEnd());
 }
@@ -4790,6 +4870,29 @@ Sema::ActOnUnaryExprOrTypeTraitExpr(SourceLocation OpLoc,
   Expr *ArgEx = (Expr *)TyOrEx;
   ExprResult Result = CreateUnaryExprOrTypeTraitExpr(ArgEx, OpLoc, ExprKind);
   return Result;
+}
+
+bool Sema::CheckAlignasTypeArgument(StringRef KWName, TypeSourceInfo *TInfo,
+                                    SourceLocation OpLoc, SourceRange R) {
+  if (!TInfo)
+    return true;
+  return CheckUnaryExprOrTypeTraitOperand(TInfo->getType(), OpLoc, R,
+                                          UETT_AlignOf, KWName);
+}
+
+/// ActOnAlignasTypeArgument - Handle @c alignas(type-id) and @c
+/// _Alignas(type-name) .
+/// [dcl.align] An alignment-specifier of the form
+/// alignas(type-id) has the same effect as alignas(alignof(type-id)).
+///
+/// [N1570 6.7.5] _Alignas(type-name) is equivalent to
+/// _Alignas(_Alignof(type-name)).
+bool Sema::ActOnAlignasTypeArgument(StringRef KWName, ParsedType Ty,
+                                    SourceLocation OpLoc, SourceRange R) {
+  TypeSourceInfo *TInfo;
+  (void)GetTypeFromParser(ParsedType::getFromOpaquePtr(Ty.getAsOpaquePtr()),
+                          &TInfo);
+  return CheckAlignasTypeArgument(KWName, TInfo, OpLoc, R);
 }
 
 static QualType CheckRealImagOperand(Sema &S, ExprResult &V, SourceLocation Loc,
@@ -4956,6 +5059,11 @@ ExprResult Sema::ActOnArraySubscriptExpr(Scope *S, Expr *base,
     return CreateBuiltinMatrixSubscriptExpr(matSubscriptE->getBase(),
                                             matSubscriptE->getRowIdx(),
                                             ArgExprs.front(), rbLoc);
+  }
+  if (base->getType()->isWebAssemblyTableType()) {
+    Diag(base->getExprLoc(), diag::err_wasm_table_art)
+        << SourceRange(base->getBeginLoc(), rbLoc) << 3;
+    return ExprError();
   }
 
   // Handle any non-overload placeholder types in the base and index
@@ -5915,6 +6023,7 @@ Sema::CreateBuiltinArraySubscriptExpr(Expr *Base, SourceLocation LLoc,
     if (!ResultType.hasQualifiers())
       VK = VK_PRValue;
   } else if (!ResultType->isDependentType() &&
+             !ResultType.isWebAssemblyReferenceType() &&
              RequireCompleteSizedType(
                  LLoc, ResultType,
                  diag::err_subscript_incomplete_or_sizeless_type, BaseExpr))
@@ -6007,8 +6116,9 @@ bool Sema::CheckCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
   //   is a function parameter scope of an immediate function.
   EnterExpressionEvaluationContext EvalContext(
       *this,
-      FD->isConsteval() ? ExpressionEvaluationContext::ImmediateFunctionContext
-                        : ExpressionEvaluationContext::PotentiallyEvaluated,
+      FD->isImmediateFunction()
+          ? ExpressionEvaluationContext::ImmediateFunctionContext
+          : ExpressionEvaluationContext::PotentiallyEvaluated,
       Param);
   ExprEvalContexts.back().IsCurrentlyCheckingDefaultArgumentOrInitializer =
       SkipImmediateInvocations;
@@ -6019,13 +6129,21 @@ bool Sema::CheckCXXDefaultArgExpr(SourceLocation CallLoc, FunctionDecl *FD,
 }
 
 struct ImmediateCallVisitor : public RecursiveASTVisitor<ImmediateCallVisitor> {
+  const ASTContext &Context;
+  ImmediateCallVisitor(const ASTContext &Ctx) : Context(Ctx) {}
+
   bool HasImmediateCalls = false;
+  bool IsImmediateInvocation = false;
 
   bool shouldVisitImplicitCode() const { return true; }
 
   bool VisitCallExpr(CallExpr *E) {
-    if (const FunctionDecl *FD = E->getDirectCallee())
-      HasImmediateCalls |= FD->isConsteval();
+    if (const FunctionDecl *FD = E->getDirectCallee()) {
+      HasImmediateCalls |= FD->isImmediateFunction();
+      if (FD->isConsteval() && !E->isCXX11ConstantExpr(Context))
+        IsImmediateInvocation = true;
+    }
+
     return RecursiveASTVisitor<ImmediateCallVisitor>::VisitStmt(E);
   }
 
@@ -6104,7 +6222,7 @@ ExprResult Sema::BuildCXXDefaultArgExpr(SourceLocation CallLoc,
     //   scope is a function parameter scope of an immediate function.
     EnterExpressionEvaluationContext EvalContext(
         *this,
-        FD->isConsteval()
+        FD->isImmediateFunction()
             ? ExpressionEvaluationContext::ImmediateFunctionContext
             : ExpressionEvaluationContext::PotentiallyEvaluated,
         Param);
@@ -6117,7 +6235,7 @@ ExprResult Sema::BuildCXXDefaultArgExpr(SourceLocation CallLoc,
     // An immediate invocation that is not evaluated where it appears is
     // evaluated and checked for whether it is a constant expression at the
     // point where the enclosing initializer is used in a function call.
-    ImmediateCallVisitor V;
+    ImmediateCallVisitor V(getASTContext());
     if (!NestedDefaultChecking)
       V.TraverseDecl(Param);
     if (V.HasImmediateCalls) {
@@ -6198,10 +6316,17 @@ ExprResult Sema::BuildCXXDefaultInitExpr(SourceLocation Loc, FieldDecl *Field) {
   // evaluated and checked for whether it is a constant expression at the
   // point where the enclosing initializer is used in a [...] a constructor
   // definition, or an aggregate initialization.
-  ImmediateCallVisitor V;
+  ImmediateCallVisitor V(getASTContext());
   if (!NestedDefaultChecking)
     V.TraverseDecl(Field);
   if (V.HasImmediateCalls) {
+    // C++23 [expr.const]/p15
+    // An aggregate initialization is an immediate invocation
+    // if it evaluates a default member initializer that has a subexpression
+    // that is an immediate-escalating expression.
+    ExprEvalContexts.back().InImmediateFunctionContext |=
+        V.IsImmediateInvocation;
+
     ExprEvalContexts.back().DelayedDefaultInitializationContext = {Loc, Field,
                                                                    CurContext};
     ExprEvalContexts.back().IsCurrentlyCheckingDefaultArgumentOrInitializer =
@@ -7190,13 +7315,8 @@ ExprResult Sema::BuildCallExpr(Scope *Scope, Expr *Fn, SourceLocation LParenLoc,
             llvm::any_of(ArgExprs,
                          [](clang::Expr *E) { return E->containsErrors(); })) &&
            "should only occur in error-recovery path.");
-    QualType ReturnType =
-        llvm::isa_and_nonnull<FunctionDecl>(NDecl)
-            ? cast<FunctionDecl>(NDecl)->getCallResultType()
-            : Context.DependentTy;
-    return CallExpr::Create(Context, Fn, ArgExprs, ReturnType,
-                            Expr::getValueKindForType(ReturnType), RParenLoc,
-                            CurFPFeatureOverrides());
+    return CallExpr::Create(Context, Fn, ArgExprs, Context.DependentTy,
+                            VK_PRValue, RParenLoc, CurFPFeatureOverrides());
   }
   return BuildResolvedCallExpr(Fn, NDecl, LParenLoc, ArgExprs, RParenLoc,
                                ExecConfig, IsExecConfig);
@@ -7447,6 +7567,16 @@ ExprResult Sema::BuildResolvedCallExpr(Expr *Fn, NamedDecl *NDecl,
   // We know the result type of the call, set it.
   TheCall->setType(FuncT->getCallResultType(Context));
   TheCall->setValueKind(Expr::getValueKindForType(FuncT->getReturnType()));
+
+  // WebAssembly tables can't be used as arguments.
+  if (Context.getTargetInfo().getTriple().isWasm()) {
+    for (const Expr *Arg : Args) {
+      if (Arg && Arg->getType()->isWebAssemblyTableType()) {
+        return ExprError(Diag(Arg->getExprLoc(),
+                              diag::err_wasm_table_as_function_parameter));
+      }
+    }
+  }
 
   if (Proto) {
     if (ConvertArgumentsForCall(TheCall, Fn, FDecl, Proto, Args, RParenLoc,
@@ -9040,8 +9170,14 @@ QualType Sema::CheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
   if (LHS.isInvalid() || RHS.isInvalid())
     return QualType();
 
+  // WebAssembly tables are not allowed as conditional LHS or RHS.
   QualType LHSTy = LHS.get()->getType();
   QualType RHSTy = RHS.get()->getType();
+  if (LHSTy->isWebAssemblyTableType() || RHSTy->isWebAssemblyTableType()) {
+    Diag(QuestionLoc, diag::err_wasm_table_conditional_expression)
+        << LHS.get()->getSourceRange() << RHS.get()->getSourceRange();
+    return QualType();
+  }
 
   // Diagnose attempts to convert between __ibm128, __float128 and long double
   // where such conversions currently can't be handled.
@@ -10874,10 +11010,6 @@ QualType Sema::CheckVectorOperands(ExprResult &LHS, ExprResult &RHS,
   const VectorType *RHSVecType = RHSType->getAs<VectorType>();
   assert(LHSVecType || RHSVecType);
 
-  if ((LHSVecType && LHSVecType->getElementType()->isBFloat16Type()) ||
-      (RHSVecType && RHSVecType->getElementType()->isBFloat16Type()))
-    return ReportInvalid ? InvalidOperands(Loc, LHS, RHS) : QualType();
-
   // AltiVec-style "vector bool op vector bool" combinations are allowed
   // for some operators but not others.
   if (!AllowBothBool &&
@@ -12107,14 +12239,14 @@ static QualType checkSizelessVectorShift(Sema &S, ExprResult &LHS,
     return QualType();
 
   QualType LHSType = LHS.get()->getType();
-  const BuiltinType *LHSBuiltinTy = LHSType->getAs<BuiltinType>();
+  const BuiltinType *LHSBuiltinTy = LHSType->castAs<BuiltinType>();
   QualType LHSEleType = LHSType->isVLSTBuiltinType()
                             ? LHSBuiltinTy->getSveEltType(S.getASTContext())
                             : LHSType;
 
   // Note that RHS might not be a vector
   QualType RHSType = RHS.get()->getType();
-  const BuiltinType *RHSBuiltinTy = RHSType->getAs<BuiltinType>();
+  const BuiltinType *RHSBuiltinTy = RHSType->castAs<BuiltinType>();
   QualType RHSEleType = RHSType->isVLSTBuiltinType()
                             ? RHSBuiltinTy->getSveEltType(S.getASTContext())
                             : RHSType;
@@ -12519,6 +12651,11 @@ static void diagnoseTautologicalComparison(Sema &S, SourceLocation Loc,
       S.inTemplateInstantiation())
     return;
 
+  // WebAssembly Tables cannot be compared, therefore shouldn't emit
+  // Tautological diagnostics.
+  if (LHSType->isWebAssemblyTableType() || RHSType->isWebAssemblyTableType())
+    return;
+
   // Comparisons between two array types are ill-formed for operator<=>, so
   // we shouldn't emit any additional warnings about it.
   if (Opc == BO_Cmp && LHSType->isArrayType() && RHSType->isArrayType())
@@ -12904,6 +13041,12 @@ QualType Sema::CheckCompareOperands(ExprResult &LHS, ExprResult &RHS,
   if ((LHSType->isArithmeticType() || LHSType->isEnumeralType()) &&
       (RHSType->isArithmeticType() || RHSType->isEnumeralType()))
     return checkArithmeticOrEnumeralCompare(*this, LHS, RHS, Loc, Opc);
+
+  if ((LHSType->isPointerType() &&
+       LHSType->getPointeeType().isWebAssemblyReferenceType()) ||
+      (RHSType->isPointerType() &&
+       RHSType->getPointeeType().isWebAssemblyReferenceType()))
+    return InvalidOperands(Loc, LHS, RHS);
 
   const Expr::NullPointerConstantKind LHSNullKind =
       LHS.get()->isNullPointerConstant(Context, Expr::NPC_ValueDependentIsNull);
@@ -13823,6 +13966,16 @@ inline QualType Sema::CheckLogicalOperands(ExprResult &LHS, ExprResult &RHS,
   if (EnumConstantInBoolContext)
     Diag(Loc, diag::warn_enum_constant_in_bool_context);
 
+  // WebAssembly tables can't be used with logical operators.
+  QualType LHSTy = LHS.get()->getType();
+  QualType RHSTy = RHS.get()->getType();
+  const auto *LHSATy = dyn_cast<ArrayType>(LHSTy);
+  const auto *RHSATy = dyn_cast<ArrayType>(RHSTy);
+  if ((LHSATy && LHSATy->getElementType().isWebAssemblyReferenceType()) ||
+      (RHSATy && RHSATy->getElementType().isWebAssemblyReferenceType())) {
+    return InvalidOperands(Loc, LHS, RHS);
+  }
+
   // Diagnose cases where the user write a logical and/or but probably meant a
   // bitwise one.  We do this when the LHS is a non-bool integer and the RHS
   // is a constant.
@@ -14361,6 +14514,12 @@ QualType Sema::CheckAssignmentOperands(Expr *LHSExpr, ExprResult &RHS,
       LHSType->isHalfType()) {
     Diag(Loc, diag::err_opencl_half_load_store) << 1
         << LHSType.getUnqualifiedType();
+    return QualType();
+  }
+
+  // WebAssembly tables can't be used on RHS of an assignment expression.
+  if (RHSType->isWebAssemblyTableType()) {
+    Diag(Loc, diag::err_wasm_table_art) << 0;
     return QualType();
   }
 
@@ -14971,11 +15130,19 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
   if (op->getType()->isObjCObjectType())
     return Context.getObjCObjectPointerType(op->getType());
 
-  if (Context.getTargetInfo().getTriple().isWasm() &&
-      op->getType()->isWebAssemblyReferenceType()) {
-    Diag(OpLoc, diag::err_wasm_ca_reference)
-        << 1 << OrigOp.get()->getSourceRange();
-    return QualType();
+  // Cannot take the address of WebAssembly references or tables.
+  if (Context.getTargetInfo().getTriple().isWasm()) {
+    QualType OpTy = op->getType();
+    if (OpTy.isWebAssemblyReferenceType()) {
+      Diag(OpLoc, diag::err_wasm_ca_reference)
+          << 1 << OrigOp.get()->getSourceRange();
+      return QualType();
+    }
+    if (OpTy->isWebAssemblyTableType()) {
+      Diag(OpLoc, diag::err_wasm_table_pr)
+          << 1 << OrigOp.get()->getSourceRange();
+      return QualType();
+    }
   }
 
   CheckAddressOfPackedMember(op);
@@ -16158,6 +16325,13 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
     if (resultType->isHalfType() && !Context.getLangOpts().NativeHalfType) {
       Input = ImpCastExprToType(Input.get(), Context.FloatTy, CK_FloatingCast).get();
       resultType = Context.FloatTy;
+    }
+
+    // WebAsembly tables can't be used in unary expressions.
+    if (resultType->isPointerType() &&
+        resultType->getPointeeType().isWebAssemblyReferenceType()) {
+      return ExprError(Diag(OpLoc, diag::err_typecheck_unary_expr)
+                       << resultType << Input.get()->getSourceRange());
     }
 
     if (resultType->isDependentType())
@@ -17934,9 +18108,17 @@ Sema::PushExpressionEvaluationContext(
   ExprEvalContexts.back().InDiscardedStatement =
       ExprEvalContexts[ExprEvalContexts.size() - 2]
           .isDiscardedStatementContext();
+
+  // C++23 [expr.const]/p15
+  // An expression or conversion is in an immediate function context if [...]
+  // it is a subexpression of a manifestly constant-evaluated expression or
+  // conversion.
+  const auto &Prev = ExprEvalContexts[ExprEvalContexts.size() - 2];
   ExprEvalContexts.back().InImmediateFunctionContext =
-      ExprEvalContexts[ExprEvalContexts.size() - 2]
-          .isImmediateFunctionContext();
+      Prev.isImmediateFunctionContext() || Prev.isConstantEvaluated();
+
+  ExprEvalContexts.back().InImmediateEscalatingFunctionContext =
+      Prev.InImmediateEscalatingFunctionContext;
 
   Cleanup.reset();
   if (!MaybeODRUseExprs.empty())
@@ -18015,9 +18197,30 @@ void Sema::CheckUnusedVolatileAssignment(Expr *E) {
   }
 }
 
+void Sema::MarkExpressionAsImmediateEscalating(Expr *E) {
+  assert(!FunctionScopes.empty() && "Expected a function scope");
+  assert(getLangOpts().CPlusPlus20 &&
+         ExprEvalContexts.back().InImmediateEscalatingFunctionContext &&
+         "Cannot mark an immediate escalating expression outside of an "
+         "immediate escalating context");
+  if (auto *Call = dyn_cast<CallExpr>(E->IgnoreImplicit());
+      Call && Call->getCallee()) {
+    if (auto *DeclRef =
+            dyn_cast<DeclRefExpr>(Call->getCallee()->IgnoreImplicit()))
+      DeclRef->setIsImmediateEscalating(true);
+  } else if (auto *Ctr = dyn_cast<CXXConstructExpr>(E->IgnoreImplicit())) {
+    Ctr->setIsImmediateEscalating(true);
+  } else if (auto *DeclRef = dyn_cast<DeclRefExpr>(E->IgnoreImplicit())) {
+    DeclRef->setIsImmediateEscalating(true);
+  } else {
+    assert(false && "expected an immediately escalating expression");
+  }
+  getCurFunction()->FoundImmediateEscalatingExpression = true;
+}
+
 ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
   if (isUnevaluatedContext() || !E.isUsable() || !Decl ||
-      !Decl->isConsteval() || isConstantEvaluated() ||
+      !Decl->isImmediateFunction() || isConstantEvaluated() ||
       isCheckingDefaultArgumentOrInitializer() ||
       RebuildingImmediateInvocation || isImmediateFunctionContext())
     return E;
@@ -18031,6 +18234,32 @@ ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
             dyn_cast<DeclRefExpr>(Call->getCallee()->IgnoreImplicit()))
       ExprEvalContexts.back().ReferenceToConsteval.erase(DeclRef);
 
+  // C++23 [expr.const]/p16
+  // An expression or conversion is immediate-escalating if it is not initially
+  // in an immediate function context and it is [...] an immediate invocation
+  // that is not a constant expression and is not a subexpression of an
+  // immediate invocation.
+  APValue Cached;
+  auto CheckConstantExpressionAndKeepResult = [&]() {
+    llvm::SmallVector<PartialDiagnosticAt, 8> Notes;
+    Expr::EvalResult Eval;
+    Eval.Diag = &Notes;
+    bool Res = E.get()->EvaluateAsConstantExpr(
+        Eval, getASTContext(), ConstantExprKind::ImmediateInvocation);
+    if (Res && Notes.empty()) {
+      Cached = std::move(Eval.Val);
+      return true;
+    }
+    return false;
+  };
+
+  if (!E.get()->isValueDependent() &&
+      ExprEvalContexts.back().InImmediateEscalatingFunctionContext &&
+      !CheckConstantExpressionAndKeepResult()) {
+    MarkExpressionAsImmediateEscalating(E.get());
+    return E;
+  }
+
   E = MaybeCreateExprWithCleanups(E);
 
   ConstantExpr *Res = ConstantExpr::Create(
@@ -18038,6 +18267,8 @@ ExprResult Sema::CheckForImmediateInvocation(ExprResult E, FunctionDecl *Decl) {
       ConstantExpr::getStorageKind(Decl->getReturnType().getTypePtr(),
                                    getASTContext()),
       /*IsImmediateInvocation*/ true);
+  if (Cached.hasValue())
+    Res->MoveIntoResult(Cached, getASTContext());
   /// Value-dependent constant expressions should not be immediately
   /// evaluated until they are instantiated.
   if (!Res->isValueDependent())
@@ -18065,14 +18296,17 @@ static void EvaluateAndDiagnoseImmediateInvocation(
       FD = Call->getConstructor();
     else
       llvm_unreachable("unhandled decl kind");
-    assert(FD && FD->isConsteval());
-    SemaRef.Diag(CE->getBeginLoc(), diag::err_invalid_consteval_call) << FD;
+    assert(FD && FD->isImmediateFunction());
+    SemaRef.Diag(CE->getBeginLoc(), diag::err_invalid_consteval_call)
+        << FD << FD->isConsteval();
     if (auto Context =
             SemaRef.InnermostDeclarationWithDelayedImmediateInvocations()) {
       SemaRef.Diag(Context->Loc, diag::note_invalid_consteval_initializer)
           << Context->Decl;
       SemaRef.Diag(Context->Decl->getBeginLoc(), diag::note_declared_at);
     }
+    if (!FD->isConsteval())
+      SemaRef.DiagnoseImmediateEscalatingReason(FD);
     for (auto &Note : Notes)
       SemaRef.Diag(Note.first, Note.second);
     return;
@@ -18218,13 +18452,36 @@ HandleImmediateInvocations(Sema &SemaRef,
     if (!CE.getInt())
       EvaluateAndDiagnoseImmediateInvocation(SemaRef, CE);
   for (auto *DR : Rec.ReferenceToConsteval) {
-    NamedDecl *ND = cast<FunctionDecl>(DR->getDecl());
-    if (auto *MD = llvm::dyn_cast<CXXMethodDecl>(ND);
+    const auto *FD = cast<FunctionDecl>(DR->getDecl());
+    const NamedDecl *ND = FD;
+    if (const auto *MD = dyn_cast<CXXMethodDecl>(ND);
         MD && (MD->isLambdaStaticInvoker() || isLambdaCallOperator(MD)))
       ND = MD->getParent();
-    SemaRef.Diag(DR->getBeginLoc(), diag::err_invalid_consteval_take_address)
-        << ND << isa<CXXRecordDecl>(ND);
-    SemaRef.Diag(ND->getLocation(), diag::note_declared_at);
+
+    // C++23 [expr.const]/p16
+    // An expression or conversion is immediate-escalating if it is not
+    // initially in an immediate function context and it is [...] a
+    // potentially-evaluated id-expression that denotes an immediate function
+    // that is not a subexpression of an immediate invocation.
+    bool ImmediateEscalating = false;
+    bool IsPotentiallyEvaluated =
+        Rec.Context ==
+            Sema::ExpressionEvaluationContext::PotentiallyEvaluated ||
+        Rec.Context ==
+            Sema::ExpressionEvaluationContext::PotentiallyEvaluatedIfUsed;
+    if (SemaRef.inTemplateInstantiation() && IsPotentiallyEvaluated)
+      ImmediateEscalating = Rec.InImmediateEscalatingFunctionContext;
+
+    if (!Rec.InImmediateEscalatingFunctionContext ||
+        (SemaRef.inTemplateInstantiation() && !ImmediateEscalating)) {
+      SemaRef.Diag(DR->getBeginLoc(), diag::err_invalid_consteval_take_address)
+          << ND << isa<CXXRecordDecl>(ND) << FD->isConsteval();
+      SemaRef.Diag(ND->getLocation(), diag::note_declared_at);
+      if (FD->isImmediateEscalating() && !FD->isConsteval())
+        SemaRef.DiagnoseImmediateEscalatingReason(FD);
+    } else {
+      SemaRef.MarkExpressionAsImmediateEscalating(DR);
+    }
   }
 }
 
@@ -19113,7 +19370,7 @@ static bool captureInLambda(LambdaScopeInfo *LSI, ValueDecl *Var,
   }
 
   if (BuildAndDiagnose && S.Context.getTargetInfo().getTriple().isWasm() &&
-      CaptureType.getNonReferenceType()->isWebAssemblyReferenceType()) {
+      CaptureType.getNonReferenceType().isWebAssemblyReferenceType()) {
     S.Diag(Loc, diag::err_wasm_ca_reference) << 0;
     Invalid = true;
   }
@@ -19881,9 +20138,15 @@ static ExprResult rebuildPotentialResultsAsNonOdrUsed(Sema &S, Expr *E,
       }
     }
 
+    void *ExOrTy = nullptr;
+    bool IsExpr = GSE->isExprPredicate();
+    if (IsExpr)
+      ExOrTy = GSE->getControllingExpr();
+    else
+      ExOrTy = GSE->getControllingType();
     return AnyChanged ? S.CreateGenericSelectionExpr(
                             GSE->getGenericLoc(), GSE->getDefaultLoc(),
-                            GSE->getRParenLoc(), GSE->getControllingExpr(),
+                            GSE->getRParenLoc(), IsExpr, ExOrTy,
                             GSE->getAssocTypeSourceInfos(), AssocExprs)
                       : ExprEmpty();
   }
@@ -20302,12 +20565,14 @@ void Sema::MarkDeclRefReferenced(DeclRefExpr *E, const Expr *Base) {
         !Method->getDevirtualizedMethod(Base, getLangOpts().AppleKext))
       OdrUse = false;
 
-  if (auto *FD = dyn_cast<FunctionDecl>(E->getDecl()))
+  if (auto *FD = dyn_cast<FunctionDecl>(E->getDecl())) {
     if (!isUnevaluatedContext() && !isConstantEvaluated() &&
         !isImmediateFunctionContext() &&
-        !isCheckingDefaultArgumentOrInitializer() && FD->isConsteval() &&
-        !RebuildingImmediateInvocation && !FD->isDependentContext())
+        !isCheckingDefaultArgumentOrInitializer() &&
+        FD->isImmediateFunction() && !RebuildingImmediateInvocation &&
+        !FD->isDependentContext())
       ExprEvalContexts.back().ReferenceToConsteval.insert(E);
+  }
   MarkExprReferenced(*this, E->getLocation(), E->getDecl(), E, OdrUse,
                      RefsMinusAssignments);
 }

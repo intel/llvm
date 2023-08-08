@@ -8,21 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/detail/boolean.hpp>             // for Boolean
+#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
+#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>         // for make_larger_t, marray...
+#include <sycl/half_type.hpp>                  // for half, intel
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/multi_ptr.hpp>                  // for address_space_cast
+#include <sycl/types.hpp>                      // for vec
 
-#include <algorithm>
+#include <cstring>     // for memcpy, size_t
+#include <type_traits> // for enable_if_t, conditio...
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
 
 namespace sycl {
 
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> x, size_t start) {
@@ -2560,7 +2567,7 @@ std::enable_if_t<detail::is_svgenfloatf<T>::value, T> tan(T x) __NOEXC {
 }
 
 #endif // __FAST_MATH__
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -2660,6 +2667,8 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmax(long long int x,
                                                        long long int y);
 extern __DPCPP_SYCL_EXTERNAL long long int __imf_llmin(long long int x,
                                                        long long int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_max(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_min(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_ullmax(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
@@ -2684,6 +2693,7 @@ extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_sad(int x, int y,
 extern __DPCPP_SYCL_EXTERNAL unsigned int
 __imf_usad(unsigned int x, unsigned int y, unsigned int z);
 extern __DPCPP_SYCL_EXTERNAL int __imf_rhadd(int x, int y);
+extern __DPCPP_SYCL_EXTERNAL int __imf_hadd(int x, int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_urhadd(unsigned int x,
                                                        unsigned int y);
 extern __DPCPP_SYCL_EXTERNAL unsigned int __imf_uhadd(unsigned int x,
@@ -2699,6 +2709,7 @@ extern __DPCPP_SYCL_EXTERNAL long long int __imf_mul64hi(long long int x,
 extern __DPCPP_SYCL_EXTERNAL unsigned long long int
 __imf_umul64hi(unsigned long long int x, unsigned long long int y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_abs(int x);
+extern __DPCPP_SYCL_EXTERNAL long long int __imf_llabs(long long int x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_saturatef(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaf(float x, float y, float z);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fabsf(float x);
@@ -2713,6 +2724,13 @@ extern __DPCPP_SYCL_EXTERNAL float __imf_invf(float x);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fmaxf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_fminf(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL float __imf_copysignf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_exp10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_expf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_logf(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log2f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_log10f(float x);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_powf(float x, float y);
+extern __DPCPP_SYCL_EXTERNAL float __imf_fast_fdividef(float x, float y);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rd(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_rn(float x);
 extern __DPCPP_SYCL_EXTERNAL int __imf_float2int_ru(float x);

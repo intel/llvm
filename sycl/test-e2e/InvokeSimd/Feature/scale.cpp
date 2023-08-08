@@ -147,7 +147,6 @@ int main(void) {
   const bool SupportsDouble = dev.has(aspect::fp64);
 
   bool passed = true;
-#ifndef TEST_DOUBLE_TYPE
   passed &= test<unsigned char>(q);
   passed &= test<char>(q);
   passed &= test<unsigned short>(q);
@@ -158,10 +157,9 @@ int main(void) {
   passed &= test<long>(q);
 
   passed &= test<float>(q);
-#else
   if (SupportsDouble)
     passed &= test<double>(q);
-#endif
+
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
 }

@@ -1585,6 +1585,11 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
     return;
   }
 
+  if (Policy.SuppressElaboration) {
+    printBefore(T->getNamedType(), OS);
+    return;
+  }
+
   // The tag definition will take care of these.
   if (!Policy.IncludeTagDefinition)
   {
@@ -1610,6 +1615,12 @@ void TypePrinter::printElaboratedAfter(const ElaboratedType *T,
                                         raw_ostream &OS) {
   if (Policy.IncludeTagDefinition && T->getOwnedTagDecl())
     return;
+
+  if (Policy.SuppressElaboration) {
+    printAfter(T->getNamedType(), OS);
+    return;
+  }
+
   ElaboratedTypePolicyRAII PolicyRAII(Policy);
   printAfter(T->getNamedType(), OS);
 }
@@ -1772,6 +1783,11 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
     return;
   }
 
+  if (T->getAttrKind() == attr::ArmStreaming) {
+    OS << "__arm_streaming";
+    return;
+  }
+
   OS << " __attribute__((";
   switch (T->getAttrKind()) {
 #define TYPE_ATTR(NAME)
@@ -1816,6 +1832,7 @@ void TypePrinter::printAttributedAfter(const AttributedType *T,
   case attr::CmseNSCall:
   case attr::AnnotateType:
   case attr::WebAssemblyFuncref:
+  case attr::ArmStreaming:
     llvm_unreachable("This attribute should have been handled already");
 
   case attr::NSReturnsRetained:

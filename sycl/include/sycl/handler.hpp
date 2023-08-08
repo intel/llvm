@@ -11,37 +11,68 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/item_base.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
+#include <sycl/detail/reduction_forward.hpp>
+#include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/reduction_forward.hpp>
+#include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/types.hpp>
+#include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
 
+#ifdef __SYCL_NATIVE_CPU__
+#include <sycl/detail/native_cpu.hpp>
+#endif
+
+#include <assert.h>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <stddef.h>
+#include <stdint.h>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
+
+// TODO: refactor this header
+// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
@@ -88,7 +119,7 @@ class __copyAcc2Acc;
 class MockHandler;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 
@@ -102,6 +133,9 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 namespace detail {
 
 class handler_impl;
@@ -192,7 +226,7 @@ checkValueRangeImpl(ValT V) {
   static constexpr size_t Limit =
       static_cast<size_t>((std::numeric_limits<int>::max)());
   if (V > Limit)
-    throw runtime_error(NotIntMsg<T>::Msg, PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::nd_range), NotIntMsg<T>::Msg);
 }
 #endif
 
@@ -343,6 +377,14 @@ private:
           std::shared_ptr<detail::queue_impl> PrimaryQueue,
           std::shared_ptr<detail::queue_impl> SecondaryQueue, bool IsHost);
 
+  /// Constructs SYCL handler from Graph.
+  ///
+  /// The hander will add the command-group as a node to the graph rather than
+  /// enqueueing it straight away.
+  ///
+  /// \param Graph is a SYCL command_graph
+  handler(std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph);
+
   /// Stores copy of Arg passed to the CGData.MArgsStorage.
   template <typename T, typename F = typename std::remove_const_t<
                             typename std::remove_reference_t<T>>>
@@ -359,10 +401,10 @@ private:
 
   void throwIfActionIsCreated() {
     if (detail::CG::None != getType())
-      throw sycl::runtime_error("Attempt to set multiple actions for the "
-                                "command group. Command group must consist of "
-                                "a single kernel or explicit memory operation.",
-                                PI_ERROR_INVALID_OPERATION);
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "Attempt to set multiple actions for the "
+                            "command group. Command group must consist of "
+                            "a single kernel or explicit memory operation.");
   }
 
   constexpr static int AccessTargetMask = 0x7ff;
@@ -441,12 +483,25 @@ private:
     MStreamStorage.push_back(Stream);
   }
 
-  /// Saves buffers created by handling reduction feature in handler.
+  /// Saves resources created by handling reduction feature in handler.
   /// They are then forwarded to command group and destroyed only after
   /// the command group finishes the work on device/host.
   ///
   /// @param ReduObj is a pointer to object that must be stored.
   void addReduction(const std::shared_ptr<const void> &ReduObj);
+
+  /// Saves buffers created by handling reduction feature in handler and marks
+  /// them as internal. They are then forwarded to command group and destroyed
+  /// only after the command group finishes the work on device/host.
+  ///
+  /// @param ReduBuf is a pointer to buffer that must be stored.
+  template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+  void
+  addReduction(const std::shared_ptr<buffer<T, Dimensions, AllocatorT, Enable>>
+                   &ReduBuf) {
+    detail::markBufferAsInternal(getSyclObjImpl(*ReduBuf));
+    addReduction(std::shared_ptr<const void>(ReduBuf));
+  }
 
   ~handler() = default;
 
@@ -454,13 +509,20 @@ private:
   bool is_host() { return MIsHost; }
 
 #ifdef __SYCL_DEVICE_ONLY__
-  // In device compilation accessor isn't inherited from AccessorBaseHost, so
+  // In device compilation accessor isn't inherited from host base classes, so
   // can't detect by it. Since we don't expect it to be ever called in device
   // execution, just use blind void *.
   void associateWithHandler(void *AccBase, access::target AccTarget);
+  void associateWithHandler(void *AccBase, image_target AccTarget);
 #else
+  void associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
+                                  int AccTarget);
   void associateWithHandler(detail::AccessorBaseHost *AccBase,
                             access::target AccTarget);
+  void associateWithHandler(detail::UnsampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
+  void associateWithHandler(detail::SampledImageAccessorBaseHost *AccBase,
+                            image_target AccTarget);
 #endif
 
   // Recursively calls itself until arguments pack is fully processed.
@@ -729,7 +791,6 @@ private:
                                    KI::getNumParams(), &KI::getParamDesc(0),
                                    KI::isESIMD());
       MKernelName = KI::getName();
-      MOSModuleHandle = detail::OSUtil::getOSModuleHandle(KI::getName());
     } else {
       // In case w/o the integration header it is necessary to process
       // accessors from the list(which are associated with this handler) as
@@ -1507,6 +1568,12 @@ private:
     setType(detail::CG::CodeplayHostTask);
   }
 
+  /// @brief Get the command graph if any associated with this handler. It can
+  /// come from either the associated queue or from being set explicitly through
+  /// the appropriate constructor.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const;
+
 public:
   handler(const handler &) = delete;
   handler(handler &&) = delete;
@@ -1558,9 +1625,6 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
-    if (Acc.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1661,24 +1725,6 @@ public:
         std::move(KernelFunc));
   }
 
-  /// Defines and invokes a SYCL kernel on host device.
-  ///
-  /// \param Func is a SYCL kernel function defined by lambda function or a
-  /// named function object type.
-  template <typename FuncT>
-  __SYCL_DEPRECATED(
-      "run_on_host_intel() is deprecated, use host_task() instead")
-  void run_on_host_intel(FuncT Func) {
-    throwIfActionIsCreated();
-    // No need to check if range is out of INT_MAX limits as it's compile-time
-    // known constant
-    MNDRDesc.set(range<1>{1});
-
-    MArgs = std::move(MAssociatedAccesors);
-    MHostKernel.reset(new detail::HostKernel<FuncT, void, 1>(std::move(Func)));
-    setType(detail::CG::RunOnHostIntel);
-  }
-
   /// Enqueues a command to the SYCL runtime to invoke \p Func once.
   template <typename FuncT>
   std::enable_if_t<detail::check_fn_signature<std::remove_reference_t<FuncT>,
@@ -1712,13 +1758,17 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
@@ -1864,17 +1914,6 @@ public:
 #else
     detail::CheckDeviceCopyable<KernelType>();
 #endif
-  }
-
-  /// Invokes a lambda on the host. Dependencies are satisfied on the host.
-  ///
-  /// \param Func is a lambda that is executed on the host
-  template <typename FuncT>
-  __SYCL_DEPRECATED("interop_task() is deprecated, use host_task() instead")
-  void interop_task(FuncT Func) {
-
-    MInteropTask.reset(new detail::InteropTask(std::move(Func)));
-    setType(detail::CG::CodeplayInteropTask);
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -2119,21 +2158,58 @@ public:
 
   /// Reductions @{
 
-  template <typename KernelName = detail::auto_name, int Dims,
-            typename PropertiesT, typename... RestT>
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
   std::enable_if_t<
       (sizeof...(RestT) > 1) &&
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
-  parallel_for(range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+  parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
 
-  template <typename KernelName = detail::auto_name, int Dims,
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename PropertiesT,
+            typename... RestT>
+  std::enable_if_t<
+      (sizeof...(RestT) > 1) &&
+      detail::AreAllButLastReductions<RestT...>::value &&
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+    detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
+                                               std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
   std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
-  parallel_for(range<Dims> Range, RestT &&...Rest) {
+  parallel_for(range<1> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<2> Range, RestT &&...Rest) {
+    parallel_for<KernelName>(
+        Range, ext::oneapi::experimental::detail::empty_properties_t{},
+        std::forward<RestT>(Rest)...);
+  }
+
+  template <typename KernelName = detail::auto_name, typename... RestT>
+  std::enable_if_t<detail::AreAllButLastReductions<RestT...>::value>
+  parallel_for(range<3> Range, RestT &&...Rest) {
     parallel_for<KernelName>(
         Range, ext::oneapi::experimental::detail::empty_properties_t{},
         std::forward<RestT>(Rest)...);
@@ -2233,6 +2309,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    // TODO: Add static_assert with is_device_copyable when vec is
+    // device-copyable.
     // Make sure data shared_ptr points to is not released until we finish
     // work with it.
     CGData.MSharedPtrStorage.push_back(Src);
@@ -2302,6 +2380,8 @@ public:
                   "Invalid accessor target for the copy method.");
     static_assert(isValidModeForDestinationAccessor(AccessMode),
                   "Invalid accessor mode for the copy method.");
+    // TODO: Add static_assert with is_device_copyable when vec is
+    // device-copyable.
 #ifndef __SYCL_DEVICE_ONLY__
     if (MIsHost) {
       // TODO: Temporary implementation for host. Should be handled by memory
@@ -2462,12 +2542,12 @@ public:
   ///
   /// \param Ptr is the pointer to the memory to fill
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Count is the number of times to fill Pattern into Ptr.
   template <typename T> void fill(void *Ptr, const T &Pattern, size_t Count) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
@@ -2483,27 +2563,12 @@ public:
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
-  /// until all commands previously submitted to this queue have entered the
-  /// complete state.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier() { ext_oneapi_barrier(); }
-
-  /// Prevents any commands submitted afterward to this queue from executing
   /// until all events in WaitList have entered the complete state. If WaitList
   /// is empty, then the barrier has no effect.
   ///
   /// \param WaitList is a vector of valid SYCL events that need to complete
   /// before barrier command can be executed.
   void ext_oneapi_barrier(const std::vector<event> &WaitList);
-
-  /// Prevents any commands submitted afterward to this queue from executing
-  /// until all events in WaitList have entered the complete state. If WaitList
-  /// is empty, then the barrier has no effect.
-  ///
-  /// \param WaitList is a vector of valid SYCL events that need to complete
-  /// before barrier command can be executed.
-  __SYCL2020_DEPRECATED("use 'ext_oneapi_barrier' instead")
-  void barrier(const std::vector<event> &WaitList);
 
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
@@ -2714,15 +2779,15 @@ public:
   /// \param Dest is a USM pointer to the destination memory.
   /// \param DestPitch is the pitch of the rows in \param Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
-  /// trivially copyable.
+  /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
   template <typename T>
   void ext_oneapi_fill2d(void *Dest, size_t DestPitch, const T &Pattern,
                          size_t Width, size_t Height) {
     throwIfActionIsCreated();
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Pattern must be trivially copyable");
+    static_assert(is_device_copyable<T>::value,
+                  "Pattern must be device copyable");
     if (Width > DestPitch)
       throw sycl::exception(sycl::make_error_code(errc::invalid),
                             "Destination pitch must be greater than or equal "
@@ -2845,10 +2910,158 @@ public:
     this->memcpy(Dest, Src, Count * sizeof(std::remove_all_extents_t<T>),
                  StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
+  /// Executes a command_graph.
+  ///
+  /// \param Graph Executable command_graph to run
+  void ext_oneapi_graph(ext::oneapi::experimental::command_graph<
+                        ext::oneapi::experimental::graph_state::executable>
+                            Graph);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor
+  void ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. Pixel size is determined
+  /// by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels as determined by \p DestImgDesc
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the source image descriptor
+  void ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p Extent are
+  /// used to determine the sub-region.  Pixel size is determined
+  /// by \p SrcImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  sycl::range<3> SrcOffset,
+                  const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+                  void *Dest, sycl::range<3> DestOffset,
+                  sycl::range<3> DestExtent, sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  void ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// Pixel size is determined by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the device image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent);
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
   std::shared_ptr<detail::queue_impl> MQueue;
+
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
@@ -2883,12 +3096,20 @@ private:
   std::unique_ptr<detail::HostKernelBase> MHostKernel;
   /// Storage for lambda/function when using HostTask
   std::unique_ptr<detail::HostTask> MHostTask;
-  detail::OSModuleHandle MOSModuleHandle = detail::OSUtil::ExeModuleHandle;
-  // Storage for a lambda or function when using InteropTasks
-  std::unique_ptr<detail::InteropTask> MInteropTask;
   /// The list of valid SYCL events that need to complete
   /// before barrier command can be executed
   std::vector<detail::EventImplPtr> MEventsWaitWithBarrier;
+
+  /// The graph that is associated with this handler.
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// If we are submitting a graph using ext_oneapi_graph this will be the graph
+  /// to be executed.
+  std::shared_ptr<ext::oneapi::experimental::detail::exec_graph_impl>
+      MExecGraph;
+  /// Storage for a node created from a subgraph submission.
+  std::shared_ptr<ext::oneapi::experimental::detail::node_impl> MSubgraphNode;
+  /// Storage for the CG created when handling graph nodes added explicitly.
+  std::unique_ptr<detail::CG> MGraphNodeCG;
 
   bool MIsHost = false;
 
@@ -2937,6 +3158,10 @@ private:
   friend void detail::associateWithHandler(handler &,
                                            detail::AccessorBaseHost *,
                                            access::target);
+  friend void detail::associateWithHandler(
+      handler &, detail::UnsampledImageAccessorBaseHost *, image_target);
+  friend void detail::associateWithHandler(
+      handler &, detail::SampledImageAccessorBaseHost *, image_target);
 #endif
 
   friend class ::MockHandler;
@@ -2965,6 +3190,7 @@ private:
   /// if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
+  friend class ext::oneapi::experimental::detail::graph_impl;
 
   bool DisableRangeRounding();
 
@@ -3149,7 +3375,7 @@ private:
   }
 
   // Set value of the gpu cache configuration for the kernel.
-  void setKernelCacheConfig(RT::PiKernelCacheConfig);
+  void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
 };
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
