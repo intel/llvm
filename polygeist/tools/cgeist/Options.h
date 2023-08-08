@@ -127,6 +127,10 @@ static llvm::cl::opt<bool> OpenMPOpt("openmp-opt", llvm::cl::init(true),
 static llvm::cl::opt<bool> EnableLICM("licm", llvm::cl::init(true),
                                       llvm::cl::desc("Turn on LICM"));
 
+static llvm::cl::opt<bool> EnableSYCLConstantPropagation(
+    "sycl-constant-propagation", llvm::cl::init(true),
+    llvm::cl::desc("Turn on SYCL host-device constant propagation"));
+
 static llvm::cl::opt<bool>
     EnableLoopInternalization("loop-internalization", llvm::cl::init(false),
                               llvm::cl::desc("Enable loop internalization"));
