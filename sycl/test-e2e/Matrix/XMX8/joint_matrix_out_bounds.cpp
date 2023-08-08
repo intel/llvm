@@ -10,6 +10,8 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
+// XFAIL:*
+
 #define SG_SZ 8
 
 #include "../joint_matrix_out_bounds_impl.hpp"

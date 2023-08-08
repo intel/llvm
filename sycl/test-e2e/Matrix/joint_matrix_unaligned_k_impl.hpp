@@ -105,7 +105,8 @@ int main() {
   // there will be 14*24 out of bounds in A matrix
   static constexpr size_t MATRIX_M = 1024 + 14;
   static constexpr size_t MATRIX_N = 1024;
-  static constexpr size_t MATRIX_K = 1024 + 24;
+  // K is not divisible by 8 bytes
+  static constexpr size_t MATRIX_K = 1024 + 14;
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
