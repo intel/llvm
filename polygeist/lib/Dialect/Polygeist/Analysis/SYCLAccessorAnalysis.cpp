@@ -27,6 +27,11 @@ namespace polygeist {
 //===----------------------------------------------------------------------===//
 
 raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
+  bool isLocal = info.isLocalAccessor();
+
+  if (isLocal)
+    os.indent(4) << "(local_accessor)\n";
+
   if (info.isTop)
     return os.indent(4) << "<TOP>\n";
   os.indent(4) << "Needs range: " << ((info.needsRange()) ? "Yes" : "No")
@@ -40,7 +45,7 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
     os << "<unknown>\n";
   }
 
-  if (info.isLocalAccessor())
+  if (isLocal)
     return os;
 
   os.indent(4) << "Needs offset: " << ((info.needsOffset()) ? "Yes" : "No")
@@ -120,7 +125,7 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
     return AliasResult::MayAlias;
 
   // A local accessor cannot alias with another accessor unless they are aliased
-  // (catched by other analysis).
+  // (caught by other analysis).
   if (other.isLocal || isLocal)
     return AliasResult::NoAlias;
 

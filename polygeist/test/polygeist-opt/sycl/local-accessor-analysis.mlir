@@ -11,6 +11,7 @@ llvm.func @__gxx_personality_v0(...) -> i32
 // CHECK-LABEL: test_tag: full_information:
 // CHECK:        operand #0
 // CHECK-NEXT:     accessor:
+// CHECK-NEXT:       (local_accessor)
 // CHECK-NEXT:       Needs range: Yes
 // CHECK-NEXT:       Range: range{128}
 llvm.func @full_information(%handler: !llvm.ptr) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
@@ -31,6 +32,7 @@ llvm.func @full_information(%handler: !llvm.ptr) -> !llvm.ptr attributes {person
 // CHECK-LABEL: test_tag: no_information:
 // CHECK:        operand #0
 // CHECK-NEXT:     accessor:
+// CHECK-NEXT:       (local_accessor)
 // CHECK-NEXT:       Needs range: Yes
 // CHECK-NEXT:       Range: <unknown>
 llvm.func @no_information(%handler: !llvm.ptr, %range: !llvm.ptr) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
@@ -48,6 +50,7 @@ llvm.func @no_information(%handler: !llvm.ptr, %range: !llvm.ptr) -> !llvm.ptr a
 // CHECK-LABEL: test_tag: join_accessor:
 // CHECK:        operand #0
 // CHECK-NEXT:     accessor:
+// CHECK-NEXT:       (local_accessor)
 // CHECK-NEXT:       Needs range: Yes
 // CHECK-NEXT:       Range: range{128}
 llvm.func @join_accessor(%handler: !llvm.ptr, %arg0 : i1) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
@@ -90,7 +93,7 @@ llvm.func @no_alias(%handler: !llvm.ptr, %range: !llvm.ptr, %props: !llvm.ptr, %
 // CHECK-LABEL: test_tag: join_top:
 // CHECK:        operand #0
 // CHECK-NEXT:     accessor:
-// CHECK-NEXT:      <TOP>
+// CHECK-NEXT:       <TOP>
 llvm.func @join_top(%arg0: i1, %acc: !llvm.ptr, %handler: !llvm.ptr, %range: !llvm.ptr, %buf: !llvm.ptr, %props: !llvm.ptr, %codeloc: !llvm.ptr) -> !llvm.ptr attributes {personality = @__gxx_personality_v0} {
   llvm.cond_br %arg0, ^bb1, ^bb2
 ^bb1:
