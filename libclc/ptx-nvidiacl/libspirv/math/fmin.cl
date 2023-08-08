@@ -54,7 +54,7 @@ _CLC_BINARY_VECTORIZE_HAVE2(_CLC_OVERLOAD _CLC_DEF, half, __spirv_ocl_fmin, half
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD ushort __clc_fmin(ushort x, ushort y) {
     ushort res;
-    __asm__ volatile("min.bf16 %0,%1,%2;" : "=h"(res) : "h"(x), "h"(y));
+    __asm__("min.bf16 %0, %1, %2;" : "=h"(res) : "h"(x), "h"(y));
     return res;
 }
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fmin, ushort,
@@ -63,7 +63,7 @@ _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fmin, ushort,
 // Requires at least sm_80
 _CLC_DEF _CLC_OVERLOAD uint __clc_fmin(uint x, uint y) {
     uint res;
-    __asm__ volatile("min.bf16x2 %0,%1,%2;" : "=r"(res) : "r"(x), "r"(y));
+    __asm__("min.bf16x2 %0, %1, %2;" : "=r"(res) : "r"(x), "r"(y));
     return res;
 }
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, uint, __clc_fmin, uint,

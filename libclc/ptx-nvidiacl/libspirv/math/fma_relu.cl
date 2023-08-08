@@ -41,7 +41,9 @@ _CLC_DEF _CLC_OVERLOAD ushort __clc_fma_relu(ushort x, ushort y,
                                                    ushort z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     ushort res;
-    __asm__ volatile("fma.rn.relu.bf16 %0,%1,%2,%3;" : "=h"(res) : "h"(x), "h"(y), "h"(z));
+    __asm__("fma.rn.relu.bf16 %0, %1, %2, %3;"
+        : "=h"(res)
+        : "h"(x), "h"(y), "h"(z));
     return res;
   }
   __builtin_trap();
@@ -53,7 +55,9 @@ _CLC_TERNARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, ushort, __clc_fma_relu,
 _CLC_DEF _CLC_OVERLOAD uint __clc_fma_relu(uint x, uint y, uint z) {
   if (__clc_nvvm_reflect_arch() >= 800) {
     uint res;
-    __asm__ volatile("fma.rn.relu.bf16x2 %0,%1,%2,%3;" : "=r"(res) : "r"(x), "r"(y), "r"(z));
+    __asm__("fma.rn.relu.bf16x2 %0, %1, %2, %3;"
+        : "=r"(res)
+        : "r"(x), "r"(y), "r"(z));
     return res;
   }
   __builtin_trap();
