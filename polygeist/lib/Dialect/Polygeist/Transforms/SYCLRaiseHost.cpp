@@ -1434,8 +1434,10 @@ LogicalResult RaiseNDRangeConstructor::Initializers::checkValidity() const {
 /// ones to mark the construct.
 class RaiseSetKernel : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
 public:
-  using OpInterfaceHostRaisePattern<
-      FunctionOpInterface>::OpInterfaceHostRaisePattern;
+  RaiseSetKernel(Pass::Statistic &NumRaisedSetKernelOps, MLIRContext *context,
+                 PatternBenefit benefit)
+      : OpInterfaceHostRaisePattern<FunctionOpInterface>(context, benefit),
+        NumRaisedSetKernelOps(NumRaisedSetKernelOps) {}
 
   LogicalResult matchAndRewrite(FunctionOpInterface op,
                                 PatternRewriter &rewriter) const final {
@@ -1487,6 +1489,7 @@ public:
           rewriter.setInsertionPoint(invoke);
           rewriter.create<sycl::SYCLHostHandlerSetKernel>(invoke.getLoc(),
                                                           handler, symbolRef);
+          ++NumRaisedSetKernelOps;
         });
         changed = true;
       }
@@ -1505,13 +1508,17 @@ private:
                ? gep.getBase()
                : Value();
   }
+
+  Pass::Statistic &NumRaisedSetKernelOps;
 };
 
 class RaiseSetNDRange
     : public OpInterfaceHostRaisePattern<FunctionOpInterface> {
 public:
-  using OpInterfaceHostRaisePattern<
-      FunctionOpInterface>::OpInterfaceHostRaisePattern;
+  RaiseSetNDRange(Pass::Statistic &NumRaisedSetNDRangeOps, MLIRContext *context,
+                  PatternBenefit benefit)
+      : OpInterfaceHostRaisePattern<FunctionOpInterface>(context, benefit),
+        NumRaisedSetNDRangeOps(NumRaisedSetNDRangeOps) {}
 
   LogicalResult matchAndRewrite(FunctionOpInterface op,
                                 PatternRewriter &rewriter) const final {
@@ -1592,10 +1599,12 @@ public:
       case 1:
         rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
             loc, handler, arguments[0].getValue(), ndRangePassed);
+        ++NumRaisedSetNDRangeOps;
         break;
       case 2:
         rewriter.create<sycl::SYCLHostHandlerSetNDRange>(
             loc, handler, arguments[0].getValue(), arguments[1].getValue());
+        ++NumRaisedSetNDRangeOps;
         break;
       default:
         llvm_unreachable("Invalid number of arguments");
@@ -1623,6 +1632,8 @@ private:
     SmallVector<LLVM::VarAnnotation> annotations;
     Value value;
   };
+
+  Pass::Statistic &NumRaisedSetNDRangeOps;
 };
 
 /// This pattern detects stores (or memcpy ops) to specific elements in a kernel
@@ -1638,6 +1649,10 @@ private:
 class RaiseSetCaptured : public OpHostRaisePattern<LLVM::VarAnnotation> {
 public:
   using OpHostRaisePattern<LLVM::VarAnnotation>::OpHostRaisePattern;
+  RaiseSetCaptured(Pass::Statistic &NumRaisedSetCapturedOps,
+                   MLIRContext *context, PatternBenefit benefit)
+      : OpHostRaisePattern<LLVM::VarAnnotation>(context, benefit),
+        NumRaisedSetCapturedOps(NumRaisedSetCapturedOps) {}
 
   LogicalResult matchAndRewrite(LLVM::VarAnnotation op,
                                 PatternRewriter &rewriter) const final {
@@ -1688,6 +1703,7 @@ public:
         builder.create<sycl::SYCLHostSetCaptured>(
             lo, rewriter.getI64IntegerAttr(index + it.index()), adaptedVal,
             typeAttr);
+        ++NumRaisedSetCapturedOps;
       }
     };
 
@@ -2040,6 +2056,7 @@ private:
   }
 
   AccessorTypeTag accessorTypeTag;
+  Pass::Statistic &NumRaisedSetCapturedOps;
 };
 
 /// Starting from a `sycl.host.handler.set_kernel` op, this pattern discovers
@@ -2060,6 +2077,10 @@ class RaiseScheduleKernel
     : public OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel> {
 public:
   using OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel>::OpHostRaisePattern;
+  RaiseScheduleKernel(Pass::Statistic &NumRaisedScheduleKernelOps,
+                      MLIRContext *context, PatternBenefit benefit)
+      : OpHostRaisePattern<sycl::SYCLHostHandlerSetKernel>(context, benefit),
+        NumRaisedScheduleKernelOps(NumRaisedScheduleKernelOps) {}
 
   LogicalResult matchAndRewrite(sycl::SYCLHostHandlerSetKernel op,
                                 PatternRewriter &rewriter) const final {
@@ -2153,6 +2174,7 @@ public:
     rewriter.replaceOpWithNewOp<sycl::SYCLHostScheduleKernel>(
         op, handler, op.getKernelName(), range.getRange(), range.getOffset(),
         args, rewriter.getTypeArrayAttr(syclTypes), range.getNdRange());
+    ++NumRaisedScheduleKernelOps;
 
     return success();
   }
@@ -2305,6 +2327,8 @@ private:
 
     return paramKinds;
   }
+
+  Pass::Statistic &NumRaisedScheduleKernelOps;
 };
 } // namespace
 
@@ -2324,7 +2348,8 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
 
   // RaiseKernelName should be prioritized, as RaiseSetKernel depends on that.
   rewritePatterns.add<RaiseKernelName>(context, /*benefit=*/2);
-  rewritePatterns.add<RaiseSetKernel>(context, /*benefit=*/1);
+  rewritePatterns.add<RaiseSetKernel>(NumRaisedSetKernelOps, context,
+                                      /*benefit=*/1);
 
   // Raising of some constructors (id, range and nd_range) should be
   // prioritized, as RaiseSetNDRange depends on those. Also, raising of id and
@@ -2336,9 +2361,11 @@ void SYCLRaiseHostConstructsPass::runOnOperation() {
                                                                  /*benefit=*/4);
   rewritePatterns.add<RaiseNDRangeConstructor>(context,
                                                /*benefit=*/3);
-  rewritePatterns.add<RaiseSetNDRange, RaiseSetCaptured>(context,
-                                                         /*benefit=*/2);
-  rewritePatterns.add<RaiseScheduleKernel>(context,
+  rewritePatterns.add<RaiseSetNDRange>(NumRaisedSetNDRangeOps, context,
+                                       /*benefit=*/2);
+  rewritePatterns.add<RaiseSetCaptured>(NumRaisedSetCapturedOps, context,
+                                        /*benefit=*/2);
+  rewritePatterns.add<RaiseScheduleKernel>(NumRaisedScheduleKernelOps, context,
                                            /*benefit=*/1);
   FrozenRewritePatternSet frozen(std::move(rewritePatterns));
 
