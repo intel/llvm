@@ -2484,8 +2484,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
     // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
     // window, we can remove the logic for the 32 bit property.
     bool usingUint64_t = ReqdWGSizeUint64TPropIt.has_value();
-    auto it =
-        usingUint64_t ? ReqdWGSizeUint64TPropIt : ReqdWGSizeUint32TPropIt;
+    auto it = usingUint64_t ? ReqdWGSizeUint64TPropIt : ReqdWGSizeUint32TPropIt;
 
     ByteArray ReqdWGSize = DeviceBinaryProperty(*(it.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
