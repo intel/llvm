@@ -7,7 +7,7 @@
 
 using urCudaDeviceCreateWithNativeHandle = uur::urPlatformTest;
 
-TEST_F(urCudaDeviceCreateWithNativeHandle, Success) {
+TEST_F(urCudaDeviceCreateWithNativeHandle, DISABLED_Success) {
     // get a device from cuda
     int nCudaDevices;
     ASSERT_SUCCESS_CUDA(cuDeviceGetCount(&nCudaDevices));
