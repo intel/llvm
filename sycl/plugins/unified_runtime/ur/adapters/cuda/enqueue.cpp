@@ -551,7 +551,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   hBuffer->MemoryMigrationMutex.lock();
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  
+
   // Note that this entry point may be called on a specific queue that may not
   // be the last queue to write to the MemBuffer
   auto DeviceToCopyFrom = Buffer->LastEventWritingToMemObj == nullptr
