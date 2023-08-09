@@ -427,6 +427,8 @@ bool SPIRVRegularizeLLVMBase::regularize() {
       simplifyBuiltinVarAccesses(&GV);
   }
 
+  // Kernels called by other kernels
+  std::vector<Function *> CalledKernels;
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
     if (F->isDeclaration() && F->use_empty()) {
@@ -440,7 +442,9 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
-          if (CF && CF->isIntrinsic()) {
+          if (CF && CF->getCallingConv() == CallingConv::SPIR_KERNEL) {
+            CalledKernels.push_back(CF);
+          } else if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
             if (II->getIntrinsicID() == Intrinsic::memset ||
