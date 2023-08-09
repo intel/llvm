@@ -156,7 +156,7 @@ public:
         if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
           // if piGetDeviceAndHostTimer is not supported, compute the profiling
           // time OpenCL version < 2.1 case
-          if (!DeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
+          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
             MFallbackProfiling = true;
         } else {
           throw sycl::exception(
