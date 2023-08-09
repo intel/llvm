@@ -503,7 +503,8 @@ bool UniformityAnalysis::anyModifierUniformityIs(
         .Case<memref::AllocaOp, LLVM::AllocaOp>(
             [&](auto) { return Uniformity::isUniform(kind); })
         .Case<memref::StoreOp, affine::AffineStoreOp, sycl::SYCLConstructorOp,
-              sycl::SYCLIDConstructorOp, LLVM::StoreOp, LLVM::MemsetOp>(
+              sycl::SYCLIDConstructorOp, sycl::SYCLRangeConstructorOp,
+              sycl::SYCLNDRangeConstructorOp, LLVM::StoreOp, LLVM::MemsetOp>(
             [&](auto op) { return anyOfUniformityIs(op.getOperands(), kind); })
         .Default([](auto *op) {
           llvm::errs() << "op: " << *op << "\n";
