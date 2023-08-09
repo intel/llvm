@@ -21,11 +21,18 @@ using namespace llvm;
 void llvm::getSYCLDeviceRequirements(
     const module_split::ModuleDesc &MD,
     std::map<StringRef, util::PropertyValue> &Requirements) {
-  auto ExtractIntegerFromMDNodeOperand = [=](const MDNode *N,
-                                             unsigned OpNo) -> unsigned {
+  auto ExtractSignedIntegerFromMDNodeOperand = [=](const MDNode *N,
+                                                   unsigned OpNo) -> int64_t {
     Constant *C =
         cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
-    return static_cast<uint32_t>(C->getUniqueInteger().getZExtValue());
+    return C->getUniqueInteger().getSExtValue();
+  };
+
+  auto ExtractUnsignedIntegerFromMDNodeOperand =
+      [=](const MDNode *N, unsigned OpNo) -> uint64_t {
+    Constant *C =
+        cast<ConstantAsMetadata>(N->getOperand(OpNo).get())->getValue();
+    return C->getUniqueInteger().getZExtValue();
   };
 
   // { LLVM-IR metadata name , [SYCL/Device requirements] property name }, see:
@@ -41,10 +48,20 @@ void llvm::getSYCLDeviceRequirements(
     std::set<uint32_t> Values;
     for (const Function &F : MD.getModule()) {
       if (const MDNode *MDN = F.getMetadata(MDName)) {
-        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I)
-          Values.insert(ExtractIntegerFromMDNodeOperand(MDN, I));
+        for (size_t I = 0, E = MDN->getNumOperands(); I < E; ++I) {
+          if (std::string(MDName) == "sycl_used_aspects") {
+            // Don't put internal aspects (with negative integer value) into the
+            // requirements, they are used only for device image splitting.
+            auto Val = ExtractSignedIntegerFromMDNodeOperand(MDN, I);
+            if (Val >= 0)
+              Values.insert(Val);
+          } else {
+            Values.insert(ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
+          }
+        }
       }
     }
+
     // We don't need the "fixed_target" property if it's empty
     if (std::string(MDName) == "sycl_fixed_targets" && Values.empty())
       continue;
@@ -63,11 +80,11 @@ void llvm::getSYCLDeviceRequirements(
   for (const Function *F : MD.entries()) {
     if (auto *MDN = F->getMetadata("intel_reqd_sub_group_size")) {
       assert(MDN->getNumOperands() == 1);
-      auto MDValue = ExtractIntegerFromMDNodeOperand(MDN, 0);
+      auto MDValue = ExtractUnsignedIntegerFromMDNodeOperand(MDN, 0);
       if (!SubGroupSize)
         SubGroupSize = MDValue;
       else
-        assert(*SubGroupSize == MDValue);
+        assert(*SubGroupSize == static_cast<uint32_t>(MDValue));
     }
   }
   // Do not attach reqd_sub_group_size if there is no attached metadata

@@ -4,17 +4,14 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '0 3 * * *'
-  pull_request:
-    paths:
-      - 'devops/containers/ubuntu2204_preinstalled.Dockerfile'
-      - '.github/workflows/sycl_nightly.yml'
 
 jobs:
   test_matrix:
+    if: github.repository == 'intel/llvm'
     name: Generate Test Matrix
     uses: ./.github/workflows/sycl_gen_test_matrix.yml
     with:
-      lts_config: "ocl_gen9;ocl_x64"
+      lts_config: "hip_amdgpu;ocl_gen12;ocl_x64;l0_gen12;esimd_emu;cuda_aws;win_l0_gen12"
 
   ubuntu2204_build_test:
     if: github.repository == 'intel/llvm'
@@ -23,39 +20,77 @@ jobs:
     secrets: inherit
     with:
       build_cache_root: "/__w/"
-      build_artifact_suffix: default-2204
+      build_artifact_suffix: default
       build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
+      merge_ref: ''
+      retention-days: 90
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
+      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
 
-  ubuntu2204_opaque_pointers_build_test:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: test_matrix
-    secrets: inherit
-    with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers-2204
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+      # We upload the build for people to download/use, override its name and
+      # prefer widespread gzip compression.
+      artifact_archive_name: sycl_linux.tar.gz
 
   windows_default:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
+    needs: test_matrix
+    with:
+      retention-days: 90
+      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
+
+      # We upload both Linux/Windows build via Github's "Releases"
+      # functionality, make sure Linux/Windows names follow the same pattern.
+      artifact_archive_name: sycl_windows.tar.gz
+
+  nightly_build_upload:
+    name: Nightly Build Upload
+    if: ${{ github.ref_name == 'sycl' }}
+    needs: [ubuntu2204_build_test, windows_default]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: sycl_linux_default
+    - uses: actions/download-artifact@v3
+      with:
+        name: sycl_windows_default
+    - name: Compute tag
+      id: tag
+      run: |
+        if [ "${{ github.event_name == 'schedule' }}" == "true" ]; then
+          echo "TAG=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+        else
+          # TODO: Use date of the commit?
+          echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        fi
+    - name: Upload binaries
+      uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844
+      with:
+        files: |
+          sycl_linux.tar.gz
+          sycl_windows.tar.gz
+        tag_name: nightly-${{ steps.tag.outputs.TAG }}
+        name: DPC++ daily ${{ steps.tag.outputs.TAG }}
+        prerelease: true
+        body: "Daily build ${{ steps.tag.outputs.TAG }}"
+        target_commitish: ${{ github.sha }}
 
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
-    runs-on: ubuntu-22.04
+    runs-on: [Linux, build]
     needs: ubuntu2204_build_test
     steps:
     - uses: actions/checkout@v3
     - uses: actions/download-artifact@v3
       with:
-        name: sycl_linux_default-2204
+        name: sycl_linux_default
         path: devops/
     - name: Build and Push Container (with drivers)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -68,7 +103,7 @@ jobs:
     - name: Build and Push Container (no drivers)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -81,7 +116,7 @@ jobs:
     - name: Build and Push Container (Build image)
       uses: ./devops/actions/build_container
       with:
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.ref_name == 'sycl' }}
         file: ubuntu2204_preinstalled
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}

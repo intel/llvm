@@ -24,8 +24,6 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
                 ur_context_handle_t *phContext) {
   std::ignore = DeviceCount;
   std::ignore = pProperties;
-  UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   assert(DeviceCount == 1);
   ur_result_t RetErr = UR_RESULT_SUCCESS;
@@ -46,8 +44,6 @@ urContextCreate(uint32_t DeviceCount, const ur_device_handle_t *phDevices,
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     ur_context_handle_t hContext, ur_context_info_t ContextInfoType,
     size_t propSize, void *pContextInfo, size_t *pPropSizeRet) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
 
   switch (uint32_t{ContextInfoType}) {
@@ -66,7 +62,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int Major = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&Major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              hContext->getDevice()->get()) == CUDA_SUCCESS);
@@ -98,8 +94,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   if (hContext->decrementReferenceCount() > 0) {
     return UR_RESULT_SUCCESS;
   }
@@ -112,8 +106,6 @@ urContextRelease(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   assert(hContext->getReferenceCount() > 0);
 
   hContext->incrementReferenceCount();
@@ -122,9 +114,6 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->get());
   return UR_RESULT_SUCCESS;
 }
@@ -146,9 +135,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pfnDeleter, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   hContext->setExtendedDeleter(pfnDeleter, pUserData);
   return UR_RESULT_SUCCESS;
 }

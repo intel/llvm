@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/half_type.hpp>                 // for half
 
-#include <array>
-#include <tuple>
-#include <type_traits>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for true_type, false_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <class T> struct is_fixed_size_group : std::false_type {};
 
@@ -28,6 +28,7 @@ inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
 } // namespace detail
 
 template <int Dimensions> class group;
+struct sub_group;
 namespace ext::oneapi {
 struct sub_group;
 
@@ -50,6 +51,7 @@ struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
 template <>
 struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
 };
+template <> struct is_fixed_topology_group<sycl::sub_group> : std::true_type {};
 
 template <class T> struct is_user_constructed_group : std::false_type {};
 
@@ -77,6 +79,7 @@ struct is_group<group<Dimensions>> : std::true_type {};
 template <typename T> struct is_sub_group : std::false_type {};
 
 template <> struct is_sub_group<ext::oneapi::sub_group> : std::true_type {};
+template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
 struct is_generic_group
@@ -261,15 +264,14 @@ using is_gen_based_on_type_sizeof =
     std::bool_constant<S<T>::value && (sizeof(vector_element_t<T>) == N)>;
 
 template <typename> struct is_vec : std::false_type {};
-template <typename T, std::size_t N>
-struct is_vec<sycl::vec<T, N>> : std::true_type {};
+template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
 template <typename> struct get_vec_size {
-  static constexpr std::size_t size = 1;
+  static constexpr int size = 1;
 };
 
-template <typename T, std::size_t N> struct get_vec_size<sycl::vec<T, N>> {
-  static constexpr std::size_t size = N;
+template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
+  static constexpr int size = N;
 };
 
 // is_integral
@@ -477,5 +479,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

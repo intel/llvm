@@ -156,60 +156,53 @@ void foo() {
 // CHECK-NEXT: 464 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::HostTask> > (base) (empty)
 // CHECK:      464 |           struct std::_Head_base<0, class sycl::detail::HostTask *> (base)
 // CHECK-NEXT: 464 |             class sycl::detail::HostTask * _M_head_impl
-// CHECK-NEXT: 472 |   class std::unique_ptr<class sycl::detail::InteropTask> MInteropTask
-// CHECK:      472 |     class std::__uniq_ptr_impl<class sycl::detail::InteropTask, struct std::default_delete<class sycl::detail::InteropTask> >
-// CHECK-NEXT: 472 |       class std::tuple<class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > _M_t
-// CHECK-NEXT: 472 |         struct std::_Tuple_impl<0, class sycl::detail::InteropTask *, struct std::default_delete<class sycl::detail::InteropTask> > (base)
-// CHECK-NEXT: 472 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::InteropTask> > (base) (empty)
-// CHECK:      472 |           struct std::_Head_base<0, class sycl::detail::InteropTask *> (base)
-// CHECK-NEXT: 472 |             class sycl::detail::InteropTask * _M_head_impl
-// CHECK-NEXT: 480 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
-// CHECK-NEXT: 480 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
-// CHECK-NEXT: 480 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
-// CHECK-NEXT: 480 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK-NEXT: 480 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
-// CHECK:      480 |           pointer _M_start
-// CHECK-NEXT: 488 |           pointer _M_finish
-// CHECK-NEXT: 496 |           pointer _M_end_of_storage
-// CHECK-NEXT: 504 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::graph_impl> MGraph
-// CHECK-NEXT: 504 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::graph_impl> (base)
-// CHECK-NEXT: 504 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::graph_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 504 |       element_type * _M_ptr
-// CHECK-NEXT: 512 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 512 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 520 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> MExecGraph
-// CHECK-NEXT: 520 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> (base)
-// CHECK-NEXT: 520 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::exec_graph_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 520 |       element_type * _M_ptr
-// CHECK-NEXT: 528 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 528 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 536 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> MSubgraphNode
-// CHECK-NEXT: 536 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> (base)
-// CHECK-NEXT: 536 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::node_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 536 |       element_type * _M_ptr
-// CHECK-NEXT: 544 |       class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 544 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT: 552 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
-// CHECK:      552 |     class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
-// CHECK-NEXT: 552 |       class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
-// CHECK-NEXT: 552 |         struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
-// CHECK-NEXT: 552 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
-// CHECK:      552 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
-// CHECK-NEXT: 552 |             class sycl::detail::CG * _M_head_impl
-// CHECK-NEXT: 560 |   _Bool MIsHost
-// CHECK-NEXT: 568 |   struct sycl::detail::code_location MCodeLoc
-// CHECK-NEXT: 568 |     const char * MFileName
-// CHECK-NEXT: 576 |     const char * MFunctionName
-// CHECK-NEXT: 584 |     unsigned long MLineNo
-// CHECK-NEXT: 592 |     unsigned long MColumnNo
-// CHECK-NEXT: 600 |   _Bool MIsFinalized
-// CHECK-NEXT: 608 |   class sycl::event MLastEvent
-// CHECK-NEXT: 608 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
-// CHECK-NEXT: 608 |     class std::shared_ptr<class sycl::detail::event_impl> impl
-// CHECK-NEXT: 608 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
-// CHECK-NEXT: 608 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
-// CHECK-NEXT: 608 |         element_type * _M_ptr
-// CHECK-NEXT: 616 |         class std::__shared_count<> _M_refcount
-// CHECK-NEXT: 616 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
-// CHECK-NEXT:     | [sizeof=624, dsize=624, align=8,
-// CHECK-NEXT:     |  nvsize=624, nvalign=8]
+// CHECK-NEXT: 472 |   class std::vector<class std::shared_ptr<class sycl::detail::event_impl> > MEventsWaitWithBarrier
+// CHECK-NEXT: 472 |     struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > > (base)
+// CHECK-NEXT: 472 |       struct std::_Vector_base<class std::shared_ptr<class sycl::detail::event_impl>, class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > >::_Vector_impl _M_impl
+// CHECK-NEXT: 472 |         class std::allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
+// CHECK-NEXT: 472 |           class __gnu_cxx::new_allocator<class std::shared_ptr<class sycl::detail::event_impl> > (base) (empty)
+// CHECK:      472 |           pointer _M_start
+// CHECK-NEXT: 480 |           pointer _M_finish
+// CHECK-NEXT: 488 |           pointer _M_end_of_storage
+// CHECK-NEXT: 496 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::graph_impl> MGraph
+// CHECK-NEXT: 496 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::graph_impl> (base)
+// CHECK-NEXT: 496 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::graph_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 496 |       element_type * _M_ptr
+// CHECK-NEXT: 504 |       class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 504 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 512 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> MExecGraph
+// CHECK-NEXT: 512 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::exec_graph_impl> (base)
+// CHECK-NEXT: 512 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::exec_graph_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 512 |       element_type * _M_ptr
+// CHECK-NEXT: 520 |       class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 520 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 528 |   class std::shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> MSubgraphNode
+// CHECK-NEXT: 528 |     class std::__shared_ptr<class sycl::ext::oneapi::experimental::detail::node_impl> (base)
+// CHECK-NEXT: 528 |       class std::__shared_ptr_access<class sycl::ext::oneapi::experimental::detail::node_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 528 |       element_type * _M_ptr
+// CHECK-NEXT: 536 |       class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 536 |         _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT: 544 |   class std::unique_ptr<class sycl::detail::CG> MGraphNodeCG
+// CHECK:      544 |     class std::__uniq_ptr_impl<class sycl::detail::CG, struct std::default_delete<class sycl::detail::CG> >
+// CHECK-NEXT: 544 |       class std::tuple<class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > _M_t
+// CHECK-NEXT: 544 |         struct std::_Tuple_impl<0, class sycl::detail::CG *, struct std::default_delete<class sycl::detail::CG> > (base)
+// CHECK-NEXT: 544 |           struct std::_Tuple_impl<1, struct std::default_delete<class sycl::detail::CG> > (base) (empty)
+// CHECK:      544 |           struct std::_Head_base<0, class sycl::detail::CG *> (base)
+// CHECK-NEXT: 544 |             class sycl::detail::CG * _M_head_impl
+// CHECK-NEXT: 552 |   _Bool MIsHost
+// CHECK-NEXT: 560 |   struct sycl::detail::code_location MCodeLoc
+// CHECK-NEXT: 560 |     const char * MFileName
+// CHECK-NEXT: 568 |     const char * MFunctionName
+// CHECK-NEXT: 576 |     unsigned long MLineNo
+// CHECK-NEXT: 584 |     unsigned long MColumnNo
+// CHECK-NEXT: 592 |   _Bool MIsFinalized
+// CHECK-NEXT: 600 |   class sycl::event MLastEvent
+// CHECK-NEXT: 600 |     class sycl::detail::OwnerLessBase<class sycl::event> (base) (empty)
+// CHECK-NEXT: 600 |     class std::shared_ptr<class sycl::detail::event_impl> impl
+// CHECK-NEXT: 600 |       class std::__shared_ptr<class sycl::detail::event_impl> (base)
+// CHECK-NEXT: 600 |         class std::__shared_ptr_access<class sycl::detail::event_impl, __gnu_cxx::_S_atomic> (base) (empty)
+// CHECK-NEXT: 600 |         element_type * _M_ptr
+// CHECK-NEXT: 608 |         class std::__shared_count<> _M_refcount
+// CHECK-NEXT: 608 |           _Sp_counted_base<(_Lock_policy)2U> * _M_pi
+// CHECK-NEXT:     | [sizeof=616, dsize=616, align=8,
+// CHECK-NEXT:     |  nvsize=616, nvalign=8]

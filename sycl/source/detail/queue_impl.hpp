@@ -32,6 +32,8 @@
 #include <sycl/queue.hpp>
 #include <sycl/stl.hpp>
 
+#include "detail/graph_impl.hpp"
+
 #include <utility>
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -40,7 +42,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // forward declaration
 
@@ -117,29 +119,32 @@ public:
 #if XPTI_ENABLE_INSTRUMENTATION
     /// This section of code is relying on scoped objects, so they cannot be
     /// encapsulated in a function
-    XPTIScope PrepareNotify((void *)this,
-                            (uint16_t)xpti::trace_point_type_t::queue_create,
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
                             SYCL_STREAM_NAME, "queue_create");
     // Cache the trace event, stream id and instance IDs for the destructor
-    if (xptiTraceEnabled()) {
+    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
+                              NotificationTraceType)) {
       MTraceEvent = (void *)PrepareNotify.traceEvent();
       MStreamID = PrepareNotify.streamID();
       MInstanceID = PrepareNotify.instanceID();
+      // Add the function to capture meta data for the XPTI trace event
+      PrepareNotify.addMetadata([&](auto TEvent) {
+        xpti::addMetadata(TEvent, "sycl_context",
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+        if (MDevice) {
+          xpti::addMetadata(TEvent, "sycl_device_name",
+                            MDevice->getDeviceName());
+          xpti::addMetadata(
+              TEvent, "sycl_device",
+              reinterpret_cast<size_t>(
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+        }
+        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      });
+      PrepareNotify.notify();
     }
-    // Add the function to capture meta data for the XPTI trace event
-    PrepareNotify.addMetadata([&](auto TEvent) {
-      xpti::addMetadata(TEvent, "sycl_context",
-                        reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(
-            TEvent, "sycl_device",
-            reinterpret_cast<size_t>(
-                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-      }
-      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-    });
-    PrepareNotify.notify();
 #endif
     if (has_property<property::queue::enable_profiling>()) {
       if (has_property<ext::oneapi::property::queue::discard_events>())
@@ -201,29 +206,33 @@ private:
 #if XPTI_ENABLE_INSTRUMENTATION
     /// This section of code is relying on scoped objects, so they cannot be
     /// encapsulated in a function
-    XPTIScope PrepareNotify((void *)this,
-                            (uint16_t)xpti::trace_point_type_t::queue_create,
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    XPTIScope PrepareNotify((void *)this, NotificationTraceType,
                             SYCL_STREAM_NAME, "queue_create");
-    if (xptiTraceEnabled()) {
+    if (xptiCheckTraceEnabled(PrepareNotify.streamID(),
+                              NotificationTraceType)) {
       // Cache the trace event, stream id and instance IDs for the destructor
       MTraceEvent = (void *)PrepareNotify.traceEvent();
       MStreamID = PrepareNotify.streamID();
       MInstanceID = PrepareNotify.instanceID();
+
+      // Add the function to capture meta data for the XPTI trace event
+      PrepareNotify.addMetadata([&](auto TEvent) {
+        xpti::addMetadata(TEvent, "sycl_context",
+                          reinterpret_cast<size_t>(MContext->getHandleRef()));
+        if (MDevice) {
+          xpti::addMetadata(TEvent, "sycl_device_name",
+                            MDevice->getDeviceName());
+          xpti::addMetadata(
+              TEvent, "sycl_device",
+              reinterpret_cast<size_t>(
+                  MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+        }
+        xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      });
+      PrepareNotify.notify();
     }
-    // Add the function to capture meta data for the XPTI trace event
-    PrepareNotify.addMetadata([&](auto TEvent) {
-      xpti::addMetadata(TEvent, "sycl_context",
-                        reinterpret_cast<size_t>(MContext->getHandleRef()));
-      if (MDevice) {
-        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
-        xpti::addMetadata(
-            TEvent, "sycl_device",
-            reinterpret_cast<size_t>(
-                MDevice->is_host() ? 0 : MDevice->getHandleRef()));
-      }
-      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
-    });
-    PrepareNotify.notify();
 #endif
     if (has_property<ext::oneapi::property::queue::discard_events>() &&
         has_property<property::queue::enable_profiling>()) {
@@ -292,12 +301,14 @@ public:
     // lifetime of the queue object as member variables when ABI breakage is
     // allowed. This example shows MTraceEvent as a member variable.
 #if XPTI_ENABLE_INSTRUMENTATION
-    if (xptiTraceEnabled()) {
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
       // Used cached information in member variables
-      xptiNotifySubscribers(
-          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_destroy, nullptr,
-          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
-          static_cast<const void *>("queue_destroy"));
+      xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+                            (xpti::trace_event_data_t *)MTraceEvent,
+                            MInstanceID,
+                            static_cast<const void *>("queue_destroy"));
     }
 #endif
     throw_asynchronous();
@@ -474,6 +485,23 @@ public:
       }
       CreationFlags |= PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH;
     }
+    // Track that submission modes do not conflict.
+    bool SubmissionSeen = false;
+    if (PropList.has_property<
+            ext::intel::property::queue::no_immediate_command_list>()) {
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_NO_IMMEDIATE;
+    }
+    if (PropList.has_property<
+            ext::intel::property::queue::immediate_command_list>()) {
+      if (SubmissionSeen) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Queue cannot be constructed with different submission modes.");
+      }
+      SubmissionSeen = true;
+      CreationFlags |= PI_EXT_QUEUE_FLAG_SUBMISSION_IMMEDIATE;
+    }
     return CreationFlags;
   }
 
@@ -588,7 +616,8 @@ public:
   /// \return an event representing copy operation.
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count,
-               const std::vector<event> &DepEvents);
+               const std::vector<event> &DepEvents,
+               const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -671,8 +700,7 @@ protected:
     if (MIsInorder) {
 
       auto IsExpDepManaged = [](const CG::CGTYPE &Type) {
-        return (Type == CG::CGTYPE::CodeplayHostTask ||
-                Type == CG::CGTYPE::CodeplayInteropTask);
+        return Type == CG::CGTYPE::CodeplayHostTask;
       };
 
       // Accessing and changing of an event isn't atomic operation.
@@ -815,7 +843,7 @@ protected:
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
   /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID;
+  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 
@@ -847,5 +875,5 @@ protected:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

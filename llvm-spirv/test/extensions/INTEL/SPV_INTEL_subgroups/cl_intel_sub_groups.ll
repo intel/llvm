@@ -36,9 +36,9 @@
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o - -spirv-text --spirv-ext=+SPV_INTEL_subgroups | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_INTEL_subgroups
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -emit-opaque-pointers=0 -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+; RUN: llvm-spirv -r %t.spv -emit-opaque-pointers=0 -o %t.rev.bc --spirv-target-env=SPV-IR
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-SPIRV
 ; RUN: llvm-spirv %t.rev.bc -o - -spirv-text --spirv-ext=+SPV_INTEL_subgroups | FileCheck %s --check-prefix=CHECK-SPIRV
 

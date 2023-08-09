@@ -52,6 +52,15 @@ void testRemquo() {
     assert(quo == -3);
     assert(rem == -1);
   }
+
+  {
+    int quo = 0;
+    float rem = sycl::remquo(
+        0.552879f, 0.219282f,
+        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
+    assert(quo == 3);
+    assert(rem == -0.10496702790260315f);
+  }
 }
 
 int main() {

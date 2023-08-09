@@ -8,24 +8,58 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/atomic_ref.hpp>
-#include <sycl/detail/tuple.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/properties/reduction_properties.hpp>
-#include <sycl/reduction_forward.hpp>
-#include <sycl/usm.hpp>
+#include <sycl/access/access.hpp>              // for address_s...
+#include <sycl/accessor.hpp>                   // for local_acc...
+#include <sycl/aspects.hpp>                    // for aspect
+#include <sycl/atomic.hpp>                     // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                 // for atomic_ref
+#include <sycl/buffer.hpp>                     // for buffer
+#include <sycl/builtins.hpp>                   // for min
+#include <sycl/detail/export.hpp>              // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>          // for createSyc...
+#include <sycl/detail/item_base.hpp>           // for id
+#include <sycl/detail/reduction_forward.hpp>   // for strategy
+#include <sycl/detail/tuple.hpp>               // for make_tuple
+#include <sycl/device.hpp>                     // for device
+#include <sycl/event.hpp>                      // for event
+#include <sycl/exception.hpp>                  // for make_erro...
+#include <sycl/exception_list.hpp>             // for queue_impl
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/group.hpp>                           // for workGroup...
+#include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/handler.hpp>                         // for handler
+#include <sycl/id.hpp>                              // for getDeline...
+#include <sycl/kernel.hpp>                          // for auto_name
+#include <sycl/known_identity.hpp>                  // for IsKnownId...
+#include <sycl/marray.hpp>                          // for marray
+#include <sycl/memory_enums.hpp>                    // for memory_order
+#include <sycl/multi_ptr.hpp>                       // for address_s...
+#include <sycl/nd_item.hpp>                         // for nd_item
+#include <sycl/nd_range.hpp>                        // for nd_range
+#include <sycl/properties/accessor_properties.hpp>  // for no_init
+#include <sycl/properties/reduction_properties.hpp> // for initializ...
+#include <sycl/property_list.hpp>                   // for property_...
+#include <sycl/queue.hpp>                           // for queue
+#include <sycl/range.hpp>                           // for range
+#include <sycl/sycl_span.hpp>                       // for dynamic_e...
+#include <sycl/usm.hpp>                             // for malloc_de...
 
-#include <optional>
-#include <tuple>
+#include <algorithm>   // for min
+#include <array>       // for array
+#include <assert.h>    // for assert
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <optional>    // for nullopt
+#include <stdint.h>    // for uint32_t
+#include <string>      // for operator+
+#include <tuple>       // for _Swallow_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_seq...
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Base non-template class which is a base class for all reduction
@@ -959,11 +993,9 @@ public:
       for (int i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
-      CGH.addReduction(RWReduVal);
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
                                                 range<1>(num_elements));
       Buf->set_final_data();
-      CGH.addReduction(Buf);
       accessor Mem{*Buf, CGH};
       Func(Mem);
 
@@ -974,6 +1006,10 @@ public:
         // so use the old-style API.
         auto Mem =
             Buf->template get_access<access::mode::read_write>(CopyHandler);
+        // Since this CG is dependent on the one associated with CGH,
+        // registering the auxiliary resources here is enough.
+        CopyHandler.addReduction(RWReduVal);
+        CopyHandler.addReduction(Buf);
         if constexpr (is_usm) {
           // Can't capture whole reduction, copy into distinct variables.
           bool IsUpdateOfUserVar = !initializeToIdentity();
@@ -1109,15 +1145,13 @@ public:
       : algo(BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
-        throw sycl::runtime_error(errc::invalid,
-                                  "Reduction variable must be a scalar.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Reduction variable must be a scalar.");
     if constexpr (!is_known_identity)
       if (InitializeToIdentity)
-        throw sycl::runtime_error(errc::invalid,
-                                  "initialize_to_identity property cannot be "
-                                  "used with identityless reductions.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "initialize_to_identity property cannot be "
+                              "used with identityless reductions.");
   }
 
   /// Constructs reduction_impl with an explicit identity value. This is only
@@ -1129,9 +1163,8 @@ public:
       : algo(Identity, BOp, InitializeToIdentity, Var) {
     if constexpr (!is_usm)
       if (Var.size() != 1)
-        throw sycl::runtime_error(errc::invalid,
-                                  "Reduction variable must be a scalar.",
-                                  PI_ERROR_INVALID_VALUE);
+        throw sycl::exception(make_error_code(errc::invalid),
+                              "Reduction variable must be a scalar.");
   }
 };
 
@@ -1358,7 +1391,7 @@ struct NDRangeReduction<
 };
 
 /// Computes the greatest power-of-two less than or equal to N.
-static inline size_t GreatestPowerOfTwo(size_t N) {
+inline size_t GreatestPowerOfTwo(size_t N) {
   if (N == 0)
     return 0;
 
@@ -1680,11 +1713,11 @@ struct NDRangeReduction<
     // for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     size_t NElements = Reduction::num_elements;
     size_t NWorkGroups = NDRange.get_group_range().size();
@@ -1725,13 +1758,13 @@ struct NDRangeReduction<
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw sycl::runtime_error("The implementation handling parallel_for with "
-                                "reduction requires the maximal work group "
-                                "size to be greater than 1 to converge. "
-                                "The maximal work group size depends on the "
-                                "device and the size of the objects passed to "
-                                "the reduction.",
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with "
+                            "reduction requires the maximal work group "
+                            "size to be greater than 1 to converge. "
+                            "The maximal work group size depends on the "
+                            "device and the size of the objects passed to "
+                            "the reduction.");
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
@@ -1808,11 +1841,11 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     // compiled for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     size_t NWorkGroups = NDRange.get_group_range().size();
 
@@ -1904,13 +1937,13 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
     // TODO: Create a special slow/sequential version of the kernel that would
     // handle the reduction instead of reporting an assert below.
     if (MaxWGSize <= 1)
-      throw sycl::runtime_error("The implementation handling parallel_for with "
-                                "reduction requires the maximal work group "
-                                "size to be greater than 1 to converge. "
-                                "The maximal work group size depends on the "
-                                "device and the size of the objects passed to "
-                                "the reduction.",
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with "
+                            "reduction requires the maximal work group "
+                            "size to be greater than 1 to converge. "
+                            "The maximal work group size depends on the "
+                            "device and the size of the objects passed to "
+                            "the reduction.");
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       size_t NWorkGroups;
@@ -2586,11 +2619,11 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
     // for the device.
     size_t MaxWGSize = reduGetMaxWGSize(Queue, LocalMemPerWorkItem);
     if (NDRange.get_local_range().size() > MaxWGSize)
-      throw sycl::runtime_error("The implementation handling parallel_for with"
-                                " reduction requires work group size not bigger"
-                                " than " +
-                                    std::to_string(MaxWGSize),
-                                PI_ERROR_INVALID_WORK_GROUP_SIZE);
+      throw sycl::exception(make_error_code(errc::nd_range),
+                            "The implementation handling parallel_for with"
+                            " reduction requires work group size not bigger"
+                            " than " +
+                                std::to_string(MaxWGSize));
 
     reduCGFuncMulti<KernelName>(CGH, KernelFunc, NDRange, Properties, ReduTuple,
                                 ReduIndices);
@@ -2884,5 +2917,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

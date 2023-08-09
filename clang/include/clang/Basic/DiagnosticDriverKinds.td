@@ -190,6 +190,9 @@ def err_drv_bad_fpga_device_count : Error<
 def warn_drv_mismatch_fpga_archive : Warning<
   "FPGA archive '%0' does not contain matching emulation/hardware expectancy">,
   InGroup<SyclFPGAMismatch>;
+def warn_drv_sycl_native_cpu_and_targets: Warning<
+  "-fsycl-targets=native_cpu overrides SYCL targets option">,
+  InGroup<SyclNativeCPUTargets>;
 def err_drv_unsupported_opt_dpcpp : Error<"option '%0' unsupported with DPC++">;
 def err_drv_argument_only_allowed_with : Error<
   "invalid argument '%0' only allowed with '%1'">;
@@ -364,6 +367,8 @@ def err_drv_fsycl_with_pch : Error<
   "Precompiled header generation is not supported with '-fsycl'">;
 def err_drv_fsycl_unsupported_with_opt
   : Error<"'%0' is not supported with '-fsycl'">;
+def warn_drv_opt_requires_opt
+  : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<

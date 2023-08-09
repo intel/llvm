@@ -43,7 +43,7 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
     CGH.parallel_for(sycl::range<1>{N}, Kernel);
   });
 
-  auto Out = OutputBuf.get_access<sycl::access::mode::read>();
+  auto Out = OutputBuf.get_host_access();
   for (int I = 0; I < N; I++)
     std::cout << I << "*2 + 100 = " << Out[I] << "\n";
 }

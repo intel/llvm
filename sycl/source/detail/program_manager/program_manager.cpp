@@ -43,7 +43,7 @@
 #include <variant>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
@@ -377,22 +377,44 @@ static std::string getUint32PropAsOptStr(const RTDeviceBinaryImage &Img,
   return temp;
 }
 
-static void appendCompileOptionsForRegAllocMode(std::string &CompileOpts,
-                                                const RTDeviceBinaryImage &Img,
-                                                bool IsEsimdImage) {
-  pi_device_binary_property Prop = Img.getProperty("sycl-register-alloc-mode");
-  if (!Prop)
+static void
+appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
+                                         const RTDeviceBinaryImage &Img,
+                                         bool IsEsimdImage) {
+  // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
+  // next ABI break.
+  pi_device_binary_property RegAllocModeProp =
+      Img.getProperty("sycl-register-alloc-mode");
+  pi_device_binary_property GRFSizeProp = Img.getProperty("sycl-grf-size");
+
+  if (!RegAllocModeProp && !GRFSizeProp)
     return;
-  uint32_t PropVal = DeviceBinaryProperty(Prop).asUint32();
-  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::large)) {
+  // The mutual exclusivity of these properties should have been checked in
+  // sycl-post-link.
+  assert(!RegAllocModeProp || !GRFSizeProp);
+  bool IsLargeGRF = false;
+  bool IsAutoGRF = false;
+  if (RegAllocModeProp) {
+    uint32_t RegAllocModePropVal =
+        DeviceBinaryProperty(RegAllocModeProp).asUint32();
+    IsLargeGRF = RegAllocModePropVal ==
+                 static_cast<uint32_t>(register_alloc_mode_enum::large);
+    IsAutoGRF = RegAllocModePropVal ==
+                static_cast<uint32_t>(register_alloc_mode_enum::automatic);
+  } else {
+    assert(GRFSizeProp);
+    uint32_t GRFSizePropVal = DeviceBinaryProperty(GRFSizeProp).asUint32();
+    IsLargeGRF = GRFSizePropVal == 256;
+    IsAutoGRF = GRFSizePropVal == 0;
+  }
+  if (IsLargeGRF) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
     CompileOpts += IsEsimdImage ? "-doubleGRF" : "-ze-opt-large-register-file";
   }
   // TODO: Support Auto GRF for ESIMD once vc supports it.
-  if (PropVal == static_cast<uint32_t>(register_alloc_mode_enum::automatic) &&
-      !IsEsimdImage) {
+  if (IsAutoGRF && !IsEsimdImage) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
     // This option works for both LO AND OCL backends.
@@ -431,7 +453,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
       CompileOpts += " -disable-finalizer-msg";
   }
 
-  appendCompileOptionsForRegAllocMode(CompileOpts, Img, isEsimdImage);
+  appendCompileOptionsForGRFSizeProperties(CompileOpts, Img, isEsimdImage);
 
   const auto &PlatformImpl = detail::getSyclObjImpl(Devs[0].get_platform());
 
@@ -2530,7 +2552,7 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 extern "C" void __sycl_register_lib(pi_device_binaries desc) {

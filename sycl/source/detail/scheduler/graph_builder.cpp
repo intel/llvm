@@ -31,7 +31,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -720,9 +720,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // unnecessary copy on devices with unified host memory support.
       const bool HostUnifiedMemory =
           checkHostUnifiedMemory(Queue->getContextImplPtr());
-      // TODO casting is required here to get the necessary information
-      // without breaking ABI, replace with the next major version.
-      auto *MemObj = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj);
+      SYCLMemObjI *MemObj = Req->MSYCLMemObj;
       const bool InitFromUserData = Record->MAllocaCommands.empty() &&
                                     (HostUnifiedMemory || MemObj->isInterop());
       AllocaCommandBase *LinkedAllocaCmd = nullptr;
@@ -767,8 +765,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
             // memory, map/unmap operations are expected to work faster than
             // read/write from/to an artbitrary host pointer. Link such commands
             // regardless of host unified memory support.
-            bool PinnedHostMemory = MemObj->has_property<
-                sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+            bool PinnedHostMemory = MemObj->usesPinnedHostMemory();
 
             bool HostUnifiedMemoryOnNonHostDevice =
                 Queue->is_host() ? checkHostUnifiedMemory(Record->MCurContext)
@@ -928,14 +925,17 @@ static void combineAccessModesOfReqs(std::vector<Requirement *> &Reqs) {
   }
 }
 
-Scheduler::GraphBuildResult
-Scheduler::GraphBuilder::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                               const QueueImplPtr &Queue,
-                               std::vector<Command *> &ToEnqueue) {
+Scheduler::GraphBuildResult Scheduler::GraphBuilder::addCG(
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    std::vector<Command *> &ToEnqueue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   std::vector<Requirement *> &Reqs = CommandGroup->getRequirements();
   std::vector<detail::EventImplPtr> &Events = CommandGroup->getEvents();
 
-  auto NewCmd = std::make_unique<ExecCGCommand>(std::move(CommandGroup), Queue);
+  auto NewCmd = std::make_unique<ExecCGCommand>(
+      std::move(CommandGroup), Queue, CommandBuffer, std::move(Dependencies));
+
   if (!NewCmd)
     throw runtime_error("Out of host memory", PI_ERROR_OUT_OF_HOST_MEMORY);
 
@@ -1632,5 +1632,5 @@ bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

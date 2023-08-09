@@ -23,7 +23,10 @@ static void replaceSpecialCharacters(std::string &Str) {
   // Replace common special symbols with '.' which matches to any character
   std::replace_if(
       Str.begin(), Str.end(),
-      [](const char Sym) { return '(' == Sym || ')' == Sym; }, '.');
+      [](const char Sym) {
+        return '(' == Sym || ')' == Sym || '[' == Sym || ']' == Sym;
+      },
+      '.');
 }
 
 int main() {

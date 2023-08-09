@@ -1,4 +1,5 @@
 // REQUIRES: opencl, opencl_icd, cm-compiler
+// UNSUPPORTED: accelerator
 
 // RUN: %{build} -DRUN_KERNELS %opencl_lib -o %t.out
 // RUN: %{run} %t.out

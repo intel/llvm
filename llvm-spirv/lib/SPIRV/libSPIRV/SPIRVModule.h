@@ -133,14 +133,11 @@ public:
   virtual const SPIRVCapMap &getCapability() const = 0;
   virtual bool hasCapability(SPIRVCapabilityKind) const = 0;
   virtual SPIRVExtInstSetKind getBuiltinSet(SPIRVId) const = 0;
-  virtual SPIRVFunction *getEntryPoint(SPIRVExecutionModelKind,
-                                       unsigned) const = 0;
   virtual std::set<std::string> &getExtension() = 0;
   virtual SPIRVFunction *getFunction(unsigned) const = 0;
   virtual SPIRVVariable *getVariable(unsigned) const = 0;
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
-  virtual unsigned getNumEntryPoints(SPIRVExecutionModelKind) const = 0;
   virtual unsigned getNumVariables() const = 0;
   virtual SourceLanguage getSourceLanguage(SPIRVWord *) const = 0;
   virtual std::set<std::string> &getSourceExtension() = 0;
@@ -203,6 +200,14 @@ public:
                        SPIRVWord Column) = 0;
   virtual const std::shared_ptr<const SPIRVLine> &getCurrentLine() const = 0;
   virtual void setCurrentLine(const std::shared_ptr<const SPIRVLine> &) = 0;
+  virtual void addDebugLine(SPIRVEntry *E, SPIRVType *TheType,
+                            SPIRVId FileNameId, SPIRVWord LineStart,
+                            SPIRVWord LineEnd, SPIRVWord ColumnStart,
+                            SPIRVWord ColumnEnd) = 0;
+  virtual const std::shared_ptr<const SPIRVExtInst> &
+  getCurrentDebugLine() const = 0;
+  virtual void
+  setCurrentDebugLine(const std::shared_ptr<const SPIRVExtInst> &) = 0;
   virtual const SPIRVDecorateGeneric *addDecorate(SPIRVDecorateGeneric *) = 0;
   virtual SPIRVDecorationGroup *addDecorationGroup() = 0;
   virtual SPIRVDecorationGroup *
@@ -215,7 +220,9 @@ public:
                          const std::vector<SPIRVEntry *> &Targets) = 0;
   virtual SPIRVGroupDecorateGeneric *
   addGroupDecorateGeneric(SPIRVGroupDecorateGeneric *GDec) = 0;
-  virtual void addEntryPoint(SPIRVExecutionModelKind, SPIRVId) = 0;
+  virtual void addEntryPoint(SPIRVExecutionModelKind, SPIRVId,
+                             const std::string &,
+                             const std::vector<SPIRVId> &) = 0;
   virtual SPIRVForward *addForward(SPIRVType *Ty) = 0;
   virtual SPIRVForward *addForward(SPIRVId, SPIRVType *Ty) = 0;
   virtual SPIRVFunction *addFunction(SPIRVFunction *) = 0;
@@ -310,6 +317,8 @@ public:
                                        const std::vector<SPIRVValue *> &,
                                        SPIRVBasicBlock *,
                                        SPIRVInstruction * = nullptr) = 0;
+  virtual SPIRVEntry *createDebugInfo(SPIRVWord, SPIRVType *,
+                                      const std::vector<SPIRVWord> &) = 0;
   virtual SPIRVEntry *addDebugInfo(SPIRVWord, SPIRVType *,
                                    const std::vector<SPIRVWord> &) = 0;
   virtual SPIRVEntry *addAuxData(SPIRVWord, SPIRVType *,

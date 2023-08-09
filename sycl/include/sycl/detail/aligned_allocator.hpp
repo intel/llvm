@@ -8,17 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/os_util.hpp> // for OSUtil
 
-#include <cstdlib>
-#include <cstring>
-#include <memory>
-#include <type_traits>
-#include <vector>
+#include <limits>      // for numeric_limits
+#include <memory>      // for pointer_traits, allocator_traits
+#include <new>         // for bad_alloc, operator new
+#include <stddef.h>    // for size_t
+#include <type_traits> // for false_type, is_empty, make_unsign...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <typename T> class aligned_allocator {
 public:
@@ -79,7 +78,7 @@ private:
   size_t MAlignment = 128;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
