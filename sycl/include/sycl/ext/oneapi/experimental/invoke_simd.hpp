@@ -371,7 +371,8 @@ constexpr bool has_struct_arg(Ret (*)(Args...)) {
 
 template <typename Ret, typename... Args>
 constexpr bool has_struct_ret(Ret (*)(Args...)) {
-  return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value;
+  return std::is_class_v<Ret> && !is_simd_or_mask_type<Ret>::value &&
+         !is_uniform_type<Ret>::value;
 }
 
 template <typename Ret, typename... Args>
