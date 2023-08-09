@@ -1281,26 +1281,34 @@ public:
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{+m_Data};
-#else
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
-    return Ret;
+    if constexpr (NativeVec) {
+      return vec{+m_Data};
+    } else
 #endif
+    {
+      vec Ret{};
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret.setValue(I,
+                     vec_data<DataT>::get(+vec_data<DataT>::get(getValue(I))));
+      return Ret;
+    }
   }
 
   vec operator-() const {
 // Use __SYCL_DEVICE_ONLY__ macro because cast to OpenCL vector type is defined
 // by SYCL device compiler only.
 #ifdef __SYCL_DEVICE_ONLY__
-    return vec{-m_Data};
-#else
-    vec Ret{};
-    for (size_t I = 0; I < NumElements; ++I)
-      Ret.setValue(I, vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
-    return Ret;
+    if constexpr (NativeVec) {
+      return vec{-m_Data};
+    } else
 #endif
+    {
+      vec Ret{};
+      for (size_t I = 0; I < NumElements; ++I)
+        Ret.setValue(I,
+                     vec_data<DataT>::get(-vec_data<DataT>::get(getValue(I))));
+      return Ret;
+    }
   }
 
   // OP is: &&, ||
