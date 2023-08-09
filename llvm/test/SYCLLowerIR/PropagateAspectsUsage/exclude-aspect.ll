@@ -62,8 +62,8 @@ define spir_func void @funcF() {
   ret void
 }
 
-; apsect1 is used but excluded, apsect2 and aspect4 are declared, so
-; attached metadata is aspect2 and aspect 4
+; aspect1 is used but excluded, aspect2 and aspect4 are declared, so
+; attached metadata is aspect2 and aspect4
 ; CHECK:      define spir_func void @funcG() !sycl_declared_aspects ![[#DA2:]]
 ; CHECK-SAME: !sycl_used_aspects ![[#DA2]] {
 define spir_func void @funcG() !sycl_declared_aspects !11 {
