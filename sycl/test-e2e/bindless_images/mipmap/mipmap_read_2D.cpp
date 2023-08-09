@@ -40,13 +40,13 @@ int main() {
   }
   // Expected each x and y will repeat twice
   // since mipmap level 1 is half in size
-  int jj = 0;
-  for (int i = 0; i < width - 1; i += 2) {
-    for (int j = 0; j < height - 1; j += 2, jj++) {
-      expected[j + (width * i)] = jj;
-      expected[j + (width * (i + 1))] = jj;
-      expected[(j + 1) + (width * i)] = jj;
-      expected[(j + 1) + (width * (i + 1))] = jj;
+  for (int i = 0; i < width; i++) {
+    for (int j = 0; j < height; j++) {
+      float norm_coord_x = ((i + 0.5f) / (float)width);
+      int x = norm_coord_x * (width >> 1);
+      float norm_coord_y = ((j + 0.5f) / (float)height);
+      int y = norm_coord_y * (height >> 1);
+      expected[j + (width * i)] = dataIn2[y + (width / 2 * x)][0];
     }
   }
 

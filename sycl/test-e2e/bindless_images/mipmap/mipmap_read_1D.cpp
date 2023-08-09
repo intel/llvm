@@ -19,22 +19,25 @@ int main() {
   auto ctxt = q.get_context();
 
   // declare image data
-  constexpr size_t N = 16;
+  constexpr size_t N = 15;
   std::vector<float> out(N);
   std::vector<float> expected(N);
   std::vector<sycl::float4> dataIn1(N);
   std::vector<sycl::float4> dataIn2(N / 2);
   std::vector<sycl::float4> copyOut(N / 2);
-  int j = 0;
+
   for (int i = 0; i < N; i++) {
-    expected[i] = i + (j + 10);
-    if (i % 2)
-      j++;
+    // Populate input data (to-be mipmap image layers)
     dataIn1[i] = sycl::float4(i, i, i, i);
     if (i < (N / 2)) {
       dataIn2[i] = sycl::float4(i + 10, i + 10, i + 10, i + 10);
       copyOut[i] = sycl::float4{0, 0, 0, 0};
     }
+
+    // Calculate expected output data
+    float norm_coord = ((i + 0.5f) / (float)N);
+    int x = norm_coord * (N >> 1);
+    expected[i] = dataIn1[i][0] + dataIn2[x][0];
   }
 
   try {
@@ -85,8 +88,8 @@ int main() {
         // Extension: read mipmap level 0 with anisotropic filtering and level 1
         // with LOD
         sycl::float4 px1 =
-            sycl::ext::oneapi::experimental::read_image<sycl::float4>(
-                mipHandle, x, 0.0f, 0.0f);
+            sycl::ext::oneapi::experimental::read_image<sycl::float4>(mipHandle,
+                                                                      x, 0.0f);
         sycl::float4 px2 =
             sycl::ext::oneapi::experimental::read_image<sycl::float4>(mipHandle,
                                                                       x, 1.0f);
