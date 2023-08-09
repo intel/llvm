@@ -1292,10 +1292,12 @@
 ?isHostPointerReadOnly@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
 ?isImageOrImageArray@handler@_V1@sycl@@CA_NW4target@access@23@@Z
 ?isInterop@SYCLMemObjT@detail@_V1@sycl@@UEBA_NXZ
+?isMemoryObjectUsedByGraph@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
 ?isOutOfRange@detail@_V1@sycl@@YA_NV?$vec@H$03@23@W4addressing_mode@23@V?$range@$02@23@@Z
 ?isPathPresent@OSUtil@detail@_V1@sycl@@SA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?isPlaceholder@AccessorBaseHost@detail@_V1@sycl@@QEBA_NXZ
 ?isStateExplicitKernelBundle@handler@_V1@sycl@@AEBA_NXZ
+?isUsedInGraph@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?isValidModeForDestinationAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
 ?isValidModeForSourceAccessor@handler@_V1@sycl@@CA_NW4mode@access@23@@Z
 ?isValidTargetForExplicitOp@handler@_V1@sycl@@CA_NW4target@access@23@@Z
@@ -1357,7 +1359,9 @@
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?map_external_memory_array@experimental@oneapi@ext@_V1@sycl@@YA?AUimage_mem_handle@12345@Uinterop_mem_handle@12345@AEBUimage_descriptor@12345@AEBVqueue@45@@Z
 ?markAsInternal@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
+?markBeingUsedInGraph@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
 ?markBufferAsInternal@detail@_V1@sycl@@YAXAEBV?$shared_ptr@Vbuffer_impl@detail@_V1@sycl@@@std@@@Z
+?markNoLongerBeingUsedInGraph@SYCLMemObjT@detail@_V1@sycl@@QEAAXXZ
 ?mem_advise@handler@_V1@sycl@@QEAAXPEBX_KH@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBUcode_location@detail@23@@Z
 ?mem_advise@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KHAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@AEBUcode_location@detail@23@@Z
@@ -1381,6 +1385,7 @@
 ?message@SYCLCategory@detail@_V1@sycl@@UEBA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@H@Z
 ?name@SYCLCategory@detail@_V1@sycl@@UEBAPEBDXZ
 ?native_specialization_constant@kernel_bundle_plain@detail@_V1@sycl@@QEBA_NXZ
+?needsWriteBack@SYCLMemObjT@detail@_V1@sycl@@QEBA_NXZ
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$00@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$01@23@Vkernel@23@@Z
 ?parallel_for@handler@_V1@sycl@@QEAAXV?$range@$02@23@Vkernel@23@@Z

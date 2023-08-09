@@ -26,6 +26,10 @@
 namespace sycl {
 inline namespace _V1 {
 
+namespace detail {
+class SYCLMemObjT;
+}
+
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -373,6 +377,14 @@ public:
     if (PropList.has_property<property::graph::no_cycle_check>()) {
       MSkipCycleChecks = true;
     }
+    if (PropList.has_property<property::graph::assume_data_outlives_buffer>()) {
+      MAllowBuffersHostPointers = true;
+    }
+    if (PropList
+            .has_property<property::graph::assume_buffer_outlives_graph>()) {
+      MAllowBuffers = true;
+    }
+
     if (SyclDevice.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
         info::graph_support_level::unsupported) {
@@ -384,6 +396,8 @@ public:
           BackendString + " backend is not supported by SYCL Graph extension.");
     }
   }
+
+  ~graph_impl();
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
@@ -636,13 +650,19 @@ private:
   /// @return True if a cycle is detected, false if not.
   bool checkForCycles();
 
+  /// Insert node into list of root nodes.
+  /// @param Root Node to add to list of root nodes.
+  void addRoot(const std::shared_ptr<node_impl> &Root);
+
   /// Context associated with this graph.
   sycl::context MContext;
   /// Device associated with this graph. All graph nodes will execute on this
   /// device.
   sycl::device MDevice;
   /// Unique set of queues which are currently recording to this graph.
-  std::set<std::shared_ptr<sycl::detail::queue_impl>> MRecordingQueues;
+  std::set<std::weak_ptr<sycl::detail::queue_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+      MRecordingQueues;
   /// Map of events to their associated recorded nodes.
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
                      std::shared_ptr<node_impl>>
@@ -656,10 +676,17 @@ private:
   /// Controls whether we skip the cycle checks in makeEdge, set by the presence
   /// of the no_cycle_check property on construction.
   bool MSkipCycleChecks = false;
+  /// Unique set of SYCL Memory Objects which are currently in use in the graph.
+  std::set<sycl::detail::SYCLMemObjT *> MMemObjs;
 
-  /// Insert node into list of root nodes.
-  /// @param Root Node to add to list of root nodes.
-  void addRoot(const std::shared_ptr<node_impl> &Root);
+  /// Controls whether we allow buffers that are created with host pointers to
+  /// be used in the graph. Set by the presence of the
+  /// assume_data_outlives_buffer property.
+  bool MAllowBuffersHostPointers = false;
+
+  /// Controls whether we allow buffers to be used in the graph. Set by the
+  /// presence of the assume_buffer_outlives_graph property.
+  bool MAllowBuffers = false;
 };
 
 /// Class representing the implementation of command_graph<executable>.

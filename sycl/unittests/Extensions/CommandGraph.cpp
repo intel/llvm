@@ -386,7 +386,11 @@ class CommandGraphTest : public ::testing::Test {
 public:
   CommandGraphTest()
       : Mock{}, Plat{Mock.getPlatform()}, Dev{Plat.get_devices()[0]},
-        Queue{Dev}, Graph{Queue.get_context(), Dev} {}
+        Queue{Dev},
+        Graph{Queue.get_context(),
+              Dev,
+              {experimental::property::graph::assume_buffer_outlives_graph{}}} {
+  }
 
 protected:
   void SetUp() override {}
@@ -1368,4 +1372,60 @@ TEST_F(MultiThreadGraphTest, Finalize) {
     auto GraphExecRefImpl = sycl::detail::getSyclObjImpl(GraphExecRef);
     ASSERT_EQ(checkExecGraphSchedule(GraphExecImpl, GraphExecRefImpl), true);
   }
+}
+
+TEST_F(CommandGraphTest, InvalidBuffer) {
+  // Check that using a buffer with write_back enabled in a graph will throw.
+  int Data;
+  // Create a buffer which does not have write-back disabled.
+  buffer<int> Buffer{&Data, range<1>{1}};
+
+  // Use this buffer in the graph, this should throw.
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            auto Acc = Buffer.get_access<access::mode::read_write>(CGH);
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+TEST_F(CommandGraphTest, InvalidHostAccessor) {
+  // Check that creating a host_accessor on a buffer which is in use by a graph
+  // will throw.
+
+  // Create a buffer which does not have write-back disabled.
+  buffer<int> Buffer{range<1>{1}};
+
+  {
+    // Create a graph in local scope so we can destroy it
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    // Add the buffer to the graph.
+    Graph.add([&](handler &CGH) {
+      auto Acc = Buffer.get_access<access::mode::read_write>(CGH);
+    });
+
+    // Attempt to create a host_accessor, which should throw.
+    ASSERT_THROW(
+        {
+          try {
+            host_accessor HostAcc{Buffer};
+          } catch (const sycl::exception &e) {
+            ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+            throw;
+          }
+        },
+        sycl::exception);
+  }
+  // Graph is now out of scope so we should be able to create a host_accessor
+  ASSERT_NO_THROW({ host_accessor HostAcc{Buffer}; });
 }

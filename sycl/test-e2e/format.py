@@ -100,7 +100,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -that new tests by default would runnable there (unless they have
         # -other restrictions).
         substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s'))
-            
+
         compilation_cmd_pthread = "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
         substitutions.append(('%{build_pthread_inc}', compilation_cmd_pthread))
         
