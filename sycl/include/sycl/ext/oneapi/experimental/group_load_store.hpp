@@ -253,7 +253,7 @@ std::enable_if_t<
     detail::is_generic_group_v<GroupHelper>>
 group_load(GroupHelper gh, InputIteratorT in_ptr,
            span<OutputT, ElementsPerWorkItem> out, Properties properties = {}) {
-  constexpr bool blocked = detail::is_blocked(properties);
+  constexpr bool blocked = detail::isBlocked(properties);
 
   using value_type = remove_decoration_t<
       typename std::iterator_traits<InputIteratorT>::value_type>;
@@ -497,7 +497,7 @@ std::enable_if_t<
     is_group_helper_v<GroupHelper>>
 group_load(GroupHelper gh, InputIteratorT in_ptr,
            span<OutputT, ElementsPerWorkItem> out, Properties properties) {
-  constexpr bool blocked = detail::is_blocked(properties);
+  constexpr bool blocked = detail::isBlocked(properties);
 
   using value_type = remove_decoration_t<
       typename std::iterator_traits<InputIteratorT>::value_type>;
@@ -634,7 +634,7 @@ std::enable_if_t<std::is_convertible_v<
                  detail::is_generic_group_v<GroupHelper>>
 group_store(GroupHelper gh, const span<InputT, ElementsPerWorkItem> in,
             OutputIteratorT out_ptr, Properties properties = {}) {
-  constexpr bool blocked = detail::is_blocked(properties);
+  constexpr bool blocked = detail::isBlocked(properties);
 
   using value_type = remove_decoration_t<
       typename std::iterator_traits<OutputIteratorT>::value_type>;
@@ -856,7 +856,7 @@ std::enable_if_t<std::is_convertible_v<
                  is_group_helper_v<GroupHelper>>
 group_store(GroupHelper gh, const span<InputT, ElementsPerWorkItem> in,
             OutputIteratorT out_ptr, Properties properties = {}) {
-  constexpr bool blocked = detail::is_blocked(properties);
+  constexpr bool blocked = detail::isBlocked(properties);
 
   using value_type = remove_decoration_t<
       typename std::iterator_traits<OutputIteratorT>::value_type>;

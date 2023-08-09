@@ -25,7 +25,6 @@ inline namespace _V1 {
 struct sub_group;
 namespace ext {
 namespace oneapi {
-struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
@@ -61,9 +60,6 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
 };
 
-template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
-  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
-};
 template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
@@ -254,12 +250,10 @@ using WidenOpenCLTypeTo32_t = std::conditional_t<
 template <typename Group> struct GroupId {
   using type = size_t;
 };
-template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
-  using type = uint32_t;
-};
 template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
+
 template <typename Group, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(Group, T x, IdT local_id) {
   using GroupIdT = typename GroupId<Group>::type;

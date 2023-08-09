@@ -30,7 +30,6 @@ inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
 template <int Dimensions> class group;
 struct sub_group;
 namespace ext::oneapi {
-struct sub_group;
 
 namespace experimental {
 template <typename Group, std::size_t Extent> class group_with_scratchpad;
@@ -49,10 +48,8 @@ template <int Dimensions>
 struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
 
 template <>
-struct is_fixed_topology_group<sycl::ext::oneapi::sub_group> : std::true_type {
+struct is_fixed_topology_group<sycl::_V1::sub_group> : std::true_type {
 };
-template <> struct is_fixed_topology_group<sycl::sub_group> : std::true_type {};
-
 template <class T> struct is_user_constructed_group : std::false_type {};
 
 template <class T>
@@ -80,7 +77,6 @@ struct is_group<group<Dimensions>> : std::true_type {};
 
 template <typename T> struct is_sub_group : std::false_type {};
 
-template <> struct is_sub_group<ext::oneapi::sub_group> : std::true_type {};
 template <> struct is_sub_group<sycl::sub_group> : std::true_type {};
 
 template <typename T>
@@ -343,7 +339,6 @@ struct is_pointer_impl<multi_ptr<T, Space, DecorateAddress>> : std::true_type {
 
 template <typename T>
 struct is_pointer : is_pointer_impl<std::remove_cv_t<T>> {};
-
 // is_multi_ptr
 template <typename T> struct is_multi_ptr : std::false_type {};
 
@@ -351,9 +346,6 @@ template <typename ElementType, access::address_space Space,
           access::decorated IsDecorated>
 struct is_multi_ptr<multi_ptr<ElementType, Space, IsDecorated>>
     : std::true_type {};
-
-template <class T>
-inline constexpr bool is_multi_ptr_v = is_multi_ptr<T>::value;
 
 // is_non_legacy_multi_ptr
 template <typename T> struct is_non_legacy_multi_ptr : std::false_type {};
