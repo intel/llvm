@@ -25,9 +25,9 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2021.9.0",
-      "version": "2021.9.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.9.0/oneapi-tbb-2021.9.0-lin.tgz",
+      "github_tag": "v2021.10.0",
+      "version": "2021.10.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.10.0/oneapi-tbb-2021.10.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
@@ -53,9 +53,9 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2021.9.0",
-      "version": "2021.9.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.9.0/oneapi-tbb-2021.9.0-win.zip",
+      "github_tag": "v2021.10.0",
+      "version": "2021.10.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.10.0/oneapi-tbb-2021.10.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
