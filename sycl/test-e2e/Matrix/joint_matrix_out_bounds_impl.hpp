@@ -54,9 +54,9 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
              // Assume we alreay in vnni format.
-             joint_matrix_load(
-                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
-                 N * vnniFactor);
+             joint_matrix_load(sg, sub_b,
+                               pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                               N * vnniFactor);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -100,7 +100,8 @@ int main() {
 
   matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, vnniFactor);
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
-                  MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q, vnniFactor);
+                  MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q,
+                                                             vnniFactor);
   matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = true;
