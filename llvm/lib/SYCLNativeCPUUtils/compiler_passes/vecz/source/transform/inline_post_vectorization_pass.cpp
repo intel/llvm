@@ -78,7 +78,7 @@ Value *processCallSite(CallInst *CI, bool &NeedLLVMInline,
   // order to maintain equivalence between the scalar/vector forms. Do this
   // here due to a tight coupling between the vectorized version and these
   // remaining scalar versions.
-  if (Builtin.isValid() && Builtin.ID == BI.getSubgroupLocalIdBuiltin()) {
+  if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
     return ConstantInt::getNullValue(CI->getType());
   }
 

@@ -19,17 +19,17 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i32 @_Z16get_sub_group_idv()
-declare spir_func i32 @_Z18get_sub_group_sizev()
-declare spir_func i32 @_Z22get_sub_group_local_idv()
-declare spir_func i32 @_Z19sub_group_broadcastij(i32, i32)
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i32 @_Z13sub_group_anyi(i32)
+declare spir_func i32 @__mux_get_sub_group_id()
+declare spir_func i32 @__mux_get_sub_group_size()
+declare spir_func i32 @__mux_get_sub_group_local_id()
+declare spir_func i32 @__mux_sub_group_broadcast_i32(i32, i32)
+declare spir_func i64 @__mux_get_global_id(i32)
+declare spir_func i1 @__mux_sub_group_any_i1(i1)
 
 define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call.i = tail call spir_func i32 @_Z16get_sub_group_idv()
+  %call.i = tail call spir_func i32 @__mux_get_sub_group_id()
   %conv = zext i32 %call.i to i64
-  %call2 = tail call spir_func i32 @_Z18get_sub_group_sizev()
+  %call2 = tail call spir_func i32 @__mux_get_sub_group_size()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 %conv
   store i32 %call2, i32 addrspace(1)* %arrayidx, align 4
   ret void
@@ -38,7 +38,7 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call = tail call spir_func i32 @_Z22get_sub_group_local_idv()
+  %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %call
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
@@ -47,10 +47,10 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call = tail call spir_func i32 @_Z22get_sub_group_local_idv()
+  %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %call
   %v = load i32, i32 addrspace(1)* %arrayidx, align 4
-  %broadcast = call spir_func i32 @_Z19sub_group_broadcastij(i32 %v, i32 0)
+  %broadcast = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 %v, i32 0)
   %arrayidx2 = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %call
   store i32 %broadcast, i32 addrspace(1)* %arrayidx2, align 4
   ret void
@@ -63,8 +63,8 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
 ; This used to crash as packetizing get_sub_group_local_id produces a Constant, which we weren't expecting.
 define spir_kernel void @regression_sub_group_local_id(i32 addrspace(1)* %in, <4 x i32> addrspace(1)* %xy, i32 addrspace(1)* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z22get_sub_group_local_idv()
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_local_id()
   %0 = shl i64 %call, 32
   %idxprom = ashr exact i64 %0, 32
   %arrayidx = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %xy, i64 %idxprom
@@ -72,17 +72,15 @@ entry:
   %2 = insertelement <4 x i32> %1, i32 %call1, i64 0
   %3 = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %arrayidx, i64 0, i64 0
   store i32 %call1, i32 addrspace(1)* %3, align 16
-  %call2 = tail call spir_func i32 @_Z16get_sub_group_idv()
+  %call2 = tail call spir_func i32 @__mux_get_sub_group_id()
   %4 = insertelement <4 x i32> %2, i32 %call2, i64 1
   store <4 x i32> %4, <4 x i32> addrspace(1)* %arrayidx, align 16
   %arrayidx6 = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %idxprom
   %5 = load i32, i32 addrspace(1)* %arrayidx6, align 4
-  %call7 = tail call spir_func i32 @_Z13sub_group_anyi(i32 %5)
+  %6 = icmp ne i32 %5, 0
+  %call7 = tail call spir_func i1 @__mux_sub_group_any_i1(i1 %6)
+  %7 = sext i1 %call7 to i32
   %arrayidx9 = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 %idxprom
-  store i32 %call7, i32 addrspace(1)* %arrayidx9, align 4
+  store i32 %7, i32 addrspace(1)* %arrayidx9, align 4
   ret void
 }
-
-!opencl.ocl.version = !{!0}
-
-!0 = !{i32 3, i32 0}

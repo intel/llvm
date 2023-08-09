@@ -21,13 +21,13 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i32 @_Z16get_sub_group_idv()
-declare spir_func i32 @_Z18get_sub_group_sizev()
+declare spir_func i32 @__mux_get_sub_group_id()
+declare spir_func i32 @__mux_get_sub_group_size()
 
 define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call.i = tail call spir_func i32 @_Z16get_sub_group_idv()
+  %call.i = tail call spir_func i32 @__mux_get_sub_group_id()
   %conv = zext i32 %call.i to i64
-  %call2 = tail call spir_func i32 @_Z18get_sub_group_sizev()
+  %call2 = tail call spir_func i32 @__mux_get_sub_group_size()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 %conv
   store i32 %call2, i32 addrspace(1)* %arrayidx, align 4
   ret void
