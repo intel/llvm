@@ -12,12 +12,12 @@ constexpr float BF16_EPSILON = 0.00781250;
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
-void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnni_factor) {
+void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   size_t M = NUM_ROWS_C;
   size_t N = NUM_COLS_C;
   size_t K = NUM_COLS_A;
 
-  assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * vnni_factor);
+  assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * vnniFactor);
   // Add one iteration for the out of bounds dpas instruction
   size_t NDRangeM = M / TM + (((M % TM) != 0) ? 1 : 0);
   size_t NDRangeN = N / TN;
@@ -55,8 +55,8 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnni_factor) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
              // Assume we alreay in vnni format.
              joint_matrix_load(
-                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnni_factor,
-                 N * vnni_factor);
+                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                 N * vnniFactor);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -69,6 +69,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnni_factor) {
 int main() {
   static constexpr size_t MATRIX_M = 1024 + 14;
   static constexpr size_t MATRIX_N = 1024;
+  static constexpr unsigned int vnniFactor = 2;
 
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
@@ -97,9 +98,9 @@ int main() {
     }
   }
 
-  matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, 2);
-  matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / 2,
-                  MATRIX_N * 2, MATRIX_M, MATRIX_N>(C, A, vnniB, q, 2);
+  matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, vnniFactor);
+  matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
+                  MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q, vnniFactor);
   matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = true;
