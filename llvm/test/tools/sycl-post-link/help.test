@@ -48,8 +48,8 @@ CHECK: --ir-output-only     - Output single IR file
 CHECK: -o <filename>        - Output filename
 CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
 CHECK: --spec-const=<value> - lower and generate specialization constants information
-CHECK:   =rt                -   spec constants are set at runtime
-CHECK:   =default           -   set spec constants to C++ defaults
+CHECK:   =rt                -   lower spec constants to native spirv instructions
+CHECK:   =default           -   replace spec constants with emulation technique
 CHECK: --split=<value>      - split input module
 CHECK:   =source            -   1 output module per source (translation unit)
 CHECK:   =kernel            -   1 output module per kernel
