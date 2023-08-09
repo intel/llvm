@@ -34,6 +34,6 @@ entry:
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}
 !4 = !{null, !"align", i32 16, !"align", i32 65552, !"align", i32 131088}
-; CHECK: !5 = distinct !{void (i32, i32 addrspace(1)*, i32)* @_ZTS14example_kernel, !"maxntid", i32 256}
+; CHECK: !5 = distinct !{void (i32, i32 addrspace(1)*, i32)* @_ZTS14example_kernel, !"maxntidx", i32 256}
 !5 = !{void (i32 addrspace(3)*, i32 addrspace(1)*, i32)* @_ZTS14example_kernel, !"maxntidx", i32 256}
 !6 = !{i32 1, i32 4}
