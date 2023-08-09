@@ -15,7 +15,10 @@ int main() {
 
   queue Queue;
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  exp_ext::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
   const size_t N = 10;
   std::vector<float> Arr(N, 0.0f);

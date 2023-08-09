@@ -62,11 +62,33 @@ namespace graph {
 
 /// Property passed to command_graph constructor to disable checking for cycles.
 ///
-/// \todo Cycle check not yet implemented.
 class no_cycle_check : public ::sycl::detail::DataLessProperty<
                            ::sycl::detail::GraphNoCycleCheck> {
 public:
   no_cycle_check() = default;
+};
+
+/// Property passed to command_graph constructor to allow buffers to be used
+/// with graphs. Passing this property represents a promise from the user that
+/// the buffer will outlive any graph that it is used in.
+///
+class assume_buffer_outlives_graph
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
+public:
+  assume_buffer_outlives_graph() = default;
+};
+
+/// Property passed to command_graph constructor to allow buffers created with
+/// host pointers. Passing this property represents a promise from the user that
+/// the host data will outlive the buffer and by extension any graph that it is
+/// used in.
+///
+class assume_data_outlives_buffer
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::GraphAssumeDataOutlivesBuffer> {
+public:
+  assume_data_outlives_buffer() = default;
 };
 
 } // namespace graph

@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -117,6 +118,13 @@ void exec_graph_impl::schedule() {
   }
 }
 
+graph_impl::~graph_impl() {
+  clearQueues();
+  for (auto &MemObj : MMemObjs) {
+    MemObj->markNoLongerBeingUsedInGraph();
+  }
+}
+
 std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
@@ -214,7 +222,27 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps;
   const auto &Requirements = CommandGroup->getRequirements();
+  if (!MAllowBuffers && Requirements.size()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot use buffers in a graph without passing the "
+                          "assume_buffer_outlives_graph property on "
+                          "Graph construction.");
+  }
+
   for (auto &Req : Requirements) {
+    // Track and mark the memory objects being used by the graph.
+    auto MemObj = static_cast<sycl::detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    if (MemObj->getUserPtr() && !MAllowBuffersHostPointers) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Cannot use a buffer which was created with a host pointer in a "
+          "graph without passing the assume_data_outlives_buffer property on "
+          "Graph construction.");
+    }
+    bool WasInserted = MMemObjs.insert(MemObj).second;
+    if (WasInserted) {
+      MemObj->markBeingUsedInGraph();
+    }
     // Look through the graph for nodes which share this requirement
     for (auto NodePtr : MRoots) {
       checkForRequirement(Req, NodePtr, UniqueDeps);
@@ -254,8 +282,10 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
 bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
-    Queue->setCommandGraph(nullptr);
-    AnyQueuesCleared = true;
+    if (auto ValidQueue = Queue.lock(); ValidQueue) {
+      ValidQueue->setCommandGraph(nullptr);
+      AnyQueuesCleared = true;
+    }
   }
   MRecordingQueues.clear();
 
