@@ -157,8 +157,8 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->MIsProfilingEnabled ||
-                                         Queue->is_host()} {
+    : MQueue{Queue},
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
