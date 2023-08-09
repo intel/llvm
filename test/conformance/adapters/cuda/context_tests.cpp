@@ -43,9 +43,6 @@ TEST_P(cudaUrContextCreateTest, CreateWithChildThread) {
 }
 
 TEST_P(cudaUrContextCreateTest, ActiveContext) {
-    // start with no active context
-    uur::clearCudaContext();
-
     ur_context_handle_t context = nullptr;
     ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
     ASSERT_NE(context, nullptr);
@@ -115,14 +112,9 @@ TEST_P(cudaUrContextCreateTest, ContextLifetimeExisting) {
 
     ASSERT_SUCCESS(urQueueRelease(queue));
     ASSERT_SUCCESS(urContextRelease(context));
-
-    // check that the context was cleaned up, the old context will be restored
 }
 
 TEST_P(cudaUrContextCreateTest, ThreadedContext) {
-    // start with no active cuda context
-    uur::clearCudaContext();
-
     // create two new UR contexts
     ur_context_handle_t context1;
     ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context1));
