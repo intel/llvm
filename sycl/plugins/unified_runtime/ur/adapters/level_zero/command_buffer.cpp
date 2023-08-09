@@ -114,18 +114,18 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release additional signal and wait events used by command_buffer
   if (SignalEvent) {
     CleanupCompletedEvent(SignalEvent, false);
-    urEventReleaseInternal(SignalEvent);
+    UR_CALL(urEventReleaseInternal(SignalEvent));
   }
   if (WaitEvent) {
     CleanupCompletedEvent(WaitEvent, false);
-    urEventReleaseInternal(WaitEvent);
+    UR_CALL(urEventReleaseInternal(WaitEvent));
   }
 
   // Release events added to the command_buffer
   for (auto &Sync : SyncPoints) {
     auto &Event = Sync.second;
     CleanupCompletedEvent(Event, false);
-    urEventReleaseInternal(Event);
+    UR_CALL(urEventReleaseInternal(Event));
   }
 
   // Release Fences allocated to command_buffer
@@ -295,17 +295,18 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
+    // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
              (CommandBuffer->ZeCommandList, Dst, Src, Size,
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendMemoryCopy() with"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -359,6 +360,10 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
+    // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (CommandBuffer->ZeCommandList, Dst, &ZeDstRegion, DstPitch,
               DstSlicePitch, Src, &ZeSrcRegion, SrcPitch, SrcSlicePitch,
@@ -368,9 +373,6 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
           "  ZeEvent %#lx\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
   return UR_RESULT_SUCCESS;
 }
 
@@ -497,6 +499,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
 
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+  
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signalled, the code in
@@ -510,12 +516,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#llx\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
-  // Get sync point and register the event with it.
-  *SyncPoint = CommandBuffer->GetNextSyncPoint();
-  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
   return UR_RESULT_SUCCESS;
 }
 
