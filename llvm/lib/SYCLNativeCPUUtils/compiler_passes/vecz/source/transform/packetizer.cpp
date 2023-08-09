@@ -1469,9 +1469,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
 
   // Handle subgroup scans, which defer to internal builtins.
   if (auto Info = Ctx.builtins().isMuxGroupCollective(Builtin.ID)) {
-    if (Info->Scope == compiler::utils::GroupCollective::ScopeKind::SubGroup &&
-        (Info->Op == compiler::utils::GroupCollective::OpKind::ScanExclusive ||
-         Info->Op == compiler::utils::GroupCollective::OpKind::ScanInclusive)) {
+    if (Info->isSubGroupScope() && Info->isScan()) {
       return packetizeSubgroupScan(CI, *Info);
     }
   }
