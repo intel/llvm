@@ -106,6 +106,30 @@ static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
   Params.Depth = 1;
 }
 
+ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice)
+    : Context(hContext),
+      Device(hDevice), cudaGraph{nullptr}, cudaGraphExec{nullptr}, RefCount{1} {
+  urContextRetain(hContext);
+  urDeviceRetain(hDevice);
+}
+
+// The ur_exp_command_buffer_handle_t_ destructor release all the memory objects
+// allocated for command_buffer managment
+ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
+  // Release the memory allocated to the Context stored in the command_buffer
+  urContextRelease(Context);
+
+  // Release the device
+  urDeviceRelease(Device);
+
+  // Release the memory allocated to the CudaGraph
+  cuGraphDestroy(cudaGraph);
+
+  // Release the memory allocated to the CudaGraphExec
+  cuGraphExecDestroy(cudaGraphExec);
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_exp_command_buffer_desc_t *hCommandBufferDesc,

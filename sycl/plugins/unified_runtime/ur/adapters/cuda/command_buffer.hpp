@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <ur/ur.hpp>
+#include <ur_api.h>
 
 #include "context.hpp"
 #include <cuda.h>
