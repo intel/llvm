@@ -250,7 +250,7 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
     // if (Result == PI_ERROR_INVALID_OPERATION) {
     //   MFallbackProfiling = true;
     // }
-    Dev->getPlugin()->checkPiResult(Result);
+    // Dev->getPlugin()->checkPiResult(Result);
     return true;
   }
 };
