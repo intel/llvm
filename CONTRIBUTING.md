@@ -78,6 +78,12 @@ To contribute:
 
 - CI will run several build and functional testing checks as soon as the PR is
 approved by an Intel representative.
+  - By default, pre-commit activies (build/test) will not auto start when PR
+    is submitted for new contributors and non members of the project. If your
+    PR shows "workflow awaiting approval" then your assigned code reviewer or 
+    another member of the project will need to approve the test run and start
+    it for you. If you are unable to reach someone to approve your run, please
+    contact the project gatekeepers (@intel/llvm-gatekeepers).  
   - A new approval is needed if the PR was updated (e.g. during code review).
 - Once the PR is approved and all checks have passed, the pull request is
 ready for merge.
