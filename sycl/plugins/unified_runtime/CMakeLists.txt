@@ -259,6 +259,8 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
+      "ur/adapters/opencl/adapter.cpp"
+      "ur/adapters/opencl/adapter.hpp"
       "ur/adapters/opencl/command_buffer.hpp"
       "ur/adapters/opencl/command_buffer.cpp"
       "ur/adapters/opencl/common.cpp"

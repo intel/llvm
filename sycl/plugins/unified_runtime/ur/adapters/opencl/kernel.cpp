@@ -57,8 +57,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
 
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
                                        mapURKernelInfoToCL(propName), propSize,
                                        pPropValue, pPropSizeRet));
@@ -91,9 +89,6 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                      ur_kernel_group_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
 
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
       cl_adapter::cast<cl_kernel>(hKernel),
       cl_adapter::cast<cl_device_id>(hDevice),
@@ -123,9 +118,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
                         ur_kernel_sub_group_info_t propName, size_t,
                         void *pPropValue, size_t *pPropSizeRet) {
-
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   std::shared_ptr<void> InputValue;
   size_t InputValueSize = 0;
@@ -204,16 +196,12 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelRetain(ur_kernel_handle_t hKernel) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clRetainKernel(cl_adapter::cast<cl_kernel>(hKernel)));
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelRelease(ur_kernel_handle_t hKernel) {
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clReleaseKernel(cl_adapter::cast<cl_kernel>(hKernel)));
   return UR_RESULT_SUCCESS;
 }
@@ -328,18 +316,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
     ur_kernel_handle_t hKernel, ur_native_handle_t *phNativeKernel) {
 
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeKernel, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeKernel = reinterpret_cast<ur_native_handle_t>(hKernel);
-
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t hNativeKernel, ur_context_handle_t, ur_program_handle_t,
     const ur_kernel_native_properties_t *, ur_kernel_handle_t *phKernel) {
-  UR_ASSERT(hNativeKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phKernel = reinterpret_cast<ur_kernel_handle_t>(hNativeKernel);
   return UR_RESULT_SUCCESS;
@@ -349,7 +332,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgMemObj(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_mem_obj_properties_t *, ur_mem_handle_t hArgValue) {
 
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr = clSetKernelArg(
       cl_adapter::cast<cl_kernel>(hKernel), cl_adapter::cast<cl_uint>(argIndex),
       sizeof(hArgValue), cl_adapter::cast<const cl_mem *>(&hArgValue));

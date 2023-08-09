@@ -316,7 +316,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                                                     void *pPropValue,
                                                     size_t *pPropSizeRet) {
 
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   const cl_device_info CLPropName = mapURDeviceInfoToCL(propName);
@@ -902,9 +901,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     const ur_device_partition_properties_t *pProperties, uint32_t NumDevices,
     ur_device_handle_t *phSubDevices, uint32_t *pNumDevicesRet) {
 
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pProperties, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   std::vector<cl_device_partition_property> CLProperties(
       pProperties->PropCount + 2);
 
@@ -967,8 +963,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   cl_int Result = clRetainDevice(cl_adapter::cast<cl_device_id>(hDevice));
 
   return mapCLErrorToUR(Result);
@@ -976,8 +970,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceRetain(ur_device_handle_t hDevice) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urDeviceRelease(ur_device_handle_t hDevice) {
-
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   cl_int Result = clReleaseDevice(cl_adapter::cast<cl_device_id>(hDevice));
 
@@ -987,9 +979,6 @@ urDeviceRelease(ur_device_handle_t hDevice) {
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
     ur_device_handle_t hDevice, ur_native_handle_t *phNativeDevice) {
 
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeDevice, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeDevice = reinterpret_cast<ur_native_handle_t>(hDevice);
   return UR_RESULT_SUCCESS;
 }
@@ -997,8 +986,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
     ur_native_handle_t hNativeDevice, ur_platform_handle_t,
     const ur_device_native_properties_t *, ur_device_handle_t *phDevice) {
-
-  UR_ASSERT(hNativeDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phDevice = reinterpret_cast<ur_device_handle_t>(hNativeDevice);
   return UR_RESULT_SUCCESS;
