@@ -323,5 +323,5 @@ q.wait();
 |======================
 |Rev |Date       |Author     |Changes
 |1   |2022-11-07 |Dounia Khaldi |Add Intel-specific store API,
-layout information, and per-element access with coordinates API
+layout information, and `joint_matrix_apply` with coordinates API
 |======================
