@@ -248,8 +248,8 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
             ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
                 Dev->getHandleRef(), nullptr, nullptr);
     if (Result == PI_ERROR_INVALID_OPERATION) {
+      MFallbackProfiling = true;
     }
-      return false;
     Dev->getPlugin()->checkPiResult(Result);
     return true;
   }

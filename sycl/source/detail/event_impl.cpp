@@ -157,15 +157,11 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
-                                         Queue->MIsProfilingEnabled} { //},
-  //      MFallbackProfiling{MIsProfilingEnabled &&
-  //      Queue->isProfilingFallback()} {
+    : MQueue{Queue}, 
+      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled} {
   this->setContextImpl(Queue->getContextImplPtr());
-
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
-
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
