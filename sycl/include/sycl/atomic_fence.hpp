@@ -8,16 +8,16 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/memory_enums.hpp>
+#include <sycl/memory_enums.hpp> // for getStdMemoryOrder, memory_order
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <atomic>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <sycl/detail/spirv.hpp>
+#else
+#include <atomic> // for atomic_thread_fence
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 inline void atomic_fence(memory_order order, memory_scope scope) {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -31,5 +31,5 @@ inline void atomic_fence(memory_order order, memory_scope scope) {
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

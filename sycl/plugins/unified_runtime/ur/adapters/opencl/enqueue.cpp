@@ -29,11 +29,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pGlobalWorkSize, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
@@ -48,8 +43,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clEnqueueMarkerWithWaitList(
       cl_adapter::cast<cl_command_queue>(hQueue), numEventsInWaitList,
       cl_adapter::cast<const cl_event *>(phEventWaitList),
@@ -61,8 +54,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   CL_RETURN_ON_FAILURE(clEnqueueBarrierWithWaitList(
       cl_adapter::cast<cl_command_queue>(hQueue), numEventsInWaitList,
@@ -77,14 +68,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   CL_RETURN_ON_FAILURE(clEnqueueReadBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBuffer), blockingRead, offset, size, pDst,
@@ -98,14 +81,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueWriteBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -123,13 +98,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueReadBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -152,13 +120,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   CL_RETURN_ON_FAILURE(clEnqueueWriteBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBuffer), blockingWrite,
@@ -178,14 +139,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   CL_RETURN_ON_FAILURE(clEnqueueCopyBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBufferSrc),
@@ -203,14 +156,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBufferDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueCopyBufferRect(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -232,14 +177,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   CL_RETURN_ON_FAILURE(clEnqueueFillBuffer(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
@@ -254,14 +191,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueReadImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -279,14 +208,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_rect_offset_t origin, ur_rect_region_t region, size_t rowPitch,
     size_t slicePitch, void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImage, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueWriteImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -306,14 +227,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImageSrc, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hImageDst, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-
   CL_RETURN_ON_FAILURE(clEnqueueCopyImage(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_mem>(hImageSrc), cl_adapter::cast<cl_mem>(hImageDst),
@@ -331,13 +244,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_map_flags_t mapFlags, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, void **ppRetMap) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppRetMap, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   cl_int Err;
   *ppRetMap = clEnqueueMapBuffer(
@@ -356,12 +262,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   CL_RETURN_ON_FAILURE(clEnqueueUnmapMemObject(
       cl_adapter::cast<cl_command_queue>(hQueue),
@@ -377,13 +277,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     bool blockingWrite, size_t count, size_t offset, const void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   cl_context Ctx = nullptr;
   cl_int Res =
@@ -415,13 +308,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     bool blockingRead, size_t count, size_t offset, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   cl_context Ctx = nullptr;
   cl_int Res =
@@ -453,14 +339,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueReadHostPipe(
     const char *pipe_symbol, bool blocking, void *pDst, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pipe_symbol, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   cl_context CLContext;
   cl_int CLErr = clGetCommandQueueInfo(
@@ -493,14 +371,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     const char *pipe_symbol, bool blocking, void *pSrc, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pipe_symbol, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(!(phEventWaitList == nullptr && numEventsInWaitList > 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  UR_ASSERT(!(phEventWaitList != nullptr && numEventsInWaitList == 0),
-            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   cl_context CLContext;
   cl_int CLErr = clGetCommandQueueInfo(

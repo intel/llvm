@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/half_type.hpp>                 // for half
 
-#include <array>
-#include <tuple>
-#include <type_traits>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for true_type, false_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <class T> struct is_fixed_size_group : std::false_type {};
 
@@ -479,5 +479,5 @@ template <typename Ret, typename... Args> struct function_traits<Ret(Args...)> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -151,9 +151,10 @@ struct ESIMDIntrinDesc {
   enum class GenXArgConversion : int16_t {
     NONE,   // no conversion
     TO_I1,  // convert vector of N-bit integer to 1-bit
-    TO_I8,  // convert vector of N-bit integer to 18-bit
+    TO_I8,  // convert vector of N-bit integer to 8-bit
     TO_I16, // convert vector of N-bit integer to 16-bit
     TO_I32, // convert vector of N-bit integer to 32-bit
+    TO_I64, // convert vector of N-bit integer to 64-bit
   };
 
   // Denotes GenX intrinsic name suffix creation rule kind.
@@ -252,6 +253,12 @@ private:
         {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I32}}};
   }
 
+  static constexpr ESIMDIntrinDesc::ArgRule t64(int16_t N) {
+    return ESIMDIntrinDesc::ArgRule{
+        ESIMDIntrinDesc::SRC_TMPL_ARG,
+        {{N, ESIMDIntrinDesc::GenXArgConversion::TO_I64}}};
+  }
+
   static constexpr ESIMDIntrinDesc::ArgRule a(int16_t N) {
     return ESIMDIntrinDesc::ArgRule{
         ESIMDIntrinDesc::SRC_CALL_ARG,
@@ -344,10 +351,6 @@ public:
           nk(-1)}},
         {"vload", {"vload", {l(0)}}},
         {"vstore", {"vstore", {a(1), a(0)}}},
-
-        {"svm_block_ld_unaligned", {"svm.block.ld.unaligned", {l(0)}}},
-        {"svm_block_ld", {"svm.block.ld", {l(0)}}},
-        {"svm_block_st", {"svm.block.st", {l(1)}}},
         {"svm_gather", {"svm.gather", {ai1(1), t(3), a(0), u(-1)}}},
         {"svm_gather4_scaled",
          {"svm.gather4.scaled", {ai1(1), t(2), c16(0), c64(0), a(0), u(-1)}}},
@@ -797,6 +800,9 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   case ESIMDIntrinDesc::GenXArgConversion::TO_I32:
     Ty = IntegerType::getInt32Ty(Ctx);
     break;
+  case ESIMDIntrinDesc::GenXArgConversion::TO_I64:
+    Ty = IntegerType::getInt64Ty(Ctx);
+    break;
   }
 
   switch (Args[N]->getKind()) {
@@ -805,8 +811,8 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
     const std::string_view &TyStr = ValL->getType();
     if (Conv == ESIMDIntrinDesc::GenXArgConversion::NONE && TyStr.size() != 0)
       // Overwrite Ty with IntegerLiteral's size
-      Ty =
-          parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()), Ctx);
+      Ty = parsePrimitiveTypeString(StringRef(&*TyStr.begin(), TyStr.size()),
+                                    Ctx);
     Val = ValL->getValue();
     break;
   }
@@ -823,8 +829,31 @@ static APInt parseTemplateArg(id::FunctionEncoding *FE, unsigned int N,
   default:
     llvm_unreachable_internal("bad esimd intrinsic template parameter");
   }
-  return APInt(Ty->getPrimitiveSizeInBits(), StringRef(&*Val.begin(), Val.size()),
-               10);
+  return APInt(Ty->getPrimitiveSizeInBits(),
+               StringRef(&*Val.begin(), Val.size()), 10);
+}
+
+// Returns the value of the 'ArgIndex' parameter of the template
+// function called at 'CI'.
+static APInt parseTemplateArg(CallInst &CI, int ArgIndex,
+                              ESIMDIntrinDesc::GenXArgConversion Conv =
+                                  ESIMDIntrinDesc::GenXArgConversion::NONE) {
+  Function *F = CI.getCalledFunction();
+  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
+
+  StringRef MnglName = F->getName();
+  using Demangler = id::ManglingParser<SimpleAllocator>;
+  Demangler Parser(MnglName.begin(), MnglName.end());
+  id::Node *AST = Parser.parse();
+  llvm::esimd::assert_and_diag(
+      AST && Parser.ForwardTemplateRefs.empty(),
+      "failed to demangle ESIMD intrinsic: ", MnglName);
+  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
+                               "bad ESIMD intrinsic: ", MnglName);
+
+  auto *FE = static_cast<id::FunctionEncoding *>(AST);
+  Type *Ty = nullptr;
+  return parseTemplateArg(FE, ArgIndex, Ty, CI.getContext(), Conv);
 }
 
 // Constructs a GenX intrinsic name suffix based on the original C++ name (stem)
@@ -921,6 +950,48 @@ static std::string getESIMDIntrinSuffix(id::FunctionEncoding *FE,
   return Suff;
 }
 
+static void translateBlockLoad(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  MaybeAlign Align(Val.getZExtValue());
+
+  auto Op0 = CI.getArgOperand(0);
+  auto DataType = CI.getType();
+  if (IsSLM) {
+    // Convert 'uint32_t' to 'addrspace(3)*' pointer.
+    auto PtrType = PointerType::get(DataType, 3);
+    Op0 = Builder.CreateIntToPtr(Op0, PtrType);
+  }
+
+  auto LI = Builder.CreateAlignedLoad(DataType, Op0, Align, CI.getName());
+  LI->setDebugLoc(CI.getDebugLoc());
+  CI.replaceAllUsesWith(LI);
+}
+
+static void translateBlockStore(CallInst &CI, bool IsSLM) {
+  IRBuilder<> Builder(&CI);
+
+  constexpr int AlignmentTemplateArgIdx = 2;
+  APInt Val = parseTemplateArg(CI, AlignmentTemplateArgIdx,
+                               ESIMDIntrinDesc::GenXArgConversion::TO_I64);
+  MaybeAlign Align(Val.getZExtValue());
+
+  auto Op0 = CI.getArgOperand(0);
+  auto Op1 = CI.getArgOperand(1);
+  if (IsSLM) {
+    // Convert 'uint32_t' to 'addrspace(3)*' pointer.
+    auto DataType = Op1->getType();
+    auto PtrType = PointerType::get(DataType, 3);
+    Op0 = Builder.CreateIntToPtr(Op0, PtrType);
+  }
+
+  auto SI = Builder.CreateAlignedStore(Op1, Op0, Align);
+  SI->setDebugLoc(CI.getDebugLoc());
+}
+
 // TODO Specify document behavior for slm_init and nbarrier_init when:
 // 1) they are called not from kernels
 // 2) there are multiple such calls reachable from a kernel
@@ -945,29 +1016,13 @@ static void translateNbarrierInit(CallInst &CI) {
 }
 
 static void translatePackMask(CallInst &CI) {
-  using Demangler = id::ManglingParser<SimpleAllocator>;
-  Function *F = CI.getCalledFunction();
-  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-
-  StringRef MnglName = F->getName();
-  Demangler Parser(MnglName.begin(), MnglName.end());
-  id::Node *AST = Parser.parse();
-
-  llvm::esimd::assert_and_diag(
-      AST && Parser.ForwardTemplateRefs.empty(),
-      "failed to demangle ESIMD intrinsic: ", MnglName);
-  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
-                               "bad ESIMD intrinsic: ", MnglName);
-
-  auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  llvm::LLVMContext &Context = CI.getContext();
-  Type *TTy = nullptr;
-  APInt Val = parseTemplateArg(FE, 0, TTy, Context);
+  APInt Val = parseTemplateArg(CI, 0);
   unsigned N = Val.getZExtValue();
   Value *Result = CI.getArgOperand(0);
   assert(Result->getType()->isIntOrIntVectorTy());
   Value *Zero = ConstantInt::get(Result->getType(), 0);
   IRBuilder<> Builder(&CI);
+  llvm::LLVMContext &Context = CI.getContext();
   // TODO CM_COMPAT
   // In CM non LSB bits in mask elements are ignored, so e.g. '2' is treated as
   // 'false' there. ESIMD adopts C++ semantics, where any non-zero is 'true'.
@@ -985,29 +1040,14 @@ static void translatePackMask(CallInst &CI) {
 }
 
 static void translateUnPackMask(CallInst &CI) {
-  using Demangler = id::ManglingParser<SimpleAllocator>;
-  Function *F = CI.getCalledFunction();
-  llvm::esimd::assert_and_diag(F, "function to translate is invalid");
-  StringRef MnglName = F->getName();
-  Demangler Parser(MnglName.begin(), MnglName.end());
-  id::Node *AST = Parser.parse();
-
-  llvm::esimd::assert_and_diag(
-      AST && Parser.ForwardTemplateRefs.empty(),
-      "failed to demangle ESIMD intrinsic: ", MnglName);
-  llvm::esimd::assert_and_diag(AST->getKind() == id::Node::KFunctionEncoding,
-                               "bad ESIMD intrinsic: ", MnglName);
-
-  auto *FE = static_cast<id::FunctionEncoding *>(AST);
-  llvm::LLVMContext &Context = CI.getContext();
-  Type *TTy = nullptr;
-  APInt Val = parseTemplateArg(FE, 0, TTy, Context);
+  APInt Val = parseTemplateArg(CI, 0);
   unsigned N = Val.getZExtValue();
   // get N x i1
   assert(CI.arg_size() == 1);
   llvm::Value *Arg0 = CI.getArgOperand(0);
   unsigned Width = Arg0->getType()->getPrimitiveSizeInBits();
   IRBuilder<> Builder(&CI);
+  llvm::LLVMContext &Context = CI.getContext();
   if (Width > N) {
     llvm::Type *Ty = llvm::IntegerType::get(Context, N);
     Arg0 = Builder.CreateTrunc(Arg0, Ty);
@@ -1677,6 +1717,13 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
     F.addFnAttr(llvm::Attribute::AlwaysInline);
     return true;
   };
+  auto markNoInline = [](Function &F) {
+    if (F.hasFnAttribute(llvm::Attribute::AlwaysInline))
+      F.removeFnAttr(llvm::Attribute::AlwaysInline);
+    if (F.hasFnAttribute(llvm::Attribute::InlineHint))
+      F.removeFnAttr(llvm::Attribute::InlineHint);
+    F.addFnAttr(llvm::Attribute::NoInline);
+  };
 
   bool NeedInline = false;
   for (auto &F : M) {
@@ -1703,12 +1750,17 @@ bool SYCLLowerESIMDPass::prepareForAlwaysInliner(Module &M) {
       continue;
     }
 
+    if (isAssertFail(F)) {
+      markNoInline(F);
+      continue;
+    }
+
     // TODO: The next code and comment was placed to ESIMDLoweringPass
     // 2 years ago, when GPU VC BE did not support function calls and
     // required everything to be inlined right into the kernel unless
     // it had noinline or VCStackCall attrubute.
     // This code migrated to here without changes, but... VC BE does support
-    //  the calls of spir_func these days, so this code may need re-visiting.
+    //  the calls of spir_func these days, so this code needs re-visiting.
     if (!F.hasFnAttribute(Attribute::NoInline))
       NeedInline |= markAlwaysInlined(F);
 
@@ -1857,6 +1909,18 @@ size_t SYCLLowerESIMDPass::runOnFunction(Function &F,
       // process ESIMD builtins that go through special handling instead of
       // the translation procedure
 
+      if (Name.startswith("__esimd_svm_block_ld") ||
+          Name.startswith("__esimd_slm_block_ld")) {
+        translateBlockLoad(*CI, Name.startswith("__esimd_slm_block_ld"));
+        ToErase.push_back(CI);
+        continue;
+      }
+      if (Name.startswith("__esimd_svm_block_st") ||
+          Name.startswith("__esimd_slm_block_st")) {
+        translateBlockStore(*CI, Name.startswith("__esimd_slm_block_st"));
+        ToErase.push_back(CI);
+        continue;
+      }
       if (Name.startswith("__esimd_nbarrier_init")) {
         translateNbarrierInit(*CI);
         ToErase.push_back(CI);

@@ -55,6 +55,11 @@ bool isSlmFree(const Function &F) {
   return F.getName().startswith(SLM_FREE_PREFIX);
 }
 
+bool isAssertFail(const Function &F) {
+  return F.getName().startswith("__assert_fail") ||
+         F.getName().startswith("__devicelib_assert_fail");
+}
+
 bool isESIMD(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
 }

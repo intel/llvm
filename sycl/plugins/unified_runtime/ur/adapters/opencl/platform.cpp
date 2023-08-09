@@ -51,7 +51,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL
 urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
                   size_t propSize, void *pPropValue, size_t *pSizeRet) {
 
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pSizeRet);
   const cl_int CLPropName = mapURPlatformInfoToCL(propName);
 
@@ -73,21 +72,16 @@ urPlatformGetInfo(ur_platform_handle_t hPlatform, ur_platform_info_t propName,
   }
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
-    ur_platform_handle_t hPlatform, ur_api_version_t *pVersion) {
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pVersion, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
+UR_DLLEXPORT ur_result_t UR_APICALL
+urPlatformGetApiVersion([[maybe_unused]] ur_platform_handle_t hPlatform,
+                        ur_api_version_t *pVersion) {
   *pVersion = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
-UR_DLLEXPORT ur_result_t UR_APICALL
-urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
-              uint32_t *pNumPlatforms) {
-
-  UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
-  UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   cl_int Result =
       clGetPlatformIDs(cl_adapter::cast<cl_uint>(NumEntries),
@@ -107,10 +101,6 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
     ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
-
-  UR_ASSERT(hPlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativePlatform, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativePlatform = reinterpret_cast<ur_native_handle_t>(hPlatform);
   return UR_RESULT_SUCCESS;
 }
@@ -118,31 +108,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
     ur_native_handle_t hNativePlatform, const ur_platform_native_properties_t *,
     ur_platform_handle_t *phPlatform) {
-
-  UR_ASSERT(hNativePlatform, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   *phPlatform = reinterpret_cast<ur_platform_handle_t>(hNativePlatform);
-  return UR_RESULT_SUCCESS;
-}
-
-UR_DLLEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
-  cl_ext::ExtFuncPtrCache = new cl_ext::ExtFuncPtrCacheT();
-  return UR_RESULT_SUCCESS;
-}
-
-/* This API is called by Sycl RT to notify the end of the adapter lifetime.
- * Windows: dynamically loaded plugins might have been unloaded already when
- * this is called. Sycl RT holds onto the UR adapter so it can be called safely.
- * But this is not transitive. If the UR adapter dynamically loaded a
- * different DLL, that may have been unloaded already.
- * TODO: add a global variable lifetime management code here (see
- * pi_level_zero.cpp for reference). */
-UR_DLLEXPORT ur_result_t UR_APICALL urTearDown(void *pParams) {
-  UR_ASSERT(pParams, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  if (cl_ext::ExtFuncPtrCache) {
-    delete cl_ext::ExtFuncPtrCache;
-    cl_ext::ExtFuncPtrCache = nullptr;
-  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -174,12 +140,4 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
     return UR_RESULT_SUCCESS;
   }
   return UR_RESULT_ERROR_INVALID_VALUE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t, const char **ppMessage, int32_t *pError) {
-  *ppMessage = cl_adapter::ErrorMessage;
-  *pError = cl_adapter::ErrorMessageCode;
-
-  return UR_RESULT_SUCCESS;
 }

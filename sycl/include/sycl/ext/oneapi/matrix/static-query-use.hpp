@@ -20,8 +20,17 @@
 
 #pragma once
 
+#include <sycl/aliases.hpp> // for half
+#include <sycl/ext/oneapi/matrix/matrix-tensorcores.hpp>
+#include <sycl/ext/oneapi/matrix/matrix-unified-utils.hpp> // for use, layout
+#include <sycl/ext/oneapi/matrix/matrix-unified.hpp>       // for joint_matrix
+
+#include <cstddef>     // for size_t
+#include <stdint.h>    // for uint32_t, int8_t
+#include <type_traits> // for enable_if
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental::matrix {
@@ -593,5 +602,5 @@ struct tpu_params<
 } // namespace experimental::matrix
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -75,7 +75,6 @@ void cl_adapter::die(const char *Message) {
 ///
 /// UR_RESULT_SUCCESS
 ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle) {
-  UR_ASSERT(NativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER)
   *NativeHandle = reinterpret_cast<ur_native_handle_t>(URObj);
   return UR_RESULT_SUCCESS;
 }

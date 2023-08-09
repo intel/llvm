@@ -11,8 +11,6 @@
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t, size_t size, void **ppMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   void *Ptr = nullptr;
   ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
@@ -63,9 +61,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   void *Ptr = nullptr;
   ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
@@ -119,9 +114,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
                  const ur_usm_desc_t *pUSMDesc, ur_usm_pool_handle_t,
                  size_t size, void **ppMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   void *Ptr = nullptr;
   ur_result_t RetVal = UR_RESULT_ERROR_INVALID_OPERATION;
@@ -181,8 +173,6 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // Use a blocking free to avoid issues with indirect access from kernels that
   // might be still running.
@@ -236,10 +226,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   // Have to look up the context from the kernel
   cl_context CLContext;
   cl_int CLErr = clGetCommandQueueInfo(
@@ -266,14 +252,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
-    ur_queue_handle_t hQueue, const void *pMem, size_t size,
-    ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  (void)pMem;
-  (void)size;
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size, ur_usm_migration_flags_t flags,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
 
   // flags is currently unused so fail if set
   if (flags != 0)
@@ -313,15 +295,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   */
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
-                   ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
-  (void)pMem;
-  (void)size;
-  (void)advice;
-
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMAdvise(
+    ur_queue_handle_t hQueue, [[maybe_unused]] const void *pMem,
+    [[maybe_unused]] size_t size, [[maybe_unused]] ur_usm_advice_flags_t advice,
+    ur_event_handle_t *phEvent) {
 
   return mapCLErrorToUR(clEnqueueMarkerWithWaitList(
       cl_adapter::cast<cl_command_queue>(hQueue), 0, nullptr,
@@ -382,8 +359,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
                      ur_usm_alloc_info_t propName, size_t propSize,
                      void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   clGetMemAllocInfoINTEL_fn FuncPtr = nullptr;
   cl_context CLContext = cl_adapter::cast<cl_context>(hContext);

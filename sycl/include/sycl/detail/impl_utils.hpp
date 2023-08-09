@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cassert>
+#include <cassert>     // for assert
+#include <type_traits> // for add_pointer_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Helper function for extracting implementation from SYCL's interface objects.
@@ -51,5 +50,5 @@ template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

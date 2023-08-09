@@ -133,9 +133,6 @@ void cl2URSamplerInfoValue(cl_sampler_info Info, void *InfoValue) {
 ur_result_t urSamplerCreate(ur_context_handle_t hContext,
                             const ur_sampler_desc_t *pDesc,
                             ur_sampler_handle_t *phSampler) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pDesc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   // Initialize properties according to OpenCL 2.1 spec.
   ur_result_t ErrorCode;
@@ -155,8 +152,6 @@ ur_result_t urSamplerCreate(ur_context_handle_t hContext,
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_VALUE);
 
   cl_sampler_info SamplerInfo = ur2CLSamplerInfo(propName);
   static_assert(sizeof(cl_addressing_mode) ==
@@ -175,23 +170,18 @@ urSamplerGetInfo(ur_sampler_handle_t hSampler, ur_sampler_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRetain(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   return mapCLErrorToUR(
       clRetainSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urSamplerRelease(ur_sampler_handle_t hSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   return mapCLErrorToUR(
       clReleaseSampler(cl_adapter::cast<cl_sampler>(hSampler)));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
     ur_sampler_handle_t hSampler, ur_native_handle_t *phNativeSampler) {
-  UR_ASSERT(hSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeSampler = reinterpret_cast<ur_native_handle_t>(
       cl_adapter::cast<cl_sampler>(hSampler));
   return UR_RESULT_SUCCESS;
@@ -200,9 +190,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
     ur_native_handle_t hNativeSampler, ur_context_handle_t,
     const ur_sampler_native_properties_t *, ur_sampler_handle_t *phSampler) {
-  UR_ASSERT(hNativeSampler, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phSampler, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phSampler = reinterpret_cast<ur_sampler_handle_t>(
       cl_adapter::cast<cl_sampler>(hNativeSampler));
   return UR_RESULT_SUCCESS;
