@@ -102,6 +102,7 @@ class annotated_ref {
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
+  using this_t = annotated_ref<T, detail::properties_t<Props...>>;
 
 private:
   T *m_Ptr;
@@ -120,7 +121,7 @@ public:
 #endif
   }
 
-  annotated_ref &operator=(const T &Obj) {
+  this_t &operator=(const T &Obj) {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -131,7 +132,19 @@ public:
     return *this;
   }
 
-  annotated_ref &operator=(const annotated_ref &) = default;
+  this_t &operator=(const this_t &Obj) {
+    const T &t = Obj;
+    this->operator=(t);
+    return *this;
+  }
+
+  template <typename... OtherProperties>
+  this_t &operator=(
+      const annotated_ref<T, detail::properties_t<OtherProperties...>> &Obj) {
+    const T &t = Obj;
+    this->operator=(t);
+    return *this;
+  }
 
   PROPAGATE_OP(+=)
   PROPAGATE_OP(-=)

@@ -566,7 +566,7 @@ class annotated_ref {
     annotated_ref(const annotated_ref&) = default;
     operator T() const;
     annotated_ref& operator=(const T &);
-    annotated_ref& operator=(const annotated_ref&) = default;
+    annotated_ref& operator=(const annotated_ref&);
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -610,10 +610,11 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const annotated_ref&) = default;
+annotated_ref& operator=(const annotated_ref&);
 ----
 |
-Assign from another `annotated_ref` object.
+Copy an object of type `T` from another `annotated_ref<T, ...>` object.
+applying the annotations when the object is loaded from and stored to memory.
 
 |===
 
