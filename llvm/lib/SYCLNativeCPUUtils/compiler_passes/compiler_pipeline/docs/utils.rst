@@ -983,13 +983,12 @@ and is provided the ``llvm::Module`` as a parameter.
 ReplaceWGCPass
 --------------
 
-The ``ReplaceWGCPass`` provides software implementations of the OpenCL C
+The ``ReplaceWGCPass`` provides software implementations of the ComputeMux
 work-group collective builtins. Targets wishing to support work-group
 collectives in software **may** run this pass. This pass makes heavy use of
 barriers, so do not expect performance. Because it introduces barriers into the
 module, this pass **must** be run before any barrier analysis or
 materialization e.g., the `PrepareBarriersPass`_ and `HandleBarriersPass`_.
-
 
 This pass introduces global variables into the module qualified with the
 :ref:`local/Workgroup <overview/compiler/ir:Address Spaces>` address space and
@@ -1173,29 +1172,25 @@ such APIs, several of which are given here by way of example:
 Sub-groups
 ----------
 
-The implementation of OpenCL C sub-group builtins is split between several
-files. A trivial implementation (meaning sub-group == work-item) is provided in
-the builtins header ``modules/builtins/include/builtins/clbuiltins-3.0.h``.
-Some builtins (i.e. ``get_max_sub_group_size``, ``get_num_sub_groups`` and
-``get_sub_group_id``) are implemented in terms of ``__mux`` builtins since they
-may require scheduling information to be passed to their parameter list on some
-implementations. ``__mux_get_max_sub_group_size``,
-``__mux_get_num_sub_groups``, ``__mux_get_sub_group_id`` and
-``__mux_set_max_sub_group_size`` are defined in in
-``modules/compiler/utils/source/define_mux_builtins_pass.cpp``.
+A implementation of OpenCL C sub-group builtins is provided by the default
+compiler pipeline.
+
+The OpenCL C sub-group builtins are first translated into the corresponding
+ComputeMux builtin functions. These functions are understood by the rest of the
+compiler and can be identified and analyzed by the ``BuiltinInfo`` analysis.
+
+A definition of these mux builtins for where the sub-group size is 1 is
+provided by ``BIMuxInfoConcept`` used by the `DefineMuxBuiltinsPass`_.
 
 Vectorized definitions of the various sub-group builtins are provided by the
-VECZ pass which will overwrite the trivial definitions provided in the builtin
-headers, so any target running VECZ (and the above passes) will be able to
-support sub-groups. We still have to provide a fallback implementation (in
-this case the trivial implementation defined in the builtin headers) in order
-to accommodate for the situation where VECZ fails, or is disabled, in which
-case the target still needs to support sub-groups since they are a device
-feature.
+VECZ pass, so any target running VECZ (and the above passes) will be able to
+support sub-groups of a larger size than 1. Note that VECZ does not currently
+interact "on top of" the mux builtins - it replaces them in the functions it
+vectorized. This is future work to allow the two to build on top of each other.
 
-If a target not running VECZ wishes to provide their own sub-group
-implementation they should target the OpenCL C sub-group builtins directly,
-there are no ``__mux`` builtins for sub-groups other than those defined above.
+If a target wishes to provide their own sub-group implementation they should
+provide a derived ``BIMuxInfoConcept`` and override ``defineMuxBuiltin`` for
+the sub-group builtins.
 
 Linker support
 --------------

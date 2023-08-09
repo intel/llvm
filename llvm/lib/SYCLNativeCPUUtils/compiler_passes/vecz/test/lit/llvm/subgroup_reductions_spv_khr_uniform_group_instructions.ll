@@ -19,32 +19,32 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i32 @_Z16get_sub_group_idv()
+declare spir_func i64 @__mux_get_global_id(i32)
+declare spir_func i32 @__mux_get_sub_group_id()
 
-declare spir_func i32 @_Z20sub_group_reduce_muli(i32)
-declare spir_func i64 @_Z20sub_group_reduce_mull(i64)
-declare spir_func float @_Z20sub_group_reduce_mulf(float)
+declare spir_func i32 @__mux_sub_group_reduce_mul_i32(i32)
+declare spir_func i64 @__mux_sub_group_reduce_mul_i64(i64)
+declare spir_func float @__mux_sub_group_reduce_fmul_f32(float)
 
-declare spir_func i32 @_Z20sub_group_reduce_andj(i32)
-declare spir_func i32 @_Z19sub_group_reduce_ori(i32)
-declare spir_func i64 @_Z20sub_group_reduce_xorl(i64)
+declare spir_func i32 @__mux_sub_group_reduce_and_i32(i32)
+declare spir_func i32 @__mux_sub_group_reduce_or_i32(i32)
+declare spir_func i64 @__mux_sub_group_reduce_xor_i64(i64)
 
-declare spir_func i1 @_Z28sub_group_reduce_logical_andb(i1)
-declare spir_func i1 @_Z27sub_group_reduce_logical_orb(i1)
-declare spir_func i1 @_Z28sub_group_reduce_logical_xorb(i1)
+declare spir_func i1 @__mux_sub_group_reduce_logical_and_i1(i1)
+declare spir_func i1 @__mux_sub_group_reduce_logical_or_i1(i1)
+declare spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1)
 
 ; CHECK-LABEL: @__vecz_v4_reduce_mul_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.mul.v4i32(<4 x i32> %{{.*}})
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func i32 @_Z20sub_group_reduce_muli(i32 %0)
+  %call2 = tail call spir_func i32 @__mux_sub_group_reduce_mul_i32(i32 %0)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   store i32 %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -55,12 +55,12 @@ entry:
 ; CHECK: store i64 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_i64(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i64, ptr addrspace(1) %in, i64 %call
   %0 = load i64, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func i64 @_Z20sub_group_reduce_mull(i64 %0)
+  %call2 = tail call spir_func i64 @__mux_sub_group_reduce_mul_i64(i64 %0)
   %arrayidx3 = getelementptr inbounds i64, ptr addrspace(1) %out, i64 %conv
   store i64 %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -71,12 +71,12 @@ entry:
 ; CHECK: store float [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_f32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds float, ptr addrspace(1) %in, i64 %call
   %0 = load float, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func float @_Z20sub_group_reduce_mulf(float %0)
+  %call2 = tail call spir_func float @__mux_sub_group_reduce_fmul_f32(float %0)
   %arrayidx3 = getelementptr inbounds float, ptr addrspace(1) %out, i64 %conv
   store float %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -87,12 +87,12 @@ entry:
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_and_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func i32 @_Z20sub_group_reduce_andj(i32 %0)
+  %call2 = tail call spir_func i32 @__mux_sub_group_reduce_and_i32(i32 %0)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   store i32 %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -103,12 +103,12 @@ entry:
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_or_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func i32 @_Z19sub_group_reduce_ori(i32 %0)
+  %call2 = tail call spir_func i32 @__mux_sub_group_reduce_or_i32(i32 %0)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   store i32 %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -119,12 +119,12 @@ entry:
 ; CHECK: store i64 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_xor_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i64, ptr addrspace(1) %arrayidx, align 4
-  %call2 = tail call spir_func i64 @_Z20sub_group_reduce_xorl(i64 %0)
+  %call2 = tail call spir_func i64 @__mux_sub_group_reduce_xor_i64(i64 %0)
   %arrayidx3 = getelementptr inbounds i64, ptr addrspace(1) %out, i64 %conv
   store i64 %call2, ptr addrspace(1) %arrayidx3, align 4
   ret void
@@ -137,13 +137,13 @@ entry:
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_and(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call2 = tail call spir_func i1 @_Z28sub_group_reduce_logical_andb(i1 %1)
+  %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_and_i1(i1 %1)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   %zext = zext i1 %call2 to i32
   store i32 %zext, ptr addrspace(1) %arrayidx3, align 4
@@ -156,13 +156,13 @@ entry:
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_or(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call2 = tail call spir_func i1 @_Z27sub_group_reduce_logical_orb(i1 %1)
+  %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_or_i1(i1 %1)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   %zext = zext i1 %call2 to i32
   store i32 %zext, ptr addrspace(1) %arrayidx3, align 4
@@ -176,19 +176,15 @@ entry:
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_xor(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i32 @_Z16get_sub_group_idv() #6
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call spir_func i32 @__mux_get_sub_group_id() #6
   %conv = zext i32 %call1 to i64
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call2 = tail call spir_func i1 @_Z28sub_group_reduce_logical_xorb(i1 %1)
+  %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1 %1)
   %arrayidx3 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %conv
   %zext = zext i1 %call2 to i32
   store i32 %zext, ptr addrspace(1) %arrayidx3, align 4
   ret void
 }
-
-!opencl.ocl.version = !{!0}
-
-!0 = !{i32 3, i32 0}

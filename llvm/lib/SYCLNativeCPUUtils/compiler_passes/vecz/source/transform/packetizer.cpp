@@ -221,8 +221,8 @@ class Packetizer::Impl : public Packetizer {
   /// @param[in] SubgroupScanKind type of subgroup scan to packetized.
   ///
   /// @return Packetized values.
-  ValuePacket packetizeSubgroupScan(
-      CallInst *CI, compiler::utils::BuiltinSubgroupScanKind SubgroupScanKind);
+  ValuePacket packetizeSubgroupScan(CallInst *CI,
+                                    compiler::utils::GroupCollective Scan);
   /// @brief Perform post-packetization tasks for the given scalar value.
   ///
   /// @param[in] Scalar Scalar value to assign a vectorized value.
@@ -683,10 +683,10 @@ bool Packetizer::Impl::packetize() {
 
   compiler::utils::NameMangler Mangler(&F.getContext());
 
-  // Handle get_sub_group_size specially (i.e., not in BuiltinInfo) since
-  // inlining it requires extra vectorization context, such as the
-  // vectorization width and choices; this inlining is too tightly coupled to
-  // the vectorizer context to exist in a generic sense.
+  // Handle __mux_get_sub_group_size specially (i.e., not in BuiltinInfo) since
+  // inlining it requires extra vectorization context, such as the vectorization
+  // width and choices; this inlining is too tightly coupled to the vectorizer
+  // context to exist in a generic sense.
   for (auto &BB : F) {
     for (auto &I : BB) {
       CallInst *CI = dyn_cast<CallInst>(&I);
@@ -695,8 +695,8 @@ bool Packetizer::Impl::packetize() {
       }
 
       auto *const Callee = CI->getCalledFunction();
-      if (Callee &&
-          "get_sub_group_size" == Mangler.demangleName(Callee->getName())) {
+      if (Callee && Ctx.builtins().analyzeBuiltin(*Callee).ID ==
+                        compiler::utils::eMuxBuiltinGetSubGroupSize) {
         auto *const replacement = [this](CallInst *CI) -> Value * {
           if (VL) {
             return VL;
@@ -1084,10 +1084,19 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
   Function *callee = CI->getCalledFunction();
 
   auto const Builtin = BI.analyzeBuiltin(*callee);
-  auto const subgroupReduceKind = BI.getBuiltinSubgroupReductionKind(Builtin);
+  auto const Info = BI.isMuxGroupCollective(Builtin.ID);
 
-  if (subgroupReduceKind == compiler::utils::eBuiltinSubgroupReduceInvalid) {
+  if (!Info ||
+      Info->Scope != compiler::utils::GroupCollective::ScopeKind::SubGroup) {
     return nullptr;
+  }
+  switch (Info->Op) {
+    default:
+      return nullptr;
+    case compiler::utils::GroupCollective::OpKind::Any:
+    case compiler::utils::GroupCollective::OpKind::All:
+    case compiler::utils::GroupCollective::OpKind::Reduction:
+      break;
   }
 
   SmallVector<Value *, 16> opPackets;
@@ -1106,95 +1115,10 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
 
   auto op = packetize(CI->getArgOperand(0));
 
-  bool isSignedInt = false;
-  bool const isFP = argTy->isFPOrFPVectorTy();
-  bool const isBool = argTy->isIntOrIntVectorTy(/*BitWidth*/ 1);
-  (void)isBool;
-
-  // Determine whether this is a signed or unsigned integer min/max reduction.
-  if (!isFP &&
-      (subgroupReduceKind == compiler::utils::eBuiltinSubgroupReduceMax ||
-       subgroupReduceKind == compiler::utils::eBuiltinSubgroupReduceMin)) {
-    // Demangle the function name to get the type qualifiers.
-    SmallVector<Type *, 2> Types;
-    SmallVector<compiler::utils::TypeQualifiers, 2> Quals;
-    compiler::utils::NameMangler Mangler(&F.getContext());
-    if (!Mangler.demangleName(callee->getName(), Types, Quals).empty()) {
-      assert(!Quals.empty());
-      auto &Qual = Quals[0];
-      while (!isSignedInt && Qual.getCount()) {
-        isSignedInt |= Qual.pop_front() == compiler::utils::eTypeQualSignedInt;
-      }
-    }
-  }
-
-  RecurKind recurK;
-  switch (subgroupReduceKind) {
-    default:
-      emitVeczRemarkMissed(&F, nullptr, "Unimplemented subgroup reduction");
-      VECZ_FAIL();
-      break;
-    case compiler::utils::eBuiltinSubgroupAll:
-      recurK = RecurKind::And;
-      break;
-    case compiler::utils::eBuiltinSubgroupAny:
-      recurK = RecurKind::Or;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceAdd:
-      recurK = isFP ? RecurKind::FAdd : RecurKind::Add;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceMin:
-      recurK = isFP ? RecurKind::FMin
-                    : (isSignedInt ? RecurKind::SMin : RecurKind::UMin);
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceMax:
-      recurK = isFP ? RecurKind::FMax
-                    : (isSignedInt ? RecurKind::SMax : RecurKind::UMax);
-      break;
-    // SPV_KHR_uniform_group_instructions
-    case compiler::utils::eBuiltinSubgroupReduceMul:
-      recurK = isFP ? RecurKind::FMul : RecurKind::Mul;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceAnd:
-      assert(!isFP && "Invalid subgroup reduction");
-      recurK = RecurKind::And;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceOr:
-      assert(!isFP && "Invalid subgroup reduction");
-      recurK = RecurKind::Or;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceXor:
-      assert(!isFP && "Invalid subgroup reduction");
-      recurK = RecurKind::Xor;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceLogicalAnd:
-      assert(isBool && "Invalid subgroup reduction");
-      recurK = RecurKind::And;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceLogicalOr:
-      assert(isBool && "Invalid subgroup reduction");
-      recurK = RecurKind::Or;
-      break;
-    case compiler::utils::eBuiltinSubgroupReduceLogicalXor:
-      assert(isBool && "Invalid subgroup reduction");
-      recurK = RecurKind::Xor;
-      break;
-  }
-
   // Reduce the packet values in-place.
   // TODO: can we add 'reassoc' to the floating-point reductions to absolve
   // them of ordering? See CA-3969.
   op.getPacketValues(packetWidth, opPackets);
-
-  // Any/All reductions are defined as reducing over the i32 value being
-  // "evaluated to non-zero", so emit the required comparisons.
-  if (subgroupReduceKind == compiler::utils::eBuiltinSubgroupAll ||
-      subgroupReduceKind == compiler::utils::eBuiltinSubgroupAny) {
-    for (unsigned i = 0, e = opPackets.size(); i != e; i++) {
-      opPackets[i] = B.CreateICmpNE(
-          opPackets[i], ConstantInt::get(opPackets[i]->getType(), 0));
-    }
-  }
 
   // When in VP mode, pre-sanitize the reduction input (before VP reduction
   // intrinsics, introduced in LLVM 14)
@@ -1202,7 +1126,7 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
     assert(opPackets.size() == 1 &&
            "Should have bailed if dealing with more than one packet");
     Value *&val = opPackets.front();
-    val = sanitizeVPReductionInput(B, val, VL, recurK);
+    val = sanitizeVPReductionInput(B, val, VL, Info->Recurrence);
     if (!val) {
       emitVeczRemarkMissed(&F, CI,
                            "Can not vector-predicate subgroup reduction");
@@ -1222,21 +1146,16 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
     for (decltype(packetWidth) i = 0; i < packetWidth; ++i) {
       Value *const lhs = opPackets[i];
       Value *const rhs = opPackets[i + packetWidth];
-      opPackets[i] = multi_llvm::createBinOpForRecurKind(B, lhs, rhs, recurK);
+      opPackets[i] =
+          multi_llvm::createBinOpForRecurKind(B, lhs, rhs, Info->Recurrence);
     }
   }
 
   // Reduce to a scalar.
-  Value *v = createSimpleTargetReduction(B, &TTI, opPackets.front(), recurK);
+  Value *v =
+      createSimpleTargetReduction(B, &TTI, opPackets.front(), Info->Recurrence);
 
   IC.deleteInstructionLater(CI);
-
-  // For any/all reductions we have to get back from an i1 to the original
-  // type.
-  if (subgroupReduceKind == compiler::utils::eBuiltinSubgroupAll ||
-      subgroupReduceKind == compiler::utils::eBuiltinSubgroupAny) {
-    v = B.CreateSExt(v, CI->getType());
-  }
 
   CI->replaceAllUsesWith(v);
 
@@ -1252,7 +1171,12 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
   Function *callee = CI->getCalledFunction();
   auto const Builtin = BI.analyzeBuiltin(*callee);
 
-  if (!Builtin.isValid() || Builtin.ID != BI.getSubgroupBroadcastBuiltin()) {
+  if (auto Info = BI.isMuxGroupCollective(Builtin.ID)) {
+    if (Info->Scope != compiler::utils::GroupCollective::ScopeKind::SubGroup ||
+        Info->Op != compiler::utils::GroupCollective::OpKind::Broadcast) {
+      return nullptr;
+    }
+  } else {
     return nullptr;
   }
 
@@ -1542,13 +1466,14 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
   }
 
   auto const Builtin = Ctx.builtins().analyzeBuiltin(*Callee);
-  auto const subgroupScanKind =
-      Ctx.builtins().getBuiltinSubgroupScanKind(Builtin);
 
   // Handle subgroup scans, which defer to internal builtins.
-  if (Builtin.isValid() &&
-      subgroupScanKind != compiler::utils::eBuiltinSubgroupScanInvalid) {
-    return packetizeSubgroupScan(CI, subgroupScanKind);
+  if (auto Info = Ctx.builtins().isMuxGroupCollective(Builtin.ID)) {
+    if (Info->Scope == compiler::utils::GroupCollective::ScopeKind::SubGroup &&
+        (Info->Op == compiler::utils::GroupCollective::OpKind::ScanExclusive ||
+         Info->Op == compiler::utils::GroupCollective::OpKind::ScanInclusive)) {
+      return packetizeSubgroupScan(CI, *Info);
+    }
   }
 
   // Handle external builtins.
@@ -1651,7 +1576,7 @@ ValuePacket Packetizer::Impl::packetizeCall(CallInst *CI) {
 }
 
 ValuePacket Packetizer::Impl::packetizeSubgroupScan(
-    CallInst *CI, compiler::utils::BuiltinSubgroupScanKind subgroupScanKind) {
+    CallInst *CI, compiler::utils::GroupCollective Scan) {
   ValuePacket results;
 
   Function *callee = CI->getCalledFunction();
@@ -1659,101 +1584,60 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
     return results;
   }
 
-  const StringRef fnName = callee->getName();
   compiler::utils::NameMangler mangler(&CI->getContext());
 
   // The operands and types for the internal builtin
   SmallVector<Value *, 2> Ops = {packetize(CI->getArgOperand(0)).getAsValue()};
   SmallVector<Type *, 2> Tys = {getWideType(CI->getType(), SimdWidth)};
 
-  bool isInclusive = true;
+  bool isInclusive =
+      Scan.Op == compiler::utils::GroupCollective::OpKind::ScanInclusive;
   StringRef op = "add";
   // min/max scans are prefixed with s/u if they are signed/unsigned integer
   // operations. The value 'None' here represents an operation where the sign
   // of the operands is unimportant, such as floating-point operations, or
   // integer addition.
-  std::optional<bool> optIsSignedInt;
-  bool isInt = Tys[0]->isIntOrIntVectorTy();
+  bool opIsSignedInt = false;
 
-  // Determine whether this is a signed or unsigned integer min/max scan.
-  const auto isSignedArg0 = [isInt, fnName, &mangler]() -> std::optional<bool> {
-    if (!isInt) {
-      return std::nullopt;
-    }
-    // Demangle the function name to get the type qualifiers.
-    SmallVector<Type *, 2> types;
-    SmallVector<compiler::utils::TypeQualifiers, 2> quals;
-    if (mangler.demangleName(fnName, types, quals).empty()) {
-      return false;
-    }
-    assert(!quals.empty());
-    auto &qual = quals[0];
-    bool isSignedInt = false;
-    while (!isSignedInt && qual.getCount()) {
-      isSignedInt |= qual.pop_front() == compiler::utils::eTypeQualSignedInt;
-    }
-    return isSignedInt;
-  };
-
-  switch (subgroupScanKind) {
+  switch (Scan.Recurrence) {
     default:
       assert(false && "Impossible subgroup scan kind");
       return results;
-    case compiler::utils::eBuiltinSubgroupScanAddExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanAddIncl:
+    case llvm::RecurKind::Add:
+    case llvm::RecurKind::FAdd:
       op = "add";
       break;
-    case compiler::utils::eBuiltinSubgroupScanMinExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanMinIncl:
+    case llvm::RecurKind::SMin:
+      op = "smin";
+      opIsSignedInt = true;
+      break;
+    case llvm::RecurKind::UMin:
+      op = "umin";
+      break;
+    case llvm::RecurKind::FMin:
       op = "min";
-      optIsSignedInt = isSignedArg0();
       break;
-    case compiler::utils::eBuiltinSubgroupScanMaxExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanMaxIncl:
+    case llvm::RecurKind::SMax:
+      op = "smax";
+      opIsSignedInt = true;
+      break;
+    case llvm::RecurKind::UMax:
+      op = "umax";
+      break;
+    case llvm::RecurKind::FMax:
       op = "max";
-      optIsSignedInt = isSignedArg0();
       break;
-      /// Scans provided by SPV_KHR_uniform_group_instructions.
-    case compiler::utils::eBuiltinSubgroupScanMulExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanMulIncl:
+    case llvm::RecurKind::Mul:
+    case llvm::RecurKind::FMul:
       op = "mul";
       break;
-    case compiler::utils::eBuiltinSubgroupScanAndExcl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalAndExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanAndIncl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalAndIncl:
-      // Since we only support logical and on boolean types, we can re-use the
-      // regular bitwise and builtin.
+    case llvm::RecurKind::And:
       op = "and";
       break;
-    case compiler::utils::eBuiltinSubgroupScanOrExcl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalOrExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanOrIncl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalOrIncl:
-      // Since we only support logical or on boolean types, we can re-use the
-      // regular bitwise or builtin.
+    case llvm::RecurKind::Or:
       op = "or";
       break;
-    case compiler::utils::eBuiltinSubgroupScanXorExcl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalXorExcl:
-      isInclusive = false;
-      LLVM_FALLTHROUGH;
-    case compiler::utils::eBuiltinSubgroupScanXorIncl:
-    case compiler::utils::eBuiltinSubgroupScanLogicalXorIncl:
-      // Since we only support logical xor on boolean types, we can re-use the
-      // regular bitwise xor builtin.
+    case llvm::RecurKind::Xor:
       op = "xor";
       break;
   }
@@ -1767,12 +1651,11 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
   bool const VP = VL && SimdWidth.isScalable();
 
   O << VectorizationContext::InternalBuiltinPrefix << "sub_group_scan_"
-    << (isInclusive ? "inclusive" : "exclusive") << "_"
-    << (optIsSignedInt.has_value() ? (*optIsSignedInt ? "s" : "u") : "") << op
+    << (isInclusive ? "inclusive" : "exclusive") << "_" << op
     << (VP ? "_vp" : "") << "_";
 
   compiler::utils::TypeQualifiers VecQuals(
-      compiler::utils::eTypeQualNone, optIsSignedInt == true
+      compiler::utils::eTypeQualNone, opIsSignedInt
                                           ? compiler::utils::eTypeQualSignedInt
                                           : compiler::utils::eTypeQualNone);
   if (!mangler.mangleType(O, Tys[0], VecQuals)) {
@@ -2622,8 +2505,7 @@ Value *Packetizer::Impl::vectorizeCall(CallInst *CI) {
   if (Builtin.properties & compiler::utils::eBuiltinPropertyWorkItem) {
     // The subgroup ID is just a simple index sequence. There is no dimension
     // to it, and we only support 1D workgroups.
-    if (Builtin.isValid() &&
-        Builtin.ID == Ctx.builtins().getSubgroupLocalIdBuiltin()) {
+    if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
       IRBuilder<> B(buildAfter(CI, F));
       return multi_llvm::createIndexSequence(
           B, VectorType::get(CI->getType(), SimdWidth), SimdWidth,
