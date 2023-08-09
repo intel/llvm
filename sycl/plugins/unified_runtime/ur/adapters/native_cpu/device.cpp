@@ -83,7 +83,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64 ");
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -328,5 +328,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   std::ignore = NumBinaries;
   std::ignore = pSelectedBinary;
 
-  CONTINUE_NO_IMPLEMENTATION;
+#define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+  // look for a binary with type "native_cpu"
+  // Todo: error checking
+  // Todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU in upstream
+  const char *image_target = UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+  for (uint32_t i = 0; i < NumBinaries; ++i) {
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, image_target) == 0) {
+      *pSelectedBinary = i;
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // No image can be loaded for the given device
+  return UR_RESULT_ERROR_INVALID_BINARY;
 }
