@@ -547,17 +547,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
+  hBuffer->MemoryMigrationMutex.lock();
 
   ur_result_t Result = UR_RESULT_SUCCESS;
-  CUdeviceptr DevPtr =
-      ur_cast<ur_buffer_ *>(hBuffer)->getNativePtr(hQueue->getDevice());
+  
+  // Note that this entry point may be called on a specific queue that may not
+  // be the last queue to write to the MemBuffer
+  auto DeviceToCopyFrom = Buffer->LastEventWritingToMemObj == nullptr
+                              ? hQueue->getDevice()
+                              : Buffer->LastEventWritingToMemObj->getDevice();
+
+  CUdeviceptr DevPtr = Buffer->getNativePtr(DeviceToCopyFrom);
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedDevice Active(hQueue->getDevice());
-    CUstream CuStream = hQueue->getNextTransferStream();
+    ScopedDevice Active(DeviceToCopyFrom);
+    // FIXME: We can only use the default stream here since the active device
+    // may not be the active queue
+    CUstream CuStream{0};
 
     Result = enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
+    if (Buffer->LastEventWritingToMemObj != nullptr) {
+      Result =
+          enqueueEventsWait(CuStream, 1, &Buffer->LastEventWritingToMemObj);
+    }
 
     if (phEvent) {
       RetImplEvent =
@@ -1549,9 +1563,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   UR_ASSERT(offset + size <= Buffer->Size, UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
+
   // Note that this entry point may be called on a specific queue that may not
   // be the last queue to write to the MemBuffer
-
   auto DeviceToCopyFrom = Buffer->LastEventWritingToMemObj == nullptr
                               ? hQueue->getDevice()
                               : Buffer->LastEventWritingToMemObj->getDevice();
@@ -1565,12 +1579,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     // may not be the active queue
     CUstream CuStream{0};
 
+    Result = enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
     if (Buffer->LastEventWritingToMemObj != nullptr) {
-      Result = enqueueEventsWait(CuStream, numEventsInWaitList,
-                                 &Buffer->LastEventWritingToMemObj);
-    } else {
       Result =
-          enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
+          enqueueEventsWait(CuStream, 1, &Buffer->LastEventWritingToMemObj);
     }
 
     if (phEvent) {
