@@ -11,6 +11,7 @@
 #include <ur_api.h>
 
 #include "context.hpp"
+#include <map>
 
 struct ur_program_handle_t_ {
   ur_program_handle_t_(ur_context_handle_t ctx, const unsigned char *pBinary)
@@ -21,4 +22,21 @@ struct ur_program_handle_t_ {
   ur_context_handle_t _ctx;
   const unsigned char *_ptr;
   std::atomic_uint32_t _refCount;
+
+  struct _compare {
+    bool operator()(char const *a, char const *b) const {
+      return std::strcmp(a, b) < 0;
+    }
+  };
+
+  std::map<const char *, const unsigned char *, _compare> _kernels;
+};
+
+// The nativecpu_entry struct is also defined as LLVM-IR in the
+// clang-offload-wrapper tool. The two definitions need to match,
+// therefore any change to this struct needs to be reflected in the
+// offload-wrapper.
+struct nativecpu_entry {
+  const char *kernelname;
+  const unsigned char *kernel_ptr;
 };
