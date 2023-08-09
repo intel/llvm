@@ -124,8 +124,7 @@ static bool isSubgroupBroadcastOrReduction(
   }
   auto const Builtin = BI.analyzeBuiltin(*Callee);
   if (auto Info = BI.isMuxGroupCollective(Builtin.ID);
-      Info &&
-      Info->Scope == compiler::utils::GroupCollective::ScopeKind::SubGroup) {
+      Info && Info->isSubGroupScope()) {
     switch (Info->Op) {
       default:
         return false;
