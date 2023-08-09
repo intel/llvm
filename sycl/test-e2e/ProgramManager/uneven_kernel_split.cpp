@@ -9,7 +9,7 @@
 // Test require the following device image structure: cpu target device image
 // contains kernel 1 and kernel 2. gpu target device image contains kernel1 and
 // another gpu target device image contains kernel2. Kernel names must be the
-// same for both targets. Checks validness of device image search.
+// same for both targets. Checks validity of device image search.
 
 #include "inc.hpp"
 
