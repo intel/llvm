@@ -5,7 +5,7 @@ This is the collaboration space for the oneAPI vendor Command Graph extension fo
 ### Specification
 
 A draft of our Command Graph extension proposal can be found here:
-[https://github.com/intel/llvm/pull/5626](https://github.com/intel/llvm/pull/5626).
+[sycl_ext_oneapi_graph](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc).
 
 ### Implementation
 
@@ -31,7 +31,7 @@ is something we are interested in expanding on.
 | Backend    | Implementation Support     |
 | ---------- | -------------------------- |
 | Level Zero | Native using command-lists |
-| CUDA       | Unsupported                |
+| CUDA       | Native support is a work-in-progress |
 | OpenCL     | Unsupported                |
 | HIP        | Unsupported                |
 | Others     | Unsupported                |
@@ -49,10 +49,10 @@ is something we are interested in expanding on.
 | Empty node                                                         | Implemented           |
 | Queue `ext_oneapi_get_state()` query                               | Implemented           |
 | Vendor test macro                                                  | Implemented           |
-| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented, with the limitations that a subgraph can only be added as a node to any parent graph once, and will not correctly execute by itself after being added as a sub-graph. |
+| Ability to add a graph as a node of another graph (Sub-graphs)     | Implemented           |
 | Using all capabilities of USM in a graph node                      | Implemented           |
-| Extending lifetime of buffers used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Segmentation fault      |
-| Buffer taking a copy of underlying host data when buffer is used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Segmentation fault      |
+| Extending lifetime of buffers used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Throws an exception that feature is not supported yet |
+| Buffer taking a copy of underlying host data when buffer is used in a graph, as defined by the "Storage Lifetimes" specification section  | Not implemented - Throws an exception that feature is not supported yet |
 | Executable graph `update()`                                        | Not implemented - Exception "Method not yet implemented"      |
 | Recording an in-order queue preserves linear dependencies          | Implemented           |
 | Using `handler::parallel_for` in a graph node                      | Implemented           |
@@ -64,13 +64,13 @@ is something we are interested in expanding on.
 | Using `handler::memset` in a graph node                            | Not implemented - Exception: "CG type not implemented for command buffers"       |
 | Using `handler::prefetch` in a graph node                          | Not implemented - Exception: "CG type not implemented for command buffers"       |
 | Using `handler::memadvise` in a graph node                         | Not implemented - Exception: "CG type not implemented for command buffers"       |
-| Using specialization constants in a graph node                     | Not implemented - Segmentation fault      |
-| Using reductions in a graph node                                   | Not implemented - Segmentation fault      |
+| Using specialization constants in a graph node                     | Not implemented - Throws an exception that feature is not supported yet |
+| Using reductions in a graph node                                   | Not implemented - Throws an exception that feature is not supported yet |
+| Using kernel bundles in a graph node                                   | Not implemented - Throws an exception that feature is not supported yet |
 | Using sycl streams in a graph node                                 | Not implemented - Exception: "Failed to add kernel to PI command-buffer"      |
-| Thread safety of new methods                                       | Not implemented       |
-| Profiling an event returned from graph submission with `event::get_profiling_info()`       | Unsupported       |
+| Thread safety of new methods                                       | Implemented       |
+| Profiling an event returned from graph submission with `event::get_profiling_info()`       | Not implemented - Throws an exception that feature is not supported yet |
 | Querying the state of an event returned from graph submission with `event::get_info<info::event::command_execution_status>()`     | Implemented       |
-| Error checking                                                     | Throwing exceptions for invalid usage is only partially implemented |
 
 ### Other Material
 
