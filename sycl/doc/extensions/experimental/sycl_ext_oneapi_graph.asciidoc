@@ -316,6 +316,16 @@ class no_cycle_check {
     no_cycle_check() = default;
 };
 
+class assume_buffer_outlives_graph {
+  public:
+    assume_buffer_outlives_graph() = default;
+};
+
+class assume_data_outlives_buffer {
+  public:
+    assume_data_outlives_buffer() = default;
+};
+
 } // namespace graph
 
 namespace node {
@@ -531,6 +541,27 @@ puts that `command_graph` into an undefined state. Any further operations
 performed on a `command_graph` in this state will result in undefined
 behavior.
 
+===== Assume-Buffer-Outlives-Graph Property [[assume-buffer-outlives-graph-property]]
+
+The `property::graph::assume_buffer_outlives_graph` property disables
+<<buffer-limitations, restrictions on using buffers>> in a `command_graph` and
+can be passed to a `command_graph` on construction via the property list
+parameter. This property represents a promise from the user that any buffer
+which is used in a graph will be kept alive on the host for the lifetime of the
+graph. Destroying that buffer during the lifetime of a `command_graph`
+constructed with this property results in undefined behavior.
+
+===== Assume-Data-Outlives-Buffer Property [[assume-data-outlives-buffer-property]]
+
+The `property::graph::assume_data_outlives_buffer` property disables
+<<buffer-limitations, restrictions on using buffers>> which have been created
+with a host pointer in a `command_graph`, and can be passed to a `command_graph`
+on construction via the property list parameter. This property represents a
+promise from the user that any host data passed to a buffer's constructor will
+outlive the buffer itself, and by extension any graph in which that buffer is
+used. Deleting or otherwise modifying this host data during the lifetime of the
+buffer or graph results in undefined behavior when using this property.
+
 ==== Graph Member Functions
 
 Table {counter: tableNumber}. Constructor of the `command_graph` class.
@@ -647,6 +678,11 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
+
+* Throws synchronously with error code `invalid` if this command uses a buffer
+  which was created with a host data pointer. See the
+  <<assume-data-outlives-buffer-property, Assume-Data-Outlives-Buffer>>
+  property for more information.
 
 |
 [source,c++]
@@ -1065,6 +1101,23 @@ synchronously with error code `invalid`.
 
 ==== Buffer Limitations
 
+The use of buffers inside a `command_graph` is restricted unless the user
+creates the graph with the <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+property. Buffer lifetimes are not extended by a `command_graph` in which they
+are used and so the user must ensure that their lifetimes exceed that of the
+`command_graph`. Attempting to use a buffer in a `command_graph` without this
+property will result in a synchronous error being throw with error code
+`invalid`.
+
+There are also restrictions on using a buffer which has been created with a
+host data pointer in commands recorded to a `command_graph`. Because of the
+delayed execution of a `command_graph`, data may not be copied to the device
+immediately when commands using these buffers are submitted to the graph,
+therefore the host data must also outlive the graph to ensure correct behavior.
+Users can pass the <<assume-data-outlives-buffer-property, Assume-Data-Outlives-Buffer>>
+property to the graph constructor to provide a promise that this will not occur
+and that it is safe to use this buffer in the graph.
+
 Because of the delayed execution of a recorded graph, it is not possible to support
 captured code which relies on the copy-back on destruction behavior of buffers.
 Typically, applications would rely on this behavior to do work on the host which
@@ -1440,7 +1493,7 @@ of scope, or before the data has been copied to the device.
 The default behavior is to always copy the host data in a case like this, but
 this is not necessary if the user knows that the lifetime of the host data
 outlives the lifetime of the recorded graph. If the user knows this is the
-case, they may use the `graph::no_host_copy` property to avoid the internal
+case, they may use the `graph::assume_data_outlives_buffer` property to avoid the internal
 copy. Passing the property to `begin_recording()` will prevent host copies only
 for commands recorded before `end_recording()` is called for a given queue.
 Passing the property to the `command_graph` constructor will prevent host copies
@@ -1451,19 +1504,6 @@ if all the commands accessing this buffer use `access_mode::write` or the
 `no_init` property because the host memory is not needed in these cases.
 Note, however, that these cases require the application to disable copy-back
 as described in <<buffer-limitations, Buffer Limitations>>.
-
-===== No-Host-Copy Property
-
-The `no_host_copy` property is defined by this extension and can be passed to
-either the `command_graph` constructor or the `command_graph::begin_recording()`
-member function. This property will disable the host data copy that may
-occur as detailed in the <<storage-lifetimes, storage lifetimes>> section of
-this specification.
-
-Passing this property represents a promise from the user that host data
-associated with a buffer that was created using a host data pointer will
-outlive any executable graphs created from a modifiable graph which uses
-that buffer.
 
 ==== Host Tasks [[future-host-tasks]]
 
