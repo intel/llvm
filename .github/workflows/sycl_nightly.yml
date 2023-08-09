@@ -68,7 +68,7 @@ jobs:
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: ${{ matrix.name }}
-      runner: ${{ matrix. runner }}
+      runner: ${{ matrix.runner }}
       image: ${{ matrix.image }}
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
