@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
@@ -103,7 +104,15 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   Type *NativeCPUArgDescPtrType = PointerType::getUnqual(NativeCPUArgDescType);
 
   // Create function signature
-  const std::string SubHandlerName = F->getName().str() + "subhandler";
+  // Todo: we need to ensure that the kernel name is not mangled as a type
+  // name, otherwise this may lead to runtime failures due to *weird*
+  // codegen/linking behaviour, we change the name of the kernel, and the
+  // subhandler steals its name, we add a suffix to the subhandler later
+  // on when lowering the device module
+  std::string OldName = F->getName().str();
+  std::string NewName = OldName + ".NativeCPUKernel";
+  const auto SubHandlerName = OldName;
+  F->setName(NewName);
   FunctionType *FTy = FunctionType::get(
       Type::getVoidTy(Ctx), {NativeCPUArgDescPtrType, StatePtrType}, false);
   auto SubhFCallee = F->getParent()->getOrInsertFunction(SubHandlerName, FTy);
@@ -142,6 +151,15 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
   KernelArgs.push_back(SubhF->getArg(1));
   Builder.CreateCall(KernelTy, F, KernelArgs);
   Builder.CreateRetVoid();
+
+  // Add sycl-module-id attribute
+  // Todo: we may want to copy other attributes to the subhandler,
+  // but we can't simply use setAttributes(F->getAttributes) since
+  // the function signatures are different
+  if (F->hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
+    Attribute MId = F->getFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID);
+    SubhF->addFnAttr("sycl-module-id", MId.getValueAsString());
+  }
 }
 
 // Clones the function and returns a new function with a new argument on type T
@@ -252,8 +270,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       StructType::create({PointerType::getUnqual(M.getContext())});
   for (auto &NewK : NewKernels) {
     emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
-    std::string NewName = NewK->getName().str() + "_NativeCPUKernel";
-    NewK->setName(NewName);
   }
 
   // Then we iterate over all the supported builtins, find their uses and
