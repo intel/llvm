@@ -600,6 +600,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   } catch (ur_result_t Err) {
     Result = Err;
   }
+  hBuffer->MemoryMigrationMutex.unlock();
+
   return Result;
 }
 
