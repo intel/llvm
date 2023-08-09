@@ -54,8 +54,6 @@ convertURQueuePropertiesToCL(const ur_queue_properties_t *URQueueProperties) {
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProperties, ur_queue_handle_t *phQueue) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   cl_platform_id CurPlatform;
   CL_RETURN_ON_FAILURE_AND_SET_NULL(
@@ -104,8 +102,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
                                                    size_t propSize,
                                                    void *pPropValue,
                                                    size_t *pPropSizeRet) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   if (propName == UR_QUEUE_INFO_EMPTY) {
     // OpenCL doesn't provide API to check the status of the queue.
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -127,14 +123,12 @@ urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
-    ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
-    ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
+    ur_native_handle_t hNativeQueue,
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] ur_device_handle_t hDevice,
+    [[maybe_unused]] const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
-  UR_ASSERT(hNativeQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phQueue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  (void)hContext;
-  (void)hDevice;
-  (void)pProperties;
+
   *phQueue = reinterpret_cast<ur_queue_handle_t>(hNativeQueue);
   cl_int RetErr =
       clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(hNativeQueue));
@@ -143,21 +137,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr = clFinish(cl_adapter::cast<cl_command_queue>(hQueue));
   CL_RETURN_ON_FAILURE(RetErr);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr =
       clRetainCommandQueue(cl_adapter::cast<cl_command_queue>(hQueue));
   CL_RETURN_ON_FAILURE(RetErr);
@@ -165,7 +156,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int RetErr =
       clReleaseCommandQueue(cl_adapter::cast<cl_command_queue>(hQueue));
   CL_RETURN_ON_FAILURE(RetErr);

@@ -36,9 +36,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
     const ur_context_properties_t *, ur_context_handle_t *phContext) {
 
-  UR_ASSERT(phDevices, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   cl_int Ret;
   *phContext = cl_adapter::cast<ur_context_handle_t>(
       clCreateContext(nullptr, cl_adapter::cast<cl_uint>(DeviceCount),
@@ -72,7 +69,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
 
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int CLPropName = mapURContextInfoToCL(propName);
 
@@ -107,7 +103,6 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
 
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int Ret = clReleaseContext(cl_adapter::cast<cl_context>(hContext));
   return mapCLErrorToUR(Ret);
 }
@@ -115,16 +110,12 @@ urContextRelease(ur_context_handle_t hContext) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRetain(ur_context_handle_t hContext) {
 
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   cl_int Ret = clRetainContext(cl_adapter::cast<cl_context>(hContext));
   return mapCLErrorToUR(Ret);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext);
   return UR_RESULT_SUCCESS;
@@ -133,8 +124,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext, uint32_t, const ur_device_handle_t *,
     const ur_context_native_properties_t *, ur_context_handle_t *phContext) {
-
-  UR_ASSERT(hNativeContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phContext = reinterpret_cast<ur_context_handle_t>(hNativeContext);
   return UR_RESULT_SUCCESS;

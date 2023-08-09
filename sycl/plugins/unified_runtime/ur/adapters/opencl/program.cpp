@@ -37,10 +37,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
     ur_context_handle_t hContext, const void *pIL, size_t length,
     const ur_program_properties_t *, ur_program_handle_t *phProgram) {
 
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pIL, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   std::unique_ptr<std::vector<cl_device_id>> DevicesInCtx;
   CL_RETURN_ON_FAILURE_AND_SET_NULL(
       cl_adapter::getDevicesFromContext(hContext, DevicesInCtx), phProgram);
@@ -122,11 +118,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     const uint8_t *pBinary, const ur_program_properties_t *,
     ur_program_handle_t *phProgram) {
 
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pBinary, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   cl_int BinaryStatus;
   cl_int CLResult;
   *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithBinary(
@@ -140,11 +131,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
-                 const char *pOptions) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+urProgramCompile([[maybe_unused]] ur_context_handle_t hContext,
+                 ur_program_handle_t hProgram, const char *pOptions) {
 
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
   CL_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
@@ -187,8 +175,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
 
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
                                         mapURProgramInfoToCL(propName),
                                         propSize, pPropValue, pPropSizeRet));
@@ -196,12 +182,9 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
-                                                   ur_program_handle_t hProgram,
-                                                   const char *pOptions) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+UR_APIEXPORT ur_result_t UR_APICALL
+urProgramBuild([[maybe_unused]] ur_context_handle_t hContext,
+               ur_program_handle_t hProgram, const char *pOptions) {
 
   std::unique_ptr<std::vector<cl_device_id>> DevicesInProgram;
   CL_RETURN_ON_FAILURE(getDevicesFromProgram(hProgram, DevicesInProgram));
@@ -216,10 +199,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
-
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phPrograms, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int CLResult;
   *phProgram = cl_adapter::cast<ur_program_handle_t>(
@@ -253,9 +232,6 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
 
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
       cl_adapter::cast<cl_program>(hProgram),
       cl_adapter::cast<cl_device_id>(hDevice),
@@ -266,7 +242,6 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   CL_RETURN_ON_FAILURE(clRetainProgram(cl_adapter::cast<cl_program>(hProgram)));
   return UR_RESULT_SUCCESS;
@@ -274,7 +249,6 @@ urProgramRetain(ur_program_handle_t hProgram) {
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   CL_RETURN_ON_FAILURE(
       clReleaseProgram(cl_adapter::cast<cl_program>(hProgram)));
@@ -284,18 +258,13 @@ urProgramRelease(ur_program_handle_t hProgram) {
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
     ur_program_handle_t hProgram, ur_native_handle_t *phNativeProgram) {
 
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phNativeProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   *phNativeProgram = reinterpret_cast<ur_native_handle_t>(hProgram);
-
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
     ur_native_handle_t hNativeProgram, ur_context_handle_t,
     const ur_program_native_properties_t *, ur_program_handle_t *phProgram) {
-  UR_ASSERT(hNativeProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   *phProgram = reinterpret_cast<ur_program_handle_t>(hNativeProgram);
   return UR_RESULT_SUCCESS;

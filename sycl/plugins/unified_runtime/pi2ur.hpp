@@ -3936,17 +3936,6 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
   HANDLE_ERRORS(urEventGetInfo(UREvent, PropName, ParamValueSize, ParamValue,
                                ParamValueSizeRet));
 
-  if (ParamName == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    /* If the PI_EVENT_INFO_COMMAND_EXECUTION_STATUS info value is
-     * PI_EVENT_QUEUED, change it to PI_EVENT_SUBMITTED. This change is needed
-     * since sycl::info::event::event_command_status has no equivalent to
-     * PI_EVENT_QUEUED. */
-    const auto param_value_int = static_cast<pi_int32 *>(ParamValue);
-    if (*param_value_int == PI_EVENT_QUEUED) {
-      *param_value_int = PI_EVENT_SUBMITTED;
-    }
-  }
-
   return PI_SUCCESS;
 }
 

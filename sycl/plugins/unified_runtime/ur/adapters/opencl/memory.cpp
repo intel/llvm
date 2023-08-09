@@ -224,8 +224,6 @@ cl_map_flags convertURMemFlagsToCL(ur_mem_flags_t URFlags) {
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags, size_t size,
     const ur_buffer_properties_t *pProperties, ur_mem_handle_t *phBuffer) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phBuffer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int RetErr = CL_INVALID_OPERATION;
   if (pProperties) {
@@ -282,8 +280,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ur_context_handle_t hContext, ur_mem_flags_t flags,
     const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
     void *pHost, ur_mem_handle_t *phMem) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int RetErr = CL_INVALID_OPERATION;
 
@@ -303,8 +299,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
     ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
     ur_mem_handle_t *phMem) {
-  UR_ASSERT(hBuffer, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   cl_int RetErr = CL_INVALID_OPERATION;
 
@@ -335,28 +329,23 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-  (void)hContext;
-  (void)pProperties;
-  UR_ASSERT(hNativeMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    ur_native_handle_t hNativeMem,
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] const ur_mem_native_properties_t *pProperties,
+    ur_mem_handle_t *phMem) {
+
   *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
-    ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_image_format_t *pImageFormat, const ur_image_desc_t *pImageDesc,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-  (void)hContext;
-  (void)pImageFormat;
-  (void)pImageDesc;
-  (void)pProperties;
-  UR_ASSERT(hNativeMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+    ur_native_handle_t hNativeMem,
+    [[maybe_unused]] ur_context_handle_t hContext,
+    [[maybe_unused]] const ur_image_format_t *pImageFormat,
+    [[maybe_unused]] const ur_image_desc_t *pImageDesc,
+    [[maybe_unused]] const ur_mem_native_properties_t *pProperties,
+    ur_mem_handle_t *phMem) {
+
   *phMem = reinterpret_cast<ur_mem_handle_t>(hNativeMem);
   return UR_RESULT_SUCCESS;
 }
@@ -366,7 +355,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
                                                  size_t propSize,
                                                  void *pPropValue,
                                                  size_t *pPropSizeRet) {
-  UR_ASSERT(hMemory, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int CLPropName = mapURMemInfoToCL(propName);
@@ -382,7 +370,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
                                                       size_t propSize,
                                                       void *pPropValue,
                                                       size_t *pPropSizeRet) {
-  UR_ASSERT(hMemory, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   const cl_int CLPropName = mapURMemImageInfoToCL(propName);
@@ -394,13 +381,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   CL_RETURN_ON_FAILURE(clRetainMemObject(cl_adapter::cast<cl_mem>(hMem)));
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
-  UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   CL_RETURN_ON_FAILURE(clReleaseMemObject(cl_adapter::cast<cl_mem>(hMem)));
   return UR_RESULT_SUCCESS;
 }
