@@ -1131,7 +1131,8 @@ auto ConstantPropagationPass::getConstantArgs(
             }
             return TypeSwitch<Type, std::unique_ptr<ConstantExplicitArg>>(
                        type.getValue())
-                .Case<AccessorType, LocalAccessorType>([&](auto) {
+                .Case<AccessorType, LocalAccessorType>([&,
+                                                        value = value](auto) {
                   return getConstantAccessorArg(op, accessorAnalysis, trueIndex,
                                                 value);
                 })
