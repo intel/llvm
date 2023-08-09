@@ -90,17 +90,17 @@ StringRef fp::getAccuracyForFPBuiltin(Intrinsic::ID IID, const Type *Ty,
 
   // High and medium accuracy have the same requirement for all functions
   if (AccuracyLevel == fp::FPAccuracy::High)
-    return "1.0f";
+    return "1.0";
   if (AccuracyLevel == fp::FPAccuracy::Medium)
-    return "4.0f";
+    return "4.0";
 
   // Low accuracy is computed in terms of accurate bits, so it depends on the
   // type
   if (AccuracyLevel == fp::FPAccuracy::Low) {
     if (Ty->isFloatTy())
-      return "8192.0f";
+      return "8192.0";
     if (Ty->isDoubleTy())
-      return "67108864.0f"; // 2^(53-26-1) == 26-bits of accuracy
+      return "67108864.0"; // 2^(53-26-1) == 26-bits of accuracy
 
     // Other types are not supported
     llvm_unreachable("Unexpected type for FPAccuracy");

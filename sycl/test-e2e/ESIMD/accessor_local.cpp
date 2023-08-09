@@ -1,13 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: GPU driver on Windows requires a fix/update.
-// XFAIL: windows
-
-// Failure on Linux: https://github.com/intel/llvm/issues/10138
-// UNSUPPORTED: linux
-
-// esimd_emulator does not yet support local accessors
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
 // UNSUPPORTED: esimd_emulator
 
 // This test verifies usage of local_accessor methods operator[]

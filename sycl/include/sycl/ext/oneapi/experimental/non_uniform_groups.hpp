@@ -7,13 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
-#include <sycl/types.hpp>
+
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/marray.hpp>                    // for marray
+#include <sycl/types.hpp>                     // for vec
+
+#include <stddef.h> // for size_t
+#include <stdint.h> // for uint32_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -78,5 +81,5 @@ class opportunistic_group;
 
 } // namespace ext::oneapi::experimental
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -7,14 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/detail/array.hpp>
-#include <sycl/detail/helpers.hpp>
 
-#include <stdexcept>
-#include <type_traits>
+#include <sycl/detail/array.hpp>   // for array
+#include <sycl/detail/helpers.hpp> // for Builder
+
+#include <array>       // for array
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <int Dimensions> class id;
 
 /// Defines the iteration domain of either a single work-group in a parallel
@@ -63,7 +65,7 @@ public:
   range(range<Dimensions> &&rhs) = default;
   range<Dimensions> &operator=(const range<Dimensions> &rhs) = default;
   range<Dimensions> &operator=(range<Dimensions> &&rhs) = default;
-  range() = delete;
+  range() = default;
 
 // OP is: +, -, *, /, %, <<, >>, &, |, ^, &&, ||, <, >, <=, >=
 #define __SYCL_GEN_OPT_BASE(op)                                                \
@@ -240,5 +242,5 @@ inline std::array<size_t, 3> rangeToArray(const range<1> &r) {
 }
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
