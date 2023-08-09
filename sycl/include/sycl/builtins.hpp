@@ -8,14 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/detail/boolean.hpp>             // for Boolean
+#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
+#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>         // for make_larger_t, marray...
+#include <sycl/half_type.hpp>                  // for half, intel
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/multi_ptr.hpp>                  // for address_space_cast
+#include <sycl/types.hpp>                      // for vec
 
-#include <algorithm>
+#include <cstring>     // for memcpy, size_t
+#include <type_traits> // for enable_if_t, conditio...
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/
@@ -727,8 +734,8 @@ std::enable_if_t<__FAST_MATH_GENFLOAT(T), T> sin(T x) __NOEXC {
 
 // svgenfloat sincos (svgenfloat x, genfloatptr cosval)
 template <typename T, typename T2>
-std::enable_if_t<
-    detail::is_svgenfloat<T>::value && detail::is_genfloatptr<T2>::value, T>
+std::enable_if_t<__FAST_MATH_GENFLOAT(T) && detail::is_genfloatptr<T2>::value,
+                 T>
 sincos(T x, T2 cosval) __NOEXC {
   detail::check_vector_size<T, T2>();
   return __sycl_std::__invoke_sincos<T>(x, cosval);
@@ -2491,6 +2498,23 @@ inline __SYCL_ALWAYS_INLINE
 template <typename T>
 std::enable_if_t<detail::is_svgenfloatf<T>::value, T> cos(T x) __NOEXC {
   return native::cos(x);
+}
+
+// svgenfloat sincos (svgenfloat x, genfloatptr cosval)
+// This is a performance optimization to ensure that sincos isn't slower than a
+// pair of sin/cos executed separately. Theoretically, calling non-native sincos
+// might be faster than calling native::sin plus native::cos separately and we'd
+// need some kind of cost model to make the right decision (and move this
+// entirely to the JIT/AOT compilers). However, in practice, this simpler
+// solution seems to work just fine and matches how sin/cos above are optimized
+// for the fast math path.
+template <typename T, typename T2>
+std::enable_if_t<
+    detail::is_svgenfloatf<T>::value && detail::is_genfloatptr<T2>::value, T>
+sincos(T x, T2 cosval) __NOEXC {
+  detail::check_vector_size<T, T2>();
+  *cosval = native::cos(x);
+  return native::sin(x);
 }
 
 // svgenfloatf exp (svgenfloatf x)

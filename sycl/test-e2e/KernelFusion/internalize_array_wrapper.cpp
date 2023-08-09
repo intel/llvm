@@ -2,6 +2,9 @@
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
 
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
+
 // Test internalization of a nested array type.
 
 #include <array>

@@ -8,11 +8,15 @@
 
 #pragma once
 
-#include <sycl/detail/array.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/array.hpp>              // for array
+#include <sycl/detail/common.hpp>             // for InitializedVal
+#include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED, __SYCL_A...
+#include <sycl/exception.hpp> // for make_error_code, errc, exce...
+#include <sycl/range.hpp>     // for range
+
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t, conditional_t
 
 namespace sycl {
 inline namespace _V1 {

@@ -7,10 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <functional>
-#include <stdexcept>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
+
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_VALUE
+#include <sycl/exception.hpp>                 // for invalid_parameter_error
+
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {
