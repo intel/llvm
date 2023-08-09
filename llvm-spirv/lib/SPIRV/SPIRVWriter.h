@@ -248,6 +248,8 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+  std::vector<SPIRVId> collectEntryPointInterfaces(SPIRVFunction *BF,
+                                                   Function *F);
 };
 
 class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {

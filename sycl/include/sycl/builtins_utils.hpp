@@ -8,14 +8,21 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>              // for address_space, decorated
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/detail/boolean.hpp>             // for Boolean
+#include <sycl/detail/builtins.hpp>            // for __invoke_select, __in...
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
+#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
+#include <sycl/detail/type_traits.hpp>         // for make_larger_t, marray...
+#include <sycl/half_type.hpp>                  // for half, intel
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/multi_ptr.hpp>                  // for address_space_cast
+#include <sycl/types.hpp>                      // for vec
 
 #include <algorithm>
+#include <cstring>
 
 namespace sycl {
 inline namespace _V1 {

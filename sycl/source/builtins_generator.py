@@ -632,18 +632,21 @@ class Def(DefCommon):
   A class representing a builtin definition.
   fast_math_invoke_name - Similar to invoke_name, but will only be used for
     valid types when fast math is enabled.
+  fast_math_custom_invoke - Similar to custom_invoke,  but will only be used for
+    valid types when fast math is enabled.
   convert_args - A list of either strings or tuples specifying how to convert
     arguments when calling the implementation invocation function.
   NOTE: For additional members, see DefCommon.
   """
   def __init__(self, return_type, arg_types, invoke_name=None,
                invoke_prefix="", custom_invoke=None, fast_math_invoke_name=None,
-               convert_args=[], size_alias=None, marray_use_loop=False,
-               template_scalar_args=False):
+               fast_math_custom_invoke=None, convert_args=[], size_alias=None,
+               marray_use_loop=False, template_scalar_args=False):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
                      custom_invoke, size_alias, marray_use_loop,
                      template_scalar_args)
     self.fast_math_invoke_name = fast_math_invoke_name
+    self.fast_math_custom_invoke = fast_math_custom_invoke
     # List of tuples with mappings for arguments to cast to argument types.
     # First element in a tuple is the index of the argument to cast and the
     # second element is the index of the argument type to convert to.
@@ -655,10 +658,13 @@ class Def(DefCommon):
     """Generates the body of scalar and vector builtins."""
     invoke_args = get_invoke_args(arg_types, arg_names, self.convert_args)
     result = ""
-    if self.fast_math_invoke_name:
-      result += f"""  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{
-    return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({(", ".join(invoke_args))});
-  }}\n"""
+    if self.fast_math_invoke_name or self.fast_math_custom_invoke:
+      result += f'  if constexpr (detail::use_fast_math_v<{arg_types[0]}>) {{'
+      if self.fast_math_custom_invoke:
+        result += self.fast_math_custom_invoke(return_type, arg_types, arg_names)
+      else:
+        result += f'    return __sycl_std::__invoke_{self.fast_math_invoke_name}<{return_type}>({(", ".join(invoke_args))});'
+      result += '}\n'
     return result + f'  return __sycl_std::__invoke_{self.invoke_prefix}{invoke_name}<{return_type}>({(", ".join(invoke_args))});'
 
 class RelDef(DefCommon):
@@ -713,6 +719,20 @@ def get_custom_any_all_marray_invoke(builtin):
   marray builtins.
   """
   return (lambda _, arg_types, arg_names: f'  return std::{builtin}_of({arg_names[0]}.begin(), {arg_names[0]}.end(), [](detail::get_elem_type_t<{arg_types[0]}> X) {{ return {builtin}(X); }});')
+
+def custom_fast_math_sincos_invoke(return_type, _, arg_names):
+  """
+  Generates the custom body for `sincos` in fast-math mode.
+  This is a performance optimization to ensure that sincos isn't slower than a
+  pair of sin/cos executed separately. Theoretically, calling non-native sincos
+  might be faster than calling native::sin plus native::cos separately and we'd
+  need some kind of cost model to make the right decision (and move this
+  entirely to the JIT/AOT compilers). However, in practice, this simpler
+  solution seems to work just fine and matches how sin/cos above are optimized
+  for the fast math path.
+  """
+  return f"""    *{arg_names[1]} = __sycl_std::__invoke_native_cos<{return_type}>({arg_names[0]});
+    return __sycl_std::__invoke_native_sin<{return_type}>({arg_names[0]});"""
 
 # List of all builtins definitions in the sycl namespace.
 sycl_builtins = {# Math functions
@@ -827,12 +847,12 @@ sycl_builtins = {# Math functions
                  "round": [Def("genfloat", ["genfloat"])],
                  "rsqrt": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_rsqrt")],
                  "sin": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_sin")],
-                 "sincos": [Def("vgenfloat", ["vgenfloat", "rawvgenfloatptr0"]),
-                            Def("vgenfloat", ["vgenfloat", "ptr0"]),
+                 "sincos": [Def("vgenfloat", ["vgenfloat", "rawvgenfloatptr0"], fast_math_custom_invoke=custom_fast_math_sincos_invoke),
+                            Def("vgenfloat", ["vgenfloat", "ptr0"], fast_math_custom_invoke=custom_fast_math_sincos_invoke),
                             Def("mgenfloat", ["mgenfloat", "ptr0"]),
-                            Def("float", ["float", "floatptr"]),
-                            Def("double", ["double", "doubleptr"]),
-                            Def("half", ["half", "halfptr"])],
+                            Def("float", ["float", "floatptr"], fast_math_custom_invoke=custom_fast_math_sincos_invoke),
+                            Def("double", ["double", "doubleptr"], fast_math_custom_invoke=custom_fast_math_sincos_invoke),
+                            Def("half", ["half", "halfptr"], fast_math_custom_invoke=custom_fast_math_sincos_invoke)],
                  "sinh": [Def("genfloat", ["genfloat"])],
                  "sinpi": [Def("genfloat", ["genfloat"])],
                  "sqrt": [Def("genfloat", ["genfloat"], fast_math_invoke_name="native_sqrt")],
