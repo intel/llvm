@@ -180,10 +180,10 @@ cl::opt<SpecConstLowerMode> SpecConstLower{
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
     cl::init(SC_USE_NATIVE),
-    cl::values(
-        clEnumValN(SC_USE_NATIVE, "native", "lower spec constants to native spirv instructions"),
-        clEnumValN(SC_USE_EMULATION, "emulation",
-                   "replace spec constants with emulation technique")),
+    cl::values(clEnumValN(SC_USE_NATIVE, "native",
+                          "lower spec constants to native spirv instructions"),
+               clEnumValN(SC_USE_EMULATION, "emulation",
+                          "replace spec constants with emulation technique")),
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitKernelParamInfo{
