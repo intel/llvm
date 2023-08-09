@@ -871,8 +871,15 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         }
 
         Replacement = createLoadFromBuffer(CI, RTBuffer, CurrentOffset, SCTy);
-      } else if (Mode == HandlingMode::default_values)
-        Replacement = DefaultValue;
+      } else if (Mode == HandlingMode::default_values) {
+        if (SCTy->isIntegerTy(1)) {
+          assert(DefaultValue->getType()->isIntegerTy(8) &&
+                 "For bool spec constant default value is expected to be i8");
+          Replacement =
+              new TruncInst(DefaultValue, Type::getInt1Ty(Ctx), "bool", CI);
+        } else
+          Replacement = DefaultValue;
+      }
 
       if (IsNewSpecConstant) {
         if (Padding != 0) {
