@@ -241,6 +241,7 @@ public:
   /// Gets the current device timestamp
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
+  bool IsGetDeviceAndHostTimerSupported();
 
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }

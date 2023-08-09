@@ -157,9 +157,10 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
+    : MQueue{Queue}, MIsProfilingEnabled{Queue->is_host() ||
+                                         Queue->MIsProfilingEnabled} { //},
+  //      MFallbackProfiling{MIsProfilingEnabled &&
+  //      Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
 
   if (Queue->is_host()) {
@@ -288,18 +289,7 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-
-  // 1) This code is in order to support profiling for OpenCL version < 2.1
-  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
-  // host and device submit time. The host timestamp in sycl runtime will be
-  // return for the info::event_profiling::command_submit
-  if (MFallbackProfiling)
-    MSubmitTime = getTimestamp(); // host
-
-  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling << std::endl;
-  std::cout << "+++1 MSubmitTime = " << MSubmitTime << std::endl;
-  std::cout.flush();
-  return MSubmitTime; // device
+  return MSubmitTime;
 }
 
 template <>
@@ -323,22 +313,35 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   // backend event profiling START information, normalized by the
   // backend event profiling QUEUED information
   if (!MFallbackProfiling) {
-    std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
-              << std::endl;
-    auto temp = MHostProfilingInfo->getStartTime();
-    std::cout << "+++3 MDeviceStartTime: " << temp << std::endl;
-    // return MHostProfilingInfo->getStartTime();
-    return temp;
-  } else {
     QueueImplPtr Queue = MQueue.lock();
-    MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
-                       (MHostSubmitTime - MDeviceSubmitTime);
-    std::cout << "===3 MFallbackProfiling = " << MFallbackProfiling
-              << std::endl;
-    std::cout << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
+    MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
+              << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
     std::cout.flush();
     return MDeviceStartTime;
+  } else {
+    MHostProfilingInfo->getStartTime();
   }
+
+  return MDeviceStartTime;
+
+  // if (!MFallbackProfiling) {
+  //   std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
+  //             << std::endl;
+  //   auto temp = MHostProfilingInfo->getStartTime();
+  //   std::cout << "+++3 MDeviceStartTime: " << temp << std::endl;
+  //   // return MHostProfilingInfo->getStartTime();
+  //   return temp;
+  // } else {
+  //   QueueImplPtr Queue = MQueue.lock();
+  //   MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
+  //                      (MHostSubmitTime - MDeviceSubmitTime);
+  //   std::cout << "===3 MFallbackProfiling = " << MFallbackProfiling
+  //             << std::endl;
+  //   std::cout << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
+  //   std::cout.flush();
+  //   return MDeviceStartTime;
+  // }
 }
 
 template <>
@@ -361,13 +364,6 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   // backend event profiling END information, normalized by the
   // MSubmitTimeBase
   if (!MFallbackProfiling) {
-    auto temp = MHostProfilingInfo->getEndTime();
-    std::cout << "---4 MFallbackProfiling = " << MFallbackProfiling
-              << std::endl;
-    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
-    // return MHostProfilingInfo->getEndTime();
-    return temp;
-  } else {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
                      (MHostSubmitTime - MDeviceSubmitTime);
@@ -376,6 +372,13 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
     std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
     std::cout.flush();
     return MDeviceEndTime;
+  } else {
+    auto temp = MHostProfilingInfo->getEndTime();
+    std::cout << "---4 MFallbackProfiling = " << MFallbackProfiling
+              << std::endl;
+    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
+    // return MHostProfilingInfo->getEndTime();
+    return temp;
   }
 }
 
@@ -492,35 +495,28 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled)
     return;
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      // 2. if API clGetDeviceAndHostTimer is available, use that to get host
-      // and device timestamp.
-      // otherwise, capture another host timestamp in sycl runtime
-      // when the command is actually gets queued to the backend
-      // to use it to normalize to the event profiling time base
-      if (!MFallbackProfiling) {
+  // 1) This code is in order to support profiling for OpenCL version < 2.1
+  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
+  // host and device submit time. The host timestamp in sycl runtime will be
+  // return for the info::event_profiling::command_submit
+  if (!MFallbackProfiling) {
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      try {
         MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-        std::cout << "---2 MFallbackProfiling = " << MFallbackProfiling
-                  << std::endl;
-        std::cout << "+++2 MSubmitTime: " << MSubmitTime << std::endl;
-        std::cout.flush();
-      } else {
-        MHostSubmitTime = getTimestamp();
-        std::cout << "===2 MFallbackProfiling = " << MFallbackProfiling
-                  << std::endl;
-        MDeviceSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-        std::cout << "+++2 MDeviceSubmitTime: " << MDeviceSubmitTime
-                  << std::endl;
-        std::cout.flush();
+      } catch (feature_not_supported &e) {
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
       }
-    } catch (feature_not_supported &e) {
-      throw sycl::exception(
-          make_error_code(errc::profiling),
-          std::string("Unable to get command group submission time: ") +
-              e.what());
     }
+  } else {
+    MSubmitTime = getTimestamp();
   }
+
+  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling
+            << "+++1 MSubmitTime = " << MSubmitTime << std::endl;
+  std::cout.flush();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }

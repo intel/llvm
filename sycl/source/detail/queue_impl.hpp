@@ -154,7 +154,10 @@ public:
       if (!MDevice->has(aspect::queue_profiling)) {
         // fallback profiling support
         if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
-          MFallbackProfiling = true;
+          // if piGetDeviceAndHostTimer is not supported, compute the profiling
+          // time OpenCL version < 2.1 case
+          if (!DeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
+            MFallbackProfiling = true;
         } else {
           throw sycl::exception(
               make_error_code(errc::feature_not_supported),
