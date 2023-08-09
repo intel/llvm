@@ -20,14 +20,6 @@ struct ResultCuda {
     CUresult value;
 };
 
-inline void clearCudaContext() {
-    CUcontext context = nullptr;
-    do {
-        cuCtxSetCurrent(nullptr);
-        cuCtxGetCurrent(&context);
-    } while (context != nullptr);
-}
-
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT_CUDA
@@ -41,7 +33,7 @@ inline void clearCudaContext() {
 
 #ifndef EXPECT_EQ_RESULT_CUDA
 #define EXPECT_EQ_RESULT_CUDA(EXPECTED, ACTUAL)                                \
-    ASSERT_EQ(uur::ResultCuda(EXPECTED), uur::ResultCuda(ACTUAL))
+    EXPECT_EQ(uur::ResultCuda(EXPECTED), uur::ResultCuda(ACTUAL))
 #endif // EXPECT_EQ_RESULT_CUDA
 
 #ifndef EXPECT_SUCCESS_CUDA

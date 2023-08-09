@@ -9,6 +9,7 @@
 using cudaKernelTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(cudaKernelTest);
 
+// The first argument stores the implicit global offset
 inline constexpr size_t NumberOfImplicitArgsCUDA = 1;
 
 const char *ptxSource = "\n\
