@@ -14,10 +14,6 @@
 
 int main() {
 
-  queue Queue{gpu_selector_v};
-
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-
   float DotpData = 0.f;
 
   const size_t N = 10;
@@ -25,16 +21,24 @@ int main() {
   std::vector<float> YData(N);
   std::vector<float> ZData(N);
 
-  {
-    buffer DotpBuf(&DotpData, range<1>(1));
-    DotpBuf.set_write_back(false);
+  buffer DotpBuf(&DotpData, range<1>(1));
+  DotpBuf.set_write_back(false);
 
-    buffer XBuf(XData);
-    XBuf.set_write_back(false);
-    buffer YBuf(YData);
-    YBuf.set_write_back(false);
-    buffer ZBuf(ZData);
-    ZBuf.set_write_back(false);
+  buffer XBuf(XData);
+  XBuf.set_write_back(false);
+  buffer YBuf(YData);
+  YBuf.set_write_back(false);
+  buffer ZBuf(ZData);
+  ZBuf.set_write_back(false);
+
+  {
+    queue Queue{gpu_selector_v};
+
+    exp_ext::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{},
+         exp_ext::property::graph::assume_data_outlives_buffer{}}};
 
     auto NodeI = Graph.add([&](handler &CGH) {
       auto X = XBuf.get_access(CGH);
@@ -81,10 +85,10 @@ int main() {
 
     // Using shortcut for executing a graph of commands
     Queue.ext_oneapi_graph(ExecGraph).wait();
+  }
 
     host_accessor HostAcc(DotpBuf);
     assert(HostAcc[0] == dotp_reference_result(N));
-  }
 
-  return 0;
+    return 0;
 }

@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/queue_impl.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/accessor.hpp>
 
 namespace sycl {
@@ -67,6 +68,10 @@ void *AccessorBaseHost::getPtr() const noexcept {
 void *AccessorBaseHost::getMemoryObject() const { return impl->MSYCLMemObj; }
 
 bool AccessorBaseHost::isPlaceholder() const { return impl->MIsPlaceH; }
+
+bool AccessorBaseHost::isMemoryObjectUsedByGraph() const {
+  return static_cast<detail::SYCLMemObjT *>(impl->MSYCLMemObj)->isUsedInGraph();
+}
 
 LocalAccessorBaseHost::LocalAccessorBaseHost(
     sycl::range<3> Size, int Dims, int ElemSize,

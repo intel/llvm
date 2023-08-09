@@ -14,19 +14,26 @@
 int main() {
   queue Queue{gpu_selector_v};
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-
   float DotpData = 0.f;
 
   const size_t N = 10;
   std::vector<float> XData(N);
 
-  {
-    buffer DotpBuf(&DotpData, range<1>(1));
+  buffer DotpBuf(&DotpData, range<1>(1));
+  DotpBuf.set_write_back(false);
 
-    buffer XBuf(XData);
-    float *Y = malloc_device<float>(N, Queue);
-    float *Z = malloc_device<float>(N, Queue);
+  buffer XBuf(XData);
+  XBuf.set_write_back(false);
+
+  float *Y = malloc_device<float>(N, Queue);
+  float *Z = malloc_device<float>(N, Queue);
+
+  {
+    exp_ext::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{},
+         exp_ext::property::graph::assume_data_outlives_buffer{}}};
 
     auto NodeI = Graph.add([&](handler &CGH) {
       auto X = XBuf.get_access(CGH);
@@ -79,6 +86,7 @@ int main() {
     sycl::free(Z, Queue);
   }
 
-  assert(DotpData == dotp_reference_result(N));
+  host_accessor HostAcc(DotpBuf);
+  assert(HostAcc[0] == dotp_reference_result(N));
   return 0;
 }
