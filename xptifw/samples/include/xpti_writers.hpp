@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -52,10 +53,115 @@ struct record_t {
   std::string Category; // Category of the call, usually stream name
 };
 
+using rec_tuple = std::pair<uint64_t, record_t>;
+using records_t = std::vector<rec_tuple>;
+using ordered_records_t = std::map<uint64_t, record_t>;
+class span_t;
+using spans_t = std::map<uint64_t, span_t>;
+/// @brief Span class for managing parent child relationship tasks
+/// @detail When we record traces from many streams, we get many overlapping
+/// tasks which help us build call stacks or caller/callee relationship
+/// information that can be used to analyze efficiency of the call stack
+class span_t {
+public:
+  span_t()
+      : m_min(std::numeric_limits<uint64_t>::max()), m_max(0),
+        m_label(nullptr) {}
+  span_t(uint64_t min, uint64_t max, const char *label)
+      : m_min(min), m_max(max), m_label(label) {}
+  ~span_t() {}
+
+  /// @brief Checks child tasks to see if one of them is a parent
+  /// @param min Min value of the range
+  /// @param max Max value of the range
+  /// @return The child tasks that completely overlaps the range
+  span_t *check_scope(uint64_t min, uint64_t max) {
+    // Check to see m_children have a scope that should be the parent of the
+    // current time interval
+    for (auto &e : m_children) {
+      if (e.second.m_min <= min && e.second.m_max >= max) {
+        return &e.second;
+      }
+    }
+    // No child overlaps it
+    return nullptr;
+  }
+
+  /// @brief Insert a new range into the model
+  /// @param min The min value of the range
+  /// @param max The max value of the range
+  /// @param label The label describing the range
+  void insert(uint64_t min, uint64_t max, const char *label) {
+    // See if the range has a parent scope under which the range should be
+    // embedded
+    span_t *parent = check_scope(min, max);
+    if (parent) {
+      // If so, insert the range under the parent scope as a child
+      parent->insert(min, max, label);
+    } else {
+      // If no overlapping parent scope is found (recursively), add it as a
+      // child to the scope of the nearest parent
+      m_children[min] = span_t(min, max, label);
+    }
+  }
+
+  /// @brief Experimental recursive print method
+  /// @param level The level of the print indicated by indent
+  /// @param root The span at the current level
+  void print_level(int level, span_t &root, double duration,
+                   double build_cost) {
+    // Color code level 1's API calls so we can show the cost of the kernels
+    // after the first kernel cost is discounted
+    std::string bold_color("\033[1;36m");
+    std::string reset("\033[0m");
+    double curr_duration = (root.m_max - root.m_min + 1);
+    std::cout << "+";
+    for (int i = 0; i < level * 2; ++i)
+      std::cout << "-";
+    std::cout << "+";
+    std::cout << "  "
+              << ((std::string(root.m_label).size() > 25)
+                      ? (std::string(root.m_label).substr(0, 25) +
+                         std::string("..."))
+                      : root.m_label)
+              << "   [" << std::setprecision(2)
+              << (curr_duration / duration * 100) << "%] ";
+    if (level == 1) {
+      std::cout << bold_color << "   Adjusted: [" << std::setprecision(2)
+                << (curr_duration / (duration - build_cost) * 100) << "%]"
+                << reset;
+    }
+    std::cout << "\n";
+    for (auto &s : root.m_children) {
+      print_level(level + 1, s.second, curr_duration, build_cost);
+    }
+  }
+  void print() {
+    double first_time_cost;
+    std::cout << "Application:" << m_label << " [" << m_min << "," << m_max
+              << "]\n";
+    // Find the first submit_impl (or algorithm in the future when "sycl" stream
+    // works properly) and remove the time from the submit scope from the
+    // application runtime to discount for the build/JIT costs
+    for (auto &s : m_children) {
+      if (std::string_view(s.second.m_label) == "submit_impl") {
+        first_time_cost = s.second.m_max - s.second.m_min + 1;
+        break;
+      }
+    }
+
+    for (auto &s : m_children) {
+      print_level(1, s.second, (m_max - m_min + 1), first_time_cost);
+    }
+  }
+
+  uint64_t m_min, m_max;
+  const char *m_label;
+  spans_t m_children;
+};
+
 class writer {
 public:
-  using rec_tuple = std::pair<uint64_t, record_t>;
-  using records_t = std::vector<rec_tuple>;
   virtual void init() = 0;
   virtual void fini() = 0;
   virtual void write(record_t &r) = 0;
@@ -236,16 +342,19 @@ public:
   using stats_tuple_t = std::pair<std::string, xpti::utils::statistics_t>;
   using duration_stats_t = std::multimap<double, stats_tuple_t>;
 
-  table_writer() { init(); }
+  table_writer() : m_min(std::numeric_limits<uint64_t>::max()), m_max(0) {
+    init();
+  }
   ~table_writer() {}
 
   void init() final {
-    m_file_name = xpti::utils::get_application_name();
-    if (m_file_name.empty()) {
+    m_app_name = xpti::utils::get_application_name();
+    if (m_app_name.empty()) {
       m_file_name =
           "report." + std::to_string(xpti::utils::get_process_id()) + ".csv";
     } else {
-      m_file_name += "_" + xpti::utils::timer::get_timestamp_string() + ".csv";
+      m_file_name = m_app_name + "_" +
+                    xpti::utils::timer::get_timestamp_string() + ".csv";
     }
     if (m_file_name.empty()) {
       throw std::runtime_error("Unable to generate file name for write!");
@@ -255,6 +364,10 @@ public:
   void write(record_t &r) override {
     std::lock_guard<std::mutex> _{m_mutex};
     m_records.push_back(std::make_pair(r.TSBegin, r));
+    if (m_min > r.TSBegin)
+      m_min = r.TSBegin;
+    if (m_max < r.TSEnd)
+      m_max = r.TSEnd;
   }
 
   void compute_stats(record_t &r) {
@@ -277,9 +390,17 @@ public:
         "Count", "Min (ns)", "Max (ns)", "Mean (ns)", "Std Dev (ns)",
     };
     m_model.set_headers(col_headers);
+    // Set the root of the call stack tree
+    m_root = span_t(m_min, m_max, m_app_name.c_str());
     for (auto &r : m_records) {
+      m_ordered_records[r.second.TSBegin] = r.second;
       compute_stats(r.second);
     }
+    // Build the tree of trace scopes that mimics a call stack
+    for (auto &r : m_ordered_records) {
+      m_root.insert(r.second.TSBegin, r.second.TSEnd, r.second.Name.c_str());
+    }
+
     // Reorder the stats in ascending order of mean times so all small functions
     // are at the top
     for (auto &f : m_functions) {
@@ -318,6 +439,7 @@ public:
       }
       m_io.close();
       m_model.print();
+      m_root.print();
     } else {
       std::cerr << "Error opening file for write: " << m_file_name << std::endl;
     }
@@ -329,9 +451,13 @@ protected:
 private:
   table_model m_model;
   std::string m_file_name;
+  std::string m_app_name;
   std::ofstream m_io;
   records_t m_records;
+  ordered_records_t m_ordered_records;
   function_stats_t m_functions;
   duration_stats_t m_durations;
+  uint64_t m_min, m_max;
+  span_t m_root;
 };
 } // namespace xpti
