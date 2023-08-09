@@ -1,33 +1,23 @@
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define TM 8
-#define TN SG_SZ
-#define TK 16
+constexpr size_t TM = 8;
+constexpr size_t TK = 16;
 
-#define BF16_EPSILON 0.00781250
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
+constexpr float BF16_EPSILON = 0.00781250;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
-void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
+void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnni_factor) {
   size_t M = NUM_ROWS_C;
   size_t N = NUM_COLS_C;
   size_t K = NUM_COLS_A;
 
-  assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * 2);
+  assert(NUM_ROWS_C == NUM_ROWS_A && NUM_COLS_A == NUM_ROWS_B * vnni_factor);
   // Add one iteration for the out of bounds dpas instruction
   size_t NDRangeM = M / TM + (((M % TM) != 0) ? 1 : 0);
   size_t NDRangeN = N / TN;
@@ -37,7 +27,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
@@ -56,7 +46,6 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
 
            // For B, since current implementation does not support non-packed
            // layout, users need to specify the packed_b layout.
-           // By default, the layout is row_major
            joint_matrix<sub_group, bfloat16, use::b, TK, TN,
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
@@ -66,7 +55,8 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
              // Assume we alreay in vnni format.
              joint_matrix_load(
-                 sg, sub_b, pB + (k) * (N) + sg_starty / SG_SZ * TN * 2, N * 2);
+                 sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN * vnni_factor,
+                 N * vnni_factor);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -76,36 +66,10 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
    }).wait();
 }
 
-void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
-                         int MATRIX_N, int MATRIX_K) {
-  for (unsigned int i = 0; i < MATRIX_M; i++) {
-    for (unsigned int k = 0; k < MATRIX_K; k++) {
-      for (unsigned int j = 0; j < MATRIX_N; j++) {
-        C[i * MATRIX_N + j] +=
-            make_fp32(A[i * MATRIX_K + k]) * make_fp32(B[k * MATRIX_N + j]);
-      }
-    }
-  }
-}
-
-template <typename T>
-void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
-                 unsigned int vnniFactor = 2) {
-  for (unsigned int i = 0; i < rows / vnniFactor; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      for (unsigned int k = 0; k < vnniFactor; k++) {
-        dest[i * cols * vnniFactor + j * vnniFactor + k] =
-            src[(i * vnniFactor + k) * cols + j];
-      }
-    }
-  }
-}
-
 int main() {
-  // there will be 14*24 out of bounds in A matrix
   static constexpr size_t MATRIX_M = 1024 + 14;
   static constexpr size_t MATRIX_N = 1024;
-  static constexpr size_t MATRIX_K = 1024 + 24;
+
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
@@ -135,7 +99,7 @@ int main() {
 
   matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, 2);
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / 2,
-                  MATRIX_N * 2, MATRIX_M, MATRIX_N>(C, A, vnniB, q);
+                  MATRIX_N * 2, MATRIX_M, MATRIX_N>(C, A, vnniB, q, 2);
   matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = true;
@@ -146,8 +110,6 @@ int main() {
       }
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }

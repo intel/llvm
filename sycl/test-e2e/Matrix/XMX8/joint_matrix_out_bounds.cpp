@@ -12,6 +12,10 @@
 
 // XFAIL:*
 
-#define SG_SZ 8
+#include "../common.hpp"
+
+constexpr size_t SG_SZ = 8;
+constexpr size_t TN = 8;
+static constexpr size_t MATRIX_K = 1024 + 24;
 
 #include "../joint_matrix_out_bounds_impl.hpp"
