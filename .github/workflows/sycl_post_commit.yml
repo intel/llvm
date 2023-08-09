@@ -7,19 +7,22 @@ on:
     - sycl-devops-pr/**
     - llvmspirv_pulldown
 
+  pull_request:
+    branches:
+    - sycl
+    - sycl-devops-pr/**
+    paths:
+    - .github/workflow/sycl_post_commit.yml
+    - .github/workflow/sycl_linux_build.yml
+    - .github/workflow/sycl_linux_run_tests.yml
+    - ./devops/actions/cleanup
+    - ./devops/actions/cached_checkout
+
 jobs:
-  # This job generates matrix of tests for SYCL End-to-End tests
-  test_matrix:
-    name: Generate Test Matrix
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      lts_config: "l0_gen12;win_l0_gen12"
-  linux_self_prod:
+  build:
     name: Linux (Self build + shared libraries + no-assertions)
     if: github.repository == 'intel/llvm'
-    needs: test_matrix
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
+    uses: ./.github/workflows/sycl_linux_build.yml
     with:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: sprod_shared
@@ -29,10 +32,31 @@ jobs:
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
       cc: clang
       cxx: clang++
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      cts_matrix: ${{ needs.test_matrix.outputs.cts_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
       merge_ref: ''
+
+  test:
+    needs: [build]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    with:
+      name: SYCL E2E on Intel Linux L0
+      runner: '["Linux", "gen12"]'
+      image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+      target_devices: ext_oneapi_level_zero:gpu
+      ref: ${{ github.sha }}
+      merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_sprod_shared
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+
+  # This job generates matrix of tests for SYCL End-to-End tests on Windows
+  test_matrix:
+    name: Generate Test Matrix
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl_gen_test_matrix.yml
+    with:
+      lts_config: "win_l0_gen12"
 
   windows_default:
     name: Windows
