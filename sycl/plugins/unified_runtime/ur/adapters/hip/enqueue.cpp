@@ -1393,7 +1393,16 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
   void *HIPDevicePtr = const_cast<void *>(pMem);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
-  // Passing MEM_ADVISE_SET/MEM_ADVISE_CLEAR_PREFERRED_LOCATION to hipMemAdvise
+  // If the device does not support managed memory access, we can't set
+  // mem_advise.
+  if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    setErrorMessage("mem_advise ignored as device does not support "
+                    " managed memory access",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  // Passing MEM_ADVICE_SET/MEM_ADVICE_CLEAR_PREFERRED_LOCATION to hipMemAdvise
   // on a GPU device requires the GPU device to report a non-zero value for
   // hipDeviceAttributeConcurrentManagedAccess. Therefore, ignore the mem advice
   // if concurrent managed memory access is not available.
@@ -1409,9 +1418,10 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
     }
 
-    // If pMem points to valid system-allocated pageable memory, we should
+    // TODO: If pMem points to valid system-allocated pageable memory, we should
     // check that the device also has the hipDeviceAttributePageableMemoryAccess
-    // property.
+    // property, so that a valid read-only copy can be created on the device.
+    // This also applies for UR_USM_MEM_ADVICE_SET/MEM_ADVICE_CLEAR_READ_MOSTLY.
   }
 
   // NOTE: The hipPointerGetAttribute API is marked as beta, meaning, while this
