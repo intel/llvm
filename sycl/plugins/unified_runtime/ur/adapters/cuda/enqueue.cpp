@@ -457,7 +457,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     if (LocalSize != 0)
       hKernel->clearLocalSize();
 
-    // TODO(hdelan): think about the case where !phEvent
     if (phEvent) {
       Result = RetImplEvent->record();
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
@@ -472,7 +471,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         MemArg.Mem->MemoryMigrationMutex.unlock();
       }
       *phEvent = RetImplEvent.release();
+    } else {
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        MemArg.Mem->MemoryMigrationMutex.unlock();
+      }
     }
+
   } catch (ur_result_t Err) {
     Result = Err;
   }

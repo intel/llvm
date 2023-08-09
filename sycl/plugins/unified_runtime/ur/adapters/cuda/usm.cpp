@@ -30,8 +30,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     // Using scoped context of first device is valid
-    // TODO(hdelan): add test to check that host memory is accessible on all
-    // devices in the context (without using memcpy)
     ScopedDevice Active(hContext->getDevices()[0]);
     Result = UR_CHECK_ERROR(cuMemAllocHost(ppMem, size));
   } catch (ur_result_t Err) {

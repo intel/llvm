@@ -59,6 +59,20 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///  See proposal for details.
 ///  https://github.com/codeplaysoftware/standards-proposals/blob/master/extended-context-destruction/index.md
 ///
+///  <b> Memory Management for Devices in a Context <\b>
+///
+///  A ur_buffer_ is associated with a ur_context_handle_t_, which may refer to
+///  multiple devices. Therefore the ur_buffer_ must handle a native allocation
+///  for each device in the context. UR is responsible for automatically and
+///  handling event dependencies for kernels writing to or reading from the
+///  same ur_buffer_ and migrating memory between native allocations for
+///  devices in the same ur_context_handle_t_ if necessary.
+///
+///  TODO: This management of memory for devices in the same
+///  ur_context_handle_t_ is currently only valid for buffers and not for
+///  images.
+///
+///
 struct ur_context_handle_t_ {
 
   struct deleter_data {

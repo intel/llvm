@@ -76,7 +76,19 @@ protected:
   };
 };
 
-// Handler for plain, pointer-based CUDA allocations
+// Handler for plain, pointer-based CUDA allocations.
+//
+// Since a ur_buffer_ is associated with a ur_context_handle_t_, which may
+// contain multiple devices, each ur_buffer_ contains a vector of native
+// allocations, one allocation for each device in the ur_context_handle_t_.
+// Native allocations are made lazily, before a `ur_buffer_` is needed on a
+// particular device.
+//
+// The ur_buffer_ is also responsible for migrating memory between native
+// allocations. This migration happens lazily. The ur_buffer_ relies on knowing
+// which event was the last to write to the mem obj `LastEventWritingToMemObj`.
+// All subsequent reads must wait on this event.
+//
 struct ur_buffer_ final : ur_mem_handle_t_ {
   using native_type = CUdeviceptr;
 
@@ -200,7 +212,6 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
 
   native_type &getNativePtr(ur_device_handle_t hDevice) noexcept {
     assert(hDevice != nullptr);
-    // TODO(hdelan): handle subbuffer case, does this need to be different?
     return Ptrs[hDevice->getIndex()];
   }
 

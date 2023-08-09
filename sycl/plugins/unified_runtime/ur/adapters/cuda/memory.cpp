@@ -145,12 +145,14 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urMemGetNativeHandle(ur_mem_handle_t hMem, ur_native_handle_t *phNativeMem) {
   UR_ASSERT(hMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phNativeMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  // TODO(hdelan): I need to have some way to remember the last active device
-  // in the context so I can give a handle to that. At the moment I am just
-  // returning a handle to the allocation of device at index 0
+  // TODO: This is just returning the native allocation for the first device in
+  // the context. Is there a better way of doing this? Should we remember the
+  // last device in the context that has been using this memObj and return the
+  // native allocation on this device?
   if (hMem->isBuffer()) {
-    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-        ur_cast<ur_buffer_ *>(hMem)->getPtrs()[0]);
+    ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hMem);
+    Buffer->allocateMemObjOnDeviceIfNeeded(Buffer->Context->getDevices()[0]);
+    *phNativeMem = reinterpret_cast<ur_native_handle_t>(Buffer->getPtrs()[0]);
   }
   return UR_RESULT_SUCCESS;
 }
@@ -164,16 +166,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 
   UrReturnHelper ReturnValue(propSize, pMemInfo, pPropSizeRet);
 
-  // TODO(hdelan): I need to have some way to remember the last active device
-  // in the context so I can give a handle to that. At the moment I am just
-  // returning a handle to the allocation of device at index 0
+  // TODO: This is just giving info for the native allocation of the first
+  // device in the context. Is there a better way of doing this? Should we
+  // remember the last device in the context that has been using this memObj
+  // and return the native allocation on this device?
   ScopedDevice Active(hMemory->getContext()->getDevices()[0]);
 
   switch (MemInfoType) {
   case UR_MEM_INFO_SIZE: {
     try {
       size_t AllocSize = 0;
-      // TODO here as well
       UR_CHECK_ERROR(cuMemGetAddressRange(
           nullptr, &AllocSize, ur_cast<ur_buffer_ *>(hMemory)->getPtrs()[0]));
       return ReturnValue(AllocSize);
@@ -506,14 +508,13 @@ ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   } else {
     Result = UR_CHECK_ERROR(cuMemAlloc(&DevPtr, Size));
   }
-  // TODO(hdelan): add some bailouts here that will free all mem if these fail
   return Result;
 }
 
 ur_result_t
 ur_image_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  // TODO(hdelan): Add some logic here
+  // TODO: Implement for Images
   return UR_RESULT_SUCCESS;
 }
 
@@ -538,7 +539,6 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
   // allocation from host if it has not been initialized already
   if (LastEventWritingToMemObj == nullptr) {
     // Device allocation being initialized from host for the first time
-    // TODO(hdelan): HostPtr is sometimes nullptr here. Why is that?
     if (HostPtr) {
       Result = UR_CHECK_ERROR(
           cuMemcpyHtoD(getPtrs()[hDevice->getIndex()], HostPtr, Size));
@@ -566,6 +566,6 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
 ur_result_t
 ur_image_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  // TODO(hdelan): Add some logic here
+  // TODO: Implement for Images
   return UR_RESULT_SUCCESS;
 }
