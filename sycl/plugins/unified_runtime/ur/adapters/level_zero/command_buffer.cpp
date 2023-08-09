@@ -114,18 +114,18 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release additional signal and wait events used by command_buffer
   if (SignalEvent) {
     CleanupCompletedEvent(SignalEvent, false);
-    UR_CALL(urEventReleaseInternal(SignalEvent));
+    urEventReleaseInternal(SignalEvent);
   }
   if (WaitEvent) {
     CleanupCompletedEvent(WaitEvent, false);
-    UR_CALL(urEventReleaseInternal(WaitEvent));
+    urEventReleaseInternal(WaitEvent);
   }
 
   // Release events added to the command_buffer
   for (auto &Sync : SyncPoints) {
     auto &Event = Sync.second;
     CleanupCompletedEvent(Event, false);
-    UR_CALL(urEventReleaseInternal(Event));
+    urEventReleaseInternal(Event);
   }
 
   // Release Fences allocated to command_buffer
