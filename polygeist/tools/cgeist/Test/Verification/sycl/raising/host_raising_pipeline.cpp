@@ -7,12 +7,13 @@
 // CHECK-SAME:    gpu.module(any({{.*}})))
 
 // CHECK-LABEL: Optimization pipeline:
-// CHECK:       Pass Manager with 6 passes:
+// CHECK:       Pass Manager with 8 passes:
 // CHECK:       any(
 // CHECK-SAME:    sycl-raise-host{ }
 // CHECK-SAME:    sycl-constant-propagation{relaxed-aliasing=false}
 // CHECK-SAME:    arg-promotion
 // CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false use-opaque-pointers=false}
+// CHECK-SAME:    gpu.module(any({{.*}})),loop-internalization{relaxed-aliasing=false shared-memory-size=32000 unroll-factor=4}
 // CHECK-SAME:    gpu.module(any({{.*}}))
 // CHECK-SAME:    inliner{max-num-iters=3 mode=alwaysinline remove-dead-callees=true})
 
