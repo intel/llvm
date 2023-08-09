@@ -243,13 +243,13 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     if (!checkNativeQueueProfiling(Dev))
       return false;
-    sycl::detail::pi::PiResult Result =
-        Dev->getPlugin()
-            ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-                Dev->getHandleRef(), nullptr, nullptr);
-    if (Result == PI_ERROR_INVALID_OPERATION) {
-      MFallbackProfiling = true;
-    }
+    // sycl::detail::pi::PiResult Result =
+    //     Dev->getPlugin()
+    //         ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+    //             Dev->getHandleRef(), nullptr, nullptr);
+    // if (Result == PI_ERROR_INVALID_OPERATION) {
+    //   MFallbackProfiling = true;
+    // }
     Dev->getPlugin()->checkPiResult(Result);
     return true;
   }
