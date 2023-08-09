@@ -24,9 +24,8 @@ using plain_local_ptr = typename sycl::detail::DecoratedType<
     T, access::address_space::local_space>::type *;
 
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
-    sycl::sub_group, plain_global_ptr<int>, int, full_sg_props>(sycl::sub_group,
-                                                          plain_global_ptr<int>,
-                                                          int &, full_sg_props);
+    sycl::sub_group, plain_global_ptr<int>, int, full_sg_props>(
+    sycl::sub_group, plain_global_ptr<int>, int &, full_sg_props);
 // CHECK-LABEL: define {{.*}}group_load
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912)
@@ -35,8 +34,9 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:   ret void
 
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
-    sycl::sub_group, global_ptr<int, access::decorated::yes>, int, full_sg_props>(
-    sycl::sub_group, global_ptr<int, access::decorated::yes>, int &, full_sg_props);
+    sycl::sub_group, global_ptr<int, access::decorated::yes>, int,
+    full_sg_props>(sycl::sub_group, global_ptr<int, access::decorated::yes>,
+                   int &, full_sg_props);
 // CHECK-LABEL: define {{.*}}group_load
 // CHECK-NEXT: entry:
 // sycl::multi_ptr is passed via "ptr noundef
@@ -49,9 +49,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:   ret void
 
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
-    sycl::sub_group, plain_local_ptr<int>, int, full_sg_props>(sycl::sub_group,
-                                                         plain_local_ptr<int>,
-                                                         int &, full_sg_props);
+    sycl::sub_group, plain_local_ptr<int>, int, full_sg_props>(
+    sycl::sub_group, plain_local_ptr<int>, int &, full_sg_props);
 // CHECK-LABEL: define {{.*}}group_load
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912)
@@ -65,7 +64,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
     sycl::sub_group, int *, int, full_sg_props>(sycl::sub_group, int *, int &,
-                                          full_sg_props);
+                                                full_sg_props);
 // CHECK-LABEL: define {{.*}}group_load
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   [[TRY_CAST:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef [[IN_PTR:%.*]], i32 noundef 5)
@@ -111,10 +110,10 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
 // CHECK-NEXT:   store i64 [[EXTRACT_1]], ptr addrspace(4) [[GEP]]
 // CHECK-NEXT:   ret void
 
-template SYCL_EXTERNAL void
-sycl::ext::oneapi::experimental::group_load<sycl::sub_group, plain_global_ptr<int>,
-                                            int, 16, full_sg_striped_props>(
-    sycl::sub_group, plain_global_ptr<int>, vec<int, 16> &, full_sg_striped_props);
+template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_load<
+    sycl::sub_group, plain_global_ptr<int>, int, 16, full_sg_striped_props>(
+    sycl::sub_group, plain_global_ptr<int>, vec<int, 16> &,
+    full_sg_striped_props);
 // CHECK-LABEL: define {{.*}}group_load
 // CHECK-NEXT: entry:
 // CHECK-NEXT:   call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912)

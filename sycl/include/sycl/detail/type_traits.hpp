@@ -48,8 +48,7 @@ template <int Dimensions>
 struct is_fixed_topology_group<sycl::group<Dimensions>> : std::true_type {};
 
 template <>
-struct is_fixed_topology_group<sycl::_V1::sub_group> : std::true_type {
-};
+struct is_fixed_topology_group<sycl::_V1::sub_group> : std::true_type {};
 template <class T> struct is_user_constructed_group : std::false_type {};
 
 template <class T>
