@@ -295,7 +295,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
-    // Get sync point and register the event with it.
+  // Get sync point and register the event with it.
   *SyncPoint = CommandBuffer->GetNextSyncPoint();
   CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
@@ -360,7 +360,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
-    // Get sync point and register the event with it.
+  // Get sync point and register the event with it.
   *SyncPoint = CommandBuffer->GetNextSyncPoint();
   CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
 
@@ -502,7 +502,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   // Get sync point and register the event with it.
   *SyncPoint = CommandBuffer->GetNextSyncPoint();
   CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
-  
+
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signalled, the code in
