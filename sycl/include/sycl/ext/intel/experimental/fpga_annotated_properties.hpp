@@ -356,13 +356,12 @@ template <typename... Args> struct checkValidFPGAPropertySet {
       ContainsProperty<buffer_location_key, list>::value;
 
   static constexpr bool has_InterfaceConfig =
-      ContainsProperty<awidth_key, list>::value &&
-      ContainsProperty<dwidth_key, list>::value &&
-      ContainsProperty<latency_key, list>::value &&
-      ContainsProperty<read_write_mode_key, list>::value &&
-      ContainsProperty<maxburst_key, list>::value &&
-      ContainsProperty<wait_request_key, list>::value &&
-      ContainsProperty<alignment_key, list>::value;
+      ContainsProperty<awidth_key, list>::value ||
+      ContainsProperty<dwidth_key, list>::value ||
+      ContainsProperty<latency_key, list>::value ||
+      ContainsProperty<read_write_mode_key, list>::value ||
+      ContainsProperty<maxburst_key, list>::value ||
+      ContainsProperty<wait_request_key, list>::value;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
