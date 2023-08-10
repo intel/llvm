@@ -58,8 +58,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "../utils/utils.h"
 #include "critnib.h"
-#include "pmdk-compat.h"
 
 /*
  * A node that has been deleted is left untouched for this many delete
@@ -126,25 +126,25 @@ struct critnib {
 
     uint64_t remove_count;
 
-    os_mutex_t mutex; /* writes/removes */
+    struct os_mutex_t *mutex; /* writes/removes */
 };
 
 /*
  * atomic load
  */
 static void load(void *src, void *dst) {
-    __atomic_load((word *)src, (word *)dst, memory_order_acquire);
+    util_atomic_load_acquire((word *)src, (word *)dst);
 }
 
 static void load64(uint64_t *src, uint64_t *dst) {
-    __atomic_load(src, dst, memory_order_acquire);
+    util_atomic_load_acquire(src, dst);
 }
 
 /*
  * atomic store
  */
 static void store(void *dst, void *src) {
-    __atomic_store_n((word *)dst, (word)src, memory_order_release);
+    util_atomic_store_release((word *)dst, (word)src);
 }
 
 /*
@@ -181,7 +181,11 @@ struct critnib *critnib_new(void) {
         return NULL;
     }
 
-    util_mutex_init(&c->mutex);
+    c->mutex = util_mutex_create();
+    if (!c->mutex) {
+        free(c);
+        return NULL;
+    }
 
     VALGRIND_HG_DRD_DISABLE_CHECKING(&c->root, sizeof(c->root));
     VALGRIND_HG_DRD_DISABLE_CHECKING(&c->remove_count, sizeof(c->remove_count));
@@ -214,7 +218,7 @@ void critnib_delete(struct critnib *c) {
         delete_node(c->root);
     }
 
-    util_mutex_destroy(&c->mutex);
+    util_mutex_destroy(c->mutex);
 
     for (struct critnib_node *m = c->deleted_node; m;) {
         struct critnib_node *mm = m->child[0];
@@ -313,11 +317,11 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
  * Takes a global write lock but doesn't stall any readers.
  */
 int critnib_insert(struct critnib *c, word key, void *value, int update) {
-    util_mutex_lock(&c->mutex);
+    util_mutex_lock(c->mutex);
 
     struct critnib_leaf *k = alloc_leaf(c);
     if (!k) {
-        util_mutex_unlock(&c->mutex);
+        util_mutex_unlock(c->mutex);
 
         return ENOMEM;
     }
@@ -333,7 +337,7 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     if (!n) {
         c->root = kn;
 
-        util_mutex_unlock(&c->mutex);
+        util_mutex_unlock(c->mutex);
 
         return 0;
     }
@@ -351,7 +355,7 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
         n = prev;
         store(&n->child[slice_index(key, n->shift)], kn);
 
-        util_mutex_unlock(&c->mutex);
+        util_mutex_unlock(c->mutex);
 
         return 0;
     }
@@ -365,10 +369,10 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
         if (update) {
             to_leaf(n)->value = value;
-            util_mutex_unlock(&c->mutex);
+            util_mutex_unlock(c->mutex);
             return 0;
         } else {
-            util_mutex_unlock(&c->mutex);
+            util_mutex_unlock(c->mutex);
             return EEXIST;
         }
     }
@@ -380,7 +384,7 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     if (!m) {
         free_leaf(c, to_leaf(kn));
 
-        util_mutex_unlock(&c->mutex);
+        util_mutex_unlock(c->mutex);
 
         return ENOMEM;
     }
@@ -396,7 +400,7 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     m->path = key & path_mask(sh);
     store(parent, m);
 
-    util_mutex_unlock(&c->mutex);
+    util_mutex_unlock(c->mutex);
 
     return 0;
 }
@@ -408,15 +412,14 @@ void *critnib_remove(struct critnib *c, word key) {
     struct critnib_leaf *k;
     void *value = NULL;
 
-    util_mutex_lock(&c->mutex);
+    util_mutex_lock(c->mutex);
 
     struct critnib_node *n = c->root;
     if (!n) {
         goto not_found;
     }
 
-    word del = __atomic_fetch_add(&c->remove_count, 1, __ATOMIC_ACQ_REL) %
-               DELETED_LIFE;
+    word del = (util_atomic_increment(&c->remove_count) - 1) % DELETED_LIFE;
     free_node(c, c->pending_del_nodes[del]);
     free_leaf(c, c->pending_del_leaves[del]);
     c->pending_del_nodes[del] = NULL;
@@ -479,7 +482,7 @@ del_leaf:
     c->pending_del_leaves[del] = k;
 
 not_found:
-    util_mutex_unlock(&c->mutex);
+    util_mutex_unlock(c->mutex);
     return value;
 }
 
@@ -802,9 +805,9 @@ static int iter(struct critnib_node *__restrict n, word min, word max,
 void critnib_iter(critnib *c, uintptr_t min, uintptr_t max,
                   int (*func)(uintptr_t key, void *value, void *privdata),
                   void *privdata) {
-    util_mutex_lock(&c->mutex);
+    util_mutex_lock(c->mutex);
     if (c->root) {
         iter(c->root, min, max, func, privdata);
     }
-    util_mutex_unlock(&c->mutex);
+    util_mutex_unlock(c->mutex);
 }

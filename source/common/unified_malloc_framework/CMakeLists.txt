@@ -11,8 +11,10 @@ set(UMF_SOURCES
     src/critnib/critnib.c
 )
 
-if (MSVC)
-    set(UMF_SOURCES ${UMF_SOURCES} src/memory_tracker_windows.cpp)
+if(MSVC)
+    set(UMF_SOURCES ${UMF_SOURCES} src/utils/utils_windows.cpp src/memory_tracker_windows.cpp)
+else()
+    set(UMF_SOURCES ${UMF_SOURCES} src/utils/utils_posix.c)
 endif()
 
 if(UMF_BUILD_SHARED_LIBRARY)
