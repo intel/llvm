@@ -891,6 +891,9 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
 void handler::ext_oneapi_copy(
     void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -924,7 +927,9 @@ void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
-
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -957,6 +962,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -990,6 +998,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1022,6 +1033,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1057,6 +1071,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1090,6 +1107,9 @@ void handler::ext_oneapi_copy(
 
 void handler::ext_oneapi_wait_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreWait);
@@ -1097,6 +1117,9 @@ void handler::ext_oneapi_wait_external_semaphore(
 
 void handler::ext_oneapi_signal_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreSignal);
