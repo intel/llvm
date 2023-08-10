@@ -4,6 +4,7 @@
 
 EXT(SPV_EXT_shader_atomic_float_add)
 EXT(SPV_EXT_shader_atomic_float_min_max)
+EXT(SPV_EXT_image_raw10_raw12)
 EXT(SPV_KHR_no_integer_wrap_decoration)
 EXT(SPV_KHR_float_controls)
 EXT(SPV_KHR_linkonce_odr)
