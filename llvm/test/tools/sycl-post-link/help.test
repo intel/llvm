@@ -48,8 +48,8 @@ CHECK: --ir-output-only     - Output single IR file
 CHECK: -o <filename>        - Output filename
 CHECK: --out-dir=<dirname>  - Directory where files listed in the result file table will be output
 CHECK: --spec-const=<value> - lower and generate specialization constants information
-CHECK:   =native            - lower spec constants to native spirv instructions
-CHECK:   =emulation         - replace spec constants with emulation technique
+CHECK:   =native            - lower spec constants to native spirv instructions so that these values could be set at runtime
+CHECK:   =emulation         - remove specialization constants and replace it with emulation
 CHECK: --split=<value>      - split input module
 CHECK:   =source            -   1 output module per source (translation unit)
 CHECK:   =kernel            -   1 output module per kernel

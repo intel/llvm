@@ -173,17 +173,20 @@ cl::opt<module_split::IRSplitMode> SplitMode(
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
-enum SpecConstLowerMode { SC_USE_NATIVE, SC_USE_EMULATION };
+enum SpecConstLowerMode { SC_NATIVE_MODE, SC_EMULATION_MODE };
 
 cl::opt<SpecConstLowerMode> SpecConstLower{
     "spec-const",
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
-    cl::init(SC_USE_NATIVE),
-    cl::values(clEnumValN(SC_USE_NATIVE, "native",
-                          "lower spec constants to native spirv instructions"),
-               clEnumValN(SC_USE_EMULATION, "emulation",
-                          "replace spec constants with emulation technique")),
+    cl::init(SC_NATIVE_MODE),
+    cl::values(
+        clEnumValN(SC_NATIVE_MODE, "native",
+                   "lower spec constants to native spirv instructions so that "
+                   "these values could be set at runtime"),
+        clEnumValN(
+            SC_EMULATION_MODE, "emulation",
+            "remove specialization constants and replace it with emulation")),
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitKernelParamInfo{
@@ -695,7 +698,7 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
 
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
-  bool SetSpecConstAtRT = (SpecConstLower == SC_USE_NATIVE);
+  bool SetSpecConstAtRT = (SpecConstLower == SC_NATIVE_MODE);
   SpecConstantsPass SCP(SetSpecConstAtRT);
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
