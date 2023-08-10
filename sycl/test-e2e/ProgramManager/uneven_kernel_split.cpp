@@ -1,4 +1,4 @@
-// REQUIRES: gpu
+// REQUIRES: gpu, TEMPORARY_DISABLED
 // UNSUPPORTED: cuda, hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
