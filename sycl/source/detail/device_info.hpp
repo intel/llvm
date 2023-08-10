@@ -243,27 +243,6 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     if (!checkNativeQueueProfiling(Dev))
       return false;
-
-    return true;
-  }
-};
-
-// Specialization for queue_profiling. In addition to pi_queue level profiling,
-// piGetDeviceAndHostTimer support is needed for command_submit query support.
-template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
-  static bool get(RT::PiDevice Dev, const plugin &Plugin) {
-    pi_queue_properties Properties;
-    Plugin.call<PiApiKind::piDeviceGetInfo>(
-        Dev, PiInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
-    if (!(Properties & PI_QUEUE_FLAG_PROFILING_ENABLE))
-      return false;
-    RT::PiResult Result =
-        Plugin.call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-            Dev, nullptr, nullptr);
-    if (Result == PI_ERROR_INVALID_OPERATION)
-      return false;
-    Plugin.checkPiResult(Result);
     return true;
   }
 };
