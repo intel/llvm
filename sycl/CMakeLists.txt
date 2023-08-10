@@ -167,9 +167,9 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_NATIVE_CPU ON)
-endif()
 endif()
 
 # Configure SYCL version macro
