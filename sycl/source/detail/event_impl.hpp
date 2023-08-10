@@ -278,6 +278,14 @@ public:
     return MGraph.lock();
   }
 
+  void setEventFromSubmitedExecCommandBuffer(bool value) {
+    EventFromSubmitedExecCommandBuffer = value;
+  }
+
+  bool isEventFromSubmitedExecCommandBuffer() const {
+    return EventFromSubmitedExecCommandBuffer;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -327,6 +335,8 @@ protected:
   /// Store the command graph associated with this event, if any.
   /// This event is also be stored in the graph so a weak_ptr is used.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// Indicates that the event results from a command graph submission
+  bool EventFromSubmitedExecCommandBuffer = false;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
