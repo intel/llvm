@@ -126,6 +126,19 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 %endfor
 } // namespace ${x}_params
 
+## TODO - should be removed as part of #789
+#ifdef UR_INCLUDE_HANDLE_IMPLEMENTATION_OVERLOADS
+%for spec in specs:
+%for obj in spec['objects']:
+%if re.match(r"handle", obj['type']):
+inline std::ostream &operator<<(std::ostream &os, const struct ${th.make_type_name(n, tags, obj)}_ &){
+    return os;
+}
+%endif
+%endfor
+%endfor
+#endif
+
 %for spec in specs:
 %for obj in spec['objects']:
 ## ENUM #######################################################################
