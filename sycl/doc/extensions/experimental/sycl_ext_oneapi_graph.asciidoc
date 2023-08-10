@@ -436,7 +436,7 @@ Table {counter: tableNumber}. Device Info Queries.
 | Device Descriptors | Return Type | Description
 
 |`info::device::graph_support`
-|`info::device::graph_support_level`
+|`info::graph_support_level`
 |When passed to `device::get_info<...>()`, the function returns `native`
 if there is an underlying SYCL backend command-buffer construct which is used
 to propagate the graph to the backend. If no backend construct exists, or
