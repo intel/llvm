@@ -123,11 +123,19 @@ static bool isSubgroupBroadcastOrReduction(
     return false;
   }
   auto const Builtin = BI.analyzeBuiltin(*Callee);
-  if (compiler::utils::eBuiltinSubgroupReduceInvalid !=
-      BI.getBuiltinSubgroupReductionKind(Builtin)) {
-    return true;
+  if (auto Info = BI.isMuxGroupCollective(Builtin.ID);
+      Info && Info->isSubGroupScope()) {
+    switch (Info->Op) {
+      default:
+        return false;
+      case compiler::utils::GroupCollective::OpKind::Any:
+      case compiler::utils::GroupCollective::OpKind::All:
+      case compiler::utils::GroupCollective::OpKind::Reduction:
+      case compiler::utils::GroupCollective::OpKind::Broadcast:
+        return true;
+    }
   }
-  return Builtin.isValid() && Builtin.ID == BI.getSubgroupBroadcastBuiltin();
+  return false;
 }
 
 void UniformValueResult::findVectorLeaves(

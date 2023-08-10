@@ -20,15 +20,15 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i32 @_Z16get_sub_group_idv()
-declare spir_func i32 @_Z18get_sub_group_sizev()
-declare spir_func i32 @_Z22get_sub_group_local_idv()
-declare spir_func i32 @_Z19sub_group_broadcastij(i32, i32)
+declare spir_func i32 @__mux_get_sub_group_id()
+declare spir_func i32 @__mux_get_sub_group_size()
+declare spir_func i32 @__mux_get_sub_group_local_id()
+declare spir_func i32 @__mux_sub_group_broadcast_i32(i32, i32)
 
 define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call.i = tail call spir_func i32 @_Z16get_sub_group_idv()
+  %call.i = tail call spir_func i32 @__mux_get_sub_group_id()
   %conv = zext i32 %call.i to i64
-  %call2 = tail call spir_func i32 @_Z18get_sub_group_sizev()
+  %call2 = tail call spir_func i32 @__mux_get_sub_group_size()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 %conv
   store i32 %call2, i32 addrspace(1)* %arrayidx, align 4
   ret void
@@ -39,7 +39,7 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call = tail call spir_func i32 @_Z22get_sub_group_local_idv()
+  %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %call
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
@@ -49,10 +49,10 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call = tail call spir_func i32 @_Z22get_sub_group_local_idv()
+  %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %call
   %v = load i32, i32 addrspace(1)* %arrayidx, align 4
-  %broadcast = call spir_func i32 @_Z19sub_group_broadcastij(i32 %v, i32 0)
+  %broadcast = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 %v, i32 0)
   %arrayidx2 = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %call
   store i32 %broadcast, i32 addrspace(1)* %arrayidx2, align 4
   ret void

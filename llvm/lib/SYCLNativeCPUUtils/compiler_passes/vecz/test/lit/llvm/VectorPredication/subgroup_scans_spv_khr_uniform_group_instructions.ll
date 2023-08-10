@@ -22,29 +22,29 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare spir_func i64 @__mux_get_global_id(i32)
 
-declare spir_func i32 @_Z28sub_group_scan_inclusive_muli(i32)
-declare spir_func float @_Z28sub_group_scan_inclusive_mulf(float)
+declare spir_func i32 @__mux_sub_group_scan_inclusive_mul_i32(i32)
+declare spir_func float @__mux_sub_group_scan_inclusive_fmul_f32(float)
 
-declare spir_func i32 @_Z28sub_group_scan_exclusive_muli(i32)
-declare spir_func float @_Z28sub_group_scan_exclusive_mulf(float)
+declare spir_func i32 @__mux_sub_group_scan_exclusive_mul_i32(i32)
+declare spir_func float @__mux_sub_group_scan_exclusive_fmul_f32(float)
 
-declare spir_func i32 @_Z28sub_group_scan_inclusive_andi(i32)
-declare spir_func i32 @_Z27sub_group_scan_inclusive_ori(i32)
-declare spir_func i32 @_Z28sub_group_scan_inclusive_xori(i32)
-declare spir_func i1 @_Z36sub_group_scan_inclusive_logical_andb(i1)
-declare spir_func i1 @_Z35sub_group_scan_inclusive_logical_orb(i1)
-declare spir_func i1 @_Z36sub_group_scan_inclusive_logical_xorb(i1)
+declare spir_func i32 @__mux_sub_group_scan_inclusive_and_i32(i32)
+declare spir_func i32 @__mux_sub_group_scan_inclusive_or_i32(i32)
+declare spir_func i32 @__mux_sub_group_scan_inclusive_xor_i32(i32)
+declare spir_func i1 @__mux_sub_group_scan_inclusive_logical_and_i1(i1)
+declare spir_func i1 @__mux_sub_group_scan_inclusive_logical_or_i1(i1)
+declare spir_func i1 @__mux_sub_group_scan_inclusive_logical_xor_i1(i1)
 
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_scan_incl_mul_i32(
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_mul_Dv4_j(<4 x i32> %{{.*}})
 define spir_kernel void @reduce_scan_incl_mul_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func i32 @_Z28sub_group_scan_inclusive_muli(i32 %0)
+  %call1 = tail call spir_func i32 @__mux_sub_group_scan_inclusive_mul_i32(i32 %0)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   store i32 %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -54,10 +54,10 @@ entry:
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_exclusive_mul_Dv4_j(<4 x i32> %{{.*}})
 define spir_kernel void @reduce_scan_excl_mul_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func i32 @_Z28sub_group_scan_exclusive_muli(i32 %0)
+  %call1 = tail call spir_func i32 @__mux_sub_group_scan_exclusive_mul_i32(i32 %0)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   store i32 %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -67,10 +67,10 @@ entry:
 ; CHECK: call <4 x float> @__vecz_b_sub_group_scan_inclusive_mul_Dv4_f(<4 x float> %{{.*}})
 define spir_kernel void @reduce_scan_incl_mul_f32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds float, ptr addrspace(1) %in, i64 %call
   %0 = load float, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func float @_Z28sub_group_scan_inclusive_mulf(float %0)
+  %call1 = tail call spir_func float @__mux_sub_group_scan_inclusive_fmul_f32(float %0)
   %arrayidx2 = getelementptr inbounds float, ptr addrspace(1) %out, i64 %call
   store float %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -80,10 +80,10 @@ entry:
 ; CHECK: call <4 x float> @__vecz_b_sub_group_scan_exclusive_mul_Dv4_f(<4 x float> %{{.*}})
 define spir_kernel void @reduce_scan_excl_mul_f32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds float, ptr addrspace(1) %in, i64 %call
   %0 = load float, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func float @_Z28sub_group_scan_exclusive_mulf(float %0)
+  %call1 = tail call spir_func float @__mux_sub_group_scan_exclusive_fmul_f32(float %0)
   %arrayidx2 = getelementptr inbounds float, ptr addrspace(1) %out, i64 %call
   store float %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -93,10 +93,10 @@ entry:
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_and_Dv4_j(<4 x i32> %{{.*}})
 define spir_kernel void @reduce_scan_incl_and_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func i32 @_Z28sub_group_scan_inclusive_andi(i32 %0)
+  %call1 = tail call spir_func i32 @__mux_sub_group_scan_inclusive_and_i32(i32 %0)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   store i32 %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -106,10 +106,10 @@ entry:
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_or_Dv4_j(<4 x i32> %{{.*}})
 define spir_kernel void @reduce_scan_incl_or_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func i32 @_Z27sub_group_scan_inclusive_ori(i32 %0)
+  %call1 = tail call spir_func i32 @__mux_sub_group_scan_inclusive_or_i32(i32 %0)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   store i32 %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -119,10 +119,10 @@ entry:
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_xor_Dv4_j(<4 x i32> %{{.*}})
 define spir_kernel void @reduce_scan_incl_xor_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
-  %call1 = tail call spir_func i32 @_Z28sub_group_scan_inclusive_xori(i32 %0)
+  %call1 = tail call spir_func i32 @__mux_sub_group_scan_inclusive_xor_i32(i32 %0)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   store i32 %call1, ptr addrspace(1) %arrayidx2, align 4
   ret void
@@ -132,11 +132,11 @@ entry:
 ; CHECK: call <4 x i1> @__vecz_b_sub_group_scan_inclusive_and_Dv4_b(<4 x i1> %{{.*}})
 define spir_kernel void @reduce_scan_incl_logical_and(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call1 = tail call spir_func i1 @_Z36sub_group_scan_inclusive_logical_andb(i1 %1)
+  %call1 = tail call spir_func i1 @__mux_sub_group_scan_inclusive_logical_and_i1(i1 %1)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   %2 = zext i1 %call1 to i32
   store i32 %2, ptr addrspace(1) %arrayidx2, align 4
@@ -147,11 +147,11 @@ entry:
 ; CHECK: call <4 x i1> @__vecz_b_sub_group_scan_inclusive_or_Dv4_b(<4 x i1> %{{.*}})
 define spir_kernel void @reduce_scan_incl_logical_or(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call1 = tail call spir_func i1 @_Z35sub_group_scan_inclusive_logical_orb(i1 %1)
+  %call1 = tail call spir_func i1 @__mux_sub_group_scan_inclusive_logical_or_i1(i1 %1)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   %2 = zext i1 %call1 to i32
   store i32 %2, ptr addrspace(1) %arrayidx2, align 4
@@ -162,17 +162,13 @@ entry:
 ; CHECK: call <4 x i1> @__vecz_b_sub_group_scan_inclusive_xor_Dv4_b(<4 x i1> %{{.*}})
 define spir_kernel void @reduce_scan_incl_logical_xor(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %in, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %1 = trunc i32 %0 to i1
-  %call1 = tail call spir_func i1 @_Z36sub_group_scan_inclusive_logical_xorb(i1 %1)
+  %call1 = tail call spir_func i1 @__mux_sub_group_scan_inclusive_logical_xor_i1(i1 %1)
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 %call
   %2 = zext i1 %call1 to i32
   store i32 %2, ptr addrspace(1) %arrayidx2, align 4
   ret void
 }
-
-!opencl.ocl.version = !{!0}
-
-!0 = !{i32 3, i32 0}
