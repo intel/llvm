@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------------===//
+#include <cinttypes>
 
 #include "command_buffer.hpp"
 #include "ur_level_zero.hpp"
@@ -304,7 +305,7 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendMemoryCopy() with"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
@@ -516,7 +517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
               ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;
