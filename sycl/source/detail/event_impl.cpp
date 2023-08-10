@@ -328,7 +328,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
         // TO DO MDeviceQueueTime
         return MHostBaseTime - MDeviceQueueTime + endTime;
       }
-    return 0;
+      return 0;
     }
   }
   if (!MHostProfilingInfo)
@@ -336,7 +336,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-  return MHostProfilingInfo->getStartTime();
+  return MHostProfilingInfo->getEndTime();
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {

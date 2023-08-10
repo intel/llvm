@@ -228,7 +228,7 @@ public:
   /// submission time for the command associated with this event.
   void setSubmissionTime();
 
-  /// Calling this function to cature the host timestamp to use 
+  /// Calling this function to cature the host timestamp to use
   /// profiling base time. see MFallbackProfiling
   void setQueueBaseTime();
 
