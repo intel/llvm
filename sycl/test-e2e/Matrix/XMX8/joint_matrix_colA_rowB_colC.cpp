@@ -12,6 +12,9 @@
 
 // XFAIL:gpu
 
-#define SG_SZ 16
+#include "../common.hpp"
+
+constexpr size_t SG_SZ = 8;
+constexpr size_t TN = 8;
 
 #include "../joint_matrix_colA_rowB_colC_impl.hpp"

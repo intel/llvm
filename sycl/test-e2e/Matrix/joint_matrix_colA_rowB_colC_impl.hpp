@@ -1,23 +1,13 @@
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define TM 8
-#define TN SG_SZ
-#define TK 16
+constexpr size_t TM = 8;
+constexpr size_t TK = 16;
 
-#define BF16_EPSILON 0.00781250
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
+constexpr float BF16_EPSILON = 0.00781250;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -36,7 +26,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
@@ -58,8 +48,8 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
            joint_matrix_fill(sg, sub_c, 1);
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
-             joint_matrix_load(
-                 sg, sub_b, pB + (k) * (N) + sg_starty / SG_SZ * TN * 2, N * 2);
+             joint_matrix_load(sg, sub_b, pB + k * N + sg_starty / SG_SZ * TN,
+                               N);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -67,18 +57,6 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
                layout::col_major);
          }); // parallel for
    }).wait();
-}
-
-void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
-                         int MATRIX_N, int MATRIX_K) {
-  for (unsigned int i = 0; i < MATRIX_M; i++) {
-    for (unsigned int k = 0; k < MATRIX_K; k++) {
-      for (unsigned int j = 0; j < MATRIX_N; j++) {
-        C[j * MATRIX_N + i] +=
-            make_fp32(A[i * MATRIX_K + k]) * make_fp32(B[k * MATRIX_N + j]);
-      }
-    }
-  }
 }
 
 int main() {
@@ -113,7 +91,7 @@ int main() {
 
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K, MATRIX_N,
                   MATRIX_M, MATRIX_N>(C, A, B, q);
-  matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
+  matrix_multiply_ref_transposed_c(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
@@ -123,8 +101,6 @@ int main() {
       }
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }

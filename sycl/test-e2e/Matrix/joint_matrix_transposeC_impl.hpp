@@ -1,28 +1,18 @@
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define TM 8
-#define TN SG_SZ
-#define TK 16
+constexpr size_t TM = 8;
+constexpr size_t TK = 16;
 
-#define BF16_EPSILON 0.00781250
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
+constexpr float BF16_EPSILON = 0.00781250;
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
-void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
+void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
   size_t M = NUM_ROWS_C;
   size_t N = NUM_COLS_C;
   size_t K = NUM_COLS_A;
@@ -35,7 +25,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
   auto pC = multi_ptr<T1, sycl::access::address_space::global_space>(C);
 
   q.submit([&](handler &cgh) {
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
@@ -64,8 +54,9 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
            for (int k = 0; k < K; k += TK) {
              joint_matrix_load(sg, sub_a, pA + (sg_startx * TM) * K + k, K);
              // Assume we alreay in vnni format.
-             joint_matrix_load(
-                 sg, sub_b, pB + (k) * (N) + sg_starty / SG_SZ * TN * 2, N * 2);
+             joint_matrix_load(sg, sub_b,
+                               pB + k * N + sg_starty / SG_SZ * TN * vnniFactor,
+                               N * vnniFactor);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
@@ -75,35 +66,11 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
    }).wait();
 }
 
-void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
-                         int MATRIX_N, int MATRIX_K) {
-  for (unsigned int i = 0; i < MATRIX_M; i++) {
-    for (unsigned int k = 0; k < MATRIX_K; k++) {
-      for (unsigned int j = 0; j < MATRIX_N; j++) {
-        C[j * MATRIX_M + i] +=
-            make_fp32(A[i * MATRIX_K + k]) * make_fp32(B[k * MATRIX_N + j]);
-      }
-    }
-  }
-}
-
-template <typename T>
-void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
-                 unsigned int vnniFactor = 2) {
-  for (unsigned int i = 0; i < rows / vnniFactor; i++) {
-    for (unsigned int j = 0; j < cols; j++) {
-      for (unsigned int k = 0; k < vnniFactor; k++) {
-        dest[i * cols * vnniFactor + j * vnniFactor + k] =
-            src[(i * vnniFactor + k) * cols + j];
-      }
-    }
-  }
-}
-
 int main() {
   static constexpr size_t MATRIX_M = 1024;
   static constexpr size_t MATRIX_N = 1024;
   static constexpr size_t MATRIX_K = 1024;
+  static constexpr unsigned int vnniFactor = 2;
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_M * MATRIX_K, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_K * MATRIX_N, q);
@@ -131,10 +98,11 @@ int main() {
     }
   }
 
-  matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, 2);
-  matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / 2,
-                  MATRIX_N * 2, MATRIX_M, MATRIX_N>(C, A, vnniB, q);
-  matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
+  matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, vnniFactor);
+  matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
+                  MATRIX_N * vnniFactor, MATRIX_M, MATRIX_N>(C, A, vnniB, q,
+                                                             vnniFactor);
+  matrix_multiply_ref_transposed_c(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {
@@ -144,8 +112,6 @@ int main() {
       }
     }
   }
-  if (res)
-    std::cout << "passed\n";
-  else
-    std::cout << "failed\n";
+  std::cout << (res ? "passed" : "failed") << std::endl;
+  return !res;
 }
