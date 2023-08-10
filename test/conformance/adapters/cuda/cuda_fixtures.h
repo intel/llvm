@@ -19,6 +19,7 @@ struct ResultCuda {
 
     CUresult value;
 };
+
 } // namespace uur
 
 #ifndef ASSERT_EQ_RESULT_CUDA
@@ -32,12 +33,11 @@ struct ResultCuda {
 
 #ifndef EXPECT_EQ_RESULT_CUDA
 #define EXPECT_EQ_RESULT_CUDA(EXPECTED, ACTUAL)                                \
-    EXPECT_EQ_RESULT_CUDA(uur::ResultCuda(EXPECTED), uur::ResultCuda(ACTUAL))
+    EXPECT_EQ(uur::ResultCuda(EXPECTED), uur::ResultCuda(ACTUAL))
 #endif // EXPECT_EQ_RESULT_CUDA
 
 #ifndef EXPECT_SUCCESS_CUDA
-#define EXPECT_SUCCESS_CUDA(ACTUAL)                                            \
-    EXPECT_EQ_RESULT_CUDA(UR_RESULT_SUCCESS, ACTUAL)
+#define EXPECT_SUCCESS_CUDA(ACTUAL) EXPECT_EQ_RESULT_CUDA(CUDA_SUCCESS, ACTUAL)
 #endif // EXPECT_EQ_RESULT_CUDA
 
 #endif // UR_TEST_CONFORMANCE_ADAPTERS_CUDA_FIXTURES_H_INCLUDED

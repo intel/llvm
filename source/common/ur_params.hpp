@@ -193,6 +193,82 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 
 } // namespace ur_params
 
+#ifdef UR_INCLUDE_HANDLE_IMPLEMENTATION_OVERLOADS
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_adapter_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_platform_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_device_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_context_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_event_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_program_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_kernel_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_queue_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_native_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_sampler_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_mem_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_physical_mem_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_usm_pool_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_image_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_image_mem_handle_t_ &) {
+    return os;
+}
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_exp_interop_mem_handle_t_ &) {
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_exp_interop_semaphore_handle_t_ &) {
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_command_buffer_handle_t_ &) {
+    return os;
+}
+#endif
+
 inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_structure_type_t value);

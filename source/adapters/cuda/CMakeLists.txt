@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(CUDA_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/cuda")
+set(CUDA_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/cuda" CACHE PATH "CUDA adapter directory")
 
 set(TARGET_NAME ur_adapter_cuda)
 
