@@ -1338,14 +1338,15 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    auto Img = new RTDeviceBinaryImage(RawImg);
+    RTDeviceBinaryImageUPtr Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
     const RTDeviceBinaryImage::PropertyRange &KPOIRange =
         Img->getKernelParamOptInfo();
     if (KPOIRange.isAvailable()) {
-      KernelNameToArgMaskMap &ArgMaskMap = m_EliminatedKernelArgMasks[Img];
+      KernelNameToArgMaskMap &ArgMaskMap =
+          m_EliminatedKernelArgMasks[Img.get()];
       for (const auto &Info : KPOIRange)
         ArgMaskMap[Info->Name] =
             createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
@@ -1368,7 +1369,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
     }
 
-    m_BinImg2KernelIDs[Img].reset(new std::vector<kernel_id>);
+    m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
     for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
          ++EntriesIt) {
@@ -1378,7 +1379,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
       // __sycl_service_kernel__ in the mangled name, primarily as part of
       // the namespace of the name type.
       if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img));
+        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
         continue;
       }
 
@@ -1398,15 +1399,15 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
         It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
       }
-      m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img));
-      m_BinImg2KernelIDs[Img]->push_back(It->second);
+      m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
+      m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
     }
 
     cacheKernelUsesAssertInfo(*Img);
 
     // Sort kernel ids for faster search
-    std::sort(m_BinImg2KernelIDs[Img]->begin(), m_BinImg2KernelIDs[Img]->end(),
-              LessByHash<kernel_id>{});
+    std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
+              m_BinImg2KernelIDs[Img.get()]->end(), LessByHash<kernel_id>{});
 
     // ... and initialize associated device_global information
     {
@@ -1433,14 +1434,15 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
         if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
           // If it has already been registered we update the information.
-          ExistingDeviceGlobal->second->initialize(Img, TypeSize,
+          ExistingDeviceGlobal->second->initialize(Img.get(), TypeSize,
                                                    DeviceImageScopeDecorated);
         } else {
           // If it has not already been registered we create a new entry.
           // Note: Pointer to the device global is not available here, so it
           //       cannot be set until registration happens.
           auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-              DeviceGlobal->Name, Img, TypeSize, DeviceImageScopeDecorated);
+              DeviceGlobal->Name, Img.get(), TypeSize,
+              DeviceImageScopeDecorated);
           m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
         }
       }
@@ -1465,19 +1467,19 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
         if (ExistingHostPipe != m_HostPipes.end()) {
           // If it has already been registered we update the information.
           ExistingHostPipe->second->initialize(TypeSize);
-          ExistingHostPipe->second->initialize(Img);
+          ExistingHostPipe->second->initialize(Img.get());
         } else {
           // If it has not already been registered we create a new entry.
           // Note: Pointer to the host pipe is not available here, so it
           //       cannot be set until registration happens.
           auto EntryUPtr =
               std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
-          EntryUPtr->initialize(Img);
+          EntryUPtr->initialize(Img.get());
           m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
         }
       }
     }
-    continue;
+    m_DeviceImages.insert(std::move(Img));
   }
 }
 

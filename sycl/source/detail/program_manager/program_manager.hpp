@@ -288,14 +288,7 @@ public:
                     sycl::detail::pi::PiProgram Program);
 
   ProgramManager();
-  ~ProgramManager() {
-    // unique_ptr could not be used in any map used in this class. When image is
-    // used as a key - impossible to wrap because we do search by raw pointer
-    // value, when used as a value - the same image could be assigned to
-    // different keys. Release them explicitly.
-    for (auto &Image : m_BinImg2KernelIDs)
-      delete Image.first;
-  };
+  ~ProgramManager() = default;
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
@@ -365,6 +358,10 @@ private:
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_set<std::string> m_ExportedSymbols;
+
+  /// Keeps all device images we are refering to during program lifetime. Used
+  /// for proper cleanup.
+  std::unordered_set<RTDeviceBinaryImageUPtr> m_DeviceImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
