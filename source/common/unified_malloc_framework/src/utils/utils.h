@@ -8,39 +8,69 @@
  *
  */
 
-#include <pthread.h>
-#include <stdatomic.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <stdatomic.h>
+#endif
 
-typedef pthread_mutex_t os_mutex_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct os_mutex_t;
+
+struct os_mutex_t *util_mutex_create(void);
+void util_mutex_destroy(struct os_mutex_t *mutex);
+int util_mutex_lock(struct os_mutex_t *mutex);
+int util_mutex_unlock(struct os_mutex_t *mutex);
+
+#if defined(_WIN32)
+static __inline unsigned char util_lssb_index(long long value) {
+    unsigned long ret;
+    _BitScanForward64(&ret, value);
+    return (unsigned char)ret;
+}
+static __inline unsigned char util_mssb_index(long long value) {
+    unsigned long ret;
+    _BitScanReverse64(&ret, value);
+    return (unsigned char)ret;
+}
+
+// There is no good way to do atomic_load on windows...
+#define util_atomic_load_acquire(object, dest)                                 \
+    do {                                                                       \
+        *dest = InterlockedOr64Acquire((LONG64 volatile *)dest, 0);            \
+    } while (0)
+
+#define util_atomic_store_release(object, desired)                             \
+    InterlockedExchange64((LONG64 volatile *)object, (LONG64)desired)
+#define util_atomic_increment(object)                                          \
+    InterlockedIncrement64((LONG64 volatile *)object)
+#else
+#define util_lssb_index(x) ((unsigned char)__builtin_ctzll(x))
+#define util_mssb_index(x) ((unsigned char)(63 - __builtin_clzll(x)))
+#define util_atomic_load_acquire(object, dest)                                 \
+    __atomic_load(object, dest, memory_order_acquire)
+#define util_atomic_store_release(object, desired)                             \
+    __atomic_store_n(object, desired, memory_order_release)
+#define util_atomic_increment(object)                                          \
+    __atomic_add_fetch(object, 1, __ATOMIC_ACQ_REL)
+#endif
 
 #define Malloc malloc
 #define Free free
 
-static void *Zalloc(size_t s) {
+static inline void *Zalloc(size_t s) {
     void *m = Malloc(s);
     if (m) {
         memset(m, 0, s);
     }
     return m;
 }
-
-#define util_mutex_init(x) pthread_mutex_init(x, NULL)
-#define util_mutex_destroy(x) pthread_mutex_destroy(x)
-#define util_mutex_lock(x) pthread_mutex_lock(x)
-#define util_mutex_unlock(x) pthread_mutex_unlock(x)
-#define util_lssb_index64(x) ((unsigned char)__builtin_ctzll(x))
-#define util_mssb_index64(x) ((unsigned char)(63 - __builtin_clzll(x)))
-#define util_lssb_index32(x) ((unsigned char)__builtin_ctzl(x))
-#define util_mssb_index32(x) ((unsigned char)(31 - __builtin_clzl(x)))
-#if __SIZEOF_LONG__ == 8
-#define util_lssb_index(x) util_lssb_index64(x)
-#define util_mssb_index(x) util_mssb_index64(x)
-#else
-#define util_lssb_index(x) util_lssb_index32(x)
-#define util_mssb_index(x) util_mssb_index32(x)
-#endif
 
 #define NOFUNCTION                                                             \
     do                                                                         \
@@ -53,7 +83,6 @@ static void *Zalloc(size_t s) {
 #define ASSERT(x) NOFUNCTION
 #define ASSERTne(x, y) ASSERT(x != y)
 #else
-#include <stdio.h>
 #define ASSERT(x)                                                              \
     do                                                                         \
         if (!(x)) {                                                            \
@@ -75,4 +104,8 @@ static void *Zalloc(size_t s) {
             abort();                                                           \
         }                                                                      \
     } while (0)
+#endif
+
+#ifdef __cplusplus
+}
 #endif

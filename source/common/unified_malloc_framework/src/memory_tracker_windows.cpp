@@ -8,6 +8,9 @@
  *
  */
 
+#include "critnib/critnib.h"
+#include "memory_tracker.h"
+
 #include <windows.h>
 
 #if defined(UMF_SHARED_LIBRARY)
@@ -23,7 +26,7 @@ BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 #else
 struct tracker_t {
     tracker_t() { map = critnib_new(); }
-    ~tracker_t() { critnib_remove(map); }
+    ~tracker_t() { critnib_delete(map); }
     critnib *map;
 };
 tracker_t TRACKER_INSTANCE;
