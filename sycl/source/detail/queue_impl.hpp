@@ -153,7 +153,7 @@ public:
                               "discard_events and enable_profiling.");
       if (!MDevice->has(aspect::queue_profiling)) {
         // fallback profiling support
-        if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
+        if (checkNativeQueueProfiling(MDevice)) {
           // if piGetDeviceAndHostTimer is not supported, compute the profiling
           // time OpenCL version < 2.1 case
           if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported())

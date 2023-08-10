@@ -262,10 +262,14 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
-
         // Capture a host timestamp to support fallback profiling
         // see MFallbackProfiling
-
+        if (Result == PI_SUCCESS) {
+          NewEvent = std::make_shared<detail::event_impl>(MQueue);
+          NewEvent->setContextImpl(MQueue->getContextImplPtr());
+          OutEvent = &NewEvent->getHandleRef();
+          NewEvent->setQueueBaseTime();
+        }
         return Result;
       };
 
