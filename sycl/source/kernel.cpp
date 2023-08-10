@@ -14,7 +14,7 @@
 #include <sycl/kernel.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
@@ -96,5 +96,5 @@ pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

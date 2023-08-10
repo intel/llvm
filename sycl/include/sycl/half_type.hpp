@@ -8,17 +8,23 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>              // for bit_cast
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
+#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>
-#include <sycl/bit_cast.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#endif
 
-#include <functional>
-#include <limits>
+#include <cstddef>     // for size_t
+#include <cstdint>     // for uint16_t, uint32_t, uint8_t
+#include <functional>  // for hash
+#include <limits>      // for float_denorm_style, float_r...
+#include <string_view> // for hash
+#include <type_traits> // for enable_if_t
 
-#if !__has_builtin(__builtin_expect)
+#if !defined(__has_builtin) || !__has_builtin(__builtin_expect)
 #define __builtin_expect(a, b) (a)
 #endif
 
@@ -26,14 +32,15 @@
 // `constexpr` could work because the implicit conversion from `float` to
 // `_Float16` can be `constexpr`.
 #define __SYCL_CONSTEXPR_HALF constexpr
-#elif __cpp_lib_bit_cast || __has_builtin(__builtin_bit_cast)
+#elif __cpp_lib_bit_cast ||                                                    \
+    (defined(__has_builtin) && __has_builtin(__builtin_bit_cast))
 #define __SYCL_CONSTEXPR_HALF constexpr
 #else
 #define __SYCL_CONSTEXPR_HALF
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::half_impl {
 class half;
 }
@@ -252,28 +259,12 @@ using BIsRepresentationT = half;
 // for vec because they are actually defined as an integer type under the
 // hood. As a result half values will be converted to the integer and passed
 // as a kernel argument which is expected to be floating point number.
-template <int NumElements> struct half_vec {
-  alignas(
-      vector_alignment<StorageT, NumElements>::value) StorageT s[NumElements];
 
-  __SYCL_CONSTEXPR_HALF half_vec() : s{0.0f} { initialize_data(); }
-  template <typename... Ts,
-            typename = std::enable_if_t<(sizeof...(Ts) == NumElements) &&
-                                        (std::is_same_v<half, Ts> && ...)>>
-  __SYCL_CONSTEXPR_HALF half_vec(const Ts &...hs) : s{hs...} {}
-
-  constexpr void initialize_data() {
-    for (size_t i = 0; i < NumElements; ++i) {
-      s[i] = StorageT(0.0f);
-    }
-  }
-};
-
-using Vec2StorageT = half_vec<2>;
-using Vec3StorageT = half_vec<3>;
-using Vec4StorageT = half_vec<4>;
-using Vec8StorageT = half_vec<8>;
-using Vec16StorageT = half_vec<16>;
+using Vec2StorageT = std::array<StorageT, 2>;
+using Vec3StorageT = std::array<StorageT, 3>;
+using Vec4StorageT = std::array<StorageT, 4>;
+using Vec8StorageT = std::array<StorageT, 8>;
+using Vec16StorageT = std::array<StorageT, 16>;
 #endif
 
 #ifndef __SYCL_DEVICE_ONLY__
@@ -576,7 +567,7 @@ inline float cast_if_host_half(half_impl::half val) {
 
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // Partial specialization of some functions in namespace `std`

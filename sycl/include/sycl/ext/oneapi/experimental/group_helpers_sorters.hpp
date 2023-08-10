@@ -9,11 +9,30 @@
 #pragma once
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+
+#include <sycl/aliases.hpp>             // for half
+#include <sycl/detail/pi.h>             // for PI_ERROR_INVALID_DEVICE
+#include <sycl/exception.hpp>           // for sycl_category, exception
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/memory_enums.hpp>        // for memory_scope
+#include <sycl/range.hpp>               // for range
+#include <sycl/sycl_span.hpp>           // for span
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/group_sort_impl.hpp>
-#include <sycl/ext/oneapi/experimental/builtins.hpp>
+#endif
+
+#include <bitset>       // for bitset
+#include <cstddef>      // for size_t, byte
+#include <functional>   // for less, greater
+#include <limits.h>     // for CHAR_BIT
+#include <limits>       // for numeric_limits
+#include <stdint.h>     // for uint32_t
+#include <system_error> // for error_code
+#include <type_traits>  // for is_same, is_arithmetic
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // ---- group helpers
@@ -193,6 +212,6 @@ public:
 };
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -225,6 +225,12 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self) {
   if (MState == HES_Discarded)
     throw sycl::exception(make_error_code(errc::invalid),
                           "wait method cannot be used for a discarded event.");
+
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait method cannot be used for an event associated "
+                          "with a command graph.");
+  }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   void *TelemetryEvent = nullptr;
@@ -458,5 +464,5 @@ bool event_impl::isCompleted() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
