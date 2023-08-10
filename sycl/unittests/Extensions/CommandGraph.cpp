@@ -20,6 +20,24 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi;
 
+// Spec constant for testing.
+constexpr specialization_id<int> SpecConst1{7};
+
+namespace sycl {
+inline namespace _V1 {
+namespace detail {
+
+// Necessary for get_specialization_constant() to work in unit tests.
+template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
+  return "SC1";
+}
+} // namespace detail
+} // namespace _V1
+} // namespace sycl
+
+// anonymous namespace used to avoid code redundancy by defining functions
+// used by multiple times by unitests.
+// Defining anonymous namespace prevents from function naming conflits
 namespace {
 /// Define the three possible path to add node to a SYCL Graph.
 /// Shortcut is a sub-type of Record&Replay using Queue shortcut
@@ -972,4 +990,70 @@ TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
   sycl::free(USMMemSrc, Queue);
   sycl::free(USMMemDst, Queue);
 }
->>>>>>> b99238b99781... [SYCL][Graph] Implement exceptions for incompatible extensions (#276)
+
+// Tests that using specialization constants in a graph will throw.
+TEST_F(CommandGraphTest, SpecializationConstant) {
+
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            CGH.set_specialization_constant<SpecConst1>(8);
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            int Value = CGH.get_specialization_constant<SpecConst1>();
+            (void)Value;
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Tests that using kernel bundles in a graph will throw.
+TEST_F(CommandGraphTest, KernelBundle) {
+  sycl::kernel_bundle KernelBundle =
+      sycl::get_kernel_bundle<sycl::bundle_state::executable>(
+          Queue.get_context(), {Dev});
+
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) { CGH.use_kernel_bundle(KernelBundle); });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Tests that using reductions in a graph will throw.
+TEST_F(CommandGraphTest, Reductions) {
+  int ReduVar = 0;
+  ASSERT_THROW(
+      {
+        try {
+          Graph.add([&](handler &CGH) {
+            CGH.parallel_for<class TestKernel>(
+                range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus()),
+                [=](item<1> idx, auto &Sum) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}

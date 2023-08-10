@@ -794,8 +794,9 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 }
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
-  throwIfGraphAssociated<ext::oneapi::experimental::detail::SyclExtensions::
-                             sycl_ext_oneapi_enqueue_barrier>();
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_enqueue_barrier>();
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
@@ -1104,6 +1105,9 @@ void handler::ext_oneapi_signal_external_semaphore(
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
 
+  throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                             UnsupportedGraphFeatures::sycl_kernel_bundle>();
+
   std::shared_ptr<detail::queue_impl> PrimaryQueue =
       MImpl->MSubmissionPrimaryQueue;
   if (PrimaryQueue->get_context() != ExecBundle.get_context())
@@ -1340,50 +1344,5 @@ handler::getCommandGraph() const {
   return MQueue->getCommandGraph();
 }
 
-template void handler::throwIfGraphAssociated<
-    ext::oneapi::experimental::detail::SyclExtensions::
-        sycl_ext_oneapi_kernel_properties>();
-template void handler::throwIfGraphAssociated<
-    ext::oneapi::experimental::detail::SyclExtensions::
-        sycl_ext_oneapi_enqueue_barrier>();
-template void
-handler::throwIfGraphAssociated<ext::oneapi::experimental::detail::
-                                    SyclExtensions::sycl_ext_oneapi_memcpy2d>();
-template void handler::throwIfGraphAssociated<
-    ext::oneapi::experimental::detail::SyclExtensions::
-        sycl_ext_oneapi_device_global>();
-
-template <ext::oneapi::experimental::detail::SyclExtensions ExtensionT>
-void handler::throwIfGraphAssociated() {
-  std::string ExceptionMsg = "";
-
-  if constexpr (ExtensionT ==
-                ext::oneapi::experimental::detail::SyclExtensions::
-                    sycl_ext_oneapi_kernel_properties) {
-    ExceptionMsg = "sycl_ext_oneapi_kernel_properties";
-  }
-  if constexpr (ExtensionT ==
-                ext::oneapi::experimental::detail::SyclExtensions::
-                    sycl_ext_oneapi_enqueue_barrier) {
-    ExceptionMsg = "sycl_ext_oneapi_enqueue_barrier";
-  }
-  if constexpr (ExtensionT == ext::oneapi::experimental::detail::
-                                  SyclExtensions::sycl_ext_oneapi_memcpy2d) {
-    ExceptionMsg = "sycl_ext_oneapi_memcpy2d";
-  }
-  if constexpr (ExtensionT ==
-                ext::oneapi::experimental::detail::SyclExtensions::
-                    sycl_ext_oneapi_device_global) {
-    ExceptionMsg = "sycl_ext_oneapi_device_global";
-  }
-
-  if (MGraph || MQueue->getCommandGraph()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "The feature " + ExceptionMsg +
-                              " is not yet available "
-                              "along with SYCL Graph extension.");
-  }
-}
-
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
