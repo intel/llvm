@@ -11,12 +11,24 @@ macro(add_sycl_library_unittest test_suite_name)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SYCL_EXTRA_FLAGS;SOURCES"
+    "SYCL_EXTRA_FLAGS;SOURCES;DEPENDANTS"
     ${ARGN})
 
   set(CXX_COMPILER clang++)
   if(MSVC)
     set(CXX_COMPILER clang-cl.exe)
+  endif()
+
+  set(TRIPLES "spir64-unknown-unknown")
+  if (SYCL_BUILD_PI_CUDA OR (SYCL_BUILD_PI_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA"))
+    set(TRIPLES "${TRIPLES},nvptx64-nvidia-cuda")
+  endif()
+  # FIXME: -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch= for amd compilation
+  if ((SYCL_BUILD_PI_HIP AND "${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD"))
+    set(TRIPLES "${TRIPLES},amdgcn-amd-amdhsa")
+  endif()
+  if (SYCL_BUILD_NATIVE_CPU)
+    set(TRIPLES "${TRIPLES},native_cpu")
   endif()
 
   set(DEVICE_COMPILER_EXECUTABLE ${LLVM_RUNTIME_OUTPUT_INTDIR}/${CXX_COMPILER})
@@ -53,39 +65,28 @@ macro(add_sycl_library_unittest test_suite_name)
 
   add_custom_target(${_BIN_TARGET}
     COMMAND ${DEVICE_COMPILER_EXECUTABLE} -fsycl ${ARG_SOURCES}
+      -fsycl-targets=${TRIPLES}
       -o ${_OUTPUT_BIN}
       ${ARG_SYCL_EXTRA_FLAGS}
       ${_INTERNAL_EXTRA_FLAGS}
       ${INCLUDE_COMPILER_STRING}
       ${_LIBRARIES}
       ${_INTERNAL_LINKER_FLAGS}
-    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/${_TESTS_TARGET}
+    BYPRODUCTS ${_OUTPUT_BIN}
+    DEPENDS ${ARG_SOURCES}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMAND_EXPAND_LISTS)
 
-  add_dependencies(${_BIN_TARGET} sycl)
+  add_dependencies(${_BIN_TARGET} sycl-toolchain)
   foreach(_lib ${ARG_LIBRARIES})
     add_dependencies(${_BIN_TARGET} ${_TARGET_DEPENDENCIES})
   endforeach()
-
-  add_dependencies(SYCLUnitTests ${_BIN_TARGET})
+  foreach(_dep ${ARG_DEPENDANTS})
+    add_dependencies(${_dep} ${_BIN_TARGET})
+  endforeach()
 
   add_executable(${_TESTS_TARGET} IMPORTED GLOBAL)
   set_target_properties(${_TESTS_TARGET} PROPERTIES
     IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR})
-
-  # Check target for Linux
-  if (UNIX)
-    add_custom_target(check-${test_suite_name}
-      ${CMAKE_COMMAND} -E
-      env LD_LIBRARY_PATH="${CMAKE_BINARY_DIR}/lib"
-      env SYCL_CONFIG_FILE_NAME=null.cfg
-      env SYCL_DEVICELIB_NO_FALLBACK=1
-      env SYCL_CACHE_DIR="${CMAKE_BINARY_DIR}/sycl_cache"
-      ${CMAKE_CURRENT_BINARY_DIR}/${_TESTS_TARGET}
-    )
-    add_dependencies(check-${test_suite_name} ${_BIN_TARGET})
-    add_dependencies(check-sycl-unittests-libs check-${test_suite_name})
-  endif()
 
 endmacro()

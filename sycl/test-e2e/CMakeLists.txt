@@ -71,3 +71,5 @@ add_custom_target(check-sycl-e2e
 
 add_subdirectory(External)
 add_subdirectory(ExtraTests)
+
+add_subdirectory(Syclcompat)
