@@ -833,6 +833,12 @@ namespace llvm {
     // Load FP control word from i16 memory.
     FLDCW16m,
 
+    // Store x87 FPU environment into memory.
+    FNSTENVm,
+
+    // Load x87 FPU environment from memory.
+    FLDENVm,
+
     /// This instruction implements FP_TO_SINT with the
     /// integer destination in memory and a FP reg source.  This corresponds
     /// to the X86::FIST*m instructions and the rounding mode change stuff. It
@@ -1254,8 +1260,8 @@ namespace llvm {
     /// Examine constraint string and operand type and determine a weight value.
     /// The operand object must already have been set up with the operand type.
     ConstraintWeight
-      getSingleConstraintMatchWeight(AsmOperandInfo &info,
-                                     const char *constraint) const override;
+      getSingleConstraintMatchWeight(AsmOperandInfo &Info,
+                                     const char *Constraint) const override;
 
     const char *LowerXConstraint(EVT ConstraintVT) const override;
 
@@ -1663,6 +1669,9 @@ namespace llvm {
     SDValue LowerINIT_TRAMPOLINE(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerGET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerSET_ROUNDING(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerGET_FPENV_MEM(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerSET_FPENV_MEM(SDValue Op, SelectionDAG &DAG) const;
+    SDValue LowerRESET_FPENV(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_i128OP(SDValue Op, SelectionDAG &DAG) const;
     SDValue LowerWin64_FP_TO_INT128(SDValue Op, SelectionDAG &DAG,
                                     SDValue &Chain) const;
@@ -1813,6 +1822,9 @@ namespace llvm {
 
     SDValue BuildSDIVPow2(SDNode *N, const APInt &Divisor, SelectionDAG &DAG,
                           SmallVectorImpl<SDNode *> &Created) const override;
+
+    SDValue getMOVL(SelectionDAG &DAG, const SDLoc &dl, MVT VT, SDValue V1,
+                    SDValue V2) const;
   };
 
   namespace X86 {

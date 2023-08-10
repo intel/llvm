@@ -58,9 +58,7 @@ namespace {
 using namespace llvm::opt; // for HelpHidden in Opts.inc
 enum ID {
   OPT_INVALID = 0, // This is not an option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -73,13 +71,7 @@ enum ID {
 #undef PREFIX
 
 static constexpr opt::OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {                                                                            \
-      PREFIX,      NAME,      HELPTEXT,                                        \
-      METAVAR,     OPT_##ID,  opt::Option::KIND##Class,                        \
-      PARAM,       FLAGS,     OPT_##GROUP,                                     \
-      OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -1802,9 +1794,12 @@ static bool getSymbolNamesFromObject(SymbolicFile &Obj,
       // are used to repesent mapping symbols and needed to honor the
       // --special-syms option.
       auto *ELFObj = dyn_cast<ELFObjectFileBase>(&Obj);
-      if ((!ELFObj || (ELFObj->getEMachine() != ELF::EM_ARM &&
-                       ELFObj->getEMachine() != ELF::EM_AARCH64)) &&
-          !DebugSyms && (*SymFlagsOrErr & SymbolRef::SF_FormatSpecific))
+      bool HasMappingSymbol =
+          ELFObj && llvm::is_contained({ELF::EM_ARM, ELF::EM_AARCH64,
+                                        ELF::EM_CSKY, ELF::EM_RISCV},
+                                       ELFObj->getEMachine());
+      if (!HasMappingSymbol && !DebugSyms &&
+          (*SymFlagsOrErr & SymbolRef::SF_FormatSpecific))
         continue;
       if (WithoutAliases && (*SymFlagsOrErr & SymbolRef::SF_Indirect))
         continue;
@@ -2267,11 +2262,7 @@ static std::vector<NMSymbol> dumpSymbolNamesFromFile(StringRef Filename) {
   if (error(BufferOrErr.getError(), Filename))
     return SymbolList;
 
-  // Always enable opaque pointers, to handle archives with mixed typed and
-  // opaque pointer bitcode files gracefully. As we're only reading symbols,
-  // the used pointer types don't matter.
   LLVMContext Context;
-  Context.setOpaquePointers(true);
   LLVMContext *ContextPtr = NoLLVMBitcode ? nullptr : &Context;
   Expected<std::unique_ptr<Binary>> BinaryOrErr =
       createBinary(BufferOrErr.get()->getMemBufferRef(), ContextPtr);

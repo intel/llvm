@@ -89,6 +89,13 @@ void OpenMPDialect::initialize() {
       *getContext());
   mlir::func::FuncOp::attachInterface<
       mlir::omp::DeclareTargetDefaultModel<mlir::func::FuncOp>>(*getContext());
+
+  // Attach default early outlining interface to func ops.
+  mlir::func::FuncOp::attachInterface<
+      mlir::omp::EarlyOutliningDefaultModel<mlir::func::FuncOp>>(*getContext());
+  mlir::LLVM::LLVMFuncOp::attachInterface<
+      mlir::omp::EarlyOutliningDefaultModel<mlir::LLVM::LLVMFuncOp>>(
+      *getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -793,11 +800,22 @@ static LogicalResult verifyMapClause(Operation *op, OperandRange map_operands,
                std::underlying_type_t<llvm::omp::OpenMPOffloadMappingFlags>>(
                flag);
   };
-  if (!map_types.has_value())
-    return success();
+  if (!map_types) {
+    if (!map_operands.empty())
+      return emitError(op->getLoc(), "missing mapTypes");
+    else
+      return success();
+  }
+
+  if (map_operands.empty() && !map_types->empty())
+    return emitError(op->getLoc(), "missing mapOperands");
+
+  if (map_types->empty() && !map_operands.empty())
+    return emitError(op->getLoc(), "missing mapTypes");
 
   if (map_operands.size() != map_types->size())
-    return failure();
+    return emitError(op->getLoc(),
+                     "mismatch in number of mapOperands and mapTypes");
 
   for (const auto &mapTypeOp : *map_types) {
     int64_t mapTypeBits = 0x00;
@@ -828,6 +846,11 @@ static LogicalResult verifyMapClause(Operation *op, OperandRange map_operands,
 }
 
 LogicalResult DataOp::verify() {
+  if (getMapOperands().empty() && getUseDevicePtr().empty() &&
+      getUseDeviceAddr().empty()) {
+    return ::emitError(this->getLoc(), "At least one of map, useDevicePtr, or "
+                                       "useDeviceAddr operand must be present");
+  }
   return verifyMapClause(*this, getMapOperands(), getMapTypes());
 }
 
@@ -861,6 +884,48 @@ LogicalResult ParallelOp::verify() {
   if (getAllocateVars().size() != getAllocatorsVars().size())
     return emitError(
         "expected equal sizes for allocate and allocator variables");
+  return verifyReductionVarList(*this, getReductions(), getReductionVars());
+}
+
+//===----------------------------------------------------------------------===//
+// TeamsOp
+//===----------------------------------------------------------------------===//
+
+static bool opInGlobalImplicitParallelRegion(Operation *op) {
+  while ((op = op->getParentOp()))
+    if (isa<OpenMPDialect>(op->getDialect()))
+      return false;
+  return true;
+}
+
+LogicalResult TeamsOp::verify() {
+  // Check parent region
+  // TODO If nested inside of a target region, also check that it does not
+  // contain any statements, declarations or directives other than this
+  // omp.teams construct. The issue is how to support the initialization of
+  // this operation's own arguments (allow SSA values across omp.target?).
+  Operation *op = getOperation();
+  if (!isa<TargetOp>(op->getParentOp()) &&
+      !opInGlobalImplicitParallelRegion(op))
+    return emitError("expected to be nested inside of omp.target or not nested "
+                     "in any OpenMP dialect operations");
+
+  // Check for num_teams clause restrictions
+  if (auto numTeamsLowerBound = getNumTeamsLower()) {
+    auto numTeamsUpperBound = getNumTeamsUpper();
+    if (!numTeamsUpperBound)
+      return emitError("expected num_teams upper bound to be defined if the "
+                       "lower bound is defined");
+    if (numTeamsLowerBound.getType() != numTeamsUpperBound.getType())
+      return emitError(
+          "expected num_teams upper bound and lower bound to be the same type");
+  }
+
+  // Check for allocate clause restrictions
+  if (getAllocateVars().size() != getAllocatorsVars().size())
+    return emitError(
+        "expected equal sizes for allocate and allocator variables");
+
   return verifyReductionVarList(*this, getReductions(), getReductionVars());
 }
 

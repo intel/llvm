@@ -567,6 +567,10 @@ struct DevirtModule {
   // optimize a call more than once.
   SmallPtrSet<CallBase *, 8> OptimizedCalls;
 
+  // Store calls that had their ptrauth bundle removed. They are to be deleted
+  // at the end of the optimization.
+  SmallVector<CallBase *, 8> CallsWithPtrAuthBundleRemoved;
+
   // This map keeps track of the number of "unsafe" uses of a loaded function
   // pointer. The key is the associated llvm.type.test intrinsic call generated
   // by this pass. An unsafe use is one that calls the loaded function pointer
@@ -586,7 +590,11 @@ struct DevirtModule {
       : M(M), AARGetter(AARGetter), LookupDomTree(LookupDomTree),
         ExportSummary(ExportSummary), ImportSummary(ImportSummary),
         Int8Ty(Type::getInt8Ty(M.getContext())),
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Int8PtrTy(Type::getInt8PtrTy(M.getContext())),
+#else
+        Int8PtrTy(PointerType::getUnqual(M.getContext())),
+#endif
         Int32Ty(Type::getInt32Ty(M.getContext())),
         Int64Ty(Type::getInt64Ty(M.getContext())),
         IntPtrTy(M.getDataLayout().getIntPtrType(M.getContext(), 0)),
@@ -1002,7 +1010,7 @@ bool DevirtModule::tryFindVirtualCallTargets(
       return false;
 
     Constant *Ptr = getPointerAtOffset(TM.Bits->GV->getInitializer(),
-                                       TM.Offset + ByteOffset, M);
+                                       TM.Offset + ByteOffset, M, TM.Bits->GV);
     if (!Ptr)
       return false;
 
@@ -1165,6 +1173,14 @@ void DevirtModule::applySingleImplDevirt(VTableSlotInfo &SlotInfo,
         // !callees metadata.
         CB.setMetadata(LLVMContext::MD_prof, nullptr);
         CB.setMetadata(LLVMContext::MD_callees, nullptr);
+        if (CB.getCalledOperand() &&
+            CB.getOperandBundle(LLVMContext::OB_ptrauth)) {
+          auto *NewCS =
+              CallBase::removeOperandBundle(&CB, LLVMContext::OB_ptrauth, &CB);
+          CB.replaceAllUsesWith(NewCS);
+          // Schedule for deletion at the end of pass run.
+          CallsWithPtrAuthBundleRemoved.push_back(&CB);
+        }
       }
 
       // This use is no longer unsafe.
@@ -1425,7 +1441,7 @@ void DevirtModule::applyICallBranchFunnel(VTableSlotInfo &SlotInfo,
 
       IRBuilder<> IRB(&CB);
       std::vector<Value *> Args;
-      Args.push_back(IRB.CreateBitCast(VCallSite.VTable, Int8PtrTy));
+      Args.push_back(VCallSite.VTable);
       llvm::append_range(Args, CB.args());
 
       CallBase *NewCS = nullptr;
@@ -1696,8 +1712,7 @@ void DevirtModule::applyVirtualConstProp(CallSiteInfo &CSInfo, StringRef FnName,
       continue;
     auto *RetType = cast<IntegerType>(Call.CB.getType());
     IRBuilder<> B(&Call.CB);
-    Value *Addr =
-        B.CreateGEP(Int8Ty, B.CreateBitCast(Call.VTable, Int8PtrTy), Byte);
+    Value *Addr = B.CreateGEP(Int8Ty, Call.VTable, Byte);
     if (RetType->getBitWidth() == 1) {
       Value *Bits = B.CreateLoad(Int8Ty, Addr);
       Value *BitsAndBit = B.CreateAnd(Bits, Bit);
@@ -1706,8 +1721,7 @@ void DevirtModule::applyVirtualConstProp(CallSiteInfo &CSInfo, StringRef FnName,
       Call.replaceAndErase("virtual-const-prop-1-bit", FnName, RemarksEnabled,
                            OREGetter, IsBitSet);
     } else {
-      Value *ValAddr = B.CreateBitCast(Addr, RetType->getPointerTo());
-      Value *Val = B.CreateLoad(RetType, ValAddr);
+      Value *Val = B.CreateLoad(RetType, Addr);
       NumVirtConstProp++;
       Call.replaceAndErase("virtual-const-prop", FnName, RemarksEnabled,
                            OREGetter, Val);
@@ -1991,9 +2005,20 @@ void DevirtModule::scanTypeCheckedLoadUsers(Function *TypeCheckedLoadFunc) {
     // This helps avoid unnecessary spills.
     IRBuilder<> LoadB(
         (LoadedPtrs.size() == 1 && !HasNonCallUses) ? LoadedPtrs[0] : CI);
-    Value *GEP = LoadB.CreateGEP(Int8Ty, Ptr, Offset);
-    Value *GEPPtr = LoadB.CreateBitCast(GEP, PointerType::getUnqual(Int8PtrTy));
-    Value *LoadedValue = LoadB.CreateLoad(Int8PtrTy, GEPPtr);
+
+    Value *LoadedValue = nullptr;
+    if (TypeCheckedLoadFunc->getIntrinsicID() ==
+        Intrinsic::type_checked_load_relative) {
+      Value *GEP = LoadB.CreateGEP(Int8Ty, Ptr, Offset);
+      LoadedValue = LoadB.CreateLoad(Int32Ty, GEP);
+      LoadedValue = LoadB.CreateSExt(LoadedValue, IntPtrTy);
+      GEP = LoadB.CreatePtrToInt(GEP, IntPtrTy);
+      LoadedValue = LoadB.CreateAdd(GEP, LoadedValue);
+      LoadedValue = LoadB.CreateIntToPtr(LoadedValue, Int8PtrTy);
+    } else {
+      Value *GEP = LoadB.CreateGEP(Int8Ty, Ptr, Offset);
+      LoadedValue = LoadB.CreateLoad(Int8PtrTy, GEP);
+    }
 
     for (Instruction *LoadedPtr : LoadedPtrs) {
       LoadedPtr->replaceAllUsesWith(LoadedValue);
@@ -2174,6 +2199,8 @@ bool DevirtModule::run() {
       M.getFunction(Intrinsic::getName(Intrinsic::type_test));
   Function *TypeCheckedLoadFunc =
       M.getFunction(Intrinsic::getName(Intrinsic::type_checked_load));
+  Function *TypeCheckedLoadRelativeFunc =
+      M.getFunction(Intrinsic::getName(Intrinsic::type_checked_load_relative));
   Function *AssumeFunc = M.getFunction(Intrinsic::getName(Intrinsic::assume));
 
   // Normally if there are no users of the devirtualization intrinsics in the
@@ -2182,7 +2209,9 @@ bool DevirtModule::run() {
   if (!ExportSummary &&
       (!TypeTestFunc || TypeTestFunc->use_empty() || !AssumeFunc ||
        AssumeFunc->use_empty()) &&
-      (!TypeCheckedLoadFunc || TypeCheckedLoadFunc->use_empty()))
+      (!TypeCheckedLoadFunc || TypeCheckedLoadFunc->use_empty()) &&
+      (!TypeCheckedLoadRelativeFunc ||
+       TypeCheckedLoadRelativeFunc->use_empty()))
     return false;
 
   // Rebuild type metadata into a map for easy lookup.
@@ -2195,6 +2224,9 @@ bool DevirtModule::run() {
 
   if (TypeCheckedLoadFunc)
     scanTypeCheckedLoadUsers(TypeCheckedLoadFunc);
+
+  if (TypeCheckedLoadRelativeFunc)
+    scanTypeCheckedLoadUsers(TypeCheckedLoadRelativeFunc);
 
   if (ImportSummary) {
     for (auto &S : CallSlots)
@@ -2349,6 +2381,9 @@ bool DevirtModule::run() {
   // pointers in GlobalDCE.
   for (GlobalVariable &GV : M.globals())
     GV.eraseMetadata(LLVMContext::MD_vcall_visibility);
+
+  for (auto *CI : CallsWithPtrAuthBundleRemoved)
+    CI->eraseFromParent();
 
   return true;
 }

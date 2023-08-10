@@ -383,13 +383,14 @@ static bool happensBefore(Operation *a, Operation *b,
 ///    regions. I.e., we can rule out a RaW conflict if READ happensBefore WRITE
 ///    or WRITE happensBefore DEF. (Checked in `hasReadAfterWriteInterference`.)
 ///
-bool canUseOpDominance(OpOperand *uRead, OpOperand *uWrite,
-                       const SetVector<Value> &definitions,
-                       const AnalysisState &state) {
+static bool canUseOpDominance(OpOperand *uRead, OpOperand *uWrite,
+                              const SetVector<Value> &definitions,
+                              AnalysisState &state) {
   const BufferizationOptions &options = state.getOptions();
   for (Value def : definitions) {
-    Region *rRead = getEnclosingRepetitiveRegion(uRead->getOwner(), options);
-    Region *rDef = getEnclosingRepetitiveRegion(def, options);
+    Region *rRead =
+        state.getEnclosingRepetitiveRegion(uRead->getOwner(), options);
+    Region *rDef = state.getEnclosingRepetitiveRegion(def, options);
 
     // READ and DEF are in the same repetitive region. `happensBefore` can be
     // used to rule out RaW conflicts due to op ordering.
@@ -538,6 +539,22 @@ hasReadAfterWriteInterference(const DenseSet<OpOperand *> &usesRead,
           LLVM_DEBUG(llvm::dbgs() << "  no conflict: read and write are in "
                                      "mutually exclusive regions\n");
           continue;
+        }
+      }
+
+      // Two equivalent operands of the same op are not conflicting if the op
+      // bufferizes to element-wise access. I.e., all loads at a position happen
+      // before all stores to the same position.
+      if (conflictingWritingOp == readingOp &&
+          state.areEquivalentBufferizedValues(uRead->get(),
+                                              uConflictingWrite->get())) {
+        if (auto bufferizableOp = options.dynCastBufferizableOp(readingOp)) {
+          if (bufferizableOp.bufferizesToElementwiseAccess(state)) {
+            LLVM_DEBUG(
+                llvm::dbgs()
+                << "  no conflict: op bufferizes to element-wise access\n");
+            continue;
+          }
         }
       }
 
@@ -782,7 +799,10 @@ OneShotAnalysisState::findDefinitionsCached(Value value) {
   return cachedDefinitions[value];
 }
 
-void OneShotAnalysisState::resetCache() { cachedDefinitions.clear(); }
+void OneShotAnalysisState::resetCache() {
+  AnalysisState::resetCache();
+  cachedDefinitions.clear();
+}
 
 /// Determine if `operand` can be bufferized in-place.
 static LogicalResult
@@ -942,7 +962,7 @@ static LogicalResult checkAliasInfoConsistency(Operation *op,
     // attribute. Such tensors may alias any other tensor, which is currently
     // not handled in the analysis.
     if (auto toTensorOp = dyn_cast<ToTensorOp>(op.getOperation())) {
-      if (!toTensorOp.getRestrict()) {
+      if (!toTensorOp.getRestrict() && !toTensorOp->getUses().empty()) {
         op->emitError("to_tensor ops without `restrict` are not supported by "
                       "One-Shot Analysis");
         return WalkResult::interrupt();

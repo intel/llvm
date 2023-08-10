@@ -730,6 +730,18 @@ def IsNotISAFuture : Predicate<"!Subtarget->isISAFuture()">;
 
 //===----------------------------------------------------------------------===//
 // PowerPC Multiclass Definitions.
+multiclass XForm_base_r3xo_r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_base_r3xo<opcode, xo, OOL, IOL,
+                                !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                NoItinerary, pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_base_r3xo<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               NoItinerary, []>, isRecordForm, RecFormRel;
+  }
+}
 
 multiclass XForm_6r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
                     string asmbase, string asmstr, InstrItinClass itin,
@@ -1043,6 +1055,32 @@ multiclass XForm_28r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
   }
 }
 
+multiclass XForm_SP2_FRTB5r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                        string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_SP2_FRTB5<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(" ", asmstr)),
+                               pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_SP2_FRTB5<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               [], NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass XForm_S1_FRTB5r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_S1_FRTB5<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(" ", asmstr)),
+                              pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_S1_FRTB5<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(". ", asmstr)), [],
+                              NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
 multiclass AForm_1r<bits<6> opcode, bits<5> xo, dag OOL, dag IOL,
                     string asmbase, string asmstr, InstrItinClass itin,
                     list<dag> pattern> {
@@ -1084,6 +1122,66 @@ multiclass AForm_3r<bits<6> opcode, bits<5> xo, dag OOL, dag IOL,
                        []>, isRecordForm, RecFormRel;
   }
 }
+
+multiclass
+    Z23Form_TE5_FRTB5_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                            string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME
+        : Z23Form_TE5_FRTB5_RMC2<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                 pattern>, RecFormRel;
+    let Defs = [CR0] in
+    def _rec : Z23Form_TE5_FRTB5_RMC2<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(". ", asmstr)),
+                                 []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass
+    Z23Form_FRTAB5_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                         string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z23Form_FRTAB5_RMC2<opcode, xo, OOL, IOL,
+                                   !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                   pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z23Form_FRTAB5_RMC2<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(". ", asmstr)),
+                              []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass
+    Z23Form_FRTB5_R1_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                           string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z23Form_FRTB5_R1_RMC2<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(" ", asmstr)),
+                               pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z23Form_FRTB5_R1_RMC2<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass Z22Form_FRTA5_SH6r<bits<6> opcode, bits<9> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z22Form_FRTA5_SH6<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                 pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z22Form_FRTA5_SH6<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(". ", asmstr)),
+                                 [], NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// END OF MULTICLASS DEFINITIONS
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // PowerPC Instruction Definitions.
@@ -4219,6 +4317,9 @@ def TLBSX : XForm_tlb<914, (outs), (ins gprc:$RA, gprc:$RB), "tlbsx $RA, $RB",
 def TLBIVAX : XForm_tlb<786, (outs), (ins gprc:$RA, gprc:$RB), "tlbivax $RA, $RB",
                 IIC_LdStLoad>, Requires<[IsBookE]>;
 
+def TLBILX : XForm_tlbilx<18, (outs), (ins u2imm:$T, gprc:$RA, gprc:$RB),
+    "tlbilx $T, $RA, $RB", IIC_LdStLoad>, Requires<[IsBookE]>;
+
 def TLBRE : XForm_24_eieio<31, 946, (outs), (ins),
                            "tlbre", IIC_LdStLoad, []>, Requires<[IsBookE]>;
 
@@ -4581,6 +4682,12 @@ def : InstAlias<"tlbwehi $RS, $A", (TLBWE2 gprc:$RS, gprc:$A, 0)>,
                 Requires<[IsPPC4xx]>;
 def : InstAlias<"tlbwelo $RS, $A", (TLBWE2 gprc:$RS, gprc:$A, 1)>,
                 Requires<[IsPPC4xx]>;
+
+def : InstAlias<"tlbilxlpid", (TLBILX 0, R0, R0)>, Requires<[IsBookE]>;
+def : InstAlias<"tlbilxpid", (TLBILX 1, R0, R0)>, Requires<[IsBookE]>;
+def : InstAlias<"tlbilxva $RA, $RB", (TLBILX 3, gprc:$RA, gprc:$RB)>,
+                Requires<[IsBookE]>;
+def : InstAlias<"tlbilxva $RB", (TLBILX 3, R0, gprc:$RB)>, Requires<[IsBookE]>;
 
 def LAx : PPCAsmPseudo<"la $rA, $addr", (ins gprc:$rA, memri:$addr)>;
 

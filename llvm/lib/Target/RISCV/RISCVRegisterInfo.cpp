@@ -103,6 +103,10 @@ BitVector RISCVRegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   if (TFI->hasBP(MF))
     markSuperRegs(Reserved, RISCVABI::getBPReg()); // bp
 
+  // Additionally reserve dummy register used to form the register pair
+  // beginning with 'x0' for instructions that take register pairs.
+  markSuperRegs(Reserved, RISCV::DUMMY_REG_PAIR_WITH_X0);
+
   // V registers for code generation. We handle them manually.
   markSuperRegs(Reserved, RISCV::VL);
   markSuperRegs(Reserved, RISCV::VTYPE);
@@ -128,7 +132,7 @@ const uint32_t *RISCVRegisterInfo::getNoPreservedMask() const {
 }
 
 // Frame indexes representing locations of CSRs which are given a fixed location
-// by save/restore libcalls.
+// by save/restore libcalls or Zcmp Push/Pop.
 static const std::pair<unsigned, int> FixedCSRFIMap[] = {
   {/*ra*/  RISCV::X1,   -1},
   {/*s0*/  RISCV::X8,   -2},
@@ -149,7 +153,7 @@ bool RISCVRegisterInfo::hasReservedSpillSlot(const MachineFunction &MF,
                                              Register Reg,
                                              int &FrameIdx) const {
   const auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
-  if (!RVFI->useSaveRestoreLibCalls(MF))
+  if (!RVFI->useSaveRestoreLibCalls(MF) && !RVFI->isPushable(MF))
     return false;
 
   const auto *FII =

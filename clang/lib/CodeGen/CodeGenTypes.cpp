@@ -925,8 +925,8 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
   }
 
   case Type::BlockPointer: {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     llvm::Type *PointeeType = CGM.getLangOpts().OpenCL
                                   ? CGM.getGenericBlockLiteralType()
                                   : ConvertTypeForMem(FTy);
@@ -939,7 +939,6 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     // address space for data pointers and not function pointers.
     unsigned AS = Context.getTargetAddressSpace(FTy.getAddressSpace());
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-    const QualType FTy = cast<BlockPointerType>(Ty)->getPointeeType();
     ResultType = llvm::PointerType::get(getLLVMContext(), AS);
 #else  // INTEL_SYCL_OPAQUEPOINTER_READY
     ResultType = llvm::PointerType::get(PointeeType, AS);

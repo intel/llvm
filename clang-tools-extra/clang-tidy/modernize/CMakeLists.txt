@@ -29,6 +29,7 @@ add_clang_library(clangTidyModernizeModule
   UnaryStaticAssertCheck.cpp
   UseAutoCheck.cpp
   UseBoolLiteralsCheck.cpp
+  UseConstraintsCheck.cpp
   UseDefaultMemberInitCheck.cpp
   UseEmplaceCheck.cpp
   UseEqualsDefaultCheck.cpp
@@ -37,6 +38,7 @@ add_clang_library(clangTidyModernizeModule
   UseNoexceptCheck.cpp
   UseNullptrCheck.cpp
   UseOverrideCheck.cpp
+  UseStdPrintCheck.cpp
   UseTrailingReturnTypeCheck.cpp
   UseTransparentFunctorsCheck.cpp
   UseUncaughtExceptionsCheck.cpp
@@ -49,6 +51,7 @@ add_clang_library(clangTidyModernizeModule
 
   DEPENDS
   omp_gen
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyModernizeModule

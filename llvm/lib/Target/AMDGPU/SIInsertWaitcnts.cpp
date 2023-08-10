@@ -419,10 +419,6 @@ public:
     return false;
   }
 
-  AMDGPU::Waitcnt allZeroWaitcnt() const {
-    return AMDGPU::Waitcnt::allZero(ST->hasVscnt());
-  }
-
   void setForceEmitWaitcnt() {
 // For non-debug builds, ForceEmitWaitcnt has been initialized to false;
 // For debug builds, get the debug counter info and adjust if need be
@@ -592,12 +588,7 @@ void WaitcntBrackets::updateByEvent(const SIInstrInfo *TII,
                                                  AMDGPU::OpName::data1),
                       CurrScore);
         }
-      } else if (SIInstrInfo::isAtomicRet(Inst) &&
-                 Inst.getOpcode() != AMDGPU::DS_GWS_INIT &&
-                 Inst.getOpcode() != AMDGPU::DS_GWS_SEMA_V &&
-                 Inst.getOpcode() != AMDGPU::DS_GWS_SEMA_BR &&
-                 Inst.getOpcode() != AMDGPU::DS_GWS_SEMA_P &&
-                 Inst.getOpcode() != AMDGPU::DS_GWS_BARRIER &&
+      } else if (SIInstrInfo::isAtomicRet(Inst) && !SIInstrInfo::isGWS(Inst) &&
                  Inst.getOpcode() != AMDGPU::DS_APPEND &&
                  Inst.getOpcode() != AMDGPU::DS_CONSUME &&
                  Inst.getOpcode() != AMDGPU::DS_ORDERED_COUNT) {
@@ -1036,7 +1027,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
       MI.getOpcode() == AMDGPU::SI_RETURN ||
       MI.getOpcode() == AMDGPU::S_SETPC_B64_return ||
       (MI.isReturn() && MI.isCall() && !callWaitsOnFunctionEntry(MI))) {
-    Wait = Wait.combined(allZeroWaitcnt());
+    Wait = Wait.combined(AMDGPU::Waitcnt::allZeroExceptVsCnt());
   }
   // Identify S_ENDPGM instructions which may have to wait for outstanding VMEM
   // stores. In this case it can be useful to send a message to explicitly
@@ -1232,7 +1223,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
   // cause an exception. Otherwise, insert an explicit S_WAITCNT 0 here.
   if (MI.getOpcode() == AMDGPU::S_BARRIER &&
       !ST->hasAutoWaitcntBeforeBarrier() && !ST->supportsBackOffBarrier()) {
-    Wait = Wait.combined(allZeroWaitcnt());
+    Wait = Wait.combined(AMDGPU::Waitcnt::allZero(ST->hasVscnt()));
   }
 
   // TODO: Remove this work-around, enable the assert for Bug 457939
@@ -1248,7 +1239,7 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
   ScoreBrackets.simplifyWaitcnt(Wait);
 
   if (ForceEmitZeroWaitcnts)
-    Wait = allZeroWaitcnt();
+    Wait = AMDGPU::Waitcnt::allZeroExceptVsCnt();
 
   if (ForceEmitWaitcnt[VM_CNT])
     Wait.VmCnt = 0;
@@ -1256,8 +1247,6 @@ bool SIInsertWaitcnts::generateWaitcntInstBefore(MachineInstr &MI,
     Wait.ExpCnt = 0;
   if (ForceEmitWaitcnt[LGKM_CNT])
     Wait.LgkmCnt = 0;
-  if (ForceEmitWaitcnt[VS_CNT])
-    Wait.VsCnt = 0;
 
   if (FlushVmCnt) {
     if (ScoreBrackets.hasPendingEvent(VM_CNT))
@@ -1480,7 +1469,7 @@ void SIInsertWaitcnts::updateEventWaitcntAfter(MachineInstr &Inst,
   } else if (Inst.isCall()) {
     if (callWaitsOnFunctionReturn(Inst)) {
       // Act as a wait on everything
-      ScoreBrackets->applyWaitcnt(allZeroWaitcnt());
+      ScoreBrackets->applyWaitcnt(AMDGPU::Waitcnt::allZeroExceptVsCnt());
     } else {
       // May need to way wait for anything.
       ScoreBrackets->applyWaitcnt(AMDGPU::Waitcnt());
@@ -1862,10 +1851,6 @@ bool SIInsertWaitcnts::runOnMachineFunction(MachineFunction &MF) {
          I != E && (I->isPHI() || I->isMetaInstruction()); ++I)
       ;
     BuildMI(EntryBB, I, DebugLoc(), TII->get(AMDGPU::S_WAITCNT)).addImm(0);
-    if (ST->hasVscnt())
-      BuildMI(EntryBB, I, DebugLoc(), TII->get(AMDGPU::S_WAITCNT_VSCNT))
-          .addReg(AMDGPU::SGPR_NULL, RegState::Undef)
-          .addImm(0);
 
     Modified = true;
   }
@@ -1977,6 +1962,10 @@ bool SIInsertWaitcnts::runOnMachineFunction(MachineFunction &MF) {
   // Insert DEALLOC_VGPR messages before previously identified S_ENDPGM
   // instructions.
   for (MachineInstr *MI : ReleaseVGPRInsts) {
+    if (ST->requiresNopBeforeDeallocVGPRs()) {
+      BuildMI(*MI->getParent(), MI, DebugLoc(), TII->get(AMDGPU::S_NOP))
+          .addImm(0);
+    }
     BuildMI(*MI->getParent(), MI, DebugLoc(), TII->get(AMDGPU::S_SENDMSG))
         .addImm(AMDGPU::SendMsg::ID_DEALLOC_VGPRS_GFX11Plus);
     Modified = true;

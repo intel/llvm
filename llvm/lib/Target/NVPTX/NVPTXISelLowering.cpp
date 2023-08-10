@@ -427,8 +427,8 @@ NVPTXTargetLowering::NVPTXTargetLowering(const NVPTXTargetMachine &TM,
   setFP16OperationAction(ISD::SETCC, MVT::v2f16, Legal, Expand);
 
   // Operations not directly supported by NVPTX.
-  for (MVT VT : {MVT::f16, MVT::v2f16, MVT::f32, MVT::f64, MVT::i1, MVT::i8,
-                 MVT::i16, MVT::i32, MVT::i64}) {
+  for (MVT VT : {MVT::bf16, MVT::f16, MVT::v2bf16, MVT::v2f16, MVT::f32,
+                 MVT::f64, MVT::i1, MVT::i8, MVT::i16, MVT::i32, MVT::i64}) {
     setOperationAction(ISD::SELECT_CC, VT, Expand);
     setOperationAction(ISD::BR_CC, VT, Expand);
   }
@@ -2464,6 +2464,10 @@ SDValue NVPTXTargetLowering::LowerSTORE(SDValue Op, SelectionDAG &DAG) const {
       !allowsMemoryAccessForAlignment(*DAG.getContext(), DAG.getDataLayout(),
                                       VT, *Store->getMemOperand()))
     return expandUnalignedStore(Store, DAG);
+
+  // v2f16 and v2bf16 don't need special handling.
+  if (VT == MVT::v2f16 || VT == MVT::v2bf16)
+    return SDValue();
 
   if (VT.isVector())
     return LowerSTOREVector(Op, DAG);
@@ -5146,7 +5150,8 @@ static void ReplaceLoadVector(SDNode *N, SelectionDAG &DAG,
 
   Align Alignment = LD->getAlign();
   auto &TD = DAG.getDataLayout();
-  Align PrefAlign = TD.getPrefTypeAlign(ResVT.getTypeForEVT(*DAG.getContext()));
+  Align PrefAlign =
+      TD.getPrefTypeAlign(LD->getMemoryVT().getTypeForEVT(*DAG.getContext()));
   if (Alignment < PrefAlign) {
     // This load is not sufficiently aligned, so bail out and let this vector
     // load be scalarized.  Note that we may still be able to emit smaller

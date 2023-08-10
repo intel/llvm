@@ -166,14 +166,20 @@ static inline SourcePred sizedPtrType() {
     if (V->isSwiftError())
       return false;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return V->getType()->isPointerTy();
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     if (const auto *PtrT = dyn_cast<PointerType>(V->getType()))
       return PtrT->isOpaque() ||
              PtrT->getNonOpaquePointerElementType()->isSized();
     return false;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   };
   auto Make = [](ArrayRef<Value *>, ArrayRef<Type *> Ts) {
     std::vector<Constant *> Result;
 
+    // TODO: This doesn't really make sense with opaque pointers,
+    // as the pointer type will always be the same.
     for (Type *T : Ts)
       if (T->isSized())
         Result.push_back(UndefValue::get(PointerType::getUnqual(T)));

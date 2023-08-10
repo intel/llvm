@@ -28,6 +28,9 @@
 #include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/StringSaver.h"
 
 using namespace mlir;
 using namespace mlir::gpu;
@@ -42,20 +45,68 @@ int64_t GPUBlockMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getBlock());
 }
 
+bool GPUBlockMappingAttr::isLinearMapping() const {
+  return getMappingId() >= static_cast<int64_t>(MappingId::LinearDim0);
+}
+
+int64_t GPUBlockMappingAttr::getRelativeIndex() const {
+  return isLinearMapping()
+             ? getMappingId() - static_cast<int64_t>(MappingId::LinearDim0)
+             : getMappingId();
+}
+
+int64_t GPUWarpgroupMappingAttr::getMappingId() const {
+  return static_cast<int64_t>(getWarpgroup());
+}
+
+bool GPUWarpgroupMappingAttr::isLinearMapping() const {
+  return getMappingId() >= static_cast<int64_t>(MappingId::LinearDim0);
+}
+
+int64_t GPUWarpgroupMappingAttr::getRelativeIndex() const {
+  return isLinearMapping()
+             ? getMappingId() - static_cast<int64_t>(MappingId::LinearDim0)
+             : getMappingId();
+}
+
 int64_t GPUWarpMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getWarp());
 }
 
-int64_t GPULinearIdMappingAttr::getMappingId() const {
-  return static_cast<int64_t>(getLinearId());
+bool GPUWarpMappingAttr::isLinearMapping() const {
+  return getMappingId() >= static_cast<int64_t>(MappingId::LinearDim0);
+}
+
+int64_t GPUWarpMappingAttr::getRelativeIndex() const {
+  return isLinearMapping()
+             ? getMappingId() - static_cast<int64_t>(MappingId::LinearDim0)
+             : getMappingId();
 }
 
 int64_t GPUThreadMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getThread());
 }
 
+bool GPUThreadMappingAttr::isLinearMapping() const {
+  return getMappingId() >= static_cast<int64_t>(MappingId::LinearDim0);
+}
+
+int64_t GPUThreadMappingAttr::getRelativeIndex() const {
+  return isLinearMapping()
+             ? getMappingId() - static_cast<int64_t>(MappingId::LinearDim0)
+             : getMappingId();
+}
+
 int64_t GPUMemorySpaceMappingAttr::getMappingId() const {
   return static_cast<int64_t>(getAddressSpace());
+}
+
+bool GPUMemorySpaceMappingAttr::isLinearMapping() const {
+  llvm_unreachable("GPUMemorySpaceMappingAttr does not support linear mapping");
+}
+
+int64_t GPUMemorySpaceMappingAttr::getRelativeIndex() const {
+  llvm_unreachable("GPUMemorySpaceMappingAttr does not support relative index");
 }
 
 //===----------------------------------------------------------------------===//
@@ -146,9 +197,9 @@ struct GPUInlinerInterface : public DialectInlinerInterface {
 void GPUDialect::initialize() {
   addTypes<AsyncTokenType>();
   addTypes<MMAMatrixType>();
-  addTypes<SparseEnvHandleType>();
   addTypes<SparseDnTensorHandleType>();
   addTypes<SparseSpMatHandleType>();
+  addTypes<SparseSpGEMMOpHandleType>();
   addOperations<
 #define GET_OP_LIST
 #include "mlir/Dialect/GPU/IR/GPUOps.cpp.inc"
@@ -162,12 +213,12 @@ void GPUDialect::initialize() {
 
 static std::string getSparseHandleKeyword(SparseHandleKind kind) {
   switch (kind) {
-  case SparseHandleKind::Env:
-    return "sparse.env_handle";
   case SparseHandleKind::DnTensor:
     return "sparse.dntensor_handle";
   case SparseHandleKind::SpMat:
     return "sparse.spmat_handle";
+  case SparseHandleKind::SpGEMMOp:
+    return "sparse.spgemmop_handle";
   }
   llvm_unreachable("unknown sparse handle kind");
   return "";
@@ -216,12 +267,12 @@ Type GPUDialect::parseType(DialectAsmParser &parser) const {
                                      shape, elementType, operand);
   }
 
-  if (keyword == getSparseHandleKeyword(SparseHandleKind::Env))
-    return SparseEnvHandleType::get(context);
   if (keyword == getSparseHandleKeyword(SparseHandleKind::DnTensor))
     return SparseDnTensorHandleType::get(context);
   if (keyword == getSparseHandleKeyword(SparseHandleKind::SpMat))
     return SparseSpMatHandleType::get(context);
+  if (keyword == getSparseHandleKeyword(SparseHandleKind::SpGEMMOp))
+    return SparseSpGEMMOpHandleType::get(context);
 
   parser.emitError(parser.getNameLoc(), "unknown gpu type: " + keyword);
   return Type();
@@ -231,13 +282,14 @@ Type GPUDialect::parseType(DialectAsmParser &parser) const {
 void GPUDialect::printType(Type type, DialectAsmPrinter &os) const {
   TypeSwitch<Type>(type)
       .Case<AsyncTokenType>([&](Type) { os << "async.token"; })
-      .Case<SparseEnvHandleType>(
-          [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::Env); })
       .Case<SparseDnTensorHandleType>([&](Type) {
         os << getSparseHandleKeyword(SparseHandleKind::DnTensor);
       })
       .Case<SparseSpMatHandleType>(
           [&](Type) { os << getSparseHandleKeyword(SparseHandleKind::SpMat); })
+      .Case<SparseSpGEMMOpHandleType>([&](Type) {
+        os << getSparseHandleKeyword(SparseHandleKind::SpGEMMOp);
+      })
       .Case<MMAMatrixType>([&](MMAMatrixType fragTy) {
         os << "mma_matrix<";
         auto shape = fragTy.getShape();
@@ -1456,18 +1508,41 @@ LogicalResult gpu::ReturnOp::verify() {
 //===----------------------------------------------------------------------===//
 
 void GPUModuleOp::build(OpBuilder &builder, OperationState &result,
-                        StringRef name) {
+                        StringRef name, ArrayAttr targets) {
   ensureTerminator(*result.addRegion(), builder, result.location);
   result.attributes.push_back(builder.getNamedAttr(
       ::mlir::SymbolTable::getSymbolAttrName(), builder.getStringAttr(name)));
+
+  if (targets)
+    result.getOrAddProperties<Properties>().targets = targets;
+}
+
+void GPUModuleOp::build(OpBuilder &builder, OperationState &result,
+                        StringRef name, ArrayRef<Attribute> targets) {
+  build(builder, result, name,
+        targets.size() > 0 ? builder.getArrayAttr(targets) : ArrayAttr());
 }
 
 ParseResult GPUModuleOp::parse(OpAsmParser &parser, OperationState &result) {
   StringAttr nameAttr;
+  ArrayAttr targetsAttr;
+
   if (parser.parseSymbolName(nameAttr, mlir::SymbolTable::getSymbolAttrName(),
-                             result.attributes) ||
-      // If module attributes are present, parse them.
-      parser.parseOptionalAttrDictWithKeyword(result.attributes))
+                             result.attributes))
+    return failure();
+
+  // Parse the optional array of target attributes.
+  OptionalParseResult targetsAttrResult =
+      parser.parseOptionalAttribute(targetsAttr, Type{});
+  if (targetsAttrResult.has_value()) {
+    if (failed(*targetsAttrResult)) {
+      return failure();
+    }
+    result.getOrAddProperties<Properties>().targets = targetsAttr;
+  }
+
+  // If module attributes are present, parse them.
+  if (parser.parseOptionalAttrDictWithKeyword(result.attributes))
     return failure();
 
   // Parse the module body.
@@ -1483,11 +1558,31 @@ ParseResult GPUModuleOp::parse(OpAsmParser &parser, OperationState &result) {
 void GPUModuleOp::print(OpAsmPrinter &p) {
   p << ' ';
   p.printSymbolName(getName());
-  p.printOptionalAttrDictWithKeyword((*this)->getAttrs(),
-                                     {mlir::SymbolTable::getSymbolAttrName()});
+
+  if (Attribute attr = getTargetsAttr()) {
+    p << ' ';
+    p.printAttribute(attr);
+    p << ' ';
+  }
+
+  p.printOptionalAttrDictWithKeyword(
+      (*this)->getAttrs(),
+      {mlir::SymbolTable::getSymbolAttrName(), getTargetsAttrName()});
   p << ' ';
   p.printRegion(getRegion(), /*printEntryBlockArgs=*/false,
                 /*printBlockTerminators=*/false);
+}
+
+bool GPUModuleOp::hasTarget(Attribute target) {
+  if (ArrayAttr targets = getTargetsAttr())
+    return llvm::count(targets.getValue(), target);
+  return false;
+}
+
+void GPUModuleOp::setTargets(ArrayRef<TargetAttrInterface> targets) {
+  ArrayAttr &targetsAttr = getProperties().targets;
+  SmallVector<Attribute> targetsVector(targets);
+  targetsAttr = ArrayAttr::get(getContext(), targetsVector);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1552,17 +1647,6 @@ void MemcpyOp::getCanonicalizationPatterns(RewritePatternSet &results,
 //===----------------------------------------------------------------------===//
 // GPU_SubgroupMmaLoadMatrixOp
 //===----------------------------------------------------------------------===//
-
-/// Return true if the last dimension of the MemRefType has unit stride. Also
-/// return true for memrefs with no strides.
-static bool isLastMemrefDimUnitStride(MemRefType type) {
-  int64_t offset;
-  SmallVector<int64_t> strides;
-  if (failed(getStridesAndOffset(type, strides, offset))) {
-    return false;
-  }
-  return strides.back() == 1;
-}
 
 LogicalResult SubgroupMmaLoadMatrixOp::verify() {
   auto srcType = getSrcMemref().getType();
@@ -1746,7 +1830,7 @@ struct SimplifyDimOfAllocOp : public OpRewritePattern<memref::DimOp> {
 
   LogicalResult matchAndRewrite(memref::DimOp dimOp,
                                 PatternRewriter &rewriter) const override {
-    auto index = dimOp.getIndex().getDefiningOp<arith::ConstantIndexOp>();
+    std::optional<int64_t> index = dimOp.getConstantIndex();
     if (!index)
       return failure();
 
@@ -1772,6 +1856,53 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
   results.add<SimplifyDimOfAllocOp>(context);
 }
 
+//===----------------------------------------------------------------------===//
+// GPU target options
+//===----------------------------------------------------------------------===//
+
+TargetOptions::TargetOptions(StringRef toolkitPath,
+                             ArrayRef<std::string> linkFiles,
+                             StringRef cmdOptions,
+                             CompilationTarget compilationTarget)
+    : TargetOptions(TypeID::get<TargetOptions>(), toolkitPath, linkFiles,
+                    cmdOptions, compilationTarget) {}
+
+TargetOptions::TargetOptions(TypeID typeID, StringRef toolkitPath,
+                             ArrayRef<std::string> linkFiles,
+                             StringRef cmdOptions,
+                             CompilationTarget compilationTarget)
+    : toolkitPath(toolkitPath.str()), linkFiles(linkFiles),
+      cmdOptions(cmdOptions.str()), compilationTarget(compilationTarget),
+      typeID(typeID) {}
+
+TypeID TargetOptions::getTypeID() const { return typeID; }
+
+StringRef TargetOptions::getToolkitPath() const { return toolkitPath; }
+
+ArrayRef<std::string> TargetOptions::getLinkFiles() const { return linkFiles; }
+
+StringRef TargetOptions::getCmdOptions() const { return cmdOptions; }
+
+std::pair<llvm::BumpPtrAllocator, SmallVector<const char *>>
+TargetOptions::tokenizeCmdOptions() const {
+  std::pair<llvm::BumpPtrAllocator, SmallVector<const char *>> options;
+  llvm::StringSaver stringSaver(options.first);
+#ifdef _WIN32
+  llvm::cl::TokenizeWindowsCommandLine(cmdOptions, stringSaver, options.second,
+                                       /*MarkEOLs=*/false);
+#else
+  llvm::cl::TokenizeGNUCommandLine(cmdOptions, stringSaver, options.second,
+                                   /*MarkEOLs=*/false);
+#endif // _WIN32
+  return options;
+}
+
+TargetOptions::CompilationTarget TargetOptions::getCompilationTarget() const {
+  return compilationTarget;
+}
+
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::gpu::TargetOptions)
+
 #include "mlir/Dialect/GPU/IR/GPUOpInterfaces.cpp.inc"
 #include "mlir/Dialect/GPU/IR/GPUOpsEnums.cpp.inc"
 
@@ -1780,3 +1911,5 @@ void AllocOp::getCanonicalizationPatterns(RewritePatternSet &results,
 
 #define GET_OP_CLASSES
 #include "mlir/Dialect/GPU/IR/GPUOps.cpp.inc"
+
+#include "mlir/Dialect/GPU/IR/CompilationAttrInterfaces.cpp.inc"

@@ -1168,11 +1168,15 @@ void Sema::ActOnLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro,
             << C->Id << It->second->getBeginLoc()
             << FixItHint::CreateRemoval(
                    SourceRange(getLocForEndOfToken(PrevCaptureLoc), C->Loc));
-      } else
+        Var->setInvalidDecl();
+      } else if (Var && Var->isPlaceholderVar(getLangOpts())) {
+        DiagPlaceholderVariableDefinition(C->Loc);
+      } else {
         // Previous capture captured something different (one or both was
         // an init-capture): no fixit.
         Diag(C->Loc, diag::err_capture_more_than_once) << C->Id;
-      continue;
+        continue;
+      }
     }
 
     // Ignore invalid decls; they'll just confuse the code later.
@@ -1633,6 +1637,11 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
   Conversion->setAccess(AS_public);
   Conversion->setImplicit(true);
 
+  // A non-generic lambda may still be a templated entity. We need to preserve
+  // constraints when converting the lambda to a function pointer. See GH63181.
+  if (Expr *Requires = CallOperator->getTrailingRequiresClause())
+    Conversion->setTrailingRequiresClause(Requires);
+
   if (Class->isGenericLambda()) {
     // Create a template version of the conversion operator, using the template
     // parameter list of the function call operator.
@@ -1868,6 +1877,12 @@ bool Sema::DiagnoseUnusedLambdaCapture(SourceRange CaptureRange,
     return false;
 
   if (From.isVLATypeCapture())
+    return false;
+
+  // FIXME: maybe we should warn on these if we can find a sensible diagnostic
+  // message
+  if (From.isInitCapture() &&
+      From.getVariable()->isPlaceholderVar(getLangOpts()))
     return false;
 
   auto diag = Diag(From.getLocation(), diag::warn_unused_lambda_capture);

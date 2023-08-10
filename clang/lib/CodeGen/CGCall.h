@@ -108,10 +108,12 @@ public:
             SpecialKind(reinterpret_cast<uintptr_t>(functionPtr))) {
     AbstractInfo = abstractInfo;
     assert(functionPtr && "configuring callee without function pointer");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     assert(functionPtr->getType()->isPointerTy());
     assert(functionPtr->getType()->isOpaquePointerTy() ||
            functionPtr->getType()->getNonOpaquePointerElementType()
                ->isFunctionTy());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   static CGCallee forBuiltin(unsigned builtinID,

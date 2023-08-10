@@ -103,9 +103,7 @@ enum class ICFLevel {
 // Global configuration.
 struct Configuration {
   enum ManifestKind { Default, SideBySide, Embed, No };
-  bool is64() const {
-    return machine == AMD64 || llvm::COFF::isAnyArm64(machine);
-  }
+  bool is64() const { return llvm::COFF::is64Bit(machine); }
 
   llvm::COFF::MachineTypes machine = IMAGE_FILE_MACHINE_UNKNOWN;
   size_t wordsize;
@@ -132,6 +130,7 @@ struct Configuration {
   bool driverWdm = false;
   bool showTiming = false;
   bool showSummary = false;
+  bool printSearchPaths = false;
   unsigned debugTypes = static_cast<unsigned>(DebugType::None);
   llvm::SmallVector<llvm::StringRef, 0> mllvmOpts;
   std::vector<std::string> natvisFiles;
@@ -202,6 +201,9 @@ struct Configuration {
   StringRef manifestLevel = "'asInvoker'";
   StringRef manifestUIAccess = "'false'";
   StringRef manifestFile;
+
+  // used for /dwodir
+  StringRef dwoDir;
 
   // Used for /aligncomm.
   std::map<std::string, int> alignComm;

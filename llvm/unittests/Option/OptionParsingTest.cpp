@@ -17,9 +17,7 @@ using namespace llvm::opt;
 
 enum ID {
   OPT_INVALID = 0, // This is not an option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
   LastOption
 #undef OPTION
@@ -47,10 +45,7 @@ enum OptionFlags {
 };
 
 static constexpr OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {PREFIX, NAME,  HELPTEXT,    METAVAR,     OPT_##ID,  Option::KIND##Class,    \
-   PARAM,  FLAGS, OPT_##GROUP, OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -342,7 +337,9 @@ TYPED_TEST(OptTableTest, FindNearest) {
   EXPECT_EQ(Nearest, "--blurmp=foo");
 
   // Flags should be included and excluded as specified.
-  EXPECT_EQ(1U, T.findNearest("-doopf", Nearest, /*FlagsToInclude=*/OptFlag2));
+  EXPECT_EQ(1U, T.findNearest("-doopf", Nearest,
+                              /*FlagsToInclude=*/OptFlag2,
+                              /*FlagsToExclude=*/0));
   EXPECT_EQ(Nearest, "-doopf2");
   EXPECT_EQ(1U, T.findNearest("-doopf", Nearest,
                               /*FlagsToInclude=*/0,

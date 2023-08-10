@@ -58,7 +58,7 @@
 // HOST_ASSEMBLY_CL: clang-offload-bundler{{.*}} "-input={{.*}}.bc" "-input=[[ASMOUT]]"
 
 /// missing argument error -fsycl-host-compiler=
-// RUN: %clangxx -fsycl -fsycl-host-compiler= -c -### %s 2>&1 \
+// RUN: not %clangxx -fsycl -fsycl-host-compiler= -c -### %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER_NOARG %s
 // HOST_COMPILER_NOARG: missing argument to '-fsycl-host-compiler='
 

@@ -44,7 +44,10 @@ public:
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
+enum class CodeState { Data = 0, Thumb = 2, Arm = 4 };
 } // namespace
+
+static DenseMap<InputSection *, SmallVector<const Defined *, 0>> sectionMap{};
 
 ARM::ARM() {
   copyRel = R_ARM_COPY;
@@ -68,16 +71,24 @@ uint32_t ARM::calcEFlags() const {
   // The ABIFloatType is used by loaders to detect the floating point calling
   // convention.
   uint32_t abiFloatType = 0;
+
+  // Set the EF_ARM_BE8 flag in the ELF header, if ELF file is big-endian
+  // with BE-8 code.
+  uint32_t armBE8 = 0;
+
   if (config->armVFPArgs == ARMVFPArgKind::Base ||
       config->armVFPArgs == ARMVFPArgKind::Default)
     abiFloatType = EF_ARM_ABI_FLOAT_SOFT;
   else if (config->armVFPArgs == ARMVFPArgKind::VFP)
     abiFloatType = EF_ARM_ABI_FLOAT_HARD;
 
+  if (!config->isLE && config->armBe8)
+    armBE8 = EF_ARM_BE8;
+
   // We don't currently use any features incompatible with EF_ARM_EABI_VER5,
   // but we don't have any firm guarantees of conformance. Linux AArch64
   // kernels (as of 2016) require an EABI version to be set.
-  return EF_ARM_EABI_VER5 | abiFloatType;
+  return EF_ARM_EABI_VER5 | abiFloatType | armBE8;
 }
 
 RelExpr ARM::getRelExpr(RelType type, const Symbol &s,
@@ -88,6 +99,10 @@ RelExpr ARM::getRelExpr(RelType type, const Symbol &s,
   case R_ARM_MOVT_ABS:
   case R_ARM_THM_MOVW_ABS_NC:
   case R_ARM_THM_MOVT_ABS:
+  case R_ARM_THM_ALU_ABS_G0_NC:
+  case R_ARM_THM_ALU_ABS_G1_NC:
+  case R_ARM_THM_ALU_ABS_G2_NC:
+  case R_ARM_THM_ALU_ABS_G3:
     return R_ABS;
   case R_ARM_THM_JUMP8:
   case R_ARM_THM_JUMP11:
@@ -669,6 +684,18 @@ void ARM::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
                   ((val << 4) & 0x7000) |    // imm3
                   (val & 0x00ff));           // imm8
     break;
+  case R_ARM_THM_ALU_ABS_G3:
+    write16(loc, (read16(loc) &~ 0x00ff) | ((val >> 24) & 0x00ff));
+    break;
+  case R_ARM_THM_ALU_ABS_G2_NC:
+    write16(loc, (read16(loc) &~ 0x00ff) | ((val >> 16) & 0x00ff));
+    break;
+  case R_ARM_THM_ALU_ABS_G1_NC:
+    write16(loc, (read16(loc) &~ 0x00ff) | ((val >> 8) & 0x00ff));
+    break;
+  case R_ARM_THM_ALU_ABS_G0_NC:
+    write16(loc, (read16(loc) &~ 0x00ff) | (val & 0x00ff));
+    break;
   case R_ARM_ALU_PC_G0:
     encodeAluGroup(loc, rel, val, 0, true);
     break;
@@ -846,6 +873,11 @@ int64_t ARM::getImplicitAddend(const uint8_t *buf, RelType type) const {
                             ((lo & 0x7000) >> 4) |  // imm3
                             (lo & 0x00ff));         // imm8
   }
+  case R_ARM_THM_ALU_ABS_G0_NC:
+  case R_ARM_THM_ALU_ABS_G1_NC:
+  case R_ARM_THM_ALU_ABS_G2_NC:
+  case R_ARM_THM_ALU_ABS_G3:
+    return read16(buf) & 0xff;
   case R_ARM_ALU_PC_G0:
   case R_ARM_ALU_PC_G0_NC:
   case R_ARM_ALU_PC_G1:

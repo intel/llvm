@@ -8,17 +8,26 @@
 
 #include "src/time/nanosleep.h"
 
-#include "include/sys/syscall.h"          // For syscall numbers.
 #include "src/__support/OSUtil/syscall.h" // For syscall functions.
 #include "src/__support/common.h"
 #include "src/errno/libc_errno.h"
+
+#include <sys/syscall.h> // For syscall numbers.
 
 namespace __llvm_libc {
 
 // TODO(michaelrj): Move this into time/linux with the other syscalls.
 LLVM_LIBC_FUNCTION(int, nanosleep,
                    (const struct timespec *req, struct timespec *rem)) {
-  int ret = __llvm_libc::syscall_impl(SYS_nanosleep, req, rem);
+#if SYS_nanosleep
+  int ret = __llvm_libc::syscall_impl<int>(SYS_nanosleep, req, rem);
+#elif defined(SYS_clock_nanosleep_time64)
+  int ret =
+      __llvm_libc::syscall_impl<int>(SYS_clock_nanosleep_time64, req, rem);
+#else
+#error "SYS_nanosleep and SYS_clock_nanosleep_time64 syscalls not available."
+#endif
+
   if (ret < 0) {
     libc_errno = -ret;
     return -1;

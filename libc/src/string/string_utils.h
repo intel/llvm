@@ -16,14 +16,14 @@
 
 #include "src/__support/CPP/bitset.h"
 #include "src/__support/macros/optimization.h" // LIBC_UNLIKELY
-#include "src/string/memory_utils/bzero_implementations.h"
-#include "src/string/memory_utils/memcpy_implementations.h"
+#include "src/string/memory_utils/inline_bzero.h"
+#include "src/string/memory_utils/inline_memcpy.h"
 #include <stddef.h> // For size_t
 
 namespace __llvm_libc {
 namespace internal {
 
-template <typename Word> constexpr Word repeat_byte(Word byte) {
+template <typename Word> LIBC_INLINE constexpr Word repeat_byte(Word byte) {
   constexpr size_t BITS_IN_BYTE = 8;
   constexpr size_t BYTE_MASK = 0xff;
   Word result = 0;
@@ -49,7 +49,7 @@ template <typename Word> constexpr Word repeat_byte(Word byte) {
 // with the inverse of the original byte. This means that any byte that had the
 // high bit set will no longer have it set, narrowing the list of bytes which
 // result in non-zero values to just the zero byte.
-template <typename Word> constexpr bool has_zeroes(Word block) {
+template <typename Word> LIBC_INLINE constexpr bool has_zeroes(Word block) {
   constexpr Word LOW_BITS = repeat_byte<Word>(0x01);
   constexpr Word HIGH_BITS = repeat_byte<Word>(0x80);
   Word subtracted = block - LOW_BITS;
@@ -225,7 +225,8 @@ LIBC_INLINE size_t strlcpy(char *__restrict dst, const char *__restrict src,
 }
 
 template <bool ReturnNull = true>
-constexpr static char *strchr_implementation(const char *src, int c) {
+LIBC_INLINE constexpr static char *strchr_implementation(const char *src,
+                                                         int c) {
   char ch = static_cast<char>(c);
   for (; *src && *src != ch; ++src)
     ;
@@ -233,7 +234,8 @@ constexpr static char *strchr_implementation(const char *src, int c) {
   return *src == ch ? const_cast<char *>(src) : ret;
 }
 
-constexpr static char *strrchr_implementation(const char *src, int c) {
+LIBC_INLINE constexpr static char *strrchr_implementation(const char *src,
+                                                          int c) {
   char ch = static_cast<char>(c);
   char *last_occurrence = nullptr;
   for (; *src; ++src) {

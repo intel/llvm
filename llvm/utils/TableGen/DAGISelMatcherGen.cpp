@@ -710,7 +710,7 @@ void MatcherGen::EmitResultLeafAsOperand(const TreePatternNode *N,
       const CodeGenRegisterClass &RC =
           CGP.getTargetInfo().getRegisterClass(Def);
       if (RC.EnumValue <= 127) {
-        std::string Value = getQualifiedName(Def) + "RegClassID";
+        std::string Value = RC.getQualifiedIdName();
         AddMatcher(new EmitStringIntegerMatcher(Value, MVT::i32));
         ResultOps.push_back(NextRecordedOperandNo++);
       } else {
@@ -1067,7 +1067,7 @@ void MatcherGen::EmitResultCode() {
   SmallVector<unsigned, 8> Results(Ops);
 
   // Apply result permutation.
-  for (unsigned ResNo = 0; ResNo < Pattern.getDstPattern()->getNumTypes();
+  for (unsigned ResNo = 0; ResNo < Pattern.getDstPattern()->getNumResults();
        ++ResNo) {
     Results[ResNo] = Ops[Pattern.getDstPattern()->getResultIndex(ResNo)];
   }

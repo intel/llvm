@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "Configuration.h"
 #include "Types.h"
 
 #include "Debug.h"
@@ -27,14 +28,23 @@ double getWTime();
 ///{
 #pragma omp begin declare variant match(device = {arch(amdgcn)})
 
-double getWTick() { return ((double)1E-9); }
+double getWTick() {
+  // The number of ticks per second for the AMDGPU clock varies by card and can
+  // only be retrived by querying the driver. We rely on the device environment
+  // to inform us what the proper frequency is.
+  return 1.0 / config::getClockFrequency();
+}
 
 double getWTime() {
-  // The intrinsics for measuring time have undocumented frequency
-  // This will probably need to be found by measurement on a number of
-  // architectures. Until then, return 0, which is very inaccurate as a
-  // timer but resolves the undefined symbol at link time.
-  return 0;
+  uint64_t NumTicks = 0;
+  if constexpr (__has_builtin(__builtin_amdgcn_s_sendmsg_rtnl))
+    NumTicks = __builtin_amdgcn_s_sendmsg_rtnl(0x83);
+  else if constexpr (__has_builtin(__builtin_amdgcn_s_memrealtime))
+    NumTicks = __builtin_amdgcn_s_memrealtime();
+  else if constexpr (__has_builtin(__builtin_amdgcn_s_memtime))
+    NumTicks = __builtin_amdgcn_s_memtime();
+
+  return static_cast<double>(NumTicks) * getWTick();
 }
 
 #pragma omp end declare variant
@@ -67,15 +77,9 @@ double getWTime() {
 ///{
 
 extern "C" {
-int32_t __kmpc_cancellationpoint(IdentTy *, int32_t, int32_t) {
-  FunctionTracingRAII();
-  return 0;
-}
+int32_t __kmpc_cancellationpoint(IdentTy *, int32_t, int32_t) { return 0; }
 
-int32_t __kmpc_cancel(IdentTy *, int32_t, int32_t) {
-  FunctionTracingRAII();
-  return 0;
-}
+int32_t __kmpc_cancel(IdentTy *, int32_t, int32_t) { return 0; }
 
 double omp_get_wtick(void) { return ompx::impl::getWTick(); }
 

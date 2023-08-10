@@ -3,13 +3,13 @@
 // UNSUPPORTED: system-windows
 
 // Check that the offload arch is required
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ARCH %s
 // CHK-ARCH: error: missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'
 
 /// Check action graph.
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ACTIONS %s
@@ -45,11 +45,11 @@
 // CHK-PHASES-NO-CC: 21: offload, "host-sycl (x86_64-unknown-linux-gnu)" {10}, "device-sycl (amdgcn-amd-amdhsa:gfx906)" {20}, image
 
 /// Check that we only unbundle an archive once.
-// RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:   -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend \
 // RUN:   --offload-arch=gfx906 %s -L%S/Inputs/SYCL -llin64 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ARCHIVE %s
-// RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -target x86_64-unknown-linux-gnu -fsycl \
 // RUN:   -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend \
 // RUN:   --offload-arch=gfx906 %s %S/Inputs/SYCL/liblin64.a 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ARCHIVE %s

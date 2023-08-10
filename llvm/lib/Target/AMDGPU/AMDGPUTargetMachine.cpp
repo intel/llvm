@@ -276,20 +276,15 @@ static cl::opt<bool> OptVGPRLiveRange(
     cl::desc("Enable VGPR liverange optimizations for if-else structure"),
     cl::init(true), cl::Hidden);
 
-// Enable atomic optimization
-static cl::opt<bool>
-    EnableAtomicOptimizations("amdgpu-atomic-optimizations",
-                              cl::desc("Enable atomic optimizations"),
-                              cl::init(true), cl::Hidden);
-
 static cl::opt<ScanOptions> AMDGPUAtomicOptimizerStrategy(
     "amdgpu-atomic-optimizer-strategy",
     cl::desc("Select DPP or Iterative strategy for scan"),
     cl::init(ScanOptions::Iterative),
-    cl::values(clEnumValN(ScanOptions::DPP, "DPP",
-                          "Use DPP operations for scan"),
-               clEnumValN(ScanOptions::Iterative, "Iterative",
-                          "Use Iterative approach for scan")));
+    cl::values(
+        clEnumValN(ScanOptions::DPP, "DPP", "Use DPP operations for scan"),
+        clEnumValN(ScanOptions::Iterative, "Iterative",
+                   "Use Iterative approach for scan"),
+        clEnumValN(ScanOptions::None, "None", "Disable atomic optimizer")));
 
 // Enable Mode register optimization
 static cl::opt<bool> EnableSIModeRegisterPass(
@@ -358,7 +353,7 @@ static cl::opt<bool> EnableRewritePartialRegUses(
 
 extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   // Register the target
-  RegisterTargetMachine<R600TargetMachine> X(getTheAMDGPUTarget());
+  RegisterTargetMachine<R600TargetMachine> X(getTheR600Target());
   RegisterTargetMachine<GCNTargetMachine> Y(getTheGCNTarget());
 
   PassRegistry *PR = PassRegistry::getPassRegistry();
@@ -371,6 +366,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUDAGToDAGISelPass(*PR);
   initializeGCNDPPCombinePass(*PR);
   initializeSILowerI1CopiesPass(*PR);
+  initializeSILowerWWMCopiesPass(*PR);
   initializeSILowerSGPRSpillsPass(*PR);
   initializeSIFixSGPRCopiesPass(*PR);
   initializeSIFixVGPRCopiesPass(*PR);
@@ -422,12 +418,11 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeAMDGPUUnifyDivergentExitNodesPass(*PR);
   initializeAMDGPUAAWrapperPassPass(*PR);
   initializeAMDGPUExternalAAWrapperPass(*PR);
-  initializeAMDGPUUseNativeCallsPass(*PR);
-  initializeAMDGPUSimplifyLibCallsPass(*PR);
   initializeAMDGPUPrintfRuntimeBindingPass(*PR);
   initializeAMDGPUResourceUsageAnalysisPass(*PR);
   initializeGCNNSAReassignPass(*PR);
   initializeGCNPreRAOptimizationsPass(*PR);
+  initializeGCNPreRALongBranchRegPass(*PR);
   initializeGCNRewritePartialRegUsesPass(*PR);
 
   // SYCL-specific passes, needed here to be available to `opt`.
@@ -651,7 +646,7 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
       [this](StringRef PassName, FunctionPassManager &PM,
              ArrayRef<PassBuilder::PipelineElement>) {
         if (PassName == "amdgpu-simplifylib") {
-          PM.addPass(AMDGPUSimplifyLibCallsPass(*this));
+          PM.addPass(AMDGPUSimplifyLibCallsPass());
           return true;
         }
         if (PassName == "amdgpu-usenative") {
@@ -703,11 +698,11 @@ void AMDGPUTargetMachine::registerPassBuilderCallbacks(PassBuilder &PB) {
   });
 
   PB.registerPipelineStartEPCallback(
-      [this](ModulePassManager &PM, OptimizationLevel Level) {
+      [](ModulePassManager &PM, OptimizationLevel Level) {
         FunctionPassManager FPM;
         FPM.addPass(AMDGPUUseNativeCallsPass());
         if (EnableLibCallSimplify && Level != OptimizationLevel::O0)
-          FPM.addPass(AMDGPUSimplifyLibCallsPass(*this));
+          FPM.addPass(AMDGPUSimplifyLibCallsPass());
         PM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
       });
 
@@ -987,6 +982,10 @@ void AMDGPUPassConfig::addStraightLineScalarOptimizationPasses() {
 void AMDGPUPassConfig::addIRPasses() {
   const AMDGPUTargetMachine &TM = getAMDGPUTargetMachine();
 
+  Triple::ArchType Arch = TM.getTargetTriple().getArch();
+  if (RemoveIncompatibleFunctions && Arch == Triple::amdgcn)
+    addPass(createAMDGPURemoveIncompatibleFunctionsPass(&TM));
+
   // There is no reason to run these.
   disablePass(&StackMapLivenessID);
   disablePass(&FuncletLayoutID);
@@ -1001,7 +1000,7 @@ void AMDGPUPassConfig::addIRPasses() {
   addPass(createAlwaysInlinerLegacyPass());
 
   // Handle uses of OpenCL image2d_t, image3d_t and sampler_t arguments.
-  if (TM.getTargetTriple().getArch() == Triple::r600)
+  if (Arch == Triple::r600)
     addPass(createR600OpenCLImageTypeLoweringPass());
 
   // Replace OpenCL enqueued block function pointers with global variables.
@@ -1011,6 +1010,11 @@ void AMDGPUPassConfig::addIRPasses() {
   if (EnableLowerModuleLDS) {
     addPass(createAMDGPULowerModuleLDSPass());
   }
+
+  // AMDGPUAttributor infers lack of llvm.amdgcn.lds.kernel.id calls, so run
+  // after their introduction
+  if (TM.getOptLevel() > CodeGenOpt::None)
+    addPass(createAMDGPUAttributorPass());
 
   if (TM.getOptLevel() > CodeGenOpt::None)
     addPass(createInferAddressSpacesPass());
@@ -1071,12 +1075,6 @@ void AMDGPUPassConfig::addIRPasses() {
 
 void AMDGPUPassConfig::addCodeGenPrepare() {
   if (TM->getTargetTriple().getArch() == Triple::amdgcn) {
-    if (RemoveIncompatibleFunctions)
-      addPass(createAMDGPURemoveIncompatibleFunctionsPass(TM));
-
-    if (TM->getOptLevel() > CodeGenOpt::None)
-      addPass(createAMDGPUAttributorPass());
-
     // FIXME: This pass adds 2 hacky attributes that can be replaced with an
     // analysis, and should be removed.
     addPass(createAMDGPUAnnotateKernelFeaturesPass());
@@ -1153,7 +1151,8 @@ bool GCNPassConfig::addPreISel() {
   if (TM->getOptLevel() > CodeGenOpt::None)
     addPass(createAMDGPULateCodeGenPreparePass());
 
-  if (isPassEnabled(EnableAtomicOptimizations, CodeGenOpt::Less)) {
+  if ((TM->getOptLevel() >= CodeGenOpt::Less) &&
+      (AMDGPUAtomicOptimizerStrategy != ScanOptions::None)) {
     addPass(createAMDGPUAtomicOptimizerPass(AMDGPUAtomicOptimizerStrategy));
   }
 
@@ -1320,6 +1319,7 @@ void GCNPassConfig::addOptimizedRegAlloc() {
 }
 
 bool GCNPassConfig::addPreRewrite() {
+  addPass(&SILowerWWMCopiesID);
   if (EnableRegReassign)
     addPass(&GCNNSAReassignID);
   return true;
@@ -1366,18 +1366,24 @@ bool GCNPassConfig::addRegAssignAndRewriteFast() {
   if (!usingDefaultRegAlloc())
     report_fatal_error(RegAllocOptNotSupportedMessage);
 
+  addPass(&GCNPreRALongBranchRegID);
+
   addPass(createSGPRAllocPass(false));
 
   // Equivalent of PEI for SGPRs.
   addPass(&SILowerSGPRSpillsID);
 
   addPass(createVGPRAllocPass(false));
+
+  addPass(&SILowerWWMCopiesID);
   return true;
 }
 
 bool GCNPassConfig::addRegAssignAndRewriteOptimized() {
   if (!usingDefaultRegAlloc())
     report_fatal_error(RegAllocOptNotSupportedMessage);
+
+  addPass(&GCNPreRALongBranchRegID);
 
   addPass(createSGPRAllocPass(true));
 
@@ -1447,6 +1453,12 @@ TargetPassConfig *GCNTargetMachine::createPassConfig(PassManagerBase &PM) {
   return new GCNPassConfig(*this, PM);
 }
 
+void GCNTargetMachine::registerMachineRegisterInfoCallback(
+    MachineFunction &MF) const {
+  SIMachineFunctionInfo *MFI = MF.getInfo<SIMachineFunctionInfo>();
+  MF.getRegInfo().addDelegate(MFI);
+}
+
 MachineFunctionInfo *GCNTargetMachine::createMachineFunctionInfo(
     BumpPtrAllocator &Allocator, const Function &F,
     const TargetSubtargetInfo *STI) const {
@@ -1499,6 +1511,13 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   };
 
   if (parseOptionalRegister(YamlMFI.VGPRForAGPRCopy, MFI->VGPRForAGPRCopy))
+    return true;
+
+  if (parseOptionalRegister(YamlMFI.SGPRForEXECCopy, MFI->SGPRForEXECCopy))
+    return true;
+
+  if (parseOptionalRegister(YamlMFI.LongBranchReservedReg,
+                            MFI->LongBranchReservedReg))
     return true;
 
   auto diagnoseRegisterClass = [&](const yaml::StringValue &RegName) {

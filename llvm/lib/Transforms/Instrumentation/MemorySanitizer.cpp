@@ -160,6 +160,7 @@
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CallingConv.h"
@@ -438,6 +439,14 @@ static const MemoryMapParams Linux_AArch64_MemoryMapParams = {
     0x0200000000000, // OriginBase
 };
 
+// loongarch64 Linux
+static const MemoryMapParams Linux_LoongArch64_MemoryMapParams = {
+    0,              // AndMask (not used)
+    0x500000000000, // XorMask
+    0,              // ShadowBase (not used)
+    0x100000000000, // OriginBase
+};
+
 // aarch64 FreeBSD
 static const MemoryMapParams FreeBSD_AArch64_MemoryMapParams = {
     0x1800000000000, // AndMask
@@ -493,6 +502,11 @@ static const PlatformMemoryMapParams Linux_S390_MemoryMapParams = {
 static const PlatformMemoryMapParams Linux_ARM_MemoryMapParams = {
     nullptr,
     &Linux_AArch64_MemoryMapParams,
+};
+
+static const PlatformMemoryMapParams Linux_LoongArch_MemoryMapParams = {
+    nullptr,
+    &Linux_LoongArch64_MemoryMapParams,
 };
 
 static const PlatformMemoryMapParams FreeBSD_ARM_MemoryMapParams = {
@@ -1015,6 +1029,9 @@ void MemorySanitizer::initializeModule(Module &M) {
       case Triple::aarch64:
       case Triple::aarch64_be:
         MapParams = Linux_ARM_MemoryMapParams.bits64;
+        break;
+      case Triple::loongarch64:
+        MapParams = Linux_LoongArch_MemoryMapParams.bits64;
         break;
       default:
         report_fatal_error("unsupported architecture");
@@ -4885,7 +4902,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
 
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 16)),
@@ -4902,7 +4919,7 @@ struct VarArgAMD64Helper : public VarArgHelper {
       if (MS.TrackOrigins)
         IRB.CreateMemCpy(RegSaveAreaOriginPtr, Alignment, VAArgTLSOriginCopy,
                          Alignment, AMD64FpEndOffset);
-      Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
           IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                         ConstantInt::get(MS.IntptrTy, 8)),
@@ -5034,7 +5051,7 @@ struct VarArgMIPS64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -5185,7 +5202,11 @@ struct VarArgAArch64Helper : public VarArgHelper {
     Value *SaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Type::getInt64PtrTy(*MS.C));
+#else
+        PointerType::get(*MS.C, 0));
+#endif
     return IRB.CreateLoad(Type::getInt64Ty(*MS.C), SaveAreaPtrPtr);
   }
 
@@ -5194,7 +5215,11 @@ struct VarArgAArch64Helper : public VarArgHelper {
     Value *SaveAreaPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                       ConstantInt::get(MS.IntptrTy, offset)),
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Type::getInt32PtrTy(*MS.C));
+#else
+        PointerType::get(*MS.C, 0));
+#endif
     Value *SaveArea32 = IRB.CreateLoad(IRB.getInt32Ty(), SaveAreaPtr);
     return IRB.CreateSExt(SaveArea32, MS.IntptrTy);
   }
@@ -5481,7 +5506,7 @@ struct VarArgPowerPC64Helper : public VarArgHelper {
       CallInst *OrigInst = VAStartInstrumentationList[i];
       NextNodeIRBuilder IRB(OrigInst);
       Value *VAListTag = OrigInst->getArgOperand(0);
-      Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+      Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
       Value *RegSaveAreaPtrPtr =
           IRB.CreateIntToPtr(IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
                              PointerType::get(RegSaveAreaPtrTy, 0));
@@ -5726,7 +5751,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   void visitVACopyInst(VACopyInst &I) override { unpoisonVAListTagForInst(I); }
 
   void copyRegSaveArea(IRBuilder<> &IRB, Value *VAListTag) {
-    Type *RegSaveAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+    Type *RegSaveAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
     Value *RegSaveAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),
@@ -5751,7 +5776,7 @@ struct VarArgSystemZHelper : public VarArgHelper {
   }
 
   void copyOverflowArea(IRBuilder<> &IRB, Value *VAListTag) {
-    Type *OverflowArgAreaPtrTy = Type::getInt64PtrTy(*MS.C);
+    Type *OverflowArgAreaPtrTy = PointerType::getUnqual(*MS.C); // i64*
     Value *OverflowArgAreaPtrPtr = IRB.CreateIntToPtr(
         IRB.CreateAdd(
             IRB.CreatePtrToInt(VAListTag, MS.IntptrTy),

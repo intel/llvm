@@ -66,28 +66,6 @@ static llvm::Constant *buildDisposeHelper(CodeGenModule &CGM,
 
 namespace {
 
-/// Represents a captured entity that requires extra operations in order for
-/// this entity to be copied or destroyed correctly.
-struct BlockCaptureManagedEntity {
-  BlockCaptureEntityKind CopyKind, DisposeKind;
-  BlockFieldFlags CopyFlags, DisposeFlags;
-  const BlockDecl::Capture *CI;
-  const CGBlockInfo::Capture *Capture;
-
-  BlockCaptureManagedEntity(BlockCaptureEntityKind CopyType,
-                            BlockCaptureEntityKind DisposeType,
-                            BlockFieldFlags CopyFlags,
-                            BlockFieldFlags DisposeFlags,
-                            const BlockDecl::Capture &CI,
-                            const CGBlockInfo::Capture &Capture)
-      : CopyKind(CopyType), DisposeKind(DisposeType), CopyFlags(CopyFlags),
-        DisposeFlags(DisposeFlags), CI(&CI), Capture(&Capture) {}
-
-  bool operator<(const BlockCaptureManagedEntity &Other) const {
-    return Capture->getOffset() < Other.Capture->getOffset();
-  }
-};
-
 enum class CaptureStrKind {
   // String for the copy helper.
   CopyHelper,
@@ -964,7 +942,11 @@ llvm::Value *CodeGenFunction::EmitBlockLiteral(const CGBlockInfo &blockInfo) {
       if (CI.isNested())
         byrefPointer = Builder.CreateLoad(src, "byref.capture");
       else
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        byrefPointer = src.getPointer();
+#else
         byrefPointer = Builder.CreateBitCast(src.getPointer(), VoidPtrTy);
+#endif
 
       // Write that void* into the capture field.
       Builder.CreateStore(byrefPointer, blockField);
@@ -1700,7 +1682,9 @@ struct CallBlockRelease final : EHScopeStack::Cleanup {
     llvm::Value *BlockVarAddr;
     if (LoadBlockVarAddr) {
       BlockVarAddr = CGF.Builder.CreateLoad(Addr);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       BlockVarAddr = CGF.Builder.CreateBitCast(BlockVarAddr, CGF.VoidPtrTy);
+#endif
     } else {
       BlockVarAddr = Addr.getPointer();
     }
@@ -2020,9 +2004,13 @@ CodeGenFunction::GenerateCopyHelperFunction(const CGBlockInfo &blockInfo) {
     }
     case BlockCaptureEntityKind::BlockObject: {
       llvm::Value *srcValue = Builder.CreateLoad(srcField, "blockcopy.src");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       srcValue = Builder.CreateBitCast(srcValue, VoidPtrTy);
       llvm::Value *dstAddr =
           Builder.CreateBitCast(dstField.getPointer(), VoidPtrTy);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::Value *dstAddr = dstField.getPointer();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::Value *args[] = {
         dstAddr, srcValue, llvm::ConstantInt::get(Int32Ty, flags.getBitMask())
       };
@@ -2406,7 +2394,7 @@ generateByrefCopyHelper(CodeGenFunction &CGF, const BlockByrefInfo &byrefInfo,
     Address destField = CGF.GetAddrOfLocalVar(&Dst);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     destField = Address(CGF.Builder.CreateLoad(destField), byrefInfo.Type,
-
+                        byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     destField = Address(CGF.Builder.CreateLoad(destField), CGF.Int8Ty,
                         byrefInfo.ByrefAlignment);
@@ -2419,6 +2407,7 @@ generateByrefCopyHelper(CodeGenFunction &CGF, const BlockByrefInfo &byrefInfo,
     Address srcField = CGF.GetAddrOfLocalVar(&Src);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     srcField = Address(CGF.Builder.CreateLoad(srcField), byrefInfo.Type,
+                       byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     srcField = Address(CGF.Builder.CreateLoad(srcField), CGF.Int8Ty,
                        byrefInfo.ByrefAlignment);
@@ -2481,6 +2470,7 @@ generateByrefDisposeHelper(CodeGenFunction &CGF,
     Address addr = CGF.GetAddrOfLocalVar(&Src);
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     addr = Address(CGF.Builder.CreateLoad(addr), byrefInfo.Type,
+                   byrefInfo.ByrefAlignment);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     addr = Address(CGF.Builder.CreateLoad(addr), CGF.Int8Ty,
                    byrefInfo.ByrefAlignment);
@@ -2849,10 +2839,15 @@ void CodeGenFunction::emitByrefStructureInit(const AutoVarEmission &emission) {
 void CodeGenFunction::BuildBlockRelease(llvm::Value *V, BlockFieldFlags flags,
                                         bool CanThrow) {
   llvm::FunctionCallee F = CGM.getBlockObjectDispose();
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *args[] = {
     Builder.CreateBitCast(V, Int8PtrTy),
     llvm::ConstantInt::get(Int32Ty, flags.getBitMask())
   };
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Value *args[] = {V,
+                         llvm::ConstantInt::get(Int32Ty, flags.getBitMask())};
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (CanThrow)
     EmitRuntimeCallOrInvoke(F, args);

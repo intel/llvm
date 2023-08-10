@@ -53,7 +53,7 @@ lldb::ProcessSP ProcessElfCore::CreateInstance(lldb::TargetSP target_sp,
                                                bool can_connect) {
   lldb::ProcessSP process_sp;
   if (crash_file && !can_connect) {
-    // Read enough data for a ELF32 header or ELF64 header Note: Here we care
+    // Read enough data for an ELF32 header or ELF64 header Note: Here we care
     // about e_type field only, so it is safe to ignore possible presence of
     // the header extension.
     const size_t header_size = sizeof(llvm::ELF::Elf64_Ehdr);
@@ -258,8 +258,8 @@ Status ProcessElfCore::DoLoadCore() {
     if (!m_nt_file_entries.empty()) {
       ModuleSpec exe_module_spec;
       exe_module_spec.GetArchitecture() = arch;
-      exe_module_spec.GetFileSpec().SetFile(
-          m_nt_file_entries[0].path.GetCString(), FileSpec::Style::native);
+      exe_module_spec.GetFileSpec().SetFile(m_nt_file_entries[0].path,
+                                            FileSpec::Style::native);
       if (exe_module_spec.GetFileSpec()) {
         exe_module_sp = GetTarget().GetOrCreateModule(exe_module_spec, 
                                                       true /* notify */);
@@ -938,7 +938,7 @@ llvm::Error ProcessElfCore::parseLinuxNotes(llvm::ArrayRef<CoreNote> notes) {
       for (uint64_t i = 0; i < count; ++i) {
         const char *path = note.data.GetCStr(&offset);
         if (path && path[0])
-          m_nt_file_entries[i].path.SetCString(path);
+          m_nt_file_entries[i].path.assign(path);
       }
       break;
     }

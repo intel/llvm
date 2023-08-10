@@ -1242,6 +1242,7 @@ static void __kmp_atfork_child(void) {
     *affinity = KMP_AFFINITY_INIT(affinity->env_var);
   __kmp_affin_fullMask = nullptr;
   __kmp_affin_origMask = nullptr;
+  __kmp_topology = nullptr;
 #endif // KMP_AFFINITY_SUPPORTED
 
 #if KMP_USE_MONITOR
@@ -1849,10 +1850,13 @@ int __kmp_read_from_file(char const *path, char const *format, ...) {
 
   va_start(args, format);
   FILE *f = fopen(path, "rb");
-  if (f == NULL)
+  if (f == NULL) {
+    va_end(args);
     return 0;
+  }
   result = vfscanf(f, format, args);
   fclose(f);
+  va_end(args);
 
   return result;
 }

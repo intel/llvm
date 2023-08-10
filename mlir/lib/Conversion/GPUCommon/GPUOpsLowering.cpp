@@ -51,9 +51,16 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
   // Remap proper input types.
   TypeConverter::SignatureConversion signatureConversion(
       gpuFuncOp.front().getNumArguments());
+
   Type funcType = getTypeConverter()->convertFunctionSignature(
       gpuFuncOp.getFunctionType(), /*isVariadic=*/false,
       getTypeConverter()->getOptions().useBarePtrCallConv, signatureConversion);
+  if (!funcType) {
+    return rewriter.notifyMatchFailure(gpuFuncOp, [&](Diagnostic &diag) {
+      diag << "failed to convert function signature type for: "
+           << gpuFuncOp.getFunctionType();
+    });
+  }
 
   // Create the new function operation. Only copy those attributes that are
   // not specific to function modeling.
@@ -75,8 +82,8 @@ GPUFuncOpLowering::matchAndRewrite(gpu::GPUFuncOp gpuFuncOp, OpAdaptor adaptor,
     attributes.emplace_back(kernelAttributeName, rewriter.getUnitAttr());
   auto llvmFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
       gpuFuncOp.getLoc(), gpuFuncOp.getName(), funcType,
-      LLVM::Linkage::External, /*dsoLocal*/ false, /*cconv*/ LLVM::CConv::C,
-      attributes);
+      LLVM::Linkage::External, /*dsoLocal=*/false, /*cconv=*/LLVM::CConv::C,
+      /*comdat=*/nullptr, attributes);
 
   {
     // Insert operations that correspond to converted workgroup and private
@@ -485,8 +492,8 @@ LogicalResult impl::scalarizeVectorOp(Operation *op, ValueRange operands,
     auto scalarOperands = llvm::map_to_vector(operands, extractElement);
     Operation *scalarOp =
         rewriter.create(loc, name, scalarOperands, elementType, op->getAttrs());
-    rewriter.create<LLVM::InsertElementOp>(loc, result, scalarOp->getResult(0),
-                                           index);
+    result = rewriter.create<LLVM::InsertElementOp>(
+        loc, result, scalarOp->getResult(0), index);
   }
 
   rewriter.replaceOp(op, result);

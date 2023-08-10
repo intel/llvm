@@ -200,7 +200,7 @@ public:
 
   /// The maximum number of bytes of a vector register we can vectorize
   /// the accesses safely with.
-  uint64_t getMaxSafeDepDistBytes() { return MaxSafeDepDistBytes; }
+  uint64_t getMaxSafeDepDistBytes() const { return MaxSafeDepDistBytes; }
 
   /// Return the number of elements that are safe to operate on
   /// simultaneously, multiplied by the size of the element in bits.
@@ -591,7 +591,6 @@ public:
   /// Returns true if value \p V is loop invariant.
   bool isInvariant(Value *V) const;
 
-  uint64_t getMaxSafeDepDistBytes() const { return MaxSafeDepDistBytes; }
   unsigned getNumStores() const { return NumStores; }
   unsigned getNumLoads() const { return NumLoads;}
 
@@ -787,38 +786,6 @@ public:
 
   bool invalidate(Function &F, const PreservedAnalyses &PA,
                   FunctionAnalysisManager::Invalidator &Inv);
-};
-
-/// This analysis provides dependence information for the memory accesses
-/// of a loop.
-///
-/// It runs the analysis for a loop on demand.  This can be initiated by
-/// querying the loop access info via LAA::getInfo.  getInfo return a
-/// LoopAccessInfo object.  See this class for the specifics of what information
-/// is provided.
-class LoopAccessLegacyAnalysis : public FunctionPass {
-public:
-  static char ID;
-
-  LoopAccessLegacyAnalysis();
-
-  bool runOnFunction(Function &F) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override;
-
-  /// Return the proxy object for retrieving LoopAccessInfo for individual
-  /// loops.
-  ///
-  /// If there is no cached result available run the analysis.
-  LoopAccessInfoManager &getLAIs() { return *LAIs; }
-
-  void releaseMemory() override {
-    // Invalidate the cache when the pass is freed.
-    LAIs->clear();
-  }
-
-private:
-  std::unique_ptr<LoopAccessInfoManager> LAIs;
 };
 
 /// This analysis provides dependence information for the memory

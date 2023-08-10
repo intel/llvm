@@ -27,7 +27,6 @@ lit_header_restrictions = {
     "experimental/regex": "// UNSUPPORTED: no-localization, c++03",
     "experimental/set": "// UNSUPPORTED: c++03",
     "experimental/simd": "// UNSUPPORTED: c++03",
-    "experimental/span": "// UNSUPPORTED: c++03",
     "experimental/string": "// UNSUPPORTED: c++03",
     "experimental/type_traits": "// UNSUPPORTED: c++03",
     "experimental/unordered_map": "// UNSUPPORTED: c++03",
@@ -42,10 +41,11 @@ lit_header_restrictions = {
     "iostream": "// UNSUPPORTED: no-localization",
     "istream": "// UNSUPPORTED: no-localization",
     "latch": "// UNSUPPORTED: no-threads, c++03, c++11, c++14, c++17",
-    "locale.h": "// UNSUPPORTED: no-localization",
     "locale": "// UNSUPPORTED: no-localization",
+    "locale.h": "// UNSUPPORTED: no-localization",
     "mutex": "// UNSUPPORTED: no-threads, c++03",
     "ostream": "// UNSUPPORTED: no-localization",
+    "print": "// UNSUPPORTED: no-filesystem, c++03, c++11, c++14, c++17, c++20, availability-fp_to_chars-missing", # TODO PRINT investigate
     "regex": "// UNSUPPORTED: no-localization",
     "semaphore": "// UNSUPPORTED: no-threads, c++03, c++11, c++14, c++17",
     "shared_mutex": "// UNSUPPORTED: no-threads, c++03, c++11",
@@ -58,18 +58,6 @@ lit_header_restrictions = {
     "wchar.h": "// UNSUPPORTED: no-wide-characters",
     "wctype.h": "// UNSUPPORTED: no-wide-characters",
 }
-
-private_headers_still_public_in_modules = [
-    "__assert",
-    "__config",
-    "__config_site.in",
-    "__debug",
-    "__hash_table",
-    "__threading_support",
-    "__tree",
-    "__undef_macros",
-    "__verbose_abort",
-]
 
 # This table was produced manually, by grepping the TeX source of the Standard's
 # library clauses for the string "#include". Each header's synopsis contains
@@ -136,8 +124,3 @@ experimental_headers = sorted(
     p.relative_to(include).as_posix() for p in include.glob("experimental/[a-z]*") if is_header(p)
 )
 public_headers = toplevel_headers + experimental_headers
-private_headers = sorted(
-    p.relative_to(include).as_posix() for p in include.rglob("*") if is_header(p)
-                                                                     and str(p.relative_to(include)).startswith("__")
-                                                                     and not p.name.startswith("pstl")
-)

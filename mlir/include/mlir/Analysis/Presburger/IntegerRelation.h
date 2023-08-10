@@ -29,7 +29,7 @@ class IntegerRelation;
 class IntegerPolyhedron;
 class PresburgerSet;
 class PresburgerRelation;
-struct SymbolicLexMin;
+struct SymbolicLexOpt;
 
 /// The type of bound: equal, lower bound or upper bound.
 enum class BoundType { EQ, LB, UB };
@@ -132,6 +132,13 @@ public:
   /// and somewhat expensive, since it uses the integer emptiness check
   /// (see IntegerRelation::findIntegerSample()).
   bool isEqual(const IntegerRelation &other) const;
+
+  /// Perform a quick equality check on `this` and `other`. The relations are
+  /// equal if the check return true, but may or may not be equal if the check
+  /// returns false. The equality check is performed in a plain manner, by
+  /// comparing if all the equalities and inequalities in `this` and `other`
+  /// are the same.
+  bool isPlainEqual(const IntegerRelation &other) const;
 
   /// Return whether this is a subset of the given IntegerRelation. This is
   /// integer-exact and somewhat expensive, since it uses the integer emptiness
@@ -659,15 +666,18 @@ public:
   /// x = a if b <= a, a <= c
   /// x = b if a <  b, b <= c
   ///
-  /// This function is stored in the `lexmin` function in the result.
+  /// This function is stored in the `lexopt` function in the result.
   /// Some assignments to the symbols might make the set empty.
   /// Such points are not part of the function's domain.
   /// In the above example, this happens when max(a, b) > c.
   ///
   /// For some values of the symbols, the lexmin may be unbounded.
-  /// `SymbolicLexMin` stores these parts of the symbolic domain in a separate
+  /// `SymbolicLexOpt` stores these parts of the symbolic domain in a separate
   /// `PresburgerSet`, `unboundedDomain`.
-  SymbolicLexMin findSymbolicIntegerLexMin() const;
+  SymbolicLexOpt findSymbolicIntegerLexMin() const;
+
+  /// Same as findSymbolicIntegerLexMin but produces lexmax instead of lexmin
+  SymbolicLexOpt findSymbolicIntegerLexMax() const;
 
   /// Return the set difference of this set and the given set, i.e.,
   /// return `this \ set`.

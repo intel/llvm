@@ -663,8 +663,6 @@ static bool AllUsesOfValueWillTrapIfNull(const Value *V,
       if (II->getCalledOperand() != V) {
         return false;  // Not calling the ptr
       }
-    } else if (const BitCastInst *CI = dyn_cast<BitCastInst>(U)) {
-      if (!AllUsesOfValueWillTrapIfNull(CI, PHIs)) return false;
     } else if (const AddrSpaceCastInst *CI = dyn_cast<AddrSpaceCastInst>(U)) {
       if (!AllUsesOfValueWillTrapIfNull(CI, PHIs))
         return false;
@@ -780,10 +778,9 @@ static bool OptimizeAwayTrappingUsesOfValue(Value *V, Constant *NewV) {
           UI = V->user_begin();
         }
       }
-    } else if (CastInst *CI = dyn_cast<CastInst>(I)) {
-      Changed |= OptimizeAwayTrappingUsesOfValue(CI,
-                                ConstantExpr::getCast(CI->getOpcode(),
-                                                      NewV, CI->getType()));
+    } else if (AddrSpaceCastInst *CI = dyn_cast<AddrSpaceCastInst>(I)) {
+      Changed |= OptimizeAwayTrappingUsesOfValue(
+          CI, ConstantExpr::getAddrSpaceCast(NewV, CI->getType()));
       if (CI->use_empty()) {
         Changed = true;
         CI->eraseFromParent();
@@ -1912,10 +1909,8 @@ static void RemovePreallocated(Function *F) {
         Builder.SetInsertPoint(InsertBefore);
         auto *Alloca =
             Builder.CreateAlloca(ArgType, AddressSpace, nullptr, "paarg");
-        auto *BitCast = Builder.CreateBitCast(
-            Alloca, Type::getInt8PtrTy(M->getContext()), UseCall->getName());
-        ArgAllocas[AllocArgIndex] = BitCast;
-        AllocaReplacement = BitCast;
+        ArgAllocas[AllocArgIndex] = Alloca;
+        AllocaReplacement = Alloca;
       }
 
       UseCall->replaceAllUsesWith(AllocaReplacement);
@@ -2124,19 +2119,22 @@ static void setUsedInitializer(GlobalVariable &V,
   const auto *VEPT = cast<PointerType>(VAT->getArrayElementType());
 
   // Type of pointer to the array of pointers.
-  PointerType *Int8PtrTy =
+  PointerType *PtrTy =
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      PointerType::get(V.getContext(), VEPT->getAddressSpace());
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
       Type::getInt8PtrTy(V.getContext(), VEPT->getAddressSpace());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   SmallVector<Constant *, 8> UsedArray;
   for (GlobalValue *GV : Init) {
-    Constant *Cast =
-        ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, Int8PtrTy);
+    Constant *Cast = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, PtrTy);
     UsedArray.push_back(Cast);
   }
 
   // Sort to get deterministic order.
   array_pod_sort(UsedArray.begin(), UsedArray.end(), compareNames);
-  ArrayType *ATy = ArrayType::get(Int8PtrTy, UsedArray.size());
+  ArrayType *ATy = ArrayType::get(PtrTy, UsedArray.size());
 
   Module *M = V.getParent();
   V.removeFromParent();

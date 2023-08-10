@@ -51,6 +51,12 @@ _warningFlags = [
     # Disable warnings for extensions used in C++03
     "-Wno-local-type-template-args",
     "-Wno-c++11-extensions",
+
+    # TODO(philnik) This fails with the PSTL.
+    "-Wno-unknown-pragmas",
+    # Don't fail compilation in case the compiler fails to perform the requested
+    # loop vectorization.
+    "-Wno-pass-failed",
 ]
 
 _allStandards = ["c++03", "c++11", "c++14", "c++17", "c++20", "c++23", "c++26"]
@@ -121,6 +127,10 @@ DEFAULT_PARAMETERS = [
             AddFeature("modules-build"),
             AddCompileFlag("-fmodules"),
             AddCompileFlag("-fcxx-modules"), # AppleClang disregards -fmodules entirely when compiling C++. This enables modules for C++.
+            # Note: We use a custom modules cache path to make sure that we don't reuse
+            #       the default one, which can be shared across CI builds with different
+            #       configurations.
+            AddCompileFlag(lambda cfg: f"-fmodules-cache-path={cfg.test_exec_root}/ModuleCache"),
         ]
         if enable_modules == "clang"
         else [
@@ -272,6 +282,7 @@ DEFAULT_PARAMETERS = [
         if experimental
         else [
             AddFeature("libcpp-has-no-incomplete-pstl"),
+            AddFeature("libcpp-has-no-experimental-stop_token"),
         ],
     ),
     Parameter(
@@ -283,16 +294,20 @@ DEFAULT_PARAMETERS = [
         actions=lambda enabled: [] if not enabled else [AddFeature("long_tests")],
     ),
     Parameter(
-        name="enable_assertions",
-        choices=[True, False],
-        type=bool,
-        default=False,
-        help="Whether to enable assertions when compiling the test suite. This is only meaningful when "
-        "running the tests against libc++.",
-        actions=lambda assertions: [] if not assertions else [
-            AddCompileFlag("-D_LIBCPP_ENABLE_ASSERTIONS=1"),
-            AddFeature("libcpp-has-assertions"),
-        ],
+        name="hardening_mode",
+        choices=["unchecked", "hardened", "debug"],
+        type=str,
+        default="unchecked",
+        help="Whether to enable the hardened mode or the debug mode when compiling the test suite. This is only "
+        "meaningful when running the tests against libc++.",
+        actions=lambda hardening_mode: filter(
+            None,
+            [
+                AddCompileFlag("-D_LIBCPP_ENABLE_HARDENED_MODE=1") if hardening_mode == "hardened" else None,
+                AddCompileFlag("-D_LIBCPP_ENABLE_DEBUG_MODE=1")    if hardening_mode == "debug" else None,
+                AddFeature("libcpp-hardening-mode={}".format(hardening_mode)),
+            ],
+        ),
     ),
     Parameter(
         name="additional_features",
