@@ -28,6 +28,41 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
+// List of sycl features and extensions which are not supported by graphs. Used
+// for throwing errors when these features are used with graphs.
+enum class UnsupportedGraphFeatures {
+  sycl_reductions,
+  sycl_specialization_constants,
+  sycl_kernel_bundle,
+  sycl_ext_oneapi_kernel_properties,
+  sycl_ext_oneapi_enqueue_barrier,
+  sycl_ext_oneapi_memcpy2d,
+  sycl_ext_oneapi_device_global
+};
+
+constexpr const char *
+UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
+  using UGF = UnsupportedGraphFeatures;
+  switch (Feature) {
+  case UGF::sycl_reductions:
+    return "Reductions";
+  case UGF::sycl_specialization_constants:
+    return "Specialization Constants";
+  case UGF::sycl_kernel_bundle:
+    return "Kernel Bundles";
+  case UGF::sycl_ext_oneapi_kernel_properties:
+    return "sycl_ext_oneapi_kernel_properties";
+  case UGF::sycl_ext_oneapi_enqueue_barrier:
+    return "sycl_ext_oneapi_enqueue_barrier";
+  case UGF::sycl_ext_oneapi_memcpy2d:
+    return "sycl_ext_oneapi_memcpy2d";
+  case UGF::sycl_ext_oneapi_device_global:
+    return "sycl_ext_oneapi_device_global";
+  default:
+    return {};
+  }
+}
+
 class node_impl;
 class graph_impl;
 class exec_graph_impl;
