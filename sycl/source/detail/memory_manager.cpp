@@ -1133,7 +1133,7 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   assert(DeviceGlobalEntry->MIsDeviceImageScopeDecorated &&
          "device_global is not device image scope decorated.");
 
-  // If the device global is used in multiple kernel sets we cannot proceed.
+  // If the device global is used in multiple device images we cannot proceed.
   if (DeviceGlobalEntry->MImageIdentifiers.size() > 1)
     throw sycl::exception(make_error_code(errc::invalid),
                           "More than one image exists with the device_global.");

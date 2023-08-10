@@ -290,13 +290,11 @@ public:
   ProgramManager();
   ~ProgramManager() {
     // unique_ptr could not be used in any map used in this class. When image is
-    // used as a key - no possible to wrap because we do search by raw pointer
-    // value, when uses as value - same image could be assigned to different
-    // keys. Release them explicitly.
+    // used as a key - impossible to wrap because we do search by raw pointer
+    // value, when used as a value - the same image could be assigned to
+    // different keys. Release them explicitly.
     for (auto &Image : m_BinImg2KernelIDs)
       delete Image.first;
-    for (auto &Image : m_UniversalKernelSet)
-      delete Image;
   };
 
   bool kernelUsesAssert(const std::string &KernelName) const;
@@ -323,9 +321,7 @@ private:
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
   /// The three maps below are used during kernel resolution. Any kernel is
-  /// identified by its name. The following
-  /// assumption is made: for any two device images in a SYCL application
-  /// their kernel sets are either identical or disjoint.
+  /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
 
   /// Maps names of kernels to their unique kernel IDs.
@@ -350,11 +346,6 @@ private:
   std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
-
-  /// Keeps images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::unordered_set<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
