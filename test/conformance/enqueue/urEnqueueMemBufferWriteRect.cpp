@@ -184,3 +184,21 @@ TEST_P(urEnqueueMemBufferWriteRectTest, InvalidNullPtrEventWaitList) {
                                     src.data(), 0, &validEvent, nullptr),
         UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 }
+
+TEST_P(urEnqueueMemBufferWriteRectTest, InvalidSize) {
+    std::vector<uint32_t> src(count);
+    std::fill(src.begin(), src.end(), 1);
+
+    // out-of-bounds access with potential overflow
+    ur_rect_region_t region{size, 1, 1};
+    ur_rect_offset_t buffer_offset{std::numeric_limits<uint64_t>::max(), 1, 1};
+    // Creating an overflow in host_offsets leads to a crash because
+    // the function doesn't do bounds checking of host buffers.
+    ur_rect_offset_t host_offset{0, 0, 0};
+
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferWriteRect(queue, buffer, true, buffer_offset,
+                                    host_offset, region, size, size, size, size,
+                                    src.data(), 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}
