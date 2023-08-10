@@ -285,6 +285,9 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
+  std::cout << "--------------<command_submit>:MSubmitTime = " << MSubmitTime
+            << ", MFallbackProfiling = " << MFallbackProfiling;
+
   return MSubmitTime;
 }
 
@@ -311,33 +314,12 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   if (!MFallbackProfiling) {
     QueueImplPtr Queue = MQueue.lock();
     MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
-              << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
-    std::cout.flush();
-    return MDeviceStartTime;
+    // MDeviceStartTime = MHostProfilingInfo->getStartTime(); //original
   } else {
-    MHostProfilingInfo->getStartTime();
+    MDeviceStartTime = 101; // MHostProfilingInfo->getStartTime(); //original
   }
 
   return MDeviceStartTime;
-
-  // if (!MFallbackProfiling) {
-  //   std::cout << "---3 MFallbackProfiling = " << MFallbackProfiling
-  //             << std::endl;
-  //   auto temp = MHostProfilingInfo->getStartTime();
-  //   std::cout << "+++3 MDeviceStartTime: " << temp << std::endl;
-  //   // return MHostProfilingInfo->getStartTime();
-  //   return temp;
-  // } else {
-  //   QueueImplPtr Queue = MQueue.lock();
-  //   MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
-  //                      (MHostSubmitTime - MDeviceSubmitTime);
-  //   std::cout << "===3 MFallbackProfiling = " << MFallbackProfiling
-  //             << std::endl;
-  //   std::cout << "+++3 MDeviceStartTime: " << MDeviceStartTime << std::endl;
-  //   std::cout.flush();
-  //   return MDeviceStartTime;
-  // }
 }
 
 template <>
@@ -361,21 +343,12 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   // MSubmitTimeBase
   if (!MFallbackProfiling) {
     QueueImplPtr Queue = MQueue.lock();
-    MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime() -
-                     (MHostSubmitTime - MDeviceSubmitTime);
-    std::cout << "===4 MFallbackProfiling = " << MFallbackProfiling
-              << std::endl;
-    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
-    std::cout.flush();
-    return MDeviceEndTime;
+    MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+    // MDeviceEndTime = MHostProfilingInfo->getEndTime(); //original
   } else {
-    auto temp = MHostProfilingInfo->getEndTime();
-    std::cout << "---4 MFallbackProfiling = " << MFallbackProfiling
-              << std::endl;
-    std::cout << "+++4 MDeviceEndTime: " << MDeviceEndTime << std::endl;
-    // return MHostProfilingInfo->getEndTime();
-    return temp;
+    MDeviceEndTime = 102; // MHostProfilingInfo->getEndTime(); //test
   }
+  return MDeviceEndTime;
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
@@ -510,7 +483,7 @@ void event_impl::setSubmissionTime() {
     MSubmitTime = getTimestamp();
   }
 
-  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling
+  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling << ", "
             << "+++1 MSubmitTime = " << MSubmitTime << std::endl;
   std::cout.flush();
 }
