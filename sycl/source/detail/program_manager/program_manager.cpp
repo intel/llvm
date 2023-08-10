@@ -1124,8 +1124,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
   assert(ImageSet.size() > 0);
 
   if (DbgProgMgr > 0) {
-    std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file or "
-                 "universal kernel image set, "
+    std::cerr << ">>> ProgramManager::getDeviceImage(Custom SPV file "
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
               << ", " << JITCompilationIsRequired << ")\n";
 
