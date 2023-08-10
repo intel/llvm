@@ -1,4 +1,4 @@
-//==------------- math.hpp - Intel specific math API -----------------------==//
+//==-------------- math.hpp - Intel specific math API ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,11 +9,6 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/builtins.hpp>
-#include <sycl/ext/intel/math/imf_half_trivial.hpp>
-#include <sycl/ext/intel/math/imf_simd.hpp>
-#include <sycl/half_type.hpp>
-#include <type_traits>
 
 // _iml_half_internal is internal representation for fp16 type used in intel
 // math device library. The definition here should align with definition in
@@ -23,6 +18,14 @@ using _iml_half_internal = _Float16;
 #else
 using _iml_half_internal = uint16_t;
 #endif
+
+#include <sycl/builtins.hpp>
+#include <sycl/ext/intel/math/imf_fp_conversions.hpp>
+#include <sycl/ext/intel/math/imf_half_trivial.hpp>
+#include <sycl/ext/intel/math/imf_simd.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#include <sycl/half_type.hpp>
+#include <type_traits>
 
 extern "C" {
 float __imf_saturatef(float);
