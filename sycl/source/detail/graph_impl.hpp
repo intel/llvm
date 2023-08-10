@@ -168,111 +168,8 @@ public:
     return nullptr;
   }
 
-  /// Prints Node information to Stream
-  /// @param Stream where to print the Node information
-  void printDotCG(std::ostream &Stream) {
-    sycl::detail::CG::CGTYPE CGType = MCommandGroup->getType();
-
-    Stream << "\"" << MCommandGroup.get()
-           << "\" [style=filled, fillcolor=\"#FFD28A\", label=\"";
-
-    Stream << "ID = " << MCommandGroup.get() << "\\n";
-    Stream << "TYPE = ";
-
-    switch (CGType) {
-    case sycl::detail::CG::CGTYPE::None:
-      Stream << "None \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Kernel: {
-      Stream << "CGExecKernel \\n";
-      sycl::detail::CGExecKernel *kernel =
-          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      Stream << "NAME = " << kernel->MKernelName << "\\n";
-      break;
-    }
-    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
-    case sycl::detail::CG::CGTYPE::CopyPtrToAcc:
-    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
-      Stream << "CGCopy \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Fill:
-      Stream << "CGFill \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::UpdateHost:
-      Stream << "CGCUpdateHost \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::CopyUSM:
-      Stream << "CGCopyUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::FillUSM:
-      Stream << "CGFillUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::PrefetchUSM:
-      Stream << "CGPrefetchUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::AdviseUSM:
-      Stream << "CGAdviseUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::CodeplayHostTask:
-      Stream << "CGHostTask \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Barrier:
-      Stream << "CGBarrier \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Copy2DUSM:
-      Stream << "CGCopy2DUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Fill2DUSM:
-      Stream << "CGFill2DUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::Memset2DUSM:
-      Stream << "CGMemset2DUSM \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::ReadWriteHostPipe:
-      Stream << "CGReadWriteHostPipe \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::CopyToDeviceGlobal:
-      Stream << "CGCopyToDeviceGlobal \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::CopyFromDeviceGlobal:
-      Stream << "CGCopyFromDeviceGlobal \\n";
-      break;
-    case sycl::detail::CG::CGTYPE::ExecCommandBuffer:
-      Stream << "CGExecCommandBuffer \\n";
-      break;
-    default:
-      Stream << "Other \\n";
-      break;
-    }
-    Stream << "\"];" << std::endl;
-  }
-
-  /// Recursive Depth first traversal of linked nodes
-  /// to print node information and connection to Stream
-  /// @param Stream where to print node information
-  /// @Visited vector of the already visited nodes
-  void printDotRecursive(std::ostream &Stream,
-                         std::vector<node_impl *> &Visited) {
-    // if Node has been already visited, we skip it
-    if (std::find(Visited.begin(), Visited.end(), this) != Visited.end())
-      return;
-
-    Visited.push_back(this);
-
-    printDotCG(Stream);
-    for (const auto &Dep : MPredecessors) {
-      auto NodeDep = Dep.lock();
-      Stream << "  \"" << MCommandGroup.get() << "\" -> \""
-             << NodeDep->MCommandGroup.get() << "\"" << std::endl;
-    }
-
-    for (std::shared_ptr<node_impl> Succ : MSuccessors) {
-      Succ->printDotRecursive(Stream, Visited);
-    }
-  }
-
   /// Tests is the caller is similar to Node
-  /// @return True if the two nodes are similars
+  /// @return True if the two nodes are similar
   bool isSimilar(std::shared_ptr<node_impl> Node) {
     if (MCGType != Node->MCGType)
       return false;
@@ -284,7 +181,7 @@ public:
       return false;
 
     if ((MCGType == sycl::detail::CG::CGTYPE::Kernel) &&
-        (MCGType == sycl::detail::CG::CGTYPE::Kernel)) {
+        (Node->MCGType == sycl::detail::CG::CGTYPE::Kernel)) {
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
@@ -435,6 +332,7 @@ public:
         EventImpl != MEventsMap.end()) {
       return EventImpl->first;
     }
+
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "No event has been recorded for the specified graph node");
@@ -558,26 +456,6 @@ public:
     return true;
   }
 
-  /// Make an edge between two nodes in the graph. Performs some mandatory
-  /// error checks as well as an optional check for cycles introduced by making
-  /// this edge.
-  /// @param Src The source of the new edge.
-  /// @param Dest The destination of the new edge.
-  void makeEdge(std::shared_ptr<node_impl> Src,
-                std::shared_ptr<node_impl> Dest);
-
-  /// Throws an invalid exception if this function is called
-  /// while a queue is recording commands to the graph.
-  /// @param ExceptionMsg Message to append to the exception message
-  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const {
-    if (MRecordingQueues.size()) {
-      throw sycl::exception(make_error_code(sycl::errc::invalid),
-                            ExceptionMsg +
-                                " cannot be called when a queue "
-                                "is currently recording commands to a graph.");
-    }
-  }
-
   // Returns the number of nodes in the Graph
   // @return Number of nodes in the Graph
   size_t getNumberOfNodes() const {
@@ -606,6 +484,10 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MInorderQueueMap;
+
+  /// Insert node into list of root nodes.
+  /// @param Root Node to add to list of root nodes.
+  void addRoot(const std::shared_ptr<node_impl> &Root);
 };
 
 /// Class representing the implementation of command_graph<executable>.

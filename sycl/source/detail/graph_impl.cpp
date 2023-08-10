@@ -184,6 +184,7 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
       checkForRequirement(Req, NodePtr, UniqueDeps);
     }
   }
+
   // Add any nodes specified by event dependencies into the dependency list
   for (auto Dep : CommandGroup->getEvents()) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
