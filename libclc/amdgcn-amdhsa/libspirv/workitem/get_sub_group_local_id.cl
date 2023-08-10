@@ -9,5 +9,5 @@
 #include <spirv/spirv.h>
 
 _CLC_DEF _CLC_OVERLOAD uint __spirv_SubgroupLocalInvocationId() {
-  return __builtin_amdgcn_mbcnt_hi(-1, __builtin_amdgcn_mbcnt_lo(-1, 0))
+  return __builtin_amdgcn_mbcnt_hi(-1, __builtin_amdgcn_mbcnt_lo(-1, 0));
 }
