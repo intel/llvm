@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===-----------------------------------------------------------------===//
-#include <cinttypes>
-
 #include "command_buffer.hpp"
 #include "ur_level_zero.hpp"
 

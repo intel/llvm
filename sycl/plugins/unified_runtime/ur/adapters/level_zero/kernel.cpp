@@ -240,7 +240,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList((*Event)->WaitList);
 
