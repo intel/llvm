@@ -37,7 +37,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_kernel_properties,
   sycl_ext_oneapi_enqueue_barrier,
   sycl_ext_oneapi_memcpy2d,
-  sycl_ext_oneapi_device_global
+  sycl_ext_oneapi_device_global,
+  sycl_ext_oneapi_bindless_images
 };
 
 constexpr const char *
@@ -58,6 +59,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_memcpy2d";
   case UGF::sycl_ext_oneapi_device_global:
     return "sycl_ext_oneapi_device_global";
+  case UGF::sycl_ext_oneapi_bindless_images:
+    return "sycl_ext_oneapi_bindless_images";
   default:
     return {};
   }

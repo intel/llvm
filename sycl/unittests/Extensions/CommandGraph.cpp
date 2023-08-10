@@ -311,6 +311,160 @@ void addMemcpy2D(experimental::detail::modifiable_command_graph &G, queue &Q,
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
 }
 
+/// Tries to add nodes including images bindless copy instructions
+/// to the graph G. It tests that an invalid exception has been thrown
+/// Since sycl_ext_oneapi_bindless_images extension can not be used
+/// along with SYCL Graph.
+///
+/// @param G Modifiable graph to add commands to.
+/// @param Q Queue to submit nodes to.
+/// @param Img Image memory
+/// @param HostData Host Pointer to the memory
+/// @param ImgUSM USM Pointer to Image memory
+/// @param Pitch image pitch
+/// @param Desc Image descriptor
+template <OperationPath PathKind>
+void addImagesCopies(experimental::detail::modifiable_command_graph &G,
+                     queue &Q, sycl::ext::oneapi::experimental::image_mem Img,
+                     std::vector<sycl::float4> HostData, void *ImgUSM,
+                     size_t Pitch,
+                     sycl::ext::oneapi::experimental::image_descriptor Desc) {
+  // simple copy Host to Device
+  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), Img.get_handle(), Desc);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(HostData.data(), Img.get_handle(), Desc);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), Img.get_handle(), Desc);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  // simple copy Device to Host
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(Img.get_handle(), HostData.data(), Desc);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(Img.get_handle(), HostData.data(), Desc);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(Img.get_handle(), HostData.data(), Desc);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  // simple copy Host to Device USM
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), ImgUSM, Desc, Pitch);
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(HostData.data(), ImgUSM, Desc, Pitch);
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), ImgUSM, Desc, Pitch);
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  // subregion copy Host to Device
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), {0, 0, 0}, {0, 0, 0},
+                            Img.get_handle(), {0, 0, 0}, Desc, {0, 0, 0});
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(HostData.data(), {0, 0, 0}, {0, 0, 0}, Img.get_handle(),
+                        {0, 0, 0}, Desc, {0, 0, 0});
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), {0, 0, 0}, {0, 0, 0},
+                            Img.get_handle(), {0, 0, 0}, Desc, {0, 0, 0});
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  // subregion copy Device to Host
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(Img.get_handle(), {0, 0, 0}, Desc, HostData.data(),
+                            {0, 0, 0}, {0, 0, 0}, {0, 0, 0});
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(Img.get_handle(), {0, 0, 0}, Desc, HostData.data(),
+                        {0, 0, 0}, {0, 0, 0}, {0, 0, 0});
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(Img.get_handle(), {0, 0, 0}, Desc, HostData.data(),
+                            {0, 0, 0}, {0, 0, 0}, {0, 0, 0});
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+
+  // subregion copy Host to Device USM
+  ExceptionCode = make_error_code(sycl::errc::success);
+  try {
+    if constexpr (PathKind == OperationPath::RecordReplay) {
+      Q.submit([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), {0, 0, 0}, ImgUSM, {0, 0, 0}, Desc,
+                            Pitch, {0, 0, 0}, {0, 0, 0});
+      });
+    }
+    if constexpr (PathKind == OperationPath::Shortcut) {
+      Q.ext_oneapi_copy(HostData.data(), {0, 0, 0}, ImgUSM, {0, 0, 0}, Desc,
+                        Pitch, {0, 0, 0}, {0, 0, 0});
+    }
+    if constexpr (PathKind == OperationPath::Explicit) {
+      G.add([&](handler &CGH) {
+        CGH.ext_oneapi_copy(HostData.data(), {0, 0, 0}, ImgUSM, {0, 0, 0}, Desc,
+                            Pitch, {0, 0, 0}, {0, 0, 0});
+      });
+    }
+  } catch (exception &Exception) {
+    ExceptionCode = Exception.code();
+  }
+  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
 bool depthSearchSuccessorCheck(
     std::shared_ptr<sycl::ext::oneapi::experimental::detail::node_impl> Node) {
   if (Node->MSuccessors.size() > 1)
@@ -1238,7 +1392,7 @@ TEST_F(CommandGraphTest, Reductions) {
       {
         try {
           Graph.add([&](handler &CGH) {
-            CGH.parallel_for<class TestKernel>(
+            CGH.parallel_for<class CustomTestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus()),
                 [=](item<1> idx, auto &Sum) {});
           });
@@ -1248,6 +1402,45 @@ TEST_F(CommandGraphTest, Reductions) {
         }
       },
       sycl::exception);
+}
+
+TEST_F(CommandGraphTest, BindlessExceptionCheck) {
+  auto Ctxt = Queue.get_context();
+
+  // declare image data
+  size_t Height = 13;
+  size_t Width = 7;
+  size_t Depth = 11;
+  size_t N = Height * Width * Depth;
+  std::vector<sycl::float4> DataIn(N);
+
+  // Extension: image descriptor - can use the same for both images
+  sycl::ext::oneapi::experimental::image_descriptor Desc(
+      {Width, Height, Depth}, sycl::image_channel_order::rgba,
+      sycl::image_channel_type::fp32);
+
+  // Extension: allocate memory on device and create the handle
+  // Input images memory
+  sycl::ext::oneapi::experimental::image_mem ImgMem(Desc, Dev, Ctxt);
+  // Extension: returns the device pointer to USM allocated pitched memory
+  size_t Pitch = 0;
+  auto ImgMemUSM = sycl::ext::oneapi::experimental::pitched_alloc_device(
+      &Pitch, Desc, Queue);
+
+  Graph.begin_recording(Queue);
+
+  addImagesCopies<OperationPath::RecordReplay>(Graph, Queue, ImgMem, DataIn,
+                                               ImgMemUSM, Pitch, Desc);
+
+  addImagesCopies<OperationPath::Shortcut>(Graph, Queue, ImgMem, DataIn,
+                                           ImgMemUSM, Pitch, Desc);
+
+  Graph.end_recording();
+
+  addImagesCopies<OperationPath::Explicit>(Graph, Queue, ImgMem, DataIn,
+                                           ImgMemUSM, Pitch, Desc);
+
+  sycl::free(ImgMemUSM, Ctxt);
 }
 
 class MultiThreadGraphTest : public CommandGraphTest {
