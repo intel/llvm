@@ -8017,7 +8017,9 @@ NamedDecl *Sema::ActOnVariableDeclarator(
         if (!Context.getTargetInfo().isValidGCCRegisterName(Label) &&
             DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl())) {
           if (getLangOpts().SYCLIsDevice)
-            SYCLDiagIfDeviceCode(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
+            SYCLDiagIfDeviceCode(E->getExprLoc(),
+                                 diag::err_asm_unknown_register_name)
+                << Label;
           else
             Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
         }
