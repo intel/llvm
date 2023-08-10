@@ -300,7 +300,6 @@ protected:
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
-  uint64_t MDeviceQueueTime = 0;
 
   ContextImplPtr MContext;
   bool MHostEvent = true;

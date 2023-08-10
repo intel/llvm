@@ -300,8 +300,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       if (!MFallbackProfiling) {
         return startTime;
       } else {
-        // TO DO MDeviceQueueTime
-        return MHostBaseTime - MDeviceQueueTime + startTime;
+        queueTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - queueTime + startTime;
       }
     }
     return 0;
@@ -325,8 +327,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       if (!MFallbackProfiling) {
         return endTime;
       } else {
-        // TO DO MDeviceQueueTime
-        return MHostBaseTime - MDeviceQueueTime + endTime;
+        queueTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - queueTime + endTime;
       }
       return 0;
     }
@@ -452,10 +456,6 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 void event_impl::setSubmissionTime() {
   if (!MIsProfilingEnabled)
     return;
-  // 1) This code is in order to support profiling for OpenCL version < 2.1
-  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
-  // host and device submit time. The host timestamp in sycl runtime will be
-  // return for the info::event_profiling::command_submit
   if (!MFallbackProfiling) {
     if (QueueImplPtr Queue = MQueue.lock()) {
       try {
@@ -468,6 +468,18 @@ void event_impl::setSubmissionTime() {
       }
     }
   } else {
+    // 1) This code is in order to support profiling for OpenCL version < 2.1
+    // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
+    // host and device submit time. The host timestamp in sycl runtime will be
+    // return for the info::event_profiling::command_submit
+    // host timestamp to to return for calling <command_submit>
+    // this is the base time in host side to support fallback profiling
+    // for OpenCL version < 2.1, see MFallbackProfiling
+    // in fact, this fuction is called after enqueuing is processed
+    // successfully in piEnqueueKernelLaunch()
+    // TO DO: submit time cature by calling setSubmissionTime()
+    // may need to be changed **before** enqueuing
+    // as a result, currently MSubmitTime is later than MHostBaseTime
     MSubmitTime = getTimestamp();
   }
 }
@@ -475,6 +487,11 @@ void event_impl::setSubmissionTime() {
 void event_impl::setQueueBaseTime() {
   if (!MIsProfilingEnabled || !MFallbackProfiling)
     return;
+
+  // 2) This code is in order to support profiling for OpenCL version < 2.1
+  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
+  // host and device submit time. The host timestamp in sycl runtime will be
+  // used to normalize profiling time in <command_start> and <command_end>
   MHostBaseTime = getTimestamp();
 }
 
