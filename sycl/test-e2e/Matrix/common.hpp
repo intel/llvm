@@ -1,3 +1,5 @@
+#include <sycl/sycl.hpp>
+
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {

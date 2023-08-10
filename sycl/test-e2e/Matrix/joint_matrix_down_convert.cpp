@@ -13,17 +13,16 @@
 #include "common.hpp"
 #include <iostream>
 #include <random>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 16
+constexpr size_t SG_SZ = 16;
 
-#define TM 8
-#define TN SG_SZ
-#define TK 16
+constexpr size_t TM = 8;
+// TN and TK must be the same for this test.
+constexpr size_t TN = 16;
+constexpr size_t TK = 16;
 
 #define BF16_EPSILON 0.00781250
 
@@ -39,11 +38,9 @@ void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::write>(cgh);
 
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
-         {
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
