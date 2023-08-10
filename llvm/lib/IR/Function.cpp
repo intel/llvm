@@ -1209,6 +1209,26 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
                                              ArgInfo));
     return;
   }
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  case IIT_PTR_TO_ARG: {
+    unsigned ArgInfo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::PtrToArgument,
+                                             ArgInfo));
+    return;
+  }
+  case IIT_PTR_TO_ELT: {
+    unsigned ArgInfo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
+    OutputTable.push_back(IITDescriptor::get(IITDescriptor::PtrToElt, ArgInfo));
+    return;
+  }
+  case IIT_ANYPTR_TO_ELT: {
+    unsigned short ArgNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
+    unsigned short RefNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
+    OutputTable.push_back(
+        IITDescriptor::get(IITDescriptor::AnyPtrToElt, ArgNo, RefNo));
+    return;
+  }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   case IIT_VEC_OF_ANYPTRS_TO_ELT: {
     unsigned short ArgNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
     unsigned short RefNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
@@ -1374,6 +1394,20 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
       return VectorType::get(EltTy, VTy->getElementCount());
     return EltTy;
   }
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  case IITDescriptor::PtrToArgument: {
+    Type *Ty = Tys[D.getArgumentNumber()];
+    return PointerType::getUnqual(Ty);
+  }
+  case IITDescriptor::PtrToElt: {
+    Type *Ty = Tys[D.getArgumentNumber()];
+    VectorType *VTy = dyn_cast<VectorType>(Ty);
+    if (!VTy)
+      llvm_unreachable("Expected an argument of Vector Type");
+    Type *EltTy = VTy->getElementType();
+    return PointerType::getUnqual(EltTy);
+  }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   case IITDescriptor::VecElementArgument: {
     Type *Ty = Tys[D.getArgumentNumber()];
     if (VectorType *VTy = dyn_cast<VectorType>(Ty))
@@ -1389,6 +1423,11 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
   case IITDescriptor::VecOfAnyPtrsToElt:
     // Return the overloaded type (which determines the pointers address space)
     return Tys[D.getOverloadArgNumber()];
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  case IITDescriptor::AnyPtrToElt:
+    // Return the overloaded type (which determines the pointers address space)
+    return Tys[D.getOverloadArgNumber()];
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   llvm_unreachable("unhandled");
 }
@@ -1591,6 +1630,52 @@ static bool matchIntrinsicType(
       return matchIntrinsicType(EltTy, Infos, ArgTys, DeferredChecks,
                                 IsDeferredCheck);
     }
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+    case IITDescriptor::PtrToArgument: {
+      if (D.getArgumentNumber() >= ArgTys.size())
+        return IsDeferredCheck || DeferCheck(Ty);
+      Type * ReferenceType = ArgTys[D.getArgumentNumber()];
+      PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
+      return (!ThisArgType ||
+              !ThisArgType->isOpaqueOrPointeeTypeMatches(ReferenceType));
+    }
+    case IITDescriptor::PtrToElt: {
+      if (D.getArgumentNumber() >= ArgTys.size())
+        return IsDeferredCheck || DeferCheck(Ty);
+      VectorType * ReferenceType =
+        dyn_cast<VectorType> (ArgTys[D.getArgumentNumber()]);
+      PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
+
+      if (!ThisArgType || !ReferenceType)
+        return true;
+      return !ThisArgType->isOpaqueOrPointeeTypeMatches(
+          ReferenceType->getElementType());
+    }
+    case IITDescriptor::AnyPtrToElt: {
+      unsigned RefArgNumber = D.getRefArgNumber();
+      if (RefArgNumber >= ArgTys.size()) {
+        if (IsDeferredCheck)
+          return true;
+        // If forward referencing, already add the pointer type and
+        // defer the checks for later.
+        ArgTys.push_back(Ty);
+        return DeferCheck(Ty);
+      }
+
+      if (!IsDeferredCheck) {
+        assert(D.getOverloadArgNumber() == ArgTys.size() &&
+               "Table consistency error");
+        ArgTys.push_back(Ty);
+      }
+
+      auto *ReferenceType = dyn_cast<VectorType>(ArgTys[RefArgNumber]);
+      auto *ThisArgType = dyn_cast<PointerType>(Ty);
+      if (!ThisArgType || !ReferenceType)
+        return true;
+      return !ThisArgType->isOpaqueOrPointeeTypeMatches(
+          ReferenceType->getElementType());
+    }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     case IITDescriptor::VecOfAnyPtrsToElt: {
       unsigned RefArgNumber = D.getRefArgNumber();
       if (RefArgNumber >= ArgTys.size()) {
