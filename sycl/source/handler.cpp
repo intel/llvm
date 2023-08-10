@@ -262,6 +262,10 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
+
+        // Capture a host timestamp to support fallback profiling
+        // see MFallbackProfiling
+
         return Result;
       };
 

@@ -228,6 +228,10 @@ public:
   /// submission time for the command associated with this event.
   void setSubmissionTime();
 
+  /// Calling this function to cature the host timestamp to use 
+  /// profiling base time. see MFallbackProfiling
+  void setQueueBaseTime();
+
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
 
@@ -295,10 +299,9 @@ protected:
   sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
-  uint64_t MHostSubmitTime = 0;
-  uint64_t MDeviceSubmitTime = 0;
-  uint64_t MDeviceStartTime = 0;
-  uint64_t MDeviceEndTime = 0;
+  uint64_t MHostBaseTime = 0;
+  uint64_t MDeviceQueueTime = 0;
+
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

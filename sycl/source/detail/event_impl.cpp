@@ -285,9 +285,6 @@ template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  std::cout << "--------------<command_submit>:MSubmitTime = " << MSubmitTime
-            << ", MFallbackProfiling = " << MFallbackProfiling;
-
   return MSubmitTime;
 }
 
@@ -296,9 +293,15 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_start>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto startTime = get_event_profiling_info<info::event_profiling::command_start>(this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return startTime;
+      } else {
+        //MDeviceQueueTime = getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(MContext.get()->getHandleRef(), &MEvent);
+        return MHostBaseTime - MDeviceQueueTime + startTime;
+      }
+    }
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -306,49 +309,29 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-
-  // 3. When API clGetDeviceAndHostTimer is not available, the return
-  // value is the normalized timestamp that is computed with
-  // backend event profiling START information, normalized by the
-  // backend event profiling QUEUED information
-  if (!MFallbackProfiling) {
-    QueueImplPtr Queue = MQueue.lock();
-    MDeviceStartTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    // MDeviceStartTime = MHostProfilingInfo->getStartTime(); //original
-  } else {
-    MDeviceStartTime = 101; // MHostProfilingInfo->getStartTime(); //original
-  }
-
-  return MDeviceStartTime;
+  return MHostProfilingInfo->getStartTime();
 }
 
 template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto endTime = get_event_profiling_info<info::event_profiling::command_end>(this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return endTime;
+      } else {
+        return MHostBaseTime - MDeviceQueueTime + endTime;
+      }
     return 0;
+    }
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::invalid),
         "Profiling info is not available. " +
             codeToString(PI_ERROR_PROFILING_INFO_NOT_AVAILABLE));
-
-  // 4. When API clGetDeviceAndHostTimer is not available, the return
-  // value is the normalized timestamp that is computed with
-  // backend event profiling END information, normalized by the
-  // MSubmitTimeBase
-  if (!MFallbackProfiling) {
-    QueueImplPtr Queue = MQueue.lock();
-    MDeviceEndTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    // MDeviceEndTime = MHostProfilingInfo->getEndTime(); //original
-  } else {
-    MDeviceEndTime = 102; // MHostProfilingInfo->getEndTime(); //test
-  }
-  return MDeviceEndTime;
+  return MHostProfilingInfo->getStartTime();
 }
 
 template <> uint32_t event_impl::get_info<info::event::reference_count>() {
@@ -482,10 +465,12 @@ void event_impl::setSubmissionTime() {
   } else {
     MSubmitTime = getTimestamp();
   }
+}
 
-  std::cout << "===1 MFallbackProfiling = " << MFallbackProfiling << ", "
-            << "+++1 MSubmitTime = " << MSubmitTime << std::endl;
-  std::cout.flush();
+void event_impl::setQueueBaseTime() {
+  if (!MIsProfilingEnabled || !MFallbackProfiling)
+    return;
+  MHostBaseTime = getTimestamp();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
