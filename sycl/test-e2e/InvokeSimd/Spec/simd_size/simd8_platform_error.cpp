@@ -21,7 +21,7 @@ int main(void) {
 
   // VL = 8
   passed &= test<8, 8>(q);
-  // CHECK: {{.*}}SYCL exception caught: Sub-group size 8 is not supported on the device{{.*}}
+  // CHECK: {{.*}}error: Kernel compiled with required subgroup size 8, which is unsupported on this platform{{.*}}
 
   std::cout << (passed ? "Passed\n" : "FAILED\n");
   return passed ? 0 : 1;
