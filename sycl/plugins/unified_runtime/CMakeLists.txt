@@ -40,6 +40,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   add_library(UnifiedRuntimeLoader ALIAS ur_loader)
   add_library(UnifiedRuntimeCommon ALIAS ur_common)
   add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
+  set(UMF_ENABLE_POOL_TRACKING ON)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")

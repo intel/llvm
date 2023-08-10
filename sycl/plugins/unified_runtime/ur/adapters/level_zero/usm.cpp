@@ -515,9 +515,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     return umf2urResult(umfRet);
   }
 
-  if (DeviceReadOnly) {
-    Context->SharedReadOnlyAllocs.insert(*RetMem);
-  }
   if (IndirectAccessTrackingEnabled) {
     // Keep track of all memory allocations in the context
     Context->MemAllocs.emplace(std::piecewise_construct,
@@ -915,90 +912,15 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     return Res;
   }
 
-  // Query the device of the allocation to determine the right allocator context
-  ze_device_handle_t ZeDeviceHandle;
-  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-
-  // Query memory type of the pointer we're freeing to determine the correct
-  // way to do it(directly or via an allocator)
-  auto ZeResult =
-      ZE_CALL_NOCHECK(zeMemGetAllocProperties,
-                      (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
-                       &ZeDeviceHandle));
-
-  // Handle the case that L0 RT was already unloaded
-  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    if (IndirectAccessTrackingEnabled)
-      UR_CALL(ContextReleaseHelper(Context));
-    return UR_RESULT_SUCCESS;
-  } else if (ZeResult) {
-    return ze2urResult(ZeResult);
+  auto hPool = umfPoolByPtr(Ptr);
+  if (!hPool) {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  // If memory type is host release from host pool
-  if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST) {
-    auto umfRet = umfPoolFree(Context->HostMemPool.get(), Ptr);
-
-    if (IndirectAccessTrackingEnabled)
-      UR_CALL(ContextReleaseHelper(Context));
-    return umf2urResult(umfRet);
-  }
-
-  // Points out an allocation in SharedReadOnlyMemPools
-  auto SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.end();
-
-  if (!ZeDeviceHandle) {
-    // The only case where it is OK not have device identified is
-    // if the memory is not known to the driver. We should not ever get
-    // this either, probably.
-    UR_ASSERT(ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN,
-              UR_RESULT_ERROR_INVALID_DEVICE);
-  } else {
-    ur_device_handle_t Device;
-    // All context member devices or their descendants are of the same platform.
-    auto Platform = Context->getPlatform();
-    Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
-    UR_ASSERT(Device, UR_RESULT_ERROR_INVALID_DEVICE);
-
-    auto DeallocationHelper =
-        [Context, Device,
-         Ptr](std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-                  &PoolMap) {
-          auto It = PoolMap.find(Device->ZeDevice);
-          if (It == PoolMap.end())
-            return UR_RESULT_ERROR_INVALID_VALUE;
-
-          // The right pool is found, deallocate the pointer
-          auto umfRet = umfPoolFree(It->second.get(), Ptr);
-
-          if (IndirectAccessTrackingEnabled)
-            UR_CALL(ContextReleaseHelper(Context));
-          return umf2urResult(umfRet);
-        };
-
-    switch (ZeMemoryAllocationProperties.type) {
-    case ZE_MEMORY_TYPE_SHARED:
-      // Distinguish device_read_only allocations since they have own pool.
-      SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.find(Ptr);
-      return DeallocationHelper(SharedReadOnlyAllocsIterator !=
-                                        Context->SharedReadOnlyAllocs.end()
-                                    ? Context->SharedReadOnlyMemPools
-                                    : Context->SharedMemPools);
-    case ZE_MEMORY_TYPE_DEVICE:
-      return DeallocationHelper(Context->DeviceMemPools);
-    default:
-      // Handled below
-      break;
-    }
-  }
-
-  ur_result_t Res = USMFreeImpl(Context, Ptr);
-  if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
-    Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
-  }
+  auto umfRet = umfPoolFree(hPool, Ptr);
   if (IndirectAccessTrackingEnabled)
     UR_CALL(ContextReleaseHelper(Context));
-  return Res;
+  return umf2urResult(umfRet);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
