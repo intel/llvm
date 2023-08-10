@@ -294,7 +294,8 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent) {
-      auto startTime = get_event_profiling_info<info::event_profiling::command_start>(this->getHandleRef(), this->getPlugin());
+      auto startTime = get_event_profiling_info
+      <info::event_profiling::command_start>(this->getHandleRef(), this->getPlugin());
       if (!MFallbackProfiling) {
         return startTime;
       } else {
@@ -317,7 +318,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent) {
-      auto endTime = get_event_profiling_info<info::event_profiling::command_end>(this->getHandleRef(), this->getPlugin());
+      auto endTime = get_event_profiling_info
+      <info::event_profiling::command_end>(this->getHandleRef(), this->getPlugin());
       if (!MFallbackProfiling) {
         return endTime;
       } else {
