@@ -8,18 +8,22 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <vector>
+#include <functional>  // for function
+#include <type_traits> // for enable_if_t
+#include <vector>      // for vector
 
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
+class context;
+enum class aspect;
 
 namespace ext::oneapi {
 class filter_selector;
@@ -166,5 +170,5 @@ detail::DSelectorInvocableType aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

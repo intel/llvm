@@ -20,6 +20,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=apl -DMAC_STR=APL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_9_3_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=apl -DMAC_STR=APL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bxt -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=apl -DMAC_STR=APL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_glk -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=glk -DMAC_STR=GLK
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_9_4_0 -### %s 2>&1 | \
@@ -42,6 +44,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_11_0_0 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=icllp \
 // RUN:             -DMAC_STR=ICLLP
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_ehl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_jsl -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=ehl -DMAC_STR=EHL
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=tgllp \
 // RUN:             -DMAC_STR=TGLLP
@@ -54,8 +60,8 @@
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
 // RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_rpl_s -### %s 2>&1 | \
-// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=rpl_s \
-// RUN:             -DMAC_STR=RPL_S
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_s \
+// RUN:             -DMAC_STR=ADL_S
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_adl_p -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=adl_p \
 // RUN:             -DMAC_STR=ADL_P
@@ -69,10 +75,19 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g10 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
 // RUN:             -DMAC_STR=ACM_G10
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g10 \
+// RUN:             -DMAC_STR=ACM_G10
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g11 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
 // RUN:             -DMAC_STR=ACM_G11
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g11 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g11 \
+// RUN:             -DMAC_STR=ACM_G11
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_acm_g12 -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
+// RUN:             -DMAC_STR=ACM_G12
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g12 -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=acm_g12 \
 // RUN:             -DMAC_STR=ACM_G12
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -### %s 2>&1 | \
@@ -391,3 +406,17 @@
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "dg1" "-DDG1"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL"
 // CHECK_TOOLS_BEOPTS: ocloc{{.*}} "-device" "skl" "-DSKL2"
+
+/// Check that ocloc backend option settings only occur for the expected
+/// toolchains when mixing intel_gpu and non-spir64_gen targets
+// RUN: %clangxx -fsycl-targets=intel_gpu_dg1,spir64_x86_64,intel_gpu_skl \
+// RUN:   -fsycl -Xsycl-target-backend=spir64_x86_64 "-DCPU" \
+// RUN:   -Xsycl-target-backend=intel_gpu_dg1 "-DDG1" \
+// RUN:   -Xsycl-target-backend=intel_gpu_skl "-DSKL2" \
+// RUN:   -fno-sycl-device-lib=all -fno-sycl-instrument-device-code \
+// RUN:   -target x86_64-unknown-linux-gnu -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefix=CHECK_TOOLS_BEOPTS_MIX
+// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "dg1" "-DDG1"
+// CHECK_TOOLS_BEOPTS_MIX: opencl-aot{{.*}} "-DCPU"
+// CHECK_TOOLS_BEOPTS_MIX-NOT: "-DDG1"
+// CHECK_TOOLS_BEOPTS_MIX: ocloc{{.*}} "-device" "skl" "-DSKL2"

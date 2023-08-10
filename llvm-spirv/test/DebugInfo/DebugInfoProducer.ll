@@ -43,6 +43,8 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 ; CHECK-LLVM-SAME: producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
 ; CHECK-LLVM-NOT: producer: "spirv"
 ; CHECK-SPIRV: ModuleProcessed "Debug info producer: clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-NOT: DebugBuildIdentifier
+; CHECK-SPIRV-NOT: DebugStoragePath
 
 !0 = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_14, file: !1, producer: "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)", isOptimized: true, runtimeVersion: 0, emissionKind: FullDebug, enums: !2, nameTableKind: None)
 !1 = !DIFile(filename: "<stdin>", directory: "oneAPI")

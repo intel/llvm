@@ -8,19 +8,31 @@
 
 #pragma once
 
-#include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
-#include <sycl/interop_handler.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/kernel_handler.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/array.hpp>               // for array
+#include <sycl/detail/common.hpp>              // for InitializedVal, NDLoop
+#include <sycl/detail/helpers.hpp>             // for Builder
+#include <sycl/detail/host_profiling_info.hpp> // for HostProfilingInfo
+#include <sycl/detail/item_base.hpp>           // for id
+#include <sycl/detail/kernel_desc.hpp>         // for kernel_param_kind_t
+#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_WORK...
+#include <sycl/exception.hpp>                  // for nd_range_error
+#include <sycl/group.hpp>                      // for group
+#include <sycl/h_item.hpp>                     // for h_item
+#include <sycl/id.hpp>                         // for id
+#include <sycl/interop_handle.hpp>             // for interop_handle
+#include <sycl/item.hpp>                       // for item
+#include <sycl/kernel_handler.hpp>             // for kernel_handler
+#include <sycl/nd_item.hpp>                    // for nd_item
+#include <sycl/nd_range.hpp>                   // for nd_range
+#include <sycl/range.hpp>                      // for range, operator*
+
+#include <functional>  // for function
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t, false_type
+#include <utility>     // for declval
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // The structure represents kernel argument.
@@ -215,14 +227,6 @@ public:
   // Used to extract captured variables.
   virtual char *getPtr() = 0;
   virtual ~HostKernelBase() = default;
-};
-
-class InteropTask {
-  std::function<void(sycl::interop_handler)> MFunc;
-
-public:
-  InteropTask(std::function<void(sycl::interop_handler)> Func) : MFunc(Func) {}
-  void call(sycl::interop_handler &h) { MFunc(h); }
 };
 
 class HostTask {
@@ -425,5 +429,5 @@ public:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -193,6 +193,7 @@ public:
   bool TerminateOnError = false;
 
   USMAnalyzer(const USMAnalyzer &obj) = delete;
+  USMAnalyzer &operator=(const USMAnalyzer &rhs) = delete;
 
   static USMAnalyzer &getInstance() {
     static USMAnalyzer s;

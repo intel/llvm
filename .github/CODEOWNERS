@@ -43,8 +43,9 @@ sycl/plugins/unified_runtime/ @intel/dpcpp-l0-pi-reviewers
 # ESIMD CPU emulator plug-in
 sycl/plugins/esimd_emulator/ @intel/dpcpp-esimd-reviewers
 
-# CUDA plugin
+# CUDA and HIP plugins
 sycl/plugins/**/cuda/ @intel/llvm-reviewers-cuda
+sycl/plugins/**/hip/ @intel/llvm-reviewers-cuda
 
 # XPTI instrumentation utilities
 xpti/ @intel/llvm-reviewers-runtime
@@ -120,3 +121,8 @@ sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
 sycl/unittests/Extensions/CommandGraph.cpp @intel/sycl-graphs-reviewers
+
+# syclcompat library
+sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
+sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
+sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers

@@ -24,6 +24,8 @@ endif() # Standalone.
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+find_package(Vulkan)
+
 if(NOT LLVM_LIT)
   find_program(LLVM_LIT
                NAMES llvm-lit lit.py lit

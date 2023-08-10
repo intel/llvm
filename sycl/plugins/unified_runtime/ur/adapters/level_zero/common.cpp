@@ -7,6 +7,7 @@
 //===-----------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "usm.hpp"
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -69,7 +70,8 @@ void urPrint(const char *Format, ...) {
   }
 }
 
-usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
+    InitializeDisjointPoolConfig();
 
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
@@ -90,7 +92,7 @@ bool setEnvVar(const char *name, const char *value) {
 ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-std::map<const char *, int> *ZeCallCount = nullptr;
+std::map<std::string, int> *ZeCallCount = nullptr;
 
 inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {

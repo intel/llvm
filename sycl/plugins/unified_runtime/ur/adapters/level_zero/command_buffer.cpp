@@ -500,7 +500,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   LaunchEvent->CommandData = (void *)Kernel;
   // Increment the reference count of the Kernel and indicate that the Kernel
   // is in use. Once the event has been signalled, the code in
-  // CleanupCompletedEvent(Event) will do a piReleaseKernel to update the
+  // CleanupCompletedEvent(Event) will do a urKernelRelease to update the
   // reference count on the kernel, using the kernel saved in CommandData.
   UR_CALL(urKernelRetain(Kernel));
 
@@ -535,9 +535,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *SyncPoint) {
-  (void)SrcOffset;
-  (void)DstOffset;
-
   auto SrcBuffer = ur_cast<ur_mem_handle_t>(SrcMem);
   auto DstBuffer = ur_cast<ur_mem_handle_t>(DstMem);
 
@@ -553,8 +550,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
                                  CommandBuffer->Device));
 
   return enqueueCommandBufferMemCopyHelper(
-      UR_COMMAND_MEM_BUFFER_COPY, CommandBuffer, ZeHandleDst, ZeHandleSrc, Size,
-      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+      UR_COMMAND_MEM_BUFFER_COPY, CommandBuffer, ZeHandleDst + DstOffset,
+      ZeHandleSrc + SrcOffset, Size, NumSyncPointsInWaitList, SyncPointWaitList,
+      SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
@@ -680,7 +678,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
   ZeStruct<ze_command_queue_desc_t> ZeQueueDesc;
   ZeQueueDesc.ordinal = QueueGroupOrdinal;
   CommandListPtr = CommandBuffer->CommandListMap.insert(
-      std::pair<ze_command_list_handle_t, pi_command_list_info_t>(
+      std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
           CommandBuffer->ZeCommandList,
           {ZeFence, false, false, ZeCommandQueue, ZeQueueDesc}));
 

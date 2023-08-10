@@ -180,6 +180,7 @@ const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
     writeQuotedString(O.OS, Str);
+    O.OS << " ";
     return O;
   }
 #endif
@@ -245,9 +246,21 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
   Entry->setWordCount(WordCount);
   if (OpCode != OpLine)
     Entry->setLine(M.getCurrentLine());
+  if (!Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                        SPIRVDebug::DebugLine) &&
+      !Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                        SPIRVDebug::DebugLine))
+    Entry->setDebugLine(M.getCurrentDebugLine());
+
   IS >> *Entry;
   if (Entry->isEndOfBlock() || OpCode == OpNoLine)
     M.setCurrentLine(nullptr);
+  if (Entry->isEndOfBlock() ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                       SPIRVDebug::DebugNoLine) ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                       SPIRVDebug::DebugNoLine))
+    M.setCurrentDebugLine(nullptr);
 
   if (OpExtension == OpCode) {
     auto *OpExt = static_cast<SPIRVExtension *>(Entry);

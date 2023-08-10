@@ -53,17 +53,6 @@ static bool Jf(InterpState &S, CodePtr &PC, int32_t Offset) {
   return true;
 }
 
-static bool CheckInitialized(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
-                             AccessKinds AK) {
-  if (Ptr.isInitialized())
-    return true;
-  if (!S.checkingPotentialConstantExpression()) {
-    const SourceInfo &Loc = S.Current->getSource(OpPC);
-    S.FFDiag(Loc, diag::note_constexpr_access_uninit) << AK << false;
-  }
-  return false;
-}
-
 static bool CheckActive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
                         AccessKinds AK) {
   if (Ptr.isActive())
@@ -240,6 +229,18 @@ bool CheckMutable(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   const FieldDecl *Field = Ptr.getField();
   S.FFDiag(Loc, diag::note_constexpr_access_mutable, 1) << AK_Read << Field;
   S.Note(Field->getLocation(), diag::note_declared_at);
+  return false;
+}
+
+bool CheckInitialized(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
+                      AccessKinds AK) {
+  if (Ptr.isInitialized())
+    return true;
+
+  if (!S.checkingPotentialConstantExpression()) {
+    const SourceInfo &Loc = S.Current->getSource(OpPC);
+    S.FFDiag(Loc, diag::note_constexpr_access_uninit) << AK << false;
+  }
   return false;
 }
 
@@ -455,8 +456,11 @@ static bool CheckFieldsInitialized(InterpState &S, CodePtr OpPC,
 
 bool CheckCtorCall(InterpState &S, CodePtr OpPC, const Pointer &This) {
   assert(!This.isZero());
-  const Record *R = This.getRecord();
-  return CheckFieldsInitialized(S, OpPC, This, R);
+  if (const Record *R = This.getRecord())
+    return CheckFieldsInitialized(S, OpPC, This, R);
+  const auto *CAT =
+      cast<ConstantArrayType>(This.getType()->getAsArrayTypeUnsafe());
+  return CheckArrayInitialized(S, OpPC, This, CAT);
 }
 
 bool CheckFloatResult(InterpState &S, CodePtr OpPC, APFloat::opStatus Status) {

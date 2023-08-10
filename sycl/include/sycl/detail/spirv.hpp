@@ -7,21 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <cstring>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+
+#include <cstring> // for std::memcpy
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+struct sub_group;
 namespace ext {
 namespace oneapi {
 struct sub_group;
@@ -61,6 +56,9 @@ template <int Dimensions> struct group_scope<group<Dimensions>> {
 };
 
 template <> struct group_scope<::sycl::ext::oneapi::sub_group> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
+};
+template <> struct group_scope<::sycl::sub_group> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Subgroup;
 };
 
@@ -238,10 +236,11 @@ using EnableIfGenericBroadcast = std::enable_if_t<
 // FIXME: Disable widening once all backends support all data types.
 template <typename T>
 using WidenOpenCLTypeTo32_t = std::conditional_t<
-    std::is_same<T, cl_char>() || std::is_same<T, cl_short>(), cl_int,
-    std::conditional_t<std::is_same<T, cl_uchar>() ||
-                           std::is_same<T, cl_ushort>(),
-                       cl_uint, T>>;
+    std::is_same<T, opencl::cl_char>() || std::is_same<T, opencl::cl_short>(),
+    opencl::cl_int,
+    std::conditional_t<std::is_same<T, opencl::cl_uchar>() ||
+                           std::is_same<T, opencl::cl_ushort>(),
+                       opencl::cl_uint, T>>;
 
 // Broadcast with scalar local index
 // Work-group supports any integral type
@@ -250,6 +249,9 @@ template <typename Group> struct GroupId {
   using type = size_t;
 };
 template <> struct GroupId<::sycl::ext::oneapi::sub_group> {
+  using type = uint32_t;
+};
+template <> struct GroupId<::sycl::sub_group> {
   using type = uint32_t;
 };
 template <typename Group, typename T, typename IdT>
@@ -340,7 +342,7 @@ GroupBroadcast(const ext::oneapi::experimental::opportunistic_group &g, T x,
   auto LocalId = detail::IdToMaskPosition(g, local_id);
 
   // TODO: Refactor to avoid duplication after design settles.
-  using GroupIdT = typename GroupId<sycl::ext::oneapi::sub_group>::type;
+  using GroupIdT = typename GroupId<::sycl::sub_group>::type;
   GroupIdT GroupLocalId = static_cast<GroupIdT>(LocalId);
   using OCLT = detail::ConvertToOpenCLType_t<T>;
   using WidenedT = WidenOpenCLTypeTo32_t<OCLT>;
@@ -433,7 +435,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
 // Single happens-before means semantics should always apply to all spaces
 // Although consume is unsupported, forwarding to acquire is valid
 template <typename T>
-static inline constexpr
+static constexpr
     typename std::enable_if<std::is_same<T, sycl::memory_order>::value,
                             __spv::MemorySemanticsMask::Flag>::type
     getMemorySemanticsMask(T Order) {
@@ -462,7 +464,7 @@ static inline constexpr
       __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
 
-static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
+static constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
   switch (Scope) {
   case memory_scope::work_item:
     return __spv::Scope::Invocation;
@@ -1059,12 +1061,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_Group##Instruction(group_scope<Group>::value,           \
                                           static_cast<unsigned int>(Op), Arg); \
@@ -1077,12 +1079,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     /* ballot_group partitions its parent into two groups (0 and 1) */         \
     /* We have to force each group down different control flow */              \
@@ -1105,12 +1107,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     constexpr auto Scope = group_scope<ParentGroup>::value;                    \
     /* SPIR-V only defines a ClusteredReduce, with no equivalents for scan. */ \
@@ -1139,12 +1141,12 @@ struct is_tangle_or_opportunistic_group<
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
-        std::is_same<ConvertedT, cl_char>() ||                                 \
-            std::is_same<ConvertedT, cl_short>(),                              \
-        cl_int,                                                                \
-        std::conditional_t<std::is_same<ConvertedT, cl_uchar>() ||             \
-                               std::is_same<ConvertedT, cl_ushort>(),          \
-                           cl_uint, ConvertedT>>;                              \
+        std::is_same<ConvertedT, opencl::cl_char>() ||                         \
+            std::is_same<ConvertedT, opencl::cl_short>(),                      \
+        opencl::cl_int,                                                        \
+        std::conditional_t<std::is_same<ConvertedT, opencl::cl_uchar>() ||     \
+                               std::is_same<ConvertedT, opencl::cl_ushort>(),  \
+                           opencl::cl_uint, ConvertedT>>;                      \
     OCLT Arg = x;                                                              \
     OCLT Ret = __spirv_GroupNonUniform##Instruction(                           \
         group_scope<Group>::value, static_cast<unsigned int>(Op), Arg);        \
@@ -1175,6 +1177,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
 
 } // namespace spirv
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif //  __SYCL_DEVICE_ONLY__

@@ -61,6 +61,8 @@ Changes to the LLVM IR
 * The ``nofpclass`` attribute was introduced. This allows more
   optimizations around special floating point value comparisons.
 
+* Introduced new ``llvm.ldexp`` and ``llvm.experimental.constrained.ldexp`` intrinsics.
+
 * The constant expression variants of the following instructions have been
   removed:
 
@@ -131,6 +133,13 @@ Changes to the AMDGPU Backend
   improves the interaction between AMDGPU buffer operations and the LLVM memory
   model, and so the non `.ptr` intrinsics are deprecated.
 
+* Added llvm.amdgcn.log.f32 intrinsic. This provides direct access to
+  v_log_f32.
+
+* Added llvm.amdgcn.exp2.f32 intrinsic. This provides direct access to
+  v_exp_f32.
+
+
 Changes to the ARM Backend
 --------------------------
 
@@ -157,7 +166,7 @@ Changes to the Hexagon Backend
 Changes to the LoongArch Backend
 --------------------------------
 
-* The `lp64s` ABI is supported now and has been tested on Rust bare-matal target.
+* The ``lp64s`` ABI is supported now and has been tested on Rust bare-matal target.
 
 Changes to the MIPS Backend
 ---------------------------
@@ -234,6 +243,10 @@ Changes to the Windows Target
 Changes to the X86 Backend
 --------------------------
 
+* ``__builtin_unpredictable`` (unpredictable metadata in LLVM IR), is handled by X86 Backend.
+  ``X86CmovConversion`` pass now respects this builtin and does not convert CMOVs to branches.
+
+
 Changes to the OCaml bindings
 -----------------------------
 
@@ -266,14 +279,12 @@ Changes to the C API
 
   * ``LLVMConstSelect``
 
-Changes to the FastISel infrastructure
---------------------------------------
+Changes to the CodeGen infrastructure
+-------------------------------------
 
-* ...
-
-Changes to the DAG infrastructure
----------------------------------
-
+* ``llvm.memcpy``, ``llvm.memmove`` and ``llvm.memset`` are now
+  expanded into loops by default for targets which do not report the
+  corresponding library function is available.
 
 Changes to the Metadata Info
 ---------------------------------
@@ -322,6 +333,11 @@ Changes to LLDB
   this information). Fields are only printed when reading named registers, for
   example ``register read cpsr``. They are not shown when reading a register set,
   ``register read -s 0``.
+
+* A new command ``register info`` was added. This command will tell you everything that
+  LLDB knows about a register. Based on what LLDB already knows and what the debug
+  server tells it. Including but not limited to, the size, where it is read from and
+  the fields that the register contains.
 
 Changes to Sanitizers
 ---------------------

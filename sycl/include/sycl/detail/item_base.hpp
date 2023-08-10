@@ -8,11 +8,13 @@
 
 #pragma once
 
-#include <sycl/id.hpp>
-#include <sycl/range.hpp>
+#include <sycl/id.hpp>    // for id
+#include <sycl/range.hpp> // for range
+
+#include <stddef.h> // for size_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <int dimensions> class id;
 template <int dimensions> class range;
 
@@ -72,5 +74,5 @@ template <int Dims> struct ItemBase<Dims, false> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
