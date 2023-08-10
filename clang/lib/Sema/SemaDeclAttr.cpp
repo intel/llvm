@@ -4445,7 +4445,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
   // to (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr equals to
   // 0.
   const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-  if (MergeExpr->getResultAsAPSInt() == 0) {
+  if (MergeExpr && MergeExpr->getResultAsAPSInt() == 0) {
     if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
                                                                   A) ||
         checkWorkGroupSizeAttrExpr<SYCLReqdWorkGroupSizeAttr>(*this, D, A))

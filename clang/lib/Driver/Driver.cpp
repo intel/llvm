@@ -1171,23 +1171,19 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   checkSingleArgValidity(DeviceCodeSplit,
                          {"per_kernel", "per_source", "auto", "off"});
 
-  bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
   Arg *SYCLForceTarget =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_force_target_EQ);
   if (SYCLForceTarget) {
     StringRef Val(SYCLForceTarget->getValue());
     llvm::Triple TT(MakeSYCLDeviceTriple(Val));
-    // Todo: we skip the check for the valid SYCL target, because currently
-    // setting native_cpu as a target overrides all the other targets,
-    // re-enable the check once native_cpu can coexist.
-    if (!IsSYCLNativeCPU && !isValidSYCLTriple(TT))
+    if (!isValidSYCLTriple(TT))
       Diag(clang::diag::err_drv_invalid_sycl_target) << Val;
   }
   bool HasSYCLTargetsOption = SYCLTargets || SYCLLinkTargets || SYCLAddTargets;
 
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
-  if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
+  if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
@@ -1222,6 +1218,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
               continue;
             }
             UserTargetName = "amdgcn-amd-amdhsa";
+          } else if (Val == "native_cpu") {
+            const ToolChain *HostTC =
+                C.getSingleOffloadToolChain<Action::OFK_Host>();
+            llvm::Triple HostTriple = HostTC->getTriple();
+            UniqueSYCLTriplesVec.push_back(HostTriple);
+            continue;
           }
 
           if (!isValidSYCLTriple(MakeSYCLDeviceTriple(UserTargetName))) {
@@ -1289,11 +1291,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLAddTargets->getAsString(C.getInputArgs());
     }
-  } else if (IsSYCLNativeCPU) {
-    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
-    llvm::Triple HostTriple = HostTC->getTriple();
-    UniqueSYCLTriplesVec.push_back(HostTriple);
-    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
   } else {
     // If -fsycl is supplied without -fsycl-*targets we will assume SPIR-V
     // unless -fintelfpga is supplied, which uses SPIR-V with fpga AOT.
@@ -5560,6 +5557,9 @@ class OffloadingActionBuilder final {
         bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                           TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+        const bool isSYCLNativeCPU =
+            TC->getAuxTriple() &&
+            driver::isSYCLNativeCPU(TT, *TC->getAuxTriple());
         for (const auto &Input : LI) {
           if (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga &&
               types::isFPGA(Input->getType())) {
@@ -5781,26 +5781,14 @@ class OffloadingActionBuilder final {
           } else
             FullDeviceLinkAction = FullLinkObject;
 
-          bool IsSYCLNativeCPU = isSYCLNativeCPU(Args);
-          if (IsSYCLNativeCPU) {
-            // for SYCL Native CPU, we just take the linked device
-            // modules, lower them to an object file , and link it to the host
-            // object file.
-            auto *backendAct = C.MakeAction<BackendJobAction>(
-                FullDeviceLinkAction, types::TY_PP_Asm);
-            auto *asmAct =
-                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
-            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
-            return;
-          }
-
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT;
+          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT || isSYCLNativeCPU;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
-          types::ID PostLinkOutType = isSPIR ? types::TY_Tempfiletable
+          types::ID PostLinkOutType = isSPIR || isSYCLNativeCPU
+                                          ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
             // For SPIR-V targets, force TY_Tempfiletable.
@@ -5810,6 +5798,20 @@ class OffloadingActionBuilder final {
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
+          if (isSYCLNativeCPU) {
+            // for SYCL Native CPU, we just take the linked device
+            // modules, lower them to an object file , and link it to the host
+            // object file.
+            auto *backendAct = C.MakeAction<BackendJobAction>(
+                FullDeviceLinkAction, types::TY_PP_Asm);
+            auto *asmAct =
+                C.MakeAction<AssembleJobAction>(backendAct, types::TY_Object);
+            DA.add(*asmAct, *TC, BoundArch, Action::OFK_SYCL);
+            auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
+                PostLinkAction, types::TY_Object);
+            DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
+            continue;
+          }
           if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
             // When compiling for Nvidia/CUDA devices and the user requested the
             // IR to be embedded in the application (via option), run the output
@@ -6183,17 +6185,8 @@ class OffloadingActionBuilder final {
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
-      bool IsSYCLNativeCPU = isSYCLNativeCPU(C.getInputArgs());
 
-      // check if multiple targets are passed along with native_cpu:
-      // currently native_cpu overrides all the other targets, so we emit a
-      // warning
-      if (IsSYCLNativeCPU) {
-        auto *SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ);
-        if (SYCLTargets->getNumValues() > 1)
-          C.getDriver().Diag(clang::diag::warn_drv_sycl_native_cpu_and_targets);
-      }
-      if (!IsSYCLNativeCPU && HasSYCLTargetsOption) {
+      if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
           Arg *SYCLTargetsValues = SYCLTargets ? SYCLTargets : SYCLLinkTargets;
           // Fill SYCLTripleList
@@ -6227,6 +6220,12 @@ class OffloadingActionBuilder final {
                   C.getDriver().MakeSYCLDeviceTriple("amdgcn-amd-amdhsa"),
                   ValidDevice->data());
               UserTargetName = "amdgcn-amd-amdhsa";
+            } else if (Val == "native_cpu") {
+              const ToolChain *HostTC =
+                  C.getSingleOffloadToolChain<Action::OFK_Host>();
+              llvm::Triple TT = HostTC->getTriple();
+              SYCLTripleList.push_back(TT);
+              continue;
             }
 
             llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
@@ -6313,14 +6312,6 @@ class OffloadingActionBuilder final {
               GpuArchList.emplace_back(TT, nullptr);
           }
         }
-      } else if (IsSYCLNativeCPU) {
-        const ToolChain *HostTC =
-            C.getSingleOffloadToolChain<Action::OFK_Host>();
-        llvm::Triple TT = HostTC->getTriple();
-        auto TCIt = llvm::find_if(
-            ToolChains, [&](auto &TC) { return TT == TC->getTriple(); });
-        SYCLTripleList.push_back(TT);
-        SYCLTargetInfoList.emplace_back(*TCIt, nullptr);
       } else if (HasValidSYCLRuntime) {
         // -fsycl is provided without -fsycl-*targets.
         bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);

@@ -52,6 +52,8 @@ on:
         default: 3
 
     outputs:
+      build_conclusion:
+        value: ${{ jobs.build.outputs.build_conclusion }}
       artifact_archive_name:
         value: ${{ jobs.build.outputs.artifact_archive_name }}
       artifact_decompress_command:
