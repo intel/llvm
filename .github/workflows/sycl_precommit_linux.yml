@@ -96,6 +96,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       reset_gpu: ${{ matrix.reset_gpu }}
+      install_drivers: ${{ matrix.install_drivers }}
 
       ref: ${{ github.sha }}
       merge_ref: ''
