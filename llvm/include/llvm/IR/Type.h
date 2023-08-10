@@ -494,9 +494,13 @@ public:
   static Type *getFloatingPointTy(LLVMContext &C, const fltSemantics &S);
 
   //===--------------------------------------------------------------------===//
-  // Convenience methods for getting pointer types with one of the above builtin
-  // types as pointee.
+  // Convenience methods for getting pointer types.
   //
+
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // TODO: After opaque pointer transition these can be replaced by simply
+  //       calling PointerType::get(C, AS).
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   static PointerType *getHalfPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getBFloatPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getFloatPtrTy(LLVMContext &C, unsigned AS = 0);
@@ -508,13 +512,73 @@ public:
   static PointerType *getX86_AMXPtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getIntNPtrTy(LLVMContext &C, unsigned N, unsigned AS = 0);
   static PointerType *getInt1PtrTy(LLVMContext &C, unsigned AS = 0);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   static PointerType *getInt8PtrTy(LLVMContext &C, unsigned AS = 0);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getHalfPtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getBFloatPtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getFloatPtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getDoublePtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getX86_FP80PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getFP128PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getPPC_FP128PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getX86_MMXPtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getX86_AMXPtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getIntNPtrTy(LLVMContext &C, unsigned N, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getInt1PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getInt16PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getInt32PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+  [[deprecated("Pointers no longer have element types")]]
+  inline PointerType *getInt64PtrTy(LLVMContext &C, unsigned AS = 0) {
+    return getInt8PtrTy(C, AS);
+  }
+
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   static PointerType *getInt16PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getInt32PtrTy(LLVMContext &C, unsigned AS = 0);
   static PointerType *getInt64PtrTy(LLVMContext &C, unsigned AS = 0);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   static Type *getWasm_ExternrefTy(LLVMContext &C);
   static Type *getWasm_FuncrefTy(LLVMContext &C);
-
   /// Return a pointer to the current type. This is equivalent to
   /// PointerType::get(Foo, AddrSpace).
   /// TODO: Remove this after opaque pointer transition is complete.

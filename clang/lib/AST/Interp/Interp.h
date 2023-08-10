@@ -148,8 +148,9 @@ bool CheckShift(InterpState &S, CodePtr OpPC, const LT &LHS, const RT &RHS,
 template <typename T>
 bool CheckDivRem(InterpState &S, CodePtr OpPC, const T &LHS, const T &RHS) {
   if (RHS.isZero()) {
-    const SourceInfo &Loc = S.Current->getSource(OpPC);
-    S.FFDiag(Loc, diag::note_expr_divide_by_zero);
+    const auto *Op = cast<BinaryOperator>(S.Current->getExpr(OpPC));
+    S.FFDiag(Op, diag::note_expr_divide_by_zero)
+        << Op->getRHS()->getSourceRange();
     return false;
   }
 
@@ -1786,7 +1787,7 @@ inline bool Invalid(InterpState &S, CodePtr OpPC) {
 inline bool InvalidCast(InterpState &S, CodePtr OpPC, CastKind Kind) {
   const SourceLocation &Loc = S.Current->getLocation(OpPC);
   S.FFDiag(Loc, diag::note_constexpr_invalid_cast)
-      << static_cast<uint8_t>(Kind) << S.Current->getRange(OpPC);
+      << static_cast<unsigned>(Kind) << S.Current->getRange(OpPC);
   return false;
 }
 

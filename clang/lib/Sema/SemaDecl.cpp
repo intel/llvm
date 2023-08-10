@@ -12226,6 +12226,33 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
     if (!Redeclaration && LangOpts.CUDA)
       checkCUDATargetOverload(NewFD, Previous);
   }
+
+  // Check if the function definition uses any AArch64 SME features without
+  // having the '+sme' feature enabled.
+  if (DeclIsDefn) {
+    bool UsesSM = NewFD->hasAttr<ArmLocallyStreamingAttr>();
+    bool UsesZA = NewFD->hasAttr<ArmNewZAAttr>();
+    if (const auto *FPT = NewFD->getType()->getAs<FunctionProtoType>()) {
+      FunctionProtoType::ExtProtoInfo EPI = FPT->getExtProtoInfo();
+      UsesSM |=
+          EPI.AArch64SMEAttributes & FunctionType::SME_PStateSMEnabledMask;
+      UsesZA |= EPI.AArch64SMEAttributes & FunctionType::SME_PStateZASharedMask;
+    }
+
+    if (UsesSM || UsesZA) {
+      llvm::StringMap<bool> FeatureMap;
+      Context.getFunctionFeatureMap(FeatureMap, NewFD);
+      if (!FeatureMap.contains("sme")) {
+        if (UsesSM)
+          Diag(NewFD->getLocation(),
+               diag::err_sme_definition_using_sm_in_non_sme_target);
+        else
+          Diag(NewFD->getLocation(),
+               diag::err_sme_definition_using_za_in_non_sme_target);
+      }
+    }
+  }
+
   return Redeclaration;
 }
 
@@ -14245,6 +14272,7 @@ void Sema::CheckCompleteVariableDeclaration(VarDecl *var) {
       var->getDeclContext()->getRedeclContext()->isFileContext() &&
       var->isExternallyVisible() && var->hasLinkage() &&
       !var->isInline() && !var->getDescribedVarTemplate() &&
+      var->getStorageClass() != SC_Register &&
       !isa<VarTemplatePartialSpecializationDecl>(var) &&
       !isTemplateInstantiation(var->getTemplateSpecializationKind()) &&
       !getDiagnostics().isIgnored(diag::warn_missing_variable_declarations,

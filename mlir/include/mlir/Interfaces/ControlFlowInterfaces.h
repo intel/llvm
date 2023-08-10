@@ -82,6 +82,11 @@ public:
   /// Get the range of operands that are simply forwarded to the successor.
   OperandRange getForwardedOperands() const { return forwardedOperands; }
 
+  /// Get the range of operands that are simply forwarded to the successor.
+  MutableOperandRange getMutableForwardedOperands() const {
+    return forwardedOperands;
+  }
+
   /// Get a slice of the operands forwarded to the successor. The given range
   /// must not contain any operands produced by the operation.
   MutableOperandRange slice(unsigned subStart, unsigned subLen) const {
@@ -228,32 +233,6 @@ Region *getEnclosingRepetitiveRegion(Operation *op);
 /// repetitively as per RegionBranchOpInterface or `nullptr` if no such region
 /// exists.
 Region *getEnclosingRepetitiveRegion(Value value);
-
-//===----------------------------------------------------------------------===//
-// RegionBranchTerminatorOpInterface
-//===----------------------------------------------------------------------===//
-
-/// Returns true if the given operation is either annotated with the
-/// `ReturnLike` trait or implements the `RegionBranchTerminatorOpInterface`.
-bool isRegionReturnLike(Operation *operation);
-
-/// Returns the mutable operands that are passed to the region with the given
-/// `regionIndex`. If the operation does not implement the
-/// `RegionBranchTerminatorOpInterface` and is not marked as `ReturnLike`, the
-/// result will be `std::nullopt`. In all other cases, the resulting
-/// `OperandRange` represents all operands that are passed to the specified
-/// successor region. If `regionIndex` is `std::nullopt`, all operands that are
-/// passed to the parent operation will be returned.
-std::optional<MutableOperandRange>
-getMutableRegionBranchSuccessorOperands(Operation *operation,
-                                        std::optional<unsigned> regionIndex);
-
-/// Returns the read only operands that are passed to the region with the given
-/// `regionIndex`. See `getMutableRegionBranchSuccessorOperands` for more
-/// information.
-std::optional<OperandRange>
-getRegionBranchSuccessorOperands(Operation *operation,
-                                 std::optional<unsigned> regionIndex);
 
 //===----------------------------------------------------------------------===//
 // ControlFlow Traits

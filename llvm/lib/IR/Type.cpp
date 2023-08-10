@@ -262,6 +262,7 @@ IntegerType *Type::getIntNTy(LLVMContext &C, unsigned N) {
   return IntegerType::get(C, N);
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType *Type::getHalfPtrTy(LLVMContext &C, unsigned AS) {
   return getHalfTy(C)->getPointerTo(AS);
 }
@@ -306,7 +307,11 @@ PointerType *Type::getInt1PtrTy(LLVMContext &C, unsigned AS) {
   return getInt1Ty(C)->getPointerTo(AS);
 }
 
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType *Type::getInt8PtrTy(LLVMContext &C, unsigned AS) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return PointerType::get(C, AS);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   return getInt8Ty(C)->getPointerTo(AS);
 }
 
@@ -320,6 +325,7 @@ PointerType *Type::getInt32PtrTy(LLVMContext &C, unsigned AS) {
 
 PointerType *Type::getInt64PtrTy(LLVMContext &C, unsigned AS) {
   return getInt64Ty(C)->getPointerTo(AS);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Type *Type::getWasm_ExternrefTy(LLVMContext &C) {

@@ -313,18 +313,22 @@ MultiDimReductionOp::getShapeForUnroll() {
 
 LogicalResult MultiDimReductionOp::verify() {
   SmallVector<int64_t> targetShape;
+  SmallVector<bool> scalableDims;
   Type inferredReturnType;
+  auto sourceScalableDims = getSourceVectorType().getScalableDims();
   for (auto it : llvm::enumerate(getSourceVectorType().getShape()))
     if (!llvm::any_of(getReductionDims().getValue(), [&](Attribute attr) {
           return llvm::cast<IntegerAttr>(attr).getValue() == it.index();
-        }))
+        })) {
       targetShape.push_back(it.value());
+      scalableDims.push_back(sourceScalableDims[it.index()]);
+    }
   // TODO: update to also allow 0-d vectors when available.
   if (targetShape.empty())
     inferredReturnType = getSourceVectorType().getElementType();
   else
-    inferredReturnType =
-        VectorType::get(targetShape, getSourceVectorType().getElementType());
+    inferredReturnType = VectorType::get(
+        targetShape, getSourceVectorType().getElementType(), scalableDims);
   if (getType() != inferredReturnType)
     return emitOpError() << "destination type " << getType()
                          << " is incompatible with source type "
@@ -4945,11 +4949,15 @@ void vector::TransposeOp::build(OpBuilder &builder, OperationState &result,
                                 Value vector, ArrayRef<int64_t> transp) {
   VectorType vt = llvm::cast<VectorType>(vector.getType());
   SmallVector<int64_t, 4> transposedShape(vt.getRank());
-  for (unsigned i = 0; i < transp.size(); ++i)
+  SmallVector<bool, 4> transposedScalableDims(vt.getRank());
+  for (unsigned i = 0; i < transp.size(); ++i) {
     transposedShape[i] = vt.getShape()[transp[i]];
+    transposedScalableDims[i] = vt.getScalableDims()[transp[i]];
+  }
 
   result.addOperands(vector);
-  result.addTypes(VectorType::get(transposedShape, vt.getElementType()));
+  result.addTypes(VectorType::get(transposedShape, vt.getElementType(),
+                                  transposedScalableDims));
   result.addAttribute(TransposeOp::getTranspAttrName(result.name),
                       builder.getI64ArrayAttr(transp));
 }
@@ -5667,8 +5675,7 @@ ParseResult WarpExecuteOnLane0Op::parse(OpAsmParser &parser,
 }
 
 void WarpExecuteOnLane0Op::getSuccessorRegions(
-    std::optional<unsigned> index, ArrayRef<Attribute> operands,
-    SmallVectorImpl<RegionSuccessor> &regions) {
+    std::optional<unsigned> index, SmallVectorImpl<RegionSuccessor> &regions) {
   if (index) {
     regions.push_back(RegionSuccessor(getResults()));
     return;

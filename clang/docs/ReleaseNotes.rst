@@ -123,6 +123,8 @@ Improvements to Clang's diagnostics
   template-specialization function calls.
 - Clang contexpr evaluator now displays notes as well as an error when a constructor
   of a base class is not called in the constructor of its derived class.
+- Clang no longer emits ``-Wmissing-variable-declarations`` for variables declared
+  with the ``register`` storage class.
 
 Bug Fixes in This Version
 -------------------------
@@ -198,16 +200,10 @@ Windows Support
 LoongArch Support
 ^^^^^^^^^^^^^^^^^
 
-- An ABI mismatch between GCC and Clang related to the handling of empty structs
-  in C++ parameter passing under ``lp64d`` ABI was fixed.
-
 RISC-V Support
 ^^^^^^^^^^^^^^
 - Unaligned memory accesses can be toggled by ``-m[no-]unaligned-access`` or the
   aliases ``-m[no-]strict-align``.
-- An ABI mismatch between GCC and Clang related to the handling of empty
-  structs in C++ parameter passing under the hard floating point calling
-  conventions was fixed.
 
 CUDA/HIP Language Changes
 ^^^^^^^^^^^^^^^^^^^^^^^^^
