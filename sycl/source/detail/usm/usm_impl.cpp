@@ -13,6 +13,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <array>
@@ -28,7 +29,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 using alloc = sycl::usm::alloc;
 
@@ -683,5 +684,5 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 }
 } // namespace ext::oneapi::experimental
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

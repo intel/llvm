@@ -20,7 +20,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -112,20 +112,20 @@ event queue::memset(void *Ptr, int Value, size_t Count,
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {});
+  return impl->memcpy(impl, Dest, Src, Count, {}, CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, {DepEvent});
+  return impl->memcpy(impl, Dest, Src, Count, {DepEvent}, CodeLoc);
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const std::vector<event> &DepEvents,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  return impl->memcpy(impl, Dest, Src, Count, DepEvents);
+  return impl->memcpy(impl, Dest, Src, Count, DepEvents, CodeLoc);
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, pi_mem_advice Advice,
@@ -268,5 +268,5 @@ bool queue::ext_codeplay_supports_fusion() const {
       ext::codeplay::experimental::property::queue::enable_fusion>();
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

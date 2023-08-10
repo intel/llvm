@@ -9,17 +9,13 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>
-#include <sycl/sub_group.hpp>
+#include <sycl/exception.hpp>    // for make_error_code, errc, exception
+#include <sycl/memory_enums.hpp> // for memory_scope
+
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename Group>
 std::enable_if_t<is_group_v<Group>>
@@ -37,5 +33,5 @@ group_barrier(Group G, memory_scope FenceScope = Group::fence_scope) {
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

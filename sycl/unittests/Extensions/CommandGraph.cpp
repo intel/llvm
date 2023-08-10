@@ -37,6 +37,20 @@ protected:
   experimental::command_graph<experimental::graph_state::modifiable> Graph;
 };
 
+TEST_F(CommandGraphTest, QueueState) {
+  experimental::queue_state State = Queue.ext_oneapi_get_state();
+  ASSERT_EQ(State, experimental::queue_state::executing);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+  Graph.begin_recording(Queue);
+  State = Queue.ext_oneapi_get_state();
+  ASSERT_EQ(State, experimental::queue_state::recording);
+
+  Graph.end_recording();
+  State = Queue.ext_oneapi_get_state();
+  ASSERT_EQ(State, experimental::queue_state::executing);
+}
+
 TEST_F(CommandGraphTest, AddNode) {
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
 

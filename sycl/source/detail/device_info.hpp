@@ -27,7 +27,7 @@
 #include <thread>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 inline std::vector<info::fp_config> read_fp_bitfield(pi_device_fp_config bits) {
@@ -601,6 +601,7 @@ struct get_device_info_impl<
           {0x02418000, oneapi_exp_arch::intel_gpu_aml},
           {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
           {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
+          {0x02c08000, oneapi_exp_arch::intel_gpu_ehl},
           {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
           {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
           {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},
@@ -1821,6 +1822,45 @@ get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
   return ext::oneapi::experimental::info::graph_support_level::unsupported;
 }
 
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::image_row_pitch_align>() {
+  throw runtime_error("Obtaining image pitch alignment is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_row_pitch>() {
+  throw runtime_error("Obtaining max image linear pitch is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_width>() {
+  throw runtime_error("Obtaining max image linear width is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline uint32_t get_device_info_host<
+    ext::oneapi::experimental::info::device::max_image_linear_height>() {
+  throw runtime_error("Obtaining max image linear height is not "
+                      "supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
+template <>
+inline float get_device_info_host<
+    ext::oneapi::experimental::info::device::mipmap_max_anisotropy>() {
+  throw runtime_error("Bindless image mipaps are not supported on HOST device",
+                      PI_ERROR_INVALID_DEVICE);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

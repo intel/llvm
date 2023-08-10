@@ -45,12 +45,15 @@ extern "C" __SYCL_EXPORT void __sycl_unregister_lib(pi_device_binaries desc);
 // +++ }
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class context;
 namespace detail {
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &BinImages);
+std::optional<sycl::exception>
+checkDevSupportDeviceRequirements(const device &Dev,
+                                  const RTDeviceBinaryImage &BinImages);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -443,5 +446,5 @@ private:
   std::mutex m_HostPipesMutex;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -131,11 +131,11 @@ if config.level_zero_be == "ON":
 if config.native_cpu_be == "ON":
     config.available_features.add('native_cpu_be')
 
-if triple == 'nvptx64-nvidia-cuda':
+if 'nvptx64-nvidia-cuda' in triple:
     llvm_config.with_system_environment('CUDA_PATH')
     config.available_features.add('cuda')
 
-if triple == 'amdgcn-amd-amdhsa':
+if 'amdgcn-amd-amdhsa' in triple:
     llvm_config.with_system_environment('ROCM_PATH')
     config.available_features.add('hip_amd')
     # For AMD the specific GPU has to be specified with --offload-arch

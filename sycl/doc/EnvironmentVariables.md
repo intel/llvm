@@ -106,7 +106,7 @@ The value of this environment variable is a comma separated list of filters, whe
 - `opencl`
 - `cuda`
 - `hip`
-- `esimd_emulator`
+- `esimd_emulator` (Deprecated)
 - `*`
 
 Possible values of `device_type` are:
@@ -152,7 +152,7 @@ Note that conflicting configuration tuples in the same list will favor the last 
 
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
-| `SYCL_ENABLE_PCI` | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 0. |
+| `SYCL_ENABLE_PCI` (Deprecated) | Integer | When set to 1, enables obtaining the GPU PCI address when using the Level Zero backend. The default is 1. This option is kept for compatibility reasons and is immediately deprecated. |
 | `SYCL_PI_LEVEL_ZERO_DISABLE_USM_ALLOCATOR` | Any(\*) | Disable USM allocator in Level Zero plugin (each memory request will go directly to Level Zero runtime) |
 | `SYCL_PI_LEVEL_ZERO_TRACK_INDIRECT_ACCESS_MEMORY` | Any(\*) | Enable support of the kernels with indirect access and corresponding deferred release of memory allocations in the Level Zero plugin. |
 

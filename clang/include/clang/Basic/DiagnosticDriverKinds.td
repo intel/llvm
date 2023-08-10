@@ -370,6 +370,8 @@ def err_drv_fsycl_with_pch : Error<
   "Precompiled header generation is not supported with '-fsycl'">;
 def err_drv_fsycl_unsupported_with_opt
   : Error<"'%0' is not supported with '-fsycl'">;
+def warn_drv_opt_requires_opt
+  : Warning<"'%0' should be used only in conjunction with '%1'">, InGroup<UnusedCommandLineArgument>;
 def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend --offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<

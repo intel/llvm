@@ -464,7 +464,6 @@ int main(int argc, char **argv) {
   initializeSYCLLowerInvokeSimdLegacyPassPass(Registry);
   initializeSPIRITTAnnotationsLegacyPassPass(Registry);
   initializeESIMDLowerLoadStorePass(Registry);
-  initializeESIMDLowerVecArgLegacyPassPass(Registry);
   initializeESIMDVerifierPass(Registry);
   initializeSYCLLowerWGLocalMemoryLegacyPass(Registry);
   initializeSYCLMutatePrintfAddrspaceLegacyPassPass(Registry);
