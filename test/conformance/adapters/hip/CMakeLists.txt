@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+set(USE_LOCAL_TEST_CONFIGURATION ON)
 add_conformance_test_with_devices_environment(adapter-hip 
     hip_fixtures.h
     hip_urContextGetNativeHandle.cpp

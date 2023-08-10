@@ -5,6 +5,17 @@
 
 set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
+function(add_test_adapter name adapter)
+    set(TEST_TARGET_NAME test-${name})
+    set(TEST_NAME ${name}-${adapter})
+    add_test(NAME ${TEST_NAME}
+        COMMAND ${TEST_TARGET_NAME}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    set_tests_properties(${TEST_NAME} PROPERTIES
+        ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_${adapter}>\""
+        LABELS "conformance;${adapter}")
+endfunction()
+
 function(add_conformance_test name)
     set(TEST_TARGET_NAME test-${name})
     add_ur_executable(${TEST_TARGET_NAME}
@@ -18,10 +29,27 @@ function(add_conformance_test name)
         ${PROJECT_NAME}::testing
         ${PROJECT_NAME}::common
         GTest::gtest_main)
-    add_test(NAME ${name}
-        COMMAND ${TEST_TARGET_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    set_tests_properties(${name} PROPERTIES LABELS "conformance")
+
+    if(USE_LOCAL_TEST_CONFIGURATION)
+	    add_test(NAME ${name}
+            COMMAND ${TEST_TARGET_NAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+    else()
+        if(UR_BUILD_ADAPTER_CUDA)
+            add_test_adapter(${name} adapter_cuda)
+        endif()
+        if(UR_BUILD_ADAPTER_HIP)
+            add_test_adapter(${name} adapter_hip)
+        endif()
+        if(UR_BUILD_ADAPTER_L0)
+            add_test_adapter(${name} adapter_level_zero)
+        endif()
+
+        if(NOT (UR_BUILD_ADAPTER_CUDA
+            OR UR_BUILD_ADAPTER_HIP OR UR_BUILD_ADAPTER_L0))
+            add_test_adapter(${name} adapter_null)
+        endif()
+    endif()
 endfunction()
 
 function(add_conformance_test_with_kernels_environment name)
@@ -33,14 +61,12 @@ function(add_conformance_test_with_kernels_environment name)
 endfunction()
 
 function(add_conformance_test_with_devices_environment name)
-    add_conformance_test(${name}
-        ${ARGN})
+    add_conformance_test(${name} ${ARGN})
     target_compile_definitions("test-${name}" PRIVATE DEVICES_ENVIRONMENT)
 endfunction()
 
 function(add_conformance_test_with_platform_environment name)
-    add_conformance_test(${name}
-        ${ARGN})
+    add_conformance_test(${name} ${ARGN})
     target_compile_definitions("test-${name}" PRIVATE PLATFORM_ENVIRONMENT)
 endfunction()
 
