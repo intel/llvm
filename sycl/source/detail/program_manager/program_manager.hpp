@@ -51,6 +51,9 @@ namespace detail {
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &BinImages);
+std::optional<sycl::exception>
+checkDevSupportDeviceRequirements(const device &Dev,
+                                  const RTDeviceBinaryImage &BinImages);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.

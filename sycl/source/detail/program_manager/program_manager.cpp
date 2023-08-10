@@ -630,61 +630,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
 
   // Check that device supports all aspects used by the kernel
-  const RTDeviceBinaryImage::PropertyRange &ARange =
-      Img.getDeviceRequirements();
-
-#define __SYCL_ASPECT(ASPECT, ID)                                              \
-  case aspect::ASPECT:                                                         \
-    return #ASPECT;
-#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-// We don't need "case aspect::usm_allocator" here because it will duplicate
-// "case aspect::usm_system_allocations", therefore leave this macro empty
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
-  auto getAspectNameStr = [](aspect AspectNum) -> std::string {
-    switch (AspectNum) {
-#include <sycl/info/aspects.def>
-#include <sycl/info/aspects_deprecated.def>
-    }
-    throw sycl::exception(errc::kernel_not_supported,
-                          "Unknown aspect " +
-                              std::to_string(static_cast<unsigned>(AspectNum)));
-  };
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
-#undef __SYCL_ASPECT_DEPRECATED
-#undef __SYCL_ASPECT
-
-  for (RTDeviceBinaryImage::PropertyRange::ConstIterator It : ARange) {
-    using namespace std::literals;
-    if ((*It)->Name == "aspects"sv) {
-      ByteArray Aspects = DeviceBinaryProperty(*It).asByteArray();
-      // 8 because we need to skip 64-bits of size of the byte array
-      Aspects.dropBytes(8);
-      while (!Aspects.empty()) {
-        auto Aspect = static_cast<aspect>(Aspects.consume<int>());
-        if (!Dev->has(Aspect))
-          throw sycl::exception(errc::kernel_not_supported,
-                                "Required aspect " + getAspectNameStr(Aspect) +
-                                    " is not supported on the device");
-      }
-    } else if ((*It)->Name == "reqd_sub_group_size"sv) {
-      auto ReqdSubGroupSize = DeviceBinaryProperty(*It).asUint32();
-      auto SupportedSubGroupSizes =
-          Device.get_info<info::device::sub_group_sizes>();
-
-      // !getUint32PropAsBool(Img, "isEsimdImage") is a WA for ESIMD,
-      // as ESIMD images have a reqd-sub-group-size of 1, but currently
-      // no backend currently includes 1 as a valid sub-group size.
-      // This can be removed if backends add 1 as a valid sub-group size.
-      if (!getUint32PropAsBool(Img, "isEsimdImage") &&
-          std::none_of(SupportedSubGroupSizes.cbegin(),
-                       SupportedSubGroupSizes.cend(),
-                       [=](auto s) { return s == ReqdSubGroupSize; }))
-        throw sycl::exception(errc::kernel_not_supported,
-                              "Sub-group size " +
-                                  std::to_string(ReqdSubGroupSize) +
-                                  " is not supported on the device");
-    }
-  }
+  if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
+    throw *exception;
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, &CompileOpts,
                  &LinkOpts, SpecConsts] {
@@ -2456,6 +2403,44 @@ ProgramManager::getOrCreateKernel(const context &Context,
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &Img) {
+  return !checkDevSupportDeviceRequirements(Dev, Img).has_value();
+}
+
+static std::string getAspectNameStr(sycl::aspect AspectNum) {
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case aspect::ASPECT:                                                         \
+    return #ASPECT;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+// We don't need "case aspect::usm_allocator" here because it will duplicate
+// "case aspect::usm_system_allocations", therefore leave this macro empty
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+  switch (AspectNum) {
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+  }
+  throw sycl::exception(errc::kernel_not_supported,
+                        "Unknown aspect " +
+                            std::to_string(static_cast<unsigned>(AspectNum)));
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+}
+
+// Check if the multiplication over unsigned integers overflows
+template <typename T>
+static std::enable_if_t<std::is_unsigned_v<T>, std::optional<T>>
+multiply_with_overflow_check(T x, T y) {
+  if (y == 0)
+    return 0;
+  if (x > std::numeric_limits<T>::max() / y)
+    return {};
+  else
+    return x * y;
+}
+
+std::optional<sycl::exception>
+checkDevSupportDeviceRequirements(const device &Dev,
+                                  const RTDeviceBinaryImage &Img) {
   auto getPropIt = [&Img](const std::string &PropName) {
     const RTDeviceBinaryImage::PropertyRange &PropRange =
         Img.getDeviceRequirements();
@@ -2471,7 +2456,8 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
   };
 
   auto AspectsPropIt = getPropIt("aspects");
-  auto ReqdWGSizePropIt = getPropIt("reqd_work_group_size");
+  auto ReqdWGSizeUint32TPropIt = getPropIt("reqd_work_group_size");
+  auto ReqdWGSizeUint64TPropIt = getPropIt("reqd_work_group_size_uint64_t");
   auto ReqdSubGroupSizePropIt = getPropIt("reqd_sub_group_size");
 
   // Checking if device supports defined aspects
@@ -2483,28 +2469,54 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     while (!Aspects.empty()) {
       aspect Aspect = Aspects.consume<aspect>();
       if (!Dev.has(Aspect))
-        return false;
+        return sycl::exception(errc::kernel_not_supported,
+                               "Required aspect " + getAspectNameStr(Aspect) +
+                                   " is not supported on the device");
     }
   }
 
   // Checking if device supports defined required work group size
-  if (ReqdWGSizePropIt) {
-    ByteArray ReqdWGSize =
-        DeviceBinaryProperty(*(ReqdWGSizePropIt.value())).asByteArray();
+  if (ReqdWGSizeUint32TPropIt || ReqdWGSizeUint64TPropIt) {
+    /// TODO: Before intel/llvm#10620, the reqd_work_group_size attribute
+    // stores its values as uint32_t, but this needed to be expanded to
+    // uint64_t.  However, this change did not happen in ABI-breaking
+    // window, so we attach the required work-group size as the
+    // reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
+    // window, we can remove the logic for the 32 bit property.
+    bool usingUint64_t = ReqdWGSizeUint64TPropIt.has_value();
+    auto it = usingUint64_t ? ReqdWGSizeUint64TPropIt : ReqdWGSizeUint32TPropIt;
+
+    ByteArray ReqdWGSize = DeviceBinaryProperty(*(it.value())).asByteArray();
     // Drop 8 bytes describing the size of the byte array.
     ReqdWGSize.dropBytes(8);
-    int ReqdWGSizeAllDimsTotal = 1;
-    std::vector<int> ReqdWGSizeVec;
+    uint64_t ReqdWGSizeAllDimsTotal = 1;
+    std::vector<uint64_t> ReqdWGSizeVec;
     int Dims = 0;
     while (!ReqdWGSize.empty()) {
-      int SingleDimSize = ReqdWGSize.consume<int>();
-      ReqdWGSizeAllDimsTotal *= SingleDimSize;
+      uint64_t SingleDimSize = usingUint64_t ? ReqdWGSize.consume<uint64_t>()
+                                             : ReqdWGSize.consume<uint32_t>();
+      if (auto res = multiply_with_overflow_check(ReqdWGSizeAllDimsTotal,
+                                                  SingleDimSize))
+        ReqdWGSizeAllDimsTotal = *res;
+      else
+        return sycl::exception(
+            sycl::errc::kernel_not_supported,
+            "Required work-group size is not supported"
+            " (total number of work-items requested can't fit into size_t)");
       ReqdWGSizeVec.push_back(SingleDimSize);
       Dims++;
     }
-    if (static_cast<size_t>(ReqdWGSizeAllDimsTotal) >
-        Dev.get_info<info::device::max_work_group_size>())
-      return false;
+
+    // The SingleDimSize was computed in an uint64_t; size_t does not
+    // necessarily have to be the same uint64_t (but should fit in an
+    // uint64_t).
+    if (ReqdWGSizeAllDimsTotal >
+            Dev.get_info<info::device::max_work_group_size>() ||
+        ReqdWGSizeAllDimsTotal > std::numeric_limits<size_t>::max())
+      return sycl::exception(sycl::errc::kernel_not_supported,
+                             "Required work-group size " +
+                                 std::to_string(ReqdWGSizeAllDimsTotal) +
+                                 " is not supported on the device");
     // Creating std::variant to call max_work_item_sizes one time to avoid
     // performance drop
     std::variant<id<1>, id<2>, id<3>> MaxWorkItemSizesVariant;
@@ -2522,17 +2534,26 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
       // issues after that
       if (Dims == 1) {
         // ReqdWGSizeVec is in reverse order compared to MaxWorkItemSizes
-        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+        if (ReqdWGSizeVec[i] >
             std::get<id<1>>(MaxWorkItemSizesVariant)[Dims - i - 1])
-          return false;
+          return sycl::exception(sycl::errc::kernel_not_supported,
+                                 "Required work-group size " +
+                                     std::to_string(ReqdWGSizeVec[i]) +
+                                     " is not supported");
       } else if (Dims == 2) {
-        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+        if (ReqdWGSizeVec[i] >
             std::get<id<2>>(MaxWorkItemSizesVariant)[Dims - i - 1])
-          return false;
+          return sycl::exception(sycl::errc::kernel_not_supported,
+                                 "Required work-group size " +
+                                     std::to_string(ReqdWGSizeVec[i]) +
+                                     " is not supported");
       } else // (Dims == 3)
-        if (static_cast<size_t>(ReqdWGSizeVec[i]) >
+        if (ReqdWGSizeVec[i] >
             std::get<id<3>>(MaxWorkItemSizesVariant)[Dims - i - 1])
-          return false;
+          return sycl::exception(sycl::errc::kernel_not_supported,
+                                 "Required work-group size " +
+                                     std::to_string(ReqdWGSizeVec[i]) +
+                                     " is not supported");
     }
   }
 
@@ -2541,14 +2562,21 @@ bool doesDevSupportDeviceRequirements(const device &Dev,
     auto ReqdSubGroupSize =
         DeviceBinaryProperty(*(ReqdSubGroupSizePropIt.value())).asUint32();
     auto SupportedSubGroupSizes = Dev.get_info<info::device::sub_group_sizes>();
+    // !getUint32PropAsBool(Img, "isEsimdImage") is a WA for ESIMD,
+    // as ESIMD images have a reqd-sub-group-size of 1, but currently
+    // no backend currently includes 1 as a valid sub-group size.
+    // This can be removed if backends add 1 as a valid sub-group size.
     if (!getUint32PropAsBool(Img, "isEsimdImage") &&
         std::none_of(SupportedSubGroupSizes.cbegin(),
                      SupportedSubGroupSizes.cend(),
                      [=](auto s) { return s == ReqdSubGroupSize; }))
-      return false;
+      return sycl::exception(sycl::errc::kernel_not_supported,
+                             "Sub-group size " +
+                                 std::to_string(ReqdSubGroupSize) +
+                                 " is not supported on the device");
   }
 
-  return true;
+  return {};
 }
 
 } // namespace detail
