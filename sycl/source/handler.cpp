@@ -262,14 +262,6 @@ event handler::finalize() {
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
-        // Capture a host timestamp to support fallback profiling
-        // see MFallbackProfiling
-        if (Result == PI_SUCCESS) {
-          NewEvent = std::make_shared<detail::event_impl>(MQueue);
-          NewEvent->setContextImpl(MQueue->getContextImplPtr());
-          OutEvent = &NewEvent->getHandleRef();
-          NewEvent->setQueueBaseTime();
-        }
         return Result;
       };
 
@@ -296,6 +288,7 @@ event handler::finalize() {
         OutEvent = &NewEvent->getHandleRef();
 
         NewEvent->setSubmissionTime();
+        NewEvent->setQueueBaseTime();
 
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
