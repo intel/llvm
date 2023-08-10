@@ -22,8 +22,8 @@ extern "C" {
 typedef struct umf_memory_tracker_t *umf_memory_tracker_handle_t;
 
 umf_memory_tracker_handle_t umfMemoryTrackerGet(void);
-void *umfMemoryTrackerGetPool(umf_memory_tracker_handle_t hTracker,
-                              const void *ptr);
+umf_memory_pool_handle_t
+umfMemoryTrackerGetPool(umf_memory_tracker_handle_t hTracker, const void *ptr);
 
 // Creates a memory provider that tracks each allocation/deallocation through umf_memory_tracker_handle_t and
 // forwards all requests to hUpstream memory Provider. hUpstream lifetime should be managed by the user of this function.
