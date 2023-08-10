@@ -300,7 +300,7 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       if (!MFallbackProfiling) {
         return startTime;
       } else {
-        queueTime =
+        auto queueTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
         return MHostBaseTime - queueTime + startTime;
@@ -327,7 +327,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       if (!MFallbackProfiling) {
         return endTime;
       } else {
-        queueTime =
+        auto queueTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
         return MHostBaseTime - queueTime + endTime;
