@@ -1,4 +1,5 @@
 // REQUIRES: gpu
+// UNSUPPORTED: cuda, hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o
