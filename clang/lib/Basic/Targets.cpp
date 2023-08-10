@@ -43,6 +43,7 @@
 #include "Targets/XCore.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticFrontend.h"
+#include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -882,6 +883,11 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->CheckFixedPointBits();
+  // Todo: how to access langopts here?
+  if (true) {
+    Target->AddrSpaceMap = &NVPTXAddrSpaceMap;
+    Target->UseAddrSpaceMapMangling = true;
+  }
 
   return Target.release();
 }

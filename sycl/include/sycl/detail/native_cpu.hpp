@@ -69,44 +69,44 @@ struct __nativecpu_state {
   __attribute__((weak)) __attribute((alwaysinline))                            \
   [[intel::device_indirectly_callable]]
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_global_id(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_global_id(__attribute((address_space(1)))
                             __nativecpu_state *s) {
   return &(s->MGlobal_id[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_global_range(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_global_range(__attribute((address_space(1)))
                                __nativecpu_state *s) {
   return &(s->MGlobal_range[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_get_wg_size(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_get_wg_size(__attribute((address_space(1)))
                               __nativecpu_state *s) {
   return &(s->MWorkGroup_size[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_get_wg_id(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_get_wg_id(__attribute((address_space(1)))
                             __nativecpu_state *s) {
   return &(s->MWorkGroup_id[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_get_local_id(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_get_local_id(__attribute((address_space(1)))
                                __nativecpu_state *s) {
   return &(s->MLocal_id[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_get_num_groups(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_get_num_groups(__attribute((address_space(1)))
                                  __nativecpu_state *s) {
   return &(s->MNumGroups[0]);
 }
 
-extern "C" __SYCL_HC_ATTRS __attribute((address_space(0))) size_t *
-__dpcpp_nativecpu_get_global_offset(__attribute((address_space(0)))
+extern "C" __SYCL_HC_ATTRS __attribute((address_space(1))) size_t *
+__dpcpp_nativecpu_get_global_offset(__attribute((address_space(1)))
                                     __nativecpu_state *s) {
   return &(s->MGlobalOffset[0]);
 }

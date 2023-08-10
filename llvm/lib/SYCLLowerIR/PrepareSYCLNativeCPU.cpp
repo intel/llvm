@@ -39,6 +39,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <functional>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -138,7 +139,8 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
     auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
     if (Arg->getType()->isPointerTy()) {
       // If the arg is a pointer, just use it
-      KernelArgs.push_back(Load);
+      auto *ASCast = Builder.CreateAddrSpaceCast(Load, Arg->getType());
+      KernelArgs.push_back(ASCast);
     } else {
       // Otherwise, load the scalar value and use that
       auto *Scalar = Builder.CreateLoad(Arg->getType(), Load);
@@ -236,10 +238,56 @@ SmallVector<Function *> getFunctionsFromUse(Use &U) {
   return {};
 }
 
+void buildOperatorUserListHelper(
+    Value *V, SmallVector<std::pair<Operator *, Instruction *>> &Res) {
+  for (auto &U : V->uses()) {
+    auto *Usr = U.getUser();
+    if (isa<Instruction>(Usr) && isa<Operator>(V)) {
+      auto *I = cast<Instruction>(Usr);
+      Res.push_back(std::make_pair(cast<Operator>(V), I));
+    } else if (isa<Operator>(Usr)) {
+      buildOperatorUserListHelper(Usr, Res);
+    }
+  }
+}
+
+// Returns a list of operators used by an instruction
+SmallVector<std::pair<Operator *, Instruction *>>
+getOperatorUserList(Value *V) {
+  SmallVector<std::pair<Operator *, Instruction *>> Res;
+  buildOperatorUserListHelper(V, Res);
+  return Res;
+}
+
+std::optional<std::pair<Operator *, Instruction *>>
+convertOperatorToInstr(Operator *Op, Instruction *I) {
+  Instruction *NewInst;
+  if (auto *ASCast = dyn_cast<AddrSpaceCastOperator>(Op)) {
+    NewInst = AddrSpaceCastInst::Create(Instruction::CastOps::AddrSpaceCast,
+                                        ASCast->getPointerOperand(),
+                                        Op->getType(), "ncpu_cast", I);
+  } else if (auto *GEPOp = dyn_cast<GEPOperator>(Op)) {
+    auto *Ptr = GEPOp->getPointerOperand();
+    SmallVector<Value *> Indices(GEPOp->idx_begin(), GEPOp->idx_end());
+    NewInst = GetElementPtrInst::Create(GEPOp->getSourceElementType(), Ptr,
+                                        Indices, "ncpu_gep", I);
+
+  } else {
+    // Todo: proper error
+    assert(false);
+  }
+  Op->replaceUsesWithIf(NewInst, [&](Use &U) { return U.getUser() == I; });
+  // If the new instruction is used by a constant expr, return the new pair
+  if (isa<ConstantExpr>(NewInst->getOperand(0)))
+    return std::make_pair(cast<Operator>(NewInst->getOperand(0)), NewInst);
+  return {};
+}
+
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
+  llvm::errs() << "[ptrbdg] M pre: " << M << "\n";
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
   for (auto &F : M) {
@@ -256,7 +304,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     report_fatal_error("Couldn't find the Native CPU state in the "
                        "module, make sure that -D __SYCL_NATIVE_CPU__ is set",
                        false);
-  Type *StatePtrType = PointerType::getUnqual(StateType);
+  Type *StatePtrType = PointerType::get(StateType, 1);
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
     auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);
@@ -288,6 +336,19 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto *Glob = M.getNamedGlobal(Entry.first);
     if (!Glob)
       continue;
+    // Since we are translating the SPIRV builtins (which are defined as global
+    // vars) with function calls, we have to convert all the LLVM operators that
+    // (recursively) use them to LLVM Instructions.
+    auto OperatorUserList = getOperatorUserList(Glob);
+    while (!OperatorUserList.empty()) {
+      auto Entry = OperatorUserList.pop_back_val();
+      Operator *Op = Entry.first;
+      Instruction *I = Entry.second;
+      auto NewPair = convertOperatorToInstr(Op, I);
+      if (NewPair)
+        OperatorUserList.push_back(NewPair.value());
+    }
+
     auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second);
     for (auto &Use : Glob->uses()) {
       auto Funcs = getFunctionsFromUse(Use);
@@ -318,9 +379,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           BuiltinCallMap.insert({F, NewCall});
         }
         User *Usr = Use.getUser();
-        if (auto *GEPOp = dyn_cast<GEPOperator>(Usr)) {
-          GEPOps.insert(GEPOp);
-        } else {
+
           // Find the index of the builtin in the user's operand list
           // We are guaranteed to find it since we are already iterating over
           // the builtin's uses.
@@ -334,7 +393,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
           }
           assert(Found && "Unable to find builtin in operand list");
           ToReplace.insert({Usr, {Index, NewCall}});
-        }
       }
     }
 
@@ -345,36 +403,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       CallInst *NewCall = Entry.second.second;
       User *Usr = Entry.first;
       Usr->setOperand(Index, NewCall);
-    }
-
-    // Handle the constant builtin uses, we insert a non-constant GEP
-    // instruction that uses the return value of our function call, and replaces
-    // the original GEPOperator
-    SmallVector<std::tuple<Operator *, User *, GetElementPtrInst *>>
-        GEPReplaceMap;
-    for (auto &OldOp : GEPOps) {
-      SmallVector<Value *> Indices(OldOp->idx_begin(), OldOp->idx_end());
-      for (auto &OpUse : OldOp->uses()) {
-        User *Usr = OpUse.getUser();
-        Instruction *I = dyn_cast<Instruction>(Usr);
-        if (!I) {
-          continue;
-        }
-        auto *NewCall = BuiltinCallMap[I->getFunction()];
-        auto *ArrayT = ArrayType::get(Type::getInt64Ty(M.getContext()), 3);
-        GetElementPtrInst *NewGEP =
-            GetElementPtrInst::Create(ArrayT, NewCall, Indices, "ncpu_gep", I);
-        GEPReplaceMap.emplace_back(OldOp, Usr, NewGEP);
-      }
-    }
-    for (auto &Entry : GEPReplaceMap) {
-      auto *Op = std::get<0>(Entry);
-      auto *Usr = std::get<1>(Entry);
-      auto *NewGEP = std::get<2>(Entry);
-      Op->replaceUsesWithIf(NewGEP, [&](Use &U) {
-        bool Res = U.getUser() == Usr;
-        return Res;
-      });
     }
 
     // Finally, we erase the builtin from the module
