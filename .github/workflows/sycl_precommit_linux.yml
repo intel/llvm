@@ -1,6 +1,9 @@
 name: SYCL MLIR Pre Commit on Linux
 
 on:
+  # We rely on "Fork pull request workflows from outside collaborators" -
+  # "Require approval for all outside collaborators" at
+  # https://github.com/intel/llvm/settings/actions for security.
   pull_request:
     branches:
     - sycl-mlir
@@ -14,15 +17,11 @@ on:
     - '**.md'
     - '**.rst'
 
-permissions:
-  contents: read
-
 jobs:
   detect_changes:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
-    needs: [detect_changes]
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
@@ -30,7 +29,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        ref: ${{ github.base_ref }}
         sparse-checkout: |
           devops/actions/cached_checkout
           devops/actions/clang-format
@@ -51,31 +49,46 @@ jobs:
       with:
         path: src
 
-  # This job generates matrix of tests for SYCL End-to-End tests
-  test_matrix:
-    needs: [detect_changes]
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "lin_intel"
-
-  linux_default:
-    name: Linux
-    # Only build and test patches, that have passed all linter checks, because
-    # the next commit is likely to be a follow-up on that job.
-    needs: [lint, test_matrix, detect_changes]
+  build:
+    needs: [lint, detect_changes]
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    secrets: inherit
+    uses: ./.github/workflows/sycl_linux_build.yml
     with:
-      build_ref: ${{ github.event.pull_request.head.sha }}
-      merge_ref: ${{ github.event.pull_request.base.sha }}
+      build_ref: ${{ github.sha }}
+      merge_ref: ''
       build_cache_root: "/__w/"
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
       changes: ${{ needs.detect_changes.outputs.filters }}
+
+  test:
+    needs: [build, detect_changes]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Intel
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
+            reset_gpu: true
+            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    with:
+      name: ${{ matrix.name }}
+      runner: ${{ matrix. runner }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      reset_gpu: ${{ matrix.reset_gpu }}
+
+      ref: ${{ github.sha }}
+      merge_ref: ''
+
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+

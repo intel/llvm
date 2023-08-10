@@ -4440,7 +4440,7 @@ SYCLIntelMaxGlobalWorkDimAttr *Sema::MergeSYCLIntelMaxGlobalWorkDimAttr(
   // to (1, 1, 1) in case the value of SYCLIntelMaxGlobalWorkDimAttr equals to
   // 0.
   const auto *MergeExpr = dyn_cast<ConstantExpr>(A.getValue());
-  if (MergeExpr->getResultAsAPSInt() == 0) {
+  if (MergeExpr && MergeExpr->getResultAsAPSInt() == 0) {
     if (checkWorkGroupSizeAttrExpr<SYCLIntelMaxWorkGroupSizeAttr>(*this, D,
                                                                   A) ||
         checkWorkGroupSizeAttrExpr<SYCLReqdWorkGroupSizeAttr>(*this, D, A))
@@ -4550,8 +4550,11 @@ static void handleSYCLIntelLoopFuseAttr(Sema &S, Decl *D, const ParsedAttr &A) {
 
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   // This attribute is deprecated without replacement in SYCL 2020 mode.
-  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017)
-    S.Diag(AL.getLoc(), diag::warn_attribute_spelling_deprecated) << AL;
+  // Ignore the attribute in SYCL 2020.
+  if (S.LangOpts.getSYCLVersion() > LangOptions::SYCL_2017) {
+    S.Diag(AL.getLoc(), diag::warn_attribute_deprecated_ignored) << AL;
+    return;
+  }
 
   // If the attribute is used with the [[sycl::vec_type_hint]] spelling in SYCL
   // 2017 mode, we want to warn about using the newer name in the older

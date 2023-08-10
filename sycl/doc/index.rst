@@ -13,6 +13,7 @@ Using oneAPI DPC++ for Application Development
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
+   syclcompat/README.md
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
