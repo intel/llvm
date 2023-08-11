@@ -672,7 +672,7 @@ GPU](#code-the-program-for-a-specific-gpu).
 
 #### AOT Target architectures
 
-When building for HIP AMD, use the AMD target triple and specify the
+**NOTE**: When building for HIP AMD, you **MUST** use the AMD target triple and specify the
 target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
 as follows:
 
