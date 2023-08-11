@@ -155,7 +155,7 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue}, 
+    : MQueue{Queue},
       MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
