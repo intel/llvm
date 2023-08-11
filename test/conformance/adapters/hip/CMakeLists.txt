@@ -8,8 +8,12 @@ add_conformance_test_with_devices_environment(adapter-hip
     hip_urContextGetNativeHandle.cpp
     hip_urDeviceGetNativeHandle.cpp
     hip_urEventGetNativeHandle.cpp
+    test_context.cpp
 )
 target_link_libraries(test-adapter-hip PRIVATE rocmdrv)
+target_include_directories(test-adapter-hip PRIVATE ${HIP_DIR} "${HIP_DIR}/../../..")
+# TODO - remove as part of #789
+target_compile_definitions(test-adapter-hip PRIVATE UR_INCLUDE_HANDLE_IMPLEMENTATION_OVERLOADS)
 
 if(UR_HIP_PLATFORM STREQUAL "AMD")
     target_compile_definitions(test-adapter-hip PRIVATE __HIP_PLATFORM_AMD__)
