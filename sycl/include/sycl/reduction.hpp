@@ -1328,7 +1328,7 @@ struct NDRangeReduction<
         // If there are multiple values, reduce each separately
         // reduce_over_group is only defined for each T, not for span<T, ...>
         size_t LID = NDId.get_local_id(0);
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &RedElem = *getReducerAccess(Reducer).getElement(E);
           RedElem = reduce_over_group(Group, RedElem, BOp);
           if (LID == 0) {
@@ -1362,7 +1362,7 @@ struct NDRangeReduction<
         if (DoReducePartialSumsInLastWG[0]) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             auto LocalSum = getReducerAccess(Reducer).getIdentity();
             for (size_t I = LID; I < NWorkGroups; I += WGSize)
               LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
@@ -1538,7 +1538,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // If there are multiple values, reduce each separately
       // This prevents local memory from scaling with elements
       size_t LID = NDId.get_local_linear_id();
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
 
         doTreeReduction<WorkSizeGuarantees::Equal>(
             WGSize, NDId, LocalReds, ElementCombiner,
@@ -1574,7 +1574,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       if (DoReducePartialSumsInLastWG[0]) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           doTreeReduction<WorkSizeGuarantees::None>(
               NWorkGroups, NDId, LocalReds, ElementCombiner,
               [&](size_t I) { return PartialSums[I * NElements + E]; });
@@ -1614,7 +1614,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
         KernelFunc(NDIt, Reducer);
 
         typename Reduction::binary_operation BOp;
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &ReducerElem = getReducerAccess(Reducer).getElement(E);
           *ReducerElem = reduce_over_group(NDIt.get_group(), *ReducerElem, BOp);
         }
@@ -1663,7 +1663,7 @@ struct NDRangeReduction<
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -1738,7 +1738,7 @@ struct NDRangeReduction<
       // Compute the partial sum/reduction for the work-group.
       size_t WGID = NDIt.get_group_linear_id();
       typename Reduction::binary_operation BOp;
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
         typename Reduction::result_type PSum;
         PSum = *getReducerAccess(Reducer).getElement(E);
         PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
@@ -1800,7 +1800,7 @@ struct NDRangeReduction<
           size_t WGID = NDIt.get_group_linear_id();
           size_t GID = NDIt.get_global_linear_id();
 
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? *In[GID * NElements + E]
@@ -1897,7 +1897,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -2004,7 +2004,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
               return LHS.combine(BOp, RHS);
             };
 
-            for (int E = 0; E < NElements; ++E) {
+            for (size_t E = 0; E < NElements; ++E) {
 
               doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
                   RemainingWorkSize, NDIt, LocalReds, ElementCombiner,
