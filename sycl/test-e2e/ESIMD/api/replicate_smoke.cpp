@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
 // UNSUPPORTED: gpu-intel-pvc
 // TODO: remove fno-fast-math option once the issue is investigated and the test
 // is fixed.
@@ -16,9 +13,6 @@
 // RUN: %{run} %t.out
 //
 // The test checks main functionality of the esimd::replicate_vs_w_hs function.
-
-// Temporarily disable while the failure is being investigated.
-// UNSUPPORTED: windows
 
 #include "../esimd_test_utils.hpp"
 
@@ -94,7 +88,7 @@ template <class T> struct DataMgr {
 };
 
 template <class T, int VL, int N, int Rep, int Vs, int W, int Hs>
-bool test_impl(queue q, int offset, T (&&gold)[N]) {
+bool test_impl(queue q, int offset, T(&&gold)[N]) {
   std::cout << "Testing T=" << esimd_test::type_name<T>() << " Rep=" << Rep
             << " "
             << "Vs=" << Vs << " "
