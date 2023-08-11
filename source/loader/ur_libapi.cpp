@@ -7743,8 +7743,10 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     return exceptionToResult(std::current_exception());
 }
 
+// This uselessFunc is needed to ensure that pthread is linked correctly against
+// ur_loader.so for gcc-9
 void uselessFunc() {
-    std::thread NullThread([](){});
+    std::thread UselessThread([] {});
 }
 
 } // extern "C"
