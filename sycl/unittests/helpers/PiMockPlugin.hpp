@@ -164,7 +164,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
                                       size_t *param_value_size_ret) {
   constexpr char MockDeviceName[] = "Mock device";
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program";
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program ur_exp_command_buffer";
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
