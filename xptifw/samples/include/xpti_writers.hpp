@@ -25,7 +25,15 @@
 constexpr bool MeasureEventCost = true;
 
 namespace xpti {
-constexpr bool ShowInColors = false;
+bool ShowInColors = false;
+enum class FileFormat {
+  JSON = 1,                        // Output in Perfetto UI JSON format
+  CSV = 1 << 1,                    // Output summary statistics as a CSV
+  Table = 1 << 2,                  // Output summary statistics as a Table
+  Stack = 1 << 3,                  // Output call-stack as indented text
+  All = JSON | CSV | Table | Stack // Output in all supported formats
+};
+
 /// @brief Enumerator defining current state of a record_t
 /// @details As a record_t is being populated, the record_t::Flags will contain
 /// one or more enum values OR'd together
@@ -131,17 +139,14 @@ public:
                       ? (std::string(root.m_label).substr(0, 25) +
                          std::string("..."))
                       : root.m_label);
-    if (level == 1) {
-      if (ShowInColors) {
-        std::cout << " " << time_color << std::fixed
-                  << (double)curr_duration / 1000 << " us " << reset;
-      } else {
-        std::cout << " " << std::fixed << (double)curr_duration / 1000
-                  << " us ";
-      }
+    if (ShowInColors && level == 1) {
+      std::cout << " " << time_color << std::fixed
+                << (double)curr_duration / 1000 << " us " << reset;
+    } else {
+      std::cout << " " << std::fixed << (double)curr_duration / 1000 << " us ";
     }
-    std::cout << "[" << std::setprecision(2) << (curr_duration / duration * 100)
-              << "%] ";
+    std::cout << " [" << std::setprecision(2)
+              << (curr_duration / duration * 100) << "%] ";
     if (level == 1) {
       if (ShowInColors) {
         std::cout << bold_color << "   Adjusted: [" << std::setprecision(2)

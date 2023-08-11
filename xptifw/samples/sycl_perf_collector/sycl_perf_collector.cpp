@@ -3,6 +3,7 @@
 // events
 //
 #include "xpti/xpti_trace_framework.h"
+#include "xpti_helpers.hpp"
 #include "xpti_timers.hpp"
 #include "xpti_writers.hpp"
 
@@ -25,35 +26,9 @@ using correlation_records_t = std::unordered_map<uint64_t, xpti::record_t>;
 correlation_records_t GIncompleteRecords;
 std::mutex GRecMutex, GStreamMutex;
 xpti::utils::statistics_t GEventStats;
-
-class stream_strings_t {
-public:
-  using strings_t = std::unordered_set<std::string>;
-  stream_strings_t() = default;
-  ~stream_strings_t() = default;
-
-  const char *record(const char *stream) {
-    auto res = m_streams.insert(stream);
-    if (res.second) {
-      return (*res.first).c_str();
-    }
-
-    return nullptr;
-  }
-
-  bool empty() { return (m_streams.size() == 0); }
-
-  void unregister(const char *stream) {
-    auto res = m_streams.erase(stream);
-    std::cout << "Unregistering stream: " << stream << ": Return Value (" << res
-              << ") <-> Size: " << m_streams.size() << std::endl;
-  }
-
-private:
-  strings_t m_streams;
-};
-
-stream_strings_t *GStreams = nullptr;
+uint64_t GOutputFormats = 0;
+xpti::utils::string::list_t *GStreams = nullptr;
+extern bool xpti::ShowInColors;
 
 static void record_state(xpti::record_t &r, bool begin_scope) {
   xpti::utils::timer::measurement_t m;
@@ -120,14 +95,82 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // with code changes
   static bool InitStreams = true;
   if (InitStreams) {
-    GStreams = new stream_strings_t;
+    std::set<std::string> OutputFormats{"json", "csv", "table", "stack", "all"};
+    xpti::utils::string::simple_string_decoder_t D(",");
+    GStreams = new xpti::utils::string::list_t;
+    // Environment variables that are used to communicate runtime
+    // characteristics that can be encapsulated in a launcher application
+    //
+    // 1. XPTI_SYCL_PERF_OUTPUT=[json,csv,table,stack,all]
+    // 2. XPTI_STREAMS=[all] or [sycl,sycl.pi,sycl.perf,sycl.perf.detail,...]
+    // 3. XPTI_STDOUT_USE_COLOR=[1,0]
+    //
+    const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
+    if (ProfOutFile)
+      std::cout << "XPTI_SYCL_PERF_OUTPUT=" << ProfOutFile << "\n";
+    const char *StreamsToMonitor = std::getenv("XPTI_STREAMS");
+    if (StreamsToMonitor)
+      std::cout << "XPTI_STREAMS=" << StreamsToMonitor << "\n";
+    const char *ColorOutput = std::getenv("XPTI_STDOUT_USE_COLOR");
+    if (ColorOutput)
+      std::cout << "XPTI_STDOUT_USE_COLOR=" << ColorOutput << "\n";
 
-    GStreams->record("sycl");
-    GStreams->record("sycl.experimental.mem.alloc");
-    GStreams->record("sycl.pi");
-    GStreams->record("sycl.perf");
-    GStreams->record("sycl.experimental.level_zero.call");
-    GStreams->record("sycl.experimental.cuda.call");
+    // Get the streams to monitor from the environment variable
+    // In order to determine if the environment variable contains valid stream
+    // names, a catalog of all streams must be check against to validate the
+    // strings
+    if (StreamsToMonitor) {
+      auto streams = D.decode(StreamsToMonitor);
+      for (auto &s : streams) {
+        GStreams->add(s.c_str());
+      }
+    } else {
+      // If the environment variable is not set, pick the default streams we
+      // would like to monitor
+      GStreams->add("sycl");
+      GStreams->add("sycl.experimental.mem.alloc");
+      GStreams->add("sycl.pi");
+      GStreams->add("sycl.perf");
+      GStreams->add("sycl.experimental.level_zero.call");
+      GStreams->add("sycl.experimental.cuda.call");
+    }
+
+    // Check the output format environmental variable and only accept valid
+    // types
+    if (ProfOutFile) {
+      auto outputs = D.decode(ProfOutFile);
+      for (auto &o : outputs) {
+        if (OutputFormats.count(o)) {
+          if (o == "json") {
+            GOutputFormats |= (uint64_t)xpti::FileFormat::JSON;
+          } else if (o == "csv") {
+            GOutputFormats |= (uint64_t)xpti::FileFormat::CSV;
+          } else if (o == "table") {
+            GOutputFormats |= (uint64_t)xpti::FileFormat::Table;
+          } else if (o == "stack") {
+            GOutputFormats |= (uint64_t)xpti::FileFormat::Stack;
+          } else if (o == "all") {
+            GOutputFormats |= (uint64_t)xpti::FileFormat::All;
+          } else {
+            std::cerr << "Invalid format provided: " << o
+                      << " - Ignoring format!\n";
+          }
+        }
+      }
+    } else {
+      GOutputFormats = (uint64_t)xpti::FileFormat::Stack;
+    }
+
+    // Check the environment variable for colored output and set the appropriate
+    // flag, if the variable is set
+    if (ColorOutput) {
+      if (std::stoi(ColorOutput) == 0)
+        xpti::ShowInColors = false;
+      else
+        xpti::ShowInColors = true;
+    } else {
+      xpti::ShowInColors = true;
+    }
 
     GStreamsToObserve.insert("sycl");
     GStreamsToObserve.insert("sycl.experimental.mem.alloc");
@@ -139,7 +182,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // GDataModel = new xpti::data_model_t();
     GProcessID = xpti::utils::get_process_id();
     InitStreams = false;
-    GWriter = new xpti::table_writer();
+    if (GOutputFormats & (uint64_t)xpti::FileFormat::JSON)
+      GWriter = new xpti::json_writer();
+    else
+      GWriter = new xpti::table_writer();
   };
 
   auto Check = GStreamsToObserve.find(stream_name);
@@ -235,9 +281,9 @@ std::once_flag GFinalize;
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   std::lock_guard<std::mutex> _{GStreamMutex};
-  GStreams->unregister(stream_name);
+  GStreams->remove(stream_name);
   if (GStreams->empty()) {
-    std::cout << "All subscribed streams have been unregistered from!\n";
+    std::cout << "All subscribed streams have been unregistered!\n";
   }
   // auto loc = GStreamsToObserve.find(stream_name);
   // GStreamsToObserve.erase(stream_name);
