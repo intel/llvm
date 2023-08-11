@@ -9,4 +9,6 @@ target_include_directories(sycl_perf_collector PRIVATE
   ${XPTIFW_DIR}/include
   ${XPTI_DIR}/include
   ${XPTIFW_DIR}/samples/include
+  ${XPTIFW_DIR}/basic_test
 )
+

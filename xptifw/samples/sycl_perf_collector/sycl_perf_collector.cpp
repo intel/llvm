@@ -7,23 +7,53 @@
 #include "xpti_writers.hpp"
 
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
 #include <string_view>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 std::set<std::string> GStreamsToObserve;
 xpti::writer *GWriter = nullptr;
 
 uint64_t GProcessID = 0;
 
-using incomplete_records_t = std::unordered_map<uint64_t, xpti::record_t>;
-using uid_lookup_t = std::unordered_map<uint64_t, incomplete_records_t>;
-using stream_records_t = std::unordered_map<std::string, uid_lookup_t>;
-stream_records_t GIncompleteRecords;
+using correlation_records_t = std::unordered_map<uint64_t, xpti::record_t>;
+correlation_records_t GIncompleteRecords;
 std::mutex GRecMutex, GStreamMutex;
+xpti::utils::statistics_t GEventStats;
+
+class stream_strings_t {
+public:
+  using strings_t = std::unordered_set<std::string>;
+  stream_strings_t() = default;
+  ~stream_strings_t() = default;
+
+  const char *record(const char *stream) {
+    auto res = m_streams.insert(stream);
+    if (res.second) {
+      return (*res.first).c_str();
+    }
+
+    return nullptr;
+  }
+
+  bool empty() { return (m_streams.size() == 0); }
+
+  void unregister(const char *stream) {
+    auto res = m_streams.erase(stream);
+    std::cout << "Unregistering stream: " << stream << ": Return Value (" << res
+              << ") <-> Size: " << m_streams.size() << std::endl;
+  }
+
+private:
+  strings_t m_streams;
+};
+
+stream_strings_t *GStreams = nullptr;
 
 static void record_state(xpti::record_t &r, bool begin_scope) {
   xpti::utils::timer::measurement_t m;
@@ -90,6 +120,15 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   // with code changes
   static bool InitStreams = true;
   if (InitStreams) {
+    GStreams = new stream_strings_t;
+
+    GStreams->record("sycl");
+    GStreams->record("sycl.experimental.mem.alloc");
+    GStreams->record("sycl.pi");
+    GStreams->record("sycl.perf");
+    GStreams->record("sycl.experimental.level_zero.call");
+    GStreams->record("sycl.experimental.cuda.call");
+
     GStreamsToObserve.insert("sycl");
     GStreamsToObserve.insert("sycl.experimental.mem.alloc");
     GStreamsToObserve.insert("sycl.pi");
@@ -97,6 +136,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     GStreamsToObserve.insert("sycl.experimental.level_zero.call");
     GStreamsToObserve.insert("sycl.experimental.cuda.call");
 
+    // GDataModel = new xpti::data_model_t();
     GProcessID = xpti::utils::get_process_id();
     InitStreams = false;
     GWriter = new xpti::table_writer();
@@ -191,51 +231,59 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
   }
 }
 
+std::once_flag GFinalize;
+
 XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) {
   std::lock_guard<std::mutex> _{GStreamMutex};
+  GStreams->unregister(stream_name);
+  if (GStreams->empty()) {
+    std::cout << "All subscribed streams have been unregistered from!\n";
+  }
   // auto loc = GStreamsToObserve.find(stream_name);
   // GStreamsToObserve.erase(stream_name);
   // std::cout << "Removed stream: " << stream_name << std::endl;
   // std::cout << "Stream count: " << GStreamsToObserve.size() << std::endl;
   // if (GStreamsToObserve.empty()) {
-  if (GWriter) {
-    GWriter->fini();
-    delete GWriter;
-    GWriter = nullptr;
-  }
+  std::call_once(GFinalize, []() {
+    if (MeasureEventCost) {
+      std::cout << "Event handler cost: " << std::fixed << GEventStats.mean()
+                << " ns/event [" << std::setprecision(0) << GEventStats.count()
+                << " events] [Min time: " << GEventStats.min() << " ns]\n";
+    }
+    if (GWriter) {
+      GWriter->fini();
+      delete GWriter;
+      GWriter = nullptr;
+    }
+  });
   // }
 }
 
 void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
                      uint16_t TraceType, uint64_t Instance,
                      const void *UserData) {
-  // For `function_begin` trace point type, the Parent and Event parameters can
-  // be null. However, the `UserData` field must be present and contain the
-  // function name that these trace points are defined to trace.
-  const char *Name = nullptr;
-  if (UserData) {
-    Name = (const char *)UserData;
-  } else {
-    Name = "unknown";
+  // For `function_begin` trace point type, the Parent and Event parameters
+  // can be null. However, the `UserData` field must be present and contain
+  // the function name that these trace points are defined to trace.
+  xpti::utils::timer::measurement_t m;
+  uint64_t begin, end;
+
+  if (MeasureEventCost) {
+    begin = m.clock();
   }
+
+  const char *Name = (UserData ? (const char *)UserData : "unknown");
   xpti::record_t r;
-  uint64_t ID = 0;
 
   if (TraceType & 0x0001) {
     // We are the closing scope step
     {
       std::lock_guard<std::mutex> _{GRecMutex};
-      uid_lookup_t &EventRecords = GIncompleteRecords[StreamName];
-      if (Event)
-        ID = Event->unique_id;
-      else
-        ID = 0;
-      incomplete_records_t &IncompleteRecords = EventRecords[ID];
-      auto ele = IncompleteRecords.find(Instance);
-      if (ele != IncompleteRecords.end()) {
+      auto ele = GIncompleteRecords.find(Instance);
+      if (ele != GIncompleteRecords.end()) {
         // Copy so the incomplete record can be deleted
         r = ele->second;
-        IncompleteRecords.erase(ele);
+        GIncompleteRecords.erase(ele);
       } else {
         throw std::runtime_error("Instance id/correlation ID collision!");
       }
@@ -254,17 +302,15 @@ void record_and_save(const char *StreamName, xpti::trace_event_data_t *Event,
     {
       std::lock_guard<std::mutex> _{GRecMutex};
       r.CorrID = Instance;
-      uid_lookup_t &EventRecords = GIncompleteRecords[StreamName];
-      if (Event)
-        ID = Event->unique_id;
-      else
-        ID = 0;
-      incomplete_records_t &IncompleteRecords = EventRecords[ID];
-      if (IncompleteRecords.count(Instance)) {
+      if (GIncompleteRecords.count(Instance)) {
         throw std::runtime_error("Instance id/correlation ID collision!");
       }
-      IncompleteRecords[Instance] = r;
+      GIncompleteRecords[Instance] = r;
     }
+  }
+  if (MeasureEventCost) {
+    end = m.clock();
+    GEventStats.add_value(end - begin + 1);
   }
 }
 

@@ -6,6 +6,7 @@
 //
 //
 #pragma once
+#include "../../basic_test/cl_processor.hpp"
 #include "xpti_timers.hpp"
 
 #include <algorithm>
@@ -13,6 +14,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <list>
 #include <map>
 #include <mutex>
 #include <stdexcept>
@@ -20,7 +22,10 @@
 #include <string_view>
 #include <vector>
 
+constexpr bool MeasureEventCost = true;
+
 namespace xpti {
+constexpr bool ShowInColors = false;
 /// @brief Enumerator defining current state of a record_t
 /// @details As a record_t is being populated, the record_t::Flags will contain
 /// one or more enum values OR'd together
@@ -48,6 +53,7 @@ struct record_t {
   uint64_t HWID = 0;    // CpuID or HW device ID of execution
   uint64_t TID = 0;     // Thread ID or a logical ID of execution
   uint64_t PID = 0;     // Process ID
+  uint64_t UID = 0;     // Universal ID, if available
   uint64_t Flags = 1;   // Initialilze it to InvalidRecord
   std::string Name;     // Name of the scoped call
   std::string Category; // Category of the call, usually stream name
@@ -55,7 +61,7 @@ struct record_t {
 
 using rec_tuple = std::pair<uint64_t, record_t>;
 using records_t = std::vector<rec_tuple>;
-using ordered_records_t = std::map<uint64_t, record_t>;
+using ordered_records_t = std::multimap<uint64_t, record_t>;
 class span_t;
 using spans_t = std::map<uint64_t, span_t>;
 /// @brief Span class for managing parent child relationship tasks
@@ -113,6 +119,7 @@ public:
     // Color code level 1's API calls so we can show the cost of the kernels
     // after the first kernel cost is discounted
     std::string bold_color("\033[1;36m");
+    std::string time_color("\033[1;32m");
     std::string reset("\033[0m");
     double curr_duration = (root.m_max - root.m_min + 1);
     std::cout << "+";
@@ -123,13 +130,27 @@ public:
               << ((std::string(root.m_label).size() > 25)
                       ? (std::string(root.m_label).substr(0, 25) +
                          std::string("..."))
-                      : root.m_label)
-              << "   [" << std::setprecision(2)
-              << (curr_duration / duration * 100) << "%] ";
+                      : root.m_label);
     if (level == 1) {
-      std::cout << bold_color << "   Adjusted: [" << std::setprecision(2)
-                << (curr_duration / (duration - build_cost) * 100) << "%]"
-                << reset;
+      if (ShowInColors) {
+        std::cout << " " << time_color << std::fixed
+                  << (double)curr_duration / 1000 << " us " << reset;
+      } else {
+        std::cout << " " << std::fixed << (double)curr_duration / 1000
+                  << " us ";
+      }
+    }
+    std::cout << "[" << std::setprecision(2) << (curr_duration / duration * 100)
+              << "%] ";
+    if (level == 1) {
+      if (ShowInColors) {
+        std::cout << bold_color << "   Adjusted: [" << std::setprecision(2)
+                  << (curr_duration / (duration - build_cost) * 100) << "%]"
+                  << reset;
+      } else {
+        std::cout << "   Adjusted: [" << std::setprecision(2)
+                  << (curr_duration / (duration - build_cost) * 100) << "%]";
+      }
     }
     std::cout << "\n";
     for (auto &s : root.m_children) {
@@ -140,9 +161,9 @@ public:
     double first_time_cost;
     std::cout << "Application:" << m_label << " [" << m_min << "," << m_max
               << "]\n";
-    // Find the first submit_impl (or algorithm in the future when "sycl" stream
-    // works properly) and remove the time from the submit scope from the
-    // application runtime to discount for the build/JIT costs
+    // Find the first submit_impl (or algorithm in the future when "sycl"
+    // stream works properly) and remove the time from the submit scope from
+    // the application runtime to discount for the build/JIT costs
     for (auto &s : m_children) {
       if (std::string_view(s.second.m_label) == "submit_impl") {
         first_time_cost = s.second.m_max - s.second.m_min + 1;
@@ -225,9 +246,9 @@ public:
             fast_write(r.second);
           }
           // add an empty element for not ending with '}, ]'
-          m_io
-              << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": \"\", "
-                 "\"tid\": \"\", \"ts\": \"\"}\n";
+          m_io << "{\"name\": \"\", \"cat\": \"\", \"ph\": \"\", \"pid\": "
+                  "\"\", "
+                  "\"tid\": \"\", \"ts\": \"\"}\n";
 
           m_io << "],\n";
           m_io << "\"displayTimeUnit\":\"ns\"\n}\n";
@@ -282,58 +303,7 @@ private:
   xpti::utils::timer::measurement_t m_measure;
 };
 
-class table_model {
-public:
-  using table_row_t = std::map<int, long double>;
-  using table_t = std::map<int, table_row_t>;
-  using titles_t = std::vector<std::string>;
-  using row_titles_t = std::map<int, std::string>;
-
-  table_model() {}
-
-  void set_headers(titles_t &Titles) { m_column_titles = Titles; }
-
-  table_row_t &add_row(int Row, std::string &RowName) {
-    if (m_row_titles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    m_row_titles[Row] = RowName;
-    return m_table[Row];
-  }
-
-  table_row_t &add_row(int Row, const char *RowName) {
-    if (m_row_titles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    m_row_titles[Row] = RowName;
-    return m_table[Row];
-  }
-
-  table_row_t &operator[](int Row) { return m_table[Row]; }
-
-  void print() {
-    std::cout << std::setw(35) << " ";
-    for (auto &Title : m_column_titles) {
-      std::cout << std::setw(14) << Title; // Column headers
-    }
-    std::cout << "\n";
-
-    for (auto &Row : m_table) {
-      std::cout << std::setw(35) << m_row_titles[Row.first];
-      for (auto &Data : Row.second) {
-        std::cout << std::fixed << std::setw(14) << std::setprecision(0)
-                  << Data.second;
-      }
-      std::cout << "\n";
-    }
-    std::cout << "\n";
-  }
-
-private:
-  titles_t m_column_titles;
-  row_titles_t m_row_titles;
-  table_t m_table;
-};
+using table_model_t = test::utils::TableModel;
 
 class table_writer : public writer {
 public:
@@ -348,6 +318,7 @@ public:
   ~table_writer() {}
 
   void init() final {
+    m_model = table_model_t(35);
     m_app_name = xpti::utils::get_application_name();
     if (m_app_name.empty()) {
       m_file_name =
@@ -386,14 +357,14 @@ public:
       Skewness,
       Kurtosis
     };
-    table_model::titles_t col_headers{
+    test::utils::titles_t col_headers{
         "Count", "Min (ns)", "Max (ns)", "Mean (ns)", "Std Dev (ns)",
     };
-    m_model.set_headers(col_headers);
+    m_model.setHeaders(col_headers);
     // Set the root of the call stack tree
     m_root = span_t(m_min, m_max, m_app_name.c_str());
     for (auto &r : m_records) {
-      m_ordered_records[r.second.TSBegin] = r.second;
+      m_ordered_records.insert(std::make_pair(r.second.TSBegin, r.second));
       compute_stats(r.second);
     }
     // Build the tree of trace scopes that mimics a call stack
@@ -401,8 +372,8 @@ public:
       m_root.insert(r.second.TSBegin, r.second.TSEnd, r.second.Name.c_str());
     }
 
-    // Reorder the stats in ascending order of mean times so all small functions
-    // are at the top
+    // Reorder the stats in ascending order of mean times so all small
+    // functions are at the top
     for (auto &f : m_functions) {
       m_durations.insert(
           std::make_pair(f.second.mean(), std::make_pair(f.first, f.second)));
@@ -430,7 +401,7 @@ public:
         } else
           func_name = stats.second.first;
 
-        auto &row = m_model.add_row(row_id++, func_name.c_str());
+        auto &row = m_model.addRow(row_id++, func_name.c_str());
         row[(int)TableColumns::Count] = count;
         row[(int)TableColumns::Min] = min;
         row[(int)TableColumns::Max] = max;
@@ -449,7 +420,7 @@ protected:
   std::mutex m_mutex;
 
 private:
-  table_model m_model;
+  table_model_t m_model;
   std::string m_file_name;
   std::string m_app_name;
   std::ofstream m_io;
