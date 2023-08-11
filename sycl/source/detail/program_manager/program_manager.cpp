@@ -1340,7 +1340,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
 
-    RTDeviceBinaryImageUPtr Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+    auto Img = make_unique_ptr<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -1483,16 +1483,15 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
           }
         }
       }
-      continue;
+    } else {
+      // Otherwise assume that the image contains all kernels associated with
+      // the module
+      cacheKernelUsesAssertInfo(*Img);
+
+      if (DumpImages)
+        dumpImage(*Img);
+      m_UniversalKernelSet.insert(Img.get());
     }
-
-    // Otherwise assume that the image contains all kernels associated with the
-    // module
-    cacheKernelUsesAssertInfo(*Img);
-
-    if (DumpImages)
-      dumpImage(*Img);
-    m_UniversalKernelSet.insert(Img.get());
     m_DeviceImages.insert(std::move(Img));
   }
 }
