@@ -104,7 +104,7 @@ TEST(GetProfilingInfo, normal_pass_without_exception) {
     std::cout << '\n';
 
     std::cout << std::flush;
-    // FAIL();
+    FAIL();
 
   } catch (sycl::exception const &e) {
     std::cerr << e.what() << std::endl;

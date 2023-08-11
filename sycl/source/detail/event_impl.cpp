@@ -25,8 +25,6 @@
 #include <sstream>
 #endif
 
-#include <iostream>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -157,8 +155,8 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 }
 
 event_impl::event_impl(const QueueImplPtr &Queue)
-    : MQueue{Queue},
-      MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
+    : MQueue{Queue}, 
+    MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
       MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
   if (Queue->is_host()) {

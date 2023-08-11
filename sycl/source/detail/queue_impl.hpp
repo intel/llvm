@@ -151,22 +151,21 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
-      if (!MDevice->has(aspect::queue_profiling)) {
-        // fallback profiling support
+      // fallback profiling support. See MFallbackProfiling
+      // info::device::queue_profiling returned false when
+      // piGetDeviceAndHostTimer is not supported. It returns true when
+      // PI_QUEUE_FLAG_PROFILING_ENABLE is set regardless of
+      // piGetDeviceAndHostTimer support with fallback profiling
+      if (MDevice->has(aspect::queue_profiling)) {
         if (checkNativeQueueProfiling(MDevice)) {
           // if piGetDeviceAndHostTimer is not supported, compute the profiling
           // time OpenCL version < 2.1 case
           if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported()) {
             MFallbackProfiling = true;
-
-            assert(false &&
-                   "==========================================================="
-                   "=====================MFallbackProfiling=ture");
+            assert(false && "///////////////////////////////////////"
+                            "MFallbackProfiling=true");
           }
         } else {
-          assert(false &&
-                 "============================================================="
-                 "===================MFallbackProfiling=false");
           throw sycl::exception(
               make_error_code(errc::feature_not_supported),
               "Cannot enable profiling, the associated device "
@@ -174,6 +173,7 @@ public:
         }
       }
     }
+
     if (has_property<ext::intel::property::queue::compute_index>()) {
       int Idx = get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
