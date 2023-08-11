@@ -614,7 +614,7 @@ annotated_ref& operator=(const annotated_ref&);
 ----
 |
 Copy an object of type `T` from another `annotated_ref<T, ...>` object.
-applying the annotations when the object is loaded from and stored to memory.
+Applying the annotations when the object is loaded from and stored to memory.
 
 |===
 
