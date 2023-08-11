@@ -162,8 +162,6 @@ public:
           // time OpenCL version < 2.1 case
           if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported()) {
             MFallbackProfiling = true;
-            assert(false && "///////////////////////////////////////"
-                            "MFallbackProfiling=true");
           }
         } else {
           throw sycl::exception(
@@ -858,7 +856,7 @@ protected:
   uint64_t MInstanceID = 0;
 
   // the fallback implementation of profiling info
-  bool MFallbackProfiling = false;
+  bool MFallbackProfiling = true;
 
 public:
   // Queue constructed with the discard_events property
