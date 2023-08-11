@@ -46,10 +46,9 @@ This extension also depends on the following other SYCL extensions:
 * link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
   sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
 
-Below is a list of interactions with other SYCL extensions. These extensions don't hve to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
+Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
 
-* link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
-* link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Restrictions on creating fpga_mem objects>> section below
+* link:sycl_ext_intel_fpga_datapath.asciidoc[sycl_ext_intel_fpga_datapath.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
 
 == Status
 Proposed
@@ -203,7 +202,7 @@ template<typename ... S>
 constexpr fpga_mem(S ... args);
 ----
 |
-Constructs a `fpga_mem` object, and implicit storage for `T`.
+Constructs a `fpga_mem` object, and implicit storage for `T`. `T` 's constructor will be called with `args`.
 
 // --- ROW BREAK ---
 a|
@@ -248,10 +247,9 @@ Available only if `sycl::is_property_key_of_v<propertyT, sycl::ext::intel::exper
 
 |===
 
-=== Restrictions on creating fpga_mem objects
+=== Interactions with other SYCL extensions
 
-There are restrictions on how the application can create objects of type
-`fpga_mem`. Applications that violate these restrictions are ill-formed.
+Below are some non-obvious interactions between `fpga_mem` and other SYCL extensions.
 
 * The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
 [source,c++]
