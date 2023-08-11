@@ -23,5 +23,9 @@ for viewing in Perfetto or chrome://tracing
 
      `XPTI_SUBSCRIBERS=/path/to/libsycl_perf_collector.[so,dll,dylib]`
 
+In order to simplify this set up process, a helper script (sycl-perf.sh) is also available that allows you to have 
+this automated for the most part. It however requires you to set the XPTI_PER_DIR=/path/to/lib where the dispatcher 
+and subscriber shared objects are present.
+
 For more detail on the framework, the tests that are provided and their usage,
 please consult the [XPTI Framework library documentation](doc/XPTI_Framework.md).
