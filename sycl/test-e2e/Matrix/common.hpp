@@ -1,6 +1,9 @@
+#include <random>
 #include <sycl/sycl.hpp>
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
+
+constexpr float BF16_EPSILON = 0.00781250;
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
 public:
@@ -42,4 +45,38 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
       }
     }
   }
+}
+
+template <typename T>
+void matrix_fill(unsigned int rows, unsigned int cols, T *src, T val) {
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      src[i * cols + j] = val;
+    }
+  }
+}
+
+template <typename T>
+void matrix_rand(unsigned int rows, unsigned int cols, T *src) {
+  std::random_device dev;
+  std::uniform_real_distribution<float> fdistr(-1.0, 1.0);
+
+  for (unsigned int i = 0; i < rows; i++) {
+    for (unsigned int j = 0; j < cols; j++) {
+      src[i * cols + j] = T(fdistr(dev));
+    }
+  }
+}
+
+template <typename T>
+bool matrix_compare(unsigned int rows, unsigned int cols, T *src, T *ref) {
+  bool res = true;
+  for (int i = 0; i < rows; i++) {
+    for (int j = 0; j < cols; j++) {
+      if ((fabs(src[i * cols + j] - ref[i * cols + j])) > BF16_EPSILON) {
+        res = false;
+      }
+    }
+  }
+  return res;
 }
