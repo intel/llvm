@@ -164,8 +164,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/sampler.hpp"
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
-      "ur/adapters/cuda/usm.hpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/usm.hpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}

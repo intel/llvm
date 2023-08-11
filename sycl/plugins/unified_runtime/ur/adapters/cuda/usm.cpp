@@ -129,11 +129,9 @@ ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Pointer) {
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
                                               void *pMem) {
-  if (auto Pool = umfPoolByPtr(pMem)) {
+  if (auto Pool = umfPoolByPtr(pMem))
     return umf::umf2urResult(umfPoolFree(Pool, pMem));
-  } else {
-    return USMFreeImpl(hContext, pMem);
-  }
+  return USMFreeImpl(hContext, pMem);
 }
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
@@ -307,11 +305,11 @@ umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
                                            ur_device_handle_t Dev) {
   Context = Ctx;
   Device = Dev;
-  // There isn't a way to query this in cuda, and there isn't even really much
-  // info on cuda's approach to alignment or like transfer granularity between
-  // host and device.. within UMF this is only used to influence alignment, and
-  // since we discard that in our alloc implementations it seems we can safely
-  // ignore this as well, for now.
+  // There isn't a way to query this in cuda, and there isn't much info on
+  // cuda's approach to alignment or transfer granularity between host and
+  // device. Within UMF this is only used to influence alignment, and since we
+  // discard that in our alloc implementations it seems we can safely ignore
+  // this as well, for now.
   MinPageSize = 0;
 
   return UMF_RESULT_SUCCESS;
@@ -373,10 +371,9 @@ ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
 ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                              ur_usm_pool_desc_t *PoolDesc)
     : Context(Context) {
-  void *pNext = const_cast<void *>(PoolDesc->pNext);
+  const void *pNext = PoolDesc->pNext;
   while (pNext != nullptr) {
-    const ur_base_desc_t *BaseDesc =
-        reinterpret_cast<const ur_base_desc_t *>(pNext);
+    const ur_base_desc_t *BaseDesc = static_cast<const ur_base_desc_t *>(pNext);
     switch (BaseDesc->stype) {
     case UR_STRUCTURE_TYPE_USM_POOL_LIMITS_DESC: {
       const ur_usm_pool_limits_desc_t *Limits =
@@ -391,7 +388,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
       throw UsmAllocationException(UR_RESULT_ERROR_INVALID_ARGUMENT);
     }
     }
-    pNext = const_cast<void *>(BaseDesc->pNext);
+    pNext = BaseDesc->pNext;
   }
 
   auto MemProvider =
@@ -450,6 +447,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolCreate(
   }
   return UR_RESULT_SUCCESS;
 #else
+  std::ignore = Context;
+  std::ignore = PoolDesc;
+  std::ignore = Pool;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 #endif
 }
