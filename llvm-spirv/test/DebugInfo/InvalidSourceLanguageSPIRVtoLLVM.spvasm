@@ -4,7 +4,7 @@
 ; REQUIRES: spirv-as
 
 ; RUN: spirv-as --target-env spv1.3 %s -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s
 
 ; SPIR-V
 ; Version: 1.1

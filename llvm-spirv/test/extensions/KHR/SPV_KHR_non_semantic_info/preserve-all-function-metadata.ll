@@ -1,9 +1,9 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-preserve-auxdata -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-preserve-auxdata
-; RUN: llvm-spirv -r -emit-opaque-pointers --spirv-preserve-auxdata %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r --spirv-preserve-auxdata %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.without.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.without.bc
 ; RUN: llvm-dis %t.rev.without.bc -o - | FileCheck %s --implicit-check-not="{{foo|bar|baz}}"
 
 ; CHECK-SPIRV: Extension "SPV_KHR_non_semantic_info"

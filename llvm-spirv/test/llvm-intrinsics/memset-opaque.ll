@@ -3,7 +3,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o - -emit-opaque-pointers | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
 
 ; CHECK-SPIRV: Decorate [[#NonConstMemset:]] LinkageAttributes "spirv.llvm_memset_p3_i32"
 ; CHECK-SPIRV: TypeInt [[Int8:[0-9]+]] 8 0

@@ -6,9 +6,13 @@
 ; RUN: llvm-spirv %t.spv -o %t.spt -to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv --spirv-target-env=SPV-IR -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-SPIRV
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:
 ; CHECK-WO-EXT: SPV_KHR_uniform_group_instructions

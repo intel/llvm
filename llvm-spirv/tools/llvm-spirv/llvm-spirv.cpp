@@ -154,18 +154,6 @@ static cl::opt<bool>
     SPIRVToolsDis("spirv-tools-dis", cl::init(false),
                   cl::desc("Emit textual assembly using SPIRV-Tools"));
 
-#if SPIRV_ENABLE_OPAQUE_POINTERS
-constexpr static bool SPIRVOpaquePointersDefault = true;
-#else
-constexpr static bool SPIRVOpaquePointersDefault = false;
-#endif
-
-static cl::opt<bool>
-    EmitOpaquePointers("emit-opaque-pointers", cl::init(true),
-                       cl::desc("Emit opaque instead of typed LLVM pointers "
-                                "for the translation from SPIR-V."),
-                       cl::Hidden);
-
 using SPIRV::ExtensionID;
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
