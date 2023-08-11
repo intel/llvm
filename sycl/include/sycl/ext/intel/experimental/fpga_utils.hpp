@@ -8,11 +8,10 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/ext/oneapi/latency_control/properties.hpp>
-#include <sycl/stl.hpp>
-#include <tuple>
+#include <sycl/ext/oneapi/latency_control/properties.hpp> // for latency_co...
+
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for conditional_t
 
 namespace sycl {
 inline namespace _V1 {
