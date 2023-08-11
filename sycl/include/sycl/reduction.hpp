@@ -990,7 +990,7 @@ public:
     // instantiated for the code below.
     auto DoIt = [&](auto &Out) {
       auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
-      for (int i = 0; i < num_elements; ++i) {
+      for (size_t i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
@@ -1021,7 +1021,7 @@ public:
           size_t NElements = num_elements;
 
           CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
-            for (int i = 0; i < NElements; ++i) {
+            for (size_t i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
               else
@@ -1205,7 +1205,7 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
-    for (int i = 0; i < NElements; ++i) {
+    for (size_t i = 0; i < NElements; ++i) {
       auto Elem = InAcc[i];
       if (IsUpdateOfUserVar)
         UserVarPtr[i] = BOp(UserVarPtr[i], *Elem);
