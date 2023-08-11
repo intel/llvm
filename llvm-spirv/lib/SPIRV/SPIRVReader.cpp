@@ -1609,8 +1609,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     if (BVar->isBuiltin(&BVKind))
       BV->setName(prefixSPIRVName(SPIRVBuiltInNameMap::map(BVKind)));
     auto *LVar = new GlobalVariable(*M, Ty, IsConst, LinkageTy,
-                                   /*Initializer=*/nullptr, BV->getName(), 0,
-                                   GlobalVariable::NotThreadLocal, AddrSpace);
+                                    /*Initializer=*/nullptr, BV->getName(), 0,
+                                    GlobalVariable::NotThreadLocal, AddrSpace);
     auto *Res = mapValue(BV, LVar);
     if (Init)
       Initializer = dyn_cast<Constant>(transValue(Init, F, BB, false));
@@ -1907,7 +1907,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *Vector = transValue(VTS->getVector(), F, BB);
     auto *VecTy = cast<FixedVectorType>(Vector->getType());
     unsigned VecSize = VecTy->getNumElements();
-    auto *NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
+    auto *NewVec =
+        Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
     auto *Scale = Builder.CreateFMul(Vector, NewVec, "scale");
     return mapValue(BV, Scale);
@@ -1963,7 +1964,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     uint64_t ColNum = Matrix->getType()->getArrayNumElements();
     auto *ColType = cast<ArrayType>(Matrix->getType())->getElementType();
     auto VecSize = cast<FixedVectorType>(ColType)->getNumElements();
-    auto *NewVec = Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
+    auto *NewVec =
+        Builder.CreateVectorSplat(VecSize, Scalar, Scalar->getName());
     NewVec->takeName(Scalar);
 
     Value *V = UndefValue::get(Matrix->getType());
@@ -2339,8 +2341,8 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpFunctionCall: {
     SPIRVFunctionCall *BC = static_cast<SPIRVFunctionCall *>(BV);
     auto *Call = CallInst::Create(transFunction(BC->getFunction()),
-                                 transValue(BC->getArgumentValues(), F, BB),
-                                 BC->getName(), BB);
+                                  transValue(BC->getArgumentValues(), F, BB),
+                                  BC->getName(), BB);
     setCallingConv(Call);
     setAttrByCalledFunc(Call);
     return mapValue(BV, Call);
@@ -2458,7 +2460,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpFNegate: {
     SPIRVUnary *BC = static_cast<SPIRVUnary *>(BV);
     auto *Neg = UnaryOperator::CreateFNeg(transValue(BC->getOperand(0), F, BB),
-                                         BV->getName(), BB);
+                                          BV->getName(), BB);
     applyFPFastMathModeDecorations(BV, Neg);
     return mapValue(BV, Neg);
   }
@@ -4064,7 +4066,8 @@ bool SPIRVToLLVM::transMetadata() {
     }
     // Generate metadata for intel_reqd_sub_group_size
     if (auto *EM = BF->getExecutionMode(ExecutionModeSubgroupSize)) {
-      auto *SizeMD = ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
+      auto *SizeMD =
+          ConstantAsMetadata::get(getUInt32(M, EM->getLiterals()[0]));
       F->setMetadata(kSPIR2MD::SubgroupSize, MDNode::get(*Context, SizeMD));
     }
     // Generate metadata for max_work_group_size
