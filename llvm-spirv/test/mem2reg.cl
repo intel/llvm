@@ -2,8 +2,8 @@
 // RUN: llvm-spirv -s %t.bc
 // RUN: llvm-dis < %t.bc | FileCheck %s --check-prefixes=CHECK,CHECK-WO
 // RUN: llvm-spirv -s -spirv-mem2reg %t.bc -o %t.opt.bc
-// RUN: llvm-dis < %t.opt.bc | FileCheck %s --check-prefixes=CHECK-W
-// CHECK-W-LABEL: spir_kernel void @foo
+// RUN: llvm-dis < %t.opt.bc | FileCheck %s --check-prefixes=CHECK,CHECK-W
+// CHECK-LABEL: spir_kernel void @foo
 // CHECK-W-NOT: alloca
 // CHECK-WO: alloca
 __kernel void foo(__global int *a) {
