@@ -116,17 +116,15 @@ with the existing behaviour of the handler with normal queue submissions.
 
 ## Memory handling: Buffer and Accessor
 
-There is no extra support for Graph-specific USM allocations in the current
+There is no extra support for graph-specific USM allocations in the current
 proposal. Memory operations will be supported subsequently by the current
 implementation starting with `memcpy`.
 
-Buffers and accessors are supported in a command-graph. The following restrictions
-are required to adapt buffers and their lifetime to a lazy work execution model:
-
-- The lifetime of a buffer with host data will be extended by copying the underlying
-data.
-- Host accessors on buffers that are currently used by a command-graph are prohibited.
-- Copy-back behavior on destruction of a buffer is prohibited.
+Buffers and accessors are supported in a command-graph. There are
+[spec restrictions](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
+on buffer usage in a graph so that their lifetime semantics are compatible with
+a lazy work execution model. However these changes to storage lifetimes have not
+yet been implemented.
 
 ## Backend Implementation
 
