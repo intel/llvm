@@ -283,11 +283,12 @@ convertOperatorToInstr(Operator *Op, Instruction *I) {
   return {};
 }
 
+static constexpr unsigned int NativeCPUGlobalAS = 1;
+
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
-  llvm::errs() << "[ptrbdg] M pre: " << M << "\n";
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
   for (auto &F : M) {
@@ -407,6 +408,24 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
+  }
+
+  // Materialize SPIRV GenericCastToPtr builtin to addrspacecast
+  // Todo: do this properly for every builtin
+  auto *CastF = M.getFunction("_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi");
+  if(CastF) {
+    SmallVector<Instruction *> ToRemove;
+    for(auto& U : CastF->uses()){
+      if(auto* CI = dyn_cast<CallInst>(U.getUser())) {
+        auto *NewI = AddrSpaceCastInst::Create(Instruction::CastOps::AddrSpaceCast, CI->getArgOperand(0),
+            PointerType::get(M.getContext(), NativeCPUGlobalAS), "nativecpu_addrcast", CI);
+        CI->replaceAllUsesWith(NewI);
+        ToRemove.push_back(CI);
+      } 
+    }
+
+    for(auto& I : ToRemove)
+      I->eraseFromParent();
   }
 
   for (auto &F : M) {
