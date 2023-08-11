@@ -37,7 +37,11 @@ using namespace llvm;
 // Construct the lowerer base class and initialize its members.
 coro::LowererBase::LowererBase(Module &M)
     : TheModule(M), Context(M.getContext()),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Int8Ptr(PointerType::get(Context, 0)),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      Int8Ptr(Type::getInt8PtrTy(Context, 0)),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       ResumeFnType(FunctionType::get(Type::getVoidTy(Context), Int8Ptr,
                                      /*isVarArg=*/false)),
       NullPtr(ConstantPointerNull::get(Int8Ptr)) {}
