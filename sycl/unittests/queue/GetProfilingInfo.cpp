@@ -422,6 +422,9 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_support) {
       event.get_profiling_info<sycl::info::event_profiling::command_start>();
   auto end_time =
       event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  (void)submit_time;
+  (void)start_time;
+  (void)end_time;
 }
 
 TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupport) {
@@ -460,4 +463,7 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupport) {
       event.get_profiling_info<sycl::info::event_profiling::command_start>();
   auto end_time =
       event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  (void)submit_time;
+  (void)start_time;
+  (void)end_time;
 }
