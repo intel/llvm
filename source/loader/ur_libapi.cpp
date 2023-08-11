@@ -3358,8 +3358,6 @@ ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 /// @brief Create kernel object from a program.
 ///
 /// @details
-///     - Multiple calls to this function will return identical device handles,
-///       in the same order.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function should be lock-free.
 ///
