@@ -856,7 +856,7 @@ protected:
   uint64_t MInstanceID = 0;
 
   // the fallback implementation of profiling info
-  bool MFallbackProfiling = true;
+  bool MFallbackProfiling = false;
 
 public:
   // Queue constructed with the discard_events property
