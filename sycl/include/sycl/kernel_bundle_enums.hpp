@@ -9,7 +9,7 @@
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class bundle_state : char { input = 0, object = 1, executable = 2 };
 

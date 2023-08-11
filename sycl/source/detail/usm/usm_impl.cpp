@@ -13,6 +13,7 @@
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/pi.hpp>
 #include <sycl/device.hpp>
+#include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/usm.hpp>
 
 #include <array>
@@ -28,7 +29,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 using alloc = sycl::usm::alloc;
 
@@ -644,5 +645,44 @@ device get_pointer_device(const void *Ptr, const context &Ctxt) {
   throw runtime_error("Cannot find device associated with USM allocation!",
                       PI_ERROR_INVALID_OPERATION);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+
+// Device copy enhancement APIs, prepare_for and release_from USM.
+
+static void prepare_for_usm_device_copy(const void *Ptr, size_t Size,
+                                        const context &Ctxt) {
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context PICtx = CtxImpl->getHandleRef();
+  // Call the PI function
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextUSMImport>(Ptr, Size, PICtx);
+}
+
+static void release_from_usm_device_copy(const void *Ptr, const context &Ctxt) {
+  std::shared_ptr<detail::context_impl> CtxImpl = detail::getSyclObjImpl(Ctxt);
+  pi_context PICtx = CtxImpl->getHandleRef();
+  // Call the PI function
+  const detail::PluginPtr &Plugin = CtxImpl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextUSMRelease>(Ptr, PICtx);
+}
+
+namespace ext::oneapi::experimental {
+void prepare_for_device_copy(const void *Ptr, size_t Size,
+                             const context &Ctxt) {
+  prepare_for_usm_device_copy(Ptr, Size, Ctxt);
+}
+
+void prepare_for_device_copy(const void *Ptr, size_t Size, const queue &Queue) {
+  prepare_for_usm_device_copy(Ptr, Size, Queue.get_context());
+}
+
+void release_from_device_copy(const void *Ptr, const context &Ctxt) {
+  release_from_usm_device_copy(Ptr, Ctxt);
+}
+
+void release_from_device_copy(const void *Ptr, const queue &Queue) {
+  release_from_usm_device_copy(Ptr, Queue.get_context());
+}
+} // namespace ext::oneapi::experimental
+
+} // namespace _V1
 } // namespace sycl

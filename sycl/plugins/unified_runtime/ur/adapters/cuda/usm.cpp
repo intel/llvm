@@ -8,6 +8,7 @@
 
 #include <cassert>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
@@ -204,7 +205,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // the same index
       std::vector<ur_platform_handle_t> Platforms;
       Platforms.resize(DeviceIndex + 1);
-      Result = urPlatformGet(DeviceIndex + 1, Platforms.data(), nullptr);
+      ur_adapter_handle_t AdapterHandle = &adapter;
+      Result = urPlatformGet(&AdapterHandle, 1, DeviceIndex + 1,
+                             Platforms.data(), nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = Platforms[DeviceIndex]->Devices[0].get();
@@ -217,4 +220,19 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
     Result = Err;
   }
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
+                                                   void *HostPtr, size_t Size) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  UR_ASSERT(Size > 0, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
+                                                    void *HostPtr) {
+  UR_ASSERT(Context, UR_RESULT_ERROR_INVALID_CONTEXT);
+  UR_ASSERT(!HostPtr, UR_RESULT_ERROR_INVALID_VALUE);
+  return UR_RESULT_SUCCESS;
 }

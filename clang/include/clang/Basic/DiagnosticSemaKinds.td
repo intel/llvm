@@ -167,6 +167,13 @@ def err_intel_fpga_mem_arg_mismatch
             "a pointer"
             "|a non-negative integer constant}0">;
 
+def err_intel_sycl_ptr_annotation_arg_number_mismatch
+    :Error<"number of parameters must be odd number">;
+def err_intel_sycl_ptr_annotation_mismatch
+    : Error<"builtin parameter must be %select{"
+            "a pointer"
+            "|a string literal or constexpr const char*}0">;
+
 // C99 variable-length arrays
 def ext_vla : Extension<"variable length arrays are a C99 feature">,
   InGroup<VLAExtension>;
@@ -11971,6 +11978,9 @@ def warn_ivdep_attribute_argument : Warning<
   InGroup<SyclIvdepAttribute>;
 def warn_attribute_spelling_deprecated : Warning<
   "attribute %0 is deprecated">,
+  InGroup<DeprecatedAttributes>;
+def warn_attribute_deprecated_ignored : Warning<
+  "attribute %0 is deprecated; attribute ignored">,
   InGroup<DeprecatedAttributes>;
 def note_spelling_suggestion : Note<
   "did you mean to use %0 instead?">;

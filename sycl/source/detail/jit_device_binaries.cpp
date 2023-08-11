@@ -8,8 +8,10 @@
 
 #include <detail/jit_device_binaries.hpp>
 
+#include <cassert>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 OffloadEntryContainer::OffloadEntryContainer(const std::string &Name,
@@ -134,5 +136,5 @@ pi_device_binaries DeviceBinariesCollection::getPIDeviceStruct() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

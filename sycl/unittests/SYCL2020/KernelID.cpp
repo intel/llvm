@@ -20,7 +20,7 @@ class TestKernel3;
 class ServiceKernel1;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<TestKernel1> : public unittest::MockKernelInfoBase {
@@ -44,7 +44,7 @@ struct KernelInfo<ServiceKernel1> : public unittest::MockKernelInfoBase {
   }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 static sycl::unittest::PiImage
