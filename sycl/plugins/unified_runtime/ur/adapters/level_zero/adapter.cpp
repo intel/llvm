@@ -179,11 +179,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
     int32_t *Error ///< [out] pointer to an integer where the adapter specific
                    ///< error code will be stored.
 ) {
-  std::ignore = Adapter;
-  std::ignore = Message;
-  std::ignore = Error;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *Message = ErrorMessage;
+  *Error = ErrorMessageCode;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,

@@ -286,8 +286,3 @@ thread_local char ErrorMessage[MaxMessageSize];
   strcpy(ErrorMessage, message);
   ErrorMessageCode = error_code;
 }
-
-ur_result_t zerPluginGetLastError(char **message) {
-  *message = &ErrorMessage[0];
-  return ErrorMessageCode;
-}
