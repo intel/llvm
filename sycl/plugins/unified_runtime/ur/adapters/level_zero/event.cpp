@@ -935,7 +935,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      // UR_CALL(piKernelRelease(DepEventKernel));
+      UR_CALL(urKernelRelease(DepEventKernel));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }
