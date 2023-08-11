@@ -7743,4 +7743,8 @@ ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
     return exceptionToResult(std::current_exception());
 }
 
+void uselessFunc() {
+    std::thread NullThread([](){});
+}
+
 } // extern "C"
