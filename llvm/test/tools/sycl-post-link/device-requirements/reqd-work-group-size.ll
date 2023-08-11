@@ -25,13 +25,19 @@
 ; RUN: FileCheck %s -input-file=%t_0.prop --check-prefix CHECK-PROP-AUTO-SPLIT-0
 ; RUN: FileCheck %s -input-file=%t_1.prop --check-prefix CHECK-PROP-AUTO-SPLIT-1
 
+; TODO: Before intel/llvm#10620, the reqd_work_group_size attribute
+; stores its values as uint32_t, but this needed to be expanded to
+; uint64_t.  However, this change did not happen in ABI-breaking
+; window, so we attach the required work-group size as the
+; reqd_work_group_size_uint64_t attribute. At the next ABI-breaking
+; window, this can be changed back to reqd_work_group_size.
 ; CHECK-PROP-AUTO-SPLIT-0: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-0-NEXT: aspects=2|AAAAAAAAAAA
-; CHECK-PROP-AUTO-SPLIT-0-NEXT: reqd_work_group_size=2|gAAAAAAAAAAQAAAA
+; CHECK-PROP-AUTO-SPLIT-0-NEXT: reqd_work_group_size_uint64_t=2|ABAAAAAAAAAQAAAAAAAAAA
 
 ; CHECK-PROP-AUTO-SPLIT-1: [SYCL/device requirements]
 ; CHECK-PROP-AUTO-SPLIT-1-NEXT: aspects=2|AAAAAAAAAAA
-; CHECK-PROP-AUTO-SPLIT-1-NEXT: reqd_work_group_size=2|gAAAAAAAAAAIAAAA
+; CHECK-PROP-AUTO-SPLIT-1-NEXT: reqd_work_group_size_uint64_t=2|ABAAAAAAAAAIAAAAAAAAAA
 
 ; ModuleID = '/tmp/source-5f7d0d.bc'
 source_filename = "llvm-link"

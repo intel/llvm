@@ -1218,27 +1218,13 @@ image_mem_handle map_external_memory_array(
     interop_mem_handle interopMemHandle,
     const image_descriptor &imageDescriptor,
     const sycl::queue &syclQueue);
-
-void *map_external_memory_buffer(
-    interop_mem_handle interopMemHandle,
-    const sycl::device &syclDevice,
-    const sycl::context &syclContext);
-void *map_external_memory_buffer(
-    interop_mem_handle interopMemHandle,
-    const sycl::queue &syclQueue);
 }
 ```
 
-The resulting `interop_mem_handle` can then be mapped to two different memory 
-types, a buffer, or an array.
-
-If mapped to a buffer, the resulting `void*` can be used in USM like fashion. 
-It can be passed as an argument to a kernel and therein manipulated.
-
-If mapped to an array, the resulting type is an `image_mem_handle`, which can be
-used to construct images in the same way as memory allocated through 
-`alloc_image_mem`. The `ext_oneapi_copy` operations also work with imported 
-memory mapped to `image_mem_handle` types.
+The resulting `interop_mem_handle` can then be mapped, where the resulting type 
+is an `image_mem_handle`. This can be used to construct images in the same way 
+as memory allocated through `alloc_image_mem`. The `ext_oneapi_copy` operations 
+also work with imported memory mapped to `image_mem_handle` types.
 
 When calling `create_image` with an `image_mem_handle` mapped from an external 
 memory object, the user must ensure that the image descriptor they pass to 
@@ -1248,18 +1234,18 @@ or `image_channel_order` members will result in undefined behavior. The
 `image_type` member must be set to `image_type::interop`.
 
 Once a user has finished operating on imported memory, they must ensure that 
-they destroy the imported memory handle through `destroy_external_memory`. 
+they destroy the imported memory handle through `release_external_memory`.
 
-`destroy_external_memory` can only accept `interop_mem_handles` that were 
+`release_external_memory` can only accept `interop_mem_handles` that were
 created through `import_external_memory`.
 
 ```cpp
 namespace sycl::ext::oneapi::experimental {
 
-void destroy_external_memory(interop_mem_handle interopMem,
+void release_external_memory(interop_mem_handle interopMem,
                              const sycl::device &syclDevice,
                              const sycl::context &syclContext);
-void destroy_external_memory(interop_mem_handle interopMem,
+void release_external_memory(interop_mem_handle interopMem,
                              const sycl::queue &syclQueue);
 }
 ```
@@ -1817,9 +1803,9 @@ try {
   q.wait_and_throw();  
 
   // Extension: destroy all external resources
-  sycl::ext::oneapi::experimental::destroy_external_memory(
+  sycl::ext::oneapi::experimental::release_external_memory(
       input_interop_mem_handle, queue);
-  sycl::ext::oneapi::experimental::destroy_external_memory(
+  sycl::ext::oneapi::experimental::release_external_memory(
       output_interop_mem_handle, queue);
   sycl::ext::oneapi::experimental::destroy_external_semaphore(
       wait_interop_semaphore_handle, queue);

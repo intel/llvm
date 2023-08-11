@@ -8,8 +8,12 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <cstdint>     // for uint16_t
+#include <iosfwd>      // for nullptr_t
+#include <type_traits> // for true_type
 
 namespace sycl {
 inline namespace _V1 {
