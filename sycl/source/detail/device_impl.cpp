@@ -633,7 +633,7 @@ bool device_impl::IsGetDeviceAndHostTimerSupported() {
   auto Result =
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
           MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
-  return (Result != PI_ERROR_INVALID_OPERATION) ? true : false;
+  return Result != PI_ERROR_INVALID_OPERATION;
 }
 
 } // namespace detail

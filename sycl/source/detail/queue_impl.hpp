@@ -152,10 +152,6 @@ public:
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
       // fallback profiling support. See MFallbackProfiling
-      // info::device::queue_profiling returned false when
-      // piGetDeviceAndHostTimer is not supported. It returns true when
-      // PI_QUEUE_FLAG_PROFILING_ENABLE is set regardless of
-      // piGetDeviceAndHostTimer support with fallback profiling
       if (MDevice->has(aspect::queue_profiling)) {
         if (checkNativeQueueProfiling(MDevice)) {
           // if piGetDeviceAndHostTimer is not supported, compute the profiling

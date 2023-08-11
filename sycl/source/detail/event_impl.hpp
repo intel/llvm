@@ -228,8 +228,8 @@ public:
   /// submission time for the command associated with this event.
   void setSubmissionTime();
 
-  /// Calling this function to cature the host timestamp to use
-  /// profiling base time. see MFallbackProfiling
+  /// Calling this function to capture the host timestamp to use
+  /// profiling base time. See MFallbackProfiling
   void setQueueBaseTime();
 
   /// @return Submission time for command associated with this event
@@ -300,7 +300,6 @@ protected:
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
-
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;

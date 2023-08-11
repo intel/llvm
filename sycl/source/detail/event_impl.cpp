@@ -101,8 +101,8 @@ void event_impl::setComplete() {
 }
 
 static uint64_t inline getTimestamp() {
-  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
+  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
       .count();
 }
 
@@ -331,8 +331,8 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
                 this->getHandleRef(), this->getPlugin());
         return MHostBaseTime - queueTime + endTime;
       }
-      return 0;
     }
+    return 0;
   }
   if (!MHostProfilingInfo)
     throw sycl::exception(
@@ -467,18 +467,8 @@ void event_impl::setSubmissionTime() {
       }
     }
   } else {
-    // 1) This code is in order to support profiling for OpenCL version < 2.1
-    // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
-    // host and device submit time. The host timestamp in sycl runtime will be
-    // return for the info::event_profiling::command_submit
-    // host timestamp to to return for calling <command_submit>
-    // this is the base time in host side to support fallback profiling
-    // for OpenCL version < 2.1, see MFallbackProfiling
-    // in fact, this fuction is called after enqueuing is processed
-    // successfully in piEnqueueKernelLaunch()
-    // TO DO: submit time cature by calling setSubmissionTime()
-    // may need to be changed **before** enqueuing
-    // as a result, currently MSubmitTime is later than MHostBaseTime
+    // Capture the host timestamp for a return value of function call
+    // <info::event_profiling::command_submit>. See MFallbackProfiling
     MSubmitTime = getTimestamp();
   }
 }
@@ -486,11 +476,8 @@ void event_impl::setSubmissionTime() {
 void event_impl::setQueueBaseTime() {
   if (!MIsProfilingEnabled || !MFallbackProfiling)
     return;
-
-  // 2) This code is in order to support profiling for OpenCL version < 2.1
-  // that API clGetDeviceAndHostTimer is not availalbe to obrain the precise
-  // host and device submit time. The host timestamp in sycl runtime will be
-  // used to normalize profiling time in <command_start> and <command_end>
+  // Capture a host timestamp to use normalize profiling time in
+  // <command_start> and <command_end>. See MFallbackProfiling
   MHostBaseTime = getTimestamp();
 }
 
