@@ -340,6 +340,11 @@ private:
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
 
+  /// Keeps images without entry info.
+  /// Such images are assumed to contain all kernel associated with the module.
+  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
+  std::unordered_set<RTDeviceBinaryImage *> m_UniversalKernelSet;
+
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
   /// avoid deadlocks care must be taken not to acquire

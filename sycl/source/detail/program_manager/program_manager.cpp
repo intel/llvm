@@ -1104,17 +1104,22 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                     Device);
     }
   }
-  if (!Img)
+  if (Img) {
+    CheckJITCompilationForImage(Img, JITCompilationIsRequired);
+
+    if (DbgProgMgr > 0) {
+      std::cerr << "selected device image: " << &Img->getRawData() << "\n";
+      Img->print();
+    }
+    return *Img;
+  }
+
+  if (m_UniversalKernelSet.size())
+    return getDeviceImage(m_UniversalKernelSet, Context, Device,
+                          JITCompilationIsRequired);
+  else
     throw runtime_error("No kernel named " + KernelName + " was found",
                         PI_ERROR_INVALID_KERNEL_NAME);
-
-  CheckJITCompilationForImage(Img, JITCompilationIsRequired);
-
-  if (DbgProgMgr > 0) {
-    std::cerr << "selected device image: " << &Img->getRawData() << "\n";
-    Img->print();
-  }
-  return *Img;
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -1334,9 +1339,6 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
     const _pi_offload_entry EntriesB = RawImg->EntriesBegin;
     const _pi_offload_entry EntriesE = RawImg->EntriesEnd;
-    // Entries presence is expected otherwise treat it as empty image and skip.
-    if (EntriesB == EntriesE)
-      continue;
 
     RTDeviceBinaryImageUPtr Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
     static uint32_t SequenceID = 0;
@@ -1352,133 +1354,145 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
             createKernelArgMask(DeviceBinaryProperty(Info).asByteArray());
     }
 
-    // Fill maps for kernel bundles
-    std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+    if (EntriesB != EntriesE) {
+      // Fill maps for kernel bundles
+      std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
 
-    // Register all exported symbols
-    auto ExportedSymbols = Img->getExportedSymbols();
-    for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
-      m_ExportedSymbols.insert(ExportedSymbol->Name);
+      // Register all exported symbols
+      auto ExportedSymbols = Img->getExportedSymbols();
+      for (const pi_device_binary_property &ExportedSymbol : ExportedSymbols)
+        m_ExportedSymbols.insert(ExportedSymbol->Name);
 
-    if (DumpImages) {
-      const bool NeedsSequenceID = std::any_of(
-          m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
-          [&](auto &CurrentImg) {
-            return CurrentImg.first->getFormat() == Img->getFormat();
-          });
-      dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
-    }
-
-    m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
-
-    for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
-         ++EntriesIt) {
-
-      // Skip creating unique kernel ID if it is a service kernel.
-      // SYCL service kernels are identified by having
-      // __sycl_service_kernel__ in the mangled name, primarily as part of
-      // the namespace of the name type.
-      if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
-        m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
-        continue;
+      if (DumpImages) {
+        const bool NeedsSequenceID = std::any_of(
+            m_BinImg2KernelIDs.begin(), m_BinImg2KernelIDs.end(),
+            [&](auto &CurrentImg) {
+              return CurrentImg.first->getFormat() == Img->getFormat();
+            });
+        dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
       }
 
-      // Skip creating unique kernel ID if it is an exported device
-      // function. Exported device functions appear in the offload entries
-      // among kernels, but are identifiable by being listed in properties.
-      if (m_ExportedSymbols.find(EntriesIt->name) != m_ExportedSymbols.end())
-        continue;
+      m_BinImg2KernelIDs[Img.get()].reset(new std::vector<kernel_id>);
 
-      // ... and create a unique kernel ID for the entry
-      auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
-      if (It == m_KernelName2KernelIDs.end()) {
-        std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
-            std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
-        sycl::kernel_id KernelID =
-            detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+      for (_pi_offload_entry EntriesIt = EntriesB; EntriesIt != EntriesE;
+           ++EntriesIt) {
 
-        It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name, KernelID);
+        // Skip creating unique kernel ID if it is a service kernel.
+        // SYCL service kernels are identified by having
+        // __sycl_service_kernel__ in the mangled name, primarily as part of
+        // the namespace of the name type.
+        if (std::strstr(EntriesIt->name, "__sycl_service_kernel__")) {
+          m_ServiceKernels.insert(std::make_pair(EntriesIt->name, Img.get()));
+          continue;
+        }
+
+        // Skip creating unique kernel ID if it is an exported device
+        // function. Exported device functions appear in the offload entries
+        // among kernels, but are identifiable by being listed in properties.
+        if (m_ExportedSymbols.find(EntriesIt->name) != m_ExportedSymbols.end())
+          continue;
+
+        // ... and create a unique kernel ID for the entry
+        auto It = m_KernelName2KernelIDs.find(EntriesIt->name);
+        if (It == m_KernelName2KernelIDs.end()) {
+          std::shared_ptr<detail::kernel_id_impl> KernelIDImpl =
+              std::make_shared<detail::kernel_id_impl>(EntriesIt->name);
+          sycl::kernel_id KernelID =
+              detail::createSyclObjFromImpl<sycl::kernel_id>(KernelIDImpl);
+
+          It = m_KernelName2KernelIDs.emplace_hint(It, EntriesIt->name,
+                                                   KernelID);
+        }
+        m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
+        m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
       }
-      m_KernelIDs2BinImage.insert(std::make_pair(It->second, Img.get()));
-      m_BinImg2KernelIDs[Img.get()]->push_back(It->second);
+
+      cacheKernelUsesAssertInfo(*Img);
+
+      // Sort kernel ids for faster search
+      std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
+                m_BinImg2KernelIDs[Img.get()]->end(), LessByHash<kernel_id>{});
+
+      // ... and initialize associated device_global information
+      {
+        std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
+
+        auto DeviceGlobals = Img->getDeviceGlobals();
+        for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
+          ByteArray DeviceGlobalInfo =
+              DeviceBinaryProperty(DeviceGlobal).asByteArray();
+
+          // The supplied device_global info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the device_global.
+          // * 4 bytes - 0 if device_global has device_image_scope and any value
+          //             otherwise.
+          DeviceGlobalInfo.dropBytes(8);
+          auto [TypeSize, DeviceImageScopeDecorated] =
+              DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
+          assert(DeviceGlobalInfo.empty() && "Extra data left!");
+
+          // Give the image pointer as an identifier for the image the
+          // device-global is associated with.
+
+          auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
+          if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
+            // If it has already been registered we update the information.
+            ExistingDeviceGlobal->second->initialize(Img.get(), TypeSize,
+                                                     DeviceImageScopeDecorated);
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the device global is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
+                DeviceGlobal->Name, Img.get(), TypeSize,
+                DeviceImageScopeDecorated);
+            m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
+          }
+        }
+      }
+      // ... and initialize associated host_pipe information
+      {
+        std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
+        auto HostPipes = Img->getHostPipes();
+        for (const pi_device_binary_property &HostPipe : HostPipes) {
+          ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
+
+          // The supplied host_pipe info property is expected to contain:
+          // * 8 bytes - Size of the property.
+          // * 4 bytes - Size of the underlying type in the host_pipe.
+          // Note: Property may be padded.
+
+          HostPipeInfo.dropBytes(8);
+          auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
+          assert(HostPipeInfo.empty() && "Extra data left!");
+
+          auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
+          if (ExistingHostPipe != m_HostPipes.end()) {
+            // If it has already been registered we update the information.
+            ExistingHostPipe->second->initialize(TypeSize);
+            ExistingHostPipe->second->initialize(Img.get());
+          } else {
+            // If it has not already been registered we create a new entry.
+            // Note: Pointer to the host pipe is not available here, so it
+            //       cannot be set until registration happens.
+            auto EntryUPtr =
+                std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
+            EntryUPtr->initialize(Img.get());
+            m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
+          }
+        }
+      }
+      continue;
     }
 
+    // Otherwise assume that the image contains all kernels associated with the
+    // module
     cacheKernelUsesAssertInfo(*Img);
 
-    // Sort kernel ids for faster search
-    std::sort(m_BinImg2KernelIDs[Img.get()]->begin(),
-              m_BinImg2KernelIDs[Img.get()]->end(), LessByHash<kernel_id>{});
-
-    // ... and initialize associated device_global information
-    {
-      std::lock_guard<std::mutex> DeviceGlobalsGuard(m_DeviceGlobalsMutex);
-
-      auto DeviceGlobals = Img->getDeviceGlobals();
-      for (const pi_device_binary_property &DeviceGlobal : DeviceGlobals) {
-        ByteArray DeviceGlobalInfo =
-            DeviceBinaryProperty(DeviceGlobal).asByteArray();
-
-        // The supplied device_global info property is expected to contain:
-        // * 8 bytes - Size of the property.
-        // * 4 bytes - Size of the underlying type in the device_global.
-        // * 4 bytes - 0 if device_global has device_image_scope and any value
-        //             otherwise.
-        DeviceGlobalInfo.dropBytes(8);
-        auto [TypeSize, DeviceImageScopeDecorated] =
-            DeviceGlobalInfo.consume<std::uint32_t, std::uint32_t>();
-        assert(DeviceGlobalInfo.empty() && "Extra data left!");
-
-        // Give the image pointer as an identifier for the image the
-        // device-global is associated with.
-
-        auto ExistingDeviceGlobal = m_DeviceGlobals.find(DeviceGlobal->Name);
-        if (ExistingDeviceGlobal != m_DeviceGlobals.end()) {
-          // If it has already been registered we update the information.
-          ExistingDeviceGlobal->second->initialize(Img.get(), TypeSize,
-                                                   DeviceImageScopeDecorated);
-        } else {
-          // If it has not already been registered we create a new entry.
-          // Note: Pointer to the device global is not available here, so it
-          //       cannot be set until registration happens.
-          auto EntryUPtr = std::make_unique<DeviceGlobalMapEntry>(
-              DeviceGlobal->Name, Img.get(), TypeSize,
-              DeviceImageScopeDecorated);
-          m_DeviceGlobals.emplace(DeviceGlobal->Name, std::move(EntryUPtr));
-        }
-      }
-    }
-    // ... and initialize associated host_pipe information
-    {
-      std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
-      auto HostPipes = Img->getHostPipes();
-      for (const pi_device_binary_property &HostPipe : HostPipes) {
-        ByteArray HostPipeInfo = DeviceBinaryProperty(HostPipe).asByteArray();
-
-        // The supplied host_pipe info property is expected to contain:
-        // * 8 bytes - Size of the property.
-        // * 4 bytes - Size of the underlying type in the host_pipe.
-        // Note: Property may be padded.
-
-        HostPipeInfo.dropBytes(8);
-        auto TypeSize = HostPipeInfo.consume<std::uint32_t>();
-        assert(HostPipeInfo.empty() && "Extra data left!");
-
-        auto ExistingHostPipe = m_HostPipes.find(HostPipe->Name);
-        if (ExistingHostPipe != m_HostPipes.end()) {
-          // If it has already been registered we update the information.
-          ExistingHostPipe->second->initialize(TypeSize);
-          ExistingHostPipe->second->initialize(Img.get());
-        } else {
-          // If it has not already been registered we create a new entry.
-          // Note: Pointer to the host pipe is not available here, so it
-          //       cannot be set until registration happens.
-          auto EntryUPtr =
-              std::make_unique<HostPipeMapEntry>(HostPipe->Name, TypeSize);
-          EntryUPtr->initialize(Img.get());
-          m_HostPipes.emplace(HostPipe->Name, std::move(EntryUPtr));
-        }
-      }
-    }
+    if (DumpImages)
+      dumpImage(*Img);
+    m_UniversalKernelSet.insert(Img.get());
     m_DeviceImages.insert(std::move(Img));
   }
 }
