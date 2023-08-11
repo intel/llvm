@@ -896,12 +896,13 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
   //
   auto ZeDevice = this->ZeDevice;
   ZeDeviceProperties.Compute = [ZeDevice](ze_device_properties_t &Properties) {
-    ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &Properties));
+    ZE_CALL_NOCHECK_VOID(zeDeviceGetProperties, (ZeDevice, &Properties));
   };
 
   ZeDeviceComputeProperties.Compute =
       [ZeDevice](ze_device_compute_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeDeviceGetComputeProperties, (ZeDevice, &Properties));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetComputeProperties,
+                             (ZeDevice, &Properties));
       };
 
   ZeDeviceIpVersionExt.Compute =
@@ -909,17 +910,19 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         ze_device_properties_t P;
         P.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
         P.pNext = (void *)&Properties;
-        ZE_CALL_NOCHECK(zeDeviceGetProperties, (ZeDevice, &P));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetProperties, (ZeDevice, &P));
       };
 
   ZeDeviceImageProperties.Compute =
       [ZeDevice](ze_device_image_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeDeviceGetImageProperties, (ZeDevice, &Properties));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetImageProperties,
+                             (ZeDevice, &Properties));
       };
 
   ZeDeviceModuleProperties.Compute =
       [ZeDevice](ze_device_module_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeDeviceGetModuleProperties, (ZeDevice, &Properties));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetModuleProperties,
+                             (ZeDevice, &Properties));
       };
 
   ZeDeviceMemoryProperties.Compute =
@@ -928,8 +931,8 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
                     std::vector<ZeStruct<ze_device_memory_ext_properties_t>>>
               &Properties) {
         uint32_t Count = 0;
-        ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
-                        (ZeDevice, &Count, nullptr));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetMemoryProperties,
+                             (ZeDevice, &Count, nullptr));
 
         auto &PropertiesVector = Properties.first;
         auto &PropertiesExtVector = Properties.second;
@@ -940,14 +943,14 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         for (uint32_t I = 0; I < Count; ++I)
           PropertiesVector[I].pNext = (void *)&PropertiesExtVector[I];
 
-        ZE_CALL_NOCHECK(zeDeviceGetMemoryProperties,
-                        (ZeDevice, &Count, PropertiesVector.data()));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetMemoryProperties,
+                             (ZeDevice, &Count, PropertiesVector.data()));
       };
 
   ZeDeviceMemoryAccessProperties.Compute =
       [ZeDevice](ze_device_memory_access_properties_t &Properties) {
-        ZE_CALL_NOCHECK(zeDeviceGetMemoryAccessProperties,
-                        (ZeDevice, &Properties));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetMemoryAccessProperties,
+                             (ZeDevice, &Properties));
       };
 
   ZeDeviceCacheProperties.Compute =
@@ -955,12 +958,12 @@ ur_result_t ur_device_handle_t_::initialize(int SubSubDeviceOrdinal,
         // TODO: Since v1.0 there can be multiple cache properties.
         // For now remember the first one, if any.
         uint32_t Count = 0;
-        ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
-                        (ZeDevice, &Count, nullptr));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetCacheProperties,
+                             (ZeDevice, &Count, nullptr));
         if (Count > 0)
           Count = 1;
-        ZE_CALL_NOCHECK(zeDeviceGetCacheProperties,
-                        (ZeDevice, &Count, &Properties));
+        ZE_CALL_NOCHECK_VOID(zeDeviceGetCacheProperties,
+                             (ZeDevice, &Count, &Properties));
       };
 
   ImmCommandListUsed = this->useImmediateCommandLists();
@@ -1064,11 +1067,13 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
   // host ptr and the SYCL experimental APIs, prepare_for_device_copy and
   // release_from_device_copy.
   ze_driver_handle_t DriverHandle = Platform->ZeDriver;
-  if (ZE_CALL_NOCHECK(
-          zeDriverGetExtensionFunctionAddress,
-          (DriverHandle, "zexDriverImportExternalPointer",
-           reinterpret_cast<void **>(&zexDriverImportExternalPointer))) == 0) {
-    ZE_CALL_NOCHECK(
+  ze_result_t ZeResult{};
+  ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                  (DriverHandle, "zexDriverImportExternalPointer",
+                   reinterpret_cast<void **>(&zexDriverImportExternalPointer)),
+                  ZeResult);
+  if (ZeResult == 0) {
+    ZE_CALL_NOCHECK_VOID(
         zeDriverGetExtensionFunctionAddress,
         (DriverHandle, "zexDriverReleaseImportedPointer",
          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
@@ -1092,12 +1097,13 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
 }
 void ZeUSMImportExtension::doZeUSMImport(ze_driver_handle_t DriverHandle,
                                          void *HostPtr, size_t Size) {
-  ZE_CALL_NOCHECK(zexDriverImportExternalPointer,
-                  (DriverHandle, HostPtr, Size));
+  ZE_CALL_NOCHECK_VOID(zexDriverImportExternalPointer,
+                       (DriverHandle, HostPtr, Size));
 }
 void ZeUSMImportExtension::doZeUSMRelease(ze_driver_handle_t DriverHandle,
                                           void *HostPtr) {
-  ZE_CALL_NOCHECK(zexDriverReleaseImportedPointer, (DriverHandle, HostPtr));
+  ZE_CALL_NOCHECK_VOID(zexDriverReleaseImportedPointer,
+                       (DriverHandle, HostPtr));
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(

@@ -593,7 +593,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
 
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (Kernel->ZeKernel));
+    ze_result_t ZeResult{};
+    ZE_CALL_NOCHECK(zeKernelDestroy, (Kernel->ZeKernel), ZeResult);
     // Gracefully handle the case that L0 was already unloaded.
     if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
       return ze2urResult(ZeResult);
@@ -660,7 +661,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
     else
       // Unexpected cache configuration value.
       return UR_RESULT_ERROR_INVALID_VALUE;
-    ZE2UR_CALL(zeKernelSetCacheConfig, (Kernel->ZeKernel, ZeCacheConfig););
+    ZE2UR_CALL(zeKernelSetCacheConfig, (Kernel->ZeKernel, ZeCacheConfig));
   } else {
     urPrint("urKernelSetExecInfo: unsupported ParamName\n");
     return UR_RESULT_ERROR_INVALID_VALUE;
@@ -770,15 +771,15 @@ ur_result_t ur_kernel_handle_t_::initialize() {
 
   // Set up how to obtain kernel properties when needed.
   ZeKernelProperties.Compute = [this](ze_kernel_properties_t &Properties) {
-    ZE_CALL_NOCHECK(zeKernelGetProperties, (ZeKernel, &Properties));
+    ZE_CALL_NOCHECK_VOID(zeKernelGetProperties, (ZeKernel, &Properties));
   };
 
   // Cache kernel name.
   ZeKernelName.Compute = [this](std::string &Name) {
     size_t Size = 0;
-    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, nullptr));
+    ZE_CALL_NOCHECK_VOID(zeKernelGetName, (ZeKernel, &Size, nullptr));
     char *KernelName = new char[Size];
-    ZE_CALL_NOCHECK(zeKernelGetName, (ZeKernel, &Size, KernelName));
+    ZE_CALL_NOCHECK_VOID(zeKernelGetName, (ZeKernel, &Size, KernelName));
     Name = KernelName;
     delete[] KernelName;
   };

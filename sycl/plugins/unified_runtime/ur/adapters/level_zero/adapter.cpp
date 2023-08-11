@@ -9,6 +9,8 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
+////////////////////////////////////////////////////
+
 ur_adapter_handle_t_ Adapter{};
 
 UR_APIEXPORT ur_result_t UR_APICALL

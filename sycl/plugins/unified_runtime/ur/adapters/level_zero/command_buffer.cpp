@@ -108,7 +108,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release the memory allocated to the CommandList stored in the
   // command_buffer
   if (ZeCommandList) {
-    ZE_CALL_NOCHECK(zeCommandListDestroy, (ZeCommandList));
+    ZE_CALL_NOCHECK_VOID(zeCommandListDestroy, (ZeCommandList));
   }
 
   // Release additional signal and wait events used by command_buffer
@@ -131,7 +131,7 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   // Release Fences allocated to command_buffer
   for (auto it = CommandListMap.begin(); it != CommandListMap.end(); ++it) {
     if (it->second.ZeFence != nullptr) {
-      ZE_CALL_NOCHECK(zeFenceDestroy, (it->second.ZeFence));
+      ZE_CALL_NOCHECK_VOID(zeFenceDestroy, (it->second.ZeFence));
     }
   }
 }
