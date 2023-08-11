@@ -11,44 +11,68 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/item_base.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/types.hpp>
+#include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
-
+#include <assert.h>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <stddef.h>
+#include <stdint.h>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
+
+// TODO: refactor this header
+// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
@@ -1039,7 +1063,8 @@ private:
 
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The kernel is provided via an interoperability method.
+    // 2. The kernel is provided via an interoperability method (this uses a
+    // different code path).
     // 3. The range is already a multiple of the rounding factor.
     //
     // Cases 2 and 3 could be supported with extra effort.
@@ -1052,17 +1077,10 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Get the kernel name to check condition 2.
-    std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
-    bool DisableRounding =
-        this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0');
-
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
     // and the user-specified range is not a multiple of a "good" value.
-    if (!DisableRounding && (NumWorkItems[0] >= MinRangeX) &&
+    if (!this->DisableRangeRounding() && (NumWorkItems[0] >= MinRangeX) &&
         (NumWorkItems[0] % MinFactorX != 0)) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension

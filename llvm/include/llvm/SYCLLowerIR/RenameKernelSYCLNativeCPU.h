@@ -1,4 +1,4 @@
-//===---- EmitSYCLHCHeader.h - Emit SYCL Native CPU Helper Header Pass ----===//
+//===-- RenameKernelSYCLNativeCPU.h - Kernel renaming for SYCL Native CPU--===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,10 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This pass emits the SYCL Native CPU helper header.
-// The header mainly contains the definition for the handler function which
-// allows to call the kernel extracted by the device compiler from the host
-// runtime.
+// A transformation pass that renames the kernel names, making sure that the
+// mangled name is a string with no particular semantics.
+//
 //===----------------------------------------------------------------------===//
 
 #pragma once
@@ -21,16 +20,10 @@ namespace llvm {
 
 class ModulePass;
 
-class EmitSYCLNativeCPUHeaderPass
-    : public PassInfoMixin<EmitSYCLNativeCPUHeaderPass> {
+class RenameKernelSYCLNativeCPUPass
+    : public PassInfoMixin<RenameKernelSYCLNativeCPUPass> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
-  EmitSYCLNativeCPUHeaderPass(const std::string &FileName)
-      : NativeCPUHeaderName(FileName) {}
-  EmitSYCLNativeCPUHeaderPass() = default;
-
-private:
-  std::string NativeCPUHeaderName;
 };
 
 } // namespace llvm
