@@ -202,6 +202,11 @@ void test3(sycl::queue &q, std::initializer_list<InputTy1> Input1,
 
 #define F(Name) [](auto x) { return (Name)(x); }
 #define FT(T, Name) [](auto x) { return __builtin_bit_cast(T, (Name)(x)); }
+#define FT1(T, Name) [](auto x) { return (Name)(__builtin_bit_cast(T, x)); }
+#define FT2(T1, T2, Name)                                                      \
+  [](auto x) {                                                                 \
+    return __builtin_bit_cast(T1, (Name)(__builtin_bit_cast(T2, x)));          \
+  }
 #define F2(Name) [](auto x, auto y) { return (Name)(x, y); }
 #define F3(Name) [](auto x, auto y, auto z) { return (Name)(x, y, z); }
 #if defined(__SPIR__)
