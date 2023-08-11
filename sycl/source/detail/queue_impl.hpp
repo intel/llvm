@@ -156,9 +156,17 @@ public:
         if (checkNativeQueueProfiling(MDevice)) {
           // if piGetDeviceAndHostTimer is not supported, compute the profiling
           // time OpenCL version < 2.1 case
-          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
+          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported()) {
             MFallbackProfiling = true;
+
+            assert(false &&
+                   "==========================================================="
+                   "=====================MFallbackProfiling=ture");
+          }
         } else {
+          assert(false &&
+                 "============================================================="
+                 "===================MFallbackProfiling=false");
           throw sycl::exception(
               make_error_code(errc::feature_not_supported),
               "Cannot enable profiling, the associated device "
