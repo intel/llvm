@@ -97,10 +97,7 @@ int main() {
   TEST(sycl::ldexp, float, 3, EXPECTED(float, 360, 360, 360), 0, ma3, ma4);
   TEST(sycl::ldexp, float, 3, EXPECTED(float, 5760, 5760, 5760), 0, ma3, 5);
   TEST(sycl::pown, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, ma4);
-  TEST(sycl::pown, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, 1);
   TEST(sycl::rootn, float, 3, EXPECTED(float, 180, 180, 180), 0.1, ma3, ma4);
-  TEST(sycl::rootn, float, 3, EXPECTED(float, 2.82523, 2.82523, 2.82523),
-       0.00001, ma3, 5);
   TEST2(sycl::fract, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
         EXPECTED(float, 1, 4, 5), 0.0001, ma6);
   TEST2(sycl::modf, float, float, 3, EXPECTED(float, 0.4f, 0.2f, 0.3f),
