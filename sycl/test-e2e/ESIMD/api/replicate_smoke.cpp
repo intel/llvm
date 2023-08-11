@@ -88,7 +88,7 @@ template <class T> struct DataMgr {
 };
 
 template <class T, int VL, int N, int Rep, int Vs, int W, int Hs>
-bool test_impl(queue q, int offset, T(&&gold)[N]) {
+bool test_impl(queue q, int offset, T (&&gold)[N]) {
   std::cout << "Testing T=" << esimd_test::type_name<T>() << " Rep=" << Rep
             << " "
             << "Vs=" << Vs << " "
