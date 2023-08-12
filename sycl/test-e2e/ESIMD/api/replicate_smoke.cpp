@@ -91,7 +91,7 @@ template <class T, int VL, int N, int Rep, int Vs, int W, int Hs>
 bool test_impl(queue q, int offset, T (&&gold)[N]) {
   std::cout << "Testing T=" << esimd_test::type_name<T>() << " Rep=" << Rep
             << " "
-            << "N=" << N <<" "
+            << "N=" << N << " "
             << "Vs=" << Vs << " "
             << "W=" << W << " "
             << "Hs=" << Hs << " "
@@ -197,7 +197,7 @@ int main(int argc, char **argv) {
   // passed &= test<tfloat32>(q);
 #endif
   // if (doublesSupported)
-    // passed &= test<double>(q);
+  // passed &= test<double>(q);
 
   std::cout << (passed ? "Test passed\n" : "Test FAILED\n");
   return passed ? 0 : 1;
