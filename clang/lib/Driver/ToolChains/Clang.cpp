@@ -10057,9 +10057,9 @@ void SYCLPostLink::ConstructJob(Compilation &C, const JobAction &JA,
           {StringRef(getSYCLPostLinkOptimizationLevel(TCArgs))});
   // specialization constants processing is mandatory
   if (SYCLPostLink->getRTSetsSpecConstants())
-    addArgs(CmdArgs, TCArgs, {"-spec-const=rt"});
+    addArgs(CmdArgs, TCArgs, {"-spec-const=native"});
   else
-    addArgs(CmdArgs, TCArgs, {"-spec-const=default"});
+    addArgs(CmdArgs, TCArgs, {"-spec-const=emulation"});
 
   // Process device-globals.
   addArgs(CmdArgs, TCArgs, {"-device-globals"});
