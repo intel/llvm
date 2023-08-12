@@ -99,16 +99,16 @@ bool test_impl(queue q, int offset, T (&&gold)[N]) {
             << "Off=" << offset << "...";
 
   DataMgr<T> dm(VL, q);
-  T *src = dm.src;
-  T *dst = dm.dst;
+  T *s = dm.src;
+  T *d = dm.dst;
 
   try {
     q.submit([&](handler &cgh) {
        cgh.single_task([=]() SYCL_ESIMD_KERNEL {
-         simd<T, VL> src(src);
+         simd<T, VL> src(s);
          simd<T, N> res =
              src.template replicate_vs_w_hs<Rep, Vs, W, Hs>(offset);
-         res.copy_to(dst);
+         res.copy_to(d);
        });
      }).wait_and_throw();
   } catch (sycl::exception const &e) {
