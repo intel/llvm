@@ -1,5 +1,5 @@
-// REQUIRES: level_zero, level_zero_dev_kit
-// RUN: %{build} %level_zero_options -o %t.ze.out
+// REQUIRES: level_zero, opencl, level_zero_dev_kit
+// RUN: %{build} %level_zero_options -lOpenCL -o %t.ze.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
 
 #include <CL/sycl.hpp>
