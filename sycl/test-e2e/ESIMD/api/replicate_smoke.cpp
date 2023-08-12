@@ -70,10 +70,12 @@ template <class T> bool verify(T *data_arr, T *gold_arr, int NonZeroN, int N) {
 template <class T> struct DataMgr {
   T *src;
   T *dst;
+  queue &q;
 
-  DataMgr(int N) {
-    src = new T[N];
-    dst = new T[N];
+  DataMgr(int N, queue& q) {
+    this->q = q;
+    src = sycl::malloc_shared<T>(N, q);
+    dst = sycl::malloc_shared<T>(N, q);
 
     for (int i = 0; i < N; i++) {
       src[i] = (T)i;
@@ -82,8 +84,8 @@ template <class T> struct DataMgr {
   }
 
   ~DataMgr() {
-    delete[] src;
-    delete[] dst;
+    sycl::free(src, q);
+    sycl::free(dst, q);
   }
 };
 
@@ -100,18 +102,12 @@ bool test_impl(queue q, int offset, T (&&gold)[N]) {
   DataMgr<T> dm(VL);
 
   try {
-    sycl::buffer<T, 1> src_buf(dm.src, VL);
-    sycl::buffer<T, 1> dst_buf(dm.dst, VL);
-
     q.submit([&](handler &cgh) {
-       auto src_acc = src_buf.template get_access<access::mode::read>(cgh);
-       auto dst_acc = dst_buf.template get_access<access::mode::write>(cgh);
-
        cgh.single_task([=]() SYCL_ESIMD_KERNEL {
-         simd<T, VL> src(src_acc, 0);
+         simd<T, VL> src(dm.src, 0);
          simd<T, N> res =
              src.template replicate_vs_w_hs<Rep, Vs, W, Hs>(offset);
-         res.copy_to(dst_acc, 0);
+         res.copy_to(dm.dst, 0);
        });
      }).wait_and_throw();
   } catch (sycl::exception const &e) {
