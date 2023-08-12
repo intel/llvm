@@ -70,9 +70,9 @@ template <class T> bool verify(T *data_arr, T *gold_arr, int NonZeroN, int N) {
 template <class T> struct DataMgr {
   T *src;
   T *dst;
-  queue &m_q;
+  queue m_q;
 
-  DataMgr(int N, queue &q) : m_q(q) {
+  DataMgr(int N, queue q) : m_q(q) {
     src = sycl::malloc_shared<T>(N, m_q);
     dst = sycl::malloc_shared<T>(N, m_q);
 
