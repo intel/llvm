@@ -72,7 +72,7 @@ template <class T> struct DataMgr {
   T *dst;
   queue &q;
 
-  DataMgr(int N, queue& q) {
+  DataMgr(int N, queue &q) {
     this->q = q;
     src = sycl::malloc_shared<T>(N, q);
     dst = sycl::malloc_shared<T>(N, q);
