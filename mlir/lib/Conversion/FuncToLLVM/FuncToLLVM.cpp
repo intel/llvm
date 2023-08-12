@@ -16,6 +16,7 @@
 #include "mlir/Analysis/DataLayoutAnalysis.h"
 #include "mlir/Conversion/ArithToLLVM/ArithToLLVM.h"
 #include "mlir/Conversion/ControlFlowToLLVM/ControlFlowToLLVM.h"
+#include "mlir/Conversion/ConvertToLLVM/ToLLVMInterface.h"
 #include "mlir/Conversion/FuncToLLVM/ConvertFuncToLLVM.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
@@ -333,7 +334,7 @@ protected:
 
   // Convert input FuncOp to LLVMFuncOp by using the LLVMTypeConverter provided
   // to this legalization pattern.
-  LLVM::LLVMFuncOp
+  FailureOr<LLVM::LLVMFuncOp>
   convertFuncOpToLLVMFuncOp(func::FuncOp funcOp,
                             ConversionPatternRewriter &rewriter) const {
     // Convert the original function arguments. They are converted using the
@@ -344,7 +345,7 @@ protected:
         funcOp.getFunctionType(), varargsAttr && varargsAttr.getValue(),
         shouldUseBarePtrCallConv(funcOp, getTypeConverter()), result);
     if (!llvmType)
-      return nullptr;
+      return rewriter.notifyMatchFailure(funcOp, "signature conversion failed");
 
     // Propagate argument/result attributes to all converted arguments/result
     // obtained after converting a given original argument/result.
@@ -423,7 +424,8 @@ protected:
       if (!attr) {
         funcOp->emitError() << "Contains " << linkageAttrName
                             << " attribute not of type LLVM::LinkageAttr";
-        return nullptr;
+        return rewriter.notifyMatchFailure(
+            funcOp, "Contains linkage attribute not of type LLVM::LinkageAttr");
       }
       linkage = attr.getLinkage();
     }
@@ -436,7 +438,8 @@ protected:
       if (!attr) {
         funcOp->emitError() << "Contains " << readnoneAttrName
                             << " attribute not of type UnitAttr";
-        return nullptr;
+        return rewriter.notifyMatchFailure(
+            funcOp, "Contains readnone attribute not of type UnitAttr");
       }
       memoryAttr = LLVM::MemoryEffectsAttr::get(rewriter.getContext(),
                                                 {LLVM::ModRefInfo::NoModRef,
@@ -453,8 +456,10 @@ protected:
     rewriter.inlineRegionBefore(funcOp.getBody(), newFuncOp.getBody(),
                                 newFuncOp.end());
     if (failed(rewriter.convertRegionTypes(&newFuncOp.getBody(), *typeConverter,
-                                           &result)))
-      return nullptr;
+                                           &result))) {
+      return rewriter.notifyMatchFailure(funcOp,
+                                         "region types conversion failed");
+    }
 
     return newFuncOp;
   }
@@ -470,27 +475,28 @@ struct FuncOpConversion : public FuncOpConversionBase {
   LogicalResult
   matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto newFuncOp = convertFuncOpToLLVMFuncOp(funcOp, rewriter);
-    if (!newFuncOp)
-      return failure();
+    FailureOr<LLVM::LLVMFuncOp> newFuncOp =
+        convertFuncOpToLLVMFuncOp(funcOp, rewriter);
+    if (failed(newFuncOp))
+      return rewriter.notifyMatchFailure(funcOp, "Could not convert funcop");
 
     if (!shouldUseBarePtrCallConv(funcOp, this->getTypeConverter())) {
       if (funcOp->getAttrOfType<UnitAttr>(
               LLVM::LLVMDialect::getEmitCWrapperAttrName())) {
-        if (newFuncOp.isVarArg())
+        if (newFuncOp->isVarArg())
           return funcOp->emitError("C interface for variadic functions is not "
                                    "supported yet.");
 
-        if (newFuncOp.isExternal())
-          wrapExternalFunction(rewriter, funcOp.getLoc(), *getTypeConverter(),
-                               funcOp, newFuncOp);
+        if (newFuncOp->isExternal())
+          wrapExternalFunction(rewriter, funcOp->getLoc(), *getTypeConverter(),
+                               funcOp, *newFuncOp);
         else
-          wrapForExternalCallers(rewriter, funcOp.getLoc(), *getTypeConverter(),
-                                 funcOp, newFuncOp);
+          wrapForExternalCallers(rewriter, funcOp->getLoc(),
+                                 *getTypeConverter(), funcOp, *newFuncOp);
       }
     } else {
-      modifyFuncOpToUseBarePtrCallingConv(rewriter, funcOp.getLoc(),
-                                          *getTypeConverter(), newFuncOp,
+      modifyFuncOpToUseBarePtrCallingConv(rewriter, funcOp->getLoc(),
+                                          *getTypeConverter(), *newFuncOp,
                                           funcOp.getFunctionType().getInputs());
     }
 
@@ -778,3 +784,27 @@ struct ConvertFuncToLLVMPass
   }
 };
 } // namespace
+
+//===----------------------------------------------------------------------===//
+// ConvertToLLVMPatternInterface implementation
+//===----------------------------------------------------------------------===//
+
+namespace {
+/// Implement the interface to convert Func to LLVM.
+struct FuncToLLVMDialectInterface : public ConvertToLLVMPatternInterface {
+  using ConvertToLLVMPatternInterface::ConvertToLLVMPatternInterface;
+  /// Hook for derived dialect interface to provide conversion patterns
+  /// and mark dialect legal for the conversion target.
+  void populateConvertToLLVMConversionPatterns(
+      ConversionTarget &target, LLVMTypeConverter &typeConverter,
+      RewritePatternSet &patterns) const final {
+    populateFuncToLLVMConversionPatterns(typeConverter, patterns);
+  }
+};
+} // namespace
+
+void mlir::registerConvertFuncToLLVMInterface(DialectRegistry &registry) {
+  registry.addExtension(+[](MLIRContext *ctx, func::FuncDialect *dialect) {
+    dialect->addInterfaces<FuncToLLVMDialectInterface>();
+  });
+}

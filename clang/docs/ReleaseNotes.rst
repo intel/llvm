@@ -96,8 +96,12 @@ C Language Changes
   constant expressions.  This change is more consistent with the behavior of
   GCC.
 
-C2x Feature Support
+C23 Feature Support
 ^^^^^^^^^^^^^^^^^^^
+- Clang now accepts ``-std=c23`` and ``-std=gnu23`` as language standard modes,
+  and the ``__STDC_VERSION__`` macro now expands to ``202311L`` instead of its
+  previous placeholder value. Clang continues to accept ``-std=c2x`` and
+  ``-std=gnu2x`` as aliases for C23 and GNU C23, respectively.
 
 Non-comprehensive list of changes in this release
 -------------------------------------------------
@@ -181,6 +185,8 @@ Miscellaneous Clang Crashes Fixed
   terminated. Clang should now also recover better when an @end is missing
   between blocks.
   `Issue 64065 <https://github.com/llvm/llvm-project/issues/64065>`_
+- Fixed a crash when check array access on zero-length element.
+  `Issue 64564 <https://github.com/llvm/llvm-project/issues/64564>`_
 
 Target Specific Changes
 -----------------------
@@ -244,6 +250,8 @@ clang-format
 
 libclang
 --------
+
+- Exposed arguments of ``clang::annotate``.
 
 Static Analyzer
 ---------------
