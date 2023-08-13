@@ -70,6 +70,9 @@ static bool lowerLoadRelative(Function &F) {
 
   bool Changed = false;
   Type *Int32Ty = Type::getInt32Ty(F.getContext());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  Type *Int32PtrTy = Int32Ty->getPointerTo();
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Type *Int8Ty = Type::getInt8Ty(F.getContext());
 
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
@@ -80,10 +83,14 @@ static bool lowerLoadRelative(Function &F) {
     IRBuilder<> B(CI);
     Value *OffsetPtr =
         B.CreateGEP(Int8Ty, CI->getArgOperand(0), CI->getArgOperand(1));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Value *OffsetI32 = B.CreateAlignedLoad(Int32Ty, OffsetPtr, Align(4));
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *OffsetPtrI32 = B.CreateBitCast(OffsetPtr, Int32PtrTy);
+    Value *OffsetI32 = B.CreateAlignedLoad(Int32Ty, OffsetPtrI32, Align(4));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
     Value *ResultPtr = B.CreateGEP(Int8Ty, CI->getArgOperand(0), OffsetI32);
-
     CI->replaceAllUsesWith(ResultPtr);
     CI->eraseFromParent();
     Changed = true;

@@ -17529,8 +17529,15 @@ static Value *useTpOffset(IRBuilderBase &IRB, unsigned Offset) {
   Module *M = IRB.GetInsertBlock()->getParent()->getParent();
   Function *ThreadPointerFunc =
       Intrinsic::getDeclaration(M, Intrinsic::thread_pointer);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return IRB.CreateConstGEP1_32(IRB.getInt8Ty(),
                                 IRB.CreateCall(ThreadPointerFunc), Offset);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+  return IRB.CreatePointerCast(
+      IRB.CreateConstGEP1_32(IRB.getInt8Ty(),
+                             IRB.CreateCall(ThreadPointerFunc), Offset),
+      IRB.getInt8PtrTy()->getPointerTo(0));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Value *RISCVTargetLowering::getIRStackGuard(IRBuilderBase &IRB) const {
