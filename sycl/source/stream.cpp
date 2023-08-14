@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <climits>
 #include <detail/queue_impl.hpp>
 #include <detail/stream_impl.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/stream.hpp>
+
+#include <climits>
 
 namespace sycl {
 inline namespace _V1 {
