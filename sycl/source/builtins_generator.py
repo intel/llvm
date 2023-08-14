@@ -327,7 +327,6 @@ elementtype0 = [ElementType(0)]
 unsignedtype0 = [ConversionTraitType("make_unsigned_t", 0)]
 samesizesignedint0 = [ConversionTraitType("same_size_signed_int_t", 0)]
 samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
-samesizefloat0 = [ConversionTraitType("same_size_float_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
 boolelements0 = [ConversionTraitType("bool_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
@@ -403,7 +402,6 @@ builtin_types = {
   "unsignedtype0" : unsignedtype0,
   "samesizesignedint0" : samesizesignedint0,
   "samesizeunsignedint0" : samesizeunsignedint0,
-  "samesizefloat0" : samesizefloat0,
   "intelements0" : intelements0,
   "upsampledint0" : upsampledint0,
   "boolelements0" : boolelements0,
@@ -814,16 +812,16 @@ sycl_builtins = {# Math functions
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
-                 "nan": [Def("samesizefloat0", ["vuint32n"]),
-                         Def("samesizefloat0", ["muintn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned int"]),
-                         Def("samesizefloat0", ["vuint64n"]),
-                         Def("samesizefloat0", ["mulongn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned long"]),
-                         Def("samesizefloat0", ["unsigned long long"]),
-                         Def("samesizefloat0", ["vuint16n"]),
-                         Def("samesizefloat0", ["mushortn"], marray_use_loop=True),
-                         Def("samesizefloat0", ["unsigned short"])],
+                 "nan": [Def("vfloatn", ["vuint32n"]),
+                         Def("mfloatn", ["muintn"], marray_use_loop=True),
+                         Def("float", ["unsigned int"]),
+                         Def("vdoublen", ["vuint64n"]),
+                         Def("mdoublen", ["mulongn"], marray_use_loop=True),
+                         Def("double", ["unsigned long"]),
+                         Def("double", ["unsigned long long"]),
+                         Def("vhalfn", ["vuint16n"]),
+                         Def("mhalfn", ["mushortn"], marray_use_loop=True),
+                         Def("half", ["unsigned short"])],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),

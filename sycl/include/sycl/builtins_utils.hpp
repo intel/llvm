@@ -274,31 +274,6 @@ struct same_size_unsigned_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
           sizeof...(Indexes)>;
 };
 
-// Utility traits for getting a floating point type with the specified size.
-template <size_t Size> struct get_float_by_size {
-  using type = select_scalar_by_size_t<Size, void, half, float, double>;
-};
-template <typename T> struct same_size_float {
-  using type = typename get_float_by_size<sizeof(T)>::type;
-};
-template <typename T, size_t N> struct same_size_float<marray<T, N>> {
-  using type = marray<typename same_size_float<T>::type, N>;
-};
-template <typename T, int N> struct same_size_float<vec<T, N>> {
-  using type = vec<typename same_size_float<T>::type, N>;
-};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct same_size_float<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                                 OperationCurrentT, Indexes...>> {
-  // Converts to vec for simplicity.
-  using type = vec<typename same_size_float<typename VecT::element_type>::type,
-                   sizeof...(Indexes)>;
-};
-
-template <typename T>
-using same_size_float_t = typename same_size_float<T>::type;
-
 // Utility trait for changing the element type of a type T. If T is a scalar,
 // the new type replaces T completely.
 template <typename NewElemT, typename T> struct change_elements {
