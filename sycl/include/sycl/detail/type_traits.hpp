@@ -266,8 +266,6 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
-template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
-
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };
@@ -275,13 +273,6 @@ template <typename> struct get_vec_size {
 template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
-
-// is_marray
-template <typename> struct is_marray : std::false_type {};
-template <typename T, size_t N>
-struct is_marray<sycl::marray<T, N>> : std::true_type {};
-
-template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
