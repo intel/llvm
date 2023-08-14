@@ -267,7 +267,7 @@ jobs:
       env:
         LIT_OPTS: -v --no-progress-bar --show-unsupported --show-pass --show-xfail --max-time 3600 --time-tests
       run: |
-        SYCL_PI_TRACE=2 ninja -C build-e2e check-sycl-e2e
+        ninja -C build-e2e check-sycl-e2e
 
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'

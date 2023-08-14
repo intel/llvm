@@ -390,10 +390,6 @@ config.sycl_dev_features = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
-    #if sycl_device.startswith('ext_oneapi_hip:'):
-    env['AMD_LOG_LEVEL'] = '7' # debug log HIP lib.
-    env['SYCL_PI_TRACE'] = '2' # trace SYCL-HIP API
-
     if sycl_device.startswith('ext_oneapi_cuda:'):
         env['SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT'] = '1'
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls

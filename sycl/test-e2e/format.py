@@ -150,6 +150,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                     expanded += ' {}'.format(' '.join(extra_env))
 
                 expanded += ' ONEAPI_DEVICE_SELECTOR={} {}'.format(sycl_device, test.config.run_launcher)
+                expanded += ' SYCL_PI_TRACE=2'
+                if sycl_device.startswith('ext_oneapi_hip:'):
+                    expanded += ' AMD_LOG_LEVEL=3'
+
                 cmd = directive.command.replace('%{run}', expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).
                 tmp_script = [ cmd ]
