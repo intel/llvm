@@ -168,8 +168,7 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
               // Tiered sort creating sublists of streams (smallest value first)
               // in which the corresponding events are sorted into a sequence of
               // newest first.
-              return !Event0 || !Event1 ||
-                     (Event0->getStream() < Event1->getStream() ||
+              return (Event0->getStream() < Event1->getStream() ||
                       (Event0->getStream() == Event1->getStream() &&
                        Event0->getEventID() > Event1->getEventID()));
             });

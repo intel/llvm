@@ -375,7 +375,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     for (size_t i = 0; i < workDim; i++) {
       BlocksPerGrid[i] =
-         (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
+          (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
     }
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
