@@ -56,14 +56,14 @@ public:
   void runOnOperation() final;
 
 private:
-  /// Inserts in \p input all of the constant arguments of \p op.
+  /// Inserts in \p constants all of the constant arguments of \p op.
   static SmallVectorImpl<std::unique_ptr<ConstantArg>> &getConstantExplicitArgs(
       SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
       SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
       ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
       polygeist::SYCLAccessorAnalysis &accessorAnalysis);
 
-  /// Inserts in \p input all of the constant implicit arguments of \p op.
+  /// Inserts in \p constants all of the constant implicit arguments of \p op.
   ///
   /// \p ndrAnalysis and \p idrAnalysis are used to perform analysis and track
   /// constant values of arguments.
@@ -72,6 +72,7 @@ private:
       SYCLHostScheduleKernel op, polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
       polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
 
+  /// Returns a list with all constant arguments (both implicit and explicit).
   static SmallVector<std::unique_ptr<ConstantArg>>
   getConstantArgs(SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
                   ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
