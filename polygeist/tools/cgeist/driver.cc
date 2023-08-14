@@ -460,17 +460,12 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
 
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
-    // Note: affine dialects must be lowered to allow callees containing affine
-    // operations to be inlined.
-    if (RaiseToAffine)
-      OptPM.addPass(mlir::createLowerAffinePass());
-
-    PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
-                                       /* RemoveDeadCallees */ true}));
-
     if (RaiseToAffine)
       OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
     OptPM.addPass(polygeist::createReplaceAffineCFGPass());
+
+    PM.addPass(sycl::createInlinePass({sycl::InlineMode::Simple,
+                                       /* RemoveDeadCallees */ true}));
   }
 
   if (PrintPipeline) {
