@@ -20,20 +20,20 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32)
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z14get_local_sizej(i32)
+declare i64 @__mux_get_local_id(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_local_size(i32)
 
 ; Function Attrs: nounwind
 define spir_kernel void @reduce(i32 addrspace(3)* %in, i32 addrspace(3)* %out) {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = call i64 @__mux_get_local_id(i32 0)
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
   %storemerge = phi i32 [ 1, %entry ], [ %mul6, %for.inc ]
   %conv = zext i32 %storemerge to i64
-  %call1 = call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %call1 = call i64 @__mux_get_local_size(i32 0)
   %cmp = icmp ult i64 %conv, %call1
   br i1 %cmp, label %for.body, label %for.end
 

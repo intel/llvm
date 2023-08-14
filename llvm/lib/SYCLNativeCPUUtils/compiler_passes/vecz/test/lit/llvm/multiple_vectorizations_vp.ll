@@ -18,12 +18,12 @@
 ; equal width but with one enabling vector predication.
 ; RUN: veczc -k add:1s,1sp -S < %s | FileCheck %s
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @add(
 define spir_kernel void @add(ptr addrspace(1) %in1, ptr addrspace(1) %in2, ptr addrspace(1) %out) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidx.in1 = getelementptr inbounds i32, ptr addrspace(1) %in1, i64 %idx
   %arrayidx.in2 = getelementptr inbounds i32, ptr addrspace(1) %in1, i64 %idx
   %in1.v = load i32, ptr addrspace(1) %arrayidx.in1, align 4

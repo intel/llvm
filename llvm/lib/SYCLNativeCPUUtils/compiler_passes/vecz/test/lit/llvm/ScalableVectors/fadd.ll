@@ -21,7 +21,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @fadd(float* %aptr, float* %bptr, float* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds float, float* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds float, float* %bptr, i64 %idx
   %arrayidxz = getelementptr inbounds float, float* %zptr, i64 %idx
@@ -37,4 +37,4 @@ entry:
 ; CHECK: load <vscale x 4 x float>, ptr
 ; CHECK: fadd <vscale x 4 x float>
 ; CHECK: store <vscale x 4 x float>
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

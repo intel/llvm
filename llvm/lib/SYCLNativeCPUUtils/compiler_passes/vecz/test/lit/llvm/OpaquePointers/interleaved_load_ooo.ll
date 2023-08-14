@@ -23,9 +23,9 @@ target triple = "spir64-unknown-unknown"
 
 define dso_local spir_kernel void @interleaved_load_4(i32 addrspace(1)* %out, i32 addrspace(1)* %in, i32 %stride) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
-  %call1 = tail call spir_func i64 @_Z13get_global_idj(i32 1)
+  %call1 = tail call i64 @__mux_get_global_id(i32 1)
   %conv2 = trunc i64 %call1 to i32
   %mul = mul nsw i32 %conv2, %stride
   %add = add nsw i32 %conv, %mul
@@ -53,5 +53,5 @@ entry:
 ; CHECK:  %deinterleave1 = shufflevector <4 x i32> [[TMP0]], <4 x i32> [[TMP2]], <4 x i32> <i32 1, i32 3, i32 5, i32 7>
 ; CHECK:  %sub1 = sub nsw <4 x i32> %deinterleave1, %deinterleave
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare <4 x i32> @__vecz_b_interleaved_load4_2_Dv4_jPU3AS1j(i32 addrspace(1)*)

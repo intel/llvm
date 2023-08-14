@@ -24,9 +24,9 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @blend_div_loop(i8 addrspace(1)* %src1ptr, i32 %src1_step, i32 %src1_offset, i8 addrspace(1)* %dstptr, i32 %dst_step, i32 %dst_offset, i32 %dst_rows, i32 %dst_cols, i8 addrspace(1)* %src2ptr, i32 %src2_step, i32 %src2_offset, i8 addrspace(1)* %src3ptr, i32 %src3_step, i32 %src3_offset, i32 %rowsPerWI) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
-  %call1 = call spir_func i64 @_Z13get_global_idj(i32 1) #2
+  %call1 = call i64 @__mux_get_global_id(i32 1) #2
   %0 = trunc i64 %call1 to i32
   %conv3 = mul i32 %0, %rowsPerWI
   %cmp = icmp slt i32 %conv, %dst_cols
@@ -134,7 +134,7 @@ if.end62:                                         ; preds = %for.cond, %entry
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; Function Attrs: convergent nounwind readonly
 declare spir_func i32 @_Z5mad24iii(i32, i32, i32) #1

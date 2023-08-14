@@ -22,12 +22,12 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z13get_global_idj(i32) #0
+declare i64 @__mux_get_global_id(i32) #0
 
 define spir_kernel void @vecz_scalar_interleaved_load(float addrspace(1)* %out, i64 %n, float %m) {
 entry:
-  %gid0 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #0
-  %gid1 = tail call spir_func i64 @_Z13get_global_idj(i32 1) #0
+  %gid0 = tail call i64 @__mux_get_global_id(i32 0) #0
+  %gid1 = tail call i64 @__mux_get_global_id(i32 1) #0
   %cmp1 = icmp slt i64 %gid0, %n
   br i1 %cmp1, label %if.then1, label %end
 

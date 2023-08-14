@@ -20,11 +20,11 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-s128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @memop_loop_dep(i32 addrspace(1)* %in, i32 addrspace(1)* %out, i32 %i, i32 %e) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp1 = icmp slt i32 %i, %e
   br i1 %cmp1, label %for.body.lr.ph, label %for.end
 

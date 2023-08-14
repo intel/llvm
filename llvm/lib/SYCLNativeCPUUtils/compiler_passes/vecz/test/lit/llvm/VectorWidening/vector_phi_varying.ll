@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @vector_loop(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %call.trunc = trunc i64 %call to i32
   %call.splatinsert = insertelement <4 x i32> undef, i32 %call.trunc, i32 0
   %call.splat = shufflevector <4 x i32> %call.splatinsert, <4 x i32> undef, <4 x i32> zeroinitializer
@@ -32,7 +32,7 @@ entry:
 
 for.cond:                                         ; preds = %entry, %for.body
   %storemerge = phi <4 x i32> [ %inc, %for.body ], [ zeroinitializer, %entry ]
-  %call1 = call spir_func i64 @_Z15get_global_sizej(i32 0)
+  %call1 = call i64 @__mux_get_global_size(i32 0)
   %conv = trunc i64 %call1 to i32
   %splat.splatinsert = insertelement <4 x i32> undef, i32 %conv, i32 0
   %splat.splat = shufflevector <4 x i32> %splat.splatinsert, <4 x i32> undef, <4 x i32> zeroinitializer
@@ -80,8 +80,8 @@ for.end:                                          ; preds = %entry, %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z15get_global_sizej(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_global_size(i32)
 
 ; This test checks if a varying <4 x i32> phi is scalarized into 4 i32 phis
 ; and then re-packetized

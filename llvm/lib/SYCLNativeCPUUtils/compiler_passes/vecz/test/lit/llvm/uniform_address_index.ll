@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 
 define spir_kernel void @uniform_address_index(i32 addrspace(1)* nocapture readonly %in, i32 addrspace(1)* nocapture %out, i32 %a, i32 %b) local_unnamed_addr #0 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = tail call i64 @__mux_get_global_id(i32 0) #2
   %0 = icmp eq i32 %a, -2147483648
   %1 = icmp eq i32 %b, -1
   %2 = and i1 %0, %1
@@ -40,7 +40,7 @@ entry:
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr #1
+declare i64 @__mux_get_global_id(i32) local_unnamed_addr #1
 
 ; It tests to ensure that the array index is correctly identified
 ; as having a uniform stride and generates plain vector loads and not
@@ -48,7 +48,7 @@ declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr #1
 
 ; CHECK: define spir_kernel void @__vecz_v4_uniform_address_index
 ; CHECK: entry:
-; CHECK: call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: call i64 @__mux_get_global_id(i32 0)
 ; CHECK-DAG: %[[INA:.+]] = getelementptr inbounds i32, ptr addrspace(1) %in, i32 %[[X:.+]]
 ; CHECK-DAG: %[[LOAD:.+]] = load <4 x i32>, ptr addrspace(1) %[[INA]]
 ; CHECK-DAG: %[[OUTA:.+]] = getelementptr inbounds i32, ptr addrspace(1) %out, i32 %[[X:.+]]

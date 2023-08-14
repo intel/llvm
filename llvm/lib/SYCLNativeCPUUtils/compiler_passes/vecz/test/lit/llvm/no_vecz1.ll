@@ -21,7 +21,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @no_vecz1(i32 addrspace(1)* %out, i32 %n) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %call, 0
   br i1 %cmp, label %for.cond.preheader, label %if.end
 
@@ -35,7 +35,7 @@ if.end:                                           ; preds = %for.cond.preheader,
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK-NOT: insertelement
 ; CHECK-NOT: shufflevector

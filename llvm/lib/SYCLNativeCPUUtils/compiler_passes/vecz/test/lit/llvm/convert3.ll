@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @convert3(i64 addrspace(1)* %src, float addrspace(1)* %dest) local_unnamed_addr {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %call1 = tail call spir_func <3 x i64> @_Z6vload3mPU3AS1Kl(i64 %call, i64 addrspace(1)* %src)
   %call2 = tail call spir_func <3 x float> @_Z14convert_float3Dv3_l(<3 x i64> %call1)
   tail call spir_func void @_Z7vstore3Dv3_fmPU3AS1f(<3 x float> %call2, i64 %call, float addrspace(1)* %dest)
@@ -32,7 +32,7 @@ entry:
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr
+declare i64 @__mux_get_global_id(i32) local_unnamed_addr
 
 ; Function Attrs: convergent nounwind
 declare spir_func void @_Z7vstore3Dv3_fmPU3AS1f(<3 x float>, i64, float addrspace(1)*) local_unnamed_addr

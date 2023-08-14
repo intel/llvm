@@ -22,7 +22,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 define spir_kernel void @no_vecz2(i32 addrspace(1)* %out, i32 %n, i32 addrspace(1)* %m) {
 entry:
   %0 = load i32, i32 addrspace(1)* %m, align 4
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %call, 0
   br i1 %cmp, label %for.cond.preheader, label %if.end
 
@@ -49,7 +49,7 @@ if.end:                                           ; preds = %for.cond.cleanup28,
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: spir_kernel void @{{(__vecz_v16_)?}}no_vecz2
 ; CHECK-NOT: extractelement

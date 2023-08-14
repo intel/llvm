@@ -21,15 +21,15 @@ source_filename = "Unknown buffer"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32)
-declare spir_func i64 @_Z14get_local_sizej(i32)
+declare i64 @__mux_get_local_id(i32)
+declare i64 @__mux_get_local_size(i32)
 
 @boscc_killer.shared = internal unnamed_addr addrspace(3) global i32 undef, align 4
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @boscc_killer(float addrspace(1)* %A, float addrspace(1)* %B, i32 %N, i32 %lda) {
 entry:
-  %gid0 = tail call spir_func i64 @_Z12get_local_idj(i32 0)
+  %gid0 = tail call i64 @__mux_get_local_id(i32 0)
   %cmp0 = icmp eq i64 %gid0, 0
   br i1 %cmp0, label %if.then, label %if.end
 
@@ -78,7 +78,7 @@ if.then3:                             ; preds = %for.cond.exit, %if.then53
   %v23 = load float, float addrspace(1)* %arrayidxB, align 16
   %arrayidxA = getelementptr inbounds float, float addrspace(1)* %A, i64 %gid0
   store float %v23, float addrspace(1)* %arrayidxA, align 16
-  %call149 = tail call spir_func i64 @_Z14get_local_sizej(i32 0) #6
+  %call149 = tail call i64 @__mux_get_local_size(i32 0) #6
   %conv152 = add i64 %call149, %gid0
   %cmp71 = icmp slt i64 %conv152, 0
   br label %exit

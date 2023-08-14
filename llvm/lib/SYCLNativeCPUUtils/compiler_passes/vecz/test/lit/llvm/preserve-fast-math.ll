@@ -20,7 +20,7 @@
 
 define spir_kernel void @fast_nan(float addrspace(1)* %src1, float addrspace(1)* %src2, i16 addrspace(1)* %dst, i32 %width) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %src1, i64 %call
   %0 = load float, float addrspace(1)* %arrayidx, align 4
   %arrayidx2 = getelementptr inbounds float, float addrspace(1)* %src2, i64 %call
@@ -32,4 +32,4 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

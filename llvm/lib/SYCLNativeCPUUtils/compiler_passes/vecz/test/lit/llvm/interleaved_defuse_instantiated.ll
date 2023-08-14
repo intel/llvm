@@ -26,7 +26,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @printf_kernel(i32 addrspace(1)* %in, i32 addrspace(1)* %stridesX, i32 addrspace(1)* %dst, i32 %width, i32 %height) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3
+  %call = call i64 @__mux_get_global_id(i32 0) #3
   %cmp = icmp eq i32 %width, 13
   br i1 %cmp, label %if.then, label %if.end
 
@@ -43,7 +43,7 @@ if.end:                                           ; preds = %if.then, %entry
 
 define spir_kernel void @test_float(float* %in) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds float, float* %in, i64 %call
   %0 = load float, float* %arrayidx, align 4
   %mul = fmul float %0, %0
@@ -54,7 +54,7 @@ entry:
 
 
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...) #1
 

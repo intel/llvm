@@ -20,14 +20,14 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare float @llvm.copysign.f32(float, float)
 declare <2 x float> @llvm.copysign.v2f32(<2 x float>, <2 x float>)
 
 define spir_kernel void @copysignff(float* %pa, float* %pb, float* %pc) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %a = getelementptr float, float* %pa, i64 %idx
   %b = getelementptr float, float* %pb, i64 %idx
   %c = getelementptr float, float* %pc, i64 %idx
@@ -40,7 +40,7 @@ entry:
 
 define spir_kernel void @copysignvf(<2 x float>* %pa, <2 x float>* %pb, <2 x float>* %pc) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %a = getelementptr <2 x float>, <2 x float>* %pa, i64 %idx
   %b = getelementptr <2 x float>, <2 x float>* %pb, i64 %idx
   %c = getelementptr <2 x float>, <2 x float>* %pc, i64 %idx
@@ -53,7 +53,7 @@ entry:
 
 ; CHECK: define spir_kernel void @__vecz_v4_copysignff(ptr %pa, ptr %pb, ptr %pc)
 ; CHECK: entry:
-; CHECK: %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a = getelementptr float, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr float, ptr %pb, i64 %idx
 ; CHECK: %c = getelementptr float, ptr %pc, i64 %idx
@@ -65,7 +65,7 @@ entry:
 
 ; CHECK: define spir_kernel void @__vecz_v4_copysignvf(ptr %pa, ptr %pb, ptr %pc)
 ; CHECK: entry:
-; CHECK: %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a = getelementptr <2 x float>, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr <2 x float>, ptr %pb, i64 %idx
 ; CHECK: %c = getelementptr <2 x float>, ptr %pc, i64 %idx

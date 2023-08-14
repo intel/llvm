@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @load_interleaved(i32 addrspace(1)* nocapture readonly %input, i32 addrspace(1)* nocapture %output, i32 %stride) local_unnamed_addr {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = tail call i64 @__mux_get_global_id(i32 0) #2
   %0 = trunc i64 %call to i32
   %conv1 = mul i32 %0, %stride
   %idxprom = sext i32 %conv1 to i64
@@ -42,7 +42,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define void @__vecz_b_interleaved_store4_V_u5nxv4ju3ptrU3AS1(<vscale x 4 x i32> [[ARG0:%.*]], ptr addrspace(1) [[ARG1:%.*]], i64 [[ARG2:%.*]]) {
 ; CHECK-NEXT: entry:

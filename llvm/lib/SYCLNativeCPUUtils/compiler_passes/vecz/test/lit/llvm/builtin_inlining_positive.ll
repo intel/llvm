@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(float %a, float %b, i32* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cmp = call spir_func i32 @_Z9isgreaterff(float %a, float %b)
   %c0 = getelementptr i32, i32* %c, i64 %gid
   store i32 %cmp, i32* %c0, align 4
@@ -37,7 +37,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func i32 @_Z9isgreaterff(float, float)
 declare spir_func i32 @_Z6islessff(float, float)
 declare spir_func i32 @_Z7isequalff(float, float)
@@ -49,7 +49,7 @@ define spir_func i32 @opt_Z7isequalff(float, float) {
 
 ; CHECK: define spir_kernel void @__vecz_v4_test(float %a, float %b, ptr %c)
 ; CHECK: entry:
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %relational = fcmp ogt float %a, %b
 ; CHECK: %relational[[R1:[0-9]+]] = zext i1 %relational to i32
 ; CHECK: %c0 = getelementptr i32, ptr %c, i64 %gid

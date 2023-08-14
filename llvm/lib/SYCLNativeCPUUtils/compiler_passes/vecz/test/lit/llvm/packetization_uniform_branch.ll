@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test_branch(i32 %a, i32* %b) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 
@@ -43,7 +43,7 @@ if.end:
 
 define spir_kernel void @test_uniform_branch(i32 %a, i32* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i32 %a, 42
   br i1 %cmp, label %if.then, label %if.else
 
@@ -67,7 +67,7 @@ if.end:
 }
 
 define spir_func void @test_nonvarying_loadstore(i32* %a, i32* %b, i32* %c) {
-  %index = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %index = call i64 @__mux_get_global_id(i32 0)
   %a.i = getelementptr i32, i32* %a, i64 %index
   %b.i = getelementptr i32, i32* %b, i64 %index
   %c.i = getelementptr i32, i32* %c, i64 %index
@@ -78,12 +78,12 @@ define spir_func void @test_nonvarying_loadstore(i32* %a, i32* %b, i32* %c) {
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This test checks if the if blocks are vectorized without masks and if the phi
 ; node is also vectorized properly
 ; CHECK: define spir_kernel void @__vecz_v4_test_uniform_branch(i32 %a, ptr %b)
-; CHECK: %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %call = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %[[SPLATINSERT:.+]] = insertelement <4 x i64> {{poison|undef}}, i64 %call, {{i32|i64}} 0
 ; CHECK: %[[SPLAT:.+]] = shufflevector <4 x i64> %[[SPLATINSERT]], <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: %[[GID:.+]] = add <4 x i64> %[[SPLAT]], <i64 0, i64 1, i64 2, i64 3>

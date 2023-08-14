@@ -22,16 +22,16 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z12get_group_idj(i32)
+declare i64 @__mux_get_group_id(i32)
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @vecz_scalar_gather_load(i32 addrspace(1)* %row_indices, i32 addrspace(1)* %row_blocks, float addrspace(1)* %result) {
 entry:
-  %call1 = call spir_func i64 @_Z12get_group_idj(i32 0)
-  %call2 = call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call1 = call i64 @__mux_get_group_id(i32 0)
+  %call2 = call i64 @__mux_get_local_id(i32 0)
   %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %row_blocks, i64 %call1
   %load1 = load i32, i32 addrspace(1)* %arrayidx1, align 4
   %add1 = add i64 %call1, 1

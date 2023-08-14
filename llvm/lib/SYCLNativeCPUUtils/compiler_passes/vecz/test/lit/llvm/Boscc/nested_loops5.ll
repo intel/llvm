@@ -21,14 +21,14 @@ source_filename = "Unknown buffer"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
-declare spir_func i64 @_Z14get_local_sizej(i32)
+declare i64 @__mux_get_local_size(i32)
 
 define spir_kernel void @nested_loops5(float addrspace(1)*) {
 entry:
-  %lid = tail call spir_func i64 @_Z12get_local_idj(i32 0)
-  %lsize = tail call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %lid = tail call i64 @__mux_get_local_id(i32 0)
+  %lsize = tail call i64 @__mux_get_local_size(i32 0)
   %cmp1 = icmp ult i64 %lid, %lsize
   br i1 %cmp1, label %loop, label %end
 

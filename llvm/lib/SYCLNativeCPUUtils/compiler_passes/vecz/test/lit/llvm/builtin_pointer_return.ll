@@ -19,7 +19,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 ; RUN: veczc -vecz-simd-width=4 -S < %s | FileCheck %s
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare spir_func float @_Z5fractfPf(float, float*)
 declare spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float>, <2 x float>*)
@@ -31,7 +31,7 @@ declare spir_func <8 x float> @_Z5fractDv8_fPS_(<8 x float>, <8 x float>*)
 
 define spir_kernel void @fract_v1(float* %xptr, float* %outptr, float* %ioutptr) {
   %iouta = alloca float
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidx.x = getelementptr inbounds float, float* %xptr, i64 %idx
   %x = load float, float* %arrayidx.x, align 4
   %out = call spir_func float @_Z5fractfPf(float %x, float* %iouta)
@@ -49,7 +49,7 @@ define spir_kernel void @fract_v1(float* %xptr, float* %outptr, float* %ioutptr)
 
 define spir_kernel void @fract_v2(<2 x float>* %xptr, <2 x float>* %outptr, <2 x float>* %ioutptr) {
   %iouta = alloca <2 x float>
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidx.x = getelementptr inbounds <2 x float>, <2 x float>* %xptr, i64 %idx
   %x = load <2 x float>, <2 x float>* %arrayidx.x, align 8
   %out = call spir_func <2 x float> @_Z5fractDv2_fPS_(<2 x float> %x, <2 x float>* %iouta)

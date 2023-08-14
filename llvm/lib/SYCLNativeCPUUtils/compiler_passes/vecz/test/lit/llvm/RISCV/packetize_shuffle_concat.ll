@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @f(<2 x i32> addrspace(1)* %a, <2 x i32> addrspace(1)* %b, <4 x i32> addrspace(1)* %out) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %a.ptr = getelementptr inbounds <2 x i32>, <2 x i32> addrspace(1)* %a, i64 %gid
   %a.data = load <2 x i32>, <2 x i32> addrspace(1)* %a.ptr
   %b.ptr = getelementptr inbounds <2 x i32>, <2 x i32> addrspace(1)* %b, i64 %gid
@@ -33,7 +33,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; It checks that a two-operand shuffle is packetized to a gather intrinsics and a select.
 ; CHECK: define spir_kernel void @__vecz_nxv4_f({{.*}}) {{.*}} {

@@ -21,10 +21,10 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z13get_global_idj(i32) #0
+declare i64 @__mux_get_global_id(i32) #0
 
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z15get_global_sizej(i32) #0
+declare i64 @__mux_get_global_size(i32) #0
 
 ; Function Attrs: nounwind readnone
 declare spir_func float @_Z3dotDv2_fS_(<2 x float>, <2 x float>) #0
@@ -36,8 +36,8 @@ declare spir_func i32 @_Z6mul_hijj(i32, i32) #0
 
 define spir_kernel void @nested_loops4(i32 %n, float addrspace(1)* %out) {
 entry:
-  %gid = tail call spir_func i64 @_Z13get_global_idj(i32 0) #0
-  %gsize = tail call spir_func i64 @_Z15get_global_sizej(i32 0) #0
+  %gid = tail call i64 @__mux_get_global_id(i32 0) #0
+  %gsize = tail call i64 @__mux_get_global_size(i32 0) #0
   %trunc_gid = trunc i64 %gid to i32
   %trunc_gsize = trunc i64 %gsize to i32
   %cmp1 = icmp slt i32 %trunc_gid, %n

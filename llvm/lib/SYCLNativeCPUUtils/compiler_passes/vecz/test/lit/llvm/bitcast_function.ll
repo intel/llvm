@@ -28,7 +28,7 @@ entry:
   %gid = alloca i64, align 8
   store i32* %in, i32** %in.addr, align 8
   store i32* %out, i32** %out.addr, align 8
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   store i64 %call, i64* %gid, align 8
   %0 = load i64, i64* %gid, align 8
   %rem = urem i64 %0, 16
@@ -65,7 +65,7 @@ if.end:                                           ; preds = %if.else, %if.then
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func i32 @foo(i32, i32 addrspace(1)*)
 
 ; CHECK: define spir_kernel void @__vecz_v4_test(

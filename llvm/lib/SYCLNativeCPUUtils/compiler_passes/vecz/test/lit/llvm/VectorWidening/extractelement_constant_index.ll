@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @extract_constant_index(<4 x i64> addrspace(1)* %in, i32 %x, i64 addrspace(1)* %out) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %arrayidx = getelementptr inbounds <4 x i64>, <4 x i64> addrspace(1)* %in, i64 %call
   %0 = load <4 x i64>, <4 x i64> addrspace(1)* %arrayidx, align 4
   %vecext = extractelement <4 x i64> %0, i32 0;
@@ -31,7 +31,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; CHECK: define spir_kernel void @__vecz_v4_extract_constant_index
 ; CHECK: %[[LD:.+]] = load <16 x i64>

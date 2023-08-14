@@ -21,7 +21,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @test(i32 addrspace(1)* %src, i32 addrspace(1)* %dst, i32 %n) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   %0 = load i32, i32 addrspace(1)* %src, align 4
   %add = add nuw nsw i32 %conv, 9
@@ -32,7 +32,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: spir_kernel void @test
 ; CHECK: _interleaved_

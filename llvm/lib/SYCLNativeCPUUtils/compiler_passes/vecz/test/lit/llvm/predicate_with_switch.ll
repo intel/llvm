@@ -19,16 +19,16 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 @predicate_with_switch.tmpIn = internal addrspace(3) global [16 x i32] undef, align 4
 
 define spir_kernel void @predicate_with_switch(i32 addrspace(1)* %A, i32 addrspace(1)* %B) #0 {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0) #2
-  %call1 = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_local_id(i32 0) #2
+  %call1 = call i64 @__mux_get_global_id(i32 0) #2
   switch i64 %call, label %if.end [
     i64 0, label %return
     i64 200, label %return

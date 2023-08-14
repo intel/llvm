@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(i32 addrspace(2)* %in, i32 addrspace(1)* %out, i8 addrspace(2)* %text, double %f) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32 addrspace(2)* %in, i64 %call
   %0 = load i32, i32 addrspace(2)* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 %call
@@ -31,11 +31,11 @@ entry:
 
 define spir_kernel void @second_test(i32 %a, i32 %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 !opencl.kernels = !{!0, !6}
 !opencl.kernel_wg_size_info = !{!12}

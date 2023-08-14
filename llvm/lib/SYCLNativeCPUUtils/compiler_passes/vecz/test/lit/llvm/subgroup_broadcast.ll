@@ -19,17 +19,17 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i32 @_Z16get_sub_group_idv()
-declare spir_func i32 @__mux_get_sub_group_local_id()
-declare spir_func i32 @__mux_sub_group_broadcast_i32(i32, i32)
+declare i32 @__mux_get_sub_group_id()
+declare i32 @__mux_get_sub_group_local_id()
+declare i32 @__mux_sub_group_broadcast_i32(i32, i32)
 
 ; It makes sure broadcast still works when its source operand is uniform
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
-  %call = tail call spir_func i32 @_Z16get_sub_group_idv()
+  %call = tail call i32 @__mux_get_sub_group_id()
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %call
   %v = load i32, i32 addrspace(1)* %arrayidx, align 4
-  %broadcast = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 %v, i32 0)
-  %idx = tail call spir_func i32 @__mux_get_sub_group_local_id()
+  %broadcast = call i32 @__mux_sub_group_broadcast_i32(i32 %v, i32 0)
+  %idx = tail call i32 @__mux_get_sub_group_local_id()
   %arrayidx2 = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %idx
   store i32 %broadcast, i32 addrspace(1)* %arrayidx2, align 4
   ret void

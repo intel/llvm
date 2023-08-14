@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test_positive(i64 %a, i64 %b, i64* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr i64, i64* %c, i64 %gid
   store i64 %b, i64* %c0, align 4
@@ -35,7 +35,7 @@ entry:
 
 define spir_kernel void @test_positive_gep_different_type(i64 %a, i64 %b, i8* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr i64, i64* %c, i64 %gid
   store i64 %b, i64* %c0, align 4
@@ -49,7 +49,7 @@ entry:
 
 define spir_kernel void @test_negative(i64 %a, i64 %b, i64* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr i64, i64* %c, i64 %gid
   %c1 = getelementptr i64, i64* %c, i64 0
@@ -61,7 +61,7 @@ entry:
 
 define spir_kernel void @test_vector_scalar_cond(i64 %a, <2 x i32> %b, <2 x i32>* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr <2 x i32>, <2 x i32>* %c, i64 %gid
   %c1 = getelementptr <2 x i32>, <2 x i32>* %c, i64 0
@@ -71,10 +71,10 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_test_positive(i64 %a, i64 %b, ptr %c)
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %cond = icmp eq i64 %a, %gid
 ; CHECK: %c0 = getelementptr i64, ptr %c, i64 %gid
 ; CHECK: store i64 %b, ptr %c0, align 4
@@ -87,7 +87,7 @@ declare spir_func i64 @_Z13get_global_idj(i32)
 ; CHECK: call void @__vecz_b_masked_store4_mu3ptrb(i64 1, ptr %[[GEP2]], i1 %[[XOR]])
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_test_positive_gep_different_type(i64 %a, i64 %b, ptr %c)
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %cond = icmp eq i64 %a, %gid
 ; CHECK: %c0 = getelementptr i64, ptr %c, i64 %gid
 ; CHECK: store i64 %b, ptr %c0, align 4
@@ -100,7 +100,7 @@ declare spir_func i64 @_Z13get_global_idj(i32)
 ; CHECK: call void @__vecz_b_masked_store4_hu3ptrb(i8 1, ptr %[[GEP2]], i1 %[[XOR]])
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_test_negative(i64 %a, i64 %b, ptr %c)
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %cond = icmp eq i64 %a, %gid
 ; CHECK: %c0 = getelementptr i64, ptr %c, i64 %gid
 ; CHECK: %c1 = getelementptr i64, ptr %c, i64 0
@@ -109,7 +109,7 @@ declare spir_func i64 @_Z13get_global_idj(i32)
 
 ; Note: we don't perform this transform on vector accesses - see CA-4337.
 ; CHECK: define spir_kernel void @__vecz_v4_test_vector_scalar_cond(i64 %a, <2 x i32> %b, ptr %c)
-; CHECK:   %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK:   %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK:   %cond = icmp eq i64 %a, %gid
 ; CHECK:   %c0 = getelementptr <2 x i32>, ptr %c, i64 %gid
 ; CHECK:   %c1 = getelementptr <2 x i32>, ptr %c, i64 0

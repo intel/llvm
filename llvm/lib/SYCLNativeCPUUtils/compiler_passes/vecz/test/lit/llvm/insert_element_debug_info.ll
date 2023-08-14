@@ -39,7 +39,7 @@ entry:
   store i32 addrspace(1)* %out, i32 addrspace(1)** %out.addr, align 8
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %out.addr, metadata !13, metadata !29), !dbg !30
   call void @llvm.dbg.declare(metadata i32* %tid, metadata !14, metadata !29), !dbg !31
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3, !dbg !31
+  %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !31
   %conv = trunc i64 %call to i32, !dbg !31
   store i32 %conv, i32* %tid, align 4, !dbg !31
   call void @llvm.dbg.declare(metadata <3 x i32>* %tmp, metadata !15, metadata !29), !dbg !32
@@ -84,7 +84,7 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare spir_func i64 @_Z13get_global_idj(i32) #2
+declare i64 @__mux_get_global_id(i32) #2
 
 declare spir_func <3 x i32> @_Z6vload3mPKU3AS1i(i64, i32 addrspace(1)*) #2
 

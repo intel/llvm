@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test_negative(i64 %a, i64 %b, i64* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr i64, i64* %c, i64 %gid
   %c1 = getelementptr i64, i64* %c, i64 0
@@ -30,13 +30,13 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This checks that the ternary transform is not applied when the select is not
 ; accessed through an additional GEP.
 
 ; CHECK: define spir_kernel void @__vecz_v4_test_negative(i64 %a, i64 %b, ptr %c)
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %cond = icmp eq i64 %a, %gid
 ; CHECK: %c0 = getelementptr i64, ptr %c, i64 %gid
 ; CHECK: %c1 = getelementptr i64, ptr %c, i64 0

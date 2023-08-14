@@ -42,7 +42,7 @@ entry:
   store <2 x i32> addrspace(1)* %out, <2 x i32> addrspace(1)** %out.addr, align 8
   call void @llvm.dbg.declare(metadata <2 x i32> addrspace(1)** %out.addr, metadata !18, metadata !34), !dbg !35
   call void @llvm.dbg.declare(metadata i64* %tid, metadata !19, metadata !34), !dbg !36
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3, !dbg !36
+  %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !36
   store i64 %call, i64* %tid, align 8, !dbg !36
   call void @llvm.dbg.declare(metadata <2 x i32>* %a, metadata !23, metadata !34), !dbg !37
   %0 = load i64, i64* %tid, align 8, !dbg !37
@@ -72,7 +72,7 @@ entry:
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.declare(metadata, metadata, metadata) #1
 
-declare spir_func i64 @_Z13get_global_idj(i32) #2
+declare i64 @__mux_get_global_id(i32) #2
 
 attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readnone }

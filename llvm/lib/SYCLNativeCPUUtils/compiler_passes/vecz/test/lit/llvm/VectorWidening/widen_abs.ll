@@ -20,14 +20,14 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare i32 @llvm.abs.i32(i32, i1)
 declare <2 x i32> @llvm.abs.v2i32(<2 x i32>, i1)
 
 define spir_kernel void @absff(i32* %pa, i32* %pb) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %a = getelementptr i32, i32* %pa, i64 %idx
   %b = getelementptr i32, i32* %pb, i64 %idx
   %la = load i32, i32* %a, align 16
@@ -38,7 +38,7 @@ entry:
 
 define spir_kernel void @absvf(<2 x i32>* %pa, <2 x i32>* %pb) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %a = getelementptr <2 x i32>, <2 x i32>* %pa, i64 %idx
   %b = getelementptr <2 x i32>, <2 x i32>* %pb, i64 %idx
   %la = load <2 x i32>, <2 x i32>* %a, align 16
@@ -49,7 +49,7 @@ entry:
 
 ; CHECK: define spir_kernel void @__vecz_v4_absff(ptr %pa, ptr %pb)
 ; CHECK: entry:
-; CHECK: %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a = getelementptr i32, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr i32, ptr %pb, i64 %idx
 ; CHECK: %[[T0:.*]] = load <4 x i32>, ptr %a, align 4
@@ -59,7 +59,7 @@ entry:
 
 ; CHECK: define spir_kernel void @__vecz_v4_absvf(ptr %pa, ptr %pb)
 ; CHECK: entry:
-; CHECK: %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %idx = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a = getelementptr <2 x i32>, ptr %pa, i64 %idx
 ; CHECK: %b = getelementptr <2 x i32>, ptr %pb, i64 %idx
 ; CHECK: %[[T0:.*]] = load <8 x i32>, ptr %a, align 4

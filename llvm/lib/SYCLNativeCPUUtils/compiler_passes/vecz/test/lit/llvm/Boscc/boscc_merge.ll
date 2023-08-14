@@ -21,13 +21,13 @@ source_filename = "Unknown buffer"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32) #0
-declare spir_func i64 @_Z14get_local_sizej(i32) #0
+declare i64 @__mux_get_local_id(i32) #0
+declare i64 @__mux_get_local_size(i32) #0
 
 define spir_kernel void @boscc_merge(i32 %n, float addrspace(1)* %out, i64 %x) {
 entry:
-  %lid = tail call spir_func i64 @_Z12get_local_idj(i32 0)
-  %lsize = tail call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %lid = tail call i64 @__mux_get_local_id(i32 0)
+  %lsize = tail call i64 @__mux_get_local_size(i32 0)
   %out_ptr = getelementptr inbounds float, float addrspace(1)* %out, i64 %x
   %lid_sum_lsize = add i64 %lid, %lsize
   %cmp1 = icmp ult i64 %lsize, %x

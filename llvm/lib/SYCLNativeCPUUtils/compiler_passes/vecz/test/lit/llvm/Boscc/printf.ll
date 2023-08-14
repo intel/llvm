@@ -38,7 +38,7 @@ entry:
   store i32 addrspace(1)* %in2, i32 addrspace(1)** %in2.addr, align 8
   store i32 addrspace(1)* %out, i32 addrspace(1)** %out.addr, align 8
   store i32 addrspace(1)* %status, i32 addrspace(1)** %status.addr, align 8
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #4
+  %call = call i64 @__mux_get_global_id(i32 0) #4
   store i64 %call, i64* %tid, align 8
   %0 = load i32 addrspace(1)*, i32 addrspace(1)** %in1.addr, align 8
   %1 = load i64, i64* %tid, align 8
@@ -58,17 +58,17 @@ entry:
   %9 = load i64, i64* %tid, align 8
   %conv = trunc i64 %9 to i32
   %10 = load i32, i32* %sum, align 4
-  %11 = call spir_func i64 @_Z14get_num_groupsj(i32 0)
+  %11 = call i64 @__mux_get_num_groups(i32 0)
   %12 = trunc i64 %11 to i32
-  %13 = call spir_func i64 @_Z14get_num_groupsj(i32 1)
+  %13 = call i64 @__mux_get_num_groups(i32 1)
   %14 = trunc i64 %13 to i32
-  %15 = call spir_func i64 @_Z14get_num_groupsj(i32 2)
+  %15 = call i64 @__mux_get_num_groups(i32 2)
   %16 = trunc i64 %15 to i32
-  %17 = call spir_func i64 @_Z12get_group_idj(i32 0)
+  %17 = call i64 @__mux_get_group_id(i32 0)
   %18 = trunc i64 %17 to i32
-  %19 = call spir_func i64 @_Z12get_group_idj(i32 1)
+  %19 = call i64 @__mux_get_group_id(i32 1)
   %20 = trunc i64 %19 to i32
-  %21 = call spir_func i64 @_Z12get_group_idj(i32 2)
+  %21 = call i64 @__mux_get_group_id(i32 2)
   %22 = trunc i64 %21 to i32
   %23 = mul i32 %12, %20
   %24 = mul i32 %14, %16
@@ -117,9 +117,9 @@ store.i:                                          ; preds = %entry
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z12get_group_idj(i32)
-declare spir_func i64 @_Z14get_num_groupsj(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_group_id(i32)
+declare i64 @__mux_get_num_groups(i32)
 
 ; We can't vectorize this control flow
 ; CHECK: Error: Failed to vectorize function 'printf_add'

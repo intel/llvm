@@ -29,7 +29,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @entry(ptr addrspace(1) %input, ptr addrspace(1) %output) {
 entry:
-  %call = tail call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = tail call i64 @__mux_get_local_id(i32 0)
   %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %input, i64 %call
   %0 = load i32, ptr addrspace(1) %arrayidx, align 4
   %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %output, i64 %call
@@ -74,7 +74,7 @@ if.end:
   ret void
 }
 
-declare spir_func i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
 declare spir_func i32 @_Z3maxii(i32, i32)
 

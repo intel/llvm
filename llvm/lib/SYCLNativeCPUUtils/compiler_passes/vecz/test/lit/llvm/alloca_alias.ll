@@ -24,7 +24,7 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 define spir_kernel void @alloca_alias(i32 addrspace(1)* %out, i32 %index) {
 entry:
   %myStructs = alloca [2 x %struct.testStruct], align 16
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %0 = bitcast [2 x %struct.testStruct]* %myStructs to i8*
   call void @llvm.lifetime.start.p0i8(i64 32, i8* nonnull %0)
   %1 = trunc i64 %call to i32
@@ -58,7 +58,7 @@ entry:
 
 declare void @llvm.lifetime.start.p0i8(i64 immarg, i8*)
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare spir_func void @_Z7vstore3Dv3_imPU3AS1i(<3 x i32>, i64, i32 addrspace(1)*)
 

@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @f(<4 x i32> addrspace(1)* %in, <4 x i32> addrspace(1)* %out) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %in.ptr = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %in, i64 %gid
   %in.data = load <4 x i32>, <4 x i32> addrspace(1)* %in.ptr
   %in.bool = icmp ne <4 x i32> %in.data, zeroinitializer
@@ -33,7 +33,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; It checks that a single-operand shuffle that doesn't change the length is packetized to a gather intrinsic,
 ; and that it works with a vector of i1 type by temporarily extending to i8.

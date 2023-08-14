@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @irreducible_loop(i32 addrspace(1)* %src, i32 addrspace(1)* %dst) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %arrayidx4 = getelementptr inbounds i32, i32 addrspace(1)* %dst, i64 %call
   %ld = load i32, i32 addrspace(1)* %arrayidx4, align 4
   %cmp = icmp sgt i32 %ld, -1
@@ -45,7 +45,7 @@ do.end:                                           ; preds = %label
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v4_irreducible_loop
 ; CHECK: entry:

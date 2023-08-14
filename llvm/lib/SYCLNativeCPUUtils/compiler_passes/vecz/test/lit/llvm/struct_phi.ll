@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(i32* %in, i32* %out, %struct_type* %sin) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %inp = getelementptr inbounds i32, i32* %in, i64 %call
   %oup = getelementptr inbounds i32, i32* %out, i64 %call
   %o = load i32, i32* %oup
@@ -71,7 +71,7 @@ for.end:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare void @llvm.memset.p0i8.i32(i8*,i8,i32,i32,i1)
 
 ; CHECK: define spir_kernel void @__vecz_v4_test

@@ -21,14 +21,14 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(i32 addrspace(1)* %out) #0 {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0) #1
+  %gid = call i64 @__mux_get_global_id(i32 0) #1
   %conv = trunc i64 %gid to i32
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %out, i64 3
   store i32 %conv, i32 addrspace(1)* %arrayidx, align 4
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 attributes #0 = { nounwind }
 attributes #1 = { nounwind readnone }
@@ -52,7 +52,7 @@ attributes #1 = { nounwind readnone }
 
 ; CHECK: define spir_kernel void @__vecz_v4_test
 ; CHECK-NEXT: entry:
-; CHECK-NEXT: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-NEXT: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT: %conv = trunc i64 %gid to i32
 ; CHECK-NEXT: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 3
 ; CHECK-NEXT: store i32 %conv, ptr addrspace(1) %arrayidx, align 4

@@ -23,13 +23,13 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @vector_loop(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %call, 0
   br i1 %cmp, label %for.end, label %for.cond
 
 for.cond:                                         ; preds = %entry, %for.body
   %storemerge = phi <4 x i32> [ %inc, %for.body ], [ zeroinitializer, %entry ]
-  %call1 = call spir_func i64 @_Z15get_global_sizej(i32 0)
+  %call1 = call i64 @__mux_get_global_size(i32 0)
   %conv = trunc i64 %call1 to i32
   %splat.splatinsert = insertelement <4 x i32> undef, i32 %conv, i32 0
   %splat.splat = shufflevector <4 x i32> %splat.splatinsert, <4 x i32> undef, <4 x i32> zeroinitializer
@@ -77,8 +77,8 @@ for.end:                                          ; preds = %entry, %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z15get_global_sizej(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_global_size(i32)
 
 ; This test checks if a uniform <4 x i32> phi is not scalarized
 ; CHECK: define spir_kernel void @__vecz_v4_vector_loop

@@ -22,13 +22,13 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:1:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z12get_local_idj(i32)
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_local_id(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @multiple_exit_blocks(i64 %n) {
 entry:
-  %gid = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %lid = tail call spir_func i64 @_Z12get_local_idj(i32 0)
+  %gid = tail call i64 @__mux_get_global_id(i32 0)
+  %lid = tail call i64 @__mux_get_local_id(i32 0)
   %cmp1 = icmp slt i64 %lid, %n
   %cmp2 = icmp slt i64 %gid, %n
   br i1 %cmp2, label %if.then, label %if.end

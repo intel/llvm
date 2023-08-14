@@ -25,7 +25,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @test(%struct.T addrspace(1)* %in, %struct.T addrspace(1)* %out, i32 addrspace(1)* %offsets) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %offsets, i64 %call
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 4
   %conv = sext i32 %0 to i64
@@ -37,7 +37,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; Check if we can packetize GEPs on structs
 ; Note that we only need to packetize the non-uniform operands..

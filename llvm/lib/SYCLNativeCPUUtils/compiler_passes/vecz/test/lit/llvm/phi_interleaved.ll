@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @codegen_2(i32 addrspace(1)* nocapture readonly %in, i32 addrspace(1)* nocapture %out, i32 %size, i32 %reps) local_unnamed_addr {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %conv = sext i32 %reps to i64
   %mul = mul i64 %call, %conv
   %add = add i64 %call, 1
@@ -60,7 +60,7 @@ for.inc:                                          ; preds = %if.then, %for.body
   br i1 %cmp, label %for.body, label %for.cond.cleanup
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr
+declare i64 @__mux_get_global_id(i32) local_unnamed_addr
 
 !llvm.module.flags = !{!0}
 !opencl.ocl.version = !{!1}

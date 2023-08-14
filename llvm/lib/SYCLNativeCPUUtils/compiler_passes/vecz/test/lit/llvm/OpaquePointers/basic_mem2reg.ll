@@ -24,7 +24,7 @@ entry:
   %d = alloca i32
   %e = alloca i32
   %f = alloca float
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %sum = add i32 %a, %b
   store i32 %sum, i32* %d, align 4
   store i32 %sum, i32* %e, align 4
@@ -43,12 +43,12 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func i32 @foo(i32*)
 
 ; CHECK: define spir_kernel void @__vecz_v4_test(i32 %a, i32 %b, ptr %c, float %rf)
 ; CHECK: %e = alloca i32
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %sum = add i32 %a, %b
 ; CHECK: store i32 %sum, ptr %e
 ; CHECK: %call = call spir_func i32 @foo(ptr{{.*}} %e)

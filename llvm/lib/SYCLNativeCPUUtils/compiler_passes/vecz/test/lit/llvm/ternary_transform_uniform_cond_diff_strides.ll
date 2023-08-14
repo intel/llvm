@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test_ternary(i64 %a, i64 %b, i64* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %gid_shift = shl i64 %gid, 1
   %cond = icmp eq i64 %a, 0
   %c0 = getelementptr i64, i64* %c, i64 %gid
@@ -34,13 +34,13 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This checks that the ternary transform is applied when the condition is
 ; uniform, and the source GEPs have different constant strides.
 
 ; CHECK: define spir_kernel void @__vecz_v4_test_ternary(i64 %a, i64 %b, ptr %c)
-; CHECK: %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %gid = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %gid_shift = shl i64 %gid, 1
 ; CHECK: %cond = icmp eq i64 %a, 0
 ; CHECK: %c0 = getelementptr i64, ptr %c, i64 %gid

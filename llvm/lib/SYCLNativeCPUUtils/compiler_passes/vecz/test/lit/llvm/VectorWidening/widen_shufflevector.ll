@@ -19,12 +19,12 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; Function Attrs: nounwind
 define spir_kernel void @widen_shufflevector(<2 x float> addrspace(1)* %a, <2 x float> addrspace(1)* %b, <4 x float> addrspace(1)* %out) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %arrayidxa = getelementptr inbounds <2 x float>, <2 x float> addrspace(1)* %a, i64 %call
   %arrayidxb = getelementptr inbounds <2 x float>, <2 x float> addrspace(1)* %b, i64 %call
   %la = load <2 x float>, <2 x float> addrspace(1)* %arrayidxa, align 4

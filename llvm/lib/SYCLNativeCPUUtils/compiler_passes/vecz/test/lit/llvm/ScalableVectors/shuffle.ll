@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @do_shuffle_splat(i32* %aptr, <4 x i32>* %bptr, <4 x i32>* %zptr) {
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds <4 x i32>, <4 x i32>* %bptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
@@ -45,7 +45,7 @@ define spir_kernel void @do_shuffle_splat(i32* %aptr, <4 x i32>* %bptr, <4 x i32
 }
 
 define spir_kernel void @do_shuffle_splat_uniform(i32 %a, <4 x i32>* %bptr, <4 x i32>* %zptr) {
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxb = getelementptr inbounds <4 x i32>, <4 x i32>* %bptr, i64 %idx
   %b = load <4 x i32>, <4 x i32>* %arrayidxb, align 16
   %insert = insertelement <4 x i32> undef, i32 %a, i32 0
@@ -59,4 +59,4 @@ define spir_kernel void @do_shuffle_splat_uniform(i32 %a, <4 x i32>* %bptr, <4 x
 ; CHECK: store <vscale x 16 x i32> [[splat]], ptr
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

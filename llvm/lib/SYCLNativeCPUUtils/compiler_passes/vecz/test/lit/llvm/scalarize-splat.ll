@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 
 define dso_local spir_kernel void @splat(float addrspace(1)* %data, float addrspace(1)* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 noundef 0)
+  %call = tail call i64 @__mux_get_global_id(i32 noundef 0)
   %arrayidx = getelementptr inbounds float, float addrspace(1)* %data, i64 %call
   %0 = load float, float addrspace(1)* %arrayidx, align 4
   %splat.splatinsert = insertelement <4 x float> poison, float %0, i64 0
@@ -33,7 +33,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32 noundef)
+declare i64 @__mux_get_global_id(i32 noundef)
 declare spir_func float @not_scalarizable(<4 x float> noundef)
 
 ; It checks that the scalarizer turns the original vector splat back into a vector splat,

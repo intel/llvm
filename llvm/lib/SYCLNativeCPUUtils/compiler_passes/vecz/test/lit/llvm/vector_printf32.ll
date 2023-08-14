@@ -28,7 +28,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @test(<4 x i8>* %out, <4 x i8>* %in1, <4 x i8>* %in2) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x i8>, <4 x i8>* %in1, i64 %call
   %0 = load <4 x i8>, <4 x i8>* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds <4 x i8>, <4 x i8>* %in2, i64 %call
@@ -42,7 +42,7 @@ entry:
 
 define spir_kernel void @test32(<32 x i8>* %out, <32 x i8>* %in1, <32 x i8>* %in2) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <32 x i8>, <32 x i8>* %in1, i64 %call
   %0 = load <32 x i8>, <32 x i8>* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds <32 x i8>, <32 x i8>* %in2, i64 %call
@@ -56,7 +56,7 @@ entry:
 
 define spir_kernel void @test64(<64 x i8>* %out, <64 x i8>* %in1, <64 x i8>* %in2) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <64 x i8>, <64 x i8>* %in1, i64 %call
   %0 = load <64 x i8>, <64 x i8>* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds <64 x i8>, <64 x i8>* %in2, i64 %call
@@ -70,7 +70,7 @@ entry:
 
 define spir_kernel void @test_float_vectors(<2 x float>* %in) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <2 x float>, <2 x float>* %in, i64 %call
   %0 = load <2 x float>, <2 x float>* %arrayidx, align 8
   %mul = fmul <2 x float> %0, %0
@@ -78,7 +78,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 

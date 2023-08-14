@@ -21,11 +21,11 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @regression_phis(i64 addrspace(1)* %xs, i64 addrspace(1)* %ys, i32 addrspace(1)* %out, i64 %lim) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx.x = getelementptr inbounds i64, i64 addrspace(1)* %xs, i64 %call
   %x = load i64, i64 addrspace(1)* %arrayidx.x, align 4
   %cond = icmp eq i64 %call, 0

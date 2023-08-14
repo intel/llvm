@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 
 define spir_kernel void @test(i32 addrspace(1)* %in) {
 entry:
-  %id = call spir_func i64 @_Z13get_global_idj(i64 0) #2
+  %id = call i64 @__mux_get_global_id(i64 0) #2
   %init_addr = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %id
   %load = load i32, i32 addrspace(1)* %init_addr
   br label %loop
@@ -40,7 +40,7 @@ merge:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i64)
+declare i64 @__mux_get_global_id(i64)
 
 ; It checks that the stride analysis can tell the store is contiguous through the PHI node.
 ; Same as uniform_loop_contiguous_phi3.ll except with the PHI node incoming values reversed.

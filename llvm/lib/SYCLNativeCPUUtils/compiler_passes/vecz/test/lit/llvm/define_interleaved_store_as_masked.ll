@@ -23,11 +23,11 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @f(<4 x double> addrspace(1)* %a, <4 x double> addrspace(1)* %b, <4 x double> addrspace(1)* %c, <4 x double> addrspace(1)* %d, <4 x double> addrspace(1)* %e, i8 addrspace(1)* %flag) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3
+  %call = call i64 @__mux_get_global_id(i32 0) #3
   %add.ptr = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %b, i64 %call
   %.cast = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %add.ptr, i64 0, i64 0
   %0 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
-  call spir_func void @_Z7barrierj(i32 2) #3
+  call void @__mux_work_group_barrier(i32 0, i32 2, i32 528) #3
   store double 1.600000e+01, double addrspace(1)* %.cast, align 8
   %1 = load <4 x double>, <4 x double> addrspace(1)* %add.ptr, align 32
   %vecins5 = shufflevector <4 x double> %0, <4 x double> %1, <4 x i32> <i32 0, i32 1, i32 6, i32 undef>
@@ -47,9 +47,9 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
-declare spir_func void @_Z7barrierj(i32) #1
+declare void @__mux_work_group_barrier(i32, i32, i32) #1
 
 ; Function Attrs: nounwind readnone
 declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double>) #2
