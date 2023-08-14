@@ -181,6 +181,8 @@ set( nvptx--nvidiacl_devices none )
 set( nvptx64--nvidiacl_devices none )
 set( spirv-mesa3d-_devices none )
 set( spirv64-mesa3d-_devices none )
+# todo: does this need to be set for each possible triple?
+set( x86_64-unknown-linux-gnu_devices none )
 
 # Setup aliases
 set( cedar_aliases palm sumo sumo2 redwood juniper )
@@ -342,6 +344,10 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
 				# AMDGCN needs libclc to be compiled to high bc version since all atomic
 				# clang builtins need to be accessible
 				set( flags "SHELL:-mcpu=gfx940")
+      elseif( ${ARCH}  STREQUAL x86_64)
+        # todo: this is used by native cpu, we should define an option to set this flags
+        set( flags "SHELL:-Xclang -target-feature -Xclang +avx"
+            "SHELL:-Xclang -target-feature -Xclang +avx512f")
 			else()
 				set ( flags )
 			endif()

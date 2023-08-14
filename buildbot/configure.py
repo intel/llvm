@@ -65,7 +65,7 @@ def do_configure(args):
     if args.enable_esimd_emulator:
         sycl_enabled_plugins.append("esimd_emulator")
 
-    if args.cuda or args.hip:
+    if args.cuda or args.hip or "native_cpu" in args.enable_plugin:
         llvm_enable_projects += ';libclc'
 
     if args.cuda:
@@ -86,6 +86,11 @@ def do_configure(args):
 
         sycl_build_pi_hip_platform = args.hip_platform
         sycl_enabled_plugins.append("hip")
+
+    if "native_cpu" in args.enable_plugin:
+        #Todo: we should set whatever targets we support for native cpu
+        libclc_targets_to_build += 'x86_64-unknown-linux-gnu'
+
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
