@@ -37,14 +37,15 @@ using namespace mlir;
 using namespace mlir::sycl;
 
 namespace {
-class ConstantSYCLGridArgs;
+// Forward declaration
+class ConstantArg;
+
 /// Helper struct for std::visit
 template <typename... Ts> struct overloaded : Ts... {
   using Ts::operator()...;
 };
 template <typename... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
-class ConstantImplicitArgBase;
 class ConstantPropagationPass
     : public mlir::sycl::impl::ConstantPropagationPassBase<
           ConstantPropagationPass> {
@@ -55,29 +56,33 @@ public:
   void runOnOperation() final;
 
 private:
-  /// Return a range with all of the constant arguments of \p op.
-  static auto
-  getConstantArgs(SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
-                  ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
-                  polygeist::SYCLAccessorAnalysis &accessorAnalysis);
+  /// Inserts in \p input all of the constant arguments of \p op.
+  static SmallVectorImpl<std::unique_ptr<ConstantArg>> &getConstantExplicitArgs(
+      SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
+      SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
+      ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
+      polygeist::SYCLAccessorAnalysis &accessorAnalysis);
 
-  /// Return all of the constant implicit arguments of \p op.
+  /// Inserts in \p input all of the constant implicit arguments of \p op.
   ///
   /// \p ndrAnalysis and \p idrAnalysis are used to perform analysis and track
   /// constant values of arguments.
-  static SmallVector<std::unique_ptr<ConstantImplicitArgBase>>
-  getConstantImplicitArgs(SYCLHostScheduleKernel op,
-                          polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-                          polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
+  static SmallVectorImpl<std::unique_ptr<ConstantArg>> &getConstantImplicitArgs(
+      SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
+      SYCLHostScheduleKernel op, polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
+      polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
+
+  static SmallVector<std::unique_ptr<ConstantArg>>
+  getConstantArgs(SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
+                  ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
+                  polygeist::SYCLAccessorAnalysis &accessorAnalysis,
+                  polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
+                  polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
 
   /// Propagate constants in \p constants to the function launched by \p launch.
-  template <typename RangeTy>
-  void propagateConstantArgs(RangeTy constants, gpu::GPUFuncOp op,
-                             SYCLHostScheduleKernel launch);
-
-  /// Propagate implicit constants in \p constants to function \p op.
-  template <typename RangeTy>
-  void propagateImplicitConstantArgs(RangeTy constants, FunctionOpInterface op);
+  void propagateConstantArgs(
+      SmallVectorImpl<std::unique_ptr<ConstantArg>> &&constants,
+      gpu::GPUFuncOp op, SYCLHostScheduleKernel launch);
 };
 
 class ConstantArg {
@@ -108,7 +113,7 @@ private:
 
 /// Class representing a constant explicit argument, i.e., those kernel
 /// functions receive as a parameter.
-class ConstantExplicitArg : public ConstantArg {
+class ConstantExplicitArgBase : public ConstantArg {
 public:
   unsigned getIndex() const { return index; }
 
@@ -116,8 +121,10 @@ public:
     return arg->getKind() < ConstantArg::Kind::ExplicitEnd;
   }
 
+  void propagate(OpBuilder &builder, Region &region);
+
 protected:
-  ConstantExplicitArg(ConstantArg::Kind kind, unsigned index)
+  ConstantExplicitArgBase(ConstantArg::Kind kind, unsigned index)
       : ConstantArg(kind), index(index) {
     assert(kind < ConstantArg::Kind::ExplicitEnd && "Invalid kind");
   }
@@ -127,7 +134,7 @@ private:
 };
 
 /// Class representing a constant argument backed by an operation in host code
-class ConstantOpArg : public ConstantExplicitArg {
+class ConstantOpArg : public ConstantExplicitArgBase {
 public:
   static bool classof(const ConstantArg *c) {
     return c->getKind() < ConstantArg::Kind::OpArgEnd;
@@ -135,7 +142,7 @@ public:
 
 protected:
   ConstantOpArg(ConstantArg::Kind kind, unsigned index, Operation *definingOp)
-      : ConstantExplicitArg(kind, index), definingOp(definingOp) {
+      : ConstantExplicitArgBase(kind, index), definingOp(definingOp) {
     assert(definingOp && "Expecting valid operation");
   }
 
@@ -166,7 +173,7 @@ public:
   }
 
   static bool classof(const ConstantArg *c) {
-    return c->getKind() == ConstantExplicitArg::Kind::ConstantArithArg;
+    return c->getKind() == ConstantArg::Kind::ConstantArithArg;
   }
 };
 
@@ -180,7 +187,7 @@ public:
   void propagate(OpBuilder &builder, Region &region);
 
   static bool classof(const ConstantArg *c) {
-    return c->getKind() == ConstantExplicitArg::Kind::ConstantArrayArg;
+    return c->getKind() == ConstantArg::Kind::ConstantArrayArg;
   }
 };
 
@@ -513,7 +520,7 @@ private:
 };
 
 /// Class representing an accessor with constant members.
-class ConstantAccessorArg : public ConstantExplicitArg {
+class ConstantAccessorArg : public ConstantExplicitArgBase {
 public:
   static std::unique_ptr<ConstantAccessorArg>
   get(unsigned index, polygeist::AccessorInformation &&info) {
@@ -525,7 +532,7 @@ public:
   /// Propagate the constant this argument represents.
   void propagate(OpBuilder &builder, Region &region);
 
-  static bool classof(const ConstantExplicitArg *c) {
+  static bool classof(const ConstantArg *c) {
     return c->getKind() == ConstantArg::Kind::ConstantAccessorArg;
   }
 
@@ -534,7 +541,7 @@ private:
   static bool isValidInfo(const polygeist::AccessorInformation &info);
 
   ConstantAccessorArg(unsigned index, polygeist::AccessorInformation &&info)
-      : ConstantExplicitArg(ConstantArg::Kind::ConstantAccessorArg, index),
+      : ConstantExplicitArgBase(ConstantArg::Kind::ConstantAccessorArg, index),
         info(std::move(info)) {}
 
   polygeist::AccessorInformation info;
@@ -622,6 +629,16 @@ template <>
 Value ConstantSYCLGridArgs::GlobalOffsetRewriter::getNewValue(
     OpBuilder &builder, Location loc, const NDRInfo &info, Type type) const {
   return info.getConstantOffsetValue(builder, loc, type);
+}
+
+//===----------------------------------------------------------------------===//
+// ConstantExplicitArgBase
+//===----------------------------------------------------------------------===//
+
+void ConstantExplicitArgBase::propagate(OpBuilder &builder, Region &region) {
+  TypeSwitch<ConstantExplicitArgBase *>(this)
+      .Case<ConstantArithArg, ConstantArrayArg, ConstantAccessorArg>(
+          [&](auto *arg) { arg->propagate(builder, region); });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1082,105 +1099,107 @@ static bool canInitializeArgument(LLVM::GlobalOp arrayDefinitionOp,
   return arrayDefinitionOp.getGlobalType() == getArrayType(arrayType);
 }
 
-auto ConstantPropagationPass::getConstantArgs(
+SmallVectorImpl<std::unique_ptr<ConstantArg>> &
+ConstantPropagationPass::getConstantExplicitArgs(
+    SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
     SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes, ArrayAttr argAttrs,
     SymbolTableCollection &symbolTable,
     polygeist::SYCLAccessorAnalysis &accessorAnalysis) {
-  // Map each argument to a ConstantExplicitArg and filter-out nullptr
-  // (non-const) ones.
+  // Map each argument to a ConstantExplicitArgBase
+  auto isConstant = m_Constant();
   auto types = op.getSyclTypes().getAsRange<TypeAttr>();
-  return llvm::make_filter_range(
-      llvm::map_range(
-          llvm::enumerate(llvm::zip(op.getArgs(), types)),
-          // Do not default-capture; this lambda will outlive this scope and we
-          // want to make sure all captured values remain live.
-          [&accessorAnalysis, &symbolTable, op, argumentTypes, argAttrs, types,
-           isConstant = m_Constant()](
-              auto iter) -> std::unique_ptr<ConstantExplicitArg> {
-            auto [index, valueTypeIter] = iter;
-            auto [value, type] = valueTypeIter;
-            unsigned trueIndex = getTrueIndex(types, index);
-            if (matchPattern(value, isConstant)) {
-              if (value.getType() == argumentTypes[trueIndex]) {
-                LLVM_DEBUG(llvm::dbgs().indent(2)
-                           << "Arith constant: " << value << " at pos #"
-                           << trueIndex << "\n");
-                return std::make_unique<ConstantArithArg>(
-                    trueIndex, value.getDefiningOp());
-              }
-            }
-            auto currArgAttrs = argAttrs
-                                    ? cast<DictionaryAttr>(argAttrs[trueIndex])
-                                    : DictionaryAttr();
-            if (currArgAttrs &&
-                isArrayArg(argumentTypes[trueIndex], currArgAttrs)) {
-              if (LLVM::GlobalOp arrayDefinitionOp =
-                      getConstantArrayDefinition(value, symbolTable);
-                  arrayDefinitionOp &&
-                  canInitializeArgument(
-                      arrayDefinitionOp,
-                      cast<TypeAttr>(currArgAttrs.get(
-                                         LLVM::LLVMDialect::getByValAttrName()))
-                          .getValue())) {
-                LLVM_DEBUG(llvm::dbgs().indent(2)
-                           << "Array constant: " << arrayDefinitionOp
-                           << " at pos #" << trueIndex << "\n");
-                return std::make_unique<ConstantArrayArg>(trueIndex,
-                                                          arrayDefinitionOp);
-              }
-            }
-            return TypeSwitch<Type, std::unique_ptr<ConstantExplicitArg>>(
-                       type.getValue())
-                .Case<AccessorType, LocalAccessorType>([&,
-                                                        value = value](auto) {
-                  return getConstantAccessorArg(op, accessorAnalysis, trueIndex,
-                                                value);
-                })
-                .template Case<NoneType>([](auto) { return nullptr; });
-          }),
-      llvm::identity<std::unique_ptr<ConstantExplicitArg>>());
+  for (auto [index, valueTypeIter] :
+       llvm::enumerate(llvm::zip(op.getArgs(), types))) {
+    auto [value, type] = valueTypeIter;
+    unsigned trueIndex = getTrueIndex(types, index);
+    if (matchPattern(value, isConstant)) {
+      if (value.getType() == argumentTypes[trueIndex]) {
+        LLVM_DEBUG(llvm::dbgs().indent(2) << "Arith constant: " << value
+                                          << " at pos #" << trueIndex << "\n");
+        constants.push_back(std::make_unique<ConstantArithArg>(
+            trueIndex, value.getDefiningOp()));
+      }
+    }
+    auto currArgAttrs =
+        argAttrs ? cast<DictionaryAttr>(argAttrs[trueIndex]) : DictionaryAttr();
+    if (currArgAttrs && isArrayArg(argumentTypes[trueIndex], currArgAttrs)) {
+      if (LLVM::GlobalOp arrayDefinitionOp =
+              getConstantArrayDefinition(value, symbolTable);
+          arrayDefinitionOp &&
+          canInitializeArgument(
+              arrayDefinitionOp,
+              cast<TypeAttr>(
+                  currArgAttrs.get(LLVM::LLVMDialect::getByValAttrName()))
+                  .getValue())) {
+        LLVM_DEBUG(llvm::dbgs().indent(2)
+                   << "Array constant: " << arrayDefinitionOp << " at pos #"
+                   << trueIndex << "\n");
+        constants.push_back(
+            std::make_unique<ConstantArrayArg>(trueIndex, arrayDefinitionOp));
+      }
+    }
+    TypeSwitch<Type>(type.getValue())
+        .Case<AccessorType, LocalAccessorType>([&, value = value](auto) {
+          std::unique_ptr<ConstantArg> accArg =
+              getConstantAccessorArg(op, accessorAnalysis, trueIndex, value);
+          if (accArg)
+            constants.push_back(std::move(accArg));
+        });
+  }
+  return constants;
 }
 
-SmallVector<std::unique_ptr<ConstantImplicitArgBase>>
+SmallVectorImpl<std::unique_ptr<ConstantArg>> &
 ConstantPropagationPass::getConstantImplicitArgs(
+    SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
     SYCLHostScheduleKernel op, polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
     polygeist::SYCLIDAndRangeAnalysis &idrAnalysis) {
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Searching for constant implicit arguments\n");
-  SmallVector<std::unique_ptr<ConstantImplicitArgBase>> args;
   if (std::optional<ConstantSYCLGridArgs> gridConstantPropagation =
           getSYCLGridPropagator(ndrAnalysis, idrAnalysis, op)) {
-    args.push_back(std::make_unique<ConstantSYCLGridArgs>(
+    constants.push_back(std::make_unique<ConstantSYCLGridArgs>(
         std::move(*gridConstantPropagation)));
   } else {
     LLVM_DEBUG(llvm::dbgs().indent(6)
                << "No constant nd-range information available\n");
   }
-  return args;
+  return constants;
 }
 
-template <typename RangeTy>
+SmallVector<std::unique_ptr<ConstantArg>>
+ConstantPropagationPass::getConstantArgs(
+    SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes, ArrayAttr argAttrs,
+    SymbolTableCollection &symbolTable,
+    polygeist::SYCLAccessorAnalysis &accessorAnalysis,
+    polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
+    polygeist::SYCLIDAndRangeAnalysis &idrAnalysis) {
+  SmallVector<std::unique_ptr<ConstantArg>> constants;
+  getConstantExplicitArgs(constants, op, argumentTypes, argAttrs, symbolTable,
+                          accessorAnalysis);
+  getConstantImplicitArgs(constants, op, ndrAnalysis, idrAnalysis);
+  return constants;
+}
+
 void ConstantPropagationPass::propagateConstantArgs(
-    RangeTy constants, gpu::GPUFuncOp op, SYCLHostScheduleKernel launch) {
+    SmallVectorImpl<std::unique_ptr<ConstantArg>> &&constants,
+    gpu::GPUFuncOp op, SYCLHostScheduleKernel launch) {
   Region *region = op.getCallableRegion();
   OpBuilder builder(region);
-  for (std::unique_ptr<ConstantExplicitArg> arg : constants) {
-    TypeSwitch<ConstantExplicitArg *>(arg.get())
-        .Case<ConstantAccessorArg, ConstantArithArg, ConstantArrayArg>(
-            [&](auto *arg) { arg->propagate(builder, *region); });
+  for (std::unique_ptr<ConstantArg> &arg : constants) {
+    Pass::Statistic *concreteStatPtr =
+        TypeSwitch<ConstantArg *, Pass::Statistic *>(arg.get())
+            .Case<ConstantExplicitArgBase>([&](auto *arg) {
+              arg->propagate(builder, *region);
+              return &NumReplacedExplicitArguments;
+            })
+            .Case<ConstantImplicitArgBase>([&](auto *arg) {
+              arg->propagate(op);
+              return &NumReplacedImplicitArguments;
+            });
     size_t hits = arg->getNumHits();
-    NumReplacedExplicitArguments += hits;
-    NumPropagatedConstants += hits;
-  }
-}
-
-template <typename RangeTy>
-void ConstantPropagationPass::propagateImplicitConstantArgs(
-    RangeTy constants, FunctionOpInterface op) {
-  for (std::unique_ptr<ConstantImplicitArgBase> &arg : constants) {
-    arg->propagate(op);
-    size_t hits = arg->getNumHits();
-    NumReplacedImplicitArguments += hits;
+    auto &concreteStat = *concreteStatPtr;
+    concreteStat += hits;
     NumPropagatedConstants += hits;
   }
 }
@@ -1240,10 +1259,9 @@ void ConstantPropagationPass::runOnOperation() {
 
     propagateConstantArgs(getConstantArgs(launchPoint, op.getArgumentTypes(),
                                           op.getArgAttrsAttr(), symbolTable,
-                                          accessorAnalysis),
+                                          accessorAnalysis, ndrAnalysis,
+                                          idrAnalysis),
                           op, launchPoint);
-    propagateImplicitConstantArgs(
-        getConstantImplicitArgs(launchPoint, ndrAnalysis, idrAnalysis), op);
   });
 }
 
