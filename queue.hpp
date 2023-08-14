@@ -9,6 +9,7 @@
 
 #include <ur/ur.hpp>
 
+#include <algorithm>
 #include <cuda.h>
 #include <vector>
 
