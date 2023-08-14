@@ -5245,6 +5245,52 @@ class OffloadingActionBuilder final {
       return needLibs;
     }
 
+    bool addSYCLNativeCPULibs(const ToolChain *TC,
+                              ActionList &DeviceLinkObjects) {
+      std::string LibSpirvFile;
+      if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
+        auto ProvidedPath =
+            Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
+        if (llvm::sys::fs::exists(ProvidedPath))
+          LibSpirvFile = ProvidedPath;
+      } else {
+        SmallVector<StringRef, 8> LibraryPaths;
+
+        // Expected path w/out install.
+        SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+        llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+        LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+        // Expected path w/ install.
+        SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+        llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+        LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+        // Select libclc variant based on target triple
+        std::string LibSpirvTargetName = "builtins.link.libspirv-";
+        LibSpirvTargetName.append(TC->getTripleString() + ".bc");
+
+        for (StringRef LibraryPath : LibraryPaths) {
+          SmallString<128> LibSpirvTargetFile(LibraryPath);
+          llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+          if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+              Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+            LibSpirvFile = std::string(LibSpirvTargetFile.str());
+            break;
+          }
+        }
+      }
+
+      if (!LibSpirvFile.empty()) {
+        Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                           Args.MakeArgString(LibSpirvFile));
+        auto *SYCLLibClcInputAction =
+            C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
+        DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+      }
+      return true;
+    }
+
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       struct DeviceLibOptInfo {
@@ -5654,6 +5700,9 @@ class OffloadingActionBuilder final {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, DeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
+        }
+        if (isSYCLNativeCPU) {
+          SYCLDeviceLibLinked = addSYCLNativeCPULibs(TC, DeviceLibs);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(DeviceLibs, types::TY_LLVM_BC);
