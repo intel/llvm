@@ -12,7 +12,6 @@
 
 #include "common.hpp"
 #include <iostream>
-#include <random>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -23,8 +22,6 @@ constexpr size_t TM = 8;
 // TN and TK must be the same for this test.
 constexpr size_t TN = 16;
 constexpr size_t TK = 16;
-
-#define BF16_EPSILON 0.00781250
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_copy(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A) {
@@ -83,15 +80,8 @@ int main() {
   static constexpr size_t MATRIX_K = TK * 2;
   bfloat16 A[MATRIX_M][MATRIX_K];
   float C[MATRIX_M][MATRIX_N];
-  std::random_device dev;
 
-  std::uniform_real_distribution<float> fdistr(-1.0, 1.0);
-
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i][j] = fdistr(dev);
-    }
-  }
+  matrix_rand(MATRIX_M, MATRIX_N, *C);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
