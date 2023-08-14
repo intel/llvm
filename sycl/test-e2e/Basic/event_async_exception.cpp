@@ -1,6 +1,6 @@
 // REQUIRES: hip_amd
 // RUN: %{build} -mllvm -debug-only="regalloc" -o %t.out
-// RUN: env AMD_LOG_LEVEL=3 %{run} %t.out
+// RUN: %{run} %t.out
 
 //==---- event_async_exception.cpp - Test for event async exceptions -------==//
 //

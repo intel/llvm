@@ -1,6 +1,6 @@
 // REQUIRES: hip_amd
 // RUN: %{build} -mllvm -debug-only="regalloc" -o %t.out
-// RUN: env AMD_LOG_LEVEL=3 %{run} %t.out
+// RUN: %{run} %t.out
 
 // This test performs basic check of supporting user defined class that are
 // implicitly converted from sycl::item/sycl::nd_item in parallel_for.
