@@ -26,4 +26,4 @@
 
 #define __CLC_BODY <native_unary_intrinsic.inc>
 #define __FLOAT_ONLY
-#include <clc/math/gentype.inc>
+//#include <clc/math/gentype.inc>

@@ -16,4 +16,4 @@
 #undef __CLC_INTRINSIC
 
 #define __CLC_BODY <clc_sqrt_impl.inc>
-#include <clc/math/gentype.inc>
+//#include <clc/math/gentype.inc>

@@ -12,4 +12,4 @@
 #include <math/math.h>
 
 #define __CLC_BODY <fma.inc>
-#include <clc/math/gentype.inc>
+//#include <clc/math/gentype.inc>

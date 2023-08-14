@@ -13,4 +13,4 @@
 #define __CLC_IMPL_FUNC __clc_native_popcount
 
 #define __CLC_BODY "../../lib/clc_unary.inc"
-#include <clc/integer/gentype.inc>
+//#include <clc/integer/gentype.inc>

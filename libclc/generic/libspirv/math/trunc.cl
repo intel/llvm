@@ -16,4 +16,4 @@
 
 #undef __CLC_FUNCTION
 #define __CLC_FUNCTION __spirv_ocl_trunc
-#include <math/unary_builtin.inc>
+//#include <math/unary_builtin.inc>
