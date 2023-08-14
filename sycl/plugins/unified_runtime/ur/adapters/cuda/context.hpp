@@ -63,7 +63,7 @@ typedef void (*ur_context_extended_deleter_t)(void *user_data);
 ///
 ///  A ur_buffer_ is associated with a ur_context_handle_t_, which may refer to
 ///  multiple devices. Therefore the ur_buffer_ must handle a native allocation
-///  for each device in the context. UR is responsible for automatically and
+///  for each device in the context. UR is responsible for automatically
 ///  handling event dependencies for kernels writing to or reading from the
 ///  same ur_buffer_ and migrating memory between native allocations for
 ///  devices in the same ur_context_handle_t_ if necessary.

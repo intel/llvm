@@ -290,11 +290,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // runtime. However since UR handles memory dependencies within a context
   // we may need to add more events to our dependent events list
   for (auto &MemArg : hKernel->Args.MemObjArgs) {
-    MemArg.Mem->MemoryMigrationMutex.lock();
     if (MemArg.Mem->isBuffer()) {
-      auto MemDepEvent =
-          ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
-      if (MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
+      MemArg.Mem->MemoryMigrationMutex.lock();
+      if (auto MemDepEvent =
+              ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
+          MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
                                    MemDepEvent) == DepEvents.end()) {
         DepEvents.push_back(MemDepEvent);
       }
@@ -304,9 +304,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // Early exit for zero size range kernel
   if (*pGlobalWorkSize == 0) {
     if (DepEvents.size()) {
-      auto Result = urEnqueueEventsWaitWithBarrier(hQueue, DepEvents.size(),
-                                                   &DepEvents[0], phEvent);
-      return Result;
+      return urEnqueueEventsWaitWithBarrier(hQueue, DepEvents.size(),
+                                            &DepEvents[0], phEvent);
     }
     return UR_RESULT_SUCCESS;
   }
@@ -376,7 +375,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     for (size_t i = 0; i < workDim; i++) {
       BlocksPerGrid[i] =
-          (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
+         (pGlobalWorkSize[i] + ThreadsPerBlock[i] - 1) / ThreadsPerBlock[i];
     }
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
@@ -388,7 +387,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     CUfunction CuFunc = hKernel->get();
 
     if (DepEvents.size()) {
-      Result = enqueueEventsWait(CuStream, DepEvents.size(), &DepEvents[0]);
+      UR_CHECK_ERROR(
+          enqueueEventsWait(CuStream, DepEvents.size(), &DepEvents[0]));
     }
 
     // For memory migration across devices in the same context
@@ -462,18 +462,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
         // Telling the ur_mem_handle_t that it will need to wait on this kernel
         // if it has been written to
-        if (MemArg.Mem->isBuffer() &&
-            MemArg.AccessFlags &
-                (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
-          ur_cast<ur_buffer_ *>(MemArg.Mem)
-              ->setLastEventWritingToMemObj(RetImplEvent.get());
+        if (MemArg.Mem->isBuffer()) {
+          if (MemArg.AccessFlags &
+              (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+            ur_cast<ur_buffer_ *>(MemArg.Mem)
+                ->setLastEventWritingToMemObj(RetImplEvent.get());
+          }
+          MemArg.Mem->MemoryMigrationMutex.unlock();
         }
-        MemArg.Mem->MemoryMigrationMutex.unlock();
       }
       *phEvent = RetImplEvent.release();
     } else {
       for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        MemArg.Mem->MemoryMigrationMutex.unlock();
+        if (MemArg.Mem->isBuffer()) {
+          MemArg.Mem->MemoryMigrationMutex.unlock();
+        }
       }
     }
 
@@ -1557,12 +1560,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  if (phEventWaitList) {
-    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  } else {
-    UR_ASSERT(numEventsInWaitList == 0,
-              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  }
+  UR_ASSERT((phEventWaitList && numEventsInWaitList > 0) ||
+                numEventsInWaitList == 0,
+            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
   hBuffer->MemoryMigrationMutex.lock();
 
@@ -1628,12 +1628,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   UR_ASSERT(!hBuffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  if (phEventWaitList) {
-    UR_ASSERT(numEventsInWaitList > 0, UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  } else {
-    UR_ASSERT(numEventsInWaitList == 0,
-              UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
-  }
+  UR_ASSERT((phEventWaitList && numEventsInWaitList > 0) ||
+                numEventsInWaitList == 0,
+            UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
   ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
 

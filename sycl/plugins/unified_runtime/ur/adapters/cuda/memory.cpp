@@ -52,41 +52,36 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     if ((flags & UR_MEM_FLAG_USE_HOST_POINTER) && EnableUseHostPtr) {
       AllocMode = ur_buffer_::AllocMode::UseHostPtr;
     } else if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
-      Result = UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
+      UR_CHECK_ERROR(cuMemAllocHost(&HostPtr, size));
       AllocMode = ur_buffer_::AllocMode::AllocHostPtr;
     }
 
-    if (Result == UR_RESULT_SUCCESS) {
-      ur_buffer_ *parentBuffer = nullptr;
+    ur_buffer_ *parentBuffer = nullptr;
 
-      auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_buffer_{
-          hContext, parentBuffer, flags, AllocMode, HostPtr, size});
-      if (URMemObj != nullptr) {
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_buffer_{
+        hContext, parentBuffer, flags, AllocMode, HostPtr, size});
+    if (URMemObj != nullptr) {
+      // First allocation will be made at urMemBufferCreate if context only
+      // has one device
+      if (PerformInitialCopy && hContext->NumDevices == 1) {
+        // Operates on the default stream of the current CUDA context.
+        auto Device = hContext->getDevices()[0];
+        Result = URMemObj->allocateMemObjOnDeviceIfNeeded(Device);
 
-        // First allocation will be made at urMemBufferCreate if context only
-        // has one device
-        if (PerformInitialCopy && hContext->NumDevices == 1) {
-          // Operates on the default stream of the current CUDA context.
-          auto Device = hContext->getDevices()[0];
-          Result = URMemObj->allocateMemObjOnDeviceIfNeeded(Device);
-
-          if (PerformInitialCopy && Result == UR_RESULT_SUCCESS && HostPtr) {
-            ScopedDevice Active(Device);
-            auto &Ptr = ur_cast<ur_buffer_ *>(URMemObj.get())->getPtrs()[0];
-            Result = UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
-            // Synchronize with default stream implicitly used by cuMemcpyHtoD
-            // to make buffer data available on device before any other UR
-            // call uses it.
-            if (Result == UR_RESULT_SUCCESS) {
-              CUstream defaultStream = 0;
-              Result = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-            }
-          }
+        if (PerformInitialCopy && Result == UR_RESULT_SUCCESS && HostPtr) {
+          ScopedDevice Active(Device);
+          auto &Ptr = ur_cast<ur_buffer_ *>(URMemObj.get())->getPtrs()[0];
+          UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
+          // Synchronize with default stream implicitly used by cuMemcpyHtoD
+          // to make buffer data available on device before any other UR
+          // call uses it.
+          CUstream defaultStream = 0;
+          UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
         }
-        MemObj = URMemObj.release();
-      } else {
-        Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
       }
+      MemObj = URMemObj.release();
+    } else {
+      Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
   } catch (ur_result_t Err) {
     Result = Err;
@@ -315,7 +310,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   CUarray ImageArray = nullptr;
 
   try {
-    Result = UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &ArrayDesc));
+    UR_CHECK_ERROR(cuArray3DCreate(&ImageArray, &ArrayDesc));
   } catch (ur_result_t Err) {
     if (Err == UR_RESULT_ERROR_INVALID_VALUE) {
       return UR_RESULT_ERROR_INVALID_IMAGE_SIZE;
@@ -340,7 +335,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
         CpyDesc.dstArray = ImageArray;
         CpyDesc.WidthInBytes = PixelSizeBytes * pImageDesc->width;
         CpyDesc.Height = pImageDesc->height;
-        Result = UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc));
+        UR_CHECK_ERROR(cuMemcpy2D(&CpyDesc));
       } else if (pImageDesc->type == UR_MEM_TYPE_IMAGE3D) {
         CUDA_MEMCPY3D CpyDesc;
         memset(&CpyDesc, 0, sizeof(CpyDesc));
@@ -351,7 +346,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
         CpyDesc.WidthInBytes = PixelSizeBytes * pImageDesc->width;
         CpyDesc.Height = pImageDesc->height;
         CpyDesc.Depth = pImageDesc->depth;
-        Result = UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc));
+        UR_CHECK_ERROR(cuMemcpy3D(&CpyDesc));
       }
     }
 
@@ -370,7 +365,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     ImageResDesc.flags = 0;
 
     CUsurfObject Surface;
-    Result = UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
+    UR_CHECK_ERROR(cuSurfObjectCreate(&Surface, &ImageResDesc));
 
     auto MemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_image_(
         hContext, ImageArray, Surface, flags, pImageDesc->type, phMem));
@@ -490,7 +485,6 @@ ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   ScopedDevice Active(hDevice);
   ur_lock_guard LockGuard(MemoryAllocationMutex);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
   CUdeviceptr &DevPtr = getNativePtr(hDevice);
 
   // Allocation has already been made
@@ -500,15 +494,15 @@ ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
 
   if (MemAllocMode == ur_buffer_::AllocMode::AllocHostPtr) {
     // Host allocation has already been made
-    Result = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, HostPtr, 0));
+    UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, HostPtr, 0));
   } else if (MemAllocMode == ur_buffer_::AllocMode::UseHostPtr) {
-    Result = UR_CHECK_ERROR(
+    UR_CHECK_ERROR(
         cuMemHostRegister(HostPtr, Size, CU_MEMHOSTREGISTER_DEVICEMAP));
-    Result = UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, HostPtr, 0));
+    UR_CHECK_ERROR(cuMemHostGetDevicePointer(&DevPtr, HostPtr, 0));
   } else {
-    Result = UR_CHECK_ERROR(cuMemAlloc(&DevPtr, Size));
+    UR_CHECK_ERROR(cuMemAlloc(&DevPtr, Size));
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t
@@ -533,34 +527,28 @@ ur_buffer_::migrateMemoryToDeviceIfNeeded(ur_device_handle_t hDevice) {
 
   ScopedDevice Active(hDevice);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   // If no kernels have written to the memobj then initialize the device
   // allocation from host if it has not been initialized already
   if (LastEventWritingToMemObj == nullptr) {
     // Device allocation being initialized from host for the first time
     if (HostPtr) {
-      Result = UR_CHECK_ERROR(
+      UR_CHECK_ERROR(
           cuMemcpyHtoD(getPtrs()[hDevice->getIndex()], HostPtr, Size));
-      if (Result == UR_RESULT_SUCCESS) {
-        CUstream defaultStream = 0;
-        Result = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-      }
+      CUstream defaultStream = 0;
+      UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
     }
   } else if (LastEventWritingToMemObj->getDevice() != hDevice) {
     UR_ASSERT(LastEventWritingToMemObj, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-    Result = UR_CHECK_ERROR(cuMemcpyDtoD(
+    UR_CHECK_ERROR(cuMemcpyDtoD(
         Ptrs[hDevice->getIndex()],
         Ptrs[LastEventWritingToMemObj->getDevice()->getIndex()], Size));
-    if (Result == UR_RESULT_SUCCESS) {
-      // Synchronize on the destination device using the scoped context
-      CUstream defaultStream = 0;
-      Result = UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-    }
+    // Synchronize on the destination device using the scoped context
+    CUstream defaultStream = 0;
+    UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
   }
   HaveMigratedToDeviceSinceLastWrite[hDevice->getIndex()] = true;
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t

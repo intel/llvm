@@ -60,25 +60,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     // Return the lowest compute capability of all devices in context
-    int Major = 0;
+    int MinimumMajorComputeCapability = 0, Tmp = 0;
     for (auto i = 0u; i < hContext->NumDevices; ++i) {
-      int Tmp = Major;
       detail::ur::assertion(
           cuDeviceGetAttribute(
               &Tmp, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
               hContext->getDevices()[i]->get()) == CUDA_SUCCESS);
-      Major = i == 0 ? Tmp : std::min(Major, Tmp);
+      MinimumMajorComputeCapability =
+          i == 0 ? Tmp : std::min(MinimumMajorComputeCapability, Tmp);
     }
     uint32_t Capabilities =
-        (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM
-                     : UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
-                           UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+        (MinimumMajorComputeCapability >= 7)
+            ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM
+            : UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+                  UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
