@@ -450,6 +450,7 @@ NonUniformGroups/tangle_group.cpp
 NonUniformGroups/tangle_group_algorithms.cpp
 OptionalKernelFeatures/is_compatible.cpp
 OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
+OptionalKernelFeatures/large-reqd-work-group-size.cpp
 OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
 OptionalKernelFeatures/throw-exception-for-unsupported-aspect.cpp
 Plugin/interop-level-zero-buffer-multi-dim.cpp
