@@ -1061,7 +1061,7 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     return *Img;
   }
 
-  if (m_UniversalKernelSet.size())
+  if (!m_UniversalKernelSet.empty())
     return getDeviceImage(m_UniversalKernelSet, Context, Device,
                           JITCompilationIsRequired);
   else
@@ -1779,6 +1779,9 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     for (auto &ImageUPtr : m_BinImg2KernelIDs) {
       BinImages.insert(ImageUPtr.first);
+    }
+    for (auto &ImageUPtr : m_UniversalKernelSet) {
+      BinImages.insert(ImageUPtr);
     }
   }
 
