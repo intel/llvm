@@ -330,6 +330,7 @@ samesizeunsignedint0 = [ConversionTraitType("same_size_unsigned_int_t", 0)]
 intelements0 = [ConversionTraitType("int_elements_t", 0)]
 boolelements0 = [ConversionTraitType("bool_elements_t", 0)]
 upsampledint0 = [ConversionTraitType("upsampled_int_t", 0)]
+nanreturn0 = [ConversionTraitType("nan_return_unswizzled_t", 0)]
 
 # Map of builtin type group names and the associated types.
 builtin_types = {
@@ -405,6 +406,7 @@ builtin_types = {
   "intelements0" : intelements0,
   "upsampledint0" : upsampledint0,
   "boolelements0" : boolelements0,
+  "nanreturn0" : nanreturn0,
   "char" : ["char"],
   "signed char" : ["signed char"],
   "short" : ["short"],
@@ -732,6 +734,14 @@ def custom_fast_math_sincos_invoke(return_type, _, arg_names):
   return f"""    *{arg_names[1]} = __sycl_std::__invoke_native_cos<{return_type}>({arg_names[0]});
     return __sycl_std::__invoke_native_sin<{return_type}>({arg_names[0]});"""
 
+def custom_nan_invoke(return_type, arg_types, arg_names):
+  """
+  Generates the custom body for the `nan` function.
+  """
+  return f"""  using unswizzled_arg_t = detail::simplify_if_swizzle_t<{arg_types[0]}>;
+  return __sycl_std::__invoke_nan<{return_type}>(
+    detail::convert_data_type<unswizzled_arg_t, detail::nan_argument_base_t<unswizzled_arg_t>>()({arg_names[0]}));"""
+
 # List of all builtins definitions in the sycl namespace.
 sycl_builtins = {# Math functions
                  "acos": [Def("genfloat", ["genfloat"])],
@@ -812,16 +822,16 @@ sycl_builtins = {# Math functions
                           Def("float", ["float", "floatptr"]),
                           Def("double", ["double", "doubleptr"]),
                           Def("half", ["half", "halfptr"])],
-                 "nan": [Def("vfloatn", ["vuint32n"]),
-                         Def("mfloatn", ["muintn"], marray_use_loop=True),
-                         Def("float", ["unsigned int"]),
-                         Def("vdoublen", ["vuint64n"]),
-                         Def("mdoublen", ["mulongn"], marray_use_loop=True),
-                         Def("double", ["unsigned long"]),
-                         Def("double", ["unsigned long long"]),
-                         Def("vhalfn", ["vuint16n"]),
-                         Def("mhalfn", ["mushortn"], marray_use_loop=True),
-                         Def("half", ["unsigned short"])],
+                 "nan": [Def("nanreturn0", ["vuint32n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["muintn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned int"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["vuint64n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["mulongn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned long"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["unsigned long long"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["vuint16n"], custom_invoke=custom_nan_invoke),
+                         Def("nanreturn0", ["mushortn"], marray_use_loop=True),
+                         Def("nanreturn0", ["unsigned short"])],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),

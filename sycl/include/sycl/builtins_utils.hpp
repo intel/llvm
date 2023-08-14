@@ -331,6 +331,25 @@ struct upsampled_int<SwizzleOp<VecT, OperationLeftT, OperationRightT,
 
 template <typename T> using upsampled_int_t = typename upsampled_int<T>::type;
 
+// Wrapper trait around nan_return to allow propagation through swizzles and
+// marrays.
+template <typename T> struct nan_return_unswizzled {
+  using type = typename nan_types<T, T>::ret_type;
+};
+template <typename T, size_t N> struct nan_return_unswizzled<marray<T, N>> {
+  using type = marray<typename nan_return_unswizzled<T>::type, N>;
+};
+template <typename VecT, typename OperationLeftT, typename OperationRightT,
+          template <typename> class OperationCurrentT, int... Indexes>
+struct nan_return_unswizzled<SwizzleOp<VecT, OperationLeftT, OperationRightT,
+                                       OperationCurrentT, Indexes...>> {
+  using type = typename nan_return_unswizzled<
+      vec<typename VecT::element_type, sizeof...(Indexes)>>::type;
+};
+
+template <typename T>
+using nan_return_unswizzled_t = typename nan_return_unswizzled<T>::type;
+
 // Utility functions for converting to/from vec/marray.
 template <class T, size_t N> vec<T, 2> to_vec2(marray<T, N> X, size_t Start) {
   return {X[Start], X[Start + 1]};
