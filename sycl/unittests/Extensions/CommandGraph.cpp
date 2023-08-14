@@ -733,12 +733,12 @@ TEST_F(MultiThreadGraphTest, BeginEndRecording) {
   }
 
   // Reference computation
-  queue QueueRef;
+  queue QueueRef{Queue.get_context(), Queue.get_device()};
   experimental::command_graph<experimental::graph_state::modifiable> GraphRef{
       Queue.get_context(), Queue.get_device()};
 
   for (unsigned i = 0; i < NumThreads; ++i) {
-    queue MyQueue;
+    queue MyQueue{Queue.get_context(), Queue.get_device()};
     GraphRef.begin_recording(MyQueue);
     runKernels(MyQueue);
     GraphRef.end_recording(MyQueue);
@@ -798,7 +798,7 @@ TEST_F(MultiThreadGraphTest, RecordAddNodes) {
   Graph.end_recording(Queue);
 
   // Reference computation
-  queue QueueRef;
+  queue QueueRef{Queue.get_context(), Queue.get_device()};
   experimental::command_graph<experimental::graph_state::modifiable> GraphRef{
       Queue.get_context(), Queue.get_device()};
 
