@@ -6465,7 +6465,9 @@ void CodeGenModule::emitIFuncDefinition(GlobalDecl GD) {
     Entry->eraseFromParent();
   } else
     GIF->setName(MangledName);
-
+  if (auto *F = dyn_cast<llvm::Function>(Resolver)) {
+    F->addFnAttr(llvm::Attribute::DisableSanitizerInstrumentation);
+  }
   SetCommonAttributes(GD, GIF);
 }
 

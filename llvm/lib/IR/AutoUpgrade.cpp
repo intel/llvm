@@ -947,32 +947,6 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
   case 'i':
   case 'l': {
-    bool IsLifetimeStart = Name.startswith("lifetime.start");
-    if (IsLifetimeStart || Name.startswith("invariant.start")) {
-      Intrinsic::ID ID = IsLifetimeStart ?
-        Intrinsic::lifetime_start : Intrinsic::invariant_start;
-      auto Args = F->getFunctionType()->params();
-      Type* ObjectPtr[1] = {Args[1]};
-      if (F->getName() != Intrinsic::getName(ID, ObjectPtr, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(), ID, ObjectPtr);
-        return true;
-      }
-    }
-
-    bool IsLifetimeEnd = Name.startswith("lifetime.end");
-    if (IsLifetimeEnd || Name.startswith("invariant.end")) {
-      Intrinsic::ID ID = IsLifetimeEnd ?
-        Intrinsic::lifetime_end : Intrinsic::invariant_end;
-
-      auto Args = F->getFunctionType()->params();
-      Type* ObjectPtr[1] = {Args[IsLifetimeEnd ? 1 : 2]};
-      if (F->getName() != Intrinsic::getName(ID, ObjectPtr, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(), ID, ObjectPtr);
-        return true;
-      }
-    }
     if (Name.startswith("invariant.group.barrier")) {
       // Rename invariant.group.barrier to launder.invariant.group
       auto Args = F->getFunctionType()->params();
@@ -987,52 +961,6 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
   }
   case 'm': {
-    if (Name.startswith("masked.load.")) {
-      Type *Tys[] = { F->getReturnType(), F->arg_begin()->getType() };
-      if (F->getName() !=
-          Intrinsic::getName(Intrinsic::masked_load, Tys, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                          Intrinsic::masked_load,
-                                          Tys);
-        return true;
-      }
-    }
-    if (Name.startswith("masked.store.")) {
-      auto Args = F->getFunctionType()->params();
-      Type *Tys[] = { Args[0], Args[1] };
-      if (F->getName() !=
-          Intrinsic::getName(Intrinsic::masked_store, Tys, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                          Intrinsic::masked_store,
-                                          Tys);
-        return true;
-      }
-    }
-    // Renaming gather/scatter intrinsics with no address space overloading
-    // to the new overload which includes an address space
-    if (Name.startswith("masked.gather.")) {
-      Type *Tys[] = {F->getReturnType(), F->arg_begin()->getType()};
-      if (F->getName() !=
-          Intrinsic::getName(Intrinsic::masked_gather, Tys, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                          Intrinsic::masked_gather, Tys);
-        return true;
-      }
-    }
-    if (Name.startswith("masked.scatter.")) {
-      auto Args = F->getFunctionType()->params();
-      Type *Tys[] = {Args[0], Args[1]};
-      if (F->getName() !=
-          Intrinsic::getName(Intrinsic::masked_scatter, Tys, F->getParent())) {
-        rename(F);
-        NewFn = Intrinsic::getDeclaration(F->getParent(),
-                                          Intrinsic::masked_scatter, Tys);
-        return true;
-      }
-    }
     // Updating the memory intrinsics (memcpy/memmove/memset) that have an
     // alignment parameter to embedding the alignment as an attribute of
     // the pointer args.
@@ -1115,17 +1043,7 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
 
   case 'p':
-    if (Name == "prefetch") {
-      // Handle address space overloading.
-      Type *Tys[] = {F->arg_begin()->getType()};
-      if (F->getName() !=
-          Intrinsic::getName(Intrinsic::prefetch, Tys, F->getParent())) {
-        rename(F);
-        NewFn =
-            Intrinsic::getDeclaration(F->getParent(), Intrinsic::prefetch, Tys);
-        return true;
-      }
-    } else if (Name.startswith("ptr.annotation.") && F->arg_size() == 4) {
+    if (Name.startswith("ptr.annotation.") && F->arg_size() == 4) {
       rename(F);
       NewFn = Intrinsic::getDeclaration(
           F->getParent(), Intrinsic::ptr_annotation,
@@ -4556,22 +4474,6 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
 
   case Intrinsic::thread_pointer: {
     NewCall = Builder.CreateCall(NewFn, {});
-    break;
-  }
-
-  case Intrinsic::invariant_start:
-  case Intrinsic::invariant_end: {
-    SmallVector<Value *, 4> Args(CI->args());
-    NewCall = Builder.CreateCall(NewFn, Args);
-    break;
-  }
-  case Intrinsic::masked_load:
-  case Intrinsic::masked_store:
-  case Intrinsic::masked_gather:
-  case Intrinsic::masked_scatter: {
-    SmallVector<Value *, 4> Args(CI->args());
-    NewCall = Builder.CreateCall(NewFn, Args);
-    NewCall->copyMetadata(*CI);
     break;
   }
 

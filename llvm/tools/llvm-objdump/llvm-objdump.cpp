@@ -234,15 +234,21 @@ StringSet<> objdump::FoundSectionSet;
 static StringRef ToolName;
 
 std::unique_ptr<BuildIDFetcher> BIDFetcher;
-ExitOnError ExitOnErr;
+
+Dumper::Dumper(const object::ObjectFile &O) : O(O) {
+  WarningHandler = [this](const Twine &Msg) {
+    if (Warnings.insert(Msg.str()).second)
+      reportWarning(Msg, this->O.getFileName());
+    return Error::success();
+  };
+}
 
 void Dumper::reportUniqueWarning(Error Err) {
   reportUniqueWarning(toString(std::move(Err)));
 }
 
 void Dumper::reportUniqueWarning(const Twine &Msg) {
-  if (Warnings.insert(StringRef(Msg.str())).second)
-    reportWarning(Msg, O.getFileName());
+  cantFail(WarningHandler(Msg));
 }
 
 static Expected<std::unique_ptr<Dumper>> createDumper(const ObjectFile &Obj) {

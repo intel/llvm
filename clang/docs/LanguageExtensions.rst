@@ -814,6 +814,7 @@ to ``float``; see below for more information on this emulation.
   * AMDGPU (natively)
   * SPIR (natively)
   * X86 (if SSE2 is available; natively if AVX512-FP16 is also available)
+  * RISC-V (natively if Zfh or Zhinx is available)
 
 * ``__bf16`` is supported on the following targets (currently never natively):
   * 32-bit ARM
@@ -5245,12 +5246,18 @@ The following x86-specific intrinsics can be used in constant expressions:
 * ``_castf64_u64``
 * ``_castu32_f32``
 * ``_castu64_f64``
+* ``__lzcnt16``
+* ``__lzcnt``
+* ``__lzcnt64``
 * ``_mm_popcnt_u32``
 * ``_mm_popcnt_u64``
 * ``_popcnt32``
 * ``_popcnt64``
 * ``__popcntd``
 * ``__popcntq``
+* ``__popcnt16``
+* ``__popcnt``
+* ``__popcnt64``
 * ``__rolb``
 * ``__rolw``
 * ``__rold``
