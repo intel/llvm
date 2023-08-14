@@ -173,17 +173,20 @@ cl::opt<module_split::IRSplitMode> SplitMode(
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
-enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
+enum SpecConstLowerMode { SC_NATIVE_MODE, SC_EMULATION_MODE };
 
-cl::opt<SpecConstMode> SpecConstLower{
+cl::opt<SpecConstLowerMode> SpecConstLower{
     "spec-const",
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
-    cl::init(SC_USE_RT_VAL),
+    cl::init(SC_NATIVE_MODE),
     cl::values(
-        clEnumValN(SC_USE_RT_VAL, "rt", "spec constants are set at runtime"),
-        clEnumValN(SC_USE_DEFAULT_VAL, "default",
-                   "set spec constants to C++ defaults")),
+        clEnumValN(SC_NATIVE_MODE, "native",
+                   "lower spec constants to native spirv instructions so that "
+                   "these values could be set at runtime"),
+        clEnumValN(
+            SC_EMULATION_MODE, "emulation",
+            "remove specialization constants and replace it with emulation")),
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitKernelParamInfo{
@@ -605,11 +608,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
-  if (!MD.getModule().getContext().supportsTypedPointers()) {
-    MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  } else {
-    MPM.addPass(ESIMDLowerVecArgPass{});
-  }
+  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
@@ -695,7 +694,7 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
 
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
-  bool SetSpecConstAtRT = (SpecConstLower == SC_USE_RT_VAL);
+  bool SetSpecConstAtRT = (SpecConstLower == SC_NATIVE_MODE);
   SpecConstantsPass SCP(SetSpecConstAtRT);
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
@@ -1042,7 +1041,7 @@ int main(int argc, char **argv) {
       "Normally, the tool generates a number of files and \"file table\"\n"
       "file listing all generated files in a table manner. For example, if\n"
       "the input file 'example.bc' contains two kernels, then the command\n"
-      "  $ sycl-post-link --split=kernel --symbols --spec-const=rt \\\n"
+      "  $ sycl-post-link --split=kernel --symbols --spec-const=native \\\n"
       "    -o example.table example.bc\n"
       "will produce 'example.table' file with the following content:\n"
       "  [Code|Properties|Symbols]\n"
@@ -1050,7 +1049,7 @@ int main(int argc, char **argv) {
       "  example_1.bc|example_1.prop|example_1.sym\n"
       "When only specialization constant processing is needed, the tool can\n"
       "output a single transformed IR file if --ir-output-only is specified:\n"
-      "  $ sycl-post-link --ir-output-only --spec-const=default \\\n"
+      "  $ sycl-post-link --ir-output-only --spec-const=emulation \\\n"
       "    -o example_p.bc example.bc\n"
       "will produce single output file example_p.bc suitable for SPIRV\n"
       "translation.\n"

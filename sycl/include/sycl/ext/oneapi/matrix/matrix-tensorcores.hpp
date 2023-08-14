@@ -8,8 +8,17 @@
 // ===-------------------------------------------------------------------=== //
 
 #pragma once
+
 #include "matrix-unified-utils.hpp"
-#include <sycl/ext/oneapi/bfloat16.hpp>
+
+#include <sycl/aliases.hpp>             // for half
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16
+#include <sycl/half_type.hpp>           // for half
+#include <sycl/marray.hpp>              // for marray
+
+#include <stddef.h>    // for size_t
+#include <stdint.h>    // for int8_t, uint8_t, int32_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
 inline namespace _V1 {

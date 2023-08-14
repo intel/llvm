@@ -1384,6 +1384,10 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                     __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -1620,7 +1624,6 @@ inline pi_result piextQueueCreateWithNativeHandle(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
