@@ -77,6 +77,10 @@ Basic/built-ins/marray_common.cpp
 Basic/built-ins/marray_geometric.cpp
 Basic/built-ins/marray_math.cpp
 Basic/built-ins/marray_relational.cpp
+Basic/built-ins/vec_common.cpp
+Basic/built-ins/vec_geometric.cpp
+Basic/built-ins/vec_math.cpp
+Basic/built-ins/vec_relational.cpp
 Basic/code_location_e2e.cpp
 Basic/device_event.cpp
 Basic/device_implicitly_copyable.cpp
