@@ -1,6 +1,6 @@
 ; Test checks generation of device image of esimd kernel.
 
-; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O2 -spec-const=rt -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -split=auto -split-esimd -lower-esimd -O2 -spec-const=native -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file=%t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefix=CHECK-PROP
 ; RUN: FileCheck %s -input-file=%t_esimd_1.prop -check-prefix=CHECK-ESIMD-PROP

@@ -1,6 +1,6 @@
 ; Test checks that struct with padding is handled correctly.
 
-; RUN: sycl-post-link -split=auto -spec-const=rt -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: cat %t.table | FileCheck %s -check-prefix=CHECK-TABLE
 ; RUN: cat %t_1.prop | FileCheck %s -check-prefix=CHECK-PROP1
 ; RUN: cat %t_1.ll | FileCheck %s -check-prefix=CHECK-IR1 --implicit-check-not SpecConstant

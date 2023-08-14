@@ -2,7 +2,7 @@
 ; It checks scalar, sret and "return by value" versions of SpecConstant functions.
 ; Also test checks generated symbols.
 
-; RUN: sycl-post-link -split=auto -spec-const=rt -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
+; RUN: sycl-post-link -split=auto -spec-const=native -symbols -S -o %t.table %s -generate-device-image-default-spec-consts
 ; RUN: FileCheck %s -input-file %t.table -check-prefix=CHECK-TABLE
 ; RUN: FileCheck %s -input-file %t_0.prop -check-prefix=CHECK-PROP0
 ; RUN: FileCheck %s -input-file %t_1.prop -check-prefix=CHECK-PROP1
