@@ -7,8 +7,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 constexpr size_t TM = 8;
 constexpr size_t TK = 16;
 
-constexpr float BF16_EPSILON = 0.00781250;
-
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
           size_t NUM_COLS_C>
@@ -69,38 +67,18 @@ int main() {
   float *C = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
   float *D = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  std::random_device dev;
-  std::uniform_real_distribution<float> fdistr(-1.0, 1.0);
-
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_K; j++) {
-      A[i * MATRIX_K + j] = bfloat16(fdistr(dev));
-    }
-  }
-  for (int i = 0; i < MATRIX_K; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      B[i * MATRIX_N + j] = bfloat16(fdistr(dev));
-    }
-  }
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      C[i * MATRIX_N + j] = 1.0;
-      D[i * MATRIX_N + j] = 1.0;
-    }
-  }
+  matrix_rand(MATRIX_M, MATRIX_K, A);
+  matrix_rand(MATRIX_K, MATRIX_N, B);
+  matrix_fill(MATRIX_M, MATRIX_N, C, (float)1.0);
+  matrix_fill(MATRIX_M, MATRIX_N, D, (float)1.0);
 
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K, MATRIX_N,
                   MATRIX_M, MATRIX_N>(C, A, B, q);
-  matrix_multiply_ref_transposed_c(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K);
+  matrix_multiply_ref(A, B, D, MATRIX_M, MATRIX_N, MATRIX_K,
+                      true /*transposed c*/);
 
-  bool res = true;
-  for (int i = 0; i < MATRIX_M; i++) {
-    for (int j = 0; j < MATRIX_N; j++) {
-      if ((fabs(C[i * MATRIX_N + j] - D[i * MATRIX_N + j])) > BF16_EPSILON) {
-        res = false;
-      }
-    }
-  }
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, C, D);
+
   std::cout << (res ? "passed" : "failed") << std::endl;
   return !res;
 }
