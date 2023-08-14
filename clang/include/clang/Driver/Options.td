@@ -7036,6 +7036,10 @@ def fsycl_is_native_cpu : Flag<["-"], "fsycl-is-native-cpu">,
   HelpText<"Perform device compilation for Native CPU.">,
   Flags<[CC1Option, NoDriverOption]>,
   MarshallingInfoFlag<LangOpts<"SYCLIsNativeCPU">>;
+def fsycl_native_cpu_as_map : Flag<["-"], "fsycl-native-cpu-as-map">,
+  HelpText<"Use Address space map for name mangling for SYCL Native CPU">,
+  Flags<[CC1Option, NoDriverOption]>,
+  MarshallingInfoFlag<TargetOpts<"SYCLNativeCPUASMap">>;
 
 } // let Flags = [CC1Option, NoDriverOption]
 

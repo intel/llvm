@@ -5147,6 +5147,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
     if (IsSYCLNativeCPU) {
       CmdArgs.push_back("-fsycl-is-native-cpu");
+      CmdArgs.push_back("-fsycl-native-cpu-as-map");
       CmdArgs.push_back("-D");
       CmdArgs.push_back("__SYCL_NATIVE_CPU__");
       CmdArgs.push_back("-fno-autolink");

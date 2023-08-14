@@ -132,6 +132,9 @@ public:
 
   /// The entry point name for HLSL shader being compiled as specified by -E.
   std::string HLSLEntry;
+
+  /// Flag for using Address Spaces when mangling SYCL Native CPU names
+  bool SYCLNativeCPUASMap;
 };
 
 } // end namespace clang
