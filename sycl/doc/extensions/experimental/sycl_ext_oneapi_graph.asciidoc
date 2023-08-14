@@ -1068,9 +1068,10 @@ modifiable graph will perform this action, useful in RAII pattern usage.
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
-It is not yet supported to have a host task inside a `command_graph`.
-Support will be added subsequently as detailed in the <<future-host-tasks, host tasks>>
-part from the <<future-direction, future direction>> section of this specification.
+It is not yet supported to have a host task inside a `command_graph`, and an
+exception will be thrown if used by application code. Support will be added
+subsequently as detailed in the <<future-host-tasks, host tasks>> part from the
+<<future-direction, future direction>> section of this specification.
 
 === Queue Behavior In Recording Mode
 
@@ -1721,7 +1722,9 @@ the finalize call either extending the basic command graph proposal
 or layered as a separate extension proposal.
 
 == Non-implemented features and known issues
-The following features are not yet supported:
+
+The following features are not yet supported, and an exception will be thrown
+if used in application code.
 
 . Using `handler::fill` in a graph node implemented for USM only.
 . Using `handler::memset` in a graph node.
@@ -1730,11 +1733,9 @@ The following features are not yet supported:
 . Using specialization constants in a graph node.
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Thread safety of new methods.
+. Using a kernel bundle in a graph node.
 . Profiling an event returned from graph submission with
   `event::get_profiling_info()`.
-. A sub-graph can only be added as a node to any parent graph once, and will not
-  correctly execute by itself after being added as a sub-graph.
 
 == Revision History
 
