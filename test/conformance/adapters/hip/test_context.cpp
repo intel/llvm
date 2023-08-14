@@ -3,6 +3,8 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include "context.hpp"
 #include "hip_fixtures.h"
 #include "queue.hpp"
@@ -10,12 +12,7 @@
 using urHipContextTest = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipContextTest);
 
-// https://sep5.readthedocs.io/en/latest/ROCm_API_References/
-// HIP_API/Context-Management.html#_CPPv419hipCtxGetApiVersion8hipCtx_tPi
-constexpr int HIP_DRIVER_API_VERSION = 4;
-
 TEST_P(urHipContextTest, ActiveContexts) {
-
     ur_context_handle_t context = nullptr;
     ASSERT_SUCCESS(urContextCreate(1, &device, nullptr, &context));
     ASSERT_NE(context, nullptr);
@@ -109,3 +106,4 @@ TEST_P(urHipContextTest, ActiveContextsThreads) {
 
     ASSERT_SUCCESS(urContextRelease(context2));
 }
+#pragma GCC diagnostic pop
