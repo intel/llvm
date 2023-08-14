@@ -4907,6 +4907,15 @@ class OffloadingActionBuilder final {
                                                        types::TY_SPIRV);
             if (SYCLDeviceOnly)
               continue;
+          } else if ((SYCLDeviceOnly || FinalPhase != phases::Link) &&
+                     Args.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
+                         .equals_insensitive("ptx")) {
+            auto *CompileAction =
+                C.MakeAction<CompileJobAction>(A, types::TY_LLVM_BC);
+            A = C.MakeAction<BackendJobAction>(CompileAction, types::TY_PP_Asm);
+
+            if (SYCLDeviceOnly)
+              continue;
           } else {
             if (Args.hasArg(options::OPT_fsyntax_only))
               OutputType = types::TY_Nothing;
