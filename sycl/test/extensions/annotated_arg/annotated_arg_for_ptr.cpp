@@ -80,6 +80,8 @@ void TestVectorAddWithAnnotatedMMHosts() {
   static_assert(std::is_same<decltype(tmp15), annotated_arg_t3>::value,
                 "deduction guide failed 1");
 
+  auto tmp16 = annotated_arg(raw, properties{alignment<16>}); // deduction guide
+
   // Property list can't have duplicated properties
   // auto tmp16 = annotated_arg(raw, awidth<32>, awidth<32>);   // ERR
   // auto tmp17 = annotated_arg(raw, awidth<32>, awidth<22>);  // ERR
