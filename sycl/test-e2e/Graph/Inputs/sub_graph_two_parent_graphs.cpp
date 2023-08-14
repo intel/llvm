@@ -50,7 +50,7 @@ int main() {
   auto ExecGraphA = GraphA.finalize();
 
   auto B1 = add_node(GraphB, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] = static_cast<float>(i); });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] = static_cast<float>(it); });
   });
 
   auto B2 = add_node(

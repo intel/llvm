@@ -548,7 +548,6 @@ bool checkExecGraphSchedule(
   }
   return true;
 }
-
 } // anonymous namespace
 
 class CommandGraphTest : public ::testing::Test {
@@ -822,8 +821,11 @@ TEST_F(CommandGraphTest, SubGraph) {
   ASSERT_EQ(sycl::detail::getSyclObjImpl(MainGraph)->MRoots.size(), 1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.size(),
             1lu);
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.front(),
-            sycl::detail::getSyclObjImpl(Node1Graph));
+  // Subgraph nodes are duplicated when inserted to parent graph.
+  // we thus check the node content only.
+  ASSERT_TRUE(
+      *(sycl::detail::getSyclObjImpl(Node1MainGraph)->MSuccessors.front()) ==
+      *(sycl::detail::getSyclObjImpl(Node1Graph)));
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node2MainGraph)->MSuccessors.size(),
             1lu);
   ASSERT_EQ(sycl::detail::getSyclObjImpl(Node1MainGraph)->MPredecessors.size(),
@@ -839,9 +841,9 @@ TEST_F(CommandGraphTest, SubGraph) {
   ASSERT_EQ(Schedule.size(), 4ul);
   ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1MainGraph));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node1Graph));
+  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node1Graph)));
   ScheduleIt++;
-  ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node2Graph));
+  ASSERT_TRUE(*(*ScheduleIt) == *(sycl::detail::getSyclObjImpl(Node2Graph)));
   ScheduleIt++;
   ASSERT_EQ(*ScheduleIt, sycl::detail::getSyclObjImpl(Node3MainGraph));
   ASSERT_EQ(Queue.get_context(), MainGraphExecImpl->getContext());
@@ -882,8 +884,8 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
   ASSERT_EQ(Schedule.size(), 4ul);
 
   // The first and fourth nodes should have events associated with MainGraph but
-  // not graph. The second and third nodes were added as a sub-graph and should
-  // have events associated with Graph but not MainGraph.
+  // not graph. The second and third nodes were added as a sub-graph and
+  // duplicated. They should not have events associated with Graph or MainGraph.
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
   ASSERT_EQ(
@@ -893,14 +895,14 @@ TEST_F(CommandGraphTest, RecordSubGraph) {
   ScheduleIt++;
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt),
-            sycl::detail::getSyclObjImpl(Node1Graph));
+  ASSERT_ANY_THROW(
+      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
 
   ScheduleIt++;
   ASSERT_ANY_THROW(
       sycl::detail::getSyclObjImpl(MainGraph)->getEventForNode(*ScheduleIt));
-  ASSERT_EQ(sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt),
-            sycl::detail::getSyclObjImpl(Node2Graph));
+  ASSERT_ANY_THROW(
+      sycl::detail::getSyclObjImpl(Graph)->getEventForNode(*ScheduleIt));
 
   ScheduleIt++;
   ASSERT_ANY_THROW(
