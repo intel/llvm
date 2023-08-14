@@ -388,6 +388,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     // If we have no requirements or dependent events for the command buffer,
     // enqueue it directly
     if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
+      // Capture the host timestamp for queue time. Fallback profiling support
+      if (NewEvent != nullptr)
+        NewEvent->setQueueBaseTime();
       pi_result Res =
           Queue->getPlugin()
               ->call_nocheck<

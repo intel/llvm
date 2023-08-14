@@ -1506,7 +1506,7 @@ pi_int32 MemCpyCommand::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, nullptr);
 
   return PI_SUCCESS;
 }
@@ -1666,7 +1666,7 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), Event);
+      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), nullptr);
 
   return PI_SUCCESS;
 }
@@ -2292,7 +2292,7 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    detail::EventImplPtr Event) {
+    detail::EventImplPtr NewEventImpl) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2328,10 +2328,9 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-
-  if (Event != nullptr)
-    Event->setQueueBaseTime();
-
+  // Capture the host timestamp for queue time. Fallback profiling support
+  if (NewEventImpl != nullptr)
+    NewEventImpl->setQueueBaseTime();
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
@@ -2449,7 +2448,7 @@ pi_int32 enqueueImpKernel(
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    detail::EventImplPtr Event) {
+    detail::EventImplPtr NewEventImpl) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2517,7 +2516,7 @@ pi_int32 enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<sycl::detail::pi::PiEvent> DeviceGlobalInitEvents =
-      ContextImpl->initializeDeviceGlobals(Program, Queue);
+      ContextImpl->initializeDeviceGlobals(Program, Queue, nullptr);
   std::vector<sycl::detail::pi::PiEvent> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
@@ -2529,12 +2528,6 @@ pi_int32 enqueueImpKernel(
                                        DeviceGlobalInitEvents.end());
     EventsWaitList = EventsWithDeviceGlobalInits;
   }
-
-  // Capture the host timestamp for profiling (queue time)
-  detail::EventImplPtr NewEvent = std::make_shared<detail::event_impl>(Queue);
-  NewEvent->setContextImpl(ContextImpl);
-  NewEvent->setStateIncomplete();
-  NewEvent->setQueueBaseTime();
 
   pi_result Error = PI_SUCCESS;
   {
@@ -2553,7 +2546,7 @@ pi_int32 enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList, OutEvent,
-        EliminatedArgMask, getMemAllocationFunc, Event);
+        EliminatedArgMask, getMemAllocationFunc, NewEventImpl);
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -2570,7 +2563,8 @@ pi_int32
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         sycl::detail::pi::PiEvent *OutEvent, bool read) {
+                         sycl::detail::pi::PiEvent *OutEvent, bool read,
+                         detail::EventImplPtr NewEventImpl) {
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2598,6 +2592,9 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 
   pi_queue pi_q = Queue->getHandleRef();
   pi_result Error;
+  // Capture the host timestamp for queue time. Fallback profiling support
+  if (NewEventImpl != nullptr)
+    NewEventImpl->setQueueBaseTime();
   if (read) {
     Error =
         Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
@@ -2751,7 +2748,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MElemSize, Copy->getDst(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), nullptr);
 
     return PI_SUCCESS;
   }
@@ -2768,7 +2765,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MAccessRange, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), nullptr);
 
     return PI_SUCCESS;
   }
@@ -2786,7 +2783,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
-        MEvent->getHandleRef());
+        MEvent->getHandleRef(), nullptr);
 
     return PI_SUCCESS;
   }
@@ -2799,7 +2796,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef());
+        std::move(RawEvents), MEvent->getHandleRef(), nullptr);
 
     return PI_SUCCESS;
   }
@@ -2867,14 +2864,16 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
-                            Copy->getDst(), std::move(RawEvents), Event);
+                            Copy->getDst(), std::move(RawEvents), Event,
+                            nullptr);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event);
+                            Fill->getFill(), std::move(RawEvents), Event,
+                            nullptr);
 
     return PI_SUCCESS;
   }
@@ -2882,14 +2881,15 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
-                                Event);
+                                Event, nullptr);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
-                              Advise->getAdvice(), std::move(RawEvents), Event);
+                              Advise->getAdvice(), std::move(RawEvents), Event,
+                              nullptr);
 
     return PI_SUCCESS;
   }
@@ -2898,21 +2898,23 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
                                Copy->getDst(), Copy->getDstPitch(),
                                Copy->getWidth(), Copy->getHeight(),
-                               std::move(RawEvents), Event);
+                               std::move(RawEvents), Event, nullptr);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Fill2DUSM: {
     CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
     MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
                                Fill->getWidth(), Fill->getHeight(),
-                               Fill->getPattern(), std::move(RawEvents), Event);
+                               Fill->getPattern(), std::move(RawEvents), Event,
+                               nullptr);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Memset2DUSM: {
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
-    MemoryManager::memset_2d_usm(
-        Memset->getDst(), MQueue, Memset->getPitch(), Memset->getWidth(),
-        Memset->getHeight(), Memset->getValue(), std::move(RawEvents), Event);
+    MemoryManager::memset_2d_usm(Memset->getDst(), MQueue, Memset->getPitch(),
+                                 Memset->getWidth(), Memset->getHeight(),
+                                 Memset->getValue(), std::move(RawEvents),
+                                 Event, nullptr);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayHostTask: {
@@ -2983,6 +2985,10 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       // NOP for host device.
       return PI_SUCCESS;
     }
+    // Capture the host timestamp for queue time. Fallback profiling support
+    if (MEvent != nullptr)
+      MEvent->setQueueBaseTime();
+
     const PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
@@ -3037,7 +3043,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       Event = &MEvent->getHandleRef();
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
-                                    typeSize, RawEvents, Event, read);
+                                    typeSize, RawEvents, Event, read, nullptr);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =

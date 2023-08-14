@@ -214,7 +214,8 @@ public:
   /// Initializes device globals for a program on the associated queue.
   std::vector<sycl::detail::pi::PiEvent>
   initializeDeviceGlobals(pi::PiProgram NativePrg,
-                          const std::shared_ptr<queue_impl> &QueueImpl);
+                          const std::shared_ptr<queue_impl> &QueueImpl,
+                          detail::EventImplPtr NewEventImpl);
 
   void memcpyToHostOnlyDeviceGlobal(
       const std::shared_ptr<device_impl> &DeviceImpl,

@@ -85,7 +85,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 #endif
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
+                            getOrWaitEvents(DepEvents, MContext), nullptr,
+                            nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -101,7 +102,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
 
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
+                            getOrWaitEvents(DepEvents, MContext), &NativeEvent,
+                            nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -157,7 +159,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   }
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
+                            getOrWaitEvents(DepEvents, MContext), nullptr,
+                            nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -173,7 +176,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
+                            getOrWaitEvents(DepEvents, MContext), &NativeEvent,
+                            nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -199,7 +203,8 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const std::vector<event> &DepEvents) {
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr);
+                              getOrWaitEvents(DepEvents, MContext), nullptr,
+                              nullptr);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -216,7 +221,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
-                              &NativeEvent);
+                              &NativeEvent, nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

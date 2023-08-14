@@ -23,11 +23,12 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue command_queue,
                         pi_map_flags map_flags, size_t offset, size_t size,
                         pi_uint32 num_events_in_wait_list,
                         const pi_event *event_wait_list, pi_event *event,
-                        void **ret_map);
+                        void **ret_map, detail::EventImplPtr NewEventImpl);
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue command_queue,
                     pi_mem memobj, void *mapped_ptr,
                     pi_uint32 num_events_in_wait_list,
-                    const pi_event *event_wait_list, pi_event *event);
+                    const pi_event *event_wait_list, pi_event *event,
+                    detail::EventImplPtr NewEventImpl);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
