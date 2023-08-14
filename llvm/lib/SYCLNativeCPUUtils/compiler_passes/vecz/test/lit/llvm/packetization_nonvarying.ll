@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test_branch(i32 %a, i32* %b) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 
@@ -43,7 +43,7 @@ if.end:
 
 define spir_kernel void @test_uniform_branch(i32 %a, i32* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i32 %a, 42
   br i1 %cmp, label %if.then, label %if.else
 
@@ -67,7 +67,7 @@ if.end:
 }
 
 define spir_func void @test_nonvarying_loadstore(i32* %a, i32* %b, i32* %c) {
-  %index = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %index = call i64 @__mux_get_global_id(i32 0)
   %a.i = getelementptr i32, i32* %a, i64 %index
   %b.i = getelementptr i32, i32* %b, i64 %index
   %c.i = getelementptr i32, i32* %c, i64 %index
@@ -78,11 +78,11 @@ define spir_func void @test_nonvarying_loadstore(i32* %a, i32* %b, i32* %c) {
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This test checks if a simple kernel is vectorized without any masks
 ; CHECK: define spir_func void @__vecz_v4_test_nonvarying_loadstore(ptr %a, ptr %b, ptr %c)
-; CHECK: %index = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %index = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %a.i = getelementptr i32, ptr %a, i64 %index
 ; CHECK: %b.i = getelementptr i32, ptr %b, i64 %index
 ; CHECK: %c.i = getelementptr i32, ptr %c, i64 %index

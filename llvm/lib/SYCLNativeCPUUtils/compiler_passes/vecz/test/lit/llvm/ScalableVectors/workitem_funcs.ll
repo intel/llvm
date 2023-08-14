@@ -25,7 +25,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @store_ult(i32* %out, i64* %N) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = tail call i64 @__mux_get_global_id(i32 0) #2
   %0 = load i64, i64* %N, align 8
   %cmp = icmp ult i64 %call, %0
   %conv = zext i1 %cmp to i32
@@ -34,7 +34,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_nxv4_store_ult
 ; CHECK:   [[step:%[0-9.a-z]+]] = call <vscale x 4 x i64> @llvm.experimental.stepvector.nxv4i64()

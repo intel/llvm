@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @add(<128 x i32>* %in1, <128 x i32>* %in2, <128 x i32>* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %in1p = getelementptr inbounds <128 x i32>, <128 x i32>* %in1, i64 %call
   %in1v = load <128 x i32>, <128 x i32>* %in1p, align 4
   %in2p = getelementptr inbounds <128 x i32>, <128 x i32>* %in2, i64 %call
@@ -35,7 +35,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #2
+declare i64 @__mux_get_global_id(i32) #2
 
 ; We do not expect this test to succeed
 ; XFAIL: *

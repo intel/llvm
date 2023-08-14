@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @priv(i32 addrspace(3)* %a) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
   br label %for.cond
 
@@ -43,7 +43,7 @@ for.end:                                          ; preds = %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }

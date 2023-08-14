@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @fmuladd(<4 x double> addrspace(1)* %a, <4 x double> addrspace(1)* %b, <4 x double> addrspace(1)* %c, <4 x double> addrspace(1)* %d, <4 x double> addrspace(1)* %e) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %b, i64 %call
   %0 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32
   %arrayidx1 = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %c, i64 %call
@@ -49,7 +49,7 @@ entry:
 
 define spir_kernel void @fma(<4 x double> addrspace(1)* %a, <4 x double> addrspace(1)* %b, <4 x double> addrspace(1)* %c, <4 x double> addrspace(1)* %d, <4 x double> addrspace(1)* %e) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %b, i64 %call
   %0 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32
   %arrayidx1 = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %c, i64 %call
@@ -74,7 +74,7 @@ entry:
 ; CHECK-NOT: call double @llvm.fma.v4f64(
 ; CHECK: ret void
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare <4 x double> @llvm.fma.v4f64(<4 x double>, <4 x double>, <4 x double>)
 declare <4 x double> @llvm.fmuladd.v4f64(<4 x double>, <4 x double>, <4 x double>)

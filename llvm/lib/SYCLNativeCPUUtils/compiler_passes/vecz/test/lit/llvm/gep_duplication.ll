@@ -27,7 +27,7 @@ entry:
   %global_id = alloca i32, align 4
   %myStruct = alloca %struct.testStruct, align 4
   store ptr addrspace(1) %out, ptr %out.addr, align 8
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
   store i32 %conv, ptr %global_id, align 4
   %x = getelementptr inbounds %struct.testStruct, ptr %myStruct, i32 0, i32 0
@@ -67,7 +67,7 @@ if.end:                                           ; preds = %if.else, %if.then
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: spir_kernel void @__vecz_v{{[0-9]+}}_gep_duplication
 ; CHECK: entry:

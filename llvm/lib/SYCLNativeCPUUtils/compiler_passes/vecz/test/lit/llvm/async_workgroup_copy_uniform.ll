@@ -25,9 +25,9 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @test(i32 addrspace(1)* %input, i32 addrspace(3)* %output, i32 addrspace(1)* %elements) {
   %ev = alloca %opencl.event_t*, align 8
-  %1 = call spir_func i64 @_Z13get_global_idj(i32 0)
-  %2 = call spir_func i64 @_Z12get_group_idj(i32 0)
-  %3 = call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %1 = call i64 @__mux_get_global_id(i32 0)
+  %2 = call i64 @__mux_get_group_id(i32 0)
+  %3 = call i64 @__mux_get_local_size(i32 0)
   %4 = mul i64 %3, %2
   %5 = getelementptr inbounds i32, i32 addrspace(1)* %input, i64 %4
   %6 = mul i64 %3, %2
@@ -42,9 +42,9 @@ define spir_kernel void @test(i32 addrspace(1)* %input, i32 addrspace(3)* %outpu
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z12get_group_idj(i32)
-declare spir_func i64 @_Z14get_local_sizej(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_group_id(i32)
+declare i64 @__mux_get_local_size(i32)
 declare spir_func %opencl.event_t* @_Z21async_work_group_copyPU3AS1iPKU3AS3im9ocl_event(i32 addrspace(1)*, i32 addrspace(3)*, i64, %opencl.event_t*)
 declare spir_func void @_Z17wait_group_eventsiP9ocl_event(i32, %opencl.event_t**)
 

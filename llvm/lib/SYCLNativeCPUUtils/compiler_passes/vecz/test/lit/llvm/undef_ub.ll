@@ -18,19 +18,16 @@
 
 ; ModuleID = 'Unknown buffer'
 source_filename = "Unknown buffer"
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "spir64-unknown-unknown"
+target datalayout = "e-m:e-i32:32-f80:128-n8:16:32:64-S128"
+target triple = "spir-unknown-unknown"
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i32 @_Z14get_local_sizej(i32) #2
-
-; Function Attrs: convergent nounwind readonly
-declare spir_func i32 @_Z12get_local_idj(i32) #2
+declare i32 @__mux_get_local_id(i32) #2
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @test() #0 {
 entry:
-  %call8 = call spir_func i32 @_Z12get_local_idj(i32 0) #3
+  %call8 = call i32 @__mux_get_local_id(i32 0) #3
   %arrayidx = getelementptr inbounds i8, i8 addrspace(1)* undef, i32 %call8
   %0 = load i8, i8 addrspace(1)* %arrayidx, align 1
   %conv9 = uitofp i8 %0 to float

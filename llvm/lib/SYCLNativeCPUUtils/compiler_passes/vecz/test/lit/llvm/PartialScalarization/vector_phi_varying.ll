@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @vector_loop(i32 addrspace(1)* %in, <4 x i32> addrspace(1)* %in2, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %initaddr = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %in2, i64 %call
   %init = load <4 x i32>, <4 x i32> addrspace(1)* %initaddr
   %cmp = icmp eq i64 %call, 0
@@ -31,7 +31,7 @@ entry:
 
 for.cond:                                         ; preds = %entry, %for.body
   %storemerge = phi <4 x i32> [ %inc, %for.body ], [ %init, %entry ]
-  %call1 = call spir_func i64 @_Z15get_global_sizej(i32 0)
+  %call1 = call i64 @__mux_get_global_size(i32 0)
   %conv = trunc i64 %call1 to i32
   %0 = extractelement <4 x i32> %storemerge, i64 0
   %cmp2 = icmp slt i32 %0, %conv
@@ -77,8 +77,8 @@ for.end:                                          ; preds = %entry, %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z15get_global_sizej(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_global_size(i32)
 
 ; This test checks if a varying <4 x i32> phi gets scalarized
 ; if it is only accessed through individually extracted elements.

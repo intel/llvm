@@ -25,14 +25,14 @@ target triple = "armv7-unknown-linux-gnueabihf"
 ; Function Attrs: nounwind
 define spir_kernel void @short3_char3_codegen(i8 addrspace(1)* %src, i16 addrspace(1)* %dest) #0 !kernel_arg_addr_space !2 !kernel_arg_access_qual !3 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %call = call spir_func i32 @_Z13get_global_idj(i32 0) #3
+  %call = call i32 @__mux_get_global_id(i32 0) #3
   %call1 = call spir_func <3 x i8> @_Z6vload3jPU3AS1Kc(i32 %call, i8 addrspace(1)* %src) #3
   %call3 = call spir_func <3 x i16> @_Z14convert_short3Dv3_c(<3 x i8> %call1) #3
   call spir_func void @_Z7vstore3Dv3_sjPU3AS1s(<3 x i16> %call3, i32 %call, i16 addrspace(1)* %dest) #3
   ret void
 }
 
-declare spir_func i32 @_Z13get_global_idj(i32) #1
+declare i32 @__mux_get_global_id(i32) #1
 
 declare spir_func <3 x i8> @_Z6vload3jPU3AS1Kc(i32, i8 addrspace(1)*) #1
 

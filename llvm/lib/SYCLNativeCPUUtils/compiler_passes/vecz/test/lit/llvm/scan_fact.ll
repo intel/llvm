@@ -24,20 +24,20 @@ target triple = "spir64-unknown-unknown"
 @scan_fact.temp = internal addrspace(3) global [16 x i32] undef, align 4
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) #0
+declare i64 @__mux_get_global_id(i32) #0
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z12get_local_idj(i32) #0
+declare i64 @__mux_get_local_id(i32) #0
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z14get_local_sizej(i32) #0
+declare i64 @__mux_get_local_size(i32) #0
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @scan_fact(i32 addrspace(1)* %out, i32 addrspace(1)* %in) #1 {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0) #3
-  %call1 = call spir_func i64 @_Z13get_global_idj(i32 0) #3
-  %call2 = call spir_func i64 @_Z14get_local_sizej(i32 0) #3
+  %call = call i64 @__mux_get_local_id(i32 0) #3
+  %call1 = call i64 @__mux_get_global_id(i32 0) #3
+  %call2 = call i64 @__mux_get_local_size(i32 0) #3
   %mul = shl i64 %call1, 1
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i64 %mul
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 4

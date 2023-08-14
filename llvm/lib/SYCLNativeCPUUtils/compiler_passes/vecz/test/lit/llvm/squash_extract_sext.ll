@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @squash(<4 x i8> addrspace(1)* %data, i32 addrspace(1)* %output) #0 {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i64 0) #2
+  %gid = call i64 @__mux_get_global_id(i64 0) #2
   %data.ptr = getelementptr inbounds <4 x i8>, <4 x i8> addrspace(1)* %data, i64 %gid
   %data.ld = load <4 x i8>, <4 x i8> addrspace(1)* %data.ptr, align 8
   %ele0 = extractelement <4 x i8> %data.ld, i32 0
@@ -42,7 +42,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i64) #1
+declare i64 @__mux_get_global_id(i64) #1
 
 attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }

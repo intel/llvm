@@ -22,7 +22,7 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test_branch(i32 %a, i32* %b) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 
@@ -41,7 +41,7 @@ if.end:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This test checks if the branch conditions and the branch BBs are vectorized
 ; and masked properly
@@ -49,7 +49,7 @@ declare spir_func i64 @_Z13get_global_idj(i32)
 ; CHECK: %conv = sext i32 %a to i64
 ; CHECK: %[[A_SPLATINSERT:.+]] = insertelement <4 x i64> {{poison|undef}}, i64 %conv, {{i32|i64}} 0
 ; CHECK: %[[A_SPLAT:.+]] = shufflevector <4 x i64> %[[A_SPLATINSERT]], <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
-; CHECK: %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK: %call = call i64 @__mux_get_global_id(i32 0)
 ; CHECK: %[[GID_SPLATINSERT:.+]] = insertelement <4 x i64> {{poison|undef}}, i64 %call, {{i32|i64}} 0
 ; CHECK: %[[GID_SPLAT:.+]] = shufflevector <4 x i64> %[[GID_SPLATINSERT:.+]], <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: %[[GID:.+]] = add <4 x i64> %[[GID_SPLAT]], <i64 0, i64 1, i64 2, i64 3>

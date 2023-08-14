@@ -21,7 +21,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @load_add_store(i32* %aptr, i32* %bptr, i32* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds i32, i32* %bptr, i64 %idx
   %arrayidxz = getelementptr inbounds i32, i32* %zptr, i64 %idx
@@ -37,4 +37,4 @@ entry:
 ; CHECK: [[rhs:%[0-9a-z]+]] = load <vscale x 4 x i32>, ptr
 ; CHECK: [[sum:%[0-9a-z]+]] = add <vscale x 4 x i32> [[lhs]], [[rhs]]
 ; CHECK: store <vscale x 4 x i32> [[sum]],
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

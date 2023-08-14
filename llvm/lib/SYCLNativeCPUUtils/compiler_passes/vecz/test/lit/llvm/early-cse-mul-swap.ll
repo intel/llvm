@@ -22,23 +22,23 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z15get_global_sizej(i32) #1
+declare i64 @__mux_get_global_size(i32) #1
 
 ; Function Attrs: convergent nounwind
 define spir_kernel void @multiple_dimensions_0(i32 addrspace(1)* %output) #2 {
 entry:
-  %call.i = call spir_func i64 @_Z13get_global_idj(i32 0) #3
-  %call1.i = call spir_func i64 @_Z15get_global_sizej(i32 1) #3
+  %call.i = call i64 @__mux_get_global_id(i32 0) #3
+  %call1.i = call i64 @__mux_get_global_size(i32 1) #3
   %mul.i = mul i64 %call1.i, %call.i
-  %call2.i = call spir_func i64 @_Z15get_global_sizej(i32 2) #3
+  %call2.i = call i64 @__mux_get_global_size(i32 2) #3
   %mul3.i = mul i64 %mul.i, %call2.i
-  %call4.i = call spir_func i64 @_Z13get_global_idj(i32 1) #3
+  %call4.i = call i64 @__mux_get_global_id(i32 1) #3
   %mul6.i = mul i64 %call2.i, %call4.i
   %add.i = add i64 %mul6.i, %mul3.i
-  %call7.i = call spir_func i64 @_Z13get_global_idj(i32 2) #3
+  %call7.i = call i64 @__mux_get_global_id(i32 2) #3
   %add8.i = add i64 %add.i, %call7.i
   %conv = trunc i64 %add8.i to i32
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %output, i64 %add8.i
@@ -72,7 +72,7 @@ attributes #3 = { convergent nobuiltin nounwind readonly }
 ; CHECK: define spir_kernel void @__vecz_v4_multiple_dimensions_0
 
 ; make sure the stride calculation uses the correct operand of the multiply
-; CHECK: %[[CALL1:.+]] = call spir_func i64 @_Z15get_global_sizej(i32 1)
-; CHECK: %[[CALL2:.+]] = call spir_func i64 @_Z15get_global_sizej(i32 2)
+; CHECK: %[[CALL1:.+]] = call i64 @__mux_get_global_size(i32 1)
+; CHECK: %[[CALL2:.+]] = call i64 @__mux_get_global_size(i32 2)
 ; CHECK: %[[NEWMUL:.+]] = mul i64 %[[CALL1]], %[[CALL2]]
 ; CHECK: call void @__vecz_b_interleaved_store4_V_Dv4_ju3ptrU3AS1({{.+}} %[[NEWMUL]])

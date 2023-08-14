@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(i64 %a, i64 %b, i64* %c) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp eq i64 %a, %gid
   %c0 = getelementptr i64, i64* %c, i64 %gid
   store i64 %b, i64* %c0, align 4
@@ -35,7 +35,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; Test if the scatter store is defined correctly
 ; CHECK: define void @__vecz_b_scatter_store4_Dv4_mDv4_u3ptr(<4 x i64>{{( %0)?}}, <4 x ptr>{{( %1)?}}) {

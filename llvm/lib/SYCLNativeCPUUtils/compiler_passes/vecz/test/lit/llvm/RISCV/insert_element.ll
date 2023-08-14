@@ -24,11 +24,11 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @insert_element(<4 x float> addrspace(1)* nocapture readonly %in, float %val, i32 %idx, <4 x float> addrspace(1)* nocapture %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidx = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in, i64 %call
   %0 = bitcast <4 x float> addrspace(1)* %arrayidx to <4 x float> addrspace(1)*
   %1 = load <4 x float>, <4 x float> addrspace(1)* %0, align 16
@@ -40,7 +40,7 @@ entry:
 
 define spir_kernel void @insert_element_uniform(<4 x float> %in, float %val, i32 %idx, <4 x float> addrspace(1)* nocapture %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %0 = insertelement <4 x float> %in, float %val, i32 %idx
   %arrayidx3 = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %out, i64 %call
   store <4 x float> %0, <4 x float> addrspace(1)* %arrayidx3, align 4
@@ -49,7 +49,7 @@ entry:
 
 define spir_kernel void @insert_element_varying_indices(<4 x float> addrspace(1)* nocapture readonly %in, i32 addrspace(1)* %idxs, <4 x float> addrspace(1)* nocapture %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidxidx = getelementptr inbounds i32, i32 addrspace(1)* %idxs, i64 %call
   %idx = load i32, i32 addrspace(1)* %arrayidxidx
   %i = urem i32 %idx, 4
@@ -65,7 +65,7 @@ entry:
 
 define spir_kernel void @insert_element_illegal(<32 x float> addrspace(1)* nocapture readonly %in, i32 addrspace(1)* %idxs, <32 x float> addrspace(1)* nocapture %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidxidx = getelementptr inbounds i32, i32 addrspace(1)* %idxs, i64 %call
   %idx = load i32, i32 addrspace(1)* %arrayidxidx, align 4
   %i = urem i32 %idx, 32
@@ -81,7 +81,7 @@ entry:
 
 define spir_kernel void @insert_element_bool(<4 x i32> addrspace(1)* %a, <4 x i32> addrspace(1)* %b, i32 %val, i32 %idx, <4 x i32> addrspace(1)* nocapture %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidxa = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %a, i64 %call
   %arrayidxb = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %b, i64 %call
   %0 = load <4 x i32>, <4 x i32> addrspace(1)* %arrayidxa, align 4

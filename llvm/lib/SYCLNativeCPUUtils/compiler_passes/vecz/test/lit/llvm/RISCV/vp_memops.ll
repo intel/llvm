@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @store_element(i32 %0, i32 addrspace(1)* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp ne i64 %call, 0
   br i1 %cond, label %do, label %ret
 
@@ -62,7 +62,7 @@ ret:
 
 define spir_kernel void @load_element(i32 addrspace(1)* %a, i32 addrspace(1)* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cond = icmp ne i64 %call, 0
   br i1 %cond, label %do, label %ret
 
@@ -97,4 +97,4 @@ ret:
 ; CHECK-LOAD-16-NEXT: [[TMP7:%.*]] = call <vscale x 16 x i32> @llvm.masked.load.nxv16i32.p1(ptr addrspace(1) [[TMP0]], i32 4, <vscale x 16 x i1> [[TMP6]], <vscale x 16 x i32> {{undef|poison}})
 ; CHECK-LOAD-16-NEXT: ret <vscale x 16 x i32> [[TMP7]]
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

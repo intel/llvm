@@ -26,7 +26,7 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: store i64 %remove_intptr1, ptr addrspace(1) %out, align 8
 define spir_kernel void @intptr_cast_i8(i8 addrspace(1)* %in, i64 addrspace(1)* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %0 = ptrtoint i8 addrspace(1)* %in to i64
   %shl = shl i64 %call, 2
   %add = add i64 %shl, %0
@@ -41,7 +41,7 @@ entry:
 ; CHECK: store i64 %remove_intptr1, ptr addrspace(1) %out, align 8
 define spir_kernel void @intptr_cast_i16(i16 addrspace(1)* %in, i64 addrspace(1)* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %0 = ptrtoint i16 addrspace(1)* %in to i64
   %shl = shl i64 %call, 2
   %add = add i64 %shl, %0
@@ -49,4 +49,4 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

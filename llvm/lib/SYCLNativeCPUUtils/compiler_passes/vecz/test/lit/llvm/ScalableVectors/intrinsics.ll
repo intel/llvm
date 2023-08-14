@@ -24,7 +24,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @ctpop(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds <2 x i8>, <2 x i8>* %bptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
@@ -40,7 +40,7 @@ entry:
 
 define spir_kernel void @ctlz(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds <2 x i8>, <2 x i8>* %bptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
@@ -56,7 +56,7 @@ entry:
 
 define spir_kernel void @cttz(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds <2 x i8>, <2 x i8>* %bptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
@@ -72,7 +72,7 @@ entry:
 
 define spir_kernel void @sadd_sat(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
@@ -90,7 +90,7 @@ entry:
 
 define spir_kernel void @uadd_sat(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
@@ -108,7 +108,7 @@ entry:
 
 define spir_kernel void @ssub_sat(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
@@ -126,7 +126,7 @@ entry:
 
 define spir_kernel void @usub_sat(i32* %aptr, <2 x i8>* %bptr, i32* %yptr, <2 x i8>* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds i32, i32* %aptr, i64 %idx
   %arrayidxy = getelementptr inbounds i32, i32* %yptr, i64 %idx
   %a = load i32, i32* %arrayidxa, align 4
@@ -163,7 +163,7 @@ declare <2 x i8> @llvm.ssub.sat.v2i8(<2 x i8>, <2 x i8>)
 declare i32 @llvm.usub.sat.i32(i32, i32)
 declare <2 x i8> @llvm.usub.sat.v2i8(<2 x i8>, <2 x i8>)
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CTPOP: void @__vecz_nxv2_ctpop
 ; CTPOP: = call <vscale x 2 x i32> @llvm.ctpop.nxv2i32(<vscale x 2 x i32> %{{.*}})

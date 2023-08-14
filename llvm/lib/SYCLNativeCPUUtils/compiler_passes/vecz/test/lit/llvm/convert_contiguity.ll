@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
 define spir_kernel void @convert_contiguity(float addrspace(1)* %m_ptr) {
-  %1 = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %1 = call i64 @__mux_get_global_id(i32 0)
   %2 = call spir_func i32 @_Z12convert_uintm(i64 %1)
   %3 = icmp slt i32 %2, 100
   %4 = select i1 %3, float 1.000000e+00, float 0.000000e+00
@@ -38,7 +38,7 @@ declare spir_func i32 @_Z12convert_uintm(i64)
 declare spir_func i64 @_Z12convert_longi(i32)
 
 ; Function Attrs: nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; It checks that the store address was identified as congituous through the
 ; OpenCL convert builtin function

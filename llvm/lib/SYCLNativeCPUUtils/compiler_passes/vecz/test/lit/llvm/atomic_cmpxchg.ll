@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @atomic_cmpxchg_builtin(i32 addrspace(1)* %counter, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   br label %do.body
 
@@ -42,7 +42,7 @@ do.end:                                           ; preds = %do.body
 
 define spir_kernel void @atomic_atomicrmw_builtin(i32 addrspace(1)* %counter, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   br label %do.body
 
@@ -62,7 +62,7 @@ do.end:                                           ; preds = %do.body
 
 define spir_kernel void @atomic_rmw(i32 addrspace(1)* %counter2, i32 addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   %0 = atomicrmw add i32 addrspace(1)* %counter2, i32 1 seq_cst
   %idxprom = sext i32 %0 to i64
@@ -71,7 +71,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; We no longer support instantiating atomic instructions in diverged blocks,
 ; since they require masking. FileCheck does not support comments, so the CHECKs

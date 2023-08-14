@@ -22,7 +22,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:1:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z12get_local_idj(i32) #0
+declare i64 @__mux_get_local_id(i32) #0
 
 ; Function Attrs: nounwind readnone
 declare spir_func <4 x float> @_Z3madDv4_fS_S_(<4 x float>, <4 x float>, <4 x float>) #0
@@ -35,7 +35,7 @@ declare spir_func float @_Z3madfff(float, float, float) local_unnamed_addr #2
 
 define spir_kernel void @scalar_vector_user(float addrspace(1)* %inout, i64 %n) {
 entry:
-  %lid = tail call spir_func i64 @_Z12get_local_idj(i32 0) #0
+  %lid = tail call i64 @__mux_get_local_id(i32 0) #0
   %inout.address = getelementptr inbounds float, float addrspace(1)* %inout, i64 %lid
   br label %loop
 

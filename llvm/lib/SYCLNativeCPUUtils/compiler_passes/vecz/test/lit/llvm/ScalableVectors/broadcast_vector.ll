@@ -20,11 +20,11 @@
 target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define dso_local spir_kernel void @vector_broadcast_const(<4 x float> addrspace(1)* nocapture readonly %in, <4 x float> addrspace(1)* nocapture %out) local_unnamed_addr #0 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidx = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in, i64 %call
   %0 = bitcast <4 x float> addrspace(1)* %arrayidx to <4 x float> addrspace(1)*
   %1 = load <4 x float>, <4 x float> addrspace(1)* %0, align 16
@@ -36,7 +36,7 @@ entry:
 
 define dso_local spir_kernel void @vector_broadcast(<4 x float> addrspace(1)* nocapture readonly %in, <4 x float> %addend, <4 x float> addrspace(1)* nocapture %out) local_unnamed_addr #0 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidx = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in, i64 %call
   %0 = bitcast <4 x float> addrspace(1)* %arrayidx to <4 x float> addrspace(1)*
   %1 = load <4 x float>, <4 x float> addrspace(1)* %0, align 16
@@ -48,7 +48,7 @@ entry:
 
 define dso_local spir_kernel void @vector_broadcast_regression(<4 x float> addrspace(1)* nocapture readonly %in, i32 %nancode, <4 x float> addrspace(1)* nocapture %out) local_unnamed_addr #0 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidx = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in, i64 %call
   %0 = bitcast <4 x float> addrspace(1)* %arrayidx to <4 x i32> addrspace(1)*
   %1 = load <4 x i32>, <4 x i32> addrspace(1)* %0, align 16
@@ -68,7 +68,7 @@ entry:
 define dso_local spir_kernel void @vector_broadcast_insertpt(<4 x float> addrspace(1)* nocapture readonly %in, <4 x float> %addend, i32 %nancode, <4 x float> addrspace(1)* nocapture %out, <4 x i32> addrspace(1)* nocapture %out2) local_unnamed_addr #0 {
 entry:
   %existing.alloc = alloca <4 x i32>
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   store <4 x i32> zeroinitializer, <4 x i32>* %existing.alloc
   %scalar = bitcast <4 x i32>* %existing.alloc to i32*
   store i32 1, i32* %scalar
@@ -86,7 +86,7 @@ entry:
 
 define dso_local spir_kernel void @vector_mask_broadcast(<4 x float> addrspace(1)* nocapture readonly %in, <4 x i1> %input, <4 x float> %woof, <4 x float> addrspace(1)* nocapture %out) local_unnamed_addr #0 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #6
+  %call = tail call i64 @__mux_get_global_id(i32 0) #6
   %arrayidx = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in, i64 %call
   %0 = bitcast <4 x float> addrspace(1)* %arrayidx to <4 x float> addrspace(1)*
   %1 = load <4 x float>, <4 x float> addrspace(1)* %0, align 16
@@ -99,7 +99,7 @@ entry:
 }
 ; CHECK-LABEL: @__vecz_nxv4_vector_broadcast_const(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[CALL:%.*]] = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    [[ARRAYIDX3:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[OUT:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    store <vscale x 16 x float> shufflevector (<vscale x 16 x float> insertelement (<vscale x 16 x float> {{(undef|poison)}}, float 0x7FF8000020000000, {{(i32|i64)}} 0), <vscale x 16 x float> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer), ptr addrspace(1) [[ARRAYIDX3]], align 16
 ; CHECK-NEXT:    ret void
@@ -113,7 +113,7 @@ entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX1]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{(i32|i64)}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> undef)
-; CHECK-NEXT:    [[CALL:%.*]] = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP3:%.*]] = load <vscale x 16 x float>, ptr addrspace(1) [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[TMP4:%.*]] = fadd <vscale x 16 x float> [[TMP3]], [[TMP1]]
@@ -123,7 +123,7 @@ entry:
 
 ; CHECK-LABEL: @__vecz_nxv4_vector_broadcast_regression(
 ; CHECK-NEXT:  entry:
-; CHECK-NEXT:    [[CALL:%.*]] = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds <4 x float>, ptr addrspace(1) [[IN:%.*]], i64 [[CALL]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = load <vscale x 16 x i32>, ptr addrspace(1) [[ARRAYIDX]], align 4
 ; CHECK-NEXT:    [[AND1_I_I_I1_I1:%.*]] = and <vscale x 16 x i32> [[TMP1]], shufflevector (<vscale x 16 x i32> insertelement (<vscale x 16 x i32> {{(undef|poison)}}, i32 2139095040, {{i32|i64}} 0), <vscale x 16 x i32> {{(undef|poison)}}, <vscale x 16 x i32> zeroinitializer)
@@ -149,7 +149,7 @@ entry:
 ; CHECK-NEXT:    [[TMP0:%.*]] = {{s|z}}ext <vscale x 16 x i32> [[IDX14]] to <vscale x 16 x i64>
 ; CHECK-NEXT:    [[VEC_ALLOC5:%.*]] = getelementptr inbounds float, ptr [[FIXLEN_ALLOC1]], <vscale x 16 x i64> [[TMP0]]
 ; CHECK-NEXT:    [[TMP1:%.*]] = call <vscale x 16 x float> @llvm.masked.gather.nxv16f32.nxv16p0(<vscale x 16 x ptr> [[VEC_ALLOC5]], i32 4, <vscale x 16 x i1> shufflevector (<vscale x 16 x i1> insertelement (<vscale x 16 x i1> poison, i1 true, {{i32|i64}} 0), <vscale x 16 x i1> poison, <vscale x 16 x i32> zeroinitializer), <vscale x 16 x float> {{(undef|poison)}})
-; CHECK-NEXT:    [[CALL:%.*]] = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-NEXT:    [[CALL:%.*]] = tail call i64 @__mux_get_global_id(i32 0)
 ; CHECK-NEXT:    store <4 x i32> zeroinitializer, ptr [[EXISTING_ALLOC]], align 16
 ; CHECK-NEXT:    store i32 1, ptr [[EXISTING_ALLOC]], align 16
 ; CHECK-NEXT:    [[V:%.*]] = load <4 x i32>, ptr [[EXISTING_ALLOC]], align 16

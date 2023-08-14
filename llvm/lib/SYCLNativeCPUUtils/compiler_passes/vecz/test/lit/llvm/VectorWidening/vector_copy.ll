@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @vector_copy(<4 x i32> addrspace(1)* %out, <4 x i32> addrspace(1)* %in) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %arrayidx = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %in, i64 %call
   %0 = load <4 x i32>, <4 x i32> addrspace(1)* %arrayidx, align 16
   %arrayidx1 = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %out, i64 %call
@@ -31,7 +31,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; It makes sure the vector load and store are preserved right through to packetization
 ; and then widened, instead of being scalarized across work-items first

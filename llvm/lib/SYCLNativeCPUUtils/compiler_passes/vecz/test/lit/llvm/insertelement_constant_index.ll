@@ -19,11 +19,11 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @constant_index(<4 x i32>* %in, <4 x i32>* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x i32>, <4 x i32>* %in, i64 %call
   %0 = load <4 x i32>, <4 x i32>* %arrayidx
   %arrayidx2 = getelementptr inbounds <4 x i32>, <4 x i32>* %out, i64 %call

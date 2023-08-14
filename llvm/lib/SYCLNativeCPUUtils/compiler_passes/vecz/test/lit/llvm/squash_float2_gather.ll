@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @squash(i64 addrspace(1)* %idx, <2 x float> addrspace(1)* %data, <2 x float> addrspace(1)* %output) #0 {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i64 0) #2
+  %gid = call i64 @__mux_get_global_id(i64 0) #2
   %idx.ptr = getelementptr inbounds i64, i64 addrspace(1)* %idx, i64 %gid
   %idx.ld = load i64, i64 addrspace(1)* %idx.ptr, align 8
   %data.ptr = getelementptr inbounds <2 x float>, <2 x float> addrspace(1)* %data, i64 %idx.ld
@@ -33,7 +33,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i64) #1
+declare i64 @__mux_get_global_id(i64) #1
 
 attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -43,7 +43,7 @@ attributes #2 = { nobuiltin nounwind }
 ; gather load
 ;
 ; CHECK: void @__vecz_v4_squash
-; CHECK:  %[[GID:.+]] = call spir_func i64 @_Z13get_global_idj(i64 0) #[[ATTRS:[0-9]+]]
+; CHECK:  %[[GID:.+]] = call i64 @__mux_get_global_id(i64 0) #[[ATTRS:[0-9]+]]
 ; CHECK:  %[[IDX_PTR:.+]] = getelementptr inbounds i64, ptr addrspace(1) %idx, i64 %[[GID]]
 ; CHECK:  %[[WIDE_LOAD:.+]] = load <4 x i64>, ptr addrspace(1) %[[IDX_PTR]], align 8
 ; CHECK:  %[[DATA_PTR:.+]] = getelementptr inbounds <2 x float>, ptr addrspace(1) %data, <4 x i64> %[[WIDE_LOAD]]

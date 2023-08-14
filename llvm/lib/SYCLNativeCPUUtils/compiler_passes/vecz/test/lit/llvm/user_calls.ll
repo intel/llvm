@@ -24,9 +24,9 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @entry(i64* %input, i64* %output) {
 entry:
-  %gid = call i64 @_Z12get_local_idj(i32 0)
+  %gid = call i64 @__mux_get_local_id(i32 0)
   %i1ptr = getelementptr i64, i64* %output, i64 %gid
-  call spir_func void @_Z9mem_fencej(i32 1)
+  call void @__mux_mem_barrier(i32 2, i32 264) 
   %ii = call i64 @functionD(i64* %input)
   %ib = trunc i64 %ii to i1
   call void @functionA(i64* %i1ptr, i1 %ib)
@@ -63,18 +63,18 @@ entry:
   ret i64 %r
 }
 
-declare spir_func void @_Z9mem_fencej(i32)
+declare void @__mux_mem_barrier(i32, i32)
 
 declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 
-declare i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v[[WIDTH:[0-9]+]]_entry
 ; CHECK: entry:
-; Check that we didn't mask the get_local_id call
-; CHECK: %gid = call i64 @_Z12get_local_idj(i32 0)
+; Check that we didn't mask the __mux_get_local_id call
+; CHECK: %gid = call i64 @__mux_get_local_id(i32 0)
 ; Check that we didn't mask the mem_fence call
-; CHECK: call spir_func void @_Z9mem_fencej(i32 1)
+; CHECK: call void @__mux_mem_barrier(i32 2, i32 264)
 ; Check that we instantiated functionA without a mask
 ; CHECK: call void @functionA(ptr {{.+}}, i1 %ib)
 ; CHECK: call void @functionA(ptr {{.+}}, i1 %ib)

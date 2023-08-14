@@ -33,7 +33,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare spir_func float @_Z4fminff(float, float)
 declare spir_func <2 x float> @_Z4fminDv2_ff(<2 x float>, float)

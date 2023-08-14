@@ -24,8 +24,8 @@ target triple = "spir64-unknown-unknown"
 declare float @llvm.fmuladd.f32(float, float, float) #2
 declare void @__mux_work_group_barrier(i32, i32, i32) #3
 declare spir_func float @_Z3maxff(float, float) #1
-declare spir_func i64 @_Z12get_local_idj(i32) #1
-declare spir_func i64 @_Z12get_group_idj(i32) #1
+declare i64 @__mux_get_local_id(i32) #1
+declare i64 @__mux_get_group_id(i32) #1
 
 @fuse_conv2d_broadcast_add_relu_1_kernel0.pad_temp_shared = internal addrspace(3) global [640 x float] undef, align 4
 @fuse_conv2d_broadcast_add_relu_1_kernel0.input1_shared = internal addrspace(3) global [1152 x float] undef, align 4
@@ -42,38 +42,38 @@ for.cond:                                         ; preds = %for.inc, %entry
   br i1 %cmp1, label %if.then, label %if.else
 
 if.then:                                      ; preds = %for.cond
-  %call1 = call spir_func i64 @_Z12get_local_idj(i32 0) #5
-  %call2 = call spir_func i64 @_Z12get_group_idj(i32 1) #5
+  %call1 = call i64 @__mux_get_local_id(i32 0) #5
+  %call2 = call i64 @__mux_get_group_id(i32 1) #5
   %idx1 = getelementptr inbounds [640 x float], [640 x float] addrspace(3)* @fuse_conv2d_broadcast_add_relu_1_kernel0.pad_temp_shared, i64 0, i64 %call1
   store float 0.000000e+00, float addrspace(3)* %idx1, align 4
   %cmp2 = icmp sgt i64 %call2, %call1
   br i1 %cmp2, label %if.then2, label %land.lhs.true1
 
 land.lhs.true1:                                 ; preds = %if.then
-  %call3 = call spir_func i64 @_Z12get_group_idj(i32 1) #5
-  %call4 = call spir_func i64 @_Z12get_local_idj(i32 0) #5
+  %call3 = call i64 @__mux_get_group_id(i32 1) #5
+  %call4 = call i64 @__mux_get_local_id(i32 0) #5
   %cmp3 = icmp slt i64 %call3, %call4
   br i1 %cmp3, label %land.lhs.true2, label %if.then2
 
 land.lhs.true2:                                 ; preds = %land.lhs.true1
-  %call5 = call spir_func i64 @_Z12get_local_idj(i32 0) #5
-  %call6 = call spir_func i64 @_Z12get_group_idj(i32 0) #5
+  %call5 = call i64 @__mux_get_local_id(i32 0) #5
+  %call6 = call i64 @__mux_get_group_id(i32 0) #5
   %cmp4 = icmp sgt i64 %call6, %call5
   br i1 %cmp4, label %if.then2, label %land.lhs.true3
 
 land.lhs.true3:                                 ; preds = %land.lhs.true2
-  %call7 = call spir_func i64 @_Z12get_group_idj(i32 0) #5
-  %call8 = call spir_func i64 @_Z12get_local_idj(i32 0) #5
+  %call7 = call i64 @__mux_get_group_id(i32 0) #5
+  %call8 = call i64 @__mux_get_local_id(i32 0) #5
   %cmp5 = icmp slt i64 %call7, %call8
   br i1 %cmp5, label %cond.true4, label %if.then2
 
 cond.true4:                                     ; preds = %land.lhs.true3
-  %call9 = call spir_func i64 @_Z12get_local_idj(i32 1) #5
+  %call9 = call i64 @__mux_get_local_id(i32 1) #5
   %idx2 = getelementptr inbounds float, float addrspace(1)* %input0, i64 %call9
   br label %if.then2
 
 if.then2:                                      ; preds = %cond.true4, %land.lhs.true3, %land.lhs.true2, %land.lhs.true1, %if.then
-  %call10 = call spir_func i64 @_Z12get_local_idj(i32 0) #5
+  %call10 = call i64 @__mux_get_local_id(i32 0) #5
   %conv = trunc i64 %call10 to i32
   %idx3 = sext i32 %conv to i64
   %idx4 = getelementptr inbounds [1152 x float], [1152 x float] addrspace(3)* @fuse_conv2d_broadcast_add_relu_1_kernel0.input1_shared, i64 0, i64 %idx3

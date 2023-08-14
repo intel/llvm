@@ -23,9 +23,9 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @offset_info_analysis(i8 addrspace(1)* noalias %in, i8 addrspace(1)* noalias %out, i32 %width) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
   %conv = trunc i64 %call to i32
-  %call1 = call spir_func i64 @_Z13get_global_idj(i32 1) #2
+  %call1 = call i64 @__mux_get_global_id(i32 1) #2
   %conv2 = trunc i64 %call1 to i32
   %mul = mul nsw i32 %conv2, %width
   %0 = xor i32 %width, -1
@@ -42,7 +42,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This test checks that a 'xor' as a binop operand does correctly get analyzed.
 ; and masked properly
