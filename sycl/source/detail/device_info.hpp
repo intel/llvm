@@ -228,20 +228,40 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
+inline bool checkNativeQueueProfiling(const DeviceImplPtr &Dev) {
+  pi_queue_properties Properties;
+  Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+      Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
+      sizeof(Properties), &Properties, nullptr);
+  return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
+}
+
 // Specialization for queue_profiling. In addition to pi_queue level profiling,
 // piGetDeviceAndHostTimer is not supported, command_submit, command_start,
 // command_end will be calculated. see MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    pi_queue_properties Properties;
-    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-        sizeof(Properties), &Properties, nullptr);
-    if (Properties & PI_QUEUE_FLAG_PROFILING_ENABLE)
-      return true;
-    return false;
+    if (!checkNativeQueueProfiling(Dev))
+      return false;
+    return true;
   }
 };
+
+// Specialization for queue_profiling. In addition to pi_queue level profiling,
+// piGetDeviceAndHostTimer is not supported, command_submit, command_start,
+// command_end will be calculated. see MFallbackProfiling
+// template <> struct get_device_info_impl<bool, info::device::queue_profiling>
+// {
+//   static bool get(const DeviceImplPtr &Dev) {
+//     pi_queue_properties Properties;
+//   Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+//       Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
+//       sizeof(Properties), &Properties, nullptr);
+//       if (Properties & PI_QUEUE_FLAG_PROFILING_ENABLE)
+//         return true;
+//   return false;
+//   }
+// };
 
 // Specialization for atomic_memory_order_capabilities, PI returns a bitfield
 template <>
