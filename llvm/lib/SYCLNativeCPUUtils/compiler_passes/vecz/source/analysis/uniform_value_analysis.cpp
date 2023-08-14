@@ -122,20 +122,9 @@ static bool isSubgroupBroadcastOrReduction(
   if (!Callee) {
     return false;
   }
-  auto const Builtin = BI.analyzeBuiltin(*Callee);
-  if (auto Info = BI.isMuxGroupCollective(Builtin.ID);
-      Info && Info->isSubGroupScope()) {
-    switch (Info->Op) {
-      default:
-        return false;
-      case compiler::utils::GroupCollective::OpKind::Any:
-      case compiler::utils::GroupCollective::OpKind::All:
-      case compiler::utils::GroupCollective::OpKind::Reduction:
-      case compiler::utils::GroupCollective::OpKind::Broadcast:
-        return true;
-    }
-  }
-  return false;
+  auto Info = BI.isMuxGroupCollective(BI.analyzeBuiltin(*Callee).ID);
+  return Info && Info->isSubGroupScope() &&
+         (Info->isAnyAll() || Info->isReduction() || Info->isBroadcast());
 }
 
 void UniformValueResult::findVectorLeaves(

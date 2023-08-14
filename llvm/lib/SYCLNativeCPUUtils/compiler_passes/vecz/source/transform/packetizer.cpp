@@ -1086,17 +1086,9 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
   auto const Builtin = BI.analyzeBuiltin(*callee);
   auto const Info = BI.isMuxGroupCollective(Builtin.ID);
 
-  if (!Info ||
-      Info->Scope != compiler::utils::GroupCollective::ScopeKind::SubGroup) {
+  if (!Info || !Info->isSubGroupScope() ||
+      (!Info->isAnyAll() && !Info->isReduction())) {
     return nullptr;
-  }
-  switch (Info->Op) {
-    default:
-      return nullptr;
-    case compiler::utils::GroupCollective::OpKind::Any:
-    case compiler::utils::GroupCollective::OpKind::All:
-    case compiler::utils::GroupCollective::OpKind::Reduction:
-      break;
   }
 
   SmallVector<Value *, 16> opPackets;
@@ -1171,12 +1163,8 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
   Function *callee = CI->getCalledFunction();
   auto const Builtin = BI.analyzeBuiltin(*callee);
 
-  if (auto Info = BI.isMuxGroupCollective(Builtin.ID)) {
-    if (Info->Scope != compiler::utils::GroupCollective::ScopeKind::SubGroup ||
-        Info->Op != compiler::utils::GroupCollective::OpKind::Broadcast) {
-      return nullptr;
-    }
-  } else {
+  if (auto Info = BI.isMuxGroupCollective(Builtin.ID);
+      !Info || !Info->isSubGroupScope() || !Info->isBroadcast()) {
     return nullptr;
   }
 
