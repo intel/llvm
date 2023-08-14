@@ -72,6 +72,46 @@ public:
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
 
+  /// Tests if two nodes have the same content,
+  /// i.e. same command group
+  /// @param Node node to compare with
+  bool operator==(const node_impl &Node) {
+    if (MCGType != Node.MCGType)
+      return false;
+
+    if (MCGType == sycl::detail::CG::CGTYPE::Kernel) {
+      sycl::detail::CGExecKernel *ExecKernelA =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      sycl::detail::CGExecKernel *ExecKernelB =
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
+
+      if (ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) != 0)
+        return false;
+    }
+    if (MCGType == sycl::detail::CG::CGTYPE::CopyUSM) {
+      sycl::detail::CGCopyUSM *CopyA =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      sycl::detail::CGCopyUSM *CopyB =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      if ((CopyA->getSrc() != CopyB->getSrc()) ||
+          (CopyA->getDst() != CopyB->getDst()) ||
+          (CopyA->getLength() == CopyB->getLength()))
+        return false;
+    }
+    if ((MCGType == sycl::detail::CG::CGTYPE::CopyAccToAcc) ||
+        (MCGType == sycl::detail::CG::CGTYPE::CopyAccToPtr) ||
+        (MCGType == sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+      sycl::detail::CGCopy *CopyA =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      sycl::detail::CGCopy *CopyB =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      if ((CopyA->getSrc() != CopyB->getSrc()) ||
+          (CopyA->getDst() != CopyB->getDst()))
+        return false;
+    }
+    return true;
+  }
+
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
@@ -167,6 +207,21 @@ public:
     return nullptr;
   }
 
+  /// Tests is the caller is similar to Node
+  /// @return True if the two nodes are similar
+  bool isSimilar(std::shared_ptr<node_impl> Node) {
+    if (MSuccessors.size() != Node->MSuccessors.size())
+      return false;
+
+    if (MPredecessors.size() != Node->MPredecessors.size())
+      return false;
+
+    if (*this == *Node.get())
+      return true;
+
+    return false;
+  }
+
 private:
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
@@ -186,10 +241,6 @@ public:
   graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice)
       : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
         MEventsMap(), MInorderQueueMap() {}
-
-  /// Insert node into list of root nodes.
-  /// @param Root Node to add to list of root nodes.
-  void addRoot(const std::shared_ptr<node_impl> &Root);
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
@@ -276,11 +327,12 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
-  /// Adds sub-graph nodes from an executable graph to this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// Duplicates and Adds sub-graph nodes from an executable graph to this
+  /// graph.
+  /// @param SubGraphExec sub-graph to add to the parent.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addSubgraphNodes(const std::shared_ptr<exec_graph_impl> &SubGraphExec);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -333,6 +385,16 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MInorderQueueMap;
+
+  /// Insert node into list of root nodes.
+  /// @param Root Node to add to list of root nodes.
+  void addRoot(const std::shared_ptr<node_impl> &Root);
+
+  /// Adds nodes to the exit nodes of this graph.
+  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// @return An empty node is used to schedule dependencies on this sub-graph.
+  std::shared_ptr<node_impl>
+  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -377,6 +439,10 @@ public:
   const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
     return MSchedule;
   }
+
+  /// Query the graph_impl.
+  /// @return pointer to the graph_impl MGraphImpl
+  const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going
