@@ -153,17 +153,16 @@ public:
                               "discard_events and enable_profiling.");
       // fallback profiling support. See MFallbackProfiling
       if (MDevice->has(aspect::queue_profiling)) {
-        if (checkNativeQueueProfiling(MDevice)) {
-          // pi_queue_properties Properties;
-          // MDevice->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-          //     MDevice->getHandleRef(),
-          //     PiInfoCode<info::device::queue_profiling>::value,
-          //     sizeof(Properties), &Properties, nullptr);
-          // if piGetDeviceAndHostTimer is not supported, compute the profiling
-          // time OpenCL version < 2.1 case
-          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported()) {
+        pi_queue_properties Properties;
+        MDevice->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+            MDevice->getHandleRef(),
+            PiInfoCode<info::device::queue_profiling>::value,
+            sizeof(Properties), &Properties, nullptr);
+        if (Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) {
+          // When piGetDeviceAndHostTimer is not supported, compute the
+          // profiling time OpenCL version < 2.1 case
+          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
             MFallbackProfiling = true;
-          }
         } else {
           throw sycl::exception(
               make_error_code(errc::feature_not_supported),
