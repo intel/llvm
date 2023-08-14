@@ -9,14 +9,7 @@
 // All __imf_* bf16 functions are implemented via fp32 emulation, so we don't
 // need to check whether underlying device supports bf16 or not.
 #include "imf_utils.hpp"
-
-extern "C" {
-uint16_t __imf_float2bfloat16(float);
-uint16_t __imf_float2bfloat16_rd(float);
-uint16_t __imf_float2bfloat16_rn(float);
-uint16_t __imf_float2bfloat16_ru(float);
-uint16_t __imf_float2bfloat16_rz(float);
-};
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
   sycl::queue device_queue(sycl::default_selector_v);
@@ -62,16 +55,26 @@ int main() {
         0x0,    0x8000, 0x0,    0x7F,   0x5A,   0x8000, 0x807F, 0x805A, 0x7F80,
         0xFF80, 0x2E05, 0x7E5A, 0xAE44, 0xFA84, 0x7F7F, 0x765F, 0xFF7F, 0xAC76};
 
-    test_host(input_vals, ref_vals, F(__imf_float2bfloat16));
-    test_host(input_vals, ref_vals_rd, F(__imf_float2bfloat16_rd));
-    test_host(input_vals, ref_vals, F(__imf_float2bfloat16_rn));
-    test_host(input_vals, ref_vals_ru, F(__imf_float2bfloat16_ru));
-    test_host(input_vals, ref_vals_rz, F(__imf_float2bfloat16_rz));
-    test(device_queue, input_vals, ref_vals, F(__imf_float2bfloat16));
-    test(device_queue, input_vals, ref_vals_rd, F(__imf_float2bfloat16_rd));
-    test(device_queue, input_vals, ref_vals, F(__imf_float2bfloat16_rn));
-    test(device_queue, input_vals, ref_vals_ru, F(__imf_float2bfloat16_ru));
-    test(device_queue, input_vals, ref_vals_rz, F(__imf_float2bfloat16_rz));
+    test_host(input_vals, ref_vals,
+              FT(uint16_t, sycl::ext::intel::math::float2bfloat16));
+    test_host(input_vals, ref_vals_rd,
+              FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rd));
+    test_host(input_vals, ref_vals,
+              FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rn));
+    test_host(input_vals, ref_vals_ru,
+              FT(uint16_t, sycl::ext::intel::math::float2bfloat16_ru));
+    test_host(input_vals, ref_vals_rz,
+              FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rz));
+    test(device_queue, input_vals, ref_vals,
+         FT(uint16_t, sycl::ext::intel::math::float2bfloat16));
+    test(device_queue, input_vals, ref_vals_rd,
+         FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rd));
+    test(device_queue, input_vals, ref_vals,
+         FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rn));
+    test(device_queue, input_vals, ref_vals_ru,
+         FT(uint16_t, sycl::ext::intel::math::float2bfloat16_ru));
+    test(device_queue, input_vals, ref_vals_rz,
+         FT(uint16_t, sycl::ext::intel::math::float2bfloat16_rz));
   }
   return 0;
 }

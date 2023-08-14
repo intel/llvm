@@ -138,7 +138,13 @@ int test(queue &Q, T Identity) {
 
   int Error = 0;
   if constexpr (IsFP) {
-    T Diff = (Expected / *Res) - T{1};
+    T Diff;
+    Diff.x() = (std::abs(Res->x()) < 1e-6 && std::abs(Expected.x()) < 1e-6)
+                   ? 0.0
+                   : (Expected.x() / Res->x()) - 1;
+    Diff.y() = (std::abs(Res->y()) < 1e-6 && std::abs(Expected.y()) < 1e-6)
+                   ? 0.0
+                   : (Expected.y() / Res->y()) - 1;
     Error = (std::abs(Diff.x()) > 0.5 || std::abs(Diff.y()) > 0.5) ? 1 : 0;
   } else {
     Error = (Expected.x() != Res->x() || Expected.y() != Res->y()) ? 1 : 0;
