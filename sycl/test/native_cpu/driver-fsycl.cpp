@@ -16,7 +16,7 @@ int main() {
 
   // Submitting command group(work) to queue
   Queue.submit([&](sycl::handler &cgh) {
-    // Getting write only access to the buffer on a device.
+    // Getting write-only access to the buffer on a device.
     sycl::accessor Accessor{Buffer, cgh, sycl::write_only};
     // Executing kernel
     cgh.parallel_for<class FillBuffer>(NumOfWorkItems, [=](sycl::id<1> WIid) {
@@ -25,7 +25,7 @@ int main() {
     });
   });
 
-  // Getting read only access to the buffer on the host.
+  // Getting read-only access to the buffer on the host.
   // Implicit barrier waiting for queue to complete the work.
   sycl::host_accessor HostAccessor{Buffer, sycl::read_only};
 

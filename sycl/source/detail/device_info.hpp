@@ -601,6 +601,7 @@ struct get_device_info_impl<
           {0x02418000, oneapi_exp_arch::intel_gpu_aml},
           {0x0241c000, oneapi_exp_arch::intel_gpu_cml},
           {0x02c00000, oneapi_exp_arch::intel_gpu_icllp},
+          {0x02c08000, oneapi_exp_arch::intel_gpu_ehl},
           {0x03000000, oneapi_exp_arch::intel_gpu_tgllp},
           {0x03004000, oneapi_exp_arch::intel_gpu_rkl},
           {0x03008000, oneapi_exp_arch::intel_gpu_adl_s},

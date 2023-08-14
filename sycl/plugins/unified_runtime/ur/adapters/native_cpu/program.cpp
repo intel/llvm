@@ -39,6 +39,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   auto hProgram = new ur_program_handle_t_(
       hContext, reinterpret_cast<const unsigned char *>(pBinary));
 
+  const nativecpu_entry *nativecpu_it =
+      reinterpret_cast<const nativecpu_entry *>(pBinary);
+  while (nativecpu_it->kernel_ptr != nullptr) {
+    hProgram->_kernels.insert(
+        std::make_pair(nativecpu_it->kernelname, nativecpu_it->kernel_ptr));
+    nativecpu_it++;
+  }
+
   *phProgram = hProgram;
 
   return UR_RESULT_SUCCESS;

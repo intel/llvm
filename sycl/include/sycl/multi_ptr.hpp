@@ -7,12 +7,17 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <cassert>
-#include <cstddef>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/type_traits.hpp>
+
+#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ocl_prefetch
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/type_traits.hpp>        // for const_if_const_AS
+#include <sycl/half_type.hpp>                 // for BIsRepresentationT
+
+#include <cstddef>     // for nullptr_t, ptrdiff_t, size_t
+#include <iterator>    // for random_access_iterator_tag
+#include <type_traits> // for enable_if_t, add_pointer_t
 
 namespace sycl {
 inline namespace _V1 {
@@ -1437,7 +1442,7 @@ address_space_cast(ElementType *pointer) {
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress = access::decorated::legacy,
-    typename = std::enable_if<DecorateAddress == access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress == access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
@@ -1449,7 +1454,7 @@ multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress,
-    typename = std::enable_if<DecorateAddress != access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress != access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
