@@ -2291,7 +2291,8 @@ static pi_result SetKernelParamsAndLaunch(
     sycl::detail::pi::PiKernel Kernel, NDRDescT &NDRDesc,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
+    detail::EventImplPtr Event) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2327,6 +2328,9 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
+
+  if (Event != nullptr)
+    Event->setQueueBaseTime();
 
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
@@ -2444,7 +2448,8 @@ pi_int32 enqueueImpKernel(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
+    detail::EventImplPtr Event) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2525,6 +2530,12 @@ pi_int32 enqueueImpKernel(
     EventsWaitList = EventsWithDeviceGlobalInits;
   }
 
+  // Capture the host timestamp for profiling (queue time)
+  detail::EventImplPtr NewEvent = std::make_shared<detail::event_impl>(Queue);
+  NewEvent->setContextImpl(ContextImpl);
+  NewEvent->setStateIncomplete();
+  NewEvent->setQueueBaseTime();
+
   pi_result Error = PI_SUCCESS;
   {
     assert(KernelMutex);
@@ -2540,9 +2551,9 @@ pi_int32 enqueueImpKernel(
           sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
-                                     NDRDesc, EventsWaitList, OutEvent,
-                                     EliminatedArgMask, getMemAllocationFunc);
+    Error = SetKernelParamsAndLaunch(
+        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList, OutEvent,
+        EliminatedArgMask, getMemAllocationFunc, Event);
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -2851,7 +2862,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(MQueue, NDRDesc, Args,
                             ExecKernel->getKernelBundle(), SyclKernel,
                             KernelName, RawEvents, Event, getMemAllocationFunc,
-                            ExecKernel->MKernelCacheConfig);
+                            ExecKernel->MKernelCacheConfig, nullptr);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();

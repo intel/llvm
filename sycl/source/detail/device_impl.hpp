@@ -243,6 +243,7 @@ public:
   uint64_t getCurrentDeviceTime();
 
   /// Check clGetDeviceAndHostTimer is available for fallback profiling
+
   bool IsGetDeviceAndHostTimerSupported();
 
   /// Get the backend of this device

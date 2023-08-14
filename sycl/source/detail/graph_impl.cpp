@@ -431,7 +431,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler
-            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
+            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, NewEvent);
         if (Res != pi_result::PI_SUCCESS) {
           throw sycl::exception(
               sycl::make_error_code(sycl::errc::kernel),

@@ -64,44 +64,43 @@ redefinedPiEventGetProfilingInfo(pi_event event, pi_profiling_info param_name,
   return PI_SUCCESS;
 }
 
-// TEST(GetProfilingInfo, normal_pass_without_exception) {
-//   sycl::unittest::PiMock Mock;
-//   sycl::platform Plt = Mock.getPlatform();
-//   Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-//       redefinedPiEventGetProfilingInfo);
-//   const sycl::device Dev = Plt.get_devices()[0];
-//   sycl::context Ctx{Dev};
-//   static sycl::unittest::PiImage DevImage_1 =
-//       generateTestImage<InfoTestKernel>();
+TEST(GetProfilingInfo, normal_pass_without_exception) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  static sycl::unittest::PiImage DevImage_1 =
+      generateTestImage<InfoTestKernel>();
 
-//   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
-//   auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
-//   sycl::queue Queue{
-//       Ctx, Dev,
-//       sycl::property_list{sycl::property::queue::enable_profiling{}}};
-//   auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
-//       Ctx, {Dev}, {KernelID_1});
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  auto KernelID_1 = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID_1});
 
-//   const int globalWIs{512};
-//   try {
-//     auto event = Queue.submit([&](sycl::handler &cgh) {
-//       cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
-//     });
-//     event.wait();
-//     auto submit_time =
-//         event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-//     auto start_time =
-//         event.get_profiling_info<sycl::info::event_profiling::command_start>();
-//     auto end_time =
-//         event.get_profiling_info<sycl::info::event_profiling::command_end>();
-//     (void)submit_time;
-//     (void)start_time;
-//     (void)end_time;
-//   } catch (sycl::exception const &e) {
-//     std::cerr << e.what() << std::endl;
-//     FAIL();
-//   }
-// }
+  const int globalWIs{512};
+  try {
+    auto event = Queue.submit([&](sycl::handler &cgh) {
+      cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+    });
+    event.wait();
+    auto submit_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    auto start_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_start>();
+    auto end_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_end>();
+    (void)submit_time;
+    (void)start_time;
+    (void)end_time;
+  } catch (sycl::exception const &e) {
+    std::cerr << e.what() << std::endl;
+    FAIL();
+  }
+}
 
 // TEST(GetProfilingInfo, command_exception_check) {
 //   sycl::unittest::PiMock Mock;
@@ -425,6 +424,13 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_support) {
   (void)submit_time;
   (void)start_time;
   (void)end_time;
+
+  std::cout << "support------------submit_time = " << submit_time << std::endl;
+  std::cout << "support------------start_time = " << start_time << std::endl;
+  std::cout << "support------------end_time = " << end_time << std::endl;
+  // FAIL(); // TEST REMOVE
+  // assert((submit_time && start_time && end_time) && "support: Profiling
+  // information is unavailable.");
 }
 
 TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupport) {
@@ -463,7 +469,9 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupport) {
       event.get_profiling_info<sycl::info::event_profiling::command_start>();
   auto end_time =
       event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  (void)submit_time;
-  (void)start_time;
-  (void)end_time;
+  assert((submit_time && start_time && end_time) &&
+         "Profiling information failed.");
+  assert((submit_time < start_time) &&
+         "Submit time should be less than start time.");
+  assert((submit_time < end_time) && "Start time should be less than end time");
 }

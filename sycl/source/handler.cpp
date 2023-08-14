@@ -249,6 +249,8 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
+            // Capture the host timestamp for profiling (queue time)
+            NewEvent->setQueueBaseTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
@@ -256,10 +258,12 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
+            // Capture the host timestamp for profiling (queue time) in
+            // enqueueImpKernel()
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                  MKernel, MKernelName, RawEvents, OutEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+                                 nullptr, MImpl->MKernelCacheConfig, NewEvent);
           }
         }
         return Result;
@@ -286,9 +290,7 @@ event handler::finalize() {
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
         OutEvent = &NewEvent->getHandleRef();
-
         NewEvent->setSubmissionTime();
-        NewEvent->setQueueBaseTime();
 
         if (PI_SUCCESS != EnqueueKernel())
           throw runtime_error("Enqueue process failed.",
