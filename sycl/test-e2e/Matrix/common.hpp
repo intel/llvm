@@ -68,12 +68,12 @@ void matrix_rand(unsigned int rows, unsigned int cols, T *src) {
   }
 }
 
-template <typename T>
-bool matrix_compare(unsigned int rows, unsigned int cols, T *src, T *ref) {
+template <typename T1, typename T2>
+bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   bool res = true;
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if ((fabs(src[i * cols + j] - ref[i * cols + j])) > BF16_EPSILON) {
+      if ((fabs(src[i * cols + j] - (T2)ref[i * cols + j])) > BF16_EPSILON) {
         res = false;
       }
     }
