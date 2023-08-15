@@ -695,6 +695,54 @@ inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
   return PI_SUCCESS;
 }
 
+// Translate UR program build info values to PI info values
+inline pi_result ur2piProgramBuildInfoValue(ur_program_build_info_t ParamName,
+                                            size_t ParamValueSizePI,
+                                            size_t *ParamValueSizeUR,
+                                            void *ParamValue) {
+  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+
+  if (ParamName == UR_PROGRAM_BUILD_INFO_BINARY_TYPE) {
+    auto ConvertFunc = [](ur_program_binary_type_t UrValue) {
+      switch (UrValue) {
+      case UR_PROGRAM_BINARY_TYPE_NONE:
+        return PI_PROGRAM_BINARY_TYPE_NONE;
+      case UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
+        return PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+      case UR_PROGRAM_BINARY_TYPE_LIBRARY:
+        return PI_PROGRAM_BINARY_TYPE_LIBRARY;
+      case UR_PROGRAM_BINARY_TYPE_EXECUTABLE:
+        return PI_PROGRAM_BINARY_TYPE_LIBRARY;
+      default:
+        die("ur_program_binary_type_t: unhandled value");
+      }
+    };
+    return Value.convert<ur_program_binary_type_t, pi_program_binary_type>(
+        ConvertFunc);
+  }
+  
+  if (ParamName == UR_PROGRAM_BUILD_INFO_STATUS) {
+    auto ConvertFunc = [](ur_program_build_status_t UrValue) {
+      switch (UrValue) {
+      case UR_PROGRAM_BUILD_STATUS_NONE:
+        return PI_PROGRAM_BUILD_STATUS_NONE;
+      case UR_PROGRAM_BUILD_STATUS_ERROR:
+        return PI_PROGRAM_BUILD_STATUS_ERROR;
+      case UR_PROGRAM_BUILD_STATUS_SUCCESS:
+        return PI_PROGRAM_BUILD_STATUS_SUCCESS;
+      case UR_PROGRAM_BUILD_STATUS_IN_PROGRESS:
+        return PI_PROGRAM_BUILD_STATUS_IN_PROGRESS;
+      default:
+        die("ur_program_build_status_t: unhandled value");
+      }
+    };
+    return Value.convert<ur_program_build_status_t, pi_program_build_status>(
+        ConvertFunc);
+  }
+
+  return PI_SUCCESS;
+}
+
 inline ur_result_t
 mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
                   ur_program_metadata_t *ur_metadata) {
@@ -2481,10 +2529,12 @@ inline pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
     die("piProgramGetBuildInfo: not implemented");
   }
   }
+
+  size_t SizeInOut = ParamValueSize;
   HANDLE_ERRORS(urProgramGetBuildInfo(UrProgram, UrDevice, PropName,
                                       ParamValueSize, ParamValue,
                                       ParamValueSizeRet));
-
+  ur2piProgramBuildInfoValue(PropName,ParamValueSize, &SizeInOut, ParamValue);
   return PI_SUCCESS;
 }
 
