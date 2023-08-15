@@ -43,7 +43,14 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_get_sub_group_local_id(
-; CHECK: store <4 x i32> <i32 0, i32 1, i32 2, i32 3>, ptr addrspace(1) %out
+; CHECK: %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
+; CHECK: [[MUL:%.*]] = shl i32 %call, 2
+; CHECK: [[SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[MUL]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[ID:%.*]] = or <4 x i32> [[SPLAT]], <i32 0, i32 1, i32 2, i32 3>
+; CHECK: [[EXT:%.*]] = sext i32 %call to i64
+; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: store <4 x i32> [[ID]], ptr addrspace(1) %arrayidx
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
