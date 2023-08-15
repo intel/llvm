@@ -73,15 +73,6 @@ Value *processCallSite(CallInst *CI, bool &NeedLLVMInline,
     }
   }
 
-  // Vectorized uses of the subgroup local id will have been replaced with step
-  // vectors starting from zero. Uniform uses should be replaced with zero in
-  // order to maintain equivalence between the scalar/vector forms. Do this
-  // here due to a tight coupling between the vectorized version and these
-  // remaining scalar versions.
-  if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
-    return ConstantInt::getNullValue(CI->getType());
-  }
-
   return CI;
 }
 

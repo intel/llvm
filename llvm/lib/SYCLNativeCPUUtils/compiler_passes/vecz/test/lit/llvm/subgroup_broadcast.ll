@@ -39,4 +39,7 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
 ; CHECK: [[LD:%.+]] = load i32, ptr addrspace(1) %{{.+}}, align 4
 ; CHECK: [[INS:%.+]] = insertelement <4 x i32> poison, i32 [[LD]], i64 0
 ; CHECK: [[BCAST:%.+]] = shufflevector <4 x i32> [[INS]], <4 x i32> poison, <4 x i32> zeroinitializer
-; CHECK: store <4 x i32> [[BCAST]], ptr addrspace(1) %out, align 4
+; CHECK: %idx = tail call i32 @__mux_get_sub_group_local_id()
+; CHECK: [[EXT:%.*]] = sext i32 %idx to i64
+; CHECK: %arrayidx2 = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: store <4 x i32> [[BCAST]], ptr addrspace(1) %arrayidx2, align 4

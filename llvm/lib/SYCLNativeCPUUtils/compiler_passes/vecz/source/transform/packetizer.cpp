@@ -2446,14 +2446,6 @@ Value *Packetizer::Impl::vectorizeCall(CallInst *CI) {
     return nullptr;
   }
   if (Builtin.properties & compiler::utils::eBuiltinPropertyWorkItem) {
-    // The subgroup ID is just a simple index sequence. There is no dimension
-    // to it, and we only support 1D workgroups.
-    if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
-      IRBuilder<> B(buildAfter(CI, F));
-      return multi_llvm::createIndexSequence(
-          B, VectorType::get(CI->getType(), SimdWidth), SimdWidth,
-          "subgroup.local.id");
-    }
     return vectorizeWorkGroupCall(CI, Builtin);
   }
 
@@ -2564,8 +2556,23 @@ Value *Packetizer::Impl::vectorizeWorkGroupCall(
   // Do not vectorize ranks equal to vectorization dimension. The value of
   // get_global_id with other ranks is uniform.
 
+  Value *IDToSplat = CI;
+  // Multiply the sub-group local ID by the vectorization factor, to vectorize
+  // across the entire sub-group size.
+  // For example, with a vector width of 4 and a mux sub-group size of 2, the
+  // apparent sub-group size is 8 and the sub-group IDs are:
+  // | mux sub group 0 | mux sub group 1 |
+  // |-----------------|-----------------|
+  // |  0   1   2   3  |  4   5   6   7  |
+  if (Builtin.ID == compiler::utils::eMuxBuiltinGetSubGroupLocalId) {
+    auto SimdWithAsVal = B.getInt32(SimdWidth.getKnownMinValue());
+    IDToSplat = B.CreateMul(IDToSplat, !SimdWidth.isScalable()
+                                           ? SimdWithAsVal
+                                           : B.CreateVScale(SimdWithAsVal));
+  }
+
   // Broadcast the builtin's return value.
-  Value *Splat = B.CreateVectorSplat(SimdWidth, CI);
+  Value *Splat = B.CreateVectorSplat(SimdWidth, IDToSplat);
 
   // Add an index sequence [0, 1, 2, ...] to the value unless uniform.
   auto const Uniformity = Builtin.uniformity;

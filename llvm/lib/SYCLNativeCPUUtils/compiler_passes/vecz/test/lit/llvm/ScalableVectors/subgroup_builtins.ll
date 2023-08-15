@@ -44,8 +44,17 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_local_id(
-; CHECK: [[LID:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; CHECK: store <vscale x 4 x i32> [[LID]], ptr addrspace(1) %out
+; CHECK: %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
+; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
+; CHECK: [[SHL:%.*]] = shl i32 %1, 2
+; CHECK: [[MUL:%.*]] = mul i32 %call, [[SHL]]
+; CHECK: [[SPLATINSERT:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[MUL]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[SPLATINSERT]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
+; CHECK: [[STEPVEC:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK: [[LID:%.*]] = add <vscale x 4 x i32> [[SPLAT]], [[STEPVEC]]
+; CHECK: [[EXT:%.*]] = sext i32 %call to i64
+; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: store <vscale x 4 x i32> [[LID]], ptr addrspace(1) %arrayidx
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
