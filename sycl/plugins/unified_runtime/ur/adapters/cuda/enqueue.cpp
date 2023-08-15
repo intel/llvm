@@ -1135,6 +1135,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
     ur_mem_type_t ImgType = ImageSrc->Mem.SurfaceMem.getImageType();
 
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
+                                                hQueue, CuStream);
+      NewEvent->start();
+    }
+
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
                                            SrcByteOffsetX, BytesToCopy));
@@ -1154,8 +1161,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, CuStream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
