@@ -883,14 +883,6 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->CheckFixedPointBits();
-  // Todo: if we could access langopts here we could use SYCLIsNativeCPU
-  // for the check
-  // For Native CPU we use the NVPTXAddrSpaceMap because 
-  // we need builtins to be mangled with AS information
-  if (Opts->SYCLNativeCPUASMap) {
-    Target->AddrSpaceMap = &NVPTXAddrSpaceMap;
-    Target->UseAddrSpaceMapMangling = true;
-  }
 
   return Target.release();
 }
