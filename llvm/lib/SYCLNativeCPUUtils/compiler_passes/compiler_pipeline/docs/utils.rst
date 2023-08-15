@@ -58,6 +58,7 @@ lowered:
 * Sync builtins: ``__mux_mem_barrier``, ``__mux_(sub|work)_group_barrier``.
 * Work-item builtins: ``__mux_get_local_id``, ``__mux_get_group_id``, etc.
 * Group builtins: ``__mux_(sub|work)_group_(any|all|scan|reduce|broadcast)``.
+* DMA builtins: ``__mux_dma_(read|write)_(1D|2D|3D)`` and ``__mux_dma_wait``.
 
 Targets **must** lower any language builtins which **can** be expressed in
 terms of these ComputeMux builtins in order for other ComputeMux compiler
@@ -68,6 +69,13 @@ LLVM are generally unable to intuit using built-in properties of functions in
 LLVM (e.g., attributes). They generally have some meaning "across" other
 invocations of the same program or that influence the behaviour of other
 invocations running in parallel.
+
+In the case of DMA builtins, the pass assumes that the language builtins are
+already using the target's intended 'event' type - that type is forwarded on
+directly to the ``__mux`` builtins. If the target wishes to replace these event
+types across the module, they **may** use the ``ReplaceTargetExtTysPass`` to do
+so (for LLVM 17 onwards). The target **may** also directly replace the event
+types used by the ``__mux`` DMA builtins at a later stage.
 
 See the :ref:`full list of builtins
 <specifications/mux-compiler-spec:Builtins>` for more information.
@@ -145,36 +153,6 @@ build a ``llvm::AtomicCmpXchgInst`` instruction, otherwise a
 ``llvm::AtomicRMWInst`` instruction is generated. Finally the call instruction
 is replaced with our atomic instruction using ``ReplaceAllUsesWith`` and then
 erased.
-
-ReplaceAsyncCopiesPass
-----------------------
-
-The ``ReplaceAsyncCopiesPass`` defines OpenCL C asynchronous copy builtins in
-terms of ``__mux`` builtins.
-
-The pass declares the following ``__mux`` builtins: ``__mux_dma_read_1D``,
-``__mux_dma_write_1D``, ``__mux_dma_read_2D``, ``__mux_dma_write_2D``,
-``__mux_dma_read_3D``, ``__mux_dma_write_3D``.
-
-The OpenCL C builtins ``async_work_group_copy``,
-``async_work_group_strided_copy`` and ``wait_group_events`` are then defined in
-terms of the above ``__mux`` builtins. If the ``cl_khr_extended_async_copies``
-extension is enabled, then the additional functions
-``async_work_group_copy_2D2D`` and ``async_work_group_copy_3D3D`` are also
-defined in terms of these builtins.
-
-The pass assumes that the OpenCL builtins are already using the target's
-intended 'event' type - that type is forwarded on directly to the ``__mux``
-builtins. If the target wishes to replace these event types across the module,
-they **may** use the ``ReplaceTargetExtTysPass`` to do so (for LLVM 17
-onwards). The target **may** also directly replace the event types used by the
-``__mux`` DMA builtins at a later stage.
-
-A Mux target **should** implement the async ``__mux`` builtins in terms of
-hardware-specific DMA functionality. If a target cannot support hardware DMA
-then it can make use of the ``DefineMuxDmaPass`` with the default
-``BuiltinInfo``, which provides a naive synchronous software implementation of
-the ``__mux`` builtins.
 
 FixupCallingConventionPass
 --------------------------
