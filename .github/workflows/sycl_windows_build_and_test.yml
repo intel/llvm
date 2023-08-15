@@ -14,10 +14,6 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
       changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
@@ -160,5 +156,6 @@ jobs:
       name: Run SYCL End-to-End tests
       with:
         sycl_artifact: sycl_windows_default
+        sycl_archive: ${{ inputs.artifact_archive_name }}
         targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        cmake_args: '${{ matrix.cmake_args }}'

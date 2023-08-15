@@ -1,16 +1,17 @@
-//==------------ histogram_raw_send.cpp  - DPC++ ESIMD on-device test
-//-------==//
+//==-histogram_raw_send.cpp  - DPC++ ESIMD on-device test-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===----------------------------------------------------------------------===//
+//===----------------------------------------------------===//
 // REQUIRES: gpu-intel-gen9
 // UNSUPPORTED: gpu-intel-dg1,gpu-intel-dg2,gpu-intel-pvc
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
+// RUN: %{build} -DUSE_CONSTEXPR_API -o %t2.out
+// RUN: %{run} %t2.out
 
 // The test checks raw send functionality with atomic write implementation
 // on SKL. It does not work on DG1 due to send instruction incompatibility.
@@ -85,9 +86,16 @@ ESIMD_INLINE void atomic_write(T *bins, simd<unsigned, n> offset,
   constexpr uint8_t numSrc1 = 0x1;
   constexpr uint8_t isEOT = 0;
   constexpr uint8_t isSendc = 0;
+
+#ifdef USE_CONSTEXPR_API
+  experimental::esimd::raw_sends<execSize, sfid, numSrc0, numSrc1, numDst,
+                                 isEOT, isSendc>(oldDst, vAddr, src0, exDesc,
+                                                 desc, pred);
+#else
   experimental::esimd::raw_sends(oldDst, vAddr, src0, exDesc, desc, execSize,
                                  sfid, numSrc0, numSrc1, numDst, isEOT, isSendc,
                                  pred);
+#endif
 }
 
 int main(int argc, char *argv[]) {

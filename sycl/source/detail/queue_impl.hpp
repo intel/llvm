@@ -616,7 +616,8 @@ public:
   /// \return an event representing copy operation.
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count,
-               const std::vector<event> &DepEvents);
+               const std::vector<event> &DepEvents,
+               const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -842,7 +843,7 @@ protected:
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
   /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID;
+  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 
