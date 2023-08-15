@@ -1091,6 +1091,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
     // TODO: Investigate if this information is available on CUDA.
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
