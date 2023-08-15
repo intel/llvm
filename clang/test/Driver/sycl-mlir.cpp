@@ -285,6 +285,14 @@
 
 // CHK-RAISE-HOST-CCMP: error: the combination of '-fsycl-raise-host' and '-fsycl-host-compiler=' is incompatible
 
+// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
+// RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
+// RUN: -fsycl-raise-host -fsycl-host-compiler=g++                      \
+// RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
+// RUN: | FileCheck -check-prefix=CHK-RAISE-HOST-CCMP-IMPLICIT-OPAQUE %s
+
+// CHK-RAISE-HOST-CCMP-IMPLICIT-OPAQUE: -opaque-pointers
+
 // Make sure -fsycl-raise-host is ignored with -fsycl-link and -fsycl-link-targets
 
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
