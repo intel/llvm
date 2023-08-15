@@ -25,8 +25,7 @@ ur_result_t enqueueEventsWait(CUstream Stream, uint32_t NumEventsInWaitList,
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
         [Stream](ur_event_handle_t Event) -> ur_result_t {
-          if (Event == nullptr || Event->isCompleted() ||
-              Event->getStream() == Stream) {
+          if (Event->isCompleted() || Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
             ScopedDevice Active(Event->getDevice());
