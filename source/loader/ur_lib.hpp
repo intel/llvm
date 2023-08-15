@@ -26,7 +26,6 @@
 #include <atomic>
 #include <mutex>
 #include <set>
-#include <thread>
 #include <vector>
 
 struct ur_loader_config_handle_t_ {
