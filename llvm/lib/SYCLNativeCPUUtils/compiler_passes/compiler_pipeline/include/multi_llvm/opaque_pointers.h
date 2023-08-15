@@ -18,26 +18,22 @@
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Type.h>
+#include <multi_llvm/llvm_version.h>
 
 namespace multi_llvm {
-inline bool isOpaquePointerTy(llvm::Type *Ty) {
-  if (auto *PTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    return PTy->isOpaque();
-  }
-  return false;
-}
-
 inline bool isOpaqueOrPointeeTypeMatches(llvm::PointerType *PTy, llvm::Type *) {
   (void)PTy;
+#if LLVM_VERSION_LESS(17, 0)
   assert(PTy->isOpaque() && "No support for typed pointers in LLVM 15+");
+#endif
   return true;
 }
 
 inline llvm::Type *getPtrElementType(llvm::PointerType *PTy) {
-  if (PTy->isOpaque()) {
-    return nullptr;
-  }
-  assert(false && "No support for typed pointers");
+  (void)PTy;
+#if LLVM_VERSION_LESS(17, 0)
+  assert(PTy->isOpaque() && "No support for typed pointers in LLVM 15+");
+#endif
   return nullptr;
 }
 
