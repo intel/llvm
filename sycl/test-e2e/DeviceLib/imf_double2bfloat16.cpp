@@ -9,10 +9,7 @@
 // UNSUPPORTED: cuda || hip
 
 #include "imf_utils.hpp"
-
-extern "C" {
-uint16_t __imf_double2bfloat16(double);
-}
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
 
@@ -53,8 +50,10 @@ int main() {
         0x0,    0x7F80, 0xFF80, 0x4134, 0x4481, 0x4780, 0xC780, 0xC69C, 0x44FD,
         0x4771, 0xC771, 0x47D5, 0xCD3F, 0x21B8, 0xA58E, 0x0F82, 0x8CE1, 0x7F80,
         0x7F80, 0x7F7E, 0xFF80, 0xFF80, 0xFF7E, 0x2,    0x80};
-    test_host(input_vals, ref_vals, F(__imf_double2bfloat16));
-    test(device_queue, input_vals, ref_vals, F(__imf_double2bfloat16));
+    test_host(input_vals, ref_vals,
+              FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
+    test(device_queue, input_vals, ref_vals,
+         FT(uint16_t, sycl::ext::intel::math::double2bfloat16));
   }
 
   return 0;

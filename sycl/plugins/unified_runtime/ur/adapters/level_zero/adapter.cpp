@@ -159,7 +159,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGet(
 UR_APIEXPORT ur_result_t UR_APICALL urAdapterRelease(ur_adapter_handle_t) {
   std::lock_guard<std::mutex> Lock{Adapter.Mutex};
   if (--Adapter.RefCount == 0) {
-    adapterStateTeardown();
+    return adapterStateTeardown();
   }
 
   return UR_RESULT_SUCCESS;

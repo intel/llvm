@@ -73,9 +73,12 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   assert(colsA % tK == 0);
   assert(colsB % tN == 0);
 
-  auto pA = multi_ptr<TOperand, sycl::access::address_space::global_space>(A);
-  auto pB = multi_ptr<TOperand, sycl::access::address_space::global_space>(B);
-  auto pC = multi_ptr<TResult, sycl::access::address_space::global_space>(C);
+  auto pA = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(A);
+  auto pB = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(B);
+  auto pC = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(C);
 
   // submit main kernel
   std::chrono::high_resolution_clock::time_point start =
