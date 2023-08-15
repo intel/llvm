@@ -120,6 +120,17 @@ public:
                    sycl::detail::pi::PiEvent &OutEvent,
                    detail::EventImplPtr NewEventImpl = nullptr);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
+                   unsigned int DimSrc, sycl::range<3> SrcSize,
+                   sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                   unsigned int SrcElemSize, void *DstMem,
+                   QueueImplPtr TgtQueue, unsigned int DimDst,
+                   sycl::range<3> DstSize, sycl::range<3> DstAccessRange,
+                   sycl::id<3> DstOffset, unsigned int DstElemSize,
+                   std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                   sycl::detail::pi::PiEvent &OutEvent);
+
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
@@ -127,6 +138,14 @@ public:
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
                    detail::EventImplPtr NewEventImpl = nullptr);
+
+  // TODO: This function will remain until ABI-breaking change
+  static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+                   size_t PatternSize, const char *Pattern, unsigned int Dim,
+                   sycl::range<3> Size, sycl::range<3> AccessRange,
+                   sycl::id<3> AccessOffset, unsigned int ElementSize,
+                   std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                   sycl::detail::pi::PiEvent &OutEvent);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
@@ -146,27 +165,44 @@ public:
                        sycl::detail::pi::PiEvent *OutEvent,
                        detail::EventImplPtr NewEventImpl = nullptr);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
+                       void *DstMem,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       sycl::detail::pi::PiEvent *OutEvent);
+
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
                        detail::EventImplPtr NewEventImpl = nullptr);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
+                       int Pattern,
+                       std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                       sycl::detail::pi::PiEvent *OutEvent);
+
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<sycl::detail::pi::PiEvent> DepEvents,
                            sycl::detail::pi::PiEvent *OutEvent,
                            detail::EventImplPtr NewEventImpl = nullptr);
+
+  // TODO: This function will remain until ABI-breaking change
+  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                           sycl::detail::pi::PiEvent *OutEvent);
 
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          pi_mem_advice Advice,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent *OutEvent,
                          detail::EventImplPtr NewEventImpl = nullptr);
-
-  //   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
-  //                          pi_mem_advice Advice,
-  //                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
-  //                          sycl::detail::pi::PiEvent *OutEvent);
+  // TODO: This function will remain until ABI-breaking change
+  static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
+                         pi_mem_advice Advice,
+                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                         sycl::detail::pi::PiEvent *OutEvent);
 
   static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                           QueueImplPtr Queue, void *DstMem, size_t DstPitch,
@@ -175,6 +211,13 @@ public:
                           sycl::detail::pi::PiEvent *OutEvent,
                           detail::EventImplPtr NewEventImpl = nullptr);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
+                          QueueImplPtr Queue, void *DstMem, size_t DstPitch,
+                          size_t Width, size_t Height,
+                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                          sycl::detail::pi::PiEvent *OutEvent);
+
   static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                           size_t Width, size_t Height,
                           const std::vector<char> &Pattern,
@@ -182,11 +225,24 @@ public:
                           sycl::detail::pi::PiEvent *OutEvent,
                           detail::EventImplPtr NewEventImpl = nullptr);
 
+  // TODO: This function will remain until ABI-breaking change
+  static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                          size_t Width, size_t Height,
+                          const std::vector<char> &Pattern,
+                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                          sycl::detail::pi::PiEvent *OutEvent);
+
   static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                             size_t Width, size_t Height, char Value,
                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
                             sycl::detail::pi::PiEvent *OutEvent,
                             detail::EventImplPtr NewEventImpl = nullptr);
+
+  // TODO: This function will remain until ABI-breaking change
+  static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
+                            size_t Width, size_t Height, char Value,
+                            std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                            sycl::detail::pi::PiEvent *OutEvent);
 
   static void
   copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,

@@ -806,10 +806,28 @@ void MemoryManager::copy(
   }
 }
 
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
+                         QueueImplPtr SrcQueue, unsigned int DimSrc,
+                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+                         void *DstMem, QueueImplPtr TgtQueue,
+                         unsigned int DimDst, sycl::range<3> DstSize,
+                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                         unsigned int DstElemSize,
+                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                         sycl::detail::pi::PiEvent &OutEvent) {
+  MemoryManager::copy(SYCLMemObj, SrcMem, SrcQueue, DimSrc, SrcSize,
+                      SrcAccessRange, SrcOffset, SrcElemSize, DstMem, TgtQueue,
+                      DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
+                      DepEvents, OutEvent, nullptr);
+}
+
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
-                         sycl::id<3> Offset, unsigned int ElementSize,
+                         unsigned int Dim, sycl::range<3> Size,
+                         sycl::range<3> Range, sycl::id<3> Offset,
+                         unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent,
                          detail::EventImplPtr NewEventImpl) {
@@ -830,10 +848,25 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     throw runtime_error("Not supported configuration of fill requested",
                         PI_ERROR_INVALID_OPERATION);
   } else {
+    // Capture the host timestamp for queue time. Fallback profiling support
+    if (NewEventImpl != nullptr)
+      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
         &Offset[0], &Range[0], DepEvents.size(), DepEvents.data(), &OutEvent);
   }
+}
+
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
+                         size_t PatternSize, const char *Pattern,
+                         unsigned int Dim, sycl::range<3> Size,
+                         sycl::range<3> Range, sycl::id<3> Offset,
+                         unsigned int ElementSize,
+                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                         sycl::detail::pi::PiEvent &OutEvent) {
+  MemoryManager::fill(SYCLMemObj, Mem, Queue, PatternSize, Pattern, Dim, Size,
+                      Range, Offset, ElementSize, DepEvents, OutEvent, nullptr);
 }
 
 void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
@@ -928,6 +961,15 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
       DepEvents.data(), OutEvent);
 }
 
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
+                             size_t Len, void *DstMem,
+                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                             sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::copy_usm(SrcMem, SrcQueue, Len, DstMem, DepEvents, OutEvent,
+                          nullptr);
+}
+
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
@@ -960,6 +1002,15 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
       DepEvents.data(), OutEvent);
 }
 
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+                             int Pattern,
+                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                             sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
+                          nullptr);
+}
+
 void MemoryManager::prefetch_usm(
     void *Mem, QueueImplPtr Queue, size_t Length,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
@@ -974,6 +1025,14 @@ void MemoryManager::prefetch_usm(
   Plugin->call<PiApiKind::piextUSMEnqueuePrefetch>(
       Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
       DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::prefetch_usm(
+    void *Mem, QueueImplPtr Queue, size_t Length,
+    std::vector<sycl::detail::pi::PiEvent> DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::prefetch_usm(Mem, Queue, Length, DepEvents, OutEvent, nullptr);
 }
 
 void MemoryManager::advise_usm(
@@ -991,11 +1050,11 @@ void MemoryManager::advise_usm(
                                                     Length, Advice, OutEvent);
 }
 
+// TODO: This function will remain until ABI-breaking change
 void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<sycl::detail::pi::PiEvent> DepEvents,
                                sycl::detail::pi::PiEvent *OutEvent) {
-
   MemoryManager::advise_usm(Mem, Queue, Length, Advice, DepEvents, OutEvent,
                             nullptr);
 }
@@ -1082,6 +1141,16 @@ void MemoryManager::copy_2d_usm(
       Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
 }
 
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::copy_2d_usm(
+    const void *SrcMem, size_t SrcPitch, QueueImplPtr Queue, void *DstMem,
+    size_t DstPitch, size_t Width, size_t Height,
+    std::vector<sycl::detail::pi::PiEvent> DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::copy_2d_usm(SrcMem, SrcPitch, Queue, DstMem, DstPitch, Width,
+                             Height, DepEvents, OutEvent, nullptr);
+}
+
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     const std::vector<char> &Pattern,
@@ -1114,6 +1183,16 @@ void MemoryManager::fill_2d_usm(
       Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::fill_2d_usm(
+    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
+    const std::vector<char> &Pattern,
+    std::vector<sycl::detail::pi::PiEvent> DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height, Pattern,
+                             DepEvents, OutEvent, nullptr);
+}
+
 void MemoryManager::memset_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
@@ -1144,6 +1223,15 @@ void MemoryManager::memset_2d_usm(
   Plugin->call<PiApiKind::piextUSMEnqueueMemset2D>(
       Queue->getHandleRef(), DstMem, Pitch, static_cast<int>(Value), Width,
       Height, DepEvents.size(), DepEvents.data(), OutEvent);
+}
+
+// TODO: This function will remain until ABI-breaking change
+void MemoryManager::memset_2d_usm(
+    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
+    char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+  MemoryManager::memset_2d_usm(DstMem, Queue, Pitch, Width, Height, Value,
+                               DepEvents, OutEvent, nullptr);
 }
 
 static void
