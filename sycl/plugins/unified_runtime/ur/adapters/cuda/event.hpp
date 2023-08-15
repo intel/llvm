@@ -163,6 +163,12 @@ ur_result_t forLatestEvents(const ur_event_handle_t *EventWaitList,
   // TODO we should allocate this once instead of in every call
   std::vector<ur_event_handle_t> Events{EventWaitList,
                                         EventWaitList + NumEventsInWaitList};
+
+  UR_ASSERT(
+      std::all_of(Events.begin(), Events.end(),
+                  [](const ur_event_handle_t &Ev) { return Ev != nullptr; }),
+      UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
+
   std::sort(Events.begin(), Events.end(),
             [](ur_event_handle_t Event0, ur_event_handle_t Event1) {
               // Tiered sort creating sublists of streams (smallest value first)
