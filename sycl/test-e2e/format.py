@@ -153,7 +153,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 # Temp for debug tracing.
                 if sycl_device.startswith('ext_oneapi_hip:'):
                     expanded += ' SYCL_PI_TRACE=2'
-                    expanded += ' AMD_LOG_LEVEL=7'
+                    expanded += ' AMD_LOG_LEVEL=4'
 
                 cmd = directive.command.replace('%{run}', expanded)
                 # Expand device-specific condtions (%if ... %{ ... %}).
