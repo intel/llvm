@@ -2555,6 +2555,8 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
   default:
     return Visit(E);
 
+  case Expr::BinaryOperatorClass:
+    return EmitBinaryOperatorLValue(cast<BinaryOperator>(E));
   case Expr::CompoundAssignOperatorClass: {
     QualType Ty = E->getType();
     if (const AtomicType *AT = Ty->getAs<AtomicType>())
@@ -2568,6 +2570,26 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
   case Expr::ArraySubscriptExprClass:
     return EmitArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
   }
+}
+
+ValueCategory MLIRScanner::EmitBinaryOperatorLValue(BinaryOperator *E) {
+  auto opcode = E->getOpcode();
+
+  // Comma expressions just emit their LHS then their RHS as an l-value.
+  if (opcode == BO_Comma) {
+    Visit(E->getLHS());
+    return EmitLValue(E->getRHS());
+  }
+
+  if (opcode == BO_PtrMemD || opcode == BO_PtrMemI)
+    llvm_unreachable("Not yet implemented");
+
+  assert(opcode == BO_Assign && "unexpected binary l-value");
+
+  ValueCategory RV = Visit(E->getRHS());
+  ValueCategory LV = EmitLValue(E->getLHS());
+  LV.store(Builder, RV.val);
+  return LV;
 }
 
 std::pair<ValueCategory, ValueCategory> MLIRScanner::EmitCompoundAssignLValue(
