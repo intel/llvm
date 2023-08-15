@@ -1,4 +1,4 @@
-# PI Unified Runtime plugin library
+# PI Unified Runtime plugin library.
 #
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
