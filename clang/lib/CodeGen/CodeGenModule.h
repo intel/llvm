@@ -1382,8 +1382,8 @@ public:
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
   /// Emit additional args of the annotation.
-  llvm::Constant *
-  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
+  llvm::Constant *EmitSYCLAnnotationArgs(
+      SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
@@ -1589,7 +1589,8 @@ public:
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
   void getFPAccuracyFuncAttributes(StringRef Name,
-                                   llvm::AttributeList &AttrList, unsigned ID,
+                                   llvm::AttributeList &AttrList,
+                                   llvm::Metadata *&MDs, unsigned ID,
                                    const llvm::Type *FuncType);
 
 private:
@@ -1789,7 +1790,7 @@ private:
 
   void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
                                               llvm::AttrBuilder &FuncAttrs,
-                                              unsigned ID,
+                                              llvm::Metadata *&MD, unsigned ID,
                                               const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,

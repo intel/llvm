@@ -243,10 +243,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
   (void)pProperties;
+  (void)hDevice;
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
-  UR_ASSERT(hContext->getDevice() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
 
   auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
@@ -256,7 +256,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   else if (CuFlags == CU_STREAM_NON_BLOCKING)
     Flags = UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
   else
-    sycl::detail::ur::die("Unknown cuda stream");
+    detail::ur::die("Unknown cuda stream");
 
   std::vector<CUstream> ComputeCuStreams(1, CuStream);
   std::vector<CUstream> TransferCuStreams(0);
@@ -266,7 +266,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
                                     std::move(TransferCuStreams),
                                     hContext,
-                                    hDevice,
+                                    hContext->getDevice(),
                                     CuFlags,
                                     Flags,
                                     /*backend_owns*/ false};

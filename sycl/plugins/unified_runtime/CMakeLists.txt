@@ -4,7 +4,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG c7b0caf4e3ce5330bd0669db6e8e498b48e8ad27)
+  set(UNIFIED_RUNTIME_TAG v0.7)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -38,6 +38,8 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_BAK}")
 
   add_library(UnifiedRuntimeLoader ALIAS ur_loader)
+  add_library(UnifiedRuntimeCommon ALIAS ur_common)
+  add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
@@ -45,7 +47,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
 endif()
 
 
-add_library (UnifiedRuntime-Headers INTERFACE)
+add_library(UnifiedRuntime-Headers INTERFACE)
 
 target_include_directories(UnifiedRuntime-Headers
   INTERFACE
@@ -79,18 +81,17 @@ add_sycl_library("ur_adapter_level_zero" SHARED
   SOURCES
     "ur/ur.hpp"
     "ur/ur.cpp"
-    "ur/usm_allocator.hpp"
-    "ur/usm_allocator.cpp"
-    "ur/usm_allocator_config.cpp"
-    "ur/usm_allocator_config.hpp"
     "ur/adapters/level_zero/ur_level_zero.hpp"
     "ur/adapters/level_zero/ur_level_zero.cpp"
     "ur/adapters/level_zero/ur_interface_loader.cpp"
+    "ur/adapters/level_zero/adapter.hpp"
     "ur/adapters/level_zero/command_buffer.hpp"
     "ur/adapters/level_zero/common.hpp"
     "ur/adapters/level_zero/context.hpp"
     "ur/adapters/level_zero/device.hpp"
     "ur/adapters/level_zero/event.hpp"
+    "ur/adapters/level_zero/image.cpp"
+    "ur/adapters/level_zero/image.hpp"
     "ur/adapters/level_zero/memory.hpp"
     "ur/adapters/level_zero/kernel.hpp"
     "ur/adapters/level_zero/platform.hpp"
@@ -98,6 +99,7 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     "ur/adapters/level_zero/queue.hpp"
     "ur/adapters/level_zero/sampler.hpp"
     "ur/adapters/level_zero/usm.hpp"
+    "ur/adapters/level_zero/adapter.cpp"
     "ur/adapters/level_zero/command_buffer.cpp"
     "ur/adapters/level_zero/common.cpp"
     "ur/adapters/level_zero/context.cpp"
@@ -115,6 +117,8 @@ add_sycl_library("ur_adapter_level_zero" SHARED
     ${sycl_inc_dir}
   LIBRARIES
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
     LevelZeroLoader-Headers
     LevelZeroLoader
     Threads::Threads
@@ -131,8 +135,10 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
-      "ur/usm_allocator.cpp"
-      "ur/usm_allocator.hpp"
+      "ur/adapters/cuda/adapter.cpp"
+      "ur/adapters/cuda/adapter.hpp"
+      "ur/adapters/cuda/command_buffer.cpp"
+      "ur/adapters/cuda/command_buffer.hpp"
       "ur/adapters/cuda/common.cpp"
       "ur/adapters/cuda/common.hpp"
       "ur/adapters/cuda/context.cpp"
@@ -142,6 +148,8 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/enqueue.cpp"
       "ur/adapters/cuda/event.cpp"
       "ur/adapters/cuda/event.hpp"
+      "ur/adapters/cuda/image.cpp"
+      "ur/adapters/cuda/image.hpp"
       "ur/adapters/cuda/kernel.cpp"
       "ur/adapters/cuda/kernel.hpp"
       "ur/adapters/cuda/memory.cpp"
@@ -157,8 +165,6 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
-      "ur/adapters/cuda/command_buffer.hpp"
-      "ur/adapters/cuda/command_buffer.cpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
@@ -176,12 +182,14 @@ endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
   # Build HIP adapter
-  add_sycl_library("ur_adapter_hip" SHARED 
+  add_sycl_library("ur_adapter_hip" SHARED
     SOURCES
       "ur/ur.hpp"
       "ur/ur.cpp"
-      "ur/usm_allocator.cpp"
-      "ur/usm_allocator.hpp"
+      "ur/adapters/hip/adapter.cpp"
+      "ur/adapters/hip/adapter.hpp"
+      "ur/adapters/hip/command_buffer.cpp"
+      "ur/adapters/hip/command_buffer.hpp"
       "ur/adapters/hip/common.cpp"
       "ur/adapters/hip/common.hpp"
       "ur/adapters/hip/context.cpp"
@@ -191,23 +199,22 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/enqueue.cpp"
       "ur/adapters/hip/event.cpp"
       "ur/adapters/hip/event.hpp"
-      "ur/adapters/hip/platform.cpp"
-      "ur/adapters/hip/platform.hpp"
-      "ur/adapters/hip/memory.cpp"
-      "ur/adapters/hip/memory.hpp"
-      "ur/adapters/hip/sampler.cpp"
-      "ur/adapters/hip/sampler.hpp"
-      "ur/adapters/hip/usm.cpp"
-      "ur/adapters/hip/program.cpp"
-      "ur/adapters/hip/program.hpp"
+      "ur/adapters/hip/image.cpp"
       "ur/adapters/hip/kernel.cpp"
       "ur/adapters/hip/kernel.hpp"
+      "ur/adapters/hip/memory.cpp"
+      "ur/adapters/hip/memory.hpp"
+      "ur/adapters/hip/platform.cpp"
+      "ur/adapters/hip/platform.hpp"
+      "ur/adapters/hip/program.cpp"
+      "ur/adapters/hip/program.hpp"
       "ur/adapters/hip/queue.cpp"
       "ur/adapters/hip/queue.hpp"
-      "ur/adapters/hip/command_buffer.hpp"
-      "ur/adapters/hip/command_buffer.cpp"
-      "ur/adapters/hip/usm_p2p.cpp"
+      "ur/adapters/hip/sampler.cpp"
+      "ur/adapters/hip/sampler.hpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
+      "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
@@ -232,6 +239,49 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
     message(FATAL_ERROR "Unspecified PI HIP platform please set SYCL_BUILD_PI_HIP_PLATFORM to 'AMD' or 'NVIDIA'")
   endif()
 endif()
+
+if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+  add_sycl_library("ur_adapter_native_cpu" SHARED
+    SOURCES
+      "ur/ur.cpp"
+      "ur/ur.hpp"
+      "ur/adapters/native_cpu/adapter.cpp"
+      "ur/adapters/native_cpu/common.cpp"
+      "ur/adapters/native_cpu/common.hpp"
+      "ur/adapters/native_cpu/context.cpp"
+      "ur/adapters/native_cpu/context.hpp"
+      "ur/adapters/native_cpu/device.cpp"
+      "ur/adapters/native_cpu/device.hpp"
+      "ur/adapters/native_cpu/enqueue.cpp"
+      "ur/adapters/native_cpu/event.cpp"
+      "ur/adapters/native_cpu/kernel.cpp"
+      "ur/adapters/native_cpu/kernel.hpp"
+      "ur/adapters/native_cpu/memory.cpp"
+      "ur/adapters/native_cpu/memory.hpp"
+      "ur/adapters/native_cpu/platform.cpp"
+      "ur/adapters/native_cpu/platform.hpp"
+      "ur/adapters/native_cpu/program.cpp"
+      "ur/adapters/native_cpu/program.hpp"
+      "ur/adapters/native_cpu/queue.cpp"
+      "ur/adapters/native_cpu/queue.hpp"
+      "ur/adapters/native_cpu/sampler.cpp"
+      "ur/adapters/native_cpu/ur_interface_loader.cpp"
+      "ur/adapters/native_cpu/usm.cpp"
+      "ur/adapters/native_cpu/usm_p2p.cpp"
+    INCLUDE_DIRS
+      ${sycl_inc_dir}
+    LIBRARIES
+      UnifiedRuntime-Headers
+      Threads::Threads
+      sycl
+  )
+
+  set_target_properties("ur_adapter_native_cpu" PROPERTIES
+    VERSION "0.0.0"
+    SOVERSION "0"
+  )
+endif()
+
 
 if (TARGET UnifiedRuntimeLoader)
   set_target_properties(hello_world PROPERTIES EXCLUDE_FROM_ALL 1 EXCLUDE_FROM_DEFAULT_BUILD 1)

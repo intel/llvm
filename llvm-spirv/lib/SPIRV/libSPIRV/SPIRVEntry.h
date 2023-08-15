@@ -533,6 +533,7 @@ public:
 
 class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
 public:
+  static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);

@@ -12,7 +12,7 @@
 #include <sycl/multi_ptr.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Helper to return decorated pointer for different values
@@ -29,5 +29,5 @@ DecorT *getDecorated(multi_ptr<T, Space, IsDecorated> ptr) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

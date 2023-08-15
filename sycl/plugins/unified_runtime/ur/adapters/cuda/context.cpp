@@ -46,7 +46,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     size_t propSize, void *pContextInfo, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
 
-  switch (uint32_t{ContextInfoType}) {
+  switch (static_cast<uint32_t>(ContextInfoType)) {
   case UR_CONTEXT_INFO_NUM_DEVICES:
     return ReturnValue(1);
   case UR_CONTEXT_INFO_DEVICES:
@@ -62,7 +62,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
   }
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int Major = 0;
-    sycl::detail::ur::assertion(
+    detail::ur::assertion(
         cuDeviceGetAttribute(&Major,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
                              hContext->getDevice()->get()) == CUDA_SUCCESS);

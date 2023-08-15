@@ -279,14 +279,6 @@ pi_result piextMemImageCreateWithNativeHandle(
       NativeHandle, Context, OwnNativeHandle, ImageFormat, ImageDesc, Img);
 }
 
-pi_result piclProgramCreateWithSource(pi_context Context, pi_uint32 Count,
-                                      const char **Strings,
-                                      const size_t *Lengths,
-                                      pi_program *RetProgram) {
-  return pi2ur::piclProgramCreateWithSource(Context, Count, Strings, Lengths,
-                                            RetProgram);
-}
-
 pi_result piProgramGetInfo(pi_program Program, pi_program_info ParamName,
                            size_t ParamValueSize, void *ParamValue,
                            size_t *ParamValueSizeRet) {
@@ -389,6 +381,140 @@ pi_result piKernelGetInfo(pi_kernel Kernel, pi_kernel_info ParamName,
 
   return pi2ur::piKernelGetInfo(Kernel, ParamName, ParamValueSize, ParamValue,
                                 ParamValueSizeRet);
+}
+
+__SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
+                                              pi_device Device,
+                                              pi_image_format *ImageFormat,
+                                              pi_image_desc *ImageDesc,
+                                              pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemImageAllocate(Context, Device, ImageFormat, ImageDesc,
+                                      RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_handle *RetHandle) {
+  return pi2ur::piextMemUnsampledImageCreate(
+      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemSampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
+    pi_mem *RetMem, pi_image_handle *RetHandle) {
+  return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
+                                           ImageDesc, Sampler, RetMem,
+                                           RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
+    pi_context Context, const pi_sampler_properties *SamplerProperties,
+    float MinMipmapLevelClamp, float MaxMipmapLevelClamp, float MaxAnisotropy,
+    pi_sampler *RetSampler) {
+  return pi2ur::piextBindlessImageSamplerCreate(
+      Context, SamplerProperties, MinMipmapLevelClamp, MaxMipmapLevelClamp,
+      MaxAnisotropy, RetSampler);
+}
+
+__SYCL_EXPORT pi_result piextMemMipmapGetLevel(pi_context Context,
+                                               pi_device Device,
+                                               pi_image_mem_handle MipMem,
+                                               unsigned int Level,
+                                               pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMipmapGetLevel(Context, Device, MipMem, Level, RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemImageFree(pi_context Context, pi_device Device,
+                                          pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemImageFree(Context, Device, MemoryHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
+                                           pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemMipmapFree(Context, Device, MemoryHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
+    pi_image_offset DstOffset, pi_image_region CopyExtent,
+    pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
+                                  Flags, SrcOffset, DstOffset, CopyExtent,
+                                  HostExtent, NumEventsInWaitList,
+                                  EventWaitList, Event);
+}
+
+__SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemUnsampledImageHandleDestroy(Context, Device, Handle);
+}
+
+__SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
+}
+
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+                                             pi_image_info ParamName,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
+  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+                                     ParamValueSizeRet);
+}
+
+__SYCL_EXPORT pi_result
+piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
+                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
+                                       RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemMapExternalArray(
+    pi_context Context, pi_device Device, pi_image_format *ImageFormat,
+    pi_image_desc *ImageDesc, pi_interop_mem_handle MemHandle,
+    pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMapExternalArray(Context, Device, ImageFormat,
+                                         ImageDesc, MemHandle, RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
+                                               pi_device Device,
+                                               pi_interop_mem_handle ExtMem) {
+  return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
+}
+
+__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
+    pi_context Context, pi_device Device, int FileDescriptor,
+    pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
+                                                     FileDescriptor, RetHandle);
+}
+
+__SYCL_EXPORT pi_result
+piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+                              pi_interop_semaphore_handle SemHandle) {
+  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
+}
+
+__SYCL_EXPORT pi_result piextWaitExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+}
+
+__SYCL_EXPORT pi_result piextSignalExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
 }
 
 pi_result piKernelGetGroupInfo(pi_kernel Kernel, pi_device Device,
@@ -750,6 +876,16 @@ pi_result piextUSMSharedAlloc(void **ResultPtr, pi_context Context,
                                     Size, Alignment);
 }
 
+__SYCL_EXPORT pi_result piextUSMPitchedAlloc(
+    void **ResultPtr, size_t *ResultPitch, pi_context Context, pi_device Device,
+    pi_usm_mem_properties *Properties, size_t WidthInBytes, size_t Height,
+    unsigned int ElementSizeBytes) {
+
+  return pi2ur::piextUSMPitchedAlloc(ResultPtr, ResultPitch, Context, Device,
+                                     Properties, WidthInBytes, Height,
+                                     ElementSizeBytes);
+}
+
 pi_result piextUSMHostAlloc(void **ResultPtr, pi_context Context,
                             pi_usm_mem_properties *Properties, size_t Size,
                             pi_uint32 Alignment) {
@@ -927,6 +1063,14 @@ pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
                                   size_t *ParamValueSizeRet) {
   return pi2ur::piextUSMGetMemAllocInfo(Context, Ptr, ParamName, ParamValueSize,
                                         ParamValue, ParamValueSizeRet);
+}
+
+pi_result piextUSMImport(const void *HostPtr, size_t Size, pi_context Context) {
+  return pi2ur::piextUSMImport(HostPtr, Size, Context);
+}
+
+pi_result piextUSMRelease(const void *HostPtr, pi_context Context) {
+  return pi2ur::piextUSMRelease(HostPtr, Context);
 }
 
 /// API for writing data from host to a device global variable.
@@ -1118,11 +1262,11 @@ pi_result piextCommandBufferMemBufferCopyRect(
 
 pi_result piextCommandBufferMemBufferRead(
     pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
-    size_t Size, void *Dst, pi_uint32 NumEventsInWaitList,
+    size_t Size, void *Dst, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  return pi2ur::piextCommandBufferMemBufferRead(CommandBuffer, Buffer, Offset,
-                                                Size, Dst, NumEventsInWaitList,
-                                                SyncPointWaitList, SyncPoint);
+  return pi2ur::piextCommandBufferMemBufferRead(
+      CommandBuffer, Buffer, Offset, Size, Dst, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferReadRect(
@@ -1130,21 +1274,21 @@ pi_result piextCommandBufferMemBufferReadRect(
     pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
     pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch, void *Ptr,
-    pi_uint32 NumEventsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
-    pi_ext_sync_point *SyncPoint) {
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
   return pi2ur::piextCommandBufferMemBufferReadRect(
       CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
-      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumEventsInWaitList,
-      SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferWrite(
     pi_ext_command_buffer CommandBuffer, pi_mem Buffer, size_t Offset,
-    size_t Size, const void *Ptr, pi_uint32 NumEventsInWaitList,
+    size_t Size, const void *Ptr, pi_uint32 NumSyncPointsInWaitList,
     const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
-  return pi2ur::piextCommandBufferMemBufferWrite(CommandBuffer, Buffer, Offset,
-                                                 Size, Ptr, NumEventsInWaitList,
-                                                 SyncPointWaitList, SyncPoint);
+  return pi2ur::piextCommandBufferMemBufferWrite(
+      CommandBuffer, Buffer, Offset, Size, Ptr, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextCommandBufferMemBufferWriteRect(
@@ -1152,12 +1296,12 @@ pi_result piextCommandBufferMemBufferWriteRect(
     pi_buff_rect_offset BufferOffset, pi_buff_rect_offset HostOffset,
     pi_buff_rect_region Region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch, const void *Ptr,
-    pi_uint32 NumEventsInWaitList, const pi_ext_sync_point *SyncPointWaitList,
-    pi_ext_sync_point *SyncPoint) {
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
   return pi2ur::piextCommandBufferMemBufferWriteRect(
       CommandBuffer, Buffer, BufferOffset, HostOffset, Region, BufferRowPitch,
-      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr, NumEventsInWaitList,
-      SyncPointWaitList, SyncPoint);
+      BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,

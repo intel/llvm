@@ -7,21 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <cstring>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/id.hpp>
-#include <sycl/memory_enums.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp> // for IdToMaskPosition
+
+#include <cstring> // for std::memcpy
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 struct sub_group;
 namespace ext {
 namespace oneapi {
@@ -441,7 +435,7 @@ EnableIfGenericBroadcast<T> GroupBroadcast(Group g, T x,
 // Single happens-before means semantics should always apply to all spaces
 // Although consume is unsupported, forwarding to acquire is valid
 template <typename T>
-static inline constexpr
+static constexpr
     typename std::enable_if<std::is_same<T, sycl::memory_order>::value,
                             __spv::MemorySemanticsMask::Flag>::type
     getMemorySemanticsMask(T Order) {
@@ -470,7 +464,7 @@ static inline constexpr
       __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
 
-static inline constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
+static constexpr __spv::Scope::Flag getScope(memory_scope Scope) {
   switch (Scope) {
   case memory_scope::work_item:
     return __spv::Scope::Invocation;
@@ -1183,6 +1177,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOrKHR)
 
 } // namespace spirv
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif //  __SYCL_DEVICE_ONLY__

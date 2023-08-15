@@ -12,7 +12,7 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 /// @addtogroup sycl_esimd_misc
 /// @{
@@ -66,5 +66,5 @@ __ESIMD_API auto merge(simd_view<BaseT1, RegionT1> v1,
 /// @} sycl_esimd_misc
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

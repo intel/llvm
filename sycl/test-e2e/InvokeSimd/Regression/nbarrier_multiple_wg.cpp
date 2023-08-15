@@ -64,8 +64,8 @@ ESIMD_INLINE void ESIMD_CALLEE_nbarrier(local_accessor<int, 1> local_acc,
   unsigned int global_off = VL * (is_producer ? global_id : (global_id - 1));
 
   unsigned int slm_base =
-      static_cast<uint32_t>(
-          reinterpret_cast<std::uintptr_t>(local_acc.get_pointer()));
+      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+          local_acc.get_multi_ptr<access::decorated::no>().get_raw()));
   unsigned int slm_off = slm_base + global_off * sizeof(int);
 
   esimd::barrier();

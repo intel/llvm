@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cassert>
+#include <cinttypes>
 #include <list>
 #include <map>
 #include <stdarg.h>
@@ -24,6 +25,7 @@
 #include "context.hpp"
 #include "device.hpp"
 #include "event.hpp"
+#include "image.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "platform.hpp"
