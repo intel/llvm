@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-set(HIP_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/hip")
+set(HIP_DIR "${SYCL_ADAPTER_DIR}/sycl/plugins/unified_runtime/ur/adapters/hip" CACHE PATH "HIP adapter directory")
 
 set(TARGET_NAME ur_adapter_hip)
 
