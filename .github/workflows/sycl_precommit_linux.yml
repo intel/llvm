@@ -74,7 +74,8 @@ jobs:
           - name: ESIMD Emu
             runner: '["Linux", "x86-cpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001
+            # Need SYS_ADMIN to install drivers.
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
             target_devices: ext_intel_esimd_emulator:gpu
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
           - name: AMD/HIP
@@ -85,6 +86,7 @@ jobs:
           - name: Intel
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            # Need privileged/SYS_ADMIN to install drivers/reset GPU.
             image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
             target_devices: ext_oneapi_level_zero:gpu;opencl:gpu;opencl:cpu
             reset_gpu: true
