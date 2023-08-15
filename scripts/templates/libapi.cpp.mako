@@ -83,10 +83,12 @@ try {
 %endfor
 %endfor
 
+namespace {
 // This uselessFunc is needed to ensure that pthread is linked correctly against
 // ur_loader.so for gcc-9
 void uselessFunc() {
     std::thread UselessThread([]{});
+}
 }
 
 } // extern "C"
