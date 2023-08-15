@@ -556,6 +556,7 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
 
 exec_graph_impl::~exec_graph_impl() {
   WriteLock Lock(MMutex);
+  WriteLock LockImpl(MGraphImpl->MMutex);
 
   // clear all recording queue if not done before (no call to end_recording)
   MGraphImpl->clearQueues();
@@ -729,6 +730,9 @@ void modifiable_command_graph::make_edge(node &Src, node &Dest) {
 
 command_graph<graph_state::executable>
 modifiable_command_graph::finalize(const sycl::property_list &) const {
+  // Graph is read and written in this scope so we lock
+  // this graph with full priviledges.
+  graph_impl::WriteLock Lock(impl->MMutex);
   return command_graph<graph_state::executable>{this->impl,
                                                 this->impl->getContext()};
 }
@@ -813,9 +817,6 @@ executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : MTag(rand()),
       impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
-  // Graph is read and written in this scope so we lock
-  // this graph with full priviledges.
-  graph_impl::WriteLock Lock(Graph->MMutex);
   finalizeImpl(); // Create backend representation for executable graph
 }
 
