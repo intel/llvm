@@ -18,9 +18,6 @@ if (NOT DEFINED XPTI_DIR) # don't overwrite if already set
   endif()
 endif()
 
-# Create a soft option for enabling the use of TBB
-option(XPTI_ENABLE_TBB "Enable TBB in the framework" OFF)
-
 option(XPTI_ENABLE_WERROR OFF)
 option(XPTI_BUILD_SAMPLES OFF)
 option(XPTI_BUILD_BENCHMARK OFF)

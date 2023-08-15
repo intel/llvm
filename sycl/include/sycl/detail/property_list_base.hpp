@@ -8,14 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/detail/pi.h>                // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/exception.hpp>              // for invalid_object_error
 
-#include <algorithm>
-#include <bitset>
-#include <memory>
-#include <vector>
+#include <algorithm>   // for iter_swap
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr, __shared_ptr_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

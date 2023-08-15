@@ -268,7 +268,6 @@ public:
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
     if (SPIRVUseTextFormat) {
       Encoder << getString(Literals.cbegin(), Literals.cend() - 1);
-      Encoder.OS << " ";
       Encoder << (SPIRVLinkageTypeKind)Literals.back();
     } else
 #endif

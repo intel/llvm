@@ -10,6 +10,7 @@
 // expected results.
 //--------------------------------------------------------------------------
 #include "cl_processor.hpp"
+#include "parallel_test.h"
 #include "xpti/xpti_trace_framework.h"
 
 #include <atomic>
@@ -125,6 +126,7 @@ void TestCorrectness::runStringTableTestThreads(
         (double)(Strings.size() + LookupCount + DuplicateCount) /
         (NumStrings * 3) * 100;
   } else { // Multi-threaded run
+    BS::thread_pool tp(NumThreads);
     std::vector<char *> Strings;
     std::vector<xpti::string_id_t> IDs;
     Strings.resize(NumStrings);
@@ -139,36 +141,39 @@ void TestCorrectness::runStringTableTestThreads(
 
     {
       int Count = 0;
-      std::vector<int> MRange(NumStrings, 0);
-      std::for_each(MRange.begin(), MRange.end(),
-                    [&](int &n) { n += Count++; });
 
-      std::for_each(
-          std::execution::par, MRange.begin(), MRange.end(), [&](int &i) {
-            char *TableStrRef = nullptr;
-            std::string StrName = "Function" + std::to_string(i);
-            IDs[i] = xptiRegisterString(StrName.c_str(), &TableStrRef);
-            Strings[i] = TableStrRef;
-          });
+      auto RegisterString = [&](int min, int max) {
+        for (int i = min; i < max; ++i) {
+          char *TableStrRef = nullptr;
+          std::string StrName = "Function" + std::to_string(i);
+          IDs[i] = xptiRegisterString(StrName.c_str(), &TableStrRef);
+          Strings[i] = TableStrRef;
+        }
+      };
+      PARALLEL_FOR(tp, RegisterString, 0, NumStrings);
 
-      std::for_each(std::execution::par, MRange.begin(), MRange.end(),
-                    [&](int &i) {
-                      const char *TableStrRef = xptiLookupString(IDs[i]);
-                      if (TableStrRef == Strings[i])
-                        ++LookupCount;
-                    });
+      auto LookupString = [&](int min, int max) {
+        for (int i = min; i < max; ++i) {
+          const char *TableStrRef = xptiLookupString(IDs[i]);
+          if (TableStrRef == Strings[i])
+            ++LookupCount;
+        }
+      };
+      PARALLEL_FOR(tp, LookupString, 0, NumStrings);
       ModelRow[(int)STColumns::Lookups] = LookupCount;
 
-      std::for_each(std::execution::par, MRange.begin(), MRange.end(),
-                    [&](int &i) {
-                      char *TableStrRef = nullptr;
-                      std::string StrName = "Function" + std::to_string(i);
-                      xpti::string_id_t id =
-                          xptiRegisterString(StrName.c_str(), &TableStrRef);
-                      if (StrName == TableStrRef && id == IDs[i] &&
-                          TableStrRef == Strings[i])
-                        ++DuplicateCount;
-                    });
+      auto CheckLookup = [&](int min, int max) {
+        for (int i = min; i < max; ++i) {
+          char *TableStrRef = nullptr;
+          std::string StrName = "Function" + std::to_string(i);
+          xpti::string_id_t id =
+              xptiRegisterString(StrName.c_str(), &TableStrRef);
+          if (StrName == TableStrRef && id == IDs[i] &&
+              TableStrRef == Strings[i])
+            ++DuplicateCount;
+        }
+      };
+      PARALLEL_FOR(tp, CheckLookup, 0, NumStrings);
       ModelRow[(int)STColumns::DuplicateInserts] = DuplicateCount;
 
       ModelRow[(int)STColumns::PassRate] =
@@ -266,10 +271,8 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
         (TracepointCount * 4) * 100;
   } else {
 
+    BS::thread_pool tp(NumThreads);
     int Count = 0;
-    std::vector<size_t> MRange(TracepointCount, 0);
-    std::for_each(MRange.begin(), MRange.end(),
-                  [&](size_t &n) { n += Count++; });
 
     std::vector<xpti::payload_t *> Payloads;
     std::vector<int64_t> UIds;
@@ -285,51 +288,57 @@ void TestCorrectness::runTracepointTestThreads(int RunNo, int NumThreads,
     std::atomic<int> LookupCount = {0}, DuplicateCount = {0},
                      PayloadCount = {0};
 
-    std::for_each(
-        std::execution::par, MRange.begin(), MRange.end(), [&](size_t &i) {
-          std::string fn = "Function" + std::to_string(i);
-          xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
-                                              (int)i % 80, (void *)i);
-          xpti::trace_event_data_t *Ev = xptiMakeEvent(
-              fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
-              xpti::trace_activity_type_t::active, &MInstanceID);
-          if (Ev) {
-            UIds[i] = Ev->unique_id;
-            Payloads[i] = Ev->reserved.payload;
-            Events[i] = Ev;
-          }
-        });
+    auto MakeEvent = [&](int min, int max) {
+      for (size_t i = min; i < max; ++i) {
+        std::string fn = "Function" + std::to_string(i);
+        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
+                                            (int)i % 80, (void *)i);
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
+        if (Ev) {
+          UIds[i] = Ev->unique_id;
+          Payloads[i] = Ev->reserved.payload;
+          Events[i] = Ev;
+        }
+      }
+    };
+    PARALLEL_FOR(tp, MakeEvent, 0, TracepointCount);
     ModelRow[(int)TPColumns::Insertions] = (long double)Events.size();
 
-    std::for_each(std::execution::par, MRange.begin(), MRange.end(),
-                  [&](size_t &i) {
-                    std::string fn = "Function" + std::to_string(i);
-                    const xpti::trace_event_data_t *Ev = xptiFindEvent(UIds[i]);
-                    if (Ev && Ev->unique_id == UIds[i])
-                      LookupCount++;
-                  });
+    auto EventLookup = [&](int min, int max) {
+      for (size_t i = min; i < max; ++i) {
+        std::string fn = "Function" + std::to_string(i);
+        const xpti::trace_event_data_t *Ev = xptiFindEvent(UIds[i]);
+        if (Ev && Ev->unique_id == UIds[i])
+          LookupCount++;
+      }
+    };
+    PARALLEL_FOR(tp, EventLookup, 0, TracepointCount);
     ModelRow[(int)TPColumns::Lookups] = LookupCount;
 
-    std::for_each(
-        std::execution::par, MRange.begin(), MRange.end(), [&](size_t &i) {
-          std::string fn = "Function" + std::to_string(i);
-          xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
-                                              (int)i % 80, (void *)i);
-          xpti::trace_event_data_t *Ev = xptiMakeEvent(
-              fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
-              xpti::trace_activity_type_t::active, &MInstanceID);
-          if (Ev) {
-            if (Ev->unique_id == UIds[i]) {
-              ++DuplicateCount;
-            }
-            xpti::payload_t *RP = Ev->reserved.payload;
-            if (Ev->unique_id == UIds[i] && RP &&
-                std::string(RP->name) == std::string(P.name) &&
-                std::string(RP->source_file) == std::string(P.source_file) &&
-                RP->line_no == P.line_no && RP->column_no == P.column_no)
-              ++PayloadCount;
+    auto CheckEvents = [&](int min, int max) {
+      for (size_t i = min; i < max; ++i) {
+        std::string fn = "Function" + std::to_string(i);
+        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)i,
+                                            (int)i % 80, (void *)i);
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
+        if (Ev) {
+          if (Ev->unique_id == UIds[i]) {
+            ++DuplicateCount;
           }
-        });
+          xpti::payload_t *RP = Ev->reserved.payload;
+          if (Ev->unique_id == UIds[i] && RP &&
+              std::string(RP->name) == std::string(P.name) &&
+              std::string(RP->source_file) == std::string(P.source_file) &&
+              RP->line_no == P.line_no && RP->column_no == P.column_no)
+            ++PayloadCount;
+        }
+      }
+    };
+    PARALLEL_FOR(tp, CheckEvents, 0, TracepointCount);
     ModelRow[(int)TPColumns::DuplicateInserts] = DuplicateCount;
     ModelRow[(int)TPColumns::PayloadLookup] = PayloadCount;
     ModelRow[(int)TPColumns::PassRate] =
@@ -426,60 +435,61 @@ void TestCorrectness::runNotificationTestThreads(
     ModelRow[(int)NColumns::Notifications] = (long double)Acc;
     ModelRow[(int)NColumns::PassRate] = (long double)(Acc) / (NotifyCount)*100;
   } else {
+
+    BS::thread_pool tp(NumThreads);
     std::atomic<int> NotifyCount = {0};
 
     int Count = 0;
-    std::vector<size_t> MRange(CallbackCount, 0);
-    std::for_each(MRange.begin(), MRange.end(),
-                  [&](size_t &n) { n += Count++; });
 
-    std::for_each(std::execution::par_unseq, MRange.begin(), MRange.end(),
-                  [&](size_t &i) {
-                    if (i >= TPCount)
-                      return;
+    auto MakeEvents = [&](int min, int max) {
+      for (size_t i = min; i < max; ++i) {
+        if (i >= TPCount)
+          return;
 
-                    size_t Index = (int)i;
-                    std::string fn = "Function" + std::to_string(i);
-                    xpti::payload_t P =
-                        xpti::payload_t(fn.c_str(), MSource, (int)Index,
-                                        (int)Index % 80, (void *)(i % 10));
-                    xpti::trace_event_data_t *Ev = xptiMakeEvent(
-                        fn.c_str(), &P,
-                        (uint16_t)xpti::trace_event_type_t::algorithm,
-                        xpti::trace_activity_type_t::active, &MInstanceID);
-                    if (Ev) {
-                      UIds[Index] = Ev->unique_id;
-                      Payloads[Index] = Ev->reserved.payload;
-                      Events[Index] = Ev;
-                    }
-                    ++NotifyCount;
-                  });
+        size_t Index = (int)i;
+        std::string fn = "Function" + std::to_string(i);
+        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
+                                            (int)Index % 80, (void *)(i % 10));
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
+        if (Ev) {
+          UIds[Index] = Ev->unique_id;
+          Payloads[Index] = Ev->reserved.payload;
+          Events[Index] = Ev;
+        }
+        ++NotifyCount;
+      }
+    };
+    PARALLEL_FOR(tp, MakeEvents, 0, CallbackCount);
 
     std::string RowTitle = "Threads " + std::to_string(NumThreads);
     auto &ModelRow = Model.addRow(RunNo, RowTitle);
     ModelRow[(int)NColumns::Threads] = NumThreads;
 
-    std::for_each(
-        std::execution::par, MRange.begin(), MRange.end(), [&](size_t &i) {
-          if (i < TPCount)
-            return;
+    auto NotifyCallbacks = [&](int min, int max) {
+      for (size_t i = min; i < max; ++i) {
+        if (i < TPCount)
+          return;
 
-          size_t Index = (int)i % TPCount;
-          void *Address = (void *)(Index % 10);
-          std::string fn = "Function" + std::to_string(Index);
-          xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
-                                              (int)Index % 80, Address);
-          xpti::trace_event_data_t *Ev = xptiMakeEvent(
-              fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
-              xpti::trace_activity_type_t::active, &MInstanceID);
-          if (Ev && Ev->unique_id == UIds[Index]) {
-            uint8_t TP = (Index % 10) + 1;
-            uint16_t TPType = (uint16_t)(TP << 1);
-            xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
-                                              MInstanceID, nullptr);
-            NotifyCount++;
-          }
-        });
+        size_t Index = (int)i % TPCount;
+        void *Address = (void *)(Index % 10);
+        std::string fn = "Function" + std::to_string(Index);
+        xpti::payload_t P = xpti::payload_t(fn.c_str(), MSource, (int)Index,
+                                            (int)Index % 80, Address);
+        xpti::trace_event_data_t *Ev = xptiMakeEvent(
+            fn.c_str(), &P, (uint16_t)xpti::trace_event_type_t::algorithm,
+            xpti::trace_activity_type_t::active, &MInstanceID);
+        if (Ev && Ev->unique_id == UIds[Index]) {
+          uint8_t TP = (Index % 10) + 1;
+          uint16_t TPType = (uint16_t)(TP << 1);
+          xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
+                                            MInstanceID, nullptr);
+          NotifyCount++;
+        }
+      }
+    };
+    PARALLEL_FOR(tp, NotifyCallbacks, 0, CallbackCount);
 
     uint64_t Acc = 0;
     for (int i = 0; i < TPCount; ++i) {
