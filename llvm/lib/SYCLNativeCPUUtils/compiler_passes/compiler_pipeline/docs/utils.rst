@@ -549,37 +549,6 @@ first string argument.
    This pass is not useful when doing ahead-of-time compilation, when many
    kernels may be in the same module.
 
-MaterializeAbsentWorkItemBuiltinsPass
--------------------------------------
-
-This pass links builtins into the module which are not added in the
-`LinkBuiltinsPass`_.
-
-In the case that we built an OpenCL 1.2 driver, certain OpenCL 2.X builtins and
-their ``__mux`` variants will not be present in the builtins module. These include:
-
-* ``size_t get_global_linear_id()``
-* ``size_t get_local_linear_id()``
-* ``size_t get_enqueued_local_size(uint)``
-
-However, when consuming SPIR-V calls to these builtins can still appear as a
-result of the SPIR-V variables: ``GlobalLinearId``, ``LocalInvocationIndex``
-and ``EnqueuedWorkgroupSize`` (respectively), even on an OpenCL 1.2 driver.
-
-In this case the ``MaterializeAbsentWorkItemBuiltinsPass`` pass provides
-definitions of these functions in terms of ``__mux`` builtins that are
-themselves defined later down the compilation pipeline in the
-`DefineMuxBuiltinsPass`_ pass.
-
-The reasoning behind doing this in the compiler is to avoid leaking OpenCL 3.0
-specific IP into an OpenCL 1.2 driver; only supporting these builtins on the
-SPIR-V path so that an OpenCL 1.2 user won't be able to harness them in their
-OpenCL C.
-
-Note that for an OpenCL-3.0 driver, these builtins **will** be defined in terms
-of ``__mux`` builtins in the module linked during the ``LinkBuiltinsPass``, so
-in that case this pass is a no-op.
-
 ReduceToFunctionPass
 --------------------
 
