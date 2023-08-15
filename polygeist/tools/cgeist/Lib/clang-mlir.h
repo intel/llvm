@@ -526,6 +526,7 @@ public:
   std::pair<ValueCategory, ValueCategory>
   EmitCompoundAssignLValue(clang::CompoundAssignOperator *E,
                            ValueCategory (MLIRScanner::*F)(const BinOpInfo &));
+  ValueCategory EmitBinaryOperatorLValue(clang::BinaryOperator *E);
 
   ValueCategory
   EmitCompoundAssign(clang::CompoundAssignOperator *E,
