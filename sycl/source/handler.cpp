@@ -250,7 +250,8 @@ event handler::finalize() {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
             // Capture the host timestamp for profiling (queue time)
-            NewEvent->setQueueBaseTime();
+            if (NewEvent != nullptr)
+              NewEvent->setQueueBaseTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],

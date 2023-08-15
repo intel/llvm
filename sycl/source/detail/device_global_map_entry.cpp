@@ -73,7 +73,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     sycl::detail::pi::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
                             std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent, nullptr);
+                            &InitEvent);
     NewAlloc.MZeroInitEvent = InitEvent;
   }
 

@@ -186,7 +186,7 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
                         pi_bool Blocking, pi_map_flags Flags, size_t Offset,
                         size_t Size, pi_uint32 NumEvents,
                         const pi_event *WaitList, pi_event *Event,
-                        void **RetMap, detail::EventImplPtr NewEventImpl) {
+                        void **RetMap) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
   uintptr_t MemObjID = (uintptr_t)(Buffer);
@@ -200,9 +200,6 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
                            0 /* guard zone */, CorrID);
     }};
 #endif
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
         Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
         Event, RetMap);
@@ -210,8 +207,7 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
 
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
                     void *MappedPtr, pi_uint32 NumEvents,
-                    const pi_event *WaitList, pi_event *Event,
-                    detail::EventImplPtr NewEventImpl) {
+                    const pi_event *WaitList, pi_event *Event) {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
   uint64_t CorrID = 0;
   uintptr_t MemObjID = (uintptr_t)(Mem);
@@ -232,9 +228,6 @@ void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
       emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
     }};
 #endif
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
                                                WaitList, Event);
   }
@@ -497,8 +490,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-             sycl::detail::pi::PiEvent &OutEvent,
-             detail::EventImplPtr NewEventImpl) {
+             sycl::detail::pi::PiEvent &OutEvent) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -518,9 +510,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/PI_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
@@ -541,8 +530,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                                             DstAccessRange[DstPos.YTerm],
                                             DstAccessRange[DstPos.ZTerm]};
       if (1 == DimDst && 1 == DimSrc) {
-        // Capture the host timestamp for queue time. Fallback profiling support
-        if (NewEventImpl != nullptr)
           Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
               Queue, DstMem,
               /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
@@ -562,9 +549,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     pi_image_region_struct Region{DstAccessRange[DstPos.XTerm],
                                   DstAccessRange[DstPos.YTerm],
                                   DstAccessRange[DstPos.ZTerm]};
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
@@ -580,8 +564,7 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-             sycl::detail::pi::PiEvent &OutEvent,
-             detail::EventImplPtr NewEventImpl) {
+             sycl::detail::pi::PiEvent &OutEvent) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -607,9 +590,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/PI_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
@@ -629,9 +609,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
                                             SrcAccessRange[SrcPos.YTerm],
                                             SrcAccessRange[SrcPos.ZTerm]};
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
           /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
@@ -649,9 +626,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -665,8 +639,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              QueueImplPtr, unsigned int DimDst, sycl::range<3> DstSize,
              sycl::range<3>, sycl::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-             sycl::detail::pi::PiEvent &OutEvent,
-             detail::EventImplPtr NewEventImpl) {
+             sycl::detail::pi::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
@@ -685,9 +658,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferCopy>(
           Queue, SrcMem, DstMem, SrcXOffBytes, DstXOffBytes,
           SrcAccessRangeWidthBytes, DepEvents.size(), DepEvents.data(),
@@ -712,9 +682,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct Region{SrcAccessRangeWidthBytes,
                                         SrcAccessRange[SrcPos.YTerm],
                                         SrcAccessRange[SrcPos.ZTerm]};
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferCopyRect>(
           Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region, SrcRowPitch,
           SrcSlicePitch, DstRowPitch, DstSlicePitch, DepEvents.size(),
@@ -730,9 +697,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemImageCopy>(
         Queue, SrcMem, DstMem, &SrcOrigin, &DstOrigin, &Region,
         DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -768,14 +732,16 @@ static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
 
 // Copies memory between: host and device, host and host,
 // device and device if memory objects bound to the one context.
-void MemoryManager::copy(
-    SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
-    unsigned int DimSrc, sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-    sycl::id<3> SrcOffset, unsigned int SrcElemSize, void *DstMem,
-    QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
-    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-    unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent &OutEvent, detail::EventImplPtr NewEventImpl) {
+void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
+                         QueueImplPtr SrcQueue, unsigned int DimSrc,
+                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
+                         void *DstMem, QueueImplPtr TgtQueue,
+                         unsigned int DimDst, sycl::range<3> DstSize,
+                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                         unsigned int DstElemSize,
+                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
+                         sycl::detail::pi::PiEvent &OutEvent) {
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
@@ -789,38 +755,21 @@ void MemoryManager::copy(
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<sycl::detail::pi::PiMem>(DstMem), std::move(TgtQueue),
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, nullptr);
+              std::move(DepEvents), OutEvent);
   } else {
     if (TgtQueue->is_host())
       copyD2H(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              OutEvent, nullptr);
+              OutEvent);
     else
       copyD2D(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, pi::cast<sycl::detail::pi::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, nullptr);
+              DstElemSize, std::move(DepEvents), OutEvent);
   }
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
-                         QueueImplPtr SrcQueue, unsigned int DimSrc,
-                         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-                         sycl::id<3> SrcOffset, unsigned int SrcElemSize,
-                         void *DstMem, QueueImplPtr TgtQueue,
-                         unsigned int DimDst, sycl::range<3> DstSize,
-                         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-                         unsigned int DstElemSize,
-                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                         sycl::detail::pi::PiEvent &OutEvent) {
-  MemoryManager::copy(SYCLMemObj, SrcMem, SrcQueue, DimSrc, SrcSize,
-                      SrcAccessRange, SrcOffset, SrcElemSize, DstMem, TgtQueue,
-                      DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-                      DepEvents, OutEvent, nullptr);
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
@@ -829,15 +778,11 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          sycl::range<3> Range, sycl::id<3> Offset,
                          unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                         sycl::detail::pi::PiEvent &OutEvent,
-                         detail::EventImplPtr NewEventImpl) {
+                         sycl::detail::pi::PiEvent &OutEvent) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Queue->getPlugin();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     if (Dim <= 1) {
       Plugin->call<PiApiKind::piEnqueueMemBufferFill>(
           Queue->getHandleRef(), pi::cast<sycl::detail::pi::PiMem>(Mem),
@@ -848,25 +793,10 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     throw runtime_error("Not supported configuration of fill requested",
                         PI_ERROR_INVALID_OPERATION);
   } else {
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemImageFill>(
         Queue->getHandleRef(), pi::cast<sycl::detail::pi::PiMem>(Mem), Pattern,
         &Offset[0], &Range[0], DepEvents.size(), DepEvents.data(), &OutEvent);
   }
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
-                         size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3> Size,
-                         sycl::range<3> Range, sycl::id<3> Offset,
-                         unsigned int ElementSize,
-                         std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                         sycl::detail::pi::PiEvent &OutEvent) {
-  MemoryManager::fill(SYCLMemObj, Mem, Queue, PatternSize, Pattern, Dim, Size,
-                      Range, Offset, ElementSize, DepEvents, OutEvent, nullptr);
 }
 
 void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
@@ -911,7 +841,7 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   memBufferMapHelper(Plugin, Queue->getHandleRef(),
                      pi::cast<sycl::detail::pi::PiMem>(Mem), PI_FALSE, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
-                     DepEvents.data(), &OutEvent, &MappedPtr, nullptr);
+                     DepEvents.data(), &OutEvent, &MappedPtr);
   return MappedPtr;
 }
 
@@ -927,22 +857,18 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const PluginPtr &Plugin = Queue->getPlugin();
   memUnmapHelper(Plugin, Queue->getHandleRef(),
                  pi::cast<sycl::detail::pi::PiMem>(Mem), MappedPtr,
-                 DepEvents.size(), DepEvents.data(), &OutEvent, nullptr);
+                 DepEvents.size(), DepEvents.data(), &OutEvent);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent,
-                             detail::EventImplPtr NewEventImpl) {
+                             sycl::detail::pi::PiEvent *OutEvent) {
   assert(!SrcQueue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_usm.");
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       SrcQueue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
           SrcQueue->getHandleRef(), DepEvents.size(), DepEvents.data(),
           OutEvent);
@@ -961,28 +887,15 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
       DepEvents.data(), OutEvent);
 }
 
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
-                             size_t Len, void *DstMem,
-                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::copy_usm(SrcMem, SrcQueue, Len, DstMem, DepEvents, OutEvent,
-                          nullptr);
-}
-
 void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent,
-                             detail::EventImplPtr NewEventImpl) {
+                             sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_usm.");
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -993,86 +906,48 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_ERROR_INVALID_VALUE);
 
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextUSMEnqueueMemset>(
       Queue->getHandleRef(), Mem, Pattern, Length, DepEvents.size(),
       DepEvents.data(), OutEvent);
 }
 
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
-                             int Pattern,
-                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                             sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
-                          nullptr);
-}
-
 void MemoryManager::prefetch_usm(
     void *Mem, QueueImplPtr Queue, size_t Length,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in prefetch_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   Plugin->call<PiApiKind::piextUSMEnqueuePrefetch>(
       Queue->getHandleRef(), Mem, Length, _pi_usm_migration_flags(0),
       DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::prefetch_usm(
-    void *Mem, QueueImplPtr Queue, size_t Length,
-    std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::prefetch_usm(Mem, Queue, Length, DepEvents, OutEvent, nullptr);
-}
-
 void MemoryManager::advise_usm(
     const void *Mem, QueueImplPtr Queue, size_t Length, pi_mem_advice Advice,
     std::vector<sycl::detail::pi::PiEvent> /*DepEvents*/,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in advise_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   Plugin->call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
                                                     Length, Advice, OutEvent);
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
-                               size_t Length, pi_mem_advice Advice,
-                               std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                               sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::advise_usm(Mem, Queue, Length, Advice, DepEvents, OutEvent,
-                            nullptr);
 }
 
 void MemoryManager::copy_2d_usm(
     const void *SrcMem, size_t SrcPitch, QueueImplPtr Queue, void *DstMem,
     size_t DstPitch, size_t Width, size_t Height,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in copy_2d_usm.");
 
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1092,9 +967,6 @@ void MemoryManager::copy_2d_usm(
       &SupportsUSMMemcpy2D, nullptr);
 
   if (SupportsUSMMemcpy2D) {
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
     // Direct memcpy2D is supported so we use this function.
     Plugin->call<PiApiKind::piextUSMEnqueueMemcpy2D>(
         Queue->getHandleRef(), /*blocking=*/PI_FALSE, DstMem, DstPitch, SrcMem,
@@ -1120,9 +992,6 @@ void MemoryManager::copy_2d_usm(
   CopyEventsManaged.reserve(Height);
   // We'll need continuous range of events for a wait later as well.
   std::vector<sycl::detail::pi::PiEvent> CopyEvents(Height);
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   for (size_t I = 0; I < Height; ++I) {
     char *DstItBegin = static_cast<char *>(DstMem) + I * DstPitch;
     const char *SrcItBegin = static_cast<const char *>(SrcMem) + I * SrcPitch;
@@ -1133,38 +1002,22 @@ void MemoryManager::copy_2d_usm(
                                    /*TakeOwnership=*/true);
   }
 
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   // Then insert a wait to coalesce the copy events.
   Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
       Queue->getHandleRef(), CopyEvents.size(), CopyEvents.data(), OutEvent);
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::copy_2d_usm(
-    const void *SrcMem, size_t SrcPitch, QueueImplPtr Queue, void *DstMem,
-    size_t DstPitch, size_t Width, size_t Height,
-    std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::copy_2d_usm(SrcMem, SrcPitch, Queue, DstMem, DstPitch, Width,
-                             Height, DepEvents, OutEvent, nullptr);
 }
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     const std::vector<char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_2d_usm.");
 
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1174,38 +1027,22 @@ void MemoryManager::fill_2d_usm(
   if (!DstMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory fill operation.");
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextUSMEnqueueFill2D>(
       Queue->getHandleRef(), DstMem, Pitch, Pattern.size(), Pattern.data(),
       Width, Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::fill_2d_usm(
-    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    const std::vector<char> &Pattern,
-    std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height, Pattern,
-                             DepEvents, OutEvent, nullptr);
-}
-
 void MemoryManager::memset_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_2d_usm.");
 
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), DepEvents.size(), DepEvents.data(), OutEvent);
     }
@@ -1216,22 +1053,10 @@ void MemoryManager::memset_2d_usm(
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextUSMEnqueueMemset2D>(
       Queue->getHandleRef(), DstMem, Pitch, static_cast<int>(Value), Width,
       Height, DepEvents.size(), DepEvents.data(), OutEvent);
-}
-
-// TODO: This function will remain until ABI-breaking change
-void MemoryManager::memset_2d_usm(
-    void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
-    char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::memset_2d_usm(DstMem, Queue, Pitch, Width, Height, Value,
-                               DepEvents, OutEvent, nullptr);
 }
 
 static void
@@ -1264,7 +1089,7 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
-                          ActualDepEvents, OutEvent, nullptr);
+                          ActualDepEvents, OutEvent);
 }
 
 static void memcpyFromDeviceGlobalUSM(
@@ -1296,7 +1121,7 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent, nullptr);
+                          NumBytes, Dest, ActualDepEvents, OutEvent);
 }
 
 static sycl::detail::pi::PiProgram
@@ -1338,12 +1163,9 @@ static void memcpyToDeviceGlobalDirect(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableWrite>(
       Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
@@ -1355,12 +1177,9 @@ static void memcpyFromDeviceGlobalDirect(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent) {
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
   const PluginPtr &Plugin = Queue->getPlugin();
   Plugin->call<PiApiKind::piextEnqueueDeviceGlobalVariableRead>(
       Queue->getHandleRef(), Program, DeviceGlobalEntry->MUniqueId.c_str(),
@@ -1384,7 +1203,7 @@ void MemoryManager::copy_to_device_global(
 
   if (IsDeviceImageScoped)
     memcpyToDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, SrcMem,
-                               DepEvents, OutEvent, nullptr);
+                               DepEvents, OutEvent);
   else
     memcpyToDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, SrcMem, DepEvents,
                             OutEvent);
@@ -1406,7 +1225,7 @@ void MemoryManager::copy_from_device_global(
 
   if (IsDeviceImageScoped)
     memcpyFromDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, DstMem,
-                                 DepEvents, OutEvent, nullptr);
+                                 DepEvents, OutEvent);
   else
     memcpyFromDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, DstMem,
                               DepEvents, OutEvent);
