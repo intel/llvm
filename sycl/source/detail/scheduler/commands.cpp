@@ -1537,9 +1537,10 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                        "Alloca for command not found " +
-                            codeToString(PI_ERROR_INVALID_OPERATION));
+  // Default constructed accessors do not add dependencies, but they can be
+  // passed to commands. Simply return nullptr, since they are empty and don't
+  // really require any memory.
+  return nullptr;
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -2213,11 +2214,15 @@ void SetArgBasedOnType(
     break;
   case kernel_param_kind_t::kind_accessor: {
     Requirement *Req = (Requirement *)(Arg.MPtr);
-    assert(getMemAllocationFunc != nullptr &&
-           "We should have caught this earlier.");
 
+    // getMemAllocationFunc is nullptr when there are no requirements. However,
+    // we may pass default constructed accessors to a command, which don't add
+    // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
+    // valid case, so we need to properly handle it.
     sycl::detail::pi::PiMem MemArg =
-        (sycl::detail::pi::PiMem)getMemAllocationFunc(Req);
+        getMemAllocationFunc
+            ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
+            : nullptr;
     if (Context.get_backend() == backend::opencl) {
       // clSetKernelArg (corresponding to piKernelSetArg) returns an error
       // when MemArg is null, which is the case when zero-sized buffers are
@@ -2831,7 +2836,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      return AllocaCmd->getMemAllocation();
+      // getAllocaForReq may return nullptr if Req is a default constructed
+      // accessor. Simply return nullptr in such a case.
+      return AllocaCmd ? AllocaCmd->getMemAllocation() : nullptr;
     };
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
