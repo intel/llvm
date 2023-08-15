@@ -23,11 +23,12 @@ float make_fp32(bfloat16 x) {
 }
 
 void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
-                         int MATRIX_N, int MATRIX_K) {
+                         int MATRIX_N, int MATRIX_K, bool transpose_c = false) {
   for (unsigned int i = 0; i < MATRIX_M; i++) {
     for (unsigned int k = 0; k < MATRIX_K; k++) {
       for (unsigned int j = 0; j < MATRIX_N; j++) {
-        C[i * MATRIX_N + j] +=
+        int c_ind = transpose_c ? (j * MATRIX_M + i) : i * MATRIX_N + j;
+        C[c_ind] +=
             make_fp32(A[i * MATRIX_K + k]) * make_fp32(B[k * MATRIX_N + j]);
       }
     }
