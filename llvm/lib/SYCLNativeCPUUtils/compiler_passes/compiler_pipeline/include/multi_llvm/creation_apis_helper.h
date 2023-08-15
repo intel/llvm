@@ -16,7 +16,6 @@
 #ifndef MULTI_LLVM_CREATION_APIS_HELPER_H_INCLUDED
 #define MULTI_LLVM_CREATION_APIS_HELPER_H_INCLUDED
 
-#include <llvm/ADT/None.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Instructions.h>
