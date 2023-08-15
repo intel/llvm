@@ -981,7 +981,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ur_event_handle_t NewEvent = nullptr;
     if (phEvent) {
       NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
-                                                     hQueue, HIPStream);
+                                                hQueue, HIPStream);
       NewEvent->start();
     }
 
