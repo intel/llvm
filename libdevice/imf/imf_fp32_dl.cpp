@@ -56,4 +56,45 @@ int __devicelib_imf_min(int x, int y) { return x < y ? x : y; }
 
 DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_hadd(int x, int y) { return __shadd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmax(long long int x, long long int y) {
+  return __imax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+long long int __devicelib_imf_llmin(long long int x, long long int y) {
+  return __imin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmax(unsigned long long int x,
+                                              unsigned long long int y) {
+  return __imax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned long long int __devicelib_imf_ullmin(unsigned long long int x,
+                                              unsigned long long int y) {
+  return __imin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umax(unsigned int x, unsigned int y) {
+  return __imax(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_umin(unsigned int x, unsigned int y) {
+  return __imin(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE float __devicelib_imf_fmaxf(float a, float b) {
+  return __fmax(a, b);
+}
+
+DEVICE_EXTERN_C_INLINE float __devicelib_imf_fminf(float a, float b) {
+  return __fmin(a, b);
+}
+
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

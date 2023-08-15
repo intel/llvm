@@ -12,7 +12,7 @@
 #include <sycl/group_algorithm.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 template <typename GroupHelper, typename T, typename BinaryOperation>
@@ -135,5 +135,5 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

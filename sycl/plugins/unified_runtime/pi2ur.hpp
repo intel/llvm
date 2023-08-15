@@ -168,7 +168,7 @@ public:
   template <class T> pi_result operator()(const T *t, size_t s) {
     return ur2piResult(UrReturnHelper::operator()(t, s));
   }
-  // Array return value where element type is differrent from T
+  // Array return value where element type is different from T
   template <class RetType, class T> pi_result operator()(const T *t, size_t s) {
     return ur2piResult(UrReturnHelper::operator()<RetType>(t, s));
   }
@@ -198,11 +198,15 @@ public:
     return PI_SUCCESS;
   }
 
-  // Convert the array (0-terminated) using a conversion map
+  // Convert the array using a conversion map
   template <typename TypeUR, typename TypePI>
   pi_result convertArray(std::function<TypePI(TypeUR)> Func) {
     // Cannot convert to a smaller element storage type
     PI_ASSERT(sizeof(TypePI) >= sizeof(TypeUR), PI_ERROR_UNKNOWN);
+
+    const uint32_t NumberElements =
+        *param_value_size_ret / sizeof(ur_device_partition_t);
+
     *param_value_size_ret *= sizeof(TypePI) / sizeof(TypeUR);
 
     // There is no value to convert. Adjust to a possibly bigger PI storage.
@@ -218,12 +222,7 @@ public:
     auto pValuePI = static_cast<TypePI *>(param_value);
     memcpy(pValueUR, param_value, *param_value_size_ret);
 
-    while (pValueUR) {
-      if (*pValueUR == 0) {
-        *pValuePI = 0;
-        break;
-      }
-
+    for (uint32_t I = 0; I < NumberElements; ++I) {
       *pValuePI = Func(*pValueUR);
       ++pValuePI;
       ++pValueUR;
@@ -263,6 +262,23 @@ public:
   }
 };
 
+// Handle mismatched PI and UR type return sizes for info queries
+inline void fixupInfoValueTypes(size_t ParamValueSizeRetUR,
+                                size_t *ParamValueSizeRetPI,
+                                size_t ParamValueSize, void *ParamValue) {
+  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
+    // extend bool to pi_bool (uint32_t)
+    if (ParamValue) {
+      auto *ValIn = static_cast<bool *>(ParamValue);
+      auto *ValOut = static_cast<pi_bool *>(ParamValue);
+      *ValOut = static_cast<pi_bool>(*ValIn);
+    }
+    if (ParamValueSizeRetPI) {
+      *ParamValueSizeRetPI = sizeof(pi_bool);
+    }
+  }
+}
+
 // Translate UR platform info values to PI info values
 inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
                                         size_t ParamValueSizePI,
@@ -292,6 +308,8 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
         return PI_EXT_PLATFORM_BACKEND_CUDA;
       case UR_PLATFORM_BACKEND_HIP:
         return PI_EXT_PLATFORM_BACKEND_HIP;
+      case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        return PI_EXT_PLATFORM_BACKEND_NATIVE_CPU;
       default:
         die("UR_PLATFORM_INFO_BACKEND: unhandled value");
       }
@@ -311,14 +329,23 @@ inline pi_result ur2piPlatformInfoValue(ur_platform_info_t ParamName,
   return PI_SUCCESS;
 }
 
-// Translate UR device info values to PI info values
+/**
+ * Translate UR device info values to PI info values
+ * @param ParamName The name of the parameter
+ * @param ParamValueSize[in] The size of ParamValue passed to the PI plugin.
+ * @param ParamValue[in, out] Input: The ParamValue returned by the UR adapter.
+ * Output: The UR output converted to PI.
+ * @param ParamValueSizeRet[in, out] Input: The value of ParamValueSizeRet that
+ * UR returned. Output: The value of ParamValueSizeRet after conversion.
+ */
 inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
-                                      size_t ParamValueSizePI,
-                                      size_t *ParamValueSizeUR,
-                                      void *ParamValue) {
+                                      size_t ParamValueSize, void *ParamValue,
+                                      size_t *ParamValueSizeRet) {
 
-  ConvertHelper Value(ParamValueSizePI, ParamValue, ParamValueSizeUR);
+  /* Helper function to perform conversions in-place */
+  ConvertHelper Value(ParamValueSize, ParamValue, ParamValueSizeRet);
 
+  pi_result error = PI_SUCCESS;
   if (ParamName == UR_DEVICE_INFO_TYPE) {
     auto ConvertFunc = [](ur_device_type_t UrValue) {
       switch (UrValue) {
@@ -382,23 +409,94 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     return Value.convertBitSet<ur_device_affinity_domain_flag_t,
                                pi_device_affinity_domain>(ConvertFunc);
   } else if (ParamName == UR_DEVICE_INFO_PARTITION_TYPE) {
+
     auto ConvertFunc = [](ur_device_partition_t UrValue) {
-      if (UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN == UrValue)
+      switch (static_cast<uint32_t>(UrValue)) {
+      case UR_DEVICE_PARTITION_EQUALLY:
+        return PI_DEVICE_PARTITION_EQUALLY;
+      case UR_DEVICE_PARTITION_BY_COUNTS:
+        return PI_DEVICE_PARTITION_BY_COUNTS;
+      case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
-      else if (UR_DEVICE_PARTITION_BY_CSLICE == UrValue)
+      case UR_DEVICE_PARTITION_BY_CSLICE:
         return PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE;
-      else if ((ur_device_partition_t)
-                   UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE == UrValue)
-        return (pi_device_partition_property)
-            PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE;
-      die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
+      default:
+        die("UR_DEVICE_INFO_PARTITION_TYPE: unhandled value");
+      }
     };
-    return Value
-        .convertArray<ur_device_partition_t, pi_device_partition_property>(
-            ConvertFunc);
-  } else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+
+    /*
+     * This property returns the argument specified in piCreateSubDevices.
+     * Each partition name is immediately followed by a value. The list is
+     * terminated with 0. In the case where the properties argument to
+     * piCreateSubDevices is [PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+     * PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE], the affinity domain used
+     * to perform the partition will be returned. */
+
+    PI_ASSERT(sizeof(pi_device_partition_property) ==
+                  sizeof(ur_device_partition_property_t),
+              PI_ERROR_UNKNOWN);
+
+    const uint32_t ur_number_elements =
+        *ParamValueSizeRet / sizeof(ur_device_partition_property_t);
+
+    if (ParamValue) {
+      auto param_value_copy =
+          std::make_unique<ur_device_partition_property_t[]>(
+              ur_number_elements);
+      std::memcpy(param_value_copy.get(), ParamValue,
+                  ur_number_elements * sizeof(ur_device_partition_property_t));
+      pi_device_partition_property *pValuePI =
+          reinterpret_cast<pi_device_partition_property *>(ParamValue);
+      ur_device_partition_property_t *pValueUR =
+          reinterpret_cast<ur_device_partition_property_t *>(
+              param_value_copy.get());
+      const ur_device_partition_t type = pValueUR->type;
+      *pValuePI = ConvertFunc(type);
+      ++pValuePI;
+
+      for (uint32_t i = 0; i < ur_number_elements; ++i) {
+        switch (pValueUR->type) {
+        case UR_DEVICE_PARTITION_EQUALLY: {
+          *pValuePI = pValueUR->value.equally;
+          break;
+        }
+        case UR_DEVICE_PARTITION_BY_COUNTS: {
+          *pValuePI = pValueUR->value.count;
+          break;
+        }
+        case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+          *pValuePI = pValueUR->value.affinity_domain;
+          break;
+        }
+        case UR_DEVICE_PARTITION_BY_CSLICE: {
+          *pValuePI = 0;
+          break;
+        }
+        default:
+          die("UR_DEVICE_INFO_PARTITION_TYPE query returned unsupported type");
+        }
+        ++pValuePI;
+        ++pValueUR;
+      }
+      *pValuePI = 0;
+    }
+
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      /* Add 2 extra elements to the return value (one for the type at the
+       * beginning and another to terminate the array with a 0 */
+      *ParamValueSizeRet =
+          (ur_number_elements + 2) * sizeof(pi_device_partition_property);
+    }
+  }
+
+  else if (ParamName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
     auto ConvertFunc = [](ur_device_partition_t UrValue) {
-      switch (UrValue) {
+      switch (static_cast<uint32_t>(UrValue)) {
+      case UR_DEVICE_PARTITION_EQUALLY:
+        return PI_DEVICE_PARTITION_EQUALLY;
+      case UR_DEVICE_PARTITION_BY_COUNTS:
+        return PI_DEVICE_PARTITION_BY_COUNTS;
       case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
         return PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
       case UR_DEVICE_PARTITION_BY_CSLICE:
@@ -407,9 +505,21 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
         die("UR_DEVICE_INFO_SUPPORTED_PARTITIONS: unhandled value");
       }
     };
-    return Value
-        .convertArray<ur_device_partition_t, pi_device_partition_property>(
-            ConvertFunc);
+
+    Value.convertArray<ur_device_partition_t, pi_device_partition_property>(
+        ConvertFunc);
+
+    if (ParamValue) {
+      const uint32_t NumberElements =
+          *ParamValueSizeRet / sizeof(pi_device_partition_property);
+      reinterpret_cast<pi_device_partition_property *>(
+          ParamValue)[NumberElements] = 0;
+    }
+
+    if (ParamValueSizeRet && *ParamValueSizeRet != 0) {
+      *ParamValueSizeRet += sizeof(pi_device_partition_property);
+    }
+
   } else if (ParamName == UR_DEVICE_INFO_LOCAL_MEM_TYPE) {
     auto ConvertFunc = [](ur_device_local_mem_type_t UrValue) {
       switch (UrValue) {
@@ -465,16 +575,48 @@ inline pi_result ur2piDeviceInfoValue(ur_device_info_t ParamName,
     };
     return Value.convertBitSet<ur_memory_scope_capability_flag_t,
                                pi_memory_scope_capabilities>(ConvertFunc);
+  } else if (*ParamValueSizeRet == 1 && ParamValueSize == 4) {
+    /* PI type: pi_bool
+     * UR type: ur_bool_t
+     * Need to convert from pi_bool (4 bytes) to ur_bool_t (1 byte)
+     */
+    fixupInfoValueTypes(*ParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
+                        ParamValue);
+  } else if (ParamName == UR_DEVICE_INFO_QUEUE_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES ||
+             ParamName == UR_DEVICE_INFO_EXECUTION_CAPABILITIES ||
+             ParamName == UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN ||
+             ParamName == UR_DEVICE_INFO_USM_HOST_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_DEVICE_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT ||
+             ParamName == UR_DEVICE_INFO_USM_SYSTEM_SHARED_SUPPORT) {
+    /* PI type: pi_bitfield
+     * UR type: ur_flags_t (uint32_t)
+     * No need to convert since types are compatible
+     */
+    *ParamValueSizeRet = sizeof(pi_bitfield);
+  } else if (ParamName == UR_DEVICE_INFO_SINGLE_FP_CONFIG ||
+             ParamName == UR_DEVICE_INFO_HALF_FP_CONFIG ||
+             ParamName == UR_DEVICE_INFO_DOUBLE_FP_CONFIG) {
+    /* CL type: pi_device_fp_config
+     * UR type: ur_device_fp_capability_flags_t
+     * No need to convert since types are compatible
+     */
+    *ParamValueSizeRet = sizeof(pi_device_fp_config);
   } else {
+
     // TODO: what else needs a UR-PI translation?
   }
 
-  if (ParamValueSizePI && ParamValueSizePI != *ParamValueSizeUR) {
+  if (ParamValueSize && ParamValueSizeRet &&
+      ParamValueSize != *ParamValueSizeRet) {
     fprintf(stderr, "UR DeviceInfoType=%d PI=%d but UR=%d\n", ParamName,
-            (int)ParamValueSizePI, (int)*ParamValueSizeUR);
+            (int)ParamValueSize, (int)*ParamValueSizeRet);
     die("ur2piDeviceInfoValue: size mismatch");
   }
-  return PI_SUCCESS;
+  return error;
 }
 
 inline pi_result ur2piSamplerInfoValue(ur_sampler_info_t ParamName,
@@ -553,25 +695,6 @@ inline pi_result ur2piUSMAllocInfoValue(ur_usm_alloc_info_t ParamName,
   return PI_SUCCESS;
 }
 
-// Handle mismatched PI and UR type return sizes for info queries
-inline pi_result fixupInfoValueTypes(size_t ParamValueSizeRetUR,
-                                     size_t *ParamValueSizeRetPI,
-                                     size_t ParamValueSize, void *ParamValue) {
-  if (ParamValueSizeRetUR == 1 && ParamValueSize == 4) {
-    // extend bool to pi_bool (uint32_t)
-    if (ParamValue) {
-      auto *ValIn = static_cast<bool *>(ParamValue);
-      auto *ValOut = static_cast<pi_bool *>(ParamValue);
-      *ValOut = static_cast<pi_bool>(*ValIn);
-    }
-    if (ParamValueSizeRetPI) {
-      *ParamValueSizeRetPI = sizeof(pi_bool);
-    }
-  }
-
-  return PI_SUCCESS;
-}
-
 inline ur_result_t
 mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
                   ur_program_metadata_t *ur_metadata) {
@@ -600,6 +723,22 @@ namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
   std::ignore = PluginParameter;
+  // Fetch the single known adapter (the one which is statically linked) so we
+  // can release it. Fetching it for a second time (after piPlatformsGet)
+  // increases the reference count, so we need to release it twice.
+  // pi_unified_runtime has its own implementation of piTearDown.
+  static std::once_flag AdapterReleaseFlag;
+  ur_adapter_handle_t Adapter;
+  ur_result_t Ret = UR_RESULT_SUCCESS;
+  std::call_once(AdapterReleaseFlag, [&]() {
+    Ret = urAdapterGet(1, &Adapter, nullptr);
+    if (Ret == UR_RESULT_SUCCESS) {
+      Ret = urAdapterRelease(Adapter);
+      Ret = urAdapterRelease(Adapter);
+    }
+  });
+  HANDLE_ERRORS(Ret);
+
   // TODO: Dont check for errors in urTearDown, since
   // when using Level Zero plugin, the second urTearDown
   // will fail as ur_loader.so has already been unloaded,
@@ -612,9 +751,20 @@ inline pi_result piTearDown(void *PluginParameter) {
 inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                                 pi_uint32 *NumPlatforms) {
 
-  urInit(0);
+  urInit(0, nullptr);
+  // We're not going through the UR loader so we're guaranteed to have exactly
+  // one adapter (whichever is statically linked). The PI plugin for UR has its
+  // own implementation of piPlatformsGet.
+  static ur_adapter_handle_t Adapter;
+  static std::once_flag AdapterGetFlag;
+  ur_result_t Ret = UR_RESULT_SUCCESS;
+  std::call_once(AdapterGetFlag,
+                 [&Ret]() { Ret = urAdapterGet(1, &Adapter, nullptr); });
+  HANDLE_ERRORS(Ret);
+
   auto phPlatforms = reinterpret_cast<ur_platform_handle_t *>(Platforms);
-  HANDLE_ERRORS(urPlatformGet(NumEntries, phPlatforms, NumPlatforms));
+  HANDLE_ERRORS(
+      urPlatformGet(&Adapter, 1, NumEntries, phPlatforms, NumPlatforms));
   return PI_SUCCESS;
 }
 
@@ -775,9 +925,21 @@ inline pi_result piDeviceRelease(pi_device Device) {
   return PI_SUCCESS;
 }
 
-inline pi_result piPluginGetLastError(char **message) {
-  std::ignore = message;
-  return PI_SUCCESS;
+inline pi_result piPluginGetLastError(char **Message) {
+  // We're not going through the UR loader so we're guaranteed to have exactly
+  // one adapter (whichever is statically linked). The PI plugin for UR has its
+  // own implementation of piPluginGetLastError. Materialize the adapter
+  // reference for the urAdapterGetLastError call, then release it.
+  ur_adapter_handle_t Adapter;
+  urAdapterGet(1, &Adapter, nullptr);
+  // FIXME: ErrorCode should store a native error, but these are not being used
+  // in CUDA adapter at the moment
+  int32_t ErrorCode;
+  ur_result_t Res = urAdapterGetLastError(
+      Adapter, const_cast<const char **>(Message), &ErrorCode);
+  urAdapterRelease(Adapter);
+
+  return ur2piResult(Res);
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
@@ -1050,18 +1212,18 @@ inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  size_t UrParamValueSizeRet;
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+  size_t ParamValueSizeRetUR;
+  auto DeviceUR = reinterpret_cast<ur_device_handle_t>(Device);
 
-  HANDLE_ERRORS(urDeviceGetInfo(UrDevice, InfoType, ParamValueSize, ParamValue,
-                                &UrParamValueSizeRet));
+  HANDLE_ERRORS(urDeviceGetInfo(DeviceUR, InfoType, ParamValueSize, ParamValue,
+                                &ParamValueSizeRetUR));
+
+  ur2piDeviceInfoValue(InfoType, ParamValueSize, ParamValue,
+                       &ParamValueSizeRetUR);
 
   if (ParamValueSizeRet) {
-    *ParamValueSizeRet = UrParamValueSizeRet;
+    *ParamValueSizeRet = ParamValueSizeRetUR;
   }
-  ur2piDeviceInfoValue(InfoType, ParamValueSize, &ParamValueSize, ParamValue);
-  fixupInfoValueTypes(UrParamValueSizeRet, ParamValueSizeRet, ParamValueSize,
-                      ParamValue);
 
   return PI_SUCCESS;
 }
@@ -1104,63 +1266,72 @@ inline pi_result piDevicePartition(
 
   PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
-  if (!Properties || !Properties[0])
+  if (!Properties || !Properties[0]) {
     return PI_ERROR_INVALID_VALUE;
+  }
 
-  ur_device_partition_t Property;
+  ur_device_partition_t UrType;
   switch (Properties[0]) {
   case PI_DEVICE_PARTITION_EQUALLY:
-    Property = UR_DEVICE_PARTITION_EQUALLY;
+    UrType = UR_DEVICE_PARTITION_EQUALLY;
     break;
   case PI_DEVICE_PARTITION_BY_COUNTS:
-    Property = UR_DEVICE_PARTITION_BY_COUNTS;
+    UrType = UR_DEVICE_PARTITION_BY_COUNTS;
     break;
   case PI_DEVICE_PARTITION_BY_AFFINITY_DOMAIN:
-    Property = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
+    UrType = UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
     break;
   case PI_EXT_INTEL_DEVICE_PARTITION_BY_CSLICE:
-    Property = UR_DEVICE_PARTITION_BY_CSLICE;
+    UrType = UR_DEVICE_PARTITION_BY_CSLICE;
     break;
   default:
     return PI_ERROR_UNKNOWN;
   }
 
-  // Some partitioning types require a value
-  auto Value = uint32_t(Properties[1]);
-  if (Property == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
-    switch (Properties[1]) {
-    case PI_DEVICE_AFFINITY_DOMAIN_NUMA:
-      Value = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+  std::vector<ur_device_partition_property_t> UrProperties{};
+
+  // UR_DEVICE_PARTITION_BY_CSLICE doesn't have a value, so
+  // handle it outside the while loop below.
+  if (UrType == UR_DEVICE_PARTITION_BY_CSLICE) {
+    ur_device_partition_property_t UrProperty{};
+    UrProperty.type = UrType;
+    UrProperties.push_back(UrProperty);
+  }
+  while (*(++Properties)) {
+    ur_device_partition_property_t UrProperty;
+    UrProperty.type = UrType;
+    switch (UrType) {
+    case UR_DEVICE_PARTITION_EQUALLY: {
+      UrProperty.value.equally = *Properties;
       break;
-    case PI_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE:
-      Value = UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE;
-      break;
-    default:
-      return PI_ERROR_UNKNOWN;
     }
+    case UR_DEVICE_PARTITION_BY_COUNTS: {
+      UrProperty.value.count = *Properties;
+      break;
+    }
+    case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
+      /* No need to convert affinity domain enums from pi to ur because they
+       * are equivalent */
+      UrProperty.value.affinity_domain = *Properties;
+      break;
+    }
+    default: {
+      die("Invalid properties for call to piDevicePartition");
+    }
+    }
+    UrProperties.push_back(UrProperty);
   }
 
-  // Translate partitioning properties from PI-way
-  // (array of uintptr_t values) to UR-way
-  // (array of {uint32_t, uint32_t} pairs)
-  //
-  // TODO: correctly terminate the UR properties, see:
-  // https://github.com/oneapi-src/unified-runtime/issues/183
-  //
-  ur_device_partition_property_t UrProperty;
-  UrProperty.type = Property;
-  UrProperty.value.equally = Value;
-
-  ur_device_partition_properties_t UrProperties{
+  const ur_device_partition_properties_t UrPropertiesStruct{
       UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES,
       nullptr,
-      &UrProperty,
-      1,
+      UrProperties.data(),
+      UrProperties.size(),
   };
 
   auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
   auto UrSubDevices = reinterpret_cast<ur_device_handle_t *>(SubDevices);
-  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrProperties, NumEntries,
+  HANDLE_ERRORS(urDevicePartition(UrDevice, &UrPropertiesStruct, NumEntries,
                                   UrSubDevices, NumSubDevices));
   return PI_SUCCESS;
 }
@@ -1213,6 +1384,10 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                     __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -1449,7 +1624,6 @@ inline pi_result piextQueueCreateWithNativeHandle(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
@@ -2352,10 +2526,10 @@ inline pi_result piextEnqueueDeviceGlobalVariableWrite(
       reinterpret_cast<ur_program_handle_t>(Program);
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
   HANDLE_ERRORS(urEnqueueDeviceGlobalVariableWrite(
       UrQueue, UrProgram, Name, BlockingWrite, Count, Offset, Src,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -2386,11 +2560,11 @@ inline pi_result piextEnqueueDeviceGlobalVariableRead(
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueDeviceGlobalVariableRead(
       UrQueue, UrProgram, Name, BlockingRead, Count, Offset, Dst,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -2844,11 +3018,11 @@ piEnqueueMemImageCopy(pi_queue Queue, pi_mem SrcImage, pi_mem DstImage,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemImageCopy(
       UrQueue, UrImageSrc, UrImageDst, UrSrcOrigin, UrDstOrigin, UrRegion,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3014,7 +3188,7 @@ inline pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   // TODO: to map from pi_usm_migration_flags to
   // ur_usm_migration_flags_t
@@ -3022,7 +3196,7 @@ inline pi_result piextUSMEnqueuePrefetch(pi_queue Queue, const void *Ptr,
   ur_usm_migration_flags_t UrFlags{};
   HANDLE_ERRORS(urEnqueueUSMPrefetch(UrQueue, Ptr, Size, UrFlags,
                                      NumEventsInWaitList, UrEventsWaitList,
-                                     UrEvent));
+                                     UREvent));
 
   return PI_SUCCESS;
 }
@@ -3043,7 +3217,7 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
 
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   ur_usm_advice_flags_t UrAdvice{};
   if (Advice & PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY) {
@@ -3062,7 +3236,7 @@ inline pi_result piextUSMEnqueueMemAdvise(pi_queue Queue, const void *Ptr,
     UrAdvice |= UR_USM_ADVICE_FLAG_DEFAULT;
   }
 
-  HANDLE_ERRORS(urEnqueueUSMAdvise(UrQueue, Ptr, Length, UrAdvice, UrEvent));
+  HANDLE_ERRORS(urEnqueueUSMAdvise(UrQueue, Ptr, Length, UrAdvice, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3159,6 +3333,29 @@ inline pi_result piextUSMGetMemAllocInfo(pi_context Context, const void *Ptr,
   return PI_SUCCESS;
 }
 
+inline pi_result piextUSMImport(const void *HostPtr, size_t Size,
+                                pi_context Context) {
+
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  HANDLE_ERRORS(urUSMImportExp(UrContext, const_cast<void *>(HostPtr), Size));
+  return PI_SUCCESS;
+}
+
+inline pi_result piextUSMRelease(const void *HostPtr, pi_context Context) {
+
+  PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
+
+  ur_context_handle_t UrContext =
+      reinterpret_cast<ur_context_handle_t>(Context);
+
+  HANDLE_ERRORS(urUSMReleaseExp(UrContext, const_cast<void *>(HostPtr)));
+  return PI_SUCCESS;
+}
+
 inline pi_result piMemImageGetInfo(pi_mem Image, pi_image_info ParamName,
                                    size_t ParamValueSize, void *ParamValue,
                                    size_t *ParamValueSizeRet) {
@@ -3235,11 +3432,11 @@ inline pi_result piextUSMEnqueueMemcpy2D(pi_queue Queue, pi_bool Blocking,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueUSMMemcpy2D(
       UrQueue, Blocking, DstPtr, DstPitch, SrcPtr, SrcPitch, Width, Height,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3266,11 +3463,11 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueKernelLaunch(
       UrQueue, UrKernel, WorkDim, GlobalWorkOffset, GlobalWorkSize,
-      LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      LocalWorkSize, NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3294,12 +3491,12 @@ piEnqueueMemImageWrite(pi_queue Queue, pi_mem Image, pi_bool BlockingWrite,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemImageWrite(
       UrQueue, UrImage, BlockingWrite, UrOrigin, UrRegion, InputRowPitch,
       InputSlicePitch, const_cast<void *>(Ptr), NumEventsInWaitList,
-      UrEventsWaitList, UrEvent));
+      UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3322,11 +3519,11 @@ piEnqueueMemImageRead(pi_queue Queue, pi_mem Image, pi_bool BlockingRead,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemImageRead(
       UrQueue, UrImage, BlockingRead, UrOrigin, UrRegion, RowPitch, SlicePitch,
-      Ptr, NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      Ptr, NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3355,11 +3552,11 @@ inline pi_result piEnqueueMemBufferMap(
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferMap(UrQueue, UrMem, BlockingMap, UrMapFlags,
                                       Offset, Size, NumEventsInWaitList,
-                                      UrEventsWaitList, UrEvent, RetMap));
+                                      UrEventsWaitList, UREvent, RetMap));
 
   return PI_SUCCESS;
 }
@@ -3377,11 +3574,11 @@ inline pi_result piEnqueueMemUnmap(pi_queue Queue, pi_mem Mem, void *MappedPtr,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemUnmap(UrQueue, UrMem, MappedPtr,
                                   NumEventsInWaitList, UrEventsWaitList,
-                                  UrEvent));
+                                  UREvent));
 
   return PI_SUCCESS;
 }
@@ -3400,11 +3597,11 @@ inline pi_result piEnqueueMemBufferFill(pi_queue Queue, pi_mem Buffer,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferFill(UrQueue, UrBuffer, Pattern, PatternSize,
                                        Offset, Size, NumEventsInWaitList,
-                                       UrEventsWaitList, UrEvent));
+                                       UrEventsWaitList, UREvent));
   return PI_SUCCESS;
 }
 
@@ -3422,12 +3619,12 @@ inline pi_result piextUSMEnqueueMemset(pi_queue Queue, void *Ptr,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   size_t PatternSize = 1;
   HANDLE_ERRORS(urEnqueueUSMFill(UrQueue, Ptr, PatternSize, &Value, Count,
                                  NumEventsInWaitList, UrEventsWaitList,
-                                 UrEvent));
+                                 UREvent));
 
   return PI_SUCCESS;
 }
@@ -3456,12 +3653,12 @@ inline pi_result piEnqueueMemBufferCopyRect(
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferCopyRect(
       UrQueue, UrBufferSrc, UrBufferDst, UrSrcOrigin, UrDstOrigin, UrRegion,
       SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3482,11 +3679,11 @@ inline pi_result piEnqueueMemBufferCopy(pi_queue Queue, pi_mem SrcMem,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferCopy(
       UrQueue, UrBufferSrc, UrBufferDst, SrcOffset, DstOffset, Size,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3502,11 +3699,11 @@ inline pi_result piextUSMEnqueueMemcpy(pi_queue Queue, pi_bool Blocking,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueUSMMemcpy(UrQueue, Blocking, DstPtr, SrcPtr, Size,
                                    NumEventsInWaitList, UrEventsWaitList,
-                                   UrEvent));
+                                   UREvent));
 
   return PI_SUCCESS;
 }
@@ -3535,12 +3732,12 @@ inline pi_result piEnqueueMemBufferWriteRect(
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferWriteRect(
       UrQueue, UrBuffer, BlockingWrite, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
-      const_cast<void *>(Ptr), NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      const_cast<void *>(Ptr), NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3560,11 +3757,11 @@ inline pi_result piEnqueueMemBufferWrite(pi_queue Queue, pi_mem Buffer,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferWrite(
       UrQueue, UrBuffer, BlockingWrite, Offset, Size, const_cast<void *>(Ptr),
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3594,12 +3791,12 @@ inline pi_result piEnqueueMemBufferReadRect(
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferReadRect(
       UrQueue, UrBuffer, BlockingRead, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
-      NumEventsInWaitList, UrEventsWaitList, UrEvent));
+      NumEventsInWaitList, UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3618,11 +3815,11 @@ inline pi_result piEnqueueMemBufferRead(pi_queue Queue, pi_mem Src,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueMemBufferRead(UrQueue, UrBuffer, BlockingRead, Offset,
                                        Size, Dst, NumEventsInWaitList,
-                                       UrEventsWaitList, UrEvent));
+                                       UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3638,10 +3835,10 @@ inline pi_result piEnqueueEventsWaitWithBarrier(pi_queue Queue,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueEventsWaitWithBarrier(UrQueue, NumEventsInWaitList,
-                                               UrEventsWaitList, UrEvent));
+                                               UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3660,10 +3857,10 @@ inline pi_result piEnqueueEventsWait(pi_queue Queue,
   const ur_event_handle_t *UrEventsWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventsWaitList);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(OutEvent);
 
   HANDLE_ERRORS(urEnqueueEventsWait(UrQueue, NumEventsInWaitList,
-                                    UrEventsWaitList, UrEvent));
+                                    UrEventsWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3728,7 +3925,7 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
 
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  ur_event_handle_t UrEvent = reinterpret_cast<ur_event_handle_t>(Event);
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
 
   ur_event_info_t PropName{};
   if (ParamName == PI_EVENT_INFO_COMMAND_QUEUE) {
@@ -3745,7 +3942,7 @@ inline pi_result piEventGetInfo(pi_event Event, pi_event_info ParamName,
     return PI_ERROR_INVALID_VALUE;
   }
 
-  HANDLE_ERRORS(urEventGetInfo(UrEvent, PropName, ParamValueSize, ParamValue,
+  HANDLE_ERRORS(urEventGetInfo(UREvent, PropName, ParamValueSize, ParamValue,
                                ParamValueSizeRet));
 
   return PI_SUCCESS;
@@ -3757,11 +3954,11 @@ inline pi_result piextEventGetNativeHandle(pi_event Event,
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
 
-  ur_event_handle_t UrEvent = reinterpret_cast<ur_event_handle_t>(Event);
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
 
   ur_native_handle_t *UrNativeEvent =
       reinterpret_cast<ur_native_handle_t *>(NativeHandle);
-  HANDLE_ERRORS(urEventGetNativeHandle(UrEvent, UrNativeEvent));
+  HANDLE_ERRORS(urEventGetNativeHandle(UREvent, UrNativeEvent));
 
   return PI_SUCCESS;
 }
@@ -3774,7 +3971,7 @@ inline pi_result piEventGetProfilingInfo(pi_event Event,
 
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  ur_event_handle_t UrEvent = reinterpret_cast<ur_event_handle_t>(Event);
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
 
   ur_profiling_info_t PropName{};
   switch (ParamName) {
@@ -3798,7 +3995,7 @@ inline pi_result piEventGetProfilingInfo(pi_event Event,
     return PI_ERROR_INVALID_PROPERTY;
   }
 
-  HANDLE_ERRORS(urEventGetProfilingInfo(UrEvent, PropName, ParamValueSize,
+  HANDLE_ERRORS(urEventGetProfilingInfo(UREvent, PropName, ParamValueSize,
                                         ParamValue, ParamValueSizeRet));
 
   return PI_SUCCESS;
@@ -3809,12 +4006,12 @@ inline pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(RetEvent);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(RetEvent);
   // pass null for the hNativeHandle to use urEventCreateWithNativeHandle
   // as urEventCreate
   ur_event_native_properties_t Properties{};
   HANDLE_ERRORS(
-      urEventCreateWithNativeHandle(nullptr, UrContext, &Properties, UrEvent));
+      urEventCreateWithNativeHandle(nullptr, UrContext, &Properties, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3834,11 +4031,11 @@ inline pi_result piextEventCreateWithNativeHandle(pi_native_handle NativeHandle,
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);
 
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
   ur_event_native_properties_t Properties{};
   Properties.isNativeHandleOwned = OwnNativeHandle;
   HANDLE_ERRORS(urEventCreateWithNativeHandle(UrNativeKernel, UrContext,
-                                              &Properties, UrEvent));
+                                              &Properties, UREvent));
 
   return PI_SUCCESS;
 }
@@ -3866,8 +4063,8 @@ inline pi_result piEventSetStatus(pi_event Event, pi_int32 ExecutionStatus) {
 inline pi_result piEventRetain(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  ur_event_handle_t UrEvent = reinterpret_cast<ur_event_handle_t>(Event);
-  HANDLE_ERRORS(urEventRetain(UrEvent));
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
+  HANDLE_ERRORS(urEventRetain(UREvent));
 
   return PI_SUCCESS;
 }
@@ -3875,8 +4072,8 @@ inline pi_result piEventRetain(pi_event Event) {
 inline pi_result piEventRelease(pi_event Event) {
   PI_ASSERT(Event, PI_ERROR_INVALID_EVENT);
 
-  ur_event_handle_t UrEvent = reinterpret_cast<ur_event_handle_t>(Event);
-  HANDLE_ERRORS(urEventRelease(UrEvent));
+  ur_event_handle_t UREvent = reinterpret_cast<ur_event_handle_t>(Event);
+  HANDLE_ERRORS(urEventRelease(UREvent));
 
   return PI_SUCCESS;
 }
@@ -4257,10 +4454,10 @@ inline pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
   ur_queue_handle_t UrQueue = reinterpret_cast<ur_queue_handle_t>(Queue);
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urCommandBufferEnqueueExp(
-      UrCommandBuffer, UrQueue, NumEventsInWaitList, UrEventWaitList, UrEvent));
+      UrCommandBuffer, UrQueue, NumEventsInWaitList, UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -4583,12 +4780,12 @@ piextMemImageCopy(pi_queue Queue, void *DstPtr, void *SrcPtr,
 
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesImageCopyExp(
       UrQueue, DstPtr, SrcPtr, &UrFormat, &UrDesc, UrFlags, UrSrcOffset,
       UrDstOffset, UrCopyExtent, UrHostExtent, NumEventsInWaitList,
-      UrEventWaitList, UrEvent));
+      UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -4793,10 +4990,10 @@ piextWaitExternalSemaphore(pi_queue Queue,
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesWaitExternalSemaphoreExp(
-      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UrEvent));
+      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }
@@ -4813,10 +5010,10 @@ piextSignalExternalSemaphore(pi_queue Queue,
       reinterpret_cast<ur_exp_interop_semaphore_handle_t>(SemHandle);
   const ur_event_handle_t *UrEventWaitList =
       reinterpret_cast<const ur_event_handle_t *>(EventWaitList);
-  ur_event_handle_t *UrEvent = reinterpret_cast<ur_event_handle_t *>(Event);
+  ur_event_handle_t *UREvent = reinterpret_cast<ur_event_handle_t *>(Event);
 
   HANDLE_ERRORS(urBindlessImagesSignalExternalSemaphoreExp(
-      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UrEvent));
+      UrQueue, UrSemHandle, NumEventsInWaitList, UrEventWaitList, UREvent));
 
   return PI_SUCCESS;
 }

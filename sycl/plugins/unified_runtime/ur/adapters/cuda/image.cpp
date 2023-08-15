@@ -71,10 +71,13 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
     PixelTypeSizeBytes = SIZE;                                                 \
     break;                                                                     \
   }
+// These new formats were brought in in CUDA 11.5
+#if CUDA_VERSION >= 11050
     CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, CU_AD_FORMAT_UNORM_INT8X1, 1)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
+#endif
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, CU_AD_FORMAT_UNSIGNED_INT8, 1)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, CU_AD_FORMAT_SIGNED_INT8, 1)
-    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, CU_AD_FORMAT_UNSIGNED_INT16, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16, CU_AD_FORMAT_SIGNED_INT16, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, CU_AD_FORMAT_HALF, 2)
@@ -131,8 +134,7 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
   }
 }
 
-ur_result_t urTextureCreate(ur_context_handle_t hContext,
-                            ur_sampler_handle_t hSampler,
+ur_result_t urTextureCreate(ur_sampler_handle_t hSampler,
                             const ur_image_desc_t *pImageDesc,
                             CUDA_RESOURCE_DESC ResourceDesc,
                             ur_exp_image_handle_t *phRetImage) {
@@ -147,7 +149,7 @@ ur_result_t urTextureCreate(ur_context_handle_t hContext,
     /// |       1        | filter mode
     /// |       0        | normalize coords
     CUDA_TEXTURE_DESC ImageTexDesc = {};
-    CUaddress_mode AddrMode;
+    CUaddress_mode AddrMode = {};
     ur_sampler_addressing_mode_t AddrModeProp = hSampler->getAddressingMode();
     if (AddrModeProp == (UR_SAMPLER_ADDRESSING_MODE_CLAMP_TO_EDGE -
                          UR_SAMPLER_ADDRESSING_MODE_NONE)) {
@@ -465,8 +467,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urBindlessImagesSampledImageCreateExp(
       return UR_RESULT_ERROR_INVALID_VALUE;
     }
 
-    UR_CHECK_ERROR(urTextureCreate(hContext, hSampler, pImageDesc,
-                                   image_res_desc, phImage));
+    UR_CHECK_ERROR(
+        urTextureCreate(hSampler, pImageDesc, image_res_desc, phImage));
 
     auto urMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
         hContext, (CUarray)hImageMem, (CUtexObject)*phImage, hSampler,

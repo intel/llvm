@@ -10,14 +10,11 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdint>
-#include <cstdlib>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <cstdlib>    // for size_t
+#include <string>     // for string
+#include <sys/stat.h> // for stat
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS
@@ -40,7 +37,7 @@
 #endif // _WIN32
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Groups the OS-dependent services.
@@ -84,5 +81,5 @@ public:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

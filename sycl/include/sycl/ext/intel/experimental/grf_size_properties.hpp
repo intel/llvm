@@ -8,13 +8,14 @@
 
 #pragma once
 
+#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #define SYCL_EXT_INTEL_GRF_SIZE 1
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental {
 struct grf_size_key {
   template <unsigned int Size>
@@ -77,16 +78,32 @@ struct PropertyMetaInfo<
 template <typename Properties>
 struct ConflictingProperties<sycl::ext::intel::experimental::grf_size_key,
                              Properties>
-    : ContainsProperty<sycl::ext::intel::experimental::grf_size_automatic_key,
-                       Properties> {};
+    : std::bool_constant<
+          ContainsProperty<
+              sycl::ext::intel::experimental::grf_size_automatic_key,
+              Properties>::value ||
+          ContainsProperty<sycl::detail::register_alloc_mode_key,
+                           Properties>::value> {};
 
 template <typename Properties>
 struct ConflictingProperties<
     sycl::ext::intel::experimental::grf_size_automatic_key, Properties>
-    : ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
-                       Properties> {};
+    : std::bool_constant<
+          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
+                           Properties>::value ||
+          ContainsProperty<sycl::detail::register_alloc_mode_key,
+                           Properties>::value> {};
+
+template <typename Properties>
+struct ConflictingProperties<sycl::detail::register_alloc_mode_key, Properties>
+    : std::bool_constant<
+          ContainsProperty<sycl::ext::intel::experimental::grf_size_key,
+                           Properties>::value ||
+          ContainsProperty<
+              sycl::ext::intel::experimental::grf_size_automatic_key,
+              Properties>::value> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

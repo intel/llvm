@@ -19,7 +19,7 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace ext::oneapi::experimental {
 
@@ -42,5 +42,5 @@ template <class T, int N>
 using simd_mask =
     std::experimental::simd_mask<T, simd_abi::native_fixed_size<T, N>>;
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

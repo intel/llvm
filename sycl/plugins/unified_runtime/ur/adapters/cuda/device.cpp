@@ -6,9 +6,11 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include <array>
 #include <cassert>
 #include <sstream>
 
+#include "adapter.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
@@ -542,13 +544,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&LocalMemSize,
-                             CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->maxLocalMemSizeChosen()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      int LocalMemSize = 0;
+      detail::ur::assertion(
+          cuDeviceGetAttribute(&LocalMemSize,
+                               CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+                               hDevice->get()) == CUDA_SUCCESS);
+      detail::ur::assertion(LocalMemSize >= 0);
+      return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ECCEnabled = 0;
@@ -695,13 +702,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
+
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
 
     // Intel USM extensions
@@ -1176,7 +1190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
   CUdevice CuDevice = 0;
-  memcpy(&CuDevice, hNativeDevice, sizeof(CUdevice));
+  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
@@ -1194,13 +1208,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_result_t Result = urPlatformGet(0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_result_t Result =
+      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
       malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(NumPlatforms, Plat, nullptr);
+  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, Plat, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

@@ -3,9 +3,9 @@
 // RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 // There is no validation for SPV_INTEL_device_side_avc_motion_estimation implemented in
 // SPIRV-Tools. TODO: spirv-val %t.spv
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 // RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-LLVM-COMMON,CHECK-LLVM
-// RUN: llvm-spirv -r %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
+// RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc --spirv-target-env=SPV-IR
 // RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefixes=CHECK-LLVM-COMMON,CHECK-LLVM-SPIRV
 // RUN: llvm-spirv %t.rev.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_device_side_avc_motion_estimation -o %t.spv
 // RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV

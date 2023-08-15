@@ -14,6 +14,7 @@
 #include <sycl/detail/pi.hpp>
 
 #include <atomic>
+#include <cassert>
 #include <chrono>
 #include <cstring>
 
@@ -1439,5 +1440,14 @@ mock_piextPeerAccessGetInfo(pi_device command_device, pi_device peer_device,
   if (param_value_size_ret)
     *param_value_size_ret = sizeof(pi_int32);
 
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMImport(const void *HostPtr, size_t Size,
+                                     pi_context Context) {
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextUSMRelease(const void *HostPtr, pi_context Context) {
   return PI_SUCCESS;
 }

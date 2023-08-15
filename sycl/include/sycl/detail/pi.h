@@ -143,9 +143,11 @@
 //         - piextDestroyExternalSemaphore
 //         - piextWaitExternalSemaphore
 //         - piextSignalExternalSemaphore
+// 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
+// 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
 
 #define _PI_H_VERSION_MAJOR 14
-#define _PI_H_VERSION_MINOR 36
+#define _PI_H_VERSION_MINOR 38
 
 #define _PI_STRING_HELPER(a) #a
 #define _PI_CONCAT(a, b) _PI_STRING_HELPER(a.b)
@@ -562,17 +564,17 @@ typedef enum {
 typedef enum {
   // Device-specific value opaque in PI API.
   PI_MEM_ADVICE_RESET = 0,
-  PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 101,
-  PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 102,
-  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 103,
-  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION = 104,
-  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY = 105,
-  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY = 106,
-  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST = 107,
-  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 108,
-  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 109,
-  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 110,
-  PI_MEM_ADVICE_UNKNOWN = 999,
+  PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY = 1 << 0,
+  PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY = 1 << 1,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION = 1 << 2,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION = 1 << 3,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY = 1 << 4,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY = 1 << 5,
+  PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST = 1 << 6,
+  PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST = 1 << 7,
+  PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST = 1 << 8,
+  PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
+  PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
 
 typedef enum {
@@ -903,6 +905,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
 
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports
@@ -2086,6 +2089,20 @@ __SYCL_EXPORT pi_result piextUSMEnqueueMemcpy2D(
     const void *src_ptr, size_t src_pitch, size_t width, size_t height,
     pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
     pi_event *event);
+
+/// Import host system memory into USM.
+///
+/// \param ptr start address of memory range to import
+/// \param size is the number of bytes to import
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMImport(const void *ptr, size_t size,
+                                       pi_context context);
+
+/// Release host system memory from USM.
+///
+/// \param ptr start address of imported memory range
+/// \param context is the pi_context
+__SYCL_EXPORT pi_result piextUSMRelease(const void *ptr, pi_context context);
 
 ///
 /// Device global variable

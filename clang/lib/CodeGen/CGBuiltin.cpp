@@ -5573,7 +5573,8 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
     return EmitIntelFPGARegBuiltin(E, ReturnValue);
   case Builtin::BI__builtin_intel_fpga_mem:
     return EmitIntelFPGAMemBuiltin(E);
-
+  case Builtin::BI__builtin_intel_sycl_ptr_annotation:
+    return EmitIntelSYCLPtrAnnotationBuiltin(E);
   case Builtin::BI__builtin_get_device_side_mangled_name: {
     auto Name = CGM.getCUDARuntime().getDeviceSideName(
         cast<DeclRefExpr>(E->getArg(0)->IgnoreImpCasts())->getDecl());
@@ -22414,6 +22415,12 @@ RValue CodeGenFunction::EmitIntelFPGAMemBuiltin(const CallExpr *E) {
   return RValue::get(Ann);
 }
 
+static bool hasFuncNameRequestedFPAccuracy(StringRef Name,
+                                           const LangOptions &LangOpts) {
+  auto FuncMapIt = LangOpts.FPAccuracyFuncMap.find(Name.str());
+  return (FuncMapIt != LangOpts.FPAccuracyFuncMap.end());
+}
+
 llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
     llvm::FunctionType *IRFuncTy, const SmallVectorImpl<llvm::Value *> &IRArgs,
     llvm::Value *FnPtr, const FunctionDecl *FD) {
@@ -22522,9 +22529,53 @@ llvm::CallInst *CodeGenFunction::EmitFPBuiltinIndirectCall(
   if (!FPAccuracyIntrinsicID)
     return nullptr;
 
-  Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-  return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
-                                   FPAccuracyIntrinsicID);
+  // Create an intrinsic only if it exists in the map, or if there
+  // a TU fp-accuracy requested.
+  const LangOptions &LangOpts = getLangOpts();
+  if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
+      !LangOpts.FPAccuracyVal.empty()) {
+    Func = CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
+    return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
+                                     FPAccuracyIntrinsicID);
+  }
+  return nullptr;
+}
+
+RValue CodeGenFunction::EmitIntelSYCLPtrAnnotationBuiltin(const CallExpr *E) {
+  const Expr *PtrArg = E->getArg(0);
+  Value *PtrVal = EmitScalarExpr(PtrArg);
+  auto &Ctx = CGM.getContext();
+
+  // Create the pointer annotation.
+  Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
+                                 {PtrVal->getType(), CGM.ConstGlobalsPtrTy});
+
+  SmallString<256> AnnotStr;
+  llvm::raw_svector_ostream Out(AnnotStr);
+
+  SmallVector<std::pair<std::string, std::string>, 4> Properties;
+
+  for (unsigned I = 1, N = E->getNumArgs(); I <= N / 2; I++) {
+    auto Arg = E->getArg(I)->IgnoreParenCasts();
+    const StringLiteral *Str = dyn_cast<const StringLiteral>(Arg);
+    Expr::EvalResult Result;
+    if (!Str && Arg->EvaluateAsRValue(Result, Ctx) && Result.Val.isLValue()) {
+      const auto *LVE = Result.Val.getLValueBase().dyn_cast<const Expr *>();
+      Str = dyn_cast<const StringLiteral>(LVE);
+    }
+    assert(Str && "Constant parameter string is invalid?");
+
+    auto IntVal = E->getArg(I + N / 2)->getIntegerConstantExpr(Ctx);
+    assert(IntVal.has_value() &&
+           "Constant integer arg isn't actually constant?");
+
+    Properties.push_back(
+        std::make_pair(Str->getString().str(), toString(IntVal.value(), 10)));
+  }
+
+  llvm::Value *Ann =
+      EmitSYCLAnnotationCall(F, PtrVal, E->getExprLoc(), Properties);
+  return RValue::get(Ann);
 }
 
 Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,

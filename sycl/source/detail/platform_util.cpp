@@ -25,7 +25,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -152,5 +152,5 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

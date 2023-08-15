@@ -83,4 +83,6 @@ piextUSMEnqueuePrefetch
 piextUSMFree
 piextUSMGetMemAllocInfo
 piextUSMHostAlloc
+piextUSMImport
+piextUSMRelease
 piextUSMSharedAlloc
