@@ -973,6 +973,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
+                                                hQueue, CuStream);
+      NewEvent->start();
+    }
+
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(
@@ -992,8 +999,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
-                                                     hQueue, CuStream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
@@ -1050,6 +1055,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     size_t BytesToCopy =
         ElementByteSize * SrcArrayDesc.NumChannels * region.width;
 
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
+                                                hQueue, CuStream);
+      NewEvent->start();
+    }
     ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
@@ -1070,8 +1081,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, CuStream);
       NewEvent->record();
       *phEvent = NewEvent;
     }

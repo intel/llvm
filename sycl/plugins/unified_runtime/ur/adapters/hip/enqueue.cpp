@@ -978,6 +978,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     size_t AdjustedRegion[3] = {BytesToCopy, region.height, region.height};
     size_t DstOffset[3] = {ByteOffsetX, origin.y, origin.z};
 
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
+                                                     hQueue, HIPStream);
+      NewEvent->start();
+    }
+
     Result = commonEnqueueMemImageNDCopy(HIPStream, ImgType, AdjustedRegion,
                                          pSrc, hipMemoryTypeHost, nullptr,
                                          Array, hipMemoryTypeArray, DstOffset);
@@ -987,8 +994,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
-                                                     hQueue, HIPStream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
@@ -1054,6 +1059,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     size_t SrcOffset[3] = {SrcByteOffsetX, srcOrigin.y, srcOrigin.z};
     size_t DstOffset[3] = {DstByteOffsetX, dstOrigin.y, dstOrigin.z};
 
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
+                                                hQueue, HIPStream);
+      NewEvent->start();
+    }
     Result = commonEnqueueMemImageNDCopy(
         HIPStream, ImgType, AdjustedRegion, SrcArray, hipMemoryTypeArray,
         SrcOffset, DstArray, hipMemoryTypeArray, DstOffset);
@@ -1063,8 +1074,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, HIPStream);
       NewEvent->record();
       *phEvent = NewEvent;
     }
