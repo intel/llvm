@@ -1,17 +1,15 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// TODO reenable this test when -ffast-math works with cmath_test for SPIR-V
-// compilation
-// REQUIRES: cuda
+// UNSUPPORTED: hip
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
 //
-// // Check that --fast-math works with cmath funcs
+// // Check that --fast-math works with cmath funcs for CUDA
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out -ffast-math -DSYCL_E2E_FASTMATH
-// RUN: %{run} %t.out
+// RUN: if cuda %{ %{run} %t.out %}
 
 #include "math_utils.hpp"
 #include <cmath>
