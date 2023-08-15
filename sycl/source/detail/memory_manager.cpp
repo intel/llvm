@@ -530,12 +530,12 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                                             DstAccessRange[DstPos.YTerm],
                                             DstAccessRange[DstPos.ZTerm]};
       if (1 == DimDst && 1 == DimSrc) {
-          Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
-              Queue, DstMem,
-              /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
-              &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
-              HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
-              &OutEvent);
+        Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
+            Queue, DstMem,
+            /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
+            &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
+            HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
       }
     }
   } else {
