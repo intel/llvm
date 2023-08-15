@@ -76,7 +76,7 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
 def SYCLHostKernelNameOp
     : SYCL_HostOp<"kernel_name",
         [Symbol, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "Represents a constant holding the name of a kernel, i.e., a " #
+  let summary = "Represents a constant holding the name of a SYCL kernel, i.e., a " #
                 " `gpu.func` with the `kernel` attribute.";
   let arguments = (ins SymbolNameAttr:$sym_name, SymbolRefAttr:$kernel_name);
   let assemblyFormat = [{
@@ -87,7 +87,7 @@ def SYCLHostKernelNameOp
 def SYCLHostGetKernelOp
     : SYCL_HostOp<"get_kernel",
         [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "Defines a reference to a kernel, i.e., a `gpu.func` with " #
+  let summary = "Defines a reference to a SYCL kernel, i.e., a `gpu.func` with " #
                 "`kernel` attribute.";
   let arguments = (ins SymbolRefAttr:$kernel_name);
   let results = (outs LLVM_AnyPointer:$res);
