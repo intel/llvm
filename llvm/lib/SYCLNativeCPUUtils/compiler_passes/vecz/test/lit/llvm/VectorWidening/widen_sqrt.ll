@@ -19,7 +19,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func float @_Z4sqrtf(float)
 declare spir_func <2 x float> @_Z4sqrtDv2_f(<2 x float>)
 declare spir_func <4 x float> @_Z4sqrtDv4_f(<4 x float>)
@@ -29,7 +29,7 @@ declare spir_func <16 x float> @_Z4sqrtDv16_f(<16 x float>)
 define spir_kernel void @test_sqrt(<2 x float> addrspace(1)* %in2, <2 x float> addrspace(1)* %out2,
                                    <4 x float> addrspace(1)* %in4, <4 x float> addrspace(1)* %out4) {
 entry:
-  %gid = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %gid = call i64 @__mux_get_global_id(i32 0)
   %arrayin2 = getelementptr inbounds <2 x float>, <2 x float> addrspace(1)* %in2, i64 %gid
   %arrayin4 = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %in4, i64 %gid
   %arrayout2 = getelementptr inbounds <2 x float>, <2 x float> addrspace(1)* %out2, i64 %gid

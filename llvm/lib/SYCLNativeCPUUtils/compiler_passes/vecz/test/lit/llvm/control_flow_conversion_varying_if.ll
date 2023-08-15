@@ -42,7 +42,7 @@ if.end:                                           ; preds = %if.else, %if.then
 define spir_kernel void @test_varying_if(i32 %a, i32* %b) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 
@@ -63,7 +63,7 @@ if.end:                                           ; preds = %if.else, %if.then
 
 define spir_kernel void @test_uniform_loop(i32 %a, i32* %b)  {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   br label %for.cond
 
@@ -87,7 +87,7 @@ for.end:                                          ; preds = %for.cond
 
 define spir_kernel void @test_varying_loop(i32 %a, i32* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   %sub = sub nsw i32 16, %conv
   br label %for.cond
@@ -112,7 +112,7 @@ for.end:                                          ; preds = %for.cond
 
 define spir_kernel void @test_nested_loops(i32* %a, i32* %b)  {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   %sub = sub nsw i32 16, %conv
   br label %for.cond
@@ -153,7 +153,7 @@ for.end14:                                        ; preds = %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; Check for a varying that needs masked operations
 ; CHECK: define spir_kernel void @__vecz_v4_test_varying_if(i32 %a, ptr %b)

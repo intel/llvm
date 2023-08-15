@@ -28,11 +28,11 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: noduplicate
 declare void @__mux_work_group_barrier(i32, i32, i32) #1
 ; Function Attrs: nounwind readnone
-declare spir_func i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
 define spir_kernel void @duplicate_preheader(i32 addrspace(1)* %out, i32 %n) {
 entry:
-  %id = tail call spir_func i64 @_Z12get_local_idj(i32 0)
+  %id = tail call i64 @__mux_get_local_id(i32 0)
   %cmp = icmp sgt i64 %id, 3
   br i1 %cmp, label %if.then, label %if.end
 

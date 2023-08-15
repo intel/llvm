@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @saddsatc(i8 addrspace(1)* %lhs, i8 addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i8, i8 addrspace(1)* %lhs, i64 %call
   %0 = load i8, i8 addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds i8, i8 addrspace(1)* %rhs, i64 %call
@@ -33,7 +33,7 @@ entry:
 
 define spir_kernel void @uaddsatc(i8 addrspace(1)* %lhs, i8 addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i8, i8 addrspace(1)* %lhs, i64 %call
   %0 = load i8, i8 addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds i8, i8 addrspace(1)* %rhs, i64 %call
@@ -45,7 +45,7 @@ entry:
 
 define spir_kernel void @saddsati(i32 addrspace(1)* %lhs, i32 addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %lhs, i64 %call
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %rhs, i64 %call
@@ -57,7 +57,7 @@ entry:
 
 define spir_kernel void @uaddsati(i32 addrspace(1)* %lhs, i32 addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %lhs, i64 %call
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %rhs, i64 %call
@@ -69,7 +69,7 @@ entry:
 
 define spir_kernel void @saddsati4(<4 x i32> addrspace(1)* %lhs, <4 x i32> addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %lhs, i64 %call
   %0 = load <4 x i32>, <4 x i32> addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %rhs, i64 %call
@@ -81,7 +81,7 @@ entry:
 
 define spir_kernel void @uaddsati4(<4 x i32> addrspace(1)* %lhs, <4 x i32> addrspace(1)* %rhs) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %lhs, i64 %call
   %0 = load <4 x i32>, <4 x i32> addrspace(1)* %arrayidx, align 1
   %arrayidx1 = getelementptr inbounds <4 x i32>, <4 x i32> addrspace(1)* %rhs, i64 %call
@@ -91,7 +91,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func i8 @_Z7add_satcc(i8, i8)
 declare spir_func i8 @_Z7add_sathh(i8, i8)
 declare spir_func i32 @_Z7add_satii(i32, i32)

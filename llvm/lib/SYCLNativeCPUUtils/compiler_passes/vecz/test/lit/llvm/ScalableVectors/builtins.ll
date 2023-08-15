@@ -21,7 +21,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @builtins(float* %aptr, float* %bptr, i32* %zptr) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %arrayidxa = getelementptr inbounds float, float* %aptr, i64 %idx
   %arrayidxb = getelementptr inbounds float, float* %bptr, i64 %idx
   %arrayidxz = getelementptr inbounds i32, i32* %zptr, i64 %idx
@@ -32,7 +32,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func i32 @_Z9isgreaterff(float, float)
 
 ; CHECK: void @__vecz_nxv4_builtins

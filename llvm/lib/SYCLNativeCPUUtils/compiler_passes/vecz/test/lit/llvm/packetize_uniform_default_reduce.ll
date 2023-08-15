@@ -20,20 +20,20 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z12get_local_idj(i32)
-declare spir_func i64 @_Z13get_global_idj(i32)
-declare spir_func i64 @_Z14get_local_sizej(i32)
+declare i64 @__mux_get_local_id(i32)
+declare i64 @__mux_get_global_id(i32)
+declare i64 @__mux_get_local_size(i32)
 
 ; Function Attrs: nounwind
 define spir_kernel void @reduce(i32 addrspace(3)* %in, i32 addrspace(3)* %out) {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = call i64 @__mux_get_local_id(i32 0)
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
   %storemerge = phi i32 [ 1, %entry ], [ %mul6, %for.inc ]
   %conv = zext i32 %storemerge to i64
-  %call1 = call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %call1 = call i64 @__mux_get_local_size(i32 0)
   %cmp = icmp ult i64 %conv, %call1
   br i1 %cmp, label %for.body, label %for.end
 
@@ -62,13 +62,13 @@ for.end:                                          ; preds = %for.cond
 ; Function Attrs: nounwind
 define spir_kernel void @noreduce(i32 addrspace(3)* %in, i32 addrspace(3)* %out) {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = call i64 @__mux_get_local_id(i32 0)
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
   %storemerge = phi i32 [ 1, %entry ], [ %mul, %for.inc ]
   %conv = zext i32 %storemerge to i64
-  %call1 = call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %call1 = call i64 @__mux_get_local_size(i32 0)
   %cmp = icmp ult i64 %conv, %call1
   br i1 %cmp, label %for.body, label %for.end
 
@@ -95,13 +95,13 @@ for.end:                                          ; preds = %for.cond
 ; Function Attrs: nounwind
 define spir_kernel void @noreduce2(i32 addrspace(3)* %in, i32 addrspace(3)* %out) {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = call i64 @__mux_get_local_id(i32 0)
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
   %storemerge = phi i32 [ 1, %entry ], [ %mul, %for.inc ]
   %conv = zext i32 %storemerge to i64
-  %call1 = call spir_func i64 @_Z14get_local_sizej(i32 0)
+  %call1 = call i64 @__mux_get_local_size(i32 0)
   %cmp = icmp ult i64 %conv, %call1
   br i1 %cmp, label %for.body, label %for.end
 
@@ -129,7 +129,7 @@ for.end:                                          ; preds = %for.cond
 ; Function Attrs: nounwind
 define spir_kernel void @conditional(i32 addrspace(1)* %in, i32 addrspace(1)* %out) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3
+  %call = call i64 @__mux_get_global_id(i32 0) #3
   %0 = load i32, i32 addrspace(1)* %in, align 4
   %rem1 = and i32 %0, 1
   %tobool = icmp eq i32 %rem1, 0
@@ -154,7 +154,7 @@ if.end:                                           ; preds = %entry, %if.then
 ; CHECK: define spir_kernel void @__vecz_v4_reduce(ptr addrspace(3) %in, ptr addrspace(3) %out)
 ; CHECK: insertelement <4 x i64> {{poison|undef}}, i64
 ; CHECK: shufflevector <4 x i64>
-; CHECK: %[[LOCAL_SIZE:[^ ]+]] = call spir_func i64 @_Z14get_local_sizej(i32 0)
+; CHECK: %[[LOCAL_SIZE:[^ ]+]] = call i64 @__mux_get_local_size(i32 0)
 ; CHECK: icmp {{(ugt|ult)}} i64 %[[LOCAL_SIZE]], {{(1|2)}}
 ; CHECK-NEXT: br
 ; CHECK: phi i32

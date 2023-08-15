@@ -18,8 +18,8 @@
 ; RUN: veczc -k test -vecz-simd-width=4 -vecz-passes=gep-elim -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
-target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "spir64-unknown-unknown"
+target datalayout = "e-m:e-i32:32-f80:128-n8:16:32:64-S128"
+target triple = "spir-unknown-unknown"
 
 %struct.mystruct = type { [2 x i32], ptr }
 
@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @test(ptr addrspace(1) nocapture writeonly align 4 %output) {
 entry:
   %foo = alloca [4 x %struct.mystruct], align 4
-  %call = tail call spir_func i32 @_Z13get_global_idj(i32 0)
+  %call = tail call spir_func i32 @__mux_get_global_id(i32 0)
   store i32 20, ptr %foo, align 4
   %arrayidx4 = getelementptr inbounds [2 x i32], ptr %foo, i32 0, i32 1
   store i32 22, ptr %arrayidx4, align 4
@@ -43,7 +43,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i32 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v4_test(
 

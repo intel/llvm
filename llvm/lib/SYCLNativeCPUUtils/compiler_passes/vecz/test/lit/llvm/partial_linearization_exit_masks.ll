@@ -25,7 +25,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @test(i32 addrspace(1)* %out, i32 %n) {
 entry:
-  %call = tail call spir_func i32 @_Z13get_global_idj(i32 0)
+  %call = tail call i32 @__mux_get_global_id(i32 0)
   %cmp = icmp sgt i32 %n, 0
   br i1 %cmp, label %for.body.preheader, label %if.end.thread
 
@@ -60,6 +60,6 @@ if.end2:
   ret void
 }
 
-declare spir_func i32 @_Z13get_global_idj(i32)
+declare i32 @__mux_get_global_id(i32)
 
 declare spir_func i32 @_Z3maxii(i32, i32)

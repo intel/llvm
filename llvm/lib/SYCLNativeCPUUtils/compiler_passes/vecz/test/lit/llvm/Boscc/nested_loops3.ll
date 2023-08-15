@@ -22,7 +22,7 @@ target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) #0
+declare i64 @__mux_get_global_id(i32) #0
 
 ; Function Attrs: nounwind readnone speculatable
 declare float @llvm.fmuladd.f32(float, float, float) #1
@@ -30,7 +30,7 @@ declare float @llvm.fmuladd.f32(float, float, float) #1
 ; Function Attrs: convergent nounwind
 define spir_kernel void @nested_loops3(float addrspace(1)* %symmat, float addrspace(1)* %data, i32 %m, i32 %n) #2 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #3
+  %call = call i64 @__mux_get_global_id(i32 0) #3
   %conv = trunc i64 %call to i32
   %sub = add nsw i32 %m, -1
   %cmp = icmp sgt i32 %sub, %conv

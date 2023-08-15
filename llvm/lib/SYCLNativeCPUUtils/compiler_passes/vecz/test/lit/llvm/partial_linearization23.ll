@@ -97,7 +97,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @partial_linearization23(i32 addrspace(1)* %out, i32 %n) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %conv = trunc i64 %call to i32
   %cmp = icmp sgt i32 %n, 10
   br i1 %cmp, label %if.then, label %if.else7
@@ -236,7 +236,7 @@ end:                                              ; preds = %i24, %h
 }
 
 ; Function Attrs: nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: spir_kernel void @__vecz_v4_partial_linearization23
 ; CHECK: i24:

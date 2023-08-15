@@ -24,8 +24,8 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @load16(i8 addrspace(1)* %out, i8 addrspace(1)* %in, i32 %stride) #0 !shave_original_kernel !10 {
 entry:
-  %call = call spir_func i32 @_Z13get_global_idj(i32 0) #2
-  %call1 = call spir_func i32 @_Z13get_global_idj(i32 1) #2
+  %call = call i32 @__mux_get_global_id(i32 0) #2
+  %call1 = call i32 @__mux_get_global_id(i32 1) #2
   %mul = mul nsw i32 %call1, %stride
   %add = add nsw i32 %mul, %call
   %mul2 = shl nsw i32 %add, 1
@@ -46,7 +46,7 @@ entry:
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i32 @_Z13get_global_idj(i32) #1
+declare i32 @__mux_get_global_id(i32) #1
 
 attributes #0 = { convergent nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }

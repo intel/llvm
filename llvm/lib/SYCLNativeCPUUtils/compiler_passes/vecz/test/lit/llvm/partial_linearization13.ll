@@ -96,8 +96,8 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @partial_linearization13(i32 addrspace(1)* %out, i32 %n) #0 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #2
-  %call1 = call spir_func i64 @_Z15get_global_sizej(i32 0) #2
+  %call = call i64 @__mux_get_global_id(i32 0) #2
+  %call1 = call i64 @__mux_get_global_size(i32 0) #2
   %add = add i64 %call, 1
   %cmp = icmp ult i64 %add, %call1
   br i1 %cmp, label %if.then, label %if.else
@@ -162,10 +162,10 @@ if.end17:                                         ; preds = %sw.bb14, %if.else, 
 }
 
 ; Function Attrs: nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 ; Function Attrs: nounwind readonly
-declare spir_func i64 @_Z15get_global_sizej(i32) #1
+declare i64 @__mux_get_global_size(i32) #1
 
 attributes #0 = { nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }

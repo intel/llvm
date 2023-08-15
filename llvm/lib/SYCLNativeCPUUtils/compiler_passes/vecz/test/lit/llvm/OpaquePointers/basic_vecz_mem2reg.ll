@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @load_store_type_mismatch_no_bitcast(ptr addrspace(1) %p) {
   %data = alloca i32, align 4
-  %1 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #4
+  %1 = tail call i64 @__mux_get_global_id(i32 0) #4
   %2 = getelementptr inbounds i32, ptr addrspace(1) %p, i64 %1
   %3 = load i32, ptr addrspace(1) %2, align 4
   store i32 %3, ptr %data, align 4
@@ -33,7 +33,7 @@ define spir_kernel void @load_store_type_mismatch_no_bitcast(ptr addrspace(1) %p
 
 define spir_kernel void @load_type_size_mismatch_no_bitcast(ptr addrspace(1) %p) {
   %data = alloca i32, align 4
-  %1 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #4
+  %1 = tail call i64 @__mux_get_global_id(i32 0) #4
   %2 = getelementptr inbounds i32, ptr addrspace(1) %p, i64 %1
   %3 = load i32, ptr addrspace(1) %2, align 4
   store i32 %3, ptr %data, align 4
@@ -43,7 +43,7 @@ define spir_kernel void @load_type_size_mismatch_no_bitcast(ptr addrspace(1) %p)
 
 define spir_kernel void @store_type_size_mismatch_no_bitcast(ptr addrspace(1) %p) {
   %data = alloca i32, align 4
-  %1 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #4
+  %1 = tail call i64 @__mux_get_global_id(i32 0) #4
   %2 = getelementptr inbounds i16, ptr addrspace(1) %p, i64 %1
   %3 = load i16, ptr addrspace(1) %2, align 4
   store i16 %3, ptr %data, align 2
@@ -51,7 +51,7 @@ define spir_kernel void @store_type_size_mismatch_no_bitcast(ptr addrspace(1) %p
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: define spir_kernel void @__vecz_v4_load_store_type_mismatch_no_bitcast(ptr addrspace(1) %p)
 ; CHECK-NOT: alloca i32

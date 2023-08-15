@@ -28,7 +28,7 @@ entry:
   %0 = bitcast [1 x i16]* %data to i8*
   %arraydecay = getelementptr inbounds [1 x i16], [1 x i16]* %data, i64 0, i64 0
   %1 = bitcast [1 x i16]* %data to half*
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0) #5
+  %call = tail call i64 @__mux_get_global_id(i32 0) #5
   %arrayidx7 = getelementptr inbounds half, half addrspace(1)* %p, i64 %call
   %arrayidx = bitcast half addrspace(1)* %arrayidx7 to i16 addrspace(1)*
   %2 = load i16, i16 addrspace(1)* %arrayidx, align 2, !tbaa !9
@@ -40,7 +40,7 @@ entry:
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr #2
+declare i64 @__mux_get_global_id(i32) local_unnamed_addr #2
 
 ; Function Attrs: convergent nounwind
 declare spir_func float @_Z11vloada_halfmPKDh(i64, half*) local_unnamed_addr #3

@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @memop_loop_dep(i32 addrspace(1)* %in, i32 addrspace(1)* %out, i32 %i, i32 %e) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   br label %for.cond
 
 for.cond:                                         ; preds = %for.inc, %entry
@@ -52,7 +52,7 @@ for.end:                                          ; preds = %for.cond
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 declare spir_func <4 x i32> @_Z6vload4mPKU3AS1i(i64, i32 addrspace(1)*)
 

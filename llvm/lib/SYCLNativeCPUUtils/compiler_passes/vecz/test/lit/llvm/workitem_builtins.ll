@@ -23,14 +23,14 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind
 define spir_kernel void @dont_mask_workitem_builtins(i32 addrspace(2)* %in, i32 addrspace(1)* %out) #0 {
 entry:
-  %call = call spir_func i64 @_Z12get_local_idj(i32 0) #5
+  %call = call i64 @__mux_get_local_id(i32 0) #5
   %conv = trunc i64 %call to i32
   %cmp = icmp sgt i32 %conv, 0
   br i1 %cmp, label %if.then, label %if.else
 
 if.then:                                          ; preds = %entry
   fence syncscope("singlethread") acq_rel
-  %call2 = call spir_func i64 @_Z13get_global_idj(i32 0) #5
+  %call2 = call i64 @__mux_get_global_id(i32 0) #5
   %conv3 = trunc i64 %call2 to i32
   %idxprom = sext i32 %conv3 to i64
   %arrayidx = getelementptr inbounds i32, i32 addrspace(2)* %in, i64 %idxprom
@@ -41,8 +41,8 @@ if.then:                                          ; preds = %entry
   br label %if.end
 
 if.else:                                          ; preds = %entry
-  %call8 = call spir_func i64 @_Z14get_local_sizej(i32 0) #5
-  %call9 = call spir_func i64 @_Z12get_group_idj(i32 0) #5
+  %call8 = call i64 @__mux_get_local_size(i32 0) #5
+  %call9 = call i64 @__mux_get_group_id(i32 0) #5
   %mul = mul i64 %call9, %call8
   %add = add i64 %mul, %call
   %sext = shl i64 %add, 32
@@ -55,13 +55,13 @@ if.end:                                           ; preds = %if.else, %if.then
   ret void
 }
 
-declare spir_func i64 @_Z12get_local_idj(i32) #1
+declare i64 @__mux_get_local_id(i32) #1
 
-declare spir_func i64 @_Z13get_global_idj(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
-declare spir_func i64 @_Z14get_local_sizej(i32) #1
+declare i64 @__mux_get_local_size(i32) #1
 
-declare spir_func i64 @_Z12get_group_idj(i32) #1
+declare i64 @__mux_get_group_id(i32) #1
 
 attributes #0 = { nounwind "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="0" "stackrealign" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -86,20 +86,19 @@ attributes #6 = { nounwind }
 ; CHECK: define spir_kernel void @__vecz_v[[WIDTH:[0-9]+]]_dont_mask_workitem_builtins(
 
 ; Check if the builtins are still here
-; CHECK: call spir_func i64 @_Z12get_local_idj(i32 0)
-; CHECK: call spir_func i64 @_Z14get_local_sizej(i32 0)
-; CHECK: call spir_func i64 @_Z12get_group_idj(i32 0)
+; CHECK: call i64 @__mux_get_local_id(i32 0)
+; CHECK: call i64 @__mux_get_local_size(i32 0)
+; CHECK: call i64 @__mux_get_group_id(i32 0)
 ; CHECK: fence syncscope("singlethread") acq_rel
-; CHECK: call spir_func i64 @_Z13get_global_idj(i32 0)
-; CHECK-NOT: call spir_func i64 @__vecz_b_masked__Z13get_global_idj(i32
-; CHECK-NOT: call spir_func i64 @__vecz_b_masked__Z14get_local_sizej(i32
-; CHECK-NOT: call spir_func i64 @__vecz_b_masked__Z12get_group_idj(i32
+; CHECK: call i64 @__mux_get_global_id(i32 0)
+; CHECK-NOT: call spir_func i64 @__vecz_b_masked___mux_get_global_id(i32
+; CHECK-NOT: call spir_func i64 @__vecz_b_masked___mux_get_local_size(i32
+; CHECK-NOT: call spir_func i64 @__vecz_b_masked___mux_get_group_id(i32
 
 ; Function end
 ; CHECK: ret void
 
 ; Also check that we haven't declared the masked functions
-; CHECK-NOT: define private spir_func void @__vecz_b_masked__Z7barrierj(i32)
-; CHECK-NOT: define private spir_func i64 @__vecz_b_masked__Z13get_global_idj(i32, i1)
-; CHECK-NOT: define private spir_func i64 @__vecz_b_masked__Z14get_local_sizej(i32, i1)
-; CHECK-NOT: define private spir_func i64 @__vecz_b_masked__Z12get_group_idj(i32, i1)
+; CHECK-NOT: define private spir_func i64 @__vecz_b_masked___mux_get_group_id(i32, i1)
+; CHECK-NOT: define private spir_func i64 @__vecz_b_masked___mux_get_local_size(i32, i1)
+; CHECK-NOT: define private spir_func i64 @__vecz_b_masked___mux_get_group_id(i32, i1)

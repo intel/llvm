@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @instrinsic(float* %in1, float* %in2, float* %in3, float* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds float, float* %in1, i64 %call
   %0 = load float, float* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds float, float* %in2, i64 %call
@@ -38,7 +38,7 @@ entry:
 
 define spir_kernel void @builtin(i32* %in, i32* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32* %in, i64 %call
   %0 = load i32, i32* %arrayidx, align 4
   %call1 = tail call spir_func i32 @_Z3absi(i32 %0)
@@ -49,7 +49,7 @@ entry:
 
 define spir_kernel void @user_defined(i32* %in, i32* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %add.ptr = getelementptr inbounds i32, i32* %in, i64 %call
   %add.ptr1 = getelementptr inbounds i32, i32* %out, i64 %call
   call spir_func void @defined(i32* %add.ptr, i32* %add.ptr1)
@@ -58,7 +58,7 @@ entry:
 
 define spir_kernel void @user_undefined(i32* %in, i32* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %add.ptr = getelementptr inbounds i32, i32* %in, i64 %call
   %add.ptr1 = getelementptr inbounds i32, i32* %out, i64 %call
   call spir_func void @undefined(i32* %add.ptr, i32* %add.ptr1)
@@ -67,7 +67,7 @@ entry:
 
 define spir_kernel void @cantinline(i32* %in, i32* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %add.ptr = getelementptr inbounds i32, i32* %in, i64 %call
   %add.ptr1 = getelementptr inbounds i32, i32* %out, i64 %call
   call spir_func void @dontinline(i32* %add.ptr, i32* %add.ptr1)
@@ -76,7 +76,7 @@ entry:
 
 define spir_kernel void @cantduplicate(i32* %in, i32* %out) {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32* %in, i64 %call
   %0 = load i32, i32* %arrayidx, align 4
   %call1 = tail call spir_func i32 @_Z3clzi(i32 %0) #1
@@ -87,7 +87,7 @@ entry:
 
 define spir_kernel void @optnone(i32* %in, i32* %out) #2 {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds i32, i32* %in, i64 %call
   %0 = load i32, i32* %arrayidx, align 4
   %arrayidx1 = getelementptr inbounds i32, i32* %out, i64 %call
@@ -100,7 +100,7 @@ entry:
 declare float @llvm.fmuladd.f32(float, float, float)
 declare spir_func i32 @_Z3absi(i32)
 declare spir_func i32 @_Z3clzi(i32) #1
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func void @undefined(i32*, i32*)
 
 ; Functions with definitions

@@ -26,8 +26,8 @@ define spir_kernel void @test(<2 x float> addrspace(1)* nocapture readonly %in, 
 entry:
   %a.sroa.0 = alloca <2 x float>, align 8
   %b.sroa.2 = alloca <2 x float>, align 8
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 0)
-  %call1 = tail call spir_func i64 @_Z12get_local_idj(i32 0)
+  %call = tail call i64 @__mux_get_global_id(i32 0)
+  %call1 = tail call i64 @__mux_get_local_id(i32 0)
   %a.sroa.0.0..sroa_cast = bitcast <2 x float>* %a.sroa.0 to i8*
   %b.sroa.2.0..sroa_cast = bitcast <2 x float>* %b.sroa.2 to i8*
   %arrayidx2 = getelementptr inbounds [16 x <2 x float>], [16 x <2 x float>] addrspace(3)* @entry_test_alloca.lm, i64 0, i64 %call1
@@ -64,8 +64,8 @@ for.body11:                                       ; preds = %for.body11, %for.bo
   br i1 %cmp8, label %for.body11, label %for.cond.cleanup10
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr
-declare spir_func i64 @_Z12get_local_idj(i32) local_unnamed_addr
+declare i64 @__mux_get_global_id(i32) local_unnamed_addr
+declare i64 @__mux_get_local_id(i32) local_unnamed_addr
 
 ; Check that all the allocas come before anything else
 ; CHECK: define spir_kernel void @__vecz_v4_test(

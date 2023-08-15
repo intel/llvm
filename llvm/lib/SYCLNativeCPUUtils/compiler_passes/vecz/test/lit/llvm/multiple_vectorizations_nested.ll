@@ -25,7 +25,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @add(i32 addrspace(1)* %in1, i32 addrspace(1)* %in2, i32 addrspace(1)* %out) {
 entry:
-  %tid = call spir_func i64 @_Z13get_global_idj(i32 0) #3
+  %tid = call i64 @__mux_get_global_id(i32 0) #3
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in1, i64 %tid
   %i1 = load i32, i32 addrspace(1)* %arrayidx, align 16
   %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %in2, i64 %tid
@@ -36,7 +36,7 @@ entry:
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #2
+declare i64 @__mux_get_global_id(i32) #2
 
 ; CHECK: define spir_kernel void @add(ptr addrspace(1) %in1, ptr addrspace(1) %in2, ptr addrspace(1) %out){{.*}} !codeplay_ca_vecz.base ![[BASE_1:[0-9]+]]
 ; CHECK: define spir_kernel void @__vecz_v2_add(ptr addrspace(1) %in1, ptr addrspace(1) %in2, ptr addrspace(1) %out){{.*}} !codeplay_ca_vecz.base ![[BASE_2:[0-9]+]] !codeplay_ca_vecz.derived ![[DERIVED_1:[0-9]+]] {

@@ -23,8 +23,8 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent nounwind
 define spir_kernel void @split_branch(i32 addrspace(1)* noalias %a, i32 addrspace(1)* noalias %b, i32 addrspace(1)* noalias %d) #0 {
 entry:
-  %x = call spir_func i64 @_Z13get_global_idj(i32 0) #2
-  %y = call spir_func i64 @_Z13get_global_idj(i32 1) #2
+  %x = call i64 @__mux_get_global_id(i32 0) #2
+  %y = call i64 @__mux_get_global_id(i32 1) #2
   %a_gep = getelementptr inbounds i32, i32 addrspace(1)* %a, i64 %x
   %b_gep = getelementptr inbounds i32, i32 addrspace(1)* %b, i64 %y
   %varying = load i32, i32 addrspace(1)* %a_gep
@@ -45,7 +45,7 @@ if.end:                                           ; preds = %if.then, %entry
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; This test checks that a conditional branch based on an OR of both
 ; a uniform and a varying value gets split into two separate branches

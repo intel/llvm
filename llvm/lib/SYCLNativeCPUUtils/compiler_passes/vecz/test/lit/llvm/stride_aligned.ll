@@ -43,34 +43,34 @@ target triple = "spir64-unknown-unknown"
 
 define dso_local spir_kernel void @foo(%struct.PerItemKernelInfo addrspace(1)* nocapture noundef writeonly %info) !reqd_work_group_size !11 {
 entry:
-  %call = tail call spir_func i64 @_Z13get_global_idj(i32 noundef 0)
-  %call1 = tail call spir_func i64 @_Z13get_global_idj(i32 noundef 1)
-  %call2 = tail call spir_func i64 @_Z13get_global_idj(i32 noundef 2)
-  %call3 = tail call spir_func i64 @_Z15get_global_sizej(i32 noundef 0)
-  %call5 = tail call spir_func i64 @_Z15get_global_sizej(i32 noundef 1)
+  %call = tail call i64 @__mux_get_global_id(i32 noundef 0)
+  %call1 = tail call i64 @__mux_get_global_id(i32 noundef 1)
+  %call2 = tail call i64 @__mux_get_global_id(i32 noundef 2)
+  %call3 = tail call i64 @__mux_get_global_size(i32 noundef 0)
+  %call5 = tail call i64 @__mux_get_global_size(i32 noundef 1)
   %mul7 = mul nuw nsw i64 %call5, %call2
   %reass.add = add nuw nsw i64 %mul7, %call1
   %reass.mul = mul nuw nsw i64 %reass.add, %call3
   %add8 = add nuw nsw i64 %reass.mul, %call
   %vecinit = insertelement <4 x i64> undef, i64 %call3, i64 0
   %vecinit11 = insertelement <4 x i64> %vecinit, i64 %call5, i64 1
-  %call12 = tail call spir_func i64 @_Z15get_global_sizej(i32 noundef 2)
+  %call12 = tail call i64 @__mux_get_global_size(i32 noundef 2)
   %vecinit13 = insertelement <4 x i64> %vecinit11, i64 %call12, i64 2
-  %call14 = tail call spir_func i64 @_Z15get_global_sizej(i32 noundef 3)
+  %call14 = tail call i64 @__mux_get_global_size(i32 noundef 3)
   %vecinit15 = insertelement <4 x i64> %vecinit13, i64 %call14, i64 3
   %global_size = getelementptr inbounds %struct.PerItemKernelInfo, %struct.PerItemKernelInfo addrspace(1)* %info, i64 %add8, i32 0
   store <4 x i64> %vecinit15, <4 x i64> addrspace(1)* %global_size, align 1
-  %call16 = tail call spir_func i32 @_Z12get_work_dimv()
+  %call16 = tail call i32 @__mux_get_work_dim()
   %work_dim = getelementptr inbounds %struct.PerItemKernelInfo, %struct.PerItemKernelInfo addrspace(1)* %info, i64 %add8, i32 1
   store i32 %call16, i32 addrspace(1)* %work_dim, align 1
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
-declare spir_func i64 @_Z15get_global_sizej(i32)
+declare i64 @__mux_get_global_size(i32)
 
-declare spir_func i32 @_Z12get_work_dimv()
+declare i32 @__mux_get_work_dim()
 
 !11 = !{i32 4, i32 1, i32 1}
 

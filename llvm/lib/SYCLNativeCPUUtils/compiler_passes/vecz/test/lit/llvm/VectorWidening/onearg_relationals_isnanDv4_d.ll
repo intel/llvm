@@ -19,12 +19,12 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 declare spir_func <4 x i64> @_Z5isnanDv4_d(<4 x double>)
 
 define spir_kernel void @test_isnanDv4_d(<4 x double> addrspace(1)* %in, <4 x i64> addrspace(1)* %out) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %arrayidx = getelementptr inbounds <4 x double>, <4 x double> addrspace(1)* %in, i64 %call
   %0 = load <4 x double>, <4 x double> addrspace(1)* %arrayidx, align 32
   %call1 = call spir_func <4 x i64> @_Z5isnanDv4_d(<4 x double> %0)

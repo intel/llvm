@@ -19,7 +19,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; Function Attrs: nounwind readnone
 declare spir_func <4 x float> @_Z4fminDv4_ff(<4 x float>, float)
@@ -38,7 +38,7 @@ declare spir_func <16 x float> @_Z4fminDv16_fS_(<16 x float>, <16 x float>)
 
 define spir_kernel void @fmin_vector_scalar(<4 x float>* %pa, float* %pb, <4 x float>* %pd) {
 entry:
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %a = getelementptr <4 x float>, <4 x float>* %pa, i64 %idx
   %b = getelementptr float, float* %pb, i64 %idx
   %d = getelementptr <4 x float>, <4 x float>* %pd, i64 %idx

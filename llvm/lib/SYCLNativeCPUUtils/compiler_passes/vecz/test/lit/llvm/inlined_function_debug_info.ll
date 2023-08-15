@@ -43,7 +43,7 @@ entry:
   call void @llvm.dbg.value(metadata float addrspace(1)* %in2f, i64 0, metadata !21, metadata !38), !dbg !41
   call void @llvm.dbg.value(metadata i32 addrspace(1)* %out1i, i64 0, metadata !22, metadata !38), !dbg !41
   call void @llvm.dbg.value(metadata float addrspace(1)* %out1f, i64 0, metadata !23, metadata !38), !dbg !41
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0) #4, !dbg !42
+  %call = call i64 @__mux_get_global_id(i32 0) #4, !dbg !42
   call void @llvm.dbg.value(metadata i64 %call, i64 0, metadata !24, metadata !38), !dbg !42
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in1i, i64 %call, !dbg !43
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !43
@@ -57,7 +57,7 @@ entry:
   ret void, !dbg !47
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32) #3
+declare i64 @__mux_get_global_id(i32) #3
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, i64, metadata, metadata) #1

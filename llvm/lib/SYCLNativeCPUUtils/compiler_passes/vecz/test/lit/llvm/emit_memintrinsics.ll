@@ -25,7 +25,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: norecurse nounwind
 define spir_kernel void @entry(i64 addrspace(1)* %result, %struct.S2* %result2) {
 entry:
-  %gid = call i64 @_Z12get_local_idj(i32 0)
+  %gid = call i64 @__mux_get_local_id(i32 0)
   %sa = alloca %struct.S2, align 16
   %sb = alloca %struct.S2, align 16
   %sa_i8 = bitcast %struct.S2* %sa to i8*
@@ -63,7 +63,7 @@ declare void @llvm.memset.p1i8.i64(i8 addrspace(1)* nocapture, i8, i64, i32, i1)
 declare void @llvm.memcpy.p1i8.p0i8.i64(i8 addrspace(1)* nocapture, i8* nocapture readonly, i64, i32, i1)
 declare void @llvm.memcpy.p0i8.p1i8.i64(i8* nocapture, i8 addrspace(1)* nocapture readonly, i64, i32, i1)
 
-declare i64 @_Z12get_local_idj(i32)
+declare i64 @__mux_get_local_id(i32)
 
 ; Sanity checks: Make sure the non-vecz entry function is still in place and
 ; contains memset and memcpy. This is done in order to prevent future bafflement

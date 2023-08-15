@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 
 define spir_kernel void @widen_vload(<4 x i32>* %aptr, <4 x i32>* %zptr) {
-  %idx = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %idx = call i64 @__mux_get_global_id(i32 0)
   %mod_idx = urem i64 %idx, 2
   %arrayidxa = getelementptr inbounds <4 x i32>, <4 x i32>* %aptr, i64 %mod_idx
   %v = load <4 x i32>, <4 x i32>* %arrayidxa, align 16
@@ -32,4 +32,4 @@ define spir_kernel void @widen_vload(<4 x i32>* %aptr, <4 x i32>* %zptr) {
 ; CHECK: %v4 = call <vscale x 16 x i32> @__vecz_b_gather_load16_u6nxv16ju10nxv16u3ptr(<vscale x 16 x ptr> %{{.*}})
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)

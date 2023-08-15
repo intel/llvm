@@ -20,12 +20,12 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; With VP all gathers become masked ones.
 define spir_kernel void @unmasked_gather(i32 addrspace(1)* %a, i32 addrspace(1)* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %rem = urem i64 %call, 3
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %a, i64 %rem
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 4
@@ -42,7 +42,7 @@ entry:
 ; With VP all scatters become masked ones.
 define spir_kernel void @unmasked_scatter(i32 addrspace(1)* %a, i32 addrspace(1)* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %rem = urem i64 %call, 3
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %a, i64 %call
   %0 = load i32, i32 addrspace(1)* %arrayidx, align 4

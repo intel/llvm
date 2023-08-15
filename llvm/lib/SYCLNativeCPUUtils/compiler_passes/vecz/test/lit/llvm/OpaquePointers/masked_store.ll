@@ -19,12 +19,12 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 define spir_kernel void @test_varying_if(i32 %a, ptr %b, float %on_true, float %on_false) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 
@@ -46,7 +46,7 @@ if.end:
 define spir_kernel void @test_varying_if_as3(i32 %a, ptr addrspace(3) %b, float %on_true, float %on_false) {
 entry:
   %conv = sext i32 %a to i64
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp eq i64 %conv, %call
   br i1 %cmp, label %if.then, label %if.else
 

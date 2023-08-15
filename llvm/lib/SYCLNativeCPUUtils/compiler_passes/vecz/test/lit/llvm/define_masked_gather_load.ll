@@ -21,7 +21,7 @@ target triple = "spir64-unknown-unknown"
 
 define spir_kernel void @masked_scatter(i32 addrspace(1)* %a, i32 addrspace(1)* %b, i32 addrspace(1)* %b_index) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %rem = urem i64 %call, 3
   %cmp = icmp eq i64 %rem, 0
   br i1 %cmp, label %if.else, label %if.then
@@ -50,7 +50,7 @@ if.end:                                           ; preds = %if.else, %if.then
 
 define spir_kernel void @masked_gather(i32 addrspace(1)* %a, i32 addrspace(1)* %a_index, i32 addrspace(1)* %b) {
 entry:
-  %call = call spir_func i64 @_Z13get_global_idj(i32 0)
+  %call = call i64 @__mux_get_global_id(i32 0)
   %rem = urem i64 %call, 3
   %cmp = icmp eq i64 %rem, 0
   br i1 %cmp, label %if.else, label %if.then
@@ -74,7 +74,7 @@ if.end:                                           ; preds = %if.else, %if.then
   ret void
 }
 
-declare spir_func i64 @_Z13get_global_idj(i32)
+declare i64 @__mux_get_global_id(i32)
 
 ; Test if the masked gather load is defined correctly
 ; CHECK: define <4 x i32> @__vecz_b_masked_gather_load4_Dv4_jDv4_u3ptrU3AS1Dv4_b(<4 x ptr addrspace(1)>{{( %0)?}}, <4 x i1>{{( %1)?}})
