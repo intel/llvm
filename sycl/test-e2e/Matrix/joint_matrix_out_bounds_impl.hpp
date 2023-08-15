@@ -75,10 +75,10 @@ int main() {
   float *C = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
   float *D = malloc_shared<float>(MATRIX_M * MATRIX_N, q);
 
-  matrix_rand(MATRIX_M, MATRIX_K, A);
-  matrix_rand(MATRIX_K, MATRIX_N, B);
-  matrix_fill(MATRIX_M, MATRIX_N, C, (float)1.0);
-  matrix_fill(MATRIX_M, MATRIX_N, D, (float)1.0);
+  matrix_rand(MATRIX_M, MATRIX_K, A, (bfloat16)5);
+  matrix_rand(MATRIX_K, MATRIX_N, B, (bfloat16)5);
+  matrix_fill(MATRIX_M, MATRIX_N, C, (float)1);
+  matrix_fill(MATRIX_M, MATRIX_N, D, (float)1);
 
   matrix_vnni<bfloat16>(MATRIX_K, MATRIX_N, B, vnniB, vnniFactor);
   matrix_multiply<float, bfloat16, MATRIX_M, MATRIX_K, MATRIX_K / vnniFactor,
