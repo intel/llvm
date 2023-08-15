@@ -48,6 +48,13 @@ if (UNIX)
     set(THREADS_PREFER_PTHREAD_FLAG TRUE)
     find_package(Threads REQUIRED)
     target_link_libraries(ur_loader PRIVATE Threads::Threads)
+    # Older gcc versions need -pthread, not just -lpthread
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11.1)
+            find_library(PTHREAD_LIBRARY pthread)
+            target_link_libraries(ur_loader PRIVATE "-pthread")
+        endif()
+    endif()
 endif()
 
 if(WIN32)
