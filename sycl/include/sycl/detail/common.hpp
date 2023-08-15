@@ -362,6 +362,15 @@ constexpr size_t getNextPowerOfTwo(size_t Var) {
   return getNextPowerOfTwoHelper(Var - 1, 1) + 1;
 }
 
+// Returns the smallest power of two not less than Var, up to a maximum of 64.
+constexpr size_t getNextPowerOfTwoOr64(size_t Var) {
+  size_t next = getNextPowerOfTwo(Var);
+  if (next > 64)
+    next = 64;
+
+  return next;
+}
+
 // Returns linear index by given index and range
 template <int Dims, template <int> class T, template <int> class U>
 size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {

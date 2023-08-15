@@ -199,7 +199,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+                     detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -213,7 +213,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -226,7 +226,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+                     detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -240,7 +240,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -255,7 +255,7 @@ public:
          const property_list &propList = {},
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(hostData, bufferRange.size() * sizeof(T),
-                     detail::getNextPowerOfTwo(sizeof(T)), propList,
+                     detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
                      make_unique_ptr<
                          detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>()),
         Range(bufferRange) {
@@ -271,7 +271,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(bufferRange) {
@@ -286,7 +286,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -303,7 +303,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             std::is_const<T>::value),
@@ -320,7 +320,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -336,7 +336,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             hostData, bufferRange.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             std::is_const<T>::value),
         Range(bufferRange) {
@@ -368,7 +368,7 @@ public:
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
             std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator),
             detail::iterator_to_const_type_t<InputIterator>::value),
@@ -401,7 +401,7 @@ public:
                         static_cast<IteratorPointerToNonConstValueType>(ToPtr));
             },
             std::distance(first, last) * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(),
             detail::iterator_to_const_type_t<InputIterator>::value),
         Range(range<1>(std::distance(first, last))) {
@@ -420,7 +420,7 @@ public:
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(
             container.data(), container.size() * sizeof(T),
-            detail::getNextPowerOfTwo(sizeof(T)), propList,
+            detail::getNextPowerOfTwoOr64(sizeof(T)), propList,
             make_unique_ptr<detail::SYCLMemObjAllocatorHolder<AllocatorT, T>>(
                 allocator)),
         Range(range<1>(container.size())) {
