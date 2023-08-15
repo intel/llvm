@@ -37,8 +37,7 @@ def SYCLHostHandlerOp : SYCLOpTrait<"SYCLHostHandlerOp">;
 
 def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
     [MemoryEffectsOpInterface]> {
-  let summary = "Represents the construction of a SYCL object, " #
-                "i.e., allocation, and member initialization.";
+  let summary = "Represents the member initialization of a SYCL object.";
 
   let description = [{
     This operation differs from `sycl.constructor` as it will take a
@@ -76,8 +75,8 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
 def SYCLHostKernelNameOp
     : SYCL_HostOp<"kernel_name",
         [Symbol, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "Represents a constant holding the name of a SYCL kernel, i.e., a " #
-                " `gpu.func` with the `kernel` attribute.";
+  let summary = "Represents a constant holding the name of a SYCL kernel, " #
+                "i.e., a `gpu.func` with the `kernel` attribute.";
   let arguments = (ins SymbolNameAttr:$sym_name, SymbolRefAttr:$kernel_name);
   let assemblyFormat = [{
     $sym_name `->` $kernel_name attr-dict
@@ -87,8 +86,8 @@ def SYCLHostKernelNameOp
 def SYCLHostGetKernelOp
     : SYCL_HostOp<"get_kernel",
         [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = "Defines a reference to a SYCL kernel, i.e., a `gpu.func` with " #
-                "`kernel` attribute.";
+  let summary = "Defines a reference to a SYCL kernel, i.e., a `gpu.func` " #
+                "with `kernel` attribute.";
   let arguments = (ins SymbolRefAttr:$kernel_name);
   let results = (outs LLVM_AnyPointer:$res);
   let assemblyFormat = [{
