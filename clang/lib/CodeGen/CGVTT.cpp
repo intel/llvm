@@ -81,8 +81,10 @@ CodeGenVTables::EmitVTTDefinition(llvm::GlobalVariable *VTT,
          VTable->getValueType(), VTable, Idxs, /*InBounds=*/true,
          /*InRangeIndex=*/1);
 
-     Init = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(Init,
-                                                                 CGM.Int8PtrTy);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+     Init = llvm::ConstantExpr::getPointerBitCastOrAddrSpaceCast(
+         Init, CGM.GlobalsInt8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
      VTTComponents.push_back(Init);
   }
