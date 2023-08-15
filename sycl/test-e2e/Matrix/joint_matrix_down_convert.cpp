@@ -81,7 +81,7 @@ int main() {
   bfloat16 A[MATRIX_M][MATRIX_K];
   float C[MATRIX_M][MATRIX_N];
 
-  matrix_rand(MATRIX_M, MATRIX_N, *C);
+  matrix_rand(MATRIX_M, MATRIX_N, *C, (float)5);
 
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);

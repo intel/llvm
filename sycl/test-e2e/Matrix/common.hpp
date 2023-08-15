@@ -57,9 +57,9 @@ void matrix_fill(unsigned int rows, unsigned int cols, T *src, T val) {
 }
 
 template <typename T>
-void matrix_rand(unsigned int rows, unsigned int cols, T *src) {
+void matrix_rand(unsigned int rows, unsigned int cols, T *src, T val) {
   std::random_device dev;
-  std::uniform_real_distribution<float> fdistr(-1.0, 1.0);
+  std::uniform_real_distribution<float> fdistr(-val, val);
 
   for (unsigned int i = 0; i < rows; i++) {
     for (unsigned int j = 0; j < cols; j++) {
@@ -73,7 +73,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   bool res = true;
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
-      if ((fabs(src[i * cols + j] - (T2)ref[i * cols + j])) > BF16_EPSILON) {
+      if ((fabs(src[i * cols + j] - (T1)ref[i * cols + j])) > BF16_EPSILON) {
         res = false;
       }
     }
