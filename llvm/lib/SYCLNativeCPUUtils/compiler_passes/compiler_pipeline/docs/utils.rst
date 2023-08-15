@@ -45,6 +45,33 @@ Their job is three-fold:
   supplied to either pass on construction to encode this metadata. If not set,
   the default ``xyz`` order is used.
 
+LowerToMuxBuiltinsPass
+----------------------
+
+This pass replaces calls to the language implementation's builtin functions
+with alternative sequences of instructions involving ComputeMux builtins.
+
+Not all builtins **must** be lowered, but any builtins which can be
+re-expressed in the terms of the following ComputeMux builtins **should** be
+lowered:
+
+* Sync builtins: ``__mux_mem_barrier``, ``__mux_(sub|work)_group_barrier``.
+* Work-item builtins: ``__mux_get_local_id``, ``__mux_get_group_id``, etc.
+* Group builtins: ``__mux_(sub|work)_group_(any|all|scan|reduce|broadcast)``.
+
+Targets **must** lower any language builtins which **can** be expressed in
+terms of these ComputeMux builtins in order for other ComputeMux compiler
+passes to corectly recognise the program semantics.
+
+This is because these builtins have special semantics that the compiler and
+LLVM are generally unable to intuit using built-in properties of functions in
+LLVM (e.g., attributes). They generally have some meaning "across" other
+invocations of the same program or that influence the behaviour of other
+invocations running in parallel.
+
+See the :ref:`full list of builtins
+<specifications/mux-compiler-spec:Builtins>` for more information.
+
 AlignModuleStructsPass
 ----------------------
 
@@ -1047,17 +1074,6 @@ intrinsics found, as well as the bit-casts they use for the pointer argument.
 Removing this information is useful for debugging since the backend is less
 likely to optimize away variables in the stack no longer used, as a result this
 pass should only be run on debug builds of the module.
-
-ReplaceBarriersPass
--------------------
-
-Replaces calls to OpenCL's mangled barrier function with the appropriate
-``__mux`` memory barrier, deduced based on the flags passed to the barrier
-call. It covers the following barrier functions:
-
-* ``_Z7barrierj``
-* ``_Z18work_group_barrierj``
-* ``_Z18work_group_barrierjj``
 
 RemoveFencesPass
 ----------------
