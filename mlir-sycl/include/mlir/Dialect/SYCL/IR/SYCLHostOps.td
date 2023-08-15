@@ -37,10 +37,10 @@ def SYCLHostHandlerOp : SYCLOpTrait<"SYCLHostHandlerOp">;
 
 def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
     [MemoryEffectsOpInterface]> {
-  let summary = [{
-    Operation representing the construction of a SYCL object, i.e., allocation,
-    and member initialization.
+  let summary = "Represents the construction of a SYCL object, " #
+                "i.e., allocation, and member initialization.";
 
+  let description = [{
     This operation differs from `sycl.constructor` as it will take a
     `llvm.ptr` to any type instead of requiring a memref of a `sycl` type.
 
@@ -76,10 +76,8 @@ def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
 def SYCLHostKernelNameOp
     : SYCL_HostOp<"kernel_name",
         [Symbol, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = [{
-    Operation representing a constant holding the name of a kernel, i.e., a
-    `gpu.func` with the `kernel` attribute.
-  }];
+  let summary = "Represents a constant holding the name of a kernel, i.e., a " #
+                " `gpu.func` with the `kernel` attribute.";
   let arguments = (ins SymbolNameAttr:$sym_name, SymbolRefAttr:$kernel_name);
   let assemblyFormat = [{
     $sym_name `->` $kernel_name attr-dict
@@ -89,10 +87,8 @@ def SYCLHostKernelNameOp
 def SYCLHostGetKernelOp
     : SYCL_HostOp<"get_kernel",
         [Pure, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = [{
-    Operation that defines a reference to a kernel, i.e., a `gpu.func` with the
-    `kernel` attribute.
-  }];
+  let summary = "Defines a reference to a kernel, i.e., a `gpu.func` with " #
+                "`kernel` attribute.";
   let arguments = (ins SymbolRefAttr:$kernel_name);
   let results = (outs LLVM_AnyPointer:$res);
   let assemblyFormat = [{
@@ -103,10 +99,8 @@ def SYCLHostGetKernelOp
 def SYCLHostHandlerSetKernel
     : SYCL_HostOp<"handler.set_kernel",
         [SYCLHostHandlerOp, DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
-  let summary = [{
-    Operation assigning a kernel to a `sycl::handler`, thus pairing the handler
-    and the kernel being launched.
-  }];
+  let summary = "Assigns a kernel to a `sycl::handler`, thus pairing the " #
+                "handler and the kernel being launched.";
   let arguments = (ins Arg<LLVM_AnyPointer, "The handler", [MemWrite]>:$handler,
                        SymbolRefAttr:$kernel_name);
   let assemblyFormat = [{
@@ -116,10 +110,9 @@ def SYCLHostHandlerSetKernel
 
 def SYCLHostHandlerSetNDRange
     : SYCL_HostOp<"handler.set_nd_range", [SYCLHostHandlerOp]> {
-  let summary = [{
-    Operation assigning an nd-range to a `sycl::handler`, setting the nd-range
-    of the kernel to be launched.
-
+  let summary = "Assigns an nd-range to a `sycl::handler`, setting the " #
+                "nd-range of the kernel to be launched.";
+  let description = [{
     The `range` operand expects an `nd_range` pointer or a `range` pointer. In
     the latter case, an `id` pointer can be optionally given as the `offset`. In
     the former case, the `nd_range` attribute must be set.
