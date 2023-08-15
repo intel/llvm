@@ -191,13 +191,13 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   Value *packetizeMaskVarying(Instruction *I);
-  /// @brief Packetize a mask-varying subgroup reduction.
+  /// @brief Packetize a mask-varying subgroup/workgroup reduction.
   ///
   /// @param[in] I Instruction to packetize.
   ///
   /// @return Packetized instruction.
-  Value *packetizeSubgroupReduction(Instruction *I);
-  /// @brief Packetize a subgroup broadcast.
+  Value *packetizeGroupReduction(Instruction *I);
+  /// @brief Packetize a subgroup/workgroup broadcast.
   ///
   /// @param[in] I Instruction to packetize.
   ///
@@ -882,7 +882,7 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
     return getPacketized(Ins);
   }
 
-  if (auto *reduction = packetizeSubgroupReduction(Ins)) {
+  if (auto *reduction = packetizeGroupReduction(Ins)) {
     return broadcast(reduction);
   }
 
@@ -1075,7 +1075,7 @@ Packetizer::Result Packetizer::Impl::packetizeInstruction(Instruction *Ins) {
   return Packetizer::Result(*this, Ins, nullptr);
 }
 
-Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
+Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
   if (!CI || !CI->getCalledFunction()) {
     return nullptr;
@@ -1123,18 +1123,19 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
     Value *&val = opPackets.front();
     val = sanitizeVPReductionInput(B, val, VL, Info->Recurrence);
     if (!val) {
-      emitVeczRemarkMissed(&F, CI,
-                           "Can not vector-predicate subgroup reduction");
+      emitVeczRemarkMissed(
+          &F, CI, "Can not vector-predicate workgroup/subgroup reduction");
       return nullptr;
     }
   }
 
   // According to the OpenCL Spec, we are allowed to rearrange the operation
-  // order of a subgroup reduction any way we like (even though floating point
-  // addition is not associative so might not produce exactly the same result),
-  // so we reduce to a single vector first, if necessary, and then do a single
-  // reduction to scalar. This is more efficient than doing multiple reductions
-  // to scalar and then BinOp'ing multiple scalars together.
+  // order of a workgroup/subgroup reduction any way we like (even though
+  // floating point addition is not associative so might not produce exactly
+  // the same result), so we reduce to a single vector first, if necessary, and
+  // then do a single reduction to scalar. This is more efficient than doing
+  // multiple reductions to scalar and then BinOp'ing multiple scalars
+  // together.
   //
   // Reduce to a single vector.
   while ((packetWidth >>= 1)) {
@@ -1150,18 +1151,12 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
   Value *v =
       createSimpleTargetReduction(B, &TTI, opPackets.front(), Info->Recurrence);
 
-  if (isWorkGroup) {
-    // For a work group operation, we leave the original reduction function and
-    // divert the subgroup reduction through it, giving us a work group
-    // reduction over subgroup reductions.
-    CI->setOperand(argIdx, v);
-    v = CI;
-  } else {
-    IC.deleteInstructionLater(CI);
-    CI->replaceAllUsesWith(v);
-  }
+  // We leave the original reduction function and divert the vectorized
+  // reduction through it, giving us a reduction over the full apparent
+  // sub-group or work-group size (vecz * mux).
+  CI->setOperand(argIdx, v);
 
-  return v;
+  return CI;
 }
 
 Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {

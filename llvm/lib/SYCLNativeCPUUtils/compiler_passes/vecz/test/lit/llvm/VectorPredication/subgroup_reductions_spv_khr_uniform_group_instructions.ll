@@ -40,7 +40,8 @@ declare spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1)
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x i32> {{%.*}}, <4 x i32> <i32 1, i32 1, i32 1, i32 1>
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.mul.v4i32(<4 x i32> [[I]])
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_mul_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -60,7 +61,8 @@ entry:
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x i64> {{%.*}}, <4 x i64> <i64 1, i64 1, i64 1, i64 1>
 ; CHECK: [[R:%.*]] = call i64 @llvm.vector.reduce.mul.v4i64(<4 x i64> [[I]])
-; CHECK: store i64 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i64 @__mux_sub_group_reduce_mul_i64(i64 [[R]])
+; CHECK: store i64 %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_i64(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -80,7 +82,8 @@ entry:
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x float> {{%.*}}, <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>
 ; CHECK: [[R:%.*]] = call float @llvm.vector.reduce.fmul.v4f32(float 1.000000e+00, <4 x float> [[I]])
-; CHECK: store float [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func float @__mux_sub_group_reduce_fmul_f32(float [[R]])
+; CHECK: store float %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_mul_f32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -100,7 +103,8 @@ entry:
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x i32> {{%.*}}, <4 x i32> <i32 -1, i32 -1, i32 -1, i32 -1> 
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.and.v4i32(<4 x i32> [[I]])
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_and_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_and_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -120,7 +124,8 @@ entry:
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x i32> {{%.*}}, <4 x i32> zeroinitializer
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.or.v4i32(<4 x i32> [[I]])
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_or_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_or_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -140,7 +145,8 @@ entry:
 ; CHECK: [[C:%.*]] = icmp ugt <4 x i32> [[S]], <i32 0, i32 1, i32 2, i32 3>
 ; CHECK: [[I:%.*]] = select <4 x i1> [[C]], <4 x i64> {{%.*}}, <4 x i64> zeroinitializer
 ; CHECK: [[R:%.*]] = call i64 @llvm.vector.reduce.xor.v4i64(<4 x i64> [[I]])
-; CHECK: store i64 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i64 @__mux_sub_group_reduce_xor_i64(i64 [[R]])
+; CHECK: store i64 %call2, ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_xor_i32(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
   %call = tail call spir_func i64 @__mux_get_global_id(i32 0)
@@ -157,7 +163,8 @@ entry:
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_and(
 ; This doesn't generate a reduction intrinsic...
 ; CHECK: [[T:%.*]] = icmp eq i4 {{%.*}}, -1
-; CHECK: [[R:%.*]] = zext i1 [[T]] to i32
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_and_i1(i1 [[T]])
+; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_and(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
@@ -176,7 +183,8 @@ entry:
 
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_or(
 ; CHECK: [[T:%.*]] = icmp ne i4 {{%.*}}, 0
-; CHECK: [[R:%.*]] = zext i1 [[T]] to i32
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_or_i1(i1 [[T]])
+; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_or(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
@@ -196,7 +204,9 @@ entry:
 ; CHECK-LABEL: @__vecz_v4_vp_reduce_logical_xor(
 ; CHECK: [[X:%.*]] = call i4 @llvm.ctpop.i4(i4 {{%.*}})
 ; CHECK: [[T:%.*]] = and i4 [[X]], 1
-; CHECK: [[R:%.*]] = zext i4 [[T]] to i32
+; CHECK: [[C:%.*]] = icmp ne i4 [[T]], 0
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_reduce_logical_xor_i1(i1 [[C]])
+; CHECK: [[R:%.*]] = zext i1 %call2 to i32
 ; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
 define spir_kernel void @reduce_logical_xor(ptr addrspace(1) %in, ptr addrspace(1) %out) {
 entry:
