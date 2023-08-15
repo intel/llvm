@@ -152,7 +152,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 expanded += ' ONEAPI_DEVICE_SELECTOR={} {}'.format(sycl_device, test.config.run_launcher)
                 # Temp for debug tracing.
                 if sycl_device.startswith('ext_oneapi_hip:'):
-                    expanded += ' HSA_OVERRIDE_GFX_VERSION=10.3.0'
                     expanded += ' SYCL_PI_TRACE=2'
                     expanded += ' AMD_LOG_LEVEL=4'
 
