@@ -46,12 +46,10 @@ int main() {
 
   Barrier SyncPoint{NumThreads};
 
-  std::vector<queue> SubmissionQueues(NumThreads);
   auto FinalizeGraph = [&](int ThreadNum) {
     SyncPoint.wait();
     auto GraphExec = Graph.finalize();
-    SubmissionQueues[ThreadNum].submit(
-        [&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
+    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   };
 
   std::vector<std::thread> Threads;
@@ -65,9 +63,7 @@ int main() {
     Threads[i].join();
   }
 
-  for (unsigned i = 0; i < NumThreads; ++i) {
-    SubmissionQueues[i].wait_and_throw();
-  }
+  Queue.wait_and_throw();
 
   Queue.copy(PtrA, DataA.data(), Size);
   Queue.copy(PtrB, DataB.data(), Size);
