@@ -1,5 +1,5 @@
 // REQUIRES: aspect-atomic64
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -mllvm --print-after-all -mllvm -filter-print-funcs=_ZTS17assignment_kernelIN4sycl3_V110atomic_refELNS1_6access13address_spaceE6EmE -o %t.out
 // RUN: %{run} %t.out
 
 #include "assignment.h"
