@@ -1770,7 +1770,11 @@ BlockAddress *BlockAddress::get(Function *F, BasicBlock *BB) {
 }
 
 BlockAddress::BlockAddress(Function *F, BasicBlock *BB)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     : Constant(PointerType::get(F->getContext(), F->getAddressSpace()),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    : Constant(Type::getInt8PtrTy(F->getContext(), F->getAddressSpace()),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                Value::BlockAddressVal, &Op<0>(), 2) {
   setOperand(0, F);
   setOperand(1, BB);
