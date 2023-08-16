@@ -23,10 +23,11 @@ int main() {
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -fsycl-device-only %s -c -emit-llvm -o %s.spir64.bc
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx-nvidia-cuda -fsycl-device-only %s -c -emit-llvm -o %s.nvptx.bc
 // RUN: %clangxx -fsycl -target x86_64-unknown-linux-gnu %s -c -o %s.host.o
+// -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all
 
 //
 // Check clang-offload-bundler obj for opaque pointers support error when spir64 with 
-// typed pointers is the first input, followed by an opaque pointers module (nvptx64).
+// is the first input, followed by other opaque pointers modules, i.e., here nvptx64.
 //
 // RUN: clang-offload-bundler -type=o -targets=sycl-spir64-unknown-unknown,sycl-nvptx64-nvidia-cuda-sm_50,host-x86_64-unknown-linux-gpu -output=%s.o -input=%s.spir64.bc -input=%s.nvptx.bc -input=%s.host.o 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK-STD --allow-empty
@@ -36,18 +37,19 @@ int main() {
 // Check the nvptx module actually contains opaque pointers and no typed pointers.
 //
 // RUN: llvm-dis %s.nvptx.bc -o %s.nvptx.ll
-// RUN: FileCheck %s --check-prefix SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS --input-file=%s.nvptx.ll
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS: target triple = "nvptx-nvidia-cuda"
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS: ptr addrspace(1)
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS-NOT: i32 addrspace(1)*
+// RUN: FileCheck %s --check-prefix SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_NVPTX --input-file=%s.nvptx.ll
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_NVPTX: target triple = "nvptx-nvidia-cuda"
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_NVPTX: ptr addrspace(1)
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_NVPTX-NOT: i32 addrspace(1)*
 
 //
-// Check the spir64 module actually contains typed pointers and not opaque pointers.
+// Check the spir64 module also contains opaque pointers.
 //
-// NOTE This check part should be removed once opaque pointers are supported for SPIR-V target
+// SPIR targets now have opaque pointer support, hence we just double check it.
+// They didn't before, so the check was the other way around verifying typed ptrs.
 //
 // RUN: llvm-dis %s.spir64.bc -o %s.spir64.ll
-// RUN: FileCheck %s --check-prefix SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_NO_OPAQUE_POINTERS --input-file=%s.spir64.ll
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_NO_OPAQUE_POINTERS: target triple = "spir64-unknown-unknown"
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_NO_OPAQUE_POINTERS: i32 addrspace(1)*
-// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_NO_OPAQUE_POINTERS-NOT: ptr addrspace(1)
+// RUN: FileCheck %s --check-prefix SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_SPIR --input-file=%s.spir64.ll
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_SPIR: target triple = "spir64-unknown-unknown"
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_SPIR-NOT: i32 addrspace(1)*
+// SYCL_OFFLOAD_BUNDLER_MULTI_TARGET_OPAQUE_POINTERS_SPIR: ptr addrspace(1)
