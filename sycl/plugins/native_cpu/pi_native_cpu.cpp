@@ -12,6 +12,24 @@ extern "C" {
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
 
+  // Defining INIT_COMPLETE_PIAPI_NCPU automatically initializes the complete
+  // function table for the entire PI api. This approach ensures all PI
+  // functions are covered assuming <sycl/detail/pi.def> is kept up to date.
+  // This approach could perhaps also be adopted by other plugins whose
+  // functions are called in a similar way through pi2ur.
+  // We currently only define this macro to test if all PI functions are covered
+  // by our plugin. Always defining the macro would likely cause build errors on
+  // this plugin if pi.def changes.
+  // #define INIT_COMPLETE_PIAPI_NCPU
+
+#ifdef INIT_COMPLETE_PIAPI_NCPU
+// Automatic initialization of function table.
+#define _PI_API(api)                                                           \
+  (PluginInit->PiFunctionTable).api = (decltype(&::api))(&pi2ur::api);
+#include <sycl/detail/pi.def>
+#undef _PI_API
+#else
+  // manual initialization
 #define _PI_CL(pi_api, native_cpu_api)                                         \
   (PluginInit->PiFunctionTable).pi_api = (decltype(&::pi_api))(&native_cpu_api);
 
@@ -167,6 +185,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piTearDown, pi2ur::piTearDown)
 
 #undef _PI_CL
+#endif
   return PI_SUCCESS;
 }
 }
