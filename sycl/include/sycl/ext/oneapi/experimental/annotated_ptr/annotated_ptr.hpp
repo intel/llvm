@@ -65,7 +65,7 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
+  annotated_ref &operator op##=(const T &rhs) const { return *this = *this op rhs; }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -122,7 +122,7 @@ public:
 #endif
   }
 
-  T operator=(const T &Obj) const {
+  annotated_ref &operator=(const T &Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -133,9 +133,9 @@ public:
     return Obj;
   }
 
-  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
+  annotated_ref &operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
-  T operator++() {
+  annotated_ref &operator++() {
     const T &t = *this;
     *this = t + 1;
     return *this;
@@ -147,7 +147,7 @@ public:
     return t;
   }
 
-  T operator--() {
+  annotated_ref &operator--() {
     const T &t = *this;
     *this = t - 1;
     return *this;
@@ -248,7 +248,7 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  explicit annotated_ptr(T *Ptr,
+  annotated_ptr(T *Ptr,
                          const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
@@ -257,7 +257,7 @@ public:
   // variadic properties. The same property in `Props...` and
   // `PropertyValueTs...` must have the same property value.
   template <typename... PropertyValueTs>
-  explicit annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
+  annotated_ptr(T *Ptr, const PropertyValueTs &...props) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {
     static_assert(
         std::is_same<
