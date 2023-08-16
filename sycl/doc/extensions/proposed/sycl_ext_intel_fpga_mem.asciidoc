@@ -300,25 +300,25 @@ namespace sycl::ext::intel::experimental {
     template <resource_enum Resource>
     using value_t =
         property_value<resource_key,
-                       std::integral_constant<resource_enum, Resource>>;
+                        std::integral_constant<resource_enum, Resource>>;
   };
 
   struct num_banks_key {
     template <size_t elements>
     using value_t =
-        property_value<num_banks_key, std::integral_constant<elements>>;
+        property_value<num_banks_key, std::integral_constant<size_t, elements>>;
   };
 
   struct stride_size_key {
     template <size_t elements>
     using value_t =
-        property_value<stride_size_key, std::integral_constant<elements>>;
+        property_value<stride_size_key, std::integral_constant<size_t, elements>>;
   };
 
   struct word_size_key {
     template <size_t elements>
     using value_t =
-        property_value<word_size_key, std::integral_constant<elements>>;
+        property_value<word_size_key, std::integral_constant<size_t, elements>>;
   };
 
   struct bi_directional_ports_key {
@@ -334,25 +334,26 @@ namespace sycl::ext::intel::experimental {
 
   enum class ram_stitching_enum : std::uint16_t { min_ram, max_fmax };
 
-  struct ram_stritching_key {
-    template <ram_stritching_enum Ram_stritching>
+  struct ram_stitching_key {
+    template <ram_stitching_enum Ram_stritching>
     using value_t = property_value<
-        ram_stritching_key,
-        std::integral_constant<ram_stritching_enum, Ram_stritching>>;
+        ram_stitching_key,
+        std::integral_constant<ram_stitching_enum, Ram_stritching>>;
   };
 
   struct max_private_copies_key {
     template <size_t n>
     using value_t =
-        property_value<max_private_copies_key, std::integral_constant<n>>;
+        property_value<max_private_copies_key, std::integral_constant<size_t, n>>;
   };
 
   struct num_replicates_key {
     template <size_t n>
     using value_t =
-        property_value<num_replicates_key, std::integral_constant<n>>;
+        property_value<num_replicates_key, std::integral_constant<size_t, n>>;
   };
 
+  // Convenience aliases
   template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
   inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
   inline constexpr resource_key::value_t<resource_enum::block_ram>
