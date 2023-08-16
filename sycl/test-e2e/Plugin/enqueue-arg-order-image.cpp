@@ -1,5 +1,9 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
+
+// spir-v gen for legacy images at O0 not working
+// UNSUPPORTED: O0
+
 // RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
