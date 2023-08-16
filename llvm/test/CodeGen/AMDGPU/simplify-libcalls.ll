@@ -135,7 +135,7 @@ declare <16 x float> @_Z3sinDv16_f(<16 x float>)
 declare <16 x float> @_Z3cosDv16_f(<16 x float>)
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_native_recip
-; GCN: store float 0x3FD5555560000000, ptr addrspace(1) %a
+; GCN: %call = tail call fast float @_Z12native_recipf(float 3.000000e+00)
 define amdgpu_kernel void @test_native_recip(ptr addrspace(1) nocapture %a) {
 entry:
   %call = call fast float @_Z12native_recipf(float 3.000000e+00)
@@ -146,7 +146,7 @@ entry:
 declare float @_Z12native_recipf(float)
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_half_recip
-; GCN: store float 0x3FD5555560000000, ptr addrspace(1) %a
+;  GCN: %call = tail call fast float @_Z10half_recipf(float 3.000000e+00)
 define amdgpu_kernel void @test_half_recip(ptr addrspace(1) nocapture %a) {
 entry:
   %call = call fast float @_Z10half_recipf(float 3.000000e+00)
@@ -583,7 +583,7 @@ entry:
 declare float @_Z5exp10f(float)
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_use_native_log
-; GCN-NATIVE: call fast float @_Z10native_logf(float %tmp)
+; GCN-NATIVE: call fast float @llvm.log.f32(float %tmp)
 define amdgpu_kernel void @test_use_native_log(ptr addrspace(1) nocapture %a) {
 entry:
   %tmp = load float, ptr addrspace(1) %a, align 4
@@ -595,7 +595,7 @@ entry:
 declare float @_Z3logf(float)
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_use_native_log2
-; GCN-NATIVE: call fast float @_Z11native_log2f(float %tmp)
+; GCN-NATIVE: call fast float @llvm.log2.f32(float %tmp)
 define amdgpu_kernel void @test_use_native_log2(ptr addrspace(1) nocapture %a) {
 entry:
   %tmp = load float, ptr addrspace(1) %a, align 4
@@ -607,7 +607,7 @@ entry:
 declare float @_Z4log2f(float)
 
 ; GCN-LABEL: {{^}}define amdgpu_kernel void @test_use_native_log10
-; GCN-NATIVE: call fast float @_Z12native_log10f(float %tmp)
+; GCN-NATIVE: call fast float @llvm.log10.f32(float %tmp)
 define amdgpu_kernel void @test_use_native_log10(ptr addrspace(1) nocapture %a) {
 entry:
   %tmp = load float, ptr addrspace(1) %a, align 4

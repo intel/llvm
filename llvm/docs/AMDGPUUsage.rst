@@ -980,8 +980,7 @@ The AMDGPU backend implements the following LLVM IR intrinsics.
                                                    half). Not implemented for double. Hardware provides
                                                    1ULP accuracy for float, and 0.51ULP for half. Float
                                                    instruction does not natively support denormal
-                                                   inputs. Backend will optimize out denormal scaling if
-                                                   marked with the :ref:`afn <fastmath_afn>` flag.
+                                                   inputs.
 
   :ref:`llvm.sqrt <int_sqrt>`                      Implemented for double, float and half (and vectors).
 
@@ -995,8 +994,7 @@ The AMDGPU backend implements the following LLVM IR intrinsics.
                                                    half). Not implemented for double. Hardware provides
                                                    1ULP accuracy for float, and 0.51ULP for half. Float
                                                    instruction does not natively support denormal
-                                                   inputs. Backend will optimize out denormal scaling if
-                                                   marked with the :ref:`afn <fastmath_afn>` flag.
+                                                   inputs.
 
   :ref:`llvm.stacksave.p5 <int_stacksave>`         Implemented, must use the alloca address space.
   :ref:`llvm.stackrestore.p5 <int_stackrestore>`   Implemented, must use the alloca address space.
