@@ -1069,10 +1069,11 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                         PI_ERROR_INVALID_KERNEL_NAME);
 }
 
-RTDeviceBinaryImage &ProgramManager::getDeviceImage(
-    const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
-    const context &Context, const device &Device,
-    bool JITCompilationIsRequired) {
+template <template <typename, typename...> class Container>
+RTDeviceBinaryImage &
+ProgramManager::getDeviceImage(const Container<RTDeviceBinaryImage *> &ImageSet,
+                               const context &Context, const device &Device,
+                               bool JITCompilationIsRequired) {
   assert(ImageSet.size() > 0);
 
   if (DbgProgMgr > 0) {
@@ -1437,7 +1438,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
       if (DumpImages)
         dumpImage(*Img);
-      m_UniversalKernelSet.insert(Img.get());
+      m_UniversalKernelSet.push_back(Img.get());
     }
     m_DeviceImages.insert(std::move(Img));
   }

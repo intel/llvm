@@ -94,10 +94,11 @@ public:
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
 
-  RTDeviceBinaryImage &getDeviceImage(
-      const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
-      const context &Context, const device &Device,
-      bool JITCompilationIsRequired = false);
+  template <template <typename, typename...> class Container>
+  RTDeviceBinaryImage &
+  getDeviceImage(const Container<RTDeviceBinaryImage *> &ImagesToVerify,
+                 const context &Context, const device &Device,
+                 bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
@@ -346,7 +347,7 @@ private:
   /// Keeps images without entry info.
   /// Such images are assumed to contain all kernel associated with the module.
   /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::unordered_set<RTDeviceBinaryImage *> m_UniversalKernelSet;
+  std::vector<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
