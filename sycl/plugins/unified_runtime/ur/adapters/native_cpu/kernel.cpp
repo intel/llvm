@@ -19,7 +19,11 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pKernelName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  auto f = reinterpret_cast<nativecpu_ptr_t>(hProgram->_ptr);
+  auto kernelEntry = hProgram->_kernels.find(pKernelName);
+  if (kernelEntry == hProgram->_kernels.end())
+    return UR_RESULT_ERROR_INVALID_KERNEL;
+
+  auto f = reinterpret_cast<nativecpu_ptr_t>(kernelEntry->second);
   auto kernel = new ur_kernel_handle_t_(pKernelName, *f);
 
   *phKernel = kernel;

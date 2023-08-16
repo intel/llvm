@@ -19,15 +19,20 @@
 //CHECK_ACTIONS:|     +- 11: linker, {5}, ir, (device-sycl)
 //CHECK_ACTIONS:|  +- 12: backend, {11}, assembler, (device-sycl)
 //CHECK_ACTIONS:|- 13: assembler, {12}, object, (device-sycl)
-//CHECK_ACTIONS:14: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {13}, image
+//call sycl-post-link and clang-offload-wrapper
+//CHECK_ACTIONS:|  +- 14: sycl-post-link, {11}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS:|- 15: clang-offload-wrapper, {14}, object, (device-sycl)
+//CHECK_ACTIONS:16: offload, "host-sycl ({{.*}})" {10}, "device-sycl ({{.*}})" {13}, "device-sycl ({{.*}})" {15}, image
 
 
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[KERNELIR:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "SYCL::Linker", inputs: ["[[KERNELIR]].bc"], output: "[[KERNELLINK:.*]].bc"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[KERNELLINK]].bc"], output: "[[KERNELOBJ:.*]].o"
+//CHECK_BINDINGS:# "{{.*}}" - "SYCL post link", inputs: ["[[KERNELLINK]].bc"], output: "[[TABLEFILE:.*]].table"
+//CHECK_BINDINGS:# "{{.*}}" - "offload wrapper", inputs: ["[[TABLEFILE]].table"], output: "[[WRAPPEROBJ:.*]].o"
 //CHECK_BINDINGS:# "{{.*}}" - "Append Footer to source", inputs: ["{{.*}}sycl-native-cpu-fsycl.cpp"], output: "[[SRCWFOOTER:.*]].cpp"
 //CHECK_BINDINGS:# "{{.*}}" - "clang", inputs: ["[[SRCWFOOTER]].cpp", "[[KERNELIR]].bc"], output: "[[HOSTOBJ:.*]].o"
-//CHECK_BINDINGS:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o"], output: "a.{{.*}}"
+//CHECK_BINDINGS:# "{{.*}}" - "{{.*}}::Linker", inputs: ["[[HOSTOBJ]].o", "[[KERNELOBJ]].o", "[[WRAPPEROBJ]].o"], output: "a.{{.*}}"
 
 //CHECK_INVO:{{.*}}clang{{.*}}-fsycl-is-device{{.*}}"-fsycl-is-native-cpu" "-D" "__SYCL_NATIVE_CPU__" 
 //CHECK_INVO:{{.*}}clang{{.*}}"-x" "ir"
@@ -48,4 +53,6 @@
 //CHECK_ACTIONS-AARCH64:|     +- 11: linker, {5}, ir, (device-sycl)
 //CHECK_ACTIONS-AARCH64:|  +- 12: backend, {11}, assembler, (device-sycl)
 //CHECK_ACTIONS-AARCH64:|- 13: assembler, {12}, object, (device-sycl)
-//CHECK_ACTIONS-AARCH64:14: offload, "host-sycl (aarch64-unknown-linux-gnu)" {10}, "device-sycl (aarch64-unknown-linux-gnu)" {13}, image
+//CHECK_ACTIONS-AARCH64:|  +- 14: sycl-post-link, {11}, tempfiletable, (device-sycl)
+//CHECK_ACTIONS-AARCH64:|- 15: clang-offload-wrapper, {14}, object, (device-sycl)
+//CHECK_ACTIONS-AARCH64:16: offload, "host-sycl (aarch64-unknown-linux-gnu)" {10}, "device-sycl (aarch64-unknown-linux-gnu)" {13}, "device-sycl (aarch64-unknown-linux-gnu)" {15}, image

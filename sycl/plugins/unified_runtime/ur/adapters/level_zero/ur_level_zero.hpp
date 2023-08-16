@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cassert>
+#include <cinttypes>
 #include <list>
 #include <map>
 #include <stdarg.h>
