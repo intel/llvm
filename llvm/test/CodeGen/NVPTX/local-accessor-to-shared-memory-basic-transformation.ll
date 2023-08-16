@@ -5,7 +5,7 @@ target datalayout = "e-i64:64-i128:128-v16:16-v32:32-n16:32:64"
 target triple = "nvptx64-nvidia-cuda"
 
 ; This test checks that the transformation is applied in the basic case. It
-; aslo makes sure that a non-kernel node using the function's signature gets
+; also makes sure that a non-kernel node using the function's signature gets
 ; correcly updated (`maxntid`).
 
 ; CHECK: @_ZTS14example_kernel_shared_mem = external addrspace(3) global [0 x i8], align 4
