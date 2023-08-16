@@ -122,7 +122,7 @@ TEST(GetProfilingInfo, command_exception_check) {
       auto submit_time = event.get_profiling_info<
           sycl::info::event_profiling::command_submit>();
       (void)submit_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
@@ -140,7 +140,7 @@ TEST(GetProfilingInfo, command_exception_check) {
           event
               .get_profiling_info<sycl::info::event_profiling::command_start>();
       (void)start_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception const &e) {
       std::cerr << e.what() << std::endl;
       EXPECT_STREQ(
@@ -158,7 +158,7 @@ TEST(GetProfilingInfo, command_exception_check) {
       auto end_time =
           event.get_profiling_info<sycl::info::event_profiling::command_end>();
       (void)end_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception const &e) {
       EXPECT_STREQ(
           e.what(),
@@ -174,7 +174,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_submit>();
     (void)info;
-    //FAIL();
+    FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
                            " has no associated queue: command_submit");
@@ -183,7 +183,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_start>();
     (void)info;
-    //FAIL();
+    FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
                            " has no associated queue: command_start");
@@ -192,7 +192,7 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     auto info =
         E.get_profiling_info<sycl::info::event_profiling::command_end>();
     (void)info;
-    //FAIL();
+    FAIL();
   } catch (sycl::exception const &e) {
     EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
                            " has no associated queue: command_end");
@@ -206,8 +206,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_set) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage =
-      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
   const int globalWIs{512};
@@ -267,7 +266,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       auto submit_time = event.get_profiling_info<
           sycl::info::event_profiling::command_submit>();
       (void)submit_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
@@ -281,7 +280,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
           event
               .get_profiling_info<sycl::info::event_profiling::command_start>();
       (void)start_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
@@ -294,7 +293,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       auto end_time =
           event.get_profiling_info<sycl::info::event_profiling::command_end>();
       (void)end_time;
-      // FAIL();
+      FAIL();
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
@@ -360,29 +359,12 @@ TEST(GetProfilingInfo, check_command_submission_time_with_host_accessor) {
   EXPECT_TRUE(DeviceTimerCalled);
 }
 
-TEST(GetProfilingInfo, check_fallback_piEnqueueEventsWait) {
-  using namespace sycl;
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piGetDeviceAndHostTimer>(
-      redefinedPiGetDeviceAndHostTimer);
-  device Dev = Plt.get_devices()[0];
-  context Ctx{Dev};
-  queue Queue{Ctx, Dev, property::queue::enable_profiling()};
-  int data[1024];
-  buffer Buf{data, range<1>{1024}};
-  DeviceTimerCalled = false;
-
-
-}
-
 pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
                                                  uint64_t *DeviceTime,
                                                  uint64_t *HostTime) {
   return PI_ERROR_INVALID_OPERATION;
 }
 
-//redefine getprofileinfo, duplicate the logic, 
 
 static pi_result redefinedDeviceGetInfoAcc(pi_device device,
                                            pi_device_info param_name,
@@ -407,10 +389,6 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
       redefinedDeviceGetInfoAcc);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-
-  // support with FallbackProfiling
-  // ASSERT_FALSE(Dev.has(sycl::aspect::queue_profiling));
-
   static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
@@ -430,7 +408,7 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
   auto start_time =
       event.get_profiling_info<sycl::info::event_profiling::command_start>();
   auto end_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_end>(); 
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
   assert((submit_time && start_time && end_time) &&
          "Profiling information failed.");
   assert((submit_time < start_time) &&
