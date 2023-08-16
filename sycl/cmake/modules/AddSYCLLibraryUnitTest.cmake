@@ -1,4 +1,4 @@
-set(SYCL_COMPATH_UNITTEST_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
+set(SYCL_COMPAT_UNITTEST_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 # add_sycl_library_unittest(test_suite_name sycl_extra_flags
 #                           file1.cpp file2.cpp ...)
 #
