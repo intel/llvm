@@ -73,8 +73,8 @@ static sycl::detail::pi::PiProgram
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
                     const std::vector<pi_device_binary_property> Metadata) {
-  const PluginPtr &Plugin = Context->getPlugin();
   XPTI_LW_TRACE();
+  const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
   Plugin->call<PiApiKind::piContextGetInfo>(Context->getHandleRef(),
@@ -109,20 +109,6 @@ createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
   Plugin->call<PiApiKind::piProgramCreate>(Context->getHandleRef(), Data,
                                            DataLen, &Program);
   return Program;
-}
-
-RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(const std::string &KernelName,
-                               const context &Context, const device &Device,
-                               bool JITCompilationIsRequired) {
-  XPTI_LW_TRACE();
-  if (DbgProgMgr > 0)
-    std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
-              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
-              << ", " << JITCompilationIsRequired << ")\n";
-
-  KernelSetId KSId = getKernelSetId(KernelName);
-  return getDeviceImage(KSId, Context, Device, JITCompilationIsRequired);
 }
 
 /// Try to fetch entity (kernel or program) from cache. If there is no such
@@ -601,10 +587,6 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const std::string &KernelName, const program_impl *Prg,
     bool JITCompilationIsRequired) {
   XPTI_LW_TRACE();
-  // TODO: Make sure that KSIds will be different for the case when the same
-  // kernel built with different options is present in the fat binary.
-  KernelSetId KSId = getKernelSetId(KernelName);
-
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -932,7 +914,6 @@ static sycl::detail::pi::PiProgram
 loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
                       const sycl::detail::pi::PiDevice &Device,
                       bool UseNativeLib) {
-
   XPTI_LW_TRACE();
   auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
 
@@ -1033,6 +1014,7 @@ template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
     const StorageKey &Key, const context &Context, const device &Device) {
+  XPTI_LW_TRACE();
   auto [ItBegin, ItEnd] = ImagesSet.equal_range(Key);
   if (ItBegin == ItEnd)
     return nullptr;
@@ -1111,6 +1093,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
     const context &Context, const device &Device,
     bool JITCompilationIsRequired) {
+  XPTI_LW_TRACE();
   assert(ImageSet.size() > 0);
 
   if (DbgProgMgr > 0) {
@@ -1230,7 +1213,6 @@ ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask) {
-
   XPTI_LW_TRACE();
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
@@ -1321,8 +1303,6 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
-  XPTI_LW_TRACE();
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1491,36 +1471,6 @@ void ProgramManager::debugPrintBinaryImages() const {
   }
 }
 
-KernelSetId ProgramManager::getNextKernelSetId() const {
-  // No need for atomic, should be guarded by the caller
-  static KernelSetId Result = LastKSId;
-  return ++Result;
-}
-
-KernelSetId
-ProgramManager::getKernelSetId(const std::string &KernelName) const {
-  XPTI_LW_TRACE();
-  // If the env var instructs to use image from a file,
-  // return the kernel set associated with it
-  if (m_UseSpvFile)
-    return SpvFileKSId;
-  std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-  if (m_KernelSets) {
-    auto KSIdIt = m_KernelSets->find(KernelName);
-    // If the kernel has been assigned to a kernel set, return it
-    if (KSIdIt != m_KernelSets->end())
-      return KSIdIt->second;
-  }
-  // If no kernel set was found check if there is a kernel set containing
-  // all kernels in the given module
-  if (m_UniversalKernelSet)
-    return *m_UniversalKernelSet;
-
-  throw runtime_error("No kernel named " + KernelName + " was found",
-                      PI_ERROR_INVALID_KERNEL_NAME);
-}
-
-void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
   XPTI_LW_TRACE();
@@ -1553,7 +1503,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
 void ProgramManager::flushSpecConstants(const program_impl &Prg,
                                         sycl::detail::pi::PiProgram NativePrg,
                                         const RTDeviceBinaryImage *Img) {
-  XPTI_LW_TRACE();
   if (DbgProgMgr > 2) {
     std::cerr << ">>> ProgramManager::flushSpecConstants(" << Prg.get()
               << ",...)\n";
@@ -1605,7 +1554,6 @@ uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
 const KernelArgMask *
 ProgramManager::getEliminatedKernelArgMask(pi::PiProgram NativePrg,
                                            const std::string &KernelName) {
-  XPTI_LW_TRACE();
   // Bail out if there are no eliminated kernel arg masks in our images
   if (m_EliminatedKernelArgMasks.empty())
     return nullptr;
@@ -1743,7 +1691,6 @@ void ProgramManager::addOrInitDeviceGlobalEntry(const void *DeviceGlobalPtr,
 
 std::set<RTDeviceBinaryImage *>
 ProgramManager::getRawDeviceImages(const std::vector<kernel_id> &KernelIDs) {
-  XPTI_LW_TRACE();
   std::set<RTDeviceBinaryImage *> BinImages;
   std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
   for (const kernel_id &KID : KernelIDs) {
@@ -1783,7 +1730,6 @@ std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
 
 void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
                                             const char *UniqueId) {
-  XPTI_LW_TRACE();
   std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
 
   auto ExistingHostPipe = m_HostPipes.find(UniqueId);
@@ -1800,7 +1746,6 @@ void ProgramManager::addOrInitHostPipeEntry(const void *HostPipePtr,
 
 HostPipeMapEntry *
 ProgramManager::getHostPipeEntry(const std::string &UniqueId) {
-  XPTI_LW_TRACE();
   std::lock_guard<std::mutex> HostPipesGuard(m_HostPipesMutex);
   auto Entry = m_HostPipes.find(UniqueId);
   assert(Entry != m_HostPipes.end() && "Host pipe entry not found");
@@ -2123,7 +2068,6 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
                         const property_list &) {
   XPTI_LW_TRACE();
-
   // TODO: Extract compile options from property list once the Spec clarifies
   // how they can be passed.
 
@@ -2434,6 +2378,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,
                                   const property_list &PropList,
                                   sycl::detail::pi::PiProgram Program) {
+
   (void)PropList;
 
   XPTI_LW_TRACE();
