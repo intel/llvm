@@ -24,7 +24,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// ESIMD intrinsic operand size in bytes.
@@ -196,7 +196,7 @@ auto accessorToPointer(AccessorTy Acc, OffsetTy Offset = 0) {
 #endif // __ESIMD_FORCE_STATELESS_MEM
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

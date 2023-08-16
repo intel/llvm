@@ -25,11 +25,11 @@
 #include <sycl/detail/defines.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-  namespace ext {
-  namespace intel {
-  namespace util {
-  namespace bitmap {
+inline namespace _V1 {
+namespace ext {
+namespace intel {
+namespace util {
+namespace bitmap {
 
 #ifndef PACKED
 #ifdef _MSC_VER
@@ -289,7 +289,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
   } // end namespace util
   } // end namespace intel
   } // end namespace ext
-} // end __SYCL_INLINE_VER_NAMESPACE(_V1)
+  } // namespace _V1
 } // namespace sycl
 
 #endif // ESIMD_EXAMPLES_COMMON_BITMAP_HELPERS_H

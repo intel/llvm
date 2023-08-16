@@ -3,7 +3,7 @@
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc -opaque-pointers=0
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc -emit-opaque-pointers=0
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-DAG: Capability JointMatrixINTEL

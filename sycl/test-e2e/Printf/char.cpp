@@ -5,7 +5,7 @@
 // [1]: https://en.cppreference.com/w/cpp/io/c/fprintf
 //
 // UNSUPPORTED: hip_amd
-// XFAIL: cuda && windows || ((level_zero || opencl) && gpu && linux)
+// XFAIL: cuda && windows
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

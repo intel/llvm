@@ -17,7 +17,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename, int, access::mode, access::target, access::placeholder,
           typename>
 class accessor;
@@ -187,5 +187,5 @@ using SampledImageAccessorImplPtr =
 using Requirement = AccessorImplHost;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

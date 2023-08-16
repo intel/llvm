@@ -17,7 +17,7 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Standalone definitions to use w/o instantiating element_type_traits.
@@ -151,7 +151,7 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

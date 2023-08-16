@@ -8,14 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/ext/oneapi/latency_control/properties.hpp>
-#include <sycl/stl.hpp>
-#include <tuple>
+#include <sycl/ext/oneapi/latency_control/properties.hpp> // for latency_co...
+
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for conditional_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental::detail {
 
 template <template <int32_t> class _Type, class _T>
@@ -56,5 +55,5 @@ using defaultLatencyConstraintProperty =
     latency_constraint_key::value_t<0, latency_control_type::none, 0>;
 
 } // namespace ext::intel::experimental::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

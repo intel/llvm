@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -1133,13 +1133,13 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   assert(DeviceGlobalEntry->MIsDeviceImageScopeDecorated &&
          "device_global is not device image scope decorated.");
 
-  // If the device global is used in multiple kernel sets we cannot proceed.
-  if (DeviceGlobalEntry->MKSIds.size() > 1)
+  // If the device global is used in multiple device images we cannot proceed.
+  if (DeviceGlobalEntry->MImageIdentifiers.size() > 1)
     throw sycl::exception(make_error_code(errc::invalid),
                           "More than one image exists with the device_global.");
 
   // If there are no kernels using the device_global we cannot proceed.
-  if (DeviceGlobalEntry->MKSIds.size() == 0)
+  if (DeviceGlobalEntry->MImageIdentifiers.size() == 0)
     throw sycl::exception(make_error_code(errc::invalid),
                           "No image exists with the device_global.");
 
@@ -1153,9 +1153,9 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
 
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
-  KernelSetId KSId = *DeviceGlobalEntry->MKSIds.begin();
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(KSId, Context, Device);
+  RTDeviceBinaryImage &Img =
+      PM.getDeviceImage(DeviceGlobalEntry->MImages, Context, Device);
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});
@@ -1432,6 +1432,37 @@ void MemoryManager::ext_oneapi_copy_usm_cmd_buffer(
       OutSyncPoint);
 }
 
+void MemoryManager::copy_image_bindless(
+    void *Src, QueueImplPtr Queue, void *Dst,
+    const sycl::detail::pi::PiMemImageDesc &Desc,
+    const sycl::detail::pi::PiMemImageFormat &Format,
+    const sycl::detail::pi::PiImageCopyFlags Flags,
+    sycl::detail::pi::PiImageOffset SrcOffset,
+    sycl::detail::pi::PiImageOffset DstOffset,
+    sycl::detail::pi::PiImageRegion HostExtent,
+    sycl::detail::pi::PiImageRegion CopyExtent,
+    const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent) {
+
+  assert(!Queue->getContextImplPtr()->is_host() &&
+         "Host queue not supported in copy_image_bindless.");
+  assert((Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::HtoD ||
+          Flags == (sycl::detail::pi::PiImageCopyFlags)
+                       ext::oneapi::experimental::image_copy_flags::DtoH) &&
+         "Invalid flags passed to copy_image_bindless.");
+  if (!Dst || !Src)
+    throw sycl::exception(
+        sycl::make_error_code(errc::invalid),
+        "NULL pointer argument in bindless image copy operation.");
+
+  const detail::PluginPtr &Plugin = Queue->getPlugin();
+  Plugin->call<PiApiKind::piextMemImageCopy>(
+      Queue->getHandleRef(), Dst, Src, &Format, &Desc, Flags, &SrcOffset,
+      &DstOffset, &CopyExtent, &HostExtent, DepEvents.size(), DepEvents.data(),
+      OutEvent);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -27,7 +27,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {
@@ -70,5 +70,5 @@ queue::queue(const context &SyclContext, const device &SyclDevice,
             detail::getSyclObjImpl(SyclContext)->get_async_handler(),
             PropList) {}
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

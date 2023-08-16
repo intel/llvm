@@ -5,6 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// https://github.com/intel/llvm/issues/10369
+// UNSUPPORTED: gpu
+//
 // UNSUPPORTED: gpu-intel-pvc
 // TODO: remove fno-fast-math option once the issue is investigated and the test
 // is fixed.
