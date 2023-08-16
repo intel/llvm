@@ -34,14 +34,14 @@ namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
 // for throwing errors when these features are used with graphs.
 enum class UnsupportedGraphFeatures {
-  sycl_reductions,
-  sycl_specialization_constants,
-  sycl_kernel_bundle,
-  sycl_ext_oneapi_kernel_properties,
-  sycl_ext_oneapi_enqueue_barrier,
-  sycl_ext_oneapi_memcpy2d,
-  sycl_ext_oneapi_device_global,
-  sycl_ext_oneapi_bindless_images
+  sycl_reductions = 0,
+  sycl_specialization_constants = 1,
+  sycl_kernel_bundle = 2,
+  sycl_ext_oneapi_kernel_properties = 3,
+  sycl_ext_oneapi_enqueue_barrier = 4,
+  sycl_ext_oneapi_memcpy2d = 5,
+  sycl_ext_oneapi_device_global = 6,
+  sycl_ext_oneapi_bindless_images = 7
 };
 
 constexpr const char *
