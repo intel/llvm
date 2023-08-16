@@ -9,8 +9,8 @@
 // REQUIRES: has-unix-headers
 
 // UNSUPPORTED: c++03, c++11
+// UNSUPPORTED: !libcpp-hardening-mode=debug
 // XFAIL: availability-verbose_abort-missing
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_ASSERTIONS=1
 
 // Construct a string_view from an invalid length
 // constexpr basic_string_view( const _CharT* s, size_type len )

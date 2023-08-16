@@ -23,6 +23,7 @@
 #include "llvm/Bitstream/BitstreamReader.h"
 #include "llvm/Config/llvm-config.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/AutoUpgrade.h"
 #include "llvm/IR/BasicBlock.h"
@@ -1355,13 +1356,7 @@ Type *BitcodeReader::getPtrElementTypeByID(unsigned ID) {
   if (!Ty->isPointerTy())
     return nullptr;
 
-  Type *ElemTy = getTypeByID(getContainedTypeID(ID, 0));
-  if (!ElemTy)
-    return nullptr;
-
-  assert(cast<PointerType>(Ty)->isOpaqueOrPointeeTypeMatches(ElemTy) &&
-         "Incorrect element type");
-  return ElemTy;
+  return getTypeByID(getContainedTypeID(ID, 0));
 }
 
 unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
@@ -1379,7 +1374,7 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
            "Incorrect cached contained type IDs");
     return It->second;
   }
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 #ifndef NDEBUG
   if (!Ty->isOpaquePointerTy()) {
     assert(Ty->getNumContainedTypes() == ChildTypeIDs.size() &&
@@ -1390,6 +1385,7 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
     }
   }
 #endif
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   unsigned TypeID = TypeList.size();
   TypeList.push_back(Ty);
@@ -2384,11 +2380,13 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
         Context.setOpaquePointers(true);
       } else if (Context.supportsTypedPointers())
         return error(
             "Opaque pointers are only supported in -opaque-pointers mode");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddressSpace = Record[0];
       ResultTy = PointerType::get(Context, AddressSpace);
       break;
@@ -3290,9 +3288,7 @@ Error BitcodeReader::parseConstants() {
         PointeeType = getPtrElementTypeByID(BaseTypeID);
         if (!PointeeType)
           return error("Missing element type for old-style constant GEP");
-      } else if (!OrigPtrTy->isOpaqueOrPointeeTypeMatches(PointeeType))
-        return error("Explicit gep operator type does not match pointee type "
-                     "of pointer operand");
+      }
 
       V = BitcodeConstant::create(Alloc, CurTy,
                                   {Instruction::GetElementPtr, InBounds,
@@ -4532,10 +4528,6 @@ Error BitcodeReader::parseBitcodeInto(Module *M, bool ShouldLazyLoadMetadata,
 Error BitcodeReader::typeCheckLoadStoreInst(Type *ValType, Type *PtrType) {
   if (!isa<PointerType>(PtrType))
     return error("Load/Store operand is not a pointer type");
-
-  if (!cast<PointerType>(PtrType)->isOpaqueOrPointeeTypeMatches(ValType))
-    return error("Explicit load/store type does not match pointee "
-                 "type of pointer operand");
   if (!PointerType::isLoadableOrStorableType(ValType))
     return error("Cannot load/store from pointer");
   return Error::success();
@@ -4962,10 +4954,6 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         if (BasePtr->getType()->isVectorTy())
           TyID = getContainedTypeID(TyID);
         Ty = getTypeByID(TyID);
-      } else if (!cast<PointerType>(BasePtr->getType()->getScalarType())
-                      ->isOpaqueOrPointeeTypeMatches(Ty)) {
-        return error(
-            "Explicit gep type does not match pointee type of pointer operand");
       }
 
       SmallVector<Value*, 16> GEPIdx;
@@ -5556,9 +5544,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         FTy = dyn_cast_or_null<FunctionType>(getTypeByID(FTyID));
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (!CalleeTy->isOpaqueOrPointeeTypeMatches(FTy))
-        return error("Explicit invoke type does not match pointee type of "
-                     "callee operand");
+      }
       if (Record.size() < FTy->getNumParams() + OpNum)
         return error("Insufficient operands to call");
 
@@ -5652,9 +5638,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         FTy = dyn_cast_or_null<FunctionType>(getTypeByID(FTyID));
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (!OpTy->isOpaqueOrPointeeTypeMatches(FTy))
-        return error("Explicit call type does not match pointee type of "
-                     "callee operand");
+      }
       if (Record.size() < FTy->getNumParams() + OpNum)
         return error("Insufficient operands to call");
 
@@ -6362,9 +6346,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
         FTy = dyn_cast_or_null<FunctionType>(getTypeByID(FTyID));
         if (!FTy)
           return error("Callee is not of pointer to function type");
-      } else if (!OpTy->isOpaqueOrPointeeTypeMatches(FTy))
-        return error("Explicit call type does not match pointee type of "
-                     "callee operand");
+      }
       if (Record.size() < FTy->getNumParams() + OpNum)
         return error("Insufficient operands to call");
 
@@ -6409,7 +6391,7 @@ Error BitcodeReader::parseFunctionBody(Function *F) {
       cast<CallInst>(I)->setCallingConv(
           static_cast<CallingConv::ID>((0x7ff & CCInfo) >> bitc::CALL_CCONV));
       CallInst::TailCallKind TCK = CallInst::TCK_None;
-      if (CCInfo & 1 << bitc::CALL_TAIL)
+      if (CCInfo & (1 << bitc::CALL_TAIL))
         TCK = CallInst::TCK_Tail;
       if (CCInfo & (1 << bitc::CALL_MUSTTAIL))
         TCK = CallInst::TCK_MustTail;
@@ -8036,14 +8018,17 @@ Expected<std::unique_ptr<ModuleSummaryIndex>> BitcodeModule::getSummary() {
   return std::move(Index);
 }
 
-static Expected<bool> getEnableSplitLTOUnitFlag(BitstreamCursor &Stream,
-                                                unsigned ID) {
+static Expected<std::pair<bool, bool>>
+getEnableSplitLTOUnitAndUnifiedFlag(BitstreamCursor &Stream,
+                                                 unsigned ID,
+                                                 BitcodeLTOInfo &LTOInfo) {
   if (Error Err = Stream.EnterSubBlock(ID))
     return std::move(Err);
   SmallVector<uint64_t, 64> Record;
 
   while (true) {
     BitstreamEntry Entry;
+    std::pair<bool, bool> Result = {false,false};
     if (Error E = Stream.advanceSkippingSubblocks().moveInto(Entry))
       return std::move(E);
 
@@ -8051,10 +8036,10 @@ static Expected<bool> getEnableSplitLTOUnitFlag(BitstreamCursor &Stream,
     case BitstreamEntry::SubBlock: // Handled for us already.
     case BitstreamEntry::Error:
       return error("Malformed block");
-    case BitstreamEntry::EndBlock:
-      // If no flags record found, conservatively return true to mimic
-      // behavior before this flag was added.
-      return true;
+    case BitstreamEntry::EndBlock: {
+      // If no flags record found, set both flags to false.
+      return Result;
+    }
     case BitstreamEntry::Record:
       // The interesting case.
       break;
@@ -8071,9 +8056,13 @@ static Expected<bool> getEnableSplitLTOUnitFlag(BitstreamCursor &Stream,
     case bitc::FS_FLAGS: { // [flags]
       uint64_t Flags = Record[0];
       // Scan flags.
-      assert(Flags <= 0x1ff && "Unexpected bits in flag");
+      assert(Flags <= 0x2ff && "Unexpected bits in flag");
 
-      return Flags & 0x8;
+      bool EnableSplitLTOUnit = Flags & 0x8;
+      bool UnifiedLTO = Flags & 0x200;
+      Result = {EnableSplitLTOUnit, UnifiedLTO};
+
+      return Result;
     }
     }
   }
@@ -8099,25 +8088,31 @@ Expected<BitcodeLTOInfo> BitcodeModule::getLTOInfo() {
       return error("Malformed block");
     case BitstreamEntry::EndBlock:
       return BitcodeLTOInfo{/*IsThinLTO=*/false, /*HasSummary=*/false,
-                            /*EnableSplitLTOUnit=*/false};
+                            /*EnableSplitLTOUnit=*/false, /*UnifiedLTO=*/false};
 
     case BitstreamEntry::SubBlock:
       if (Entry.ID == bitc::GLOBALVAL_SUMMARY_BLOCK_ID) {
-        Expected<bool> EnableSplitLTOUnit =
-            getEnableSplitLTOUnitFlag(Stream, Entry.ID);
-        if (!EnableSplitLTOUnit)
-          return EnableSplitLTOUnit.takeError();
-        return BitcodeLTOInfo{/*IsThinLTO=*/true, /*HasSummary=*/true,
-                              *EnableSplitLTOUnit};
+        BitcodeLTOInfo LTOInfo;
+        Expected<std::pair<bool, bool>> Flags =
+            getEnableSplitLTOUnitAndUnifiedFlag(Stream, Entry.ID, LTOInfo);
+        if (!Flags)
+          return Flags.takeError();
+        std::tie(LTOInfo.EnableSplitLTOUnit, LTOInfo.UnifiedLTO) = Flags.get();
+        LTOInfo.IsThinLTO = true;
+        LTOInfo.HasSummary = true;
+        return LTOInfo;
       }
 
       if (Entry.ID == bitc::FULL_LTO_GLOBALVAL_SUMMARY_BLOCK_ID) {
-        Expected<bool> EnableSplitLTOUnit =
-            getEnableSplitLTOUnitFlag(Stream, Entry.ID);
-        if (!EnableSplitLTOUnit)
-          return EnableSplitLTOUnit.takeError();
-        return BitcodeLTOInfo{/*IsThinLTO=*/false, /*HasSummary=*/true,
-                              *EnableSplitLTOUnit};
+        BitcodeLTOInfo LTOInfo;
+        Expected<std::pair<bool, bool>> Flags =
+            getEnableSplitLTOUnitAndUnifiedFlag(Stream, Entry.ID, LTOInfo);
+        if (!Flags)
+          return Flags.takeError();
+        std::tie(LTOInfo.EnableSplitLTOUnit, LTOInfo.UnifiedLTO) = Flags.get();
+        LTOInfo.IsThinLTO = false;
+        LTOInfo.HasSummary = true;
+        return LTOInfo;
       }
 
       // Ignore other sub-blocks.

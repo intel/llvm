@@ -23,14 +23,14 @@ using namespace mlir;
 using namespace mlir::LLVM;
 using namespace mlir::LLVM::detail;
 
-void DebugImporter::translate(llvm::Function *func, LLVMFuncOp funcOp) {
+Location DebugImporter::translateFuncLocation(llvm::Function *func) {
   if (!func->getSubprogram())
-    return;
+    return UnknownLoc::get(context);
 
   // Add a fused location to link the subprogram information.
   StringAttr name = StringAttr::get(context, func->getSubprogram()->getName());
-  funcOp->setLoc(FusedLocWith<DISubprogramAttr>::get(
-      {NameLoc::get(name)}, translate(func->getSubprogram()), context));
+  return FusedLocWith<DISubprogramAttr>::get(
+      {NameLoc::get(name)}, translate(func->getSubprogram()), context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -87,6 +87,12 @@ DIFileAttr DebugImporter::translateImpl(llvm::DIFile *node) {
   return DIFileAttr::get(context, node->getFilename(), node->getDirectory());
 }
 
+DILabelAttr DebugImporter::translateImpl(llvm::DILabel *node) {
+  return DILabelAttr::get(context, translate(node->getScope()),
+                          getStringAttrOrNull(node->getRawName()),
+                          translate(node->getFile()), node->getLine());
+}
+
 DILexicalBlockAttr DebugImporter::translateImpl(llvm::DILexicalBlock *node) {
   return DILexicalBlockAttr::get(context, translate(node->getScope()),
                                  translate(node->getFile()), node->getLine(),
@@ -110,6 +116,16 @@ DILocalVariableAttr DebugImporter::translateImpl(llvm::DILocalVariable *node) {
 
 DIScopeAttr DebugImporter::translateImpl(llvm::DIScope *node) {
   return cast<DIScopeAttr>(translate(static_cast<llvm::DINode *>(node)));
+}
+
+DIModuleAttr DebugImporter::translateImpl(llvm::DIModule *node) {
+  return DIModuleAttr::get(
+      context, translate(node->getFile()), translate(node->getScope()),
+      getStringAttrOrNull(node->getRawName()),
+      getStringAttrOrNull(node->getRawConfigurationMacros()),
+      getStringAttrOrNull(node->getRawIncludePath()),
+      getStringAttrOrNull(node->getRawAPINotesFile()), node->getLineNo(),
+      node->getIsDecl());
 }
 
 DINamespaceAttr DebugImporter::translateImpl(llvm::DINamespace *node) {
@@ -200,15 +216,19 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DIFile>(node))
       return translateImpl(casted);
+    if (auto *casted = dyn_cast<llvm::DILabel>(node))
+      return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILexicalBlock>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILexicalBlockFile>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DILocalVariable>(node))
       return translateImpl(casted);
-    if (auto *casted = dyn_cast<llvm::DISubprogram>(node))
+    if (auto *casted = dyn_cast<llvm::DIModule>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DINamespace>(node))
+      return translateImpl(casted);
+    if (auto *casted = dyn_cast<llvm::DISubprogram>(node))
       return translateImpl(casted);
     if (auto *casted = dyn_cast<llvm::DISubrange>(node))
       return translateImpl(casted);
@@ -229,7 +249,7 @@ DINodeAttr DebugImporter::translate(llvm::DINode *node) {
 
 Location DebugImporter::translateLoc(llvm::DILocation *loc) {
   if (!loc)
-    return mlirModule.getLoc();
+    return UnknownLoc::get(context);
 
   // Get the file location of the instruction.
   Location result = FileLineColLoc::get(context, loc->getFilename(),
