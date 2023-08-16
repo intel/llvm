@@ -2038,10 +2038,11 @@ void emitKernelInstrumentationData(
 
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = -1;
-  instrumentationFillCommonData(KernelName, CodeLoc.fileName(),
-                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                Address, Queue, FromSource, InstanceID,
-                                CmdTraceEvent);
+  std::string FileName =
+      CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
+  instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
+                                CodeLoc.columnNumber(), Address, Queue,
+                                FromSource, InstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
