@@ -51,7 +51,7 @@ if (UNIX)
     # Older gcc versions need -pthread, not just -lpthread
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 11.1)
-            find_library(PTHREAD_LIBRARY pthread)
+            find_library(PTHREAD_LIBRARY REQUIRED pthread)
             target_link_libraries(ur_loader PRIVATE "-pthread")
         endif()
     endif()
