@@ -10,7 +10,6 @@
 #include "clang/Basic/CodeGenOptions.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LangOptions.h"
-#include "clang/Basic/SYCLNativeCPUHelpers.h"
 #include "clang/Basic/TargetOptions.h"
 #include "clang/Basic/Targets/SPIR.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
@@ -47,10 +46,10 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
-#include "llvm/SYCLLowerIR/EmitSYCLNativeCPUHeader.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SYCLAddOptLevelAttribute.h"
 #include "llvm/SYCLLowerIR/SYCLPropagateAspectsUsage.h"
 #include "llvm/Support/BuryPointer.h"
@@ -108,6 +107,10 @@ extern cl::opt<bool> DebugInfoCorrelate;
 static cl::opt<bool> ClSanitizeOnOptimizerEarlyEP(
     "sanitizer-early-opt-ep", cl::Optional,
     cl::desc("Insert sanitizers on OptimizerEarlyEP."), cl::init(false));
+
+static cl::opt<bool> SYCLNativeCPURename(
+    "sycl-native-cpu-rename", cl::init(false),
+    cl::desc("Rename kernel functions for SYCL Native CPU"));
 }
 
 namespace {
@@ -1048,6 +1051,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM = PB.buildPerModuleDefaultPipeline(Level);
     }
 
+    if (SYCLNativeCPURename)
+      MPM.addPass(RenameKernelSYCLNativeCPUPass());
     if (LangOpts.SYCLIsDevice) {
       MPM.addPass(SYCLMutatePrintfAddrspacePass());
       if (LangOpts.EnableDAEInSpirKernels)
@@ -1078,8 +1083,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(CompileTimePropertiesPass());
 
       if (LangOpts.SYCLIsNativeCPU) {
-        MPM.addPass(
-            EmitSYCLNativeCPUHeaderPass(getNativeCPUHeaderName(LangOpts)));
         MPM.addPass(PrepareSYCLNativeCPUPass());
       }
     }

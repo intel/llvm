@@ -13,6 +13,7 @@
 using namespace sycl;
 
 template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
+  static constexpr int MASKED_LANE = VL - 1;
   T *buf;
   Kernel(T *buf) : buf(buf) {}
 
@@ -28,11 +29,16 @@ template <typename T, unsigned VL, unsigned STRIDE> struct Kernel {
     valsIn.copy_from(buf);
 
     simd<uint32_t, VL> offsets(0, STRIDE * sizeof(T));
-    slm_scatter<T, VL>(offsets, valsIn);
-
     simd_mask<VL> pred = 1;
-    pred[VL - 1] = 0; // mask out the last lane
-    simd<T, VL> valsOut = slm_gather<T, VL>(offsets, pred);
+    if constexpr (MASKED_LANE > 0) {
+      simd<T, 1> V1(static_cast<T>(-1));
+      simd<uint32_t, 1> Offsets1(MASKED_LANE * STRIDE * sizeof(T));
+      slm_scatter<T, 1>(Offsets1, V1);
+      pred[MASKED_LANE] = 0; // mask out the last lane if not the only lane
+    }
+    slm_scatter<T, VL>(offsets, valsIn, pred);
+
+    simd<T, VL> valsOut = slm_gather<T, VL>(offsets);
 
     valsOut.copy_to(buf);
   }
@@ -46,9 +52,7 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   std::cout << "Testing T=" << typeid(T).name() << " VL=" << VL
             << " STRIDE=" << STRIDE << "...\n";
 
-  auto dev = q.get_device();
-  auto ctxt = q.get_context();
-  T *A = static_cast<T *>(malloc_shared(size * sizeof(T), dev, ctxt));
+  T *A = malloc_shared<T>(size, q);
   T *gold = new T[size];
 
   for (int i = 0; i < size; ++i) {
@@ -59,41 +63,23 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
   try {
     range<1> glob_range{1};
 
-    auto e = q.submit([&](handler &cgh) {
-      Kernel<T, VL, STRIDE> kernel(A);
-      cgh.parallel_for(glob_range, kernel);
-    });
-    e.wait();
+    q.submit([&](handler &cgh) {
+       Kernel<T, VL, STRIDE> kernel(A);
+       cgh.parallel_for(glob_range, kernel);
+     }).wait();
   } catch (sycl::exception const &e) {
     std::cerr << "SYCL exception caught: " << e.what() << '\n';
-    free(A, ctxt);
+    free(A, q);
     delete[] gold;
-    return static_cast<bool>(e.code());
+    return false;
   }
 
   int err_cnt = 0;
   for (unsigned i = 0; i < size; ++i) {
-    if (i == MASKED_LANE) {
-      if (sizeof(T) >= 2) {
-        // Value in this lane should be overwritten by whatever value was
-        // returned by the masked gather in this lane. If, when verifying, we
-        // see the original value stored in memory at this index this 99.999%
-        // likely means the read hasn't been masked. There is non-zero chance
-        // masked read will spontaneously return the same value we wrote here
-        // and we'll get false negative. But this is the best we can do to test
-        // masked reads. Disable this for 1-byte elements, where probability of
-        // false negative increases.
-        if (A[i] == gold[i]) {
-          if (++err_cnt < VL) {
-            std::cout << "masking failed at index " << i << "\n";
-          }
-        }
-      }
-    } else if (A[i] != gold[i]) {
-      if (++err_cnt < VL) {
-        std::cout << "failed at index " << i << ": " << A[i]
-                  << " != " << gold[i] << " (gold)\n";
-      }
+    T GoldVal = (i == MASKED_LANE && i > 0) ? static_cast<T>(-1) : gold[i];
+    if (A[i] != GoldVal && ++err_cnt < VL) {
+      std::cout << "failed at index " << i << ": " << A[i] << " != " << GoldVal
+                << " (gold)\n";
     }
   }
 
@@ -103,11 +89,11 @@ template <typename T, unsigned VL, unsigned STRIDE> bool test(queue q) {
               << (size - err_cnt) << "/" << size << ")\n";
   }
 
-  free(A, ctxt);
+  free(A, q);
   delete[] gold;
 
   std::cout << (err_cnt > 0 ? "  FAILED\n" : "  Passed\n");
-  return err_cnt > 0 ? false : true;
+  return err_cnt == 0;
 }
 
 template <typename T, unsigned VL> bool test(queue q) {
@@ -121,10 +107,8 @@ template <typename T, unsigned VL> bool test(queue q) {
 
 int main(void) {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

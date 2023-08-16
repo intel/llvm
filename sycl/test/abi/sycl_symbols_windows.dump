@@ -1025,6 +1025,7 @@
 ?ext_oneapi_enable_peer_access@device@_V1@sycl@@QEAAXAEBV123@@Z
 ?ext_oneapi_fill2d_impl@handler@_V1@sycl@@AEAAXPEAX_KPEBX111@Z
 ?ext_oneapi_get_default_context@platform@_V1@sycl@@QEBA?AVcontext@23@XZ
+?enable_ext_oneapi_default_context@detail@_V1@sycl@@YAX_N@Z
 ?ext_oneapi_get_state@queue@_V1@sycl@@QEBA?AW4queue_state@experimental@oneapi@ext@23@XZ
 ?ext_oneapi_graph@handler@_V1@sycl@@QEAAXV?$command_graph@$00@experimental@oneapi@ext@23@@Z
 ?ext_oneapi_graph@queue@_V1@sycl@@QEAA?AVevent@23@V?$command_graph@$00@experimental@oneapi@ext@23@AEBUcode_location@detail@23@@Z
