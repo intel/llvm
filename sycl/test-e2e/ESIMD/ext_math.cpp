@@ -480,7 +480,7 @@ int main(void) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   esimd_test::printTestLabel(Q);
   auto Dev = Q.get_device();
-#ifndef SKIP_NEW_GPU_DRIVER_VERSION
+#ifndef SKIP_NEW_GPU_DRIVER_VERSION_CHECK
   if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
                                  "27012", "101.4576")) {
     std::cout << "Skipped. The test requires GPU driver 1.3.27012 or newer.\n";
