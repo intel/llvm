@@ -1,3 +1,4 @@
+set(SYCL_COMPATH_UNITTEST_GCC_TOOLCHAIN "" CACHE PATH "Path to GCC installation")
 # add_sycl_library_unittest(test_suite_name sycl_extra_flags
 #                           file1.cpp file2.cpp ...)
 #
@@ -26,6 +27,12 @@ macro(add_sycl_library_unittest test_suite_name)
   set(_LLVM_TARGET_DEPENDENCIES
     "llvm_gtest_main;llvm_gtest;LLVMTestingSupport;LLVMSupport;LLVMDemangle")
 
+  if (NOT SYCL_COMPAT_UNITTEST_GCC_TOOLCHAIN STREQUAL "")
+    set(_GCC_TOOLCHAIN "--gcc-toolchain=${SYCL_COMPAT_UNITTEST_GCC_TOOLCHAIN}")
+  else()
+    set(_GCC_TOOLCHAIN "")
+  endif()
+
   foreach(_lib ${_LLVM_TARGET_DEPENDENCIES})
     list(APPEND _LIBRARIES $<TARGET_LINKER_FILE:${_lib}>)
   endforeach()
@@ -53,6 +60,7 @@ macro(add_sycl_library_unittest test_suite_name)
 
   add_custom_target(${_BIN_TARGET}
     COMMAND ${DEVICE_COMPILER_EXECUTABLE} -fsycl ${ARG_SOURCES}
+      ${_GCC_TOOLCHAIN}
       -o ${_OUTPUT_BIN}
       ${ARG_SYCL_EXTRA_FLAGS}
       ${_INTERNAL_EXTRA_FLAGS}
