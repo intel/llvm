@@ -126,8 +126,8 @@ TEST(GetProfilingInfo, command_exception_check) {
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
-          " the event does not have the 'enable_profiling' property.");
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -145,8 +145,8 @@ TEST(GetProfilingInfo, command_exception_check) {
       std::cerr << e.what() << std::endl;
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
-          " the event does not have the 'enable_profiling' property.");
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
   {
@@ -162,8 +162,8 @@ TEST(GetProfilingInfo, command_exception_check) {
     } catch (sycl::exception const &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
-          " the event does not have the 'enable_profiling' property.");
+          "Profiling information is unavailable as the queue associated with "
+          "the event does not have the 'enable_profiling' property.");
     }
   }
 }
@@ -176,8 +176,8 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
-    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
-                           " has no associated queue: command_submit");
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
   }
   try {
     auto info =
@@ -185,8 +185,8 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
-    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
-                           " has no associated queue: command_start");
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
   }
   try {
     auto info =
@@ -194,8 +194,8 @@ TEST(GetProfilingInfo, exception_check_no_queue) {
     (void)info;
     FAIL();
   } catch (sycl::exception const &e) {
-    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event"
-                           " has no associated queue: command_end");
+    EXPECT_STREQ(e.what(), "Profiling information is unavailable as the event "
+                           "has no associated queue.");
   }
 }
 
@@ -269,7 +269,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
+          "Profiling information is unavailable as the queue associated with "
           "the event does not have the 'enable_profiling' property.");
     }
   }
@@ -283,7 +283,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
+          "Profiling information is unavailable as the queue associated with "
           "the event does not have the 'enable_profiling' property.");
     }
   }
@@ -296,7 +296,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
     } catch (sycl::exception &e) {
       EXPECT_STREQ(
           e.what(),
-          "Profiling information is unavailable as the queue associated with"
+          "Profiling information is unavailable as the queue associated with "
           "the event does not have the 'enable_profiling' property.");
     }
   }
@@ -377,6 +377,44 @@ static pi_result redefinedDeviceGetInfoAcc(pi_device device,
 }
 
 TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID});
+
+  const int globalWIs{512};
+  DeviceTimerCalled = true;
+  auto event = Queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
+  });
+  event.wait();
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((submit_time && start_time && end_time) &&
+         "Profiling information failed.");
+  assert((submit_time < start_time) &&
+         "Submit time should be less than start time.");
+  assert((submit_time < end_time) && "Start time should be less than end time");
+}
+
+TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
