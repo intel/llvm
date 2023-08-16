@@ -1,4 +1,4 @@
-// FIXME: Remove -opaque-pointers when opaque pointers are enabled by
+// FIXME: Remove when opaque pointers are enabled by
 // default and remove the above comment as well.
 
 // UNSUPPORTED: target={{.*}}-zos{{.*}}, target={{.*}}-aix{{.*}}

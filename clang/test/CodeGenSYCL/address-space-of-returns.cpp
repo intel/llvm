@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64-unknown-linux -fsycl-is-device -disable-llvm-passes -opaque-pointers -emit-llvm -x c++ %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64-unknown-linux -fsycl-is-device -disable-llvm-passes -emit-llvm -x c++ %s -o - | FileCheck %s
 
 struct A {
   int B[42];
