@@ -22,7 +22,7 @@ config.name = 'SYCL'
 # suffixes: A list of file extensions to treat as test files.
 config.suffixes = ['.c', '.cpp']
 
-config.excludes = ['Inputs', 'Syclcompat']
+config.excludes = ['Inputs']
 
 # test_source_root: The root path where tests are located.
 config.test_source_root = os.path.dirname(__file__)
@@ -213,7 +213,7 @@ else:
     config.substitutions.append( ('%debug_option',  '-g' ) )
     config.substitutions.append( ('%cxx_std_option',  '-std=' ) )
     # Position-independent code does not make sence on Windows. At the same
-    # time providing this option for compilation targeting 
+    # time providing this option for compilation targeting
     # x86_64-pc-windows-msvc will cause compile time error on some
     # configurations
     config.substitutions.append( ('%fPIC', ('' if platform.system() == 'Windows' else '-fPIC')) )
