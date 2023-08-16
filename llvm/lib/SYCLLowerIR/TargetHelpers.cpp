@@ -56,7 +56,7 @@ void populateKernels(Module &M, SmallVectorImpl<KernelPayload> &Kernels,
   if (!AnnotationMetadata)
     return;
 
-  std::vector<MDNode *> PossibleDependencies;
+  SmallVector<MDNode *, 4> PossibleDependencies;
   // It is possible that the annotations node contains multiple pointers to the
   // same metadata, recognise visited ones.
   SmallSet<MDNode *, 4> Visited;
