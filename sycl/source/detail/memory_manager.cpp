@@ -545,11 +545,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
         if (NewEventImpl != nullptr)
           NewEventImpl->setQueueBaseTime();
         Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
-              Queue, DstMem,
-              /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
-              &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
-              HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
-              &OutEvent);
+            Queue, DstMem,
+            /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
+            &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
+            HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
       }
     }
   } else {
@@ -740,16 +740,14 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
   }
 }
 
-static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
-                    unsigned int DimSrc, sycl::range<3> SrcSize,
-                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-                    unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
-                    unsigned int DimDst, sycl::range<3> DstSize,
-                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-                    unsigned int DstElemSize,
-                    std::vector<sycl::detail::pi::PiEvent>,
-                    sycl::detail::pi::PiEvent &,
-                    detail::EventImplPtr NewEventImpl) {
+static void 
+copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr, unsigned int DimSrc, 
+        sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange, 
+        sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
+        QueueImplPtr, unsigned int DimDst, sycl::range<3> DstSize,
+        sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+        unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent>,
+        sycl::detail::pi::PiEvent &, detail::EventImplPtr NewEventImpl) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -1147,13 +1145,11 @@ void MemoryManager::memset_2d_usm(
       Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-static void
-memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
-                        DeviceGlobalMapEntry *DeviceGlobalEntry,
-                        size_t NumBytes, size_t Offset, const void *Src,
-                        const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-                        sycl::detail::pi::PiEvent *OutEvent,
-                        detail::EventImplPtr NewEventImpl) {
+static void memcpyToDeviceGlobalUSM(
+    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
+    size_t NumBytes, size_t Offset, const void *Src,
+    const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue, NewEventImpl);
@@ -1185,8 +1181,7 @@ static void memcpyFromDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent,
-    detail::EventImplPtr NewEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it zero-initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
@@ -1211,7 +1206,8 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent, NewEventImpl);
+                          NumBytes, Dest, ActualDepEvents, OutEvent,
+                          NewEventImpl);
 }
 
 static sycl::detail::pi::PiProgram
