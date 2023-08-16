@@ -785,7 +785,7 @@ def C : Flag<["-"], "C">, Visibility<[ClangOption, CC1Option]>,
     HelpText<"Include comments in preprocessed output">,
     MarshallingInfoFlag<PreprocessorOutputOpts<"ShowComments">>;
 def D : JoinedOrSeparate<["-"], "D">, Group<Preprocessor_Group>,
-    Visibility<[ClangOption, CC1Option, FlangOption, FC1Option]>,
+    Visibility<[ClangOption, CC1Option, FlangOption, FC1Option, DXCOption]>,
     MetaVarName<"<macro>=<value>">,
     HelpText<"Define <macro> to <value> (or 1 if <value> omitted)">;
 def E : Flag<["-"], "E">, Flags<[NoXarchOption]>,
@@ -4272,7 +4272,8 @@ def gno_embed_source : Flag<["-"], "gno-embed-source">, Group<g_flags_Group>,
     HelpText<"Restore the default behavior of not embedding source text in DWARF debug sections">;
 def headerpad__max__install__names : Joined<["-"], "headerpad_max_install_names">;
 def help : Flag<["-", "--"], "help">,
-    Visibility<[ClangOption, CC1Option, CC1AsOption, FC1Option, FlangOption]>,
+    Visibility<[ClangOption, CC1Option, CC1AsOption,
+                FC1Option, FlangOption, DXCOption]>,
     HelpText<"Display available options">,
     MarshallingInfoFlag<FrontendOpts<"ShowHelp">>;
 def ibuiltininc : Flag<["-"], "ibuiltininc">, Group<clang_i_Group>,
@@ -6812,16 +6813,10 @@ def fdump_vtable_layouts : Flag<["-"], "fdump-vtable-layouts">,
 def fmerge_functions : Flag<["-"], "fmerge-functions">,
   HelpText<"Permit merging of identical functions when optimizing.">,
   MarshallingInfoFlag<CodeGenOpts<"MergeFunctions">>;
-def coverage_data_file : Separate<["-"], "coverage-data-file">,
-  HelpText<"Emit coverage data to this filename.">,
+def : Joined<["-"], "coverage-data-file=">,
   MarshallingInfoString<CodeGenOpts<"CoverageDataFile">>;
-def coverage_data_file_EQ : Joined<["-"], "coverage-data-file=">,
-  Alias<coverage_data_file>;
-def coverage_notes_file : Separate<["-"], "coverage-notes-file">,
-  HelpText<"Emit coverage notes to this filename.">,
+def : Joined<["-"], "coverage-notes-file=">,
   MarshallingInfoString<CodeGenOpts<"CoverageNotesFile">>;
-def coverage_notes_file_EQ : Joined<["-"], "coverage-notes-file=">,
-  Alias<coverage_notes_file>;
 def coverage_version_EQ : Joined<["-"], "coverage-version=">,
   HelpText<"Four-byte version string for gcov files.">;
 def dump_coverage_mapping : Flag<["-"], "dump-coverage-mapping">,
@@ -7939,46 +7934,43 @@ def cl_compile_Group : OptionGroup<"<clang-cl compile-only options>">,
 def cl_ignored_Group : OptionGroup<"<clang-cl ignored options>">,
   Group<cl_Group>;
 
-class CLFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
-  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption]>;
+class CLFlag<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_FLAG>,
+  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLDXCFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
-  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption, DXCOption]>;
+class CLCompileFlag<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_FLAG>,
+  Group<cl_compile_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLCompileFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
-  Group<cl_compile_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption]>;
+class CLIgnoredFlag<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_FLAG>,
+  Group<cl_ignored_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLIgnoredFlag<string name> : Option<["/", "-"], name, KIND_FLAG>,
-  Group<cl_ignored_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption]>;
+class CLJoined<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_JOINED>,
+  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLJoined<string name> : Option<["/", "-"], name, KIND_JOINED>,
-  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption]>;
+class CLCompileJoined<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_JOINED>,
+  Group<cl_compile_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLDXCJoined<string name> : Option<["/", "-"], name, KIND_JOINED>,
-  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption, DXCOption]>;
+class CLIgnoredJoined<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_JOINED>,
+  Group<cl_ignored_Group>, Flags<[NoXarchOption, HelpHidden]>, Visibility<vis>;
 
-class CLCompileJoined<string name> : Option<["/", "-"], name, KIND_JOINED>,
-  Group<cl_compile_Group>, Flags<[NoXarchOption]>, Visibility<[CLOption]>;
+class CLJoinedOrSeparate<string name, list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_JOINED_OR_SEPARATE>,
+  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLIgnoredJoined<string name> : Option<["/", "-"], name, KIND_JOINED>,
-  Group<cl_ignored_Group>, Flags<[NoXarchOption, HelpHidden]>,
-  Visibility<[CLOption]>;
+class CLCompileJoinedOrSeparate<string name,
+                                list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_JOINED_OR_SEPARATE>,
+  Group<cl_compile_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
-class CLJoinedOrSeparate<string name> : Option<["/", "-"], name,
-  KIND_JOINED_OR_SEPARATE>, Group<cl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[CLOption]>;
-
-class CLDXCJoinedOrSeparate<string name> : Option<["/", "-"], name,
-  KIND_JOINED_OR_SEPARATE>, Group<cl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[CLOption, DXCOption]>;
-
-class CLCompileJoinedOrSeparate<string name> : Option<["/", "-"], name,
-  KIND_JOINED_OR_SEPARATE>, Group<cl_compile_Group>,
-  Flags<[NoXarchOption]>, Visibility<[CLOption]>;
-
-class CLRemainingArgsJoined<string name> : Option<["/", "-"], name,
-  KIND_REMAINING_ARGS_JOINED>, Group<cl_Group>, Flags<[NoXarchOption]>,
-  Visibility<[CLOption]>;
+class CLRemainingArgsJoined<string name,
+                            list<OptionVisibility> vis = [CLOption]> :
+  Option<["/", "-"], name, KIND_REMAINING_ARGS_JOINED>,
+  Group<cl_Group>, Flags<[NoXarchOption]>, Visibility<vis>;
 
 // Aliases:
 // (We don't put any of these in cl_compile_Group as the options they alias are
@@ -8012,8 +8004,8 @@ def _SLASH_diagnostics_column : CLFlag<"diagnostics:column">,
   HelpText<"Disable caret diagnostics but keep column info">;
 def _SLASH_diagnostics_classic : CLFlag<"diagnostics:classic">,
   HelpText<"Disable column and caret diagnostics">;
-def _SLASH_D : CLJoinedOrSeparate<"D">, HelpText<"Define macro">,
-  MetaVarName<"<macro[=value]>">, Alias<D>;
+def _SLASH_D : CLJoinedOrSeparate<"D", [CLOption, DXCOption]>,
+  HelpText<"Define macro">, MetaVarName<"<macro[=value]>">, Alias<D>;
 def _SLASH_E : CLFlag<"E">, HelpText<"Preprocess to stdout">, Alias<E>;
 def _SLASH_external_COLON_I : CLJoinedOrSeparate<"external:I">, Alias<isystem>,
   HelpText<"Add directory to include search path with warnings suppressed">,
@@ -8052,12 +8044,12 @@ def _SLASH_Gw : CLFlag<"Gw">, HelpText<"Put each data item in its own section">,
 def _SLASH_Gw_ : CLFlag<"Gw-">,
   HelpText<"Do not put each data item in its own section (default)">,
   Alias<fno_data_sections>;
-def _SLASH_help : CLFlag<"help">, Alias<help>,
+def _SLASH_help : CLFlag<"help", [CLOption, DXCOption]>, Alias<help>,
   HelpText<"Display available options">;
 def _SLASH_HELP : CLFlag<"HELP">, Alias<help>;
 def _SLASH_hotpatch : CLFlag<"hotpatch">, Alias<fms_hotpatch>,
   HelpText<"Create hotpatchable image">;
-def _SLASH_I : CLDXCJoinedOrSeparate<"I">,
+def _SLASH_I : CLJoinedOrSeparate<"I", [CLOption, DXCOption]>,
   HelpText<"Add directory to include search path">, MetaVarName<"<dir>">,
   Alias<I>;
 def _SLASH_J : CLFlag<"J">, HelpText<"Make char type unsigned">,
@@ -8065,7 +8057,7 @@ def _SLASH_J : CLFlag<"J">, HelpText<"Make char type unsigned">,
 
 // The _SLASH_O option handles all the /O flags, but we also provide separate
 // aliased options to provide separate help messages.
-def _SLASH_O : CLDXCJoined<"O">,
+def _SLASH_O : CLJoined<"O", [CLOption, DXCOption]>,
   HelpText<"Set multiple /O flags at once; e.g. '/O2y-' for '/O2 /Oy-'">,
   MetaVarName<"<flags>">;
 def : CLFlag<"O1">, Alias<_SLASH_O>, AliasArgs<["1"]>,
@@ -8078,7 +8070,7 @@ def : CLFlag<"Ob1">, Alias<_SLASH_O>, AliasArgs<["b1"]>,
   HelpText<"Only inline functions explicitly or implicitly marked inline">;
 def : CLFlag<"Ob2">, Alias<_SLASH_O>, AliasArgs<["b2"]>,
   HelpText<"Inline functions as deemed beneficial by the compiler">;
-def : CLDXCFlag<"Od">, Alias<_SLASH_O>, AliasArgs<["d"]>,
+def : CLFlag<"Od", [CLOption, DXCOption]>, Alias<_SLASH_O>, AliasArgs<["d"]>,
   HelpText<"Disable optimization">;
 def : CLFlag<"Og">, Alias<_SLASH_O>, AliasArgs<["g"]>,
   HelpText<"No effect">;
@@ -8490,14 +8482,12 @@ class DXCJoinedOrSeparate<string name> : Option<["/", "-"], name,
   KIND_JOINED_OR_SEPARATE>, Group<dxc_Group>, Flags<[NoXarchOption]>,
   Visibility<[DXCOption]>;
 
-def dxc_help : Option<["/", "-", "--"], "help", KIND_JOINED>,
-  Group<dxc_Group>, Flags<[NoXarchOption]>, Visibility<[DXCOption]>,
-  Alias<help>,
-  HelpText<"Display available options">;
 def dxc_no_stdinc : DXCFlag<"hlsl-no-stdinc">,
   HelpText<"HLSL only. Disables all standard includes containing non-native compiler types and functions.">;
-def Fo : DXCJoinedOrSeparate<"Fo">, Alias<o>,
+def dxc_Fo : DXCJoinedOrSeparate<"Fo">,
   HelpText<"Output object file">;
+def dxc_Fc : DXCJoinedOrSeparate<"Fc">,
+  HelpText<"Output assembly listing file">;
 def dxil_validator_version : Option<["/", "-"], "validator-version", KIND_SEPARATE>,
   Group<dxc_Group>, Flags<[NoXarchOption, HelpHidden]>,
   Visibility<[DXCOption, ClangOption, CC1Option]>,
@@ -8515,8 +8505,6 @@ def target_profile : DXCJoinedOrSeparate<"T">, MetaVarName<"<profile>">,
          "lib_6_3, lib_6_4, lib_6_5, lib_6_6, lib_6_7, lib_6_x,"
          "ms_6_5, ms_6_6, ms_6_7,"
          "as_6_5, as_6_6, as_6_7">;
-def dxc_D : Option<["--", "/", "-"], "D", KIND_JOINED_OR_SEPARATE>,
-  Group<dxc_Group>, Flags<[NoXarchOption]>, Visibility<[DXCOption]>, Alias<D>;
 def emit_pristine_llvm : DXCFlag<"emit-pristine-llvm">,
   HelpText<"Emit pristine LLVM IR from the frontend by not running any LLVM passes at all."
            "Same as -S + -emit-llvm + -disable-llvm-passes.">;
