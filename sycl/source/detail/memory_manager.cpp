@@ -202,7 +202,7 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
 #endif
     // Capture the host timestamp for queue time. Fallback profiling support
     if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
+      NewEventImpl->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
         Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
         Event, RetMap);
@@ -543,12 +543,13 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       if (1 == DimDst && 1 == DimSrc) {
         // Capture the host timestamp for queue time. Fallback profiling support
         if (NewEventImpl != nullptr)
-          Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
-              Queue, DstMem,
-              /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
-              &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
-              HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
-              &OutEvent);
+          NewEventImpl->setQueueBaseTime();
+        Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
+            Queue, DstMem,
+            /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
+            &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
+            HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
+            &OutEvent);
       }
     }
   } else {
@@ -739,15 +740,14 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
   }
 }
 
-static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
-                    unsigned int DimSrc, sycl::range<3> SrcSize,
-                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
-                    unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
-                    unsigned int DimDst, sycl::range<3> DstSize,
-                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-                    unsigned int DstElemSize,
-                    std::vector<sycl::detail::pi::PiEvent>,
-                    sycl::detail::pi::PiEvent &) {
+static void
+copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr, unsigned int DimSrc,
+        sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
+        sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
+        QueueImplPtr, unsigned int DimDst, sycl::range<3> DstSize,
+        sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+        unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent>,
+        sycl::detail::pi::PiEvent &, detail::EventImplPtr NewEventImpl) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -782,27 +782,27 @@ void MemoryManager::copy(
       copyH2H(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent);
+              DstElemSize, std::move(DepEvents), OutEvent, NewEventImpl);
 
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<sycl::detail::pi::PiMem>(DstMem), std::move(TgtQueue),
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent, nullptr);
+              std::move(DepEvents), OutEvent, NewEventImpl);
   } else {
     if (TgtQueue->is_host())
       copyD2H(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              OutEvent, nullptr);
+              OutEvent, NewEventImpl);
     else
       copyD2D(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, pi::cast<sycl::detail::pi::PiMem>(DstMem),
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
-              DstElemSize, std::move(DepEvents), OutEvent, nullptr);
+              DstElemSize, std::move(DepEvents), OutEvent, NewEventImpl);
   }
 }
 
@@ -845,7 +845,8 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                          sycl::range<3> AccessRange, sycl::id<3> AccessOffset,
                          unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                         sycl::detail::pi::PiEvent &OutEvent) {
+                         sycl::detail::pi::PiEvent &OutEvent,
+                         detail::EventImplPtr NewEventImpl) {
   if (Queue->is_host()) {
     throw runtime_error("Not supported configuration of map requested",
                         PI_ERROR_INVALID_OPERATION);
@@ -882,14 +883,15 @@ void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   memBufferMapHelper(Plugin, Queue->getHandleRef(),
                      pi::cast<sycl::detail::pi::PiMem>(Mem), PI_FALSE, Flags,
                      AccessOffset[0], BytesToMap, DepEvents.size(),
-                     DepEvents.data(), &OutEvent, &MappedPtr, nullptr);
+                     DepEvents.data(), &OutEvent, &MappedPtr, NewEventImpl);
   return MappedPtr;
 }
 
 void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
                           void *MappedPtr,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                          sycl::detail::pi::PiEvent &OutEvent) {
+                          sycl::detail::pi::PiEvent &OutEvent,
+                          detail::EventImplPtr NewEventImpl) {
 
   // Host queue is not supported here.
   // All DepEvents are to the same Context.
@@ -898,7 +900,7 @@ void MemoryManager::unmap(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
   const PluginPtr &Plugin = Queue->getPlugin();
   memUnmapHelper(Plugin, Queue->getHandleRef(),
                  pi::cast<sycl::detail::pi::PiMem>(Mem), MappedPtr,
-                 DepEvents.size(), DepEvents.data(), &OutEvent, nullptr);
+                 DepEvents.size(), DepEvents.data(), &OutEvent, NewEventImpl);
 }
 
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
@@ -926,6 +928,9 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
+  // Capture the host timestamp for queue time. Fallback profiling support
+  if (NewEventImpl != nullptr)
+    NewEventImpl->setQueueBaseTime();
   Plugin->call<PiApiKind::piextUSMEnqueueMemcpy>(
       SrcQueue->getHandleRef(),
       /* blocking */ PI_FALSE, DstMem, SrcMem, Len, DepEvents.size(),
@@ -1140,15 +1145,14 @@ void MemoryManager::memset_2d_usm(
       Height, DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-static void
-memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
-                        DeviceGlobalMapEntry *DeviceGlobalEntry,
-                        size_t NumBytes, size_t Offset, const void *Src,
-                        const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-                        sycl::detail::pi::PiEvent *OutEvent) {
+static void memcpyToDeviceGlobalUSM(
+    QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
+    size_t NumBytes, size_t Offset, const void *Src,
+    const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
-      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
+      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue, NewEventImpl);
   void *Dest = DeviceGlobalUSM.getPtr();
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration
@@ -1170,18 +1174,18 @@ memcpyToDeviceGlobalUSM(QueueImplPtr Queue,
 
   MemoryManager::copy_usm(Src, Queue, NumBytes,
                           reinterpret_cast<char *>(Dest) + Offset,
-                          ActualDepEvents, OutEvent, nullptr);
+                          ActualDepEvents, OutEvent, NewEventImpl);
 }
 
 static void memcpyFromDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it zero-initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
-      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
+      DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue, NewEventImpl);
   void *Src = DeviceGlobalUSM.getPtr();
 
   // OwnedPiEvent will keep the zero-initialization event alive for the duration
@@ -1202,7 +1206,8 @@ static void memcpyFromDeviceGlobalUSM(
   }
 
   MemoryManager::copy_usm(reinterpret_cast<const char *>(Src) + Offset, Queue,
-                          NumBytes, Dest, ActualDepEvents, OutEvent, nullptr);
+                          NumBytes, Dest, ActualDepEvents, OutEvent,
+                          NewEventImpl);
 }
 
 static sycl::detail::pi::PiProgram
@@ -1278,7 +1283,7 @@ void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, const void *SrcMem,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1290,17 +1295,17 @@ void MemoryManager::copy_to_device_global(
 
   if (IsDeviceImageScoped)
     memcpyToDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, SrcMem,
-                               DepEvents, OutEvent, nullptr);
+                               DepEvents, OutEvent, NewEventImpl);
   else
     memcpyToDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, SrcMem, DepEvents,
-                            OutEvent);
+                            OutEvent, NewEventImpl);
 }
 
 void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, void *DstMem,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1312,10 +1317,10 @@ void MemoryManager::copy_from_device_global(
 
   if (IsDeviceImageScoped)
     memcpyFromDeviceGlobalDirect(Queue, DGEntry, NumBytes, Offset, DstMem,
-                                 DepEvents, OutEvent, nullptr);
+                                 DepEvents, OutEvent, NewEventImpl);
   else
     memcpyFromDeviceGlobalUSM(Queue, DGEntry, NumBytes, Offset, DstMem,
-                              DepEvents, OutEvent);
+                              DepEvents, OutEvent, NewEventImpl);
 }
 
 // Command buffer methods

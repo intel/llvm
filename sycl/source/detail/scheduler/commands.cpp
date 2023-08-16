@@ -473,6 +473,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
           getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const PluginPtr &Plugin = Queue->getPlugin();
+      // Capture the host timestamp for queue time. Fallback profiling support
+      if (MEvent != nullptr)
+        MEvent->setQueueBaseTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -1232,7 +1235,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
                     : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
 
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
-                         RawEvents, UnmapEvent);
+                         RawEvents, UnmapEvent, MEvent);
 
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
@@ -1314,7 +1317,7 @@ pi_int32 MapMemObject::enqueueImp() {
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event, MEvent);
 
   return PI_SUCCESS;
 }
@@ -1395,7 +1398,7 @@ pi_int32 UnMapMemObject::enqueueImp() {
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
-                       std::move(RawEvents), Event);
+                       std::move(RawEvents), Event, MEvent);
 
   return PI_SUCCESS;
 }
@@ -1506,7 +1509,7 @@ pi_int32 MemCpyCommand::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, MDstAllocaCmd->getMemAllocation(),
       MQueue, MDstReq.MDims, MDstReq.MMemoryRange, MDstReq.MAccessRange,
-      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event);
+      MDstReq.MOffset, MDstReq.MElemSize, std::move(RawEvents), Event, MEvent);
 
   return PI_SUCCESS;
 }
@@ -1667,7 +1670,7 @@ pi_int32 MemCpyCommandHost::enqueueImp() {
       MSrcQueue, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
       MSrcReq.MOffset, MSrcReq.MElemSize, *MDstPtr, MQueue, MDstReq.MDims,
       MDstReq.MMemoryRange, MDstReq.MAccessRange, MDstReq.MOffset,
-      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+      MDstReq.MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
   return PI_SUCCESS;
 }
@@ -2522,7 +2525,7 @@ pi_int32 enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<sycl::detail::pi::PiEvent> DeviceGlobalInitEvents =
-      ContextImpl->initializeDeviceGlobals(Program, Queue, nullptr);
+      ContextImpl->initializeDeviceGlobals(Program, Queue, NewEventImpl);
   std::vector<sycl::detail::pi::PiEvent> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
@@ -2754,7 +2757,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MElemSize, Copy->getDst(),
         Scheduler::getInstance().getDefaultHostQueue(), Req->MDims,
         Req->MAccessRange, Req->MAccessRange, /*DstOffset=*/{0, 0, 0},
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2771,7 +2774,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         Req->MAccessRange, Req->MAccessRange,
         /*SrcOffset*/ {0, 0, 0}, Req->MElemSize, AllocaCmd->getMemAllocation(),
         MQueue, Req->MDims, Req->MMemoryRange, Req->MAccessRange, Req->MOffset,
-        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef());
+        Req->MElemSize, std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2789,7 +2792,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ReqSrc->MOffset, ReqSrc->MElemSize, AllocaCmdDst->getMemAllocation(),
         MQueue, ReqDst->MDims, ReqDst->MMemoryRange, ReqDst->MAccessRange,
         ReqDst->MOffset, ReqDst->MElemSize, std::move(RawEvents),
-        MEvent->getHandleRef());
+        MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2802,7 +2805,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         AllocaCmd->getSYCLMemObj(), AllocaCmd->getMemAllocation(), MQueue,
         Fill->MPattern.size(), Fill->MPattern.data(), Req->MDims,
         Req->MMemoryRange, Req->MAccessRange, Req->MOffset, Req->MElemSize,
-        std::move(RawEvents), MEvent->getHandleRef());
+        std::move(RawEvents), MEvent->getHandleRef(), MEvent);
 
     return PI_SUCCESS;
   }
@@ -2832,10 +2835,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
-        // ERROR FIX
         // Capture the host timestamp for queue time. Fallback profiling support
-        // if (NewEvent != nullptr)
-        //   NewEvent->setQueueBaseTime();
+        if (MEvent != nullptr)
+          MEvent->setQueueBaseTime();
         MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
@@ -2870,19 +2872,21 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     return enqueueImpKernel(MQueue, NDRDesc, Args,
                             ExecKernel->getKernelBundle(), SyclKernel,
                             KernelName, RawEvents, Event, getMemAllocationFunc,
-                            ExecKernel->MKernelCacheConfig, nullptr);
+                            ExecKernel->MKernelCacheConfig, MEvent);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
     MemoryManager::copy_usm(Copy->getSrc(), MQueue, Copy->getLength(),
-                            Copy->getDst(), std::move(RawEvents), Event);
+                            Copy->getDst(), std::move(RawEvents), Event,
+                            MEvent);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::FillUSM: {
     CGFillUSM *Fill = (CGFillUSM *)MCommandGroup.get();
     MemoryManager::fill_usm(Fill->getDst(), MQueue, Fill->getLength(),
-                            Fill->getFill(), std::move(RawEvents), Event);
+                            Fill->getFill(), std::move(RawEvents), Event,
+                            MEvent);
 
     return PI_SUCCESS;
   }
@@ -2890,14 +2894,15 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     MemoryManager::prefetch_usm(Prefetch->getDst(), MQueue,
                                 Prefetch->getLength(), std::move(RawEvents),
-                                Event);
+                                Event, MEvent);
 
     return PI_SUCCESS;
   }
   case CG::CGTYPE::AdviseUSM: {
     CGAdviseUSM *Advise = (CGAdviseUSM *)MCommandGroup.get();
     MemoryManager::advise_usm(Advise->getDst(), MQueue, Advise->getLength(),
-                              Advise->getAdvice(), std::move(RawEvents), Event);
+                              Advise->getAdvice(), std::move(RawEvents), Event,
+                              MEvent);
 
     return PI_SUCCESS;
   }
@@ -2906,21 +2911,23 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_2d_usm(Copy->getSrc(), Copy->getSrcPitch(), MQueue,
                                Copy->getDst(), Copy->getDstPitch(),
                                Copy->getWidth(), Copy->getHeight(),
-                               std::move(RawEvents), Event);
+                               std::move(RawEvents), Event, MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Fill2DUSM: {
     CGFill2DUSM *Fill = (CGFill2DUSM *)MCommandGroup.get();
     MemoryManager::fill_2d_usm(Fill->getDst(), MQueue, Fill->getPitch(),
                                Fill->getWidth(), Fill->getHeight(),
-                               Fill->getPattern(), std::move(RawEvents), Event);
+                               Fill->getPattern(), std::move(RawEvents), Event,
+                               MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::Memset2DUSM: {
     CGMemset2DUSM *Memset = (CGMemset2DUSM *)MCommandGroup.get();
-    MemoryManager::memset_2d_usm(
-        Memset->getDst(), MQueue, Memset->getPitch(), Memset->getWidth(),
-        Memset->getHeight(), Memset->getValue(), std::move(RawEvents), Event);
+    MemoryManager::memset_2d_usm(Memset->getDst(), MQueue, Memset->getPitch(),
+                                 Memset->getWidth(), Memset->getHeight(),
+                                 Memset->getValue(), std::move(RawEvents),
+                                 Event, MEvent);
     return PI_SUCCESS;
   }
   case CG::CGTYPE::CodeplayHostTask: {
@@ -2991,11 +2998,10 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       // NOP for host device.
       return PI_SUCCESS;
     }
+    const PluginPtr &Plugin = MQueue->getPlugin();
     // Capture the host timestamp for queue time. Fallback profiling support
     if (MEvent != nullptr)
       MEvent->setQueueBaseTime();
-
-    const PluginPtr &Plugin = MQueue->getPlugin();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
 
@@ -3012,6 +3018,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
+    // Capture the host timestamp for queue time. Fallback profiling support
+    if (MEvent != nullptr)
+      MEvent->setQueueBaseTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
@@ -3022,7 +3031,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_to_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getSrc(),
-        std::move(RawEvents), Event);
+        std::move(RawEvents), Event, MEvent);
 
     return CL_SUCCESS;
   }
@@ -3032,7 +3041,7 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     MemoryManager::copy_from_device_global(
         Copy->getDeviceGlobalPtr(), Copy->isDeviceImageScoped(), MQueue,
         Copy->getNumBytes(), Copy->getOffset(), Copy->getDest(),
-        std::move(RawEvents), Event);
+        std::move(RawEvents), Event, MEvent);
 
     return CL_SUCCESS;
   }
@@ -3049,15 +3058,14 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       Event = &MEvent->getHandleRef();
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
-                                    typeSize, RawEvents, Event, read, nullptr);
+                                    typeSize, RawEvents, Event, read, MEvent);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    // ERROR FIX
-    // // Capture the host timestamp for queue time. Fallback profiling support
-    // if (NewEventImpl != nullptr)
-    //   NewEventImpl->setQueueBaseTime();
+    // Capture the host timestamp for queue time. Fallback profiling support
+    if (MEvent != nullptr)
+      MEvent->setQueueBaseTime();
     return MQueue->getPlugin()
         ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
             CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),

@@ -364,7 +364,8 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl,
+                                                          NewEventImpl);
 
       // If the device global still has a zero-initialization event it should be
       // added to the initialization events list. Since initialization events

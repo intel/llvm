@@ -28,6 +28,8 @@ class context_impl;
 class device_impl;
 class platform_impl;
 class queue_impl;
+class event_impl;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
@@ -108,7 +110,8 @@ struct DeviceGlobalMapEntry {
 
   // Gets or allocates USM memory for a device_global.
   DeviceGlobalUSMMem &
-  getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl);
+  getOrAllocateDeviceGlobalUSM(const std::shared_ptr<queue_impl> &QueueImpl,
+                               detail::EventImplPtr NewEventImpl = nullptr);
 
   // Removes resources for device_globals associated with the context.
   void removeAssociatedResources(const context_impl *CtxImpl);

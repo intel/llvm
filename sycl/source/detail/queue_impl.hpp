@@ -612,7 +612,8 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(const std::shared_ptr<queue_impl> &Self, void *Ptr, int Value,
-               size_t Count, const std::vector<event> &DepEvents);
+               size_t Count, const std::vector<event> &DepEvents,
+               detail::EventImplPtr NewEventImpl = nullptr);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -626,7 +627,8 @@ public:
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count,
                const std::vector<event> &DepEvents,
-               const code_location &CodeLoc);
+               const code_location &CodeLoc,
+               detail::EventImplPtr NewEventImpl = nullptr);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -639,7 +641,8 @@ public:
   /// \return an event representing advise operation.
   event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
                    size_t Length, pi_mem_advice Advice,
-                   const std::vector<event> &DepEvents);
+                   const std::vector<event> &DepEvents,
+                   detail::EventImplPtr NewEventImpl = nullptr);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
@@ -681,13 +684,14 @@ public:
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
-                             size_t Offset,
-                             const std::vector<event> &DepEvents);
+                             size_t Offset, const std::vector<event> &DepEvents,
+                             detail::EventImplPtr NewEventImpl = nullptr);
   event memcpyFromDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                                void *Dest, const void *DeviceGlobalPtr,
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
-                               const std::vector<event> &DepEvents);
+                               const std::vector<event> &DepEvents,
+                               detail::EventImplPtr NewEventImpl = nullptr);
 
   bool isProfilingFallback() { return MFallbackProfiling; }
 

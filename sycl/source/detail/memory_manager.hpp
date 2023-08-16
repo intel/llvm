@@ -118,7 +118,7 @@ public:
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
-                   detail::EventImplPtr NewEventImpl = nullptr);
+                   detail::EventImplPtr NewEventImpl);
 
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    size_t PatternSize, const char *Pattern, unsigned int Dim,
@@ -126,75 +126,76 @@ public:
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
-                   detail::EventImplPtr NewEventImpl = nullptr);
+                   detail::EventImplPtr NewEventImpl);
 
   static void *map(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                    access::mode AccessMode, unsigned int Dim,
                    sycl::range<3> Size, sycl::range<3> AccessRange,
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                   sycl::detail::pi::PiEvent &OutEvent);
+                   sycl::detail::pi::PiEvent &OutEvent,
+                   detail::EventImplPtr NewEventImpl);
 
   static void unmap(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                     void *MappedPtr,
                     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-                    sycl::detail::pi::PiEvent &OutEvent);
+                    sycl::detail::pi::PiEvent &OutEvent,
+                    detail::EventImplPtr NewEventImpl);
 
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,
                        void *DstMem,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
-                       detail::EventImplPtr NewEventImpl = nullptr);
+                       detail::EventImplPtr NewEventImpl);
 
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
                        int Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
-                       detail::EventImplPtr NewEventImpl = nullptr);
+                       detail::EventImplPtr NewEventImpl);
 
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<sycl::detail::pi::PiEvent> DepEvents,
                            sycl::detail::pi::PiEvent *OutEvent,
-                           detail::EventImplPtr NewEventImpl = nullptr);
+                           detail::EventImplPtr NewEventImpl);
 
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          pi_mem_advice Advice,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent *OutEvent,
-                         detail::EventImplPtr NewEventImpl = nullptr);
+                         detail::EventImplPtr NewEventImpl);
 
   static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
                           QueueImplPtr Queue, void *DstMem, size_t DstPitch,
                           size_t Width, size_t Height,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent *OutEvent,
-                          detail::EventImplPtr NewEventImpl = nullptr);
+                          detail::EventImplPtr NewEventImpl);
 
   static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                           size_t Width, size_t Height,
                           const std::vector<char> &Pattern,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent *OutEvent,
-                          detail::EventImplPtr NewEventImpl = nullptr);
+                          detail::EventImplPtr NewEventImpl);
 
   static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
                             size_t Width, size_t Height, char Value,
                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
                             sycl::detail::pi::PiEvent *OutEvent,
-                            detail::EventImplPtr NewEventImpl = nullptr);
+                            detail::EventImplPtr NewEventImpl);
 
-  static void
-  copy_to_device_global(const void *DeviceGlobalPtr, bool IsDeviceImageScoped,
-                        QueueImplPtr Queue, size_t NumBytes, size_t Offset,
-                        const void *SrcMem,
-                        const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-                        sycl::detail::pi::PiEvent *OutEvent);
+  static void copy_to_device_global(
+      const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
+      size_t NumBytes, size_t Offset, const void *SrcMem,
+      const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
+      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl);
 
   static void copy_from_device_global(
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
       size_t NumBytes, size_t Offset, void *DstMem,
       const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-      sycl::detail::pi::PiEvent *OutEvent);
+      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr NewEventImpl);
 
   // Command buffer extension methods
   static void ext_oneapi_copyD2D_cmd_buffer(
