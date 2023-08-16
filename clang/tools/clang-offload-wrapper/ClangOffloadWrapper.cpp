@@ -19,6 +19,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -122,6 +123,11 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::desc("Output filename"),
                                    cl::value_desc("filename"),
                                    cl::cat(ClangOffloadWrapperCategory));
+
+static cl::opt<std::string> PropAndEntries(
+    "prop_and_entries", cl::Optional,
+    cl::desc("Wrapped BC file containing properties and entry points to be used in constructing new wrapped BC file."),
+    cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
                              cl::cat(ClangOffloadWrapperCategory));
@@ -1828,8 +1834,142 @@ int main(int argc, const char **argv) {
   verifyModule(*ModOrErr.get(), &llvm::errs());
 #endif
 
-  // And write its bitcode to the file.
-  WriteBitcodeToFile(**ModOrErr, Out.os());
+  if (!PropAndEntries.empty()) {
+    if (Knd != OffloadKind::SYCL) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "Property and Entries can only be used with SYCL offload kind"));
+      return 1;
+    }
+
+    LLVMContext Context;
+    ExitOnError ExitOnErr;
+
+    std::unique_ptr<MemoryBuffer> MB =
+      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(PropAndEntries)));
+    std::unique_ptr<Module> M =
+      ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
+                                           /*ShouldLazyLoadMetadata=*/true));
+    ExitOnErr(M->materializeAll());
+
+    auto OLD_DI = M->getGlobalVariable(".sycl_offloading.device_images",true);
+    auto OLD_Initializer = OLD_DI->getInitializer();
+    Type *OLD_Ty = OLD_Initializer->getType();
+    auto *OLD_ArrTy = dyn_cast<ArrayType>(OLD_Ty);
+
+    if (!OLD_ArrTy) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "Invalid Property and entries file\n"));
+      return 1;
+    }
+    errs() << "Num elements " << OLD_ArrTy->getNumElements() << "\n";
+
+    auto NEW_M = ModOrErr.get();
+    auto NEW_DI = NEW_M->getGlobalVariable(".sycl_offloading.device_images",true);
+    auto NEW_Initializer = NEW_DI->getInitializer();
+    Type *NEW_Ty = NEW_Initializer->getType();
+    auto *NEW_ArrTy = dyn_cast<ArrayType>(NEW_Ty);
+    if (OLD_ArrTy->getNumElements()!=NEW_ArrTy->getNumElements()) {
+      reportError(createStringError(errc::invalid_argument,
+                                    "Property and entries file does not match new BC file\n"));
+      return 1;
+    }
+
+    // Create entries that use the new executable image.  Entries will be used to create a new
+    // .sycl_offloading.device_images GlobalVariable
+
+    SmallVector<Constant *, 4u> ImagesInits;
+
+    // Update OLD_Image with the executable image from NEW_Image
+    for (uint64_t i=0; i<OLD_ArrTy->getNumElements(); i++) {
+      // Get OLD_Image with desired properties, entries, ...
+      Constant *OLD_Image = OLD_Initializer->getAggregateElement(i);
+      Constant *OffloadDataOld = OLD_Image->getAggregateElement(8 /* __tgt_device_image.ImageStart */);
+      auto DataOld = M->getGlobalVariable(OffloadDataOld->getName(),true);
+
+      // Get NEW_Image with desired executable image
+      Constant *NEW_Image = NEW_Initializer->getAggregateElement(i);
+      Constant *OffloadDataNew = NEW_Image->getAggregateElement(8 /* __tgt_device_image.ImageStart */);
+      auto DataNew = NEW_M->getGlobalVariable(OffloadDataNew->getName(),true);
+      auto Data_InitializerNew = DataNew->getInitializer();
+
+      // Get desired executable image as an ArrayRef
+      auto DataAsStringRef = cast<ConstantDataArray>(Data_InitializerNew)->getRawDataValues();
+      Constant *CopyData_InitializerNew =
+        ConstantDataArray::get(Context,
+                               ArrayRef<uint8_t>(reinterpret_cast<const uint8_t *>(DataAsStringRef.data()),
+                                                 DataAsStringRef.size()));
+
+      // Create variable with desired executable image
+      auto *DataNewCopy = new GlobalVariable(*M, CopyData_InitializerNew->getType(), DataNew->isConstant(), DataNew->getLinkage(),
+                                             CopyData_InitializerNew, "", DataOld, DataNew->getThreadLocalMode(), DataNew->getAddressSpace());
+      // Everything else about the variable comes from OLD_Image
+      DataNewCopy->copyAttributesFrom(DataOld);
+      DataNewCopy->setComdat(DataOld->getComdat());
+      DataNewCopy->copyMetadata(DataOld, 0);
+
+      IntegerType *ITy = (M->getDataLayout().getPointerTypeSize(Type::getInt8PtrTy(Context))==4 ?
+                          Type::getInt32Ty(Context) :
+                          Type::getInt64Ty(Context));
+
+      // Create entry with new executable image and everything else coming from OLD_Image
+      ImagesInits.push_back(ConstantStruct::get(dyn_cast<StructType>(OLD_Image->getType()),
+                                                OLD_Image->getAggregateElement(0u),  // Version
+                                                OLD_Image->getAggregateElement(1),   // OffloadKind
+                                                OLD_Image->getAggregateElement(2),   // Format
+                                                OLD_Image->getAggregateElement(3),   // DeviceTargetSpec
+                                                OLD_Image->getAggregateElement(4),   // CompileOptions
+                                                OLD_Image->getAggregateElement(5),   // LinkOptions
+                                                OLD_Image->getAggregateElement(6),   // ManifestStart
+                                                OLD_Image->getAggregateElement(7),   // ManifestEnd
+
+                                                 // ImageStart
+                                                ConstantExpr::getGetElementPtr(Data_InitializerNew->getType(), DataNewCopy,
+                                                                               ArrayRef<Constant *>{ConstantInt::get(ITy, 0),
+                                                                                 ConstantInt::get(ITy, 0)}),
+
+                                                 // ImageEnd
+                                                ConstantExpr::getGetElementPtr(Data_InitializerNew->getType(), DataNewCopy,
+                                                                               ArrayRef<Constant *>{ConstantInt::get(ITy, 1),
+                                                                                 ConstantInt::get(ITy, 0)}),
+
+                                                OLD_Image->getAggregateElement(10),  // EntriesBegin
+                                                OLD_Image->getAggregateElement(11),  // EntriesEnd
+                                                OLD_Image->getAggregateElement(12),  // PropertySetBegin
+                                                OLD_Image->getAggregateElement(13))  // PropertySetEnd
+                             );
+
+      // Remove references to old data variable
+      // Rename new data variable to old data variable's name
+      auto *Dummy = PoisonValue::get(DataOld->getType());
+      DataOld->replaceAllUsesWith(Dummy);
+      DataNewCopy->takeName(DataOld);
+      DataOld->eraseFromParent();
+    }
+
+    // Then create images array.
+    auto *ImagesData =
+      ConstantArray::get(OLD_ArrTy,
+                         ImagesInits);
+
+    auto *Images =
+        new GlobalVariable(*M, ImagesData->getType(), /*isConstant*/ true,
+                           GlobalValue::InternalLinkage, ImagesData,
+                           "", OLD_DI, OLD_DI->getThreadLocalMode(), OLD_DI->getAddressSpace());
+
+    Images->copyAttributesFrom(OLD_DI);
+    Images->setComdat(OLD_DI->getComdat());
+    Images->copyMetadata(OLD_DI, 0);
+
+    Images->takeName(OLD_DI);
+    OLD_DI->replaceAllUsesWith(Images);
+    OLD_DI->eraseFromParent();
+
+    WriteBitcodeToFile(*M, Out.os());
+  } else {
+    // And write its bitcode to the file.
+    WriteBitcodeToFile(**ModOrErr, Out.os());
+  }
+
   if (Out.os().has_error()) {
     reportError(createFileError(Output, Out.os().error()));
     return 1;
