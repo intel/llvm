@@ -245,8 +245,7 @@ TEST(GetProfilingInfo, check_if_now_dead_queue_property_not_set) {
       redefinedPiEventGetProfilingInfo);
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
-  static sycl::unittest::PiImage DevImage =
-      generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
   auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
@@ -364,7 +363,6 @@ pi_result redefinedFailedPiGetDeviceAndHostTimer(pi_device Device,
                                                  uint64_t *HostTime) {
   return PI_ERROR_INVALID_OPERATION;
 }
-
 
 static pi_result redefinedDeviceGetInfoAcc(pi_device device,
                                            pi_device_info param_name,
