@@ -200,12 +200,12 @@ void memBufferMapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Buffer,
                            0 /* guard zone */, CorrID);
     }};
 #endif
-    // Capture the host timestamp for queue time. Fallback profiling support
-    if (NewEventImpl != nullptr)
-      NewEventImpl->setQueueBaseTime();
-    Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
-        Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
-        Event, RetMap);
+  // Capture the host timestamp for queue time. Fallback profiling support
+  if (NewEventImpl != nullptr)
+    NewEventImpl->setQueueBaseTime();
+  Plugin->call<PiApiKind::piEnqueueMemBufferMap>(
+      Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList,
+      Event, RetMap);
 }
 
 void memUnmapHelper(const PluginPtr &Plugin, pi_queue Queue, pi_mem Mem,
