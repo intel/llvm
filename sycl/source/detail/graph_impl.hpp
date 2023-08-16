@@ -142,10 +142,8 @@ public:
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
         Next->sortTopological(Next, Schedule);
     }
-    // We don't need to schedule empty nodes as they are only used when
-    // calculating dependencies
-    if (!NodeImpl->isEmpty())
-      Schedule.push_front(NodeImpl);
+
+    Schedule.push_front(NodeImpl);
   }
 
   /// Checks if this node has a given requirement.
