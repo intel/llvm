@@ -66,6 +66,7 @@ jobs:
 
   test:
     needs: [build, detect_changes]
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -96,6 +97,7 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       reset_gpu: ${{ matrix.reset_gpu }}
+      install_drivers: ${{ matrix.install_drivers }}
 
       ref: ${{ github.sha }}
       merge_ref: ''
