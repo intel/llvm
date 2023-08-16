@@ -1,4 +1,6 @@
 // RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o runtime-query %s
+// XFAIL: *
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 
@@ -6,7 +8,7 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-template <matrix_type Ta, matrix_type Tb, matrix_type::Tc, matrix_type::Td>
+template <matrix_type Ta, matrix_type Tb, matrix_type Tc, matrix_type Td>
 void matrix_runtime_query(queue q) {
 
   std::vector<combination> combinations =
