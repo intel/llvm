@@ -118,20 +118,36 @@ inline constexpr max_private_copies_key::value_t<n> max_private_copies;
 template <size_t n>
 inline constexpr num_replicates_key::value_t<n> num_replicates;
 
-//Artem FIX below
+// Associate properties with fpga_mem
+template <typename T, typename PropertyListT>
+struct is_property_key_of<resource_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<num_banks_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<stride_size_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<word_size_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<bi_directional_ports_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<clock_2x_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<ram_stitching_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<max_private_copies_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
+template <typename T, typename PropertyListT>
+struct is_property_key_of<num_replicates_key,
+                          fpga_mem<T, PropertyListT>> : std::true_type {};
 
-// template <typename T, typename PropertyListT>
-// struct is_property_key_of<device_image_scope_key,
-//                           device_global<T, PropertyListT>> : std::true_type {};
-// template <typename T, typename PropertyListT>
-// struct is_property_key_of<host_access_key, device_global<T, PropertyListT>>
-//     : std::true_type {};
-// template <typename T, typename PropertyListT>
-// struct is_property_key_of<init_mode_key, device_global<T, PropertyListT>>
-//     : std::true_type {};
-// template <typename T, typename PropertyListT>
-// struct is_property_key_of<implement_in_csr_key, device_global<T, PropertyListT>>
-//     : std::true_type {};
+//Artem FIX below
 
 // namespace detail {
 // template <> struct PropertyToKind<device_image_scope_key> {
