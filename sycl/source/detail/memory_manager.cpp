@@ -740,7 +740,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
   }
 }
 
-static void 
+static void
 copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr, unsigned int DimSrc,
         sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
         sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
