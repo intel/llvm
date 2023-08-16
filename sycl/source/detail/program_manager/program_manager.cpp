@@ -600,14 +600,11 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, const program_impl *Prg,
     bool JITCompilationIsRequired) {
-<<<<<<< HEAD
   XPTI_LW_TRACE();
   // TODO: Make sure that KSIds will be different for the case when the same
   // kernel built with different options is present in the fat binary.
   KernelSetId KSId = getKernelSetId(KernelName);
 
-=======
->>>>>>> origin
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -1324,11 +1321,8 @@ bool ProgramManager::kernelUsesAssert(const std::string &KernelName) const {
 }
 
 void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
-<<<<<<< HEAD
   XPTI_LW_TRACE();
   std::lock_guard<std::mutex> Guard(Sync::getGlobalLock());
-=======
->>>>>>> origin
   const bool DumpImages = std::getenv("SYCL_DUMP_IMAGES") && !m_UseSpvFile;
   for (int I = 0; I < DeviceBinary->NumDeviceBinaries; I++) {
     pi_device_binary RawImg = &(DeviceBinary->DeviceBinaries[I]);
@@ -1497,7 +1491,6 @@ void ProgramManager::debugPrintBinaryImages() const {
   }
 }
 
-<<<<<<< HEAD
 KernelSetId ProgramManager::getNextKernelSetId() const {
   // No need for atomic, should be guarded by the caller
   static KernelSetId Result = LastKSId;
@@ -1528,9 +1521,7 @@ ProgramManager::getKernelSetId(const std::string &KernelName) const {
 }
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
-=======
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
->>>>>>> origin
                                uint32_t SequenceID) const {
   XPTI_LW_TRACE();
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
@@ -1848,7 +1839,6 @@ std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
     bundle_state TargetState, const std::vector<kernel_id> &KernelIDs) {
-
   XPTI_LW_TRACE();
   // Collect unique raw device images taking into account kernel ids passed
   // TODO: Can we avoid repacking?
@@ -1996,7 +1986,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
 void ProgramManager::bringSYCLDeviceImagesToState(
     std::vector<device_image_plain> &DeviceImages, bundle_state TargetState) {
-
   XPTI_LW_TRACE();
   for (device_image_plain &DevImage : DeviceImages) {
     const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
@@ -2445,7 +2434,6 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                   const std::string &KernelName,
                                   const property_list &PropList,
                                   sycl::detail::pi::PiProgram Program) {
-
   (void)PropList;
 
   XPTI_LW_TRACE();
