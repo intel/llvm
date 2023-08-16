@@ -89,16 +89,21 @@ public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
+
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-
-  template <template <typename, typename...> class Container>
+  // TODO: remove this function when m_UniversalKernelSet is removed
   RTDeviceBinaryImage &
-  getDeviceImage(const Container<RTDeviceBinaryImage *> &ImagesToVerify,
+  getDeviceImage(const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
                  const context &Context, const device &Device,
                  bool JITCompilationIsRequired = false);
+
+  RTDeviceBinaryImage &getDeviceImage(
+      const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
+      const context &Context, const device &Device,
+      bool JITCompilationIsRequired = false);
 
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,

@@ -1069,11 +1069,53 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                         PI_ERROR_INVALID_KERNEL_NAME);
 }
 
-template <template <typename, typename...> class Container>
-RTDeviceBinaryImage &
-ProgramManager::getDeviceImage(const Container<RTDeviceBinaryImage *> &ImageSet,
-                               const context &Context, const device &Device,
-                               bool JITCompilationIsRequired) {
+// TODO: remove this function when m_UniversalKernelSet is removed
+RTDeviceBinaryImage &ProgramManager::getDeviceImage(
+    const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
+    const context &Context, const device &Device,
+    bool JITCompilationIsRequired) {
+  assert(ImagesToVerify.size() > 0);
+
+  if (DbgProgMgr > 0) {
+    std::cerr << ">>> ProgramManager::getDeviceImage(Universal kernel set "
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ", " << JITCompilationIsRequired << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
+
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::vector<pi_device_binary> RawImgs(ImagesToVerify.size());
+  auto ImageIterator = ImagesToVerify.begin();
+  for (size_t i = 0; i < ImagesToVerify.size(); i++, ImageIterator++)
+    RawImgs[i] = const_cast<pi_device_binary>(&(*ImageIterator)->getRawData());
+  pi_uint32 ImgInd = 0;
+  // Ask the native runtime under the given context to choose the device image
+  // it prefers.
+  getSyclObjImpl(Context)
+      ->getPlugin()
+      ->call<PiApiKind::piextDeviceSelectBinary>(
+          getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+          (pi_uint32)RawImgs.size(), &ImgInd);
+
+  ImageIterator = ImagesToVerify.begin();
+  std::advance(ImageIterator, ImgInd);
+
+  CheckJITCompilationForImage(*ImageIterator, JITCompilationIsRequired);
+
+  if (DbgProgMgr > 0) {
+    std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
+              << "\n";
+    (*ImageIterator)->print();
+  }
+  return **ImageIterator;
+}
+
+RTDeviceBinaryImage &ProgramManager::getDeviceImage(
+    const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
+    const context &Context, const device &Device,
+    bool JITCompilationIsRequired) {
   assert(ImageSet.size() > 0);
 
   if (DbgProgMgr > 0) {
