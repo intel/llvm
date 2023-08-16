@@ -758,7 +758,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   // intrinsic to find its calls and lower them depending on the HandlingMode.
   bool IRModified = false;
   LLVMContext &Ctx = M.getContext();
-  SmallVector<Function *, 10> SpecConstDeclarations;
   for (Function &F : M) {
     if (!F.isDeclaration())
       continue;
@@ -767,7 +766,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
         !F.getName().startswith(SYCL_GET_COMPOSITE_2020_SPEC_CONST_VAL))
       continue;
 
-    SpecConstDeclarations.push_back(&F);
     SmallVector<CallInst *, 32> SCIntrCalls;
     for (auto *U : F.users()) {
       if (auto *CI = dyn_cast<CallInst>(U))
@@ -905,10 +903,6 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
       }
     }
   }
-
-  if (Mode == HandlingMode::default_values)
-    for (Function *F : SpecConstDeclarations)
-      F->removeFromParent();
 
   // Emit metadata about encountered specializaiton constants. This metadata
   // is later queried by sycl-post-link in order to be converted into device

@@ -51,6 +51,7 @@
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/DCE.h"
@@ -736,6 +737,7 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   SpecConstantsPass SCP(SpecConstantsPass::HandlingMode::default_values);
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   MPM.addPass(std::move(SCP));
+  MPM.addPass(StripDeadPrototypesPass());
 
   PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
   NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
