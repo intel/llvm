@@ -21,6 +21,6 @@
 #include <sycl/ext/oneapi/matrix/static-query.hpp>
 #endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
 #if (SYCL_EXT_ONEAPI_MATRIX_VERSION == 4)
+#include <sycl/ext/oneapi/matrix/compile-time-query.hpp>
 #include <sycl/ext/oneapi/matrix/matrix-unified.hpp>
-#include <sycl/ext/oneapi/matrix/static-query-use.hpp>
 #endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
