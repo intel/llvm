@@ -9,9 +9,6 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
-// FIXME: enable opaque pointers support
-// REQUIRES: TEMPORARY_DISABLED
-
 // This test checks extended math operations. Combinations of
 // - argument type - half, float
 // - math function - sin, cos, ..., div_ieee, pow
@@ -363,6 +360,9 @@ bool test(queue &Q, const std::string &Name, InitF Init = InitNarrow<T>{},
   } catch (sycl::exception &Exc) {
     std::cout << "    *** ERROR. SYCL exception caught: << " << Exc.what()
               << "\n";
+    delete[] A;
+    delete[] B;
+    delete[] C;
     return false;
   }
 
@@ -382,16 +382,19 @@ bool test(queue &Q, const std::string &Name, InitF Init = InitNarrow<T>{},
     }
     CheckT Test = C[I];
 
-    if (delta == 0.0f) {
-      delta = sizeof(T) > 2 ? 0.0001 : 0.01;
-    }
+    if (delta == 0.0f)
+      delta = 0.0001;
+    if constexpr (sizeof(T) <= 2)
+      delta = delta + delta;
 
     bool BothFinite = std::isfinite(Test) && std::isfinite(Gold);
     if (BothFinite && std::abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test
                   << " != " << Gold << " (gold)\n";
-        std::cout << "A = " << (T)A[I] << ", B = " << (T)B[I] << "\n";
+        std::cout << "    A = " << (T)A[I] << ", B = " << (T)B[I]
+                  << ", diff = " << std::abs(Test - Gold)
+                  << ", max-delta = " << delta << "\n";
       }
     }
   }
@@ -475,9 +478,16 @@ template <class T, int N> bool testSYCL(queue &Q) {
 
 int main(void) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(Q);
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
-            << "\n";
+#ifndef SKIP_NEW_GPU_DRIVER_VERSION
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "27012", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.27012 or newer.\n";
+    return 0;
+  }
+#endif
+
   bool Pass = true;
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
