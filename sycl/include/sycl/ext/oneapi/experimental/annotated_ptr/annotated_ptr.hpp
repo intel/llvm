@@ -137,25 +137,25 @@ public:
 
   T operator++() {
     const T &t = *this;
-	*this = t + 1;
+    *this = t + 1;
     return *this;
   }
 
   T operator++(int) {
     const T &t = *this;
-	*this = t + 1;
+    *this = t + 1;
     return t;
   }
 
   T operator--() {
     const T &t = *this;
-	*this = t - 1;
+    *this = t - 1;
     return *this;
   }
 
   T operator--(int) {
     const T &t = *this;
-	*this = t - 1;
+    *this = t - 1;
     return t;
   }
 
