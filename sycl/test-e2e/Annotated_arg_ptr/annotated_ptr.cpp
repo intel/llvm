@@ -26,7 +26,7 @@ int main() {
   for (int i = 0; i < 8; i++)
     a_ptr[i] = i;
 
-  auto *b = malloc_device<int>(4, Q);
+  auto *b = malloc_device<int>(5, Q);
   auto b_ptr = annotated_ptr{b, properties{buffer_location<1>, alignment<16>}};
 
   auto *c = malloc_device<test>(1, Q);
@@ -58,6 +58,7 @@ int main() {
      b_ptr[1] = a_ptr[6] == a_ptr[7];
      b_ptr[2] = a_ptr[6] != a_ptr[7];
      b_ptr[3] = 11;
+     b_ptr[4] = a_ptr[6];
 
      auto *c = c_ptr.get();
      c->a++;
@@ -81,6 +82,7 @@ int main() {
   assert(b_ptr[1] == 0 && "b_ptr[1] value does not match.");
   assert(b_ptr[2] == 1 && "b_ptr[2] value does not match.");
   assert(b_ptr[3] == 11 && "b_ptr[3] value does not match.");
+  assert(b_ptr[4] == 6 && "b_ptr[4] value does not match.");
 
   assert(c->a == 2 && "c_ptr[0] value does not match.");
   assert(*c->b == 5 && "c_ptr[0].b value does not match.");
