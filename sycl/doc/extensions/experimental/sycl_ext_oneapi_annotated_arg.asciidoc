@@ -210,6 +210,9 @@ class annotated_arg {
     operator T() noexcept;
     operator T() const noexcept;
 
+    // Available if type T is pointer type
+    T operator->() const noexcept;
+
     // Available if the operator[] is valid for objects of type T, return
     // type will match the return type of T::operator[](std::ptrdiff_t)
     /* ... */ operator[](std::ptrdiff_t idx) const noexcept;

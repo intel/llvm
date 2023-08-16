@@ -135,6 +135,30 @@ public:
 
   T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
+  this_t &operator++() {
+    const T &t = *this;
+	*this = t + 1;
+    return *this;
+  }
+
+  T operator++(int) {
+    const T &t = *this;
+	*this = t + 1;
+    return t;
+  }
+
+  this_t &operator--() {
+    const T &t = *this;
+	*this = t - 1;
+    return *this;
+  }
+
+  T operator--(int) {
+    const T &t = *this;
+	*this = t - 1;
+    return t;
+  }
+
   PROPAGATE_OP(+)
   PROPAGATE_OP(-)
   PROPAGATE_OP(*)
