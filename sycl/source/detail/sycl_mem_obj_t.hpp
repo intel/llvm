@@ -17,14 +17,14 @@
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/range.hpp>
 
 #include <cstring>
 #include <memory>
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Forward declarations
@@ -322,5 +322,5 @@ protected:
   bool MIsInternal = false;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

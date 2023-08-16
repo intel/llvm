@@ -11,7 +11,7 @@
 #include <sycl/backend.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <>
 inline backend_return_t<backend::ext_oneapi_hip, device>
@@ -27,5 +27,5 @@ get_native<backend::ext_oneapi_hip, device>(const device &Obj) {
       Obj.getNative());
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

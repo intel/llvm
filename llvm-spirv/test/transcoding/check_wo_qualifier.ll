@@ -1,7 +1,7 @@
 ; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM: opencl.image2d_array_wo_t = type opaque

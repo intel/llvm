@@ -26,7 +26,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -496,5 +496,5 @@ context_impl::getProgramForHostPipe(const device &Device,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

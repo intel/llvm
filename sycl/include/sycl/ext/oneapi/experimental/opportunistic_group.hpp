@@ -7,11 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp>        // for is_group, is_user_cons...
+#include <sycl/exception.hpp>                 // for runtime_error
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/id.hpp>                        // for id
+#include <sycl/memory_enums.hpp>              // for memory_scope
+#include <sycl/range.hpp>                     // for range
+
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 class opportunistic_group;
@@ -156,5 +165,5 @@ template <>
 struct is_group<ext::oneapi::experimental::opportunistic_group>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

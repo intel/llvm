@@ -14,7 +14,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
@@ -45,5 +45,5 @@ private:
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

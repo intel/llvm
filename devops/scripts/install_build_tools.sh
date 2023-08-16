@@ -19,7 +19,10 @@ apt update && apt install -yqq \
       libdw1 \
       wget \
       sudo \
-      zstd
+      zstd \
+      zip \
+      unzip \
+      jq
 
 pip3 install psutil
 

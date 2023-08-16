@@ -10,6 +10,7 @@
 
 using namespace sycl;
 using namespace ext::oneapi::experimental;
+using namespace ext::intel::experimental;
 
 using annotated_ptr_t1 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>,

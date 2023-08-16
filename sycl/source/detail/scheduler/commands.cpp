@@ -49,7 +49,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -1537,9 +1537,10 @@ AllocaCommandBase *ExecCGCommand::getAllocaForReq(Requirement *Req) {
     if (Dep.MDepRequirement == Req)
       return Dep.MAllocaCmd;
   }
-  throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                        "Alloca for command not found " +
-                            codeToString(PI_ERROR_INVALID_OPERATION));
+  // Default constructed accessors do not add dependencies, but they can be
+  // passed to commands. Simply return nullptr, since they are empty and don't
+  // really require any memory.
+  return nullptr;
 }
 
 std::vector<std::shared_ptr<const void>>
@@ -2037,10 +2038,11 @@ void emitKernelInstrumentationData(
 
   xpti_td *CmdTraceEvent = nullptr;
   uint64_t InstanceID = -1;
-  instrumentationFillCommonData(KernelName, CodeLoc.fileName(),
-                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
-                                Address, Queue, FromSource, InstanceID,
-                                CmdTraceEvent);
+  std::string FileName =
+      CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
+  instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
+                                CodeLoc.columnNumber(), Address, Queue,
+                                FromSource, InstanceID, CmdTraceEvent);
 
   if (CmdTraceEvent) {
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
@@ -2213,11 +2215,15 @@ void SetArgBasedOnType(
     break;
   case kernel_param_kind_t::kind_accessor: {
     Requirement *Req = (Requirement *)(Arg.MPtr);
-    assert(getMemAllocationFunc != nullptr &&
-           "We should have caught this earlier.");
 
+    // getMemAllocationFunc is nullptr when there are no requirements. However,
+    // we may pass default constructed accessors to a command, which don't add
+    // requirements. In such case, getMemAllocationFunc is nullptr, but it's a
+    // valid case, so we need to properly handle it.
     sycl::detail::pi::PiMem MemArg =
-        (sycl::detail::pi::PiMem)getMemAllocationFunc(Req);
+        getMemAllocationFunc
+            ? (sycl::detail::pi::PiMem)getMemAllocationFunc(Req)
+            : nullptr;
     if (Context.get_backend() == backend::opencl) {
       // clSetKernelArg (corresponding to piKernelSetArg) returns an error
       // when MemArg is null, which is the case when zero-sized buffers are
@@ -2831,7 +2837,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
 
     auto getMemAllocationFunc = [this](Requirement *Req) {
       AllocaCommandBase *AllocaCmd = getAllocaForReq(Req);
-      return AllocaCmd->getMemAllocation();
+      // getAllocaForReq may return nullptr if Req is a default constructed
+      // accessor. Simply return nullptr in such a case.
+      return AllocaCmd ? AllocaCmd->getMemAllocation() : nullptr;
     };
 
     const std::shared_ptr<detail::kernel_impl> &SyclKernel =
@@ -3037,6 +3045,46 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             RawEvents.size(), RawEvents.empty() ? nullptr : &RawEvents[0],
             Event);
   }
+  case CG::CGTYPE::CopyImage: {
+    CGCopyImage *Copy = (CGCopyImage *)MCommandGroup.get();
+
+    sycl::detail::pi::PiMemImageDesc Desc = Copy->getDesc();
+
+    MemoryManager::copy_image_bindless(
+        Copy->getSrc(), MQueue, Copy->getDst(), Desc, Copy->getFormat(),
+        Copy->getCopyFlags(), Copy->getSrcOffset(), Copy->getDstOffset(),
+        Copy->getHostExtent(), Copy->getCopyExtent(), std::move(RawEvents),
+        Event);
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::SemaphoreWait: {
+    CGSemaphoreWait *SemWait = (CGSemaphoreWait *)MCommandGroup.get();
+    if (MQueue->getDeviceImplPtr()->is_host()) {
+      // NOP for host device.
+      return PI_SUCCESS;
+    }
+
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piextWaitExternalSemaphore>(
+        MQueue->getHandleRef(), SemWait->getInteropSemaphoreHandle(), 0,
+        nullptr, nullptr);
+
+    return PI_SUCCESS;
+  }
+  case CG::CGTYPE::SemaphoreSignal: {
+    CGSemaphoreSignal *SemSignal = (CGSemaphoreSignal *)MCommandGroup.get();
+    if (MQueue->getDeviceImplPtr()->is_host()) {
+      // NOP for host device.
+      return PI_SUCCESS;
+    }
+
+    const detail::PluginPtr &Plugin = MQueue->getPlugin();
+    Plugin->call<PiApiKind::piextSignalExternalSemaphore>(
+        MQueue->getHandleRef(), SemSignal->getInteropSemaphoreHandle(), 0,
+        nullptr, nullptr);
+
+    return PI_SUCCESS;
+  }
   case CG::CGTYPE::None:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "CG type not implemented. " +
@@ -3182,5 +3230,5 @@ void KernelFusionCommand::printDot(std::ostream &Stream) const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

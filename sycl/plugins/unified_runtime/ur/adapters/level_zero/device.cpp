@@ -36,9 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
-  for (auto &D : Platform->PiDevicesCache) {
-    // Only ever return root-devices from piDevicesGet, but the
+  std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  for (auto &D : Platform->URDevicesCache) {
+    // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
     if (D->isSubDevice())
       continue;
@@ -340,6 +340,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
       return UR_RESULT_SUCCESS;
     }
 
+    if (Device->isCCS()) {
+      ur_device_partition_property_t cslice{};
+      cslice.type = UR_DEVICE_PARTITION_BY_CSLICE;
+
+      return ReturnValue(cslice);
+    }
+
     return ReturnValue(Device->SubDeviceCreationProperty);
   }
   // Everything under here is not supported yet
@@ -605,12 +612,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_DEVICE_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
-    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      urPrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-    ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
-    ZE2UR_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
+    ze_pci_address_ext_t PciAddr{};
+    ZeStruct<ze_pci_ext_properties_t> ZeDevicePciProperties;
+    ZeDevicePciProperties.address = PciAddr;
+    ZE2UR_CALL(zeDevicePciGetPropertiesExt, (ZeDevice, &ZeDevicePciProperties));
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
     std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",
@@ -861,7 +866,7 @@ ur_device_handle_t_::useImmediateCommandLists() {
         UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
-    return std::stoi(ImmediateCommandlistsSettingStr);
+    return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
   if (ImmediateCommandlistsSetting == -1)
@@ -1274,11 +1279,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   //
   // TODO: maybe we should populate cache of platforms if it wasn't already.
   // For now assert that is was populated.
-  UR_ASSERT(PiPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
-  const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
+  UR_ASSERT(URPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
+  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
 
   ur_device_handle_t Dev = nullptr;
-  for (ur_platform_handle_t ThePlatform : *PiPlatformsCache) {
+  for (ur_platform_handle_t ThePlatform : *URPlatformsCache) {
     Dev = ThePlatform->getDeviceFromNativeHandle(ZeDevice);
     if (Dev) {
       // Check that the input Platform, if was given, matches the found one.

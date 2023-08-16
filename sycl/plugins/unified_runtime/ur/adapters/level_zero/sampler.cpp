@@ -36,7 +36,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
   ZeSamplerDesc.addressMode = ZE_SAMPLER_ADDRESS_MODE_CLAMP;
   ZeSamplerDesc.filterMode = ZE_SAMPLER_FILTER_MODE_NEAREST;
 
-  // Update the values of the ZeSamplerDesc from the pi_sampler_properties list.
+  // Update the values of the ZeSamplerDesc from the sampler properties list.
   // Default values will be used if any of the following is true:
   //   a) SamplerProperties list is NULL
   //   b) SamplerProperties list is missing any properties

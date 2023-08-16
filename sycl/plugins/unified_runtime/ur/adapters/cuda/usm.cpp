@@ -8,6 +8,7 @@
 
 #include <cassert>
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
@@ -204,7 +205,9 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
       // the same index
       std::vector<ur_platform_handle_t> Platforms;
       Platforms.resize(DeviceIndex + 1);
-      Result = urPlatformGet(DeviceIndex + 1, Platforms.data(), nullptr);
+      ur_adapter_handle_t AdapterHandle = &adapter;
+      Result = urPlatformGet(&AdapterHandle, 1, DeviceIndex + 1,
+                             Platforms.data(), nullptr);
 
       // get the device from the platform
       ur_device_handle_t Device = Platforms[DeviceIndex]->Devices[0].get();

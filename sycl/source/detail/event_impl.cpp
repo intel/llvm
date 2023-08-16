@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -464,5 +464,5 @@ bool event_impl::isCompleted() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -8,17 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/bfloat16.hpp>
-#include <sycl/marray.hpp>
+#include <sycl/builtins.hpp>            // for ceil, cos, exp, exp10, exp2
+#include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
+#include <sycl/marray.hpp>              // for marray
 
-#include <cstring>
-#include <tuple>
-#include <type_traits>
+#include <cstring>     // for size_t, memcpy
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, is_same
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
@@ -296,5 +295,5 @@ BFLOAT16_MATH_FP32_WRAPPERS_MARRAY(trunc)
 #undef BFLOAT16_MATH_FP32_WRAPPERS
 #undef BFLOAT16_MATH_FP32_WRAPPERS_MARRAY
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
