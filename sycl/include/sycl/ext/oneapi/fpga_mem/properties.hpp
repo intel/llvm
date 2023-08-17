@@ -147,21 +147,46 @@ template <typename T, typename PropertyListT>
 struct is_property_key_of<num_replicates_key,
                           fpga_mem<T, PropertyListT>> : std::true_type {};
 
-//Artem FIX below
+namespace detail {
+// Map Property to a PropKind enum
+template <> struct PropertyToKind<resource_key> {
+  static constexpr PropKind Kind = PropKind::Resource;
+};
+template <> struct PropertyToKind<num_banks_key> {
+  static constexpr PropKind Kind = PropKind::NumBanks;
+};
+template <> struct PropertyToKind<stride_size_key> {
+  static constexpr PropKind Kind = PropKind::StrideSize;
+};
+template <> struct PropertyToKind<word_size_key> {
+  static constexpr PropKind Kind = PropKind::WordSize;
+};
+template <> struct PropertyToKind<bi_directional_ports_key> {
+  static constexpr PropKind Kind = PropKind::BiDirectionalPorts;
+};
+template <> struct PropertyToKind<clock_2x_key> {
+  static constexpr PropKind Kind = PropKind::Clock2x;
+};
+template <> struct PropertyToKind<ram_stitching_key> {
+  static constexpr PropKind Kind = PropKind::RAMStitching;
+};
+template <> struct PropertyToKind<max_private_copies_key> {
+  static constexpr PropKind Kind = PropKind::MaxPrivateCopies;
+};
+template <> struct PropertyToKind<num_replicates_key> {
+  static constexpr PropKind Kind = PropKind::NumReplicates;
+};
 
-// namespace detail {
-// template <> struct PropertyToKind<device_image_scope_key> {
-//   static constexpr PropKind Kind = PropKind::DeviceImageScope;
-// };
-// template <> struct PropertyToKind<host_access_key> {
-//   static constexpr PropKind Kind = PropKind::HostAccess;
-// };
-// template <> struct PropertyToKind<init_mode_key> {
-//   static constexpr PropKind Kind = PropKind::InitMode;
-// };
-// template <> struct PropertyToKind<implement_in_csr_key> {
-//   static constexpr PropKind Kind = PropKind::ImplementInCSR;
-// };
+//Artem FIX below
+// resource_key
+// num_banks_key
+// stride_size_key
+// word_size_key
+// bi_directional_ports_key
+// clock_2x_key
+// ram_stitching_key
+// max_private_copies_key
+// num_replicates_key
 
 // template <>
 // struct IsCompileTimeProperty<device_image_scope_key> : std::true_type {};
@@ -189,7 +214,7 @@ struct is_property_key_of<num_replicates_key,
 //   static constexpr const char *name = "sycl-implement-in-csr";
 //   static constexpr bool value = Enable;
 // };
-// } // namespace detail
+} // namespace detail
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
