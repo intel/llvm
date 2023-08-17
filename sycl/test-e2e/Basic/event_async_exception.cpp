@@ -1,5 +1,5 @@
 // REQUIRES: hip_amd
-// RUN: %{build} -mllvm --print-after-all -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 //==---- event_async_exception.cpp - Test for event async exceptions -------==//
