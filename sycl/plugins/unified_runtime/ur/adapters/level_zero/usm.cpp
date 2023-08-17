@@ -289,27 +289,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ContextLock.lock();
   }
 
+  // There is a single allocator for Host USM allocations, so we don't need to
+  // find the allocator depending on context as we do for Shared and Device
+  // allocations.
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Align & (Align - 1)) != 0)) {
-    ur_usm_host_mem_flags_t Flags{};
-    ur_result_t Res = USMHostAllocImpl(RetMem, Context, &Flags, Size, Align);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
-
-  // There is a single allocator for Host USM allocations, so we don't need to
-  // find the allocator depending on context as we do for Shared and Device
-  // allocations.
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = Context->HostMemProxyPool.get();
+  } else if (Pool) {
     hPoolInternal = Pool->HostMemPool.get();
   } else {
     hPoolInternal = Context->HostMemPool.get();
@@ -373,24 +363,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ContextLock.lock();
   }
 
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res =
-        USMDeviceAllocImpl(RetMem, Context, Device, nullptr, Size, Alignment);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
+    auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
+    if (It == Context->DeviceMemProxyPools.end())
+      return UR_RESULT_ERROR_INVALID_VALUE;
 
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = It->second.get();
+  } else if (Pool) {
     hPoolInternal = Pool->DeviceMemPools[Device].get();
   } else {
     auto It = Context->DeviceMemPools.find(Device->ZeDevice);
@@ -478,24 +462,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     UR_CALL(urContextRetain(Context));
   }
 
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res = USMSharedAllocImpl(RetMem, Context, Device, &UsmHostFlags,
-                                         &UsmDeviceFlags, Size, Alignment);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
+    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
+                                      : Context->SharedMemProxyPools);
+    auto It = Allocator.find(Device->ZeDevice);
+    if (It == Allocator.end())
+      return UR_RESULT_ERROR_INVALID_VALUE;
 
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = It->second.get();
+  } else if (Pool) {
     hPoolInternal = (DeviceReadOnly)
                         ? Pool->SharedReadOnlyMemPools[Device].get()
                         : Pool->SharedMemPools[Device].get();

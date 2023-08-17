@@ -216,6 +216,34 @@ ur_result_t ur_context_handle_t_::initialize() {
                 DisjointPoolConfigInstance
                     .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));
+
+    MemProvider = umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
+    DeviceMemProxyPools.emplace(
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(
+            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
+                .second));
+
+    MemProvider = umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
+    SharedMemProxyPools.emplace(
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(
+            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
+                .second));
+
+    MemProvider =
+        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(
+            reinterpret_cast<ur_context_handle_t>(this), Device)
+            .second;
+    SharedReadOnlyMemProxyPools.emplace(
+        std::piecewise_construct, std::make_tuple(Device->ZeDevice),
+        std::make_tuple(
+            umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
+                .second));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
@@ -244,6 +272,12 @@ ur_result_t ur_context_handle_t_::initialize() {
           {std::move(MemProvider)},
           DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
           .second;
+
+  MemProvider = umf::memoryProviderMakeUnique<USMHostMemoryProvider>(
+                    reinterpret_cast<ur_context_handle_t>(this), nullptr)
+                    .second;
+  HostMemProxyPool =
+      umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)}).second;
 
   // We may allocate memory to this root device so create allocators.
   if (SingleRootDevice &&
