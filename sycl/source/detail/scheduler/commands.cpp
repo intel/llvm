@@ -2300,7 +2300,7 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    detail::EventImplPtr OutEventImpl) {
+    detail::EventImplPtr &OutEventImpl) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2455,7 +2455,7 @@ pi_int32 enqueueImpKernel(
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    detail::EventImplPtr OutEventImpl) {
+    detail::EventImplPtr &OutEventImpl) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2571,7 +2571,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          sycl::detail::pi::PiEvent *OutEvent, bool read,
-                         detail::EventImplPtr OutEventImpl) {
+                         detail::EventImplPtr &OutEventImpl) {
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 

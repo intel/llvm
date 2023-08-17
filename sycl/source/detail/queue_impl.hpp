@@ -617,8 +617,7 @@ public:
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count,
                const std::vector<event> &DepEvents,
-               const code_location &CodeLoc,
-               detail::EventImplPtr OutEventImpl = nullptr);
+               const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -631,8 +630,7 @@ public:
   /// \return an event representing advise operation.
   event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
                    size_t Length, pi_mem_advice Advice,
-                   const std::vector<event> &DepEvents,
-                   detail::EventImplPtr OutEventImpl = nullptr);
+                   const std::vector<event> &DepEvents);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///

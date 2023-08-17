@@ -617,7 +617,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          sycl::detail::pi::PiEvent *OutEvent, bool read,
-                         detail::EventImplPtr OutEventImpl);
+                         detail::EventImplPtr &OutEventImpl);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
@@ -628,7 +628,7 @@ pi_int32 enqueueImpKernel(
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    detail::EventImplPtr Event);
+    detail::EventImplPtr &Event);
 
 class KernelFusionCommand;
 

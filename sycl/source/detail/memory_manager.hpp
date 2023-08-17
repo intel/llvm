@@ -118,7 +118,7 @@ public:
                    sycl::id<3> DstOffset, unsigned int DstElemSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
-                   detail::EventImplPtr OutEventImpl);
+                   detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void copy(SYCLMemObjI *SYCLMemObj, void *SrcMem, QueueImplPtr SrcQueue,
@@ -137,7 +137,7 @@ public:
                    sycl::id<3> AccessOffset, unsigned int ElementSize,
                    std::vector<sycl::detail::pi::PiEvent> DepEvents,
                    sycl::detail::pi::PiEvent &OutEvent,
-                   detail::EventImplPtr OutEventImpl);
+                   detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
@@ -175,7 +175,7 @@ public:
                        int Pattern,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
-                       detail::EventImplPtr OutEventImpl);
+                       detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void fill_usm(void *DstMem, QueueImplPtr Queue, size_t Len,
@@ -186,7 +186,7 @@ public:
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
                            std::vector<sycl::detail::pi::PiEvent> DepEvents,
                            sycl::detail::pi::PiEvent *OutEvent,
-                           detail::EventImplPtr OutEventImpl);
+                           detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
@@ -197,7 +197,7 @@ public:
                          pi_mem_advice Advice,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent *OutEvent,
-                         detail::EventImplPtr OutEventImpl);
+                         detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
@@ -210,7 +210,7 @@ public:
                           size_t Width, size_t Height,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent *OutEvent,
-                          detail::EventImplPtr OutEventImpl);
+                          detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void copy_2d_usm(const void *SrcMem, size_t SrcPitch,
@@ -224,7 +224,7 @@ public:
                           const std::vector<char> &Pattern,
                           std::vector<sycl::detail::pi::PiEvent> DepEvents,
                           sycl::detail::pi::PiEvent *OutEvent,
-                          detail::EventImplPtr OutEventImpl);
+                          detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void fill_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
@@ -237,7 +237,7 @@ public:
                             size_t Width, size_t Height, char Value,
                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
                             sycl::detail::pi::PiEvent *OutEvent,
-                            detail::EventImplPtr OutEventImpl);
+                            detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void memset_2d_usm(void *DstMem, QueueImplPtr Queue, size_t Pitch,
@@ -249,13 +249,13 @@ public:
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
       size_t NumBytes, size_t Offset, const void *SrcMem,
       const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl);
+      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl);
 
   static void copy_from_device_global(
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
       size_t NumBytes, size_t Offset, void *DstMem,
       const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl);
+      sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl);
 
   // Command buffer extension methods
   static void ext_oneapi_copyD2D_cmd_buffer(

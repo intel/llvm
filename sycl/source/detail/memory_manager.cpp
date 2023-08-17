@@ -640,7 +640,7 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::range<3>, sycl::id<3> DstOffset, unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
              sycl::detail::pi::PiEvent &OutEvent,
-             detail::EventImplPtr OutEventImpl) {
+             detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const sycl::detail::pi::PiQueue Queue = SrcQueue->getHandleRef();
@@ -717,7 +717,7 @@ copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr, unsigned int DimSrc,
         QueueImplPtr, unsigned int DimDst, sycl::range<3> DstSize,
         sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
         unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent>,
-        sycl::detail::pi::PiEvent &, detail::EventImplPtr OutEventImpl) {
+        sycl::detail::pi::PiEvent &, detail::EventImplPtr &OutEventImpl) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -745,7 +745,7 @@ void MemoryManager::copy(
     QueueImplPtr TgtQueue, unsigned int DimDst, sycl::range<3> DstSize,
     sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
     unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent &OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent &OutEvent, detail::EventImplPtr &OutEventImpl) {
 
   if (SrcQueue->is_host()) {
     if (TgtQueue->is_host())
@@ -786,10 +786,11 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          unsigned int DstElemSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::copy(SYCLMemObj, SrcMem, SrcQueue, DimSrc, SrcSize,
                       SrcAccessRange, SrcOffset, SrcElemSize, DstMem, TgtQueue,
                       DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-                      DepEvents, OutEvent, nullptr);
+                      DepEvents, OutEvent, EventImpl);
 }
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
@@ -799,7 +800,7 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent,
-                         detail::EventImplPtr OutEventImpl) {
+                         detail::EventImplPtr &OutEventImpl) {
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -832,8 +833,10 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::fill(SYCLMemObj, Mem, Queue, PatternSize, Pattern, Dim, Size,
-                      Range, Offset, ElementSize, DepEvents, OutEvent, nullptr);
+                      Range, Offset, ElementSize, DepEvents, OutEvent,
+                      EventImpl);
 }
 
 void *MemoryManager::map(SYCLMemObjI *, void *Mem, QueueImplPtr Queue,
@@ -943,7 +946,7 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent,
-                             detail::EventImplPtr OutEventImpl) {
+                             detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_usm.");
 
@@ -973,14 +976,15 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
                              int Pattern,
                              std::vector<sycl::detail::pi::PiEvent> DepEvents,
                              sycl::detail::pi::PiEvent *OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::fill_usm(Mem, Queue, Length, Pattern, DepEvents, OutEvent,
-                          nullptr);
+                          EventImpl);
 }
 
 void MemoryManager::prefetch_usm(
     void *Mem, QueueImplPtr Queue, size_t Length,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in prefetch_usm.");
 
@@ -997,13 +1001,15 @@ void MemoryManager::prefetch_usm(
     void *Mem, QueueImplPtr Queue, size_t Length,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-  MemoryManager::prefetch_usm(Mem, Queue, Length, DepEvents, OutEvent, nullptr);
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
+  MemoryManager::prefetch_usm(Mem, Queue, Length, DepEvents, OutEvent,
+                              EventImpl);
 }
 
 void MemoryManager::advise_usm(
     const void *Mem, QueueImplPtr Queue, size_t Length, pi_mem_advice Advice,
     std::vector<sycl::detail::pi::PiEvent> /*DepEvents*/,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in advise_usm.");
 
@@ -1019,15 +1025,16 @@ void MemoryManager::advise_usm(const void *Mem, QueueImplPtr Queue,
                                size_t Length, pi_mem_advice Advice,
                                std::vector<sycl::detail::pi::PiEvent> DepEvents,
                                sycl::detail::pi::PiEvent *OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::advise_usm(Mem, Queue, Length, Advice, DepEvents, OutEvent,
-                            nullptr);
+                            EventImpl);
 }
 
 void MemoryManager::copy_2d_usm(
     const void *SrcMem, size_t SrcPitch, QueueImplPtr Queue, void *DstMem,
     size_t DstPitch, size_t Width, size_t Height,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in copy_2d_usm.");
 
@@ -1106,15 +1113,16 @@ void MemoryManager::copy_2d_usm(
     size_t DstPitch, size_t Width, size_t Height,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::copy_2d_usm(SrcMem, SrcPitch, Queue, DstMem, DstPitch, Width,
-                             Height, DepEvents, OutEvent, nullptr);
+                             Height, DepEvents, OutEvent, EventImpl);
 }
 
 void MemoryManager::fill_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     const std::vector<char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_2d_usm.");
 
@@ -1146,14 +1154,15 @@ void MemoryManager::fill_2d_usm(
     const std::vector<char> &Pattern,
     std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::fill_2d_usm(DstMem, Queue, Pitch, Width, Height, Pattern,
-                             DepEvents, OutEvent, nullptr);
+                             DepEvents, OutEvent, EventImpl);
 }
 
 void MemoryManager::memset_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   assert(!Queue->getContextImplPtr()->is_host() &&
          "Host queue not supported in fill_2d_usm.");
 
@@ -1184,15 +1193,16 @@ void MemoryManager::memset_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
+  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   MemoryManager::memset_2d_usm(DstMem, Queue, Pitch, Width, Height, Value,
-                               DepEvents, OutEvent, nullptr);
+                               DepEvents, OutEvent, EventImpl);
 }
 
 static void memcpyToDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, const void *Src,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   // Get or allocate USM memory for the device_global.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
       DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(Queue);
@@ -1224,7 +1234,7 @@ static void memcpyFromDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,
     size_t NumBytes, size_t Offset, void *Dest,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   // Get or allocate USM memory for the device_global. Since we are reading from
   // it, we need it zero-initialized if it has not been yet.
   DeviceGlobalUSMMem &DeviceGlobalUSM =
@@ -1320,7 +1330,7 @@ void MemoryManager::copy_to_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, const void *SrcMem,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
@@ -1342,7 +1352,7 @@ void MemoryManager::copy_from_device_global(
     const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
     size_t NumBytes, size_t Offset, void *DstMem,
     const std::vector<sycl::detail::pi::PiEvent> &DepEvents,
-    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
+    sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr &OutEventImpl) {
   DeviceGlobalMapEntry *DGEntry =
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
