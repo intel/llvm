@@ -2921,7 +2921,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP";
         break;
-
     default:
         os << "unknown enumerator";
         break;
