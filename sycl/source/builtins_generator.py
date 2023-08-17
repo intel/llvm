@@ -831,7 +831,7 @@ sycl_builtins = {# Math functions
                          Def("nanreturn0", ["unsigned long long"], custom_invoke=custom_nan_invoke),
                          Def("nanreturn0", ["vuint16n"], custom_invoke=custom_nan_invoke),
                          Def("nanreturn0", ["mushortn"], marray_use_loop=True),
-                         Def("nanreturn0", ["unsigned short"])],
+                         Def("nanreturn0", ["unsigned short"], custom_invoke=custom_nan_invoke)],
                  "nextafter": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pow": [Def("genfloat", ["genfloat", "genfloat"])],
                  "pown": [Def("vgenfloat", ["vgenfloat", "vint32n"]),
