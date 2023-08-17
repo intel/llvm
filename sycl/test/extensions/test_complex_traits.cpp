@@ -39,14 +39,19 @@ void test_is_genfloat() {
 void test_is_mgencomplex() {
   static_assert(is_mgencomplex_v<sycl::marray<complex<double>, 42>> == true);
   static_assert(is_mgencomplex_v<sycl::marray<complex<float>, 42>> == true);
-  static_assert(is_mgencomplex_v<sycl::marray<complex<sycl::half>, 42>> == true);
+  static_assert(is_mgencomplex_v<sycl::marray<complex<sycl::half>, 42>> ==
+                true);
 
-  static_assert(is_mgencomplex_v<sycl::marray<complex<long long>, 42>> == false);
+  static_assert(is_mgencomplex_v<sycl::marray<complex<long long>, 42>> ==
+                false);
   static_assert(is_mgencomplex_v<sycl::marray<complex<long>, 42>> == false);
   static_assert(is_mgencomplex_v<sycl::marray<complex<int>, 42>> == false);
-  static_assert(is_mgencomplex_v<sycl::marray<complex<unsigned long long>, 42>> == false);
-  static_assert(is_mgencomplex_v<sycl::marray<complex<unsigned long>, 42>> == false);
-  static_assert(is_mgencomplex_v<sycl::marray<complex<unsigned int>, 42>> == false);
+  static_assert(
+      is_mgencomplex_v<sycl::marray<complex<unsigned long long>, 42>> == false);
+  static_assert(is_mgencomplex_v<sycl::marray<complex<unsigned long>, 42>> ==
+                false);
+  static_assert(is_mgencomplex_v<sycl::marray<complex<unsigned int>, 42>> ==
+                false);
 }
 
 // Check is_plus
@@ -74,12 +79,17 @@ void test_is_multiplies() {
 // Check is_binary_op_supported
 void test_is_binary_op_supported() {
   static_assert(cplx::detail::is_binary_op_supported_v<sycl::plus<>> == true);
-  static_assert(cplx::detail::is_binary_op_supported_v<sycl::multiplies<>> == true);
+  static_assert(cplx::detail::is_binary_op_supported_v<sycl::multiplies<>> ==
+                true);
 
-  static_assert(cplx::detail::is_binary_op_supported_v<sycl::bit_and<>> == false);
-  static_assert(cplx::detail::is_binary_op_supported_v<sycl::logical_and<>> == false);
-  static_assert(cplx::detail::is_binary_op_supported_v<sycl::minimum<>> == false);
-  static_assert(cplx::detail::is_binary_op_supported_v<sycl::maximum<>> == false);
+  static_assert(cplx::detail::is_binary_op_supported_v<sycl::bit_and<>> ==
+                false);
+  static_assert(cplx::detail::is_binary_op_supported_v<sycl::logical_and<>> ==
+                false);
+  static_assert(cplx::detail::is_binary_op_supported_v<sycl::minimum<>> ==
+                false);
+  static_assert(cplx::detail::is_binary_op_supported_v<sycl::maximum<>> ==
+                false);
 }
 
 int main() {

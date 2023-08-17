@@ -160,19 +160,28 @@ vector<pair<cmplx<double>, cmplx<double>>>
 };
 
 template <>
-vector<tuple<cmplx<double>, cmplx<double>, cmplx<double>>> test_cases<
-    test_pow_cplx_cplx>::comp_test_values = {
-    tuple(cmplx(inf_val<double>, 2.02), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, inf_val<double>), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(inf_val<double>, inf_val<double>), cmplx(4.42, 2.02),
-          cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(nan_val<double>, 2.02), cmplx(4.42, 2.02), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, nan_val<double>), cmplx(4.42, 2.02), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(nan_val<double>, nan_val<double>), cmplx(4.42, 2.02), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 2.02), cmplx(inf_val<double>, nan_val<double>)),
+vector<tuple<cmplx<double>, cmplx<double>, cmplx<double>>>
+    test_cases<test_pow_cplx_cplx>::comp_test_values = {
+        tuple(cmplx(inf_val<double>, 2.02), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, inf_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, inf_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, 2.02), cmplx(4.42, 2.02),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, nan_val<double>), cmplx(4.42, 2.02),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, nan_val<double>), cmplx(4.42, 2.02),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 2.02),
+              cmplx(inf_val<double>, nan_val<double>)),
 };
 
 template <>
@@ -193,17 +202,26 @@ vector<pair<cmplx<double>, cmplx<double>>>
 template <>
 vector<tuple<cmplx<double>, cmplx<double>, cmplx<double>>>
     test_cases<test_pow_cplx_deci>::comp_test_values = {
-        tuple(cmplx(inf_val<double>, 2.02), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
-        tuple(cmplx(4.42, inf_val<double>), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, 2.02), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, inf_val<double>), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
         tuple(cmplx(inf_val<double>, inf_val<double>), cmplx(4.42, 0.0),
               cmplx(inf_val<double>, nan_val<double>)),
-        tuple(cmplx(nan_val<double>, 2.02), cmplx(4.42, 0.0), cmplx(nan_val<double>, nan_val<double>)),
-        tuple(cmplx(4.42, nan_val<double>), cmplx(4.42, 0.0), cmplx(nan_val<double>, nan_val<double>)),
-        tuple(cmplx(nan_val<double>, nan_val<double>), cmplx(4.42, 0.0), cmplx(nan_val<double>, nan_val<double>)),
-        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
-        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
-        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
-        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, 2.02), cmplx(4.42, 0.0),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, nan_val<double>), cmplx(4.42, 0.0),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, nan_val<double>), cmplx(4.42, 0.0),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(4.42, 0.0),
+              cmplx(inf_val<double>, nan_val<double>)),
 };
 
 template <>
@@ -222,19 +240,28 @@ vector<pair<cmplx<double>, cmplx<double>>>
 };
 
 template <>
-vector<tuple<cmplx<double>, cmplx<double>, cmplx<double>>> test_cases<
-    test_pow_deci_cplx>::comp_test_values = {
-    tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, 2.02), cmplx(inf_val<double>, -nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(4.42, inf_val<double>), cmplx(nan_val<double>, -nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, inf_val<double>),
-          cmplx(inf_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, 2.02), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(4.42, nan_val<double>), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, nan_val<double>), cmplx(nan_val<double>, nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, inf_val<double>), cmplx(-nan_val<double>, -nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>), cmplx(inf_val<double>, -nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, inf_val<double>), cmplx(-nan_val<double>, -nan_val<double>)),
-    tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>), cmplx(inf_val<double>, -nan_val<double>)),
+vector<tuple<cmplx<double>, cmplx<double>, cmplx<double>>>
+    test_cases<test_pow_deci_cplx>::comp_test_values = {
+        tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, 2.02),
+              cmplx(inf_val<double>, -nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(4.42, inf_val<double>),
+              cmplx(nan_val<double>, -nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, inf_val<double>),
+              cmplx(inf_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, 2.02),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(4.42, nan_val<double>),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, nan_val<double>),
+              cmplx(nan_val<double>, nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, inf_val<double>),
+              cmplx(-nan_val<double>, -nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>),
+              cmplx(inf_val<double>, -nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(nan_val<double>, inf_val<double>),
+              cmplx(-nan_val<double>, -nan_val<double>)),
+        tuple(cmplx(4.42, 0.0), cmplx(inf_val<double>, nan_val<double>),
+              cmplx(inf_val<double>, -nan_val<double>)),
 };
 
 template <>

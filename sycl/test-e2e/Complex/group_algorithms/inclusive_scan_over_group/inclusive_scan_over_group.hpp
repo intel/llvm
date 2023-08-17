@@ -12,14 +12,15 @@
 
 template <typename T, typename BinaryOperation>
 bool inclusive_scan_over_group(sycl::queue q, T input,
-                                    BinaryOperation binary_op) {
+                               BinaryOperation binary_op) {
   using V = typename T::value_type;
 
   bool result = true;
 
   constexpr size_t N = input.size();
 
-  auto init = sycl::ext::oneapi::experimental::cplx::detail::get_init<V, BinaryOperation>();
+  auto init = sycl::ext::oneapi::experimental::cplx::detail::get_init<
+      V, BinaryOperation>();
 
   auto *in = sycl::malloc_shared<V>(N, q);
   auto *output_with_init = sycl::malloc_shared<V>(N, q);
@@ -35,8 +36,12 @@ bool inclusive_scan_over_group(sycl::queue q, T input,
       auto lid = it.get_local_id(0);
       auto g = it.get_group();
 
-      output_with_init[lid] = sycl::ext::oneapi::experimental::inclusive_scan_over_group(g, in[gid], binary_op, init);
-      output_without_init[lid] = sycl::ext::oneapi::experimental::inclusive_scan_over_group(g, in[gid], binary_op);
+      output_with_init[lid] =
+          sycl::ext::oneapi::experimental::inclusive_scan_over_group(
+              g, in[gid], binary_op, init);
+      output_without_init[lid] =
+          sycl::ext::oneapi::experimental::inclusive_scan_over_group(g, in[gid],
+                                                                     binary_op);
     });
   });
 
@@ -79,21 +84,25 @@ bool test_scalar_inclusive_scan_over_group() {
   sycl::queue q;
 
   const auto test_cases = std::array<Array, 7>{
-    // Basic value test
-    Array{Complex{1, 0}, Complex{2, 0}, Complex{3, 0}, Complex{4, 0}},
-    // Random value test
-    Array{Complex{0.5, 0.5}, Complex{1.2, 1.2}, Complex{-2.8, -2.8}, Complex{3.7, 3.7}},
-    // Repeated value test
-    Array{Complex{1, 1}, Complex{1, 1}, Complex{1, 1}, Complex{1, 1}},
-    // Negative value test
-    Array{Complex{-3.0, -3.0}, Complex{2.5, 2.5}, Complex{-1.2, -1.2}, Complex{0, 0}},
-    // Large value test
-    Array{Complex{1000000.0, 1000000.0}, Complex{2000000.0, 2000000.0}, Complex{3000000.0, 3000000.0}, Complex{4000000.0, 4000000.0}},
-    // Small value test
-    Array{Complex{0.0001, 0.0001}, Complex{0.0002, 0.0002}, Complex{0.0003, 0.0003}, Complex{0.0004, 0.0004}},
-    // Edge case value test
-    Array{Complex{nan_val<T>, nan_val<T>}, Complex{inf_val<T>, inf_val<T>}, Complex{nan_val<T>, inf_val<T>}, Complex{inf_val<T>, nan_val<T>}}
-  };
+      // Basic value test
+      Array{Complex{1, 0}, Complex{2, 0}, Complex{3, 0}, Complex{4, 0}},
+      // Random value test
+      Array{Complex{0.5, 0.5}, Complex{1.2, 1.2}, Complex{-2.8, -2.8},
+            Complex{3.7, 3.7}},
+      // Repeated value test
+      Array{Complex{1, 1}, Complex{1, 1}, Complex{1, 1}, Complex{1, 1}},
+      // Negative value test
+      Array{Complex{-3.0, -3.0}, Complex{2.5, 2.5}, Complex{-1.2, -1.2},
+            Complex{0, 0}},
+      // Large value test
+      Array{Complex{1000000.0, 1000000.0}, Complex{2000000.0, 2000000.0},
+            Complex{3000000.0, 3000000.0}, Complex{4000000.0, 4000000.0}},
+      // Small value test
+      Array{Complex{0.0001, 0.0001}, Complex{0.0002, 0.0002},
+            Complex{0.0003, 0.0003}, Complex{0.0004, 0.0004}},
+      // Edge case value test
+      Array{Complex{nan_val<T>, nan_val<T>}, Complex{inf_val<T>, inf_val<T>},
+            Complex{nan_val<T>, inf_val<T>}, Complex{inf_val<T>, nan_val<T>}}};
   const auto binary_op = BinaryOperation{};
 
   if (is_type_supported<T>(q)) {
@@ -181,8 +190,7 @@ bool test_marray_inclusive_scan_over_group() {
           Marray{Complex{nan_val<T>, nan_val<T>},
                  Complex{inf_val<T>, inf_val<T>},
                  Complex{nan_val<T>, inf_val<T>},
-                 Complex{inf_val<T>, nan_val<T>}}}
-  };
+                 Complex{inf_val<T>, nan_val<T>}}}};
   const auto binary_op = BinaryOperation{};
 
   if (is_type_supported<T>(q)) {

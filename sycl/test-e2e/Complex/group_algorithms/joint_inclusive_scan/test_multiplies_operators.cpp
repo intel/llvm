@@ -11,12 +11,14 @@ int main() {
   /// Testing scalar with multiplies operator
   result &= test_scalar_joint_inclusive_scan<double, 4, sycl::multiplies<>>();
   result &= test_scalar_joint_inclusive_scan<float, 4, sycl::multiplies<>>();
-  result &= test_scalar_joint_inclusive_scan<sycl::half, 4, sycl::multiplies<>>();
+  result &=
+      test_scalar_joint_inclusive_scan<sycl::half, 4, sycl::multiplies<>>();
 
   /// Testing marray with multiplies operator
   result &= test_marray_joint_inclusive_scan<double, 4, sycl::multiplies<>>();
   result &= test_marray_joint_inclusive_scan<float, 4, sycl::multiplies<>>();
-  result &= test_marray_joint_inclusive_scan<sycl::half, 4, sycl::multiplies<>>();
+  result &=
+      test_marray_joint_inclusive_scan<sycl::half, 4, sycl::multiplies<>>();
 
   return !result;
 }
