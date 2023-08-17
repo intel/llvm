@@ -135,18 +135,15 @@ if(UR_USE_MSAN)
     add_sanitizer_flag(memory)
 endif()
 
-find_program(CLANG_FORMAT NAMES clang-format-15 clang-format-15.0 clang-format)
-
-set(CLANG_FORMAT_REQUIRED "15.0")
-
-if(CLANG_FORMAT)
-    get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
-    message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
-endif()
-
-# Check if the correct version of clang-format is available
+# Check if clang-format (in correct version) is available for Cpp code formatting.
 if(UR_FORMAT_CPP_STYLE)
-    if(CLANG_FORMAT)
+    find_program(CLANG_FORMAT NAMES clang-format-15 clang-format-15.0 clang-format)
+
+    if(CLANG_FORMAT)        
+        get_program_version_major_minor(${CLANG_FORMAT} CLANG_FORMAT_VERSION)
+        message(STATUS "Found clang-format: ${CLANG_FORMAT} (version: ${CLANG_FORMAT_VERSION})")
+
+        set(CLANG_FORMAT_REQUIRED "15.0")
         if(NOT (CLANG_FORMAT_VERSION VERSION_EQUAL CLANG_FORMAT_REQUIRED))
             message(FATAL_ERROR "required clang-format version is ${CLANG_FORMAT_REQUIRED}")
         endif()
