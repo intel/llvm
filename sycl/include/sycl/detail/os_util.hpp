@@ -12,7 +12,8 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>    // for size_t
+#include <cstdlib> // for size_t
+#include <filesystem>
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
@@ -43,11 +44,16 @@ namespace detail {
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
 public:
+  // TODO: Remove this version during ABI breakage window
   /// Returns an absolute path to a directory where the object was found.
   static std::string getCurrentDSODir();
 
+  // TODO: Remove this version during ABI breakage window
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
+
+  /// Returns an absolute path to a directory where the object was found.
+  static std::filesystem::path getCurrentDSODirPath();
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";

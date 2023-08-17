@@ -9,6 +9,7 @@
 #include <sycl/detail/os_util.hpp>
 
 #include <cassert>
+#include <filesystem>
 #include <limits>
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -138,6 +139,10 @@ std::string OSUtil::getDirName(const char *Path) {
   return Tmp;
 }
 
+std::filesystem::path OSUtil::getCurrentDSODirPath() {
+  return std::filesystem::path(OSUtil::getCurrentDSODir());
+}
+
 #elif defined(__SYCL_RT_OS_WINDOWS)
 // TODO: Just inline it.
 using OSModuleHandle = intptr_t;
@@ -192,6 +197,23 @@ std::string OSUtil::getDirName(const char *Path) {
   return Tmp;
 }
 
+std::filesystem::path OSUtil::getCurrentDSODirPath() {
+  wchar_t Path[MAX_PATH];
+  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
+  DWORD Ret = GetModuleFileName(
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
+      reinterpret_cast<LPWSTR>(&Path), sizeof(Path));
+  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
+  assert(Ret > 0 && "GetModuleFileName failed");
+  (void)Ret;
+
+  BOOL RetCode = PathRemoveFileSpec(reinterpret_cast<LPWSTR>(&Path));
+  assert(RetCode && "PathRemoveFileSpec failed");
+  (void)RetCode;
+
+  return std::filesystem::path(Path);
+}
+
 #elif defined(__SYCL_RT_OS_DARWIN)
 std::string OSUtil::getCurrentDSODir() {
   auto CurrentFunc = reinterpret_cast<const void *>(&getCurrentDSODir);
@@ -206,6 +228,10 @@ std::string OSUtil::getCurrentDSODir() {
   auto LastSlashPos = Path.find_last_of('/');
 
   return Path.substr(0, LastSlashPos);
+}
+
+std::filesystem::path OSUtil::getCurrentDSODirPath() {
+  return std::filesystem::path(OSUtil::getCurrentDSODir());
 }
 
 #endif // __SYCL_RT_OS

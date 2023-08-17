@@ -11,26 +11,27 @@
 #include <sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
+#include <filesystem>
 #include <string>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail::pi {
 
-void *loadOsLibrary(const std::string &LibraryPath) {
+void *loadOsLibrary(const std::filesystem::path &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
   // RTLD_DEEPBIND option when there are multiple plugins.
-  void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
+  void *so = dlopen(LibraryPath.string().c_str(), RTLD_NOW);
   if (!so && trace(TraceLevel::PI_TRACE_ALL)) {
     char *Error = dlerror();
-    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << LibraryPath
+    std::cerr << "SYCL_PI_TRACE[-1]: dlopen(" << LibraryPath.string()
               << ") failed with <" << (Error ? Error : "unknown error") << ">"
               << std::endl;
   }
   return so;
 }
 
-void *loadOsPluginLibrary(const std::string &PluginPath) {
+void *loadOsPluginLibrary(const std::filesystem::path &PluginPath) {
   return loadOsLibrary(PluginPath);
 }
 

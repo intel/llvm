@@ -18,7 +18,8 @@
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
 
-#include <cstdint>     // for uint64_t, uint32_t
+#include <cstdint> // for uint64_t, uint32_t
+#include <filesystem>
 #include <memory>      // for shared_ptr
 #include <sstream>     // for operator<<, basic_ostream, string...
 #include <stddef.h>    // for size_t
@@ -171,7 +172,7 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
 
 // Function to load a shared library
 // Implementation is OS dependent
-void *loadOsLibrary(const std::string &Library);
+void *loadOsLibrary(const std::filesystem::path &Library);
 
 // Function to unload a shared library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
@@ -180,7 +181,7 @@ int unloadOsLibrary(void *Library);
 // Function to load the shared plugin library
 // On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
-void *loadOsPluginLibrary(const std::string &Library);
+void *loadOsPluginLibrary(const std::filesystem::path &Library);
 
 // Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
