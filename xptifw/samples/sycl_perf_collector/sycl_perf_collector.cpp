@@ -28,6 +28,7 @@ std::mutex GRecMutex, GStreamMutex;
 xpti::utils::statistics_t GEventStats;
 uint64_t GOutputFormats = 0;
 xpti::utils::string::list_t *GStreams = nullptr;
+xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 extern bool xpti::ShowInColors;
 
 static void record_state(xpti::record_t &r, bool begin_scope) {
@@ -98,6 +99,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     std::set<std::string> OutputFormats{"json", "csv", "table", "stack", "all"};
     xpti::utils::string::simple_string_decoder_t D(",");
     GStreams = new xpti::utils::string::list_t;
+    GIgnoreList = new xpti::utils::string::first_check_map_t;
     // Environment variables that are used to communicate runtime
     // characteristics that can be encapsulated in a launcher application
     //
@@ -114,11 +116,19 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     const char *ColorOutput = std::getenv("XPTI_STDOUT_USE_COLOR");
     if (ColorOutput)
       std::cout << "XPTI_STDOUT_USE_COLOR=" << ColorOutput << "\n";
+    const char *FirstCallsToIgnore = std::getenv("XPTI_IGNORE_LIST");
+    if (FirstCallsToIgnore)
+      std::cout << "XPTI_IGNORE_LIST=" << FirstCallsToIgnore << "\n";
 
     // Get the streams to monitor from the environment variable
     // In order to determine if the environment variable contains valid stream
     // names, a catalog of all streams must be check against to validate the
     // strings
+    if (!GStreams) {
+      std::cerr
+          << "Unable to allocate memory for Streams to monitor! Aborting..\n";
+      exit(-1);
+    }
     if (StreamsToMonitor) {
       auto streams = D.decode(StreamsToMonitor);
       for (auto &s : streams) {
@@ -133,6 +143,22 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       GStreams->add("sycl.perf");
       GStreams->add("sycl.experimental.level_zero.call");
       GStreams->add("sycl.experimental.cuda.call");
+    }
+
+    if (!GIgnoreList) {
+      std::cerr << "Unable to allocate memory for Ignore List! Aborting..\n";
+      exit(-1);
+    }
+    if (FirstCallsToIgnore) {
+      auto streams = D.decode(FirstCallsToIgnore);
+      for (auto &s : streams) {
+        GIgnoreList->add(s.c_str());
+      }
+    } else {
+      // If the environment variable is not set, pick the default calls we
+      // would like to ignore
+      GIgnoreList->add("piProgramBuild");
+      GIgnoreList->add("piPlatformsGet");
     }
 
     // Check the output format environmental variable and only accept valid
@@ -184,9 +210,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     InitStreams = false;
     if (GOutputFormats & (uint64_t)xpti::FileFormat::JSON)
       GWriter = new xpti::json_writer();
-    else
-      GWriter = new xpti::table_writer();
-  };
+    else if (GOutputFormats & (uint64_t)xpti::FileFormat::Stack) {
+      GWriter = new xpti::stack_writer(GIgnoreList);
+    } else {
+      GWriter = new xpti::table_writer(GIgnoreList);
+    }
+  }
 
   auto Check = GStreamsToObserve.find(stream_name);
 

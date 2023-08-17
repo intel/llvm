@@ -18,14 +18,16 @@ red='\033[0;31m'
 # Clear the color after that
 clear='\033[0m'
 
-#export XPTI_PERF_DIR=/home/vtovink/sycl_workspace/xpti/llvm/xptifw/lib/RelWithDebInfo
 help()
 {
-    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value2> ${clear}[-h,--help] -- <executable> <arguments>"
+    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value3> ${clear}[-h,--help] -- <executable> <arguments>"
     echo -e "          ${green}-f,--format    Allowed values for ${yellow}<Value1>${green} are ${yellow}json,csv,table,stack,all${green}"
+    echo "          -i,--ignore    First time execution of certain calls take an order of magnitude more"
+    echo -e "                         time than subsequent calls listed in ${yellow}<Value32>${green}"
+    echo -e "                         Example:- ${yellow}piPlatformGet,piProgramBuild ${clear}"
     echo "          -c,--color     Boolean option, if provided will display output in color for stack data"
     echo "          -s,--streams   Streams to monitor in the SYCL runtime. Multiple streams can be provided"
-    echo -e "                         as comma separated values for ${yellow}<Value2>${green}"
+    echo -e "                         as comma separated values for ${yellow}<Value3>${green}"
     echo -e "                         Example:- ${yellow}sycl,sycl.pi,sycl.perf ${clear}"
     echo "  "
     echo -e "                         The script requires you to set the environment variable XPTI_PERF_DIR"
@@ -60,8 +62,8 @@ fi
 # Default color is normal text and we change the colors only when the option is provided
 color=0
 
-SHORT=f:,s:,h,c
-LONG=format:,streams:,help,color
+SHORT=f:,s:,i:,h,c
+LONG=format:,streams:,ignore:,help,color
 OPTS=$(getopt -a -n sycl-perf --options $SHORT --longoptions $LONG -- "$@")
 
 if [[ $? -ne 0 ]]; then
@@ -74,6 +76,10 @@ while [ : ]; do
   case "$1" in
     -f | --format)
         format="$2"
+        shift 2
+        ;;
+    -i | --ignore)
+        ignore_list="$2"
         shift 2
         ;;
     -c | --color)
@@ -104,6 +110,10 @@ if [[ "$format" == "json" || "$format" == "csv" || "$format" == "table" || "$for
 export XPTI_SYCL_PERF_OUTPUT=$format
 else
 echo "Bad --format="$format " provided, will default to collector implementation.."
+fi
+
+if [[ -n "$ignore_list"  ]]; then
+export XPTI_IGNORE_LIST=$ignore_list
 fi
 
 if [[ -n "$streams"  ]]; then

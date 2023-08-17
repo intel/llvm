@@ -67,6 +67,8 @@ struct record_t {
   std::string Category; // Category of the call, usually stream name
 };
 
+using table_model_t = test::utils::TableModel;
+
 using rec_tuple = std::pair<uint64_t, record_t>;
 using records_t = std::vector<rec_tuple>;
 using ordered_records_t = std::multimap<uint64_t, record_t>;
@@ -78,11 +80,25 @@ using spans_t = std::map<uint64_t, span_t>;
 /// information that can be used to analyze efficiency of the call stack
 class span_t {
 public:
+  enum class TableColumns : int {
+    Time,
+    PercentParent,
+    PercentTotal,
+    PercentTotalAdj,
+    PercentEmptyAdj
+  };
+
   span_t()
-      : m_min(std::numeric_limits<uint64_t>::max()), m_max(0),
-        m_label(nullptr) {}
+      : m_min(std::numeric_limits<uint64_t>::max()), m_max(0), m_label(nullptr),
+        m_time(0), m_per_parent(0), m_per_total(0), m_per_tot_adj(0),
+        m_per_empty_adj(0) {
+    m_model = table_model_t(50, 3);
+  }
   span_t(uint64_t min, uint64_t max, const char *label)
-      : m_min(min), m_max(max), m_label(label) {}
+      : m_min(min), m_max(max), m_label(label), m_time(0), m_per_parent(0),
+        m_per_total(0), m_per_tot_adj(0), m_per_empty_adj(0) {
+    m_model = table_model_t(50, 3);
+  }
   ~span_t() {}
 
   /// @brief Checks child tasks to see if one of them is a parent
@@ -122,16 +138,17 @@ public:
   /// @brief Experimental recursive print method
   /// @param level The level of the print indicated by indent
   /// @param root The span at the current level
-  void print_level(int level, span_t &root, double duration,
-                   double build_cost) {
+  void print_level(int level, span_t &root, double parent_duration,
+                   double total_duration, double ignore_cost) {
     // Color code level 1's API calls so we can show the cost of the kernels
     // after the first kernel cost is discounted
     std::string bold_color("\033[1;36m");
     std::string time_color("\033[1;32m");
     std::string reset("\033[0m");
+
     double curr_duration = (root.m_max - root.m_min + 1);
     std::cout << "+";
-    for (int i = 0; i < level * 2; ++i)
+    for (int i = 0; i < level; ++i)
       std::cout << "-";
     std::cout << "+";
     std::cout << "  "
@@ -139,29 +156,26 @@ public:
                       ? (std::string(root.m_label).substr(0, 25) +
                          std::string("..."))
                       : root.m_label);
-    if (ShowInColors && level == 1) {
-      std::cout << " " << time_color << std::fixed
-                << (double)curr_duration / 1000 << " us " << reset;
+    // Print the times recorded [%parent, %total, %total_adjusted]
+    if (ShowInColors) {
+      std::cout << " " << time_color << std::fixed << root.m_time << " us "
+                << reset;
+      std::cout << " [" << std::setprecision(2) << root.m_per_parent << "%, "
+                << root.m_per_total << "%, " << time_color << root.m_per_tot_adj
+                << reset << "%, " << root.m_per_empty_adj << "%]";
     } else {
-      std::cout << " " << std::fixed << (double)curr_duration / 1000 << " us ";
-    }
-    std::cout << " [" << std::setprecision(2)
-              << (curr_duration / duration * 100) << "%] ";
-    if (level == 1) {
-      if (ShowInColors) {
-        std::cout << bold_color << "   Adjusted: [" << std::setprecision(2)
-                  << (curr_duration / (duration - build_cost) * 100) << "%]"
-                  << reset;
-      } else {
-        std::cout << "   Adjusted: [" << std::setprecision(2)
-                  << (curr_duration / (duration - build_cost) * 100) << "%]";
-      }
+      std::cout << " " << std::fixed << root.m_time << " us ";
+      std::cout << " [" << std::setprecision(2) << root.m_per_parent << "%, "
+                << root.m_per_total << "%, " << root.m_per_tot_adj << "%, "
+                << root.m_per_empty_adj << "%]";
     }
     std::cout << "\n";
     for (auto &s : root.m_children) {
-      print_level(level + 1, s.second, curr_duration, build_cost);
+      print_level(level + 1, s.second, curr_duration, total_duration,
+                  ignore_cost);
     }
   }
+
   void print() {
     double first_time_cost;
     std::cout << "Application:" << m_label << " [" << m_min << "," << m_max
@@ -177,12 +191,102 @@ public:
     }
 
     for (auto &s : m_children) {
-      print_level(1, s.second, (m_max - m_min + 1), first_time_cost);
+      print_level(1, s.second, (m_max - m_min + 1), (m_max - m_min + 1),
+                  first_time_cost);
     }
   }
 
+  double ignore_time(span_t &root,
+                     xpti::utils::string::first_check_map_t *str_map) {
+    double ignore_time_acc = 0.0;
+    for (auto &s : root.m_children) {
+      if (str_map->check(s.second.m_label)) {
+        ignore_time_acc += s.second.m_max - s.second.m_min + 1;
+      }
+      ignore_time_acc += ignore_time(s.second, str_map);
+    }
+    return ignore_time_acc;
+  }
+
+  double find_ignore_time(xpti::utils::string::first_check_map_t *str_map) {
+    return ignore_time(*this, str_map);
+  }
+
+  void compute_level(int level, span_t &root, double parent_duration,
+                     double total_duration, double ignore_cost) {
+    double recorded_time = 0.0;
+    double curr_duration = (root.m_max - root.m_min + 1);
+    root.m_time = curr_duration / 1000.0;
+    root.m_per_parent = curr_duration / parent_duration * 100.0;
+    root.m_per_total = curr_duration / total_duration * 100.0;
+    root.m_per_tot_adj = curr_duration / (total_duration - ignore_cost) * 100.0;
+
+    for (auto &s : root.m_children) {
+      recorded_time += (s.second.m_max - s.second.m_min + 1);
+      compute_level(level + 1, s.second, curr_duration, total_duration,
+                    ignore_cost);
+    }
+    if (root.m_children.size())
+      root.m_per_empty_adj =
+          (curr_duration - recorded_time) / (parent_duration)*100.0;
+    else
+      root.m_per_empty_adj = 0;
+  }
+
+  void compute_metrics(xpti::utils::string::first_check_map_t *str_map) {
+    double ignore_time = find_ignore_time(str_map);
+    std::cout << "Time to be ignored: " << std::fixed << std::setprecision(3)
+              << ignore_time << "\n";
+
+    // compute_level(0, *this, (m_max - m_min + 1), (m_max - m_min + 1),
+    //               ignore_time);
+    for (auto &s : m_children) {
+      compute_level(1, s.second, (m_max - m_min + 1), (m_max - m_min + 1),
+                    ignore_time);
+    }
+    // std::cout << " Done computing call-stack and metrics\n";
+  }
+
+  void add_to_table(int level, span_t &root) {
+    std::string stack_depth;
+    for (int i = 1; i < level; ++i)
+      stack_depth += "--";
+    stack_depth += "+";
+
+    std::string label =
+        (std::string(root.m_label).size() > 25)
+            ? (std::string(root.m_label).substr(0, 25) + std::string("..."))
+            : std::string(root.m_label);
+    label += stack_depth;
+    auto &row = m_model.addRow(m_row++, label.c_str());
+    row[(int)TableColumns::Time] = root.m_time;
+    row[(int)TableColumns::PercentParent] = root.m_per_parent;
+    row[(int)TableColumns::PercentTotal] = root.m_per_total;
+    row[(int)TableColumns::PercentTotalAdj] = root.m_per_tot_adj;
+    row[(int)TableColumns::PercentEmptyAdj] = root.m_per_empty_adj;
+
+    for (auto &s : root.m_children) {
+      add_to_table(level + 1, s.second);
+    }
+  }
+
+  void print_table() {
+    test::utils::titles_t col_headers{"Time(us)", "% Parent", "% Total",
+                                      "% Total (Adj.)", "% Empty (Child)"};
+    m_model.setHeaders(col_headers);
+    // add_to_table(0, *this);
+    for (auto &s : m_children) {
+      add_to_table(1, s.second);
+    }
+    std::cout << " Printing call-stack table\n";
+    m_model.print();
+  }
+
   uint64_t m_min, m_max;
+  uint32_t m_row = 0;
+  double m_time, m_per_parent, m_per_total, m_per_tot_adj, m_per_empty_adj;
   const char *m_label;
+  table_model_t m_model;
   spans_t m_children;
 };
 
@@ -308,7 +412,72 @@ private:
   xpti::utils::timer::measurement_t m_measure;
 };
 
-using table_model_t = test::utils::TableModel;
+class stack_writer : public writer {
+public:
+  using function_stats_t =
+      std::unordered_map<std::string, xpti::utils::statistics_t>;
+  using stats_tuple_t = std::pair<std::string, xpti::utils::statistics_t>;
+  using duration_stats_t = std::multimap<double, stats_tuple_t>;
+
+  stack_writer(xpti::utils::string::first_check_map_t *list)
+      : m_ignore(list), m_min(std::numeric_limits<uint64_t>::max()), m_max(0) {
+    init();
+  }
+  ~stack_writer() {}
+
+  void init() final {
+    m_app_name = xpti::utils::get_application_name();
+    if (m_app_name.empty()) {
+      m_file_name =
+          "report." + std::to_string(xpti::utils::get_process_id()) + ".csv";
+    } else {
+      m_file_name = m_app_name + "_" +
+                    xpti::utils::timer::get_timestamp_string() + ".csv";
+    }
+    if (m_file_name.empty()) {
+      throw std::runtime_error("Unable to generate file name for write!");
+    }
+  }
+
+  void write(record_t &r) override {
+    std::lock_guard<std::mutex> _{m_mutex};
+    m_records.push_back(std::make_pair(r.TSBegin, r));
+    if (m_min > r.TSBegin)
+      m_min = r.TSBegin;
+    if (m_max < r.TSEnd)
+      m_max = r.TSEnd;
+  }
+
+  void fini() final {
+    std::lock_guard<std::mutex> _{m_mutex};
+    // Set the root of the call stack tree
+    m_root = span_t(m_min, m_max, m_app_name.c_str());
+    for (auto &r : m_records) {
+      m_ordered_records.insert(std::make_pair(r.second.TSBegin, r.second));
+    }
+    // Build the tree of trace scopes that mimics a call stack
+    for (auto &r : m_ordered_records) {
+      m_root.insert(r.second.TSBegin, r.second.TSEnd, r.second.Name.c_str());
+    }
+
+    m_root.compute_metrics(m_ignore);
+    // m_root.print();
+    m_root.print_table();
+  }
+
+protected:
+  std::mutex m_mutex;
+
+private:
+  std::string m_file_name;
+  std::string m_app_name;
+  std::ofstream m_io;
+  records_t m_records;
+  ordered_records_t m_ordered_records;
+  uint64_t m_min, m_max;
+  span_t m_root;
+  xpti::utils::string::first_check_map_t *m_ignore;
+};
 
 class table_writer : public writer {
 public:
@@ -317,7 +486,8 @@ public:
   using stats_tuple_t = std::pair<std::string, xpti::utils::statistics_t>;
   using duration_stats_t = std::multimap<double, stats_tuple_t>;
 
-  table_writer() : m_min(std::numeric_limits<uint64_t>::max()), m_max(0) {
+  table_writer(xpti::utils::string::first_check_map_t *list)
+      : m_ignore(list), m_min(std::numeric_limits<uint64_t>::max()), m_max(0) {
     init();
   }
   ~table_writer() {}
@@ -347,6 +517,8 @@ public:
   }
 
   void compute_stats(record_t &r) {
+    if (m_ignore->check(r.Name.c_str()))
+      return;
     auto &func_stats = m_functions[r.Name];
     func_stats.add_value((r.TSEnd - r.TSBegin));
   }
@@ -366,17 +538,10 @@ public:
         "Count", "Min (ns)", "Max (ns)", "Mean (ns)", "Std Dev (ns)",
     };
     m_model.setHeaders(col_headers);
-    // Set the root of the call stack tree
-    m_root = span_t(m_min, m_max, m_app_name.c_str());
     for (auto &r : m_records) {
       m_ordered_records.insert(std::make_pair(r.second.TSBegin, r.second));
       compute_stats(r.second);
     }
-    // Build the tree of trace scopes that mimics a call stack
-    for (auto &r : m_ordered_records) {
-      m_root.insert(r.second.TSBegin, r.second.TSEnd, r.second.Name.c_str());
-    }
-
     // Reorder the stats in ascending order of mean times so all small
     // functions are at the top
     for (auto &f : m_functions) {
@@ -415,7 +580,6 @@ public:
       }
       m_io.close();
       m_model.print();
-      m_root.print();
     } else {
       std::cerr << "Error opening file for write: " << m_file_name << std::endl;
     }
@@ -434,6 +598,6 @@ private:
   function_stats_t m_functions;
   duration_stats_t m_durations;
   uint64_t m_min, m_max;
-  span_t m_root;
+  xpti::utils::string::first_check_map_t *m_ignore;
 };
 } // namespace xpti

@@ -305,7 +305,8 @@ class TableModel {
 public:
   using row_titles_t = std::map<int, std::string>;
 
-  TableModel(int main_column_width = 14) : m_main_colw(main_column_width) {}
+  TableModel(int main_column_width = 14, int precision = 0)
+      : m_main_colw(main_column_width), m_precision(precision) {}
 
   void setHeaders(titles_t &Titles) { MColumnTitles = Titles; }
 
@@ -328,6 +329,7 @@ public:
   table_row_t &operator[](int Row) { return MTable[Row]; }
 
   void print() {
+    std::cout << "Printing table model\n";
     std::cout << std::setw(m_main_colw) << " ";
     for (auto &Title : MColumnTitles) {
       std::cout << std::setw(14) << Title; // Column headers
@@ -337,8 +339,8 @@ public:
     for (auto &Row : MTable) {
       std::cout << std::setw(m_main_colw) << MRowTitles[Row.first];
       for (auto &Data : Row.second) {
-        std::cout << std::fixed << std::setw(14) << std::setprecision(0)
-                  << Data.second;
+        std::cout << std::fixed << std::setw(14)
+                  << std::setprecision(m_precision) << Data.second;
       }
       std::cout << "\n";
     }
@@ -350,6 +352,7 @@ private:
   row_titles_t MRowTitles;
   table_t MTable;
   int m_main_colw;
+  int m_precision = 0;
 };
 
 class RangeDecoder {

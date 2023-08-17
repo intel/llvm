@@ -8,6 +8,8 @@
 #pragma once
 #include <iostream>
 #include <string>
+#include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -78,7 +80,6 @@ public:
     auto res = m_streams.find(str);
     if (res == m_streams.end())
       return false;
-
     else
       return true;
   }
@@ -91,6 +92,36 @@ public:
 
 private:
   strings_t m_streams;
+};
+
+class first_check_map_t {
+public:
+  using string_count_t = std::unordered_map<std::string, std::atomic<int>>;
+  first_check_map_t() = default;
+  ~first_check_map_t() = default;
+
+  const char *add(const char *stream) {
+    auto res = m_strings.insert(std::make_pair(stream, 0));
+    if (res.first != m_strings.end()) {
+      return (*res.first).first.c_str();
+    }
+    return nullptr;
+  }
+
+  bool empty() { return (m_strings.size() == 0); }
+
+  bool check(const char *str) {
+    auto res = m_strings.find(str);
+    if (res == m_strings.end())
+      return false;
+    else {
+      (*res).second++;
+      return ((*res).second == 1);
+    }
+  }
+
+private:
+  string_count_t m_strings;
 };
 
 } // namespace string
