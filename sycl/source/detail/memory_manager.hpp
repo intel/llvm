@@ -163,7 +163,7 @@ public:
                        void *DstMem,
                        std::vector<sycl::detail::pi::PiEvent> DepEvents,
                        sycl::detail::pi::PiEvent *OutEvent,
-                       detail::EventImplPtr OutEventImpl);
+                       detail::EventImplPtr &OutEventImpl);
 
   // TODO: This function will remain until ABI-breaking change
   static void copy_usm(const void *SrcMem, QueueImplPtr Queue, size_t Len,

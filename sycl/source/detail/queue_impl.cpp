@@ -265,14 +265,16 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents, detail::EventImplPtr OutEventImpl) {
+    const std::vector<event> &DepEvents) {
+  event ResEvent;
+  auto EventImpl = detail::getSyclObjImpl(ResEvent);
   if (MHasDiscardEventsSupport) {
+    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr, nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -284,9 +286,12 @@ event queue_impl::memcpyToDeviceGlobal(
       MLastEvent.wait();
 
     sycl::detail::pi::PiEvent NativeEvent{};
+
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
+    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -310,15 +315,16 @@ event queue_impl::memcpyToDeviceGlobal(
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
-    size_t Offset, const std::vector<event> &DepEvents,
-    detail::EventImplPtr OutEventImpl) {
+    size_t Offset, const std::vector<event> &DepEvents) {
+  event ResEvent;
+  auto EventImpl = detail::getSyclObjImpl(ResEvent);
   if (MHasDiscardEventsSupport) {
+    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr, nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -329,10 +335,11 @@ event queue_impl::memcpyFromDeviceGlobal(
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    EventImpl->setHostEnqueueTime();
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

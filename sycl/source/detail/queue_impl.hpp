@@ -674,14 +674,13 @@ public:
   event memcpyToDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
-                             size_t Offset, const std::vector<event> &DepEvents,
-                             detail::EventImplPtr OutEventImpl = nullptr);
+                             size_t Offset,
+                             const std::vector<event> &DepEvents);
   event memcpyFromDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                                void *Dest, const void *DeviceGlobalPtr,
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
-                               const std::vector<event> &DepEvents,
-                               detail::EventImplPtr OutEventImpl = nullptr);
+                               const std::vector<event> &DepEvents);
 
   bool isProfilingFallback() { return MFallbackProfiling; }
 

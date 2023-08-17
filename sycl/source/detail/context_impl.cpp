@@ -384,7 +384,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
 
       InitEventsRef.push_back(InitEvent);
     }
-
     return InitEventsRef;
   }
 }
