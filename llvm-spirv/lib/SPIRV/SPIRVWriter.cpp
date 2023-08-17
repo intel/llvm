@@ -5461,6 +5461,10 @@ bool LLVMToSPIRVBase::transExtension() {
       std::string S;
       N.nextOp().get(S);
       assert(!S.empty() && "Invalid extension");
+      ExtensionID ExtID = SPIRVMap<ExtensionID, std::string>::rmap(S);
+      if (!BM->getErrorLog().checkError(BM->isAllowedToUseExtension(ExtID),
+                                        SPIRVEC_RequiresExtension, S))
+        return false;
       BM->getExtension().insert(S);
     }
   }
