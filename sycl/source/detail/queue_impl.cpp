@@ -89,6 +89,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  event ResEvent;
   sycl::detail::pi::PiEvent NativeEvent{};
   ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
@@ -182,7 +183,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     return createDiscardedEvent();
   }
   event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};  
+  sycl::detail::pi::PiEvent NativeEvent{};
   ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
@@ -219,7 +220,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
-                             const std::vector<event> &DepEvents) { 
+                             const std::vector<event> &DepEvents) {
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr);

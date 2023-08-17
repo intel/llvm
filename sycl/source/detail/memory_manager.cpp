@@ -529,12 +529,11 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       pi_buff_rect_region_struct RectRegion{DstAccessRangeWidthBytes,
                                             DstAccessRange[DstPos.YTerm],
                                             DstAccessRange[DstPos.ZTerm]};
-        Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
-            Queue, DstMem,
-            /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset,
-            &RectRegion, BufferRowPitch, BufferSlicePitch, HostRowPitch,
-            HostSlicePitch, SrcMem, DepEvents.size(), DepEvents.data(),
-            &OutEvent);
+      Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
+          Queue, DstMem,
+          /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
+          BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
+          SrcMem, DepEvents.size(), DepEvents.data(), &OutEvent);
     }
   } else {
     size_t InputRowPitch = (1 == DimDst) ? 0 : DstSzWidthBytes;
