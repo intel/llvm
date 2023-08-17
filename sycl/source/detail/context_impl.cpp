@@ -295,8 +295,7 @@ void context_impl::addDeviceGlobalInitializer(
 }
 
 std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
-    pi::PiProgram NativePrg, const std::shared_ptr<queue_impl> &QueueImpl,
-    detail::EventImplPtr NewEventImpl) {
+    pi::PiProgram NativePrg, const std::shared_ptr<queue_impl> &QueueImpl) {
   const PluginPtr &Plugin = getPlugin();
   const DeviceImplPtr &DeviceImpl = QueueImpl->getDeviceImplPtr();
   std::lock_guard<std::mutex> NativeProgramLock(MDeviceGlobalInitializersMutex);
@@ -364,8 +363,7 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
     for (DeviceGlobalMapEntry *DeviceGlobalEntry : DeviceGlobalEntries) {
       // Get or allocate the USM memory associated with the device global.
       DeviceGlobalUSMMem &DeviceGlobalUSM =
-          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl,
-                                                          NewEventImpl);
+          DeviceGlobalEntry->getOrAllocateDeviceGlobalUSM(QueueImpl);
 
       // If the device global still has a zero-initialization event it should be
       // added to the initialization events list. Since initialization events
@@ -375,9 +373,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
         if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
-      // Capture the host timestamp for queue time. Fallback profiling support
-      if (NewEventImpl != nullptr)
-        NewEventImpl->setQueueBaseTime();
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       sycl::detail::pi::PiEvent InitEvent;

@@ -299,10 +299,10 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
       if (!MFallbackProfiling) {
         return startTime;
       } else {
-        auto queueTime =
+        auto DeviceBaseTime  =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - queueTime + startTime;
+        return MHostBaseTime - DeviceBaseTime + startTime;
       }
     }
     return 0;
@@ -326,10 +326,10 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
       if (!MFallbackProfiling) {
         return endTime;
       } else {
-        auto queueTime =
+        auto DeviceBaseTime  =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - queueTime + endTime;
+        return MHostBaseTime - DeviceBaseTime  + endTime;
       }
     }
     return 0;
@@ -473,7 +473,7 @@ void event_impl::setSubmissionTime() {
   }
 }
 
-void event_impl::setQueueBaseTime() {
+void event_impl::setHostEnqueueTime() {
   if (!MIsProfilingEnabled || !MFallbackProfiling)
     return;
   // Capture a host timestamp to use normalize profiling time in

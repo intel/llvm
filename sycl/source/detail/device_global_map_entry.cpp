@@ -43,8 +43,7 @@ OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const PluginPtr &Plugin) {
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
-    const std::shared_ptr<queue_impl> &QueueImpl,
-    detail::EventImplPtr NewEventImpl) {
+    const std::shared_ptr<queue_impl> &QueueImpl) {
   assert(!MIsDeviceImageScopeDecorated &&
          "USM allocations should not be acquired for device_global with "
          "device_image_scope property.");
@@ -74,7 +73,7 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
     sycl::detail::pi::PiEvent InitEvent;
     MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
                             std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent, NewEventImpl);
+                            &InitEvent, nullptr);
     NewAlloc.MZeroInitEvent = InitEvent;
   }
 

@@ -244,7 +244,7 @@ public:
 
   /// Check clGetDeviceAndHostTimer is available for fallback profiling
 
-  bool IsGetDeviceAndHostTimerSupported();
+  bool isGetDeviceAndHostTimerSupported();
 
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }

@@ -237,9 +237,7 @@ template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
         sizeof(Properties), &Properties, nullptr);
-    if (!(Properties & PI_QUEUE_FLAG_PROFILING_ENABLE))
-      return false;
-    return true;
+    return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 

@@ -628,7 +628,7 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
-bool device_impl::IsGetDeviceAndHostTimerSupported() {
+bool device_impl::isGetDeviceAndHostTimerSupported() {
   const auto &Plugin = getPlugin();
   auto Result =
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(

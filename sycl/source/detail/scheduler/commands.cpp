@@ -473,9 +473,9 @@ void Command::waitForEvents(QueueImplPtr Queue,
           getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const PluginPtr &Plugin = Queue->getPlugin();
-      // Capture the host timestamp for queue time. Fallback profiling support
+      
       if (MEvent != nullptr)
-        MEvent->setQueueBaseTime();
+        MEvent->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
           Queue->getHandleRef(), RawEvents.size(), &RawEvents[0], &Event);
     }
@@ -1235,7 +1235,7 @@ pi_int32 ReleaseCommand::enqueueImp() {
                     : MAllocaCmd->MLinkedAllocaCmd->getMemAllocation();
 
     MemoryManager::unmap(MAllocaCmd->getSYCLMemObj(), Dst, Queue, Src,
-                         RawEvents, UnmapEvent, MEvent);
+                         RawEvents, UnmapEvent);
 
     std::swap(MAllocaCmd->MIsActive, MAllocaCmd->MLinkedAllocaCmd->MIsActive);
     EventImpls.clear();
@@ -1317,7 +1317,7 @@ pi_int32 MapMemObject::enqueueImp() {
   *MDstPtr = MemoryManager::map(
       MSrcAllocaCmd->getSYCLMemObj(), MSrcAllocaCmd->getMemAllocation(), MQueue,
       MMapMode, MSrcReq.MDims, MSrcReq.MMemoryRange, MSrcReq.MAccessRange,
-      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event, MEvent);
+      MSrcReq.MOffset, MSrcReq.MElemSize, std::move(RawEvents), Event);
 
   return PI_SUCCESS;
 }
@@ -1398,7 +1398,7 @@ pi_int32 UnMapMemObject::enqueueImp() {
   sycl::detail::pi::PiEvent &Event = MEvent->getHandleRef();
   MemoryManager::unmap(MDstAllocaCmd->getSYCLMemObj(),
                        MDstAllocaCmd->getMemAllocation(), MQueue, *MSrcPtr,
-                       std::move(RawEvents), Event, MEvent);
+                       std::move(RawEvents), Event);
 
   return PI_SUCCESS;
 }
@@ -2301,7 +2301,7 @@ static pi_result SetKernelParamsAndLaunch(
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
     sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    detail::EventImplPtr NewEventImpl) {
+    detail::EventImplPtr OutEventImpl) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2337,9 +2337,9 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
+  
+  if (OutEventImpl != nullptr)
+    OutEventImpl->setHostEnqueueTime();
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
@@ -2457,7 +2457,7 @@ pi_int32 enqueueImpKernel(
     sycl::detail::pi::PiEvent *OutEvent,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    detail::EventImplPtr NewEventImpl) {
+    detail::EventImplPtr OutEventImpl) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2525,7 +2525,7 @@ pi_int32 enqueueImpKernel(
 
   // Initialize device globals associated with this.
   std::vector<sycl::detail::pi::PiEvent> DeviceGlobalInitEvents =
-      ContextImpl->initializeDeviceGlobals(Program, Queue, NewEventImpl);
+      ContextImpl->initializeDeviceGlobals(Program, Queue);
   std::vector<sycl::detail::pi::PiEvent> EventsWithDeviceGlobalInits;
   if (!DeviceGlobalInitEvents.empty()) {
     EventsWithDeviceGlobalInits.reserve(RawEvents.size() +
@@ -2555,7 +2555,7 @@ pi_int32 enqueueImpKernel(
 
     Error = SetKernelParamsAndLaunch(
         Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList, OutEvent,
-        EliminatedArgMask, getMemAllocationFunc, NewEventImpl);
+        EliminatedArgMask, getMemAllocationFunc, OutEventImpl);
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -2573,7 +2573,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
                          sycl::detail::pi::PiEvent *OutEvent, bool read,
-                         detail::EventImplPtr NewEventImpl) {
+                         detail::EventImplPtr OutEventImpl) {
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2601,9 +2601,9 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 
   pi_queue pi_q = Queue->getHandleRef();
   pi_result Error;
-  // Capture the host timestamp for queue time. Fallback profiling support
-  if (NewEventImpl != nullptr)
-    NewEventImpl->setQueueBaseTime();
+  
+  if (OutEventImpl != nullptr)
+    OutEventImpl->setHostEnqueueTime();
   if (read) {
     Error =
         Plugin->call_nocheck<sycl::detail::PiApiKind::piextEnqueueReadHostPipe>(
@@ -2835,9 +2835,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
-        // Capture the host timestamp for queue time. Fallback profiling support
+        
         if (MEvent != nullptr)
-          MEvent->setQueueBaseTime();
+          MEvent->setHostEnqueueTime();
         MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
             nullptr,
             reinterpret_cast<pi_kernel>(ExecKernel->MHostKernel->getPtr()),
@@ -2999,9 +2999,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    // Capture the host timestamp for queue time. Fallback profiling support
+    
     if (MEvent != nullptr)
-      MEvent->setQueueBaseTime();
+      MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), 0, nullptr, Event);
 
@@ -3018,9 +3018,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    // Capture the host timestamp for queue time. Fallback profiling support
+    
     if (MEvent != nullptr)
-      MEvent->setQueueBaseTime();
+      MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
         MQueue->getHandleRef(), PiEvents.size(), &PiEvents[0], Event);
 
@@ -3063,9 +3063,9 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    // Capture the host timestamp for queue time. Fallback profiling support
+    
     if (MEvent != nullptr)
-      MEvent->setQueueBaseTime();
+      MEvent->setHostEnqueueTime();
     return MQueue->getPlugin()
         ->call_nocheck<sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
             CmdBufferCG->MCommandBuffer, MQueue->getHandleRef(),

@@ -62,8 +62,7 @@ static event createDiscardedEvent() {
 
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
-                         const std::vector<event> &DepEvents,
-                         detail::EventImplPtr NewEventImpl) {
+                         const std::vector<event> &DepEvents) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we use the object ptr; if code location
   // information is available, we will have function name and source file
@@ -84,13 +83,13 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
+  event ResEvent;
   if (MHasDiscardEventsSupport) {
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), nullptr,
-                            NewEventImpl);
+                            nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -104,7 +103,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
-                            NewEventImpl);
+                            nullptr);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -141,7 +140,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
                          const std::vector<event> &DepEvents,
                          const code_location &CodeLoc,
-                         detail::EventImplPtr NewEventImpl) {
+                         detail::EventImplPtr OutEventImpl) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
@@ -181,7 +180,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), nullptr,
-                            NewEventImpl);
+                            OutEventImpl);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -198,7 +197,7 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
-                            NewEventImpl);
+                            OutEventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -222,11 +221,11 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
                              const std::vector<event> &DepEvents,
-                             detail::EventImplPtr NewEventImpl) {
+                             detail::EventImplPtr OutEventImpl) {
   if (MHasDiscardEventsSupport) {
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext), nullptr,
-                              NewEventImpl);
+                              OutEventImpl);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -243,7 +242,7 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
-                              &NativeEvent, NewEventImpl);
+                              &NativeEvent, OutEventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -266,11 +265,11 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents, detail::EventImplPtr NewEventImpl) {
+    const std::vector<event> &DepEvents, detail::EventImplPtr OutEventImpl) {
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr, NewEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -287,7 +286,7 @@ event queue_impl::memcpyToDeviceGlobal(
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, NewEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -312,11 +311,11 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents,
-    detail::EventImplPtr NewEventImpl) {
+    detail::EventImplPtr OutEventImpl) {
   if (MHasDiscardEventsSupport) {
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr, NewEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
     return createDiscardedEvent();
   }
   event ResEvent;
@@ -333,7 +332,7 @@ event queue_impl::memcpyFromDeviceGlobal(
     sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, NewEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();

@@ -230,7 +230,7 @@ public:
 
   /// Calling this function to capture the host timestamp to use
   /// profiling base time. See MFallbackProfiling
-  void setQueueBaseTime();
+  void setHostEnqueueTime();
 
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();

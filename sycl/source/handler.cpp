@@ -251,7 +251,7 @@ event handler::finalize() {
               backend::ext_intel_esimd_emulator) {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
-              NewEvent->setQueueBaseTime();
+              NewEvent->setHostEnqueueTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
@@ -259,8 +259,6 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            // Capture the host timestamp for profiling (queue time) in
-            // enqueueImpKernel()
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
                                  MKernel, MKernelName, RawEvents, OutEvent,

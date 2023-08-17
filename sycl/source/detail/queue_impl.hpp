@@ -153,25 +153,17 @@ public:
                               "discard_events and enable_profiling.");
       // fallback profiling support. See MFallbackProfiling
       if (MDevice->has(aspect::queue_profiling)) {
-        pi_queue_properties Properties;
-        MDevice->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-            MDevice->getHandleRef(),
-            PiInfoCode<info::device::queue_profiling>::value,
-            sizeof(Properties), &Properties, nullptr);
-        if (Properties & PI_QUEUE_FLAG_PROFILING_ENABLE) {
-          // When piGetDeviceAndHostTimer is not supported, compute the
-          // profiling time OpenCL version < 2.1 case
-          if (!getDeviceImplPtr()->IsGetDeviceAndHostTimerSupported())
-            MFallbackProfiling = true;
-        } else {
-          throw sycl::exception(
-              make_error_code(errc::feature_not_supported),
-              "Cannot enable profiling, the associated device "
-              "does not have the queue_profiling aspect");
-        }
+        // When piGetDeviceAndHostTimer is not supported, compute the
+        // profiling time OpenCL version < 2.1 case
+        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+          MFallbackProfiling = true;
+      } else {
+        throw sycl::exception(
+            make_error_code(errc::feature_not_supported),
+            "Cannot enable profiling, the associated device "
+            "does not have the queue_profiling aspect");
       }
     }
-
     if (has_property<ext::intel::property::queue::compute_index>()) {
       int Idx = get_property<ext::intel::property::queue::compute_index>()
                     .get_index();
@@ -612,8 +604,7 @@ public:
   /// dependencies.
   /// \return an event representing fill operation.
   event memset(const std::shared_ptr<queue_impl> &Self, void *Ptr, int Value,
-               size_t Count, const std::vector<event> &DepEvents,
-               detail::EventImplPtr NewEventImpl = nullptr);
+               size_t Count, const std::vector<event> &DepEvents);
   /// Copies data from one memory region to another, both pointed by
   /// USM pointers.
   ///
@@ -628,7 +619,7 @@ public:
                const void *Src, size_t Count,
                const std::vector<event> &DepEvents,
                const code_location &CodeLoc,
-               detail::EventImplPtr NewEventImpl = nullptr);
+               detail::EventImplPtr OutEventImpl = nullptr);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -642,7 +633,7 @@ public:
   event mem_advise(const std::shared_ptr<queue_impl> &Self, const void *Ptr,
                    size_t Length, pi_mem_advice Advice,
                    const std::vector<event> &DepEvents,
-                   detail::EventImplPtr NewEventImpl = nullptr);
+                   detail::EventImplPtr OutEventImpl = nullptr);
 
   /// Puts exception to the list of asynchronous ecxeptions.
   ///
@@ -685,13 +676,13 @@ public:
                              void *DeviceGlobalPtr, const void *Src,
                              bool IsDeviceImageScope, size_t NumBytes,
                              size_t Offset, const std::vector<event> &DepEvents,
-                             detail::EventImplPtr NewEventImpl = nullptr);
+                             detail::EventImplPtr OutEventImpl = nullptr);
   event memcpyFromDeviceGlobal(const std::shared_ptr<queue_impl> &Self,
                                void *Dest, const void *DeviceGlobalPtr,
                                bool IsDeviceImageScope, size_t NumBytes,
                                size_t Offset,
                                const std::vector<event> &DepEvents,
-                               detail::EventImplPtr NewEventImpl = nullptr);
+                               detail::EventImplPtr OutEventImpl = nullptr);
 
   bool isProfilingFallback() { return MFallbackProfiling; }
 
