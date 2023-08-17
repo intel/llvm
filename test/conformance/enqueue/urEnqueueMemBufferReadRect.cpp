@@ -203,3 +203,19 @@ TEST_F(urEnqueueMemBufferReadRectMultiDeviceTest, WriteReadDifferentQueues) {
             << "Result on queue " << i << " did not match!";
     }
 }
+
+TEST_P(urEnqueueMemBufferReadRectTest, InvalidSize) {
+    std::vector<uint32_t> dst(count);
+    // out-of-bounds access with potential overflow
+    ur_rect_region_t region{size, 1, 1};
+    ur_rect_offset_t buffer_offset{std::numeric_limits<uint64_t>::max(), 1, 1};
+    // Creating an overflow in host_offsets leads to a crash because
+    // the function doesn't do bounds checking of host buffers.
+    ur_rect_offset_t host_offset{0, 0, 0};
+
+    ASSERT_EQ_RESULT(
+        urEnqueueMemBufferReadRect(queue, buffer, true, buffer_offset,
+                                   host_offset, region, size, size, size, size,
+                                   dst.data(), 0, nullptr, nullptr),
+        UR_RESULT_ERROR_INVALID_SIZE);
+}
