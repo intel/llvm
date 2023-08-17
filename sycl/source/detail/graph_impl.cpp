@@ -12,7 +12,6 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
-#include <random>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -579,7 +578,7 @@ bool modifiable_command_graph::end_recording(
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
-    : MTag(random()),
+    : MTag(rand()),
       impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
