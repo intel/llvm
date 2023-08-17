@@ -11,8 +11,25 @@ using namespace sycl::ext::oneapi;
 
 #define PI 3.14159265358979323846
 
-constexpr double INFINITYd(std::numeric_limits<double>::infinity());
-constexpr double NANd(std::numeric_limits<double>::quiet_NaN());
+// Helper for passing infinity and nan values
+template <typename T>
+inline constexpr T inf_val = std::numeric_limits<T>::infinity();
+template <typename T>
+inline constexpr T nan_val = std::numeric_limits<T>::quiet_NaN();
+
+/// Helpers for checking if type is supported.
+template <typename T> inline bool is_type_supported(sycl::queue &Q) {
+  return false;
+}
+template <> inline bool is_type_supported<double>(sycl::queue &Q) {
+  return Q.get_device().has(sycl::aspect::fp64);
+}
+template <> inline bool is_type_supported<float>(sycl::queue &Q) {
+  return true;
+}
+template <> inline bool is_type_supported<sycl::half>(sycl::queue &Q) {
+  return Q.get_device().has(sycl::aspect::fp16);
+}
 
 template <typename T = double> struct cmplx {
   cmplx(T real, T imag) : re(real), im(imag) {}
@@ -104,25 +121,7 @@ bool test_valid_types(argsT... args) {
 
 // Helpers for comparison
 
-template <typename T> bool almost_equal_scalar(T x, T y, int ulp) {
-  if (std::isnan(x) && std::isnan(y))
-    return true;
-
-  if (std::isinf(x) && std::isinf(y))
-    return true;
-
-  return std::abs(x - y) <=
-             std::numeric_limits<T>::epsilon() * std::abs(x + y) * ulp ||
-         std::abs(x - y) < std::numeric_limits<T>::min();
-}
-
-template <typename T> T complex_magnitude(std::complex<T> a) {
-  return std::sqrt(a.real() * a.real() + a.imag() * a.imag());
-}
-
-template <typename T> T complex_magnitude(experimental::complex<T> a) {
-  return std::sqrt(a.real() * a.real() + a.imag() * a.imag());
-}
+namespace helper::detail {
 
 template <typename T, typename U> inline bool is_nan_or_inf(T x, U y) {
   return (std::isnan(x.real()) && std::isnan(y.real())) ||
@@ -131,38 +130,35 @@ template <typename T, typename U> inline bool is_nan_or_inf(T x, U y) {
          (std::isinf(x.imag()) && std::isinf(y.imag()));
 }
 
+
+template <typename T> T complex_magnitude(std::complex<T> a) {
+  return std::sqrt(a.real() * a.real() + a.imag() * a.imag());
+}
+
 template <typename T>
-bool almost_equal_cplx(experimental::complex<T> x, experimental::complex<T> y,
-                       int ulp) {
+bool almost_equal(std::complex<T> x, std::complex<T> y, int ulp) {
   auto diff = complex_magnitude(x - y);
   return diff <= std::numeric_limits<T>::epsilon() * std::abs(x + y) * ulp ||
-         diff < std::numeric_limits<T>::min() || is_nan_or_inf(x, y);
+         diff < std::numeric_limits<T>::min() ||
+         is_nan_or_inf(x, y);
 }
 
-template <typename T>
-bool almost_equal_cplx(experimental::complex<T> x, std::complex<T> y, int ulp) {
-  auto stdx = std::complex{x.real(), x.imag()};
-  auto diff = complex_magnitude(stdx - y);
-  return diff <= std::numeric_limits<T>::epsilon() * std::abs(stdx + y) * ulp ||
-         diff < std::numeric_limits<T>::min() || is_nan_or_inf(x, y);
+template <typename T> bool almost_equal(T x, T y, int ulp) {
+  if (std::isnan(x) && std::isnan(y)) {
+    return true;
+  }
+  else if (std::isinf(x) && std::isinf(y)) {
+    return true;
+  }
+
+  return std::abs(x - y) <=
+             std::numeric_limits<T>::epsilon() * std::abs(x + y) * ulp ||
+         std::abs(x - y) < std::numeric_limits<T>::min();
 }
 
-template <typename T>
-bool almost_equal_cplx(std::complex<T> x, experimental::complex<T> y, int ulp) {
-  auto stdy = std::complex{y.real(), y.imag()};
-  auto diff = complex_magnitude(x - stdy);
-  return diff <= std::numeric_limits<T>::epsilon() * std::abs(x + stdy) * ulp ||
-         diff < std::numeric_limits<T>::min() || is_nan_or_inf(x, y);
-}
+} // namespace helper::detail
 
-template <typename T>
-bool almost_equal_cplx(std::complex<T> x, std::complex<T> y, int ulp) {
-  auto diff = complex_magnitude(x - y);
-  return diff <= std::numeric_limits<T>::epsilon() * std::abs(x + y) * ulp ||
-         diff < std::numeric_limits<T>::min() || is_nan_or_inf(x, y);
-}
-
-// Helpers for testing half
+/// Helpers for testing half
 
 std::complex<float> sycl_half_to_float(experimental::complex<sycl::half> c) {
   auto c_sycl_float = static_cast<experimental::complex<float>>(c);
@@ -179,7 +175,7 @@ std::complex<float> trunc_float(std::complex<float> c) {
   return sycl_half_to_float(c_sycl_half);
 }
 
-// Helper for initializing std::complex values for tests only needed because
+// Helpers for initializing std::complex values for tests only needed because
 // sycl::half cases are emulated with float for std::complex class
 
 template <typename T_in> auto constexpr init_std_complex(T_in re, T_in im) {
@@ -204,13 +200,26 @@ auto constexpr convert_marray(sycl::marray<std::complex<Tin>, NumElements> c) {
   return rtn;
 }
 
-/// Helper for comparing SyclCPLX and standard c++ results
+/// Helpers for comparing SyclCPLX and standard c++ results
 
-// Complex overloads
+namespace helper::detail {
+
 template <typename T>
-bool check_results(experimental::complex<T> output, std::complex<T> reference,
-                   bool is_device) {
-  if (!almost_equal_cplx(output, reference, SYCL_CPLX_TOL_ULP)) {
+struct is_a_complex
+    : std::integral_constant<bool,
+                             experimental::is_gencomplex_v<T> ||
+                             sycl::detail::is_complex<T>::value> {};
+
+template <typename T>
+inline constexpr bool is_a_complex_v = is_a_complex<T>::value;
+
+} // namespace helper::detail
+
+/// Specialization for scalar
+template <typename T>
+typename std::enable_if_t<experimental::is_genfloat_v<T>, bool>
+check_results(T output, T reference, bool is_device) {
+  if (!helper::detail::almost_equal(output, reference, SYCL_CPLX_TOL_ULP)) {
     std::cerr << std::setprecision(std::numeric_limits<T>::max_digits10)
               << "Test failed with complex_type: " << get_typename<T>()
               << " Computed on " << (is_device ? "device" : "host")
@@ -220,38 +229,55 @@ bool check_results(experimental::complex<T> output, std::complex<T> reference,
   }
   return true;
 }
-template <typename T, std::size_t NumElements>
-bool check_results(sycl::marray<experimental::complex<T>, NumElements> output,
-                   sycl::marray<std::complex<T>, NumElements> reference,
-                   bool is_device) {
-  for (std::size_t i = 0; i < NumElements; ++i) {
-    if (!check_results(output[i], reference[i], is_device)) {
-      return false;
-    }
+
+/// Specialization for sycl::complex and std::complex
+template <typename LHS, typename RHS>
+typename std::enable_if_t<helper::detail::is_a_complex_v<LHS> && helper::detail::is_a_complex_v<RHS>, bool>
+check_results(LHS output, RHS reference, bool is_device) {
+  using T1 = typename LHS::value_type;
+  using T2 = typename RHS::value_type;
+
+  if (!std::is_same_v<T1, T2>) {
+    std::cerr << "check_results can be called with sycl::complex and/or std::complex but with the same value_type" << std::endl;
   }
+
+  if (!helper::detail::almost_equal(static_cast<std::complex<T1>>(output), static_cast<std::complex<T2>>(reference), SYCL_CPLX_TOL_ULP)) {
+    std::cerr << std::setprecision(std::numeric_limits<T1>::max_digits10)
+    << "Test failed with complex_type: " << get_typename<T1>()
+    << " Computed on " << (is_device ? "device" : "host")
+    << " Output: " << output << " Reference: " << reference
+    << std::endl;
+
+    return false;
+  }
+
   return true;
 }
 
-// Scalar overloads
-template <typename T>
-bool check_results(T output, T reference, bool is_device) {
-  if (!almost_equal_scalar(output, reference, SYCL_CPLX_TOL_ULP)) {
-    std::cerr << std::setprecision(std::numeric_limits<T>::max_digits10)
-              << "Test failed with complex_type: " << get_typename<T>()
-              << " Computed on " << (is_device ? "device" : "host")
-              << " Output: " << output << " Reference: " << reference
-              << std::endl;
-    return false;
+/// Specialization for sycl::marray
+template <typename LHS, std::size_t NumElementsLHS, typename RHS, std::size_t NumElementsRHS>
+bool check_results(sycl::marray<LHS, NumElementsLHS> output, sycl::marray<RHS, NumElementsRHS> reference, bool is_device) {
+  if (NumElementsLHS != NumElementsRHS) {
+    std::cerr << "check_results can be called with sycl::marray but with the same NumElement" << std::endl;
   }
+
+  for (std::size_t i = 0; i < NumElementsLHS; ++i) {
+    if (!check_results(output[i], reference[i], is_device)) {
+      return false;
+    }
+  }
+
   return true;
 }
+
+/// Specialization for std::array
 template <typename T, std::size_t NumElements>
-bool check_results(sycl::marray<T, NumElements> output,
-                   sycl::marray<T, NumElements> reference, bool is_device) {
+bool check_results(std::array<T, NumElements> output, std::array<T, NumElements> reference, bool is_device) {
   for (std::size_t i = 0; i < NumElements; ++i) {
     if (!check_results(output[i], reference[i], is_device)) {
       return false;
     }
   }
+
   return true;
 }
