@@ -352,18 +352,13 @@ exec_graph_impl::~exec_graph_impl() {
   // We need to wait on all command buffer executions before we can release
   // them.
   for (auto &Event : MExecutionEvents) {
-   try {
-	   Event->wait(Event);
-   }
-   catch(std::runtime_error &e)
-   {
+    try {
+      Event->wait(Event);
+    } catch (std::runtime_error &e) {
       std::cout << "Runtime exception caught: " << e.what() << std::endl;
-   }
-   catch(sycl::exception &e)
-   {
+    } catch (sycl::exception &e) {
       std::cout << "SYCL exception caught: " << e.what() << std::endl;
-   }
-
+    }
   }
 
   for (auto Iter : MPiCommandBuffers) {
