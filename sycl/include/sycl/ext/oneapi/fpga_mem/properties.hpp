@@ -22,6 +22,7 @@ namespace ext::oneapi::experimental {
 template <typename T, typename PropertyListT> class fpga_mem;
 
 // Property definitions
+// Artem: make sure we can create a "any" resource
 enum class resource_enum : std::uint16_t { mlab, block_ram };
 
 struct resource_key {
@@ -177,43 +178,64 @@ template <> struct PropertyToKind<num_replicates_key> {
   static constexpr PropKind Kind = PropKind::NumReplicates;
 };
 
-//Artem FIX below
-// resource_key
-// num_banks_key
-// stride_size_key
-// word_size_key
-// bi_directional_ports_key
-// clock_2x_key
-// ram_stitching_key
-// max_private_copies_key
-// num_replicates_key
+// Mark the properties as compile-time 
+template <> struct IsCompileTimeProperty<resource_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<num_banks_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<stride_size_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<word_size_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<bi_directional_ports_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<clock_2x_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<ram_stitching_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<max_private_copies_key> : std::true_type {};
+template <> struct IsCompileTimeProperty<num_replicates_key> : std::true_type {};
 
-// template <>
-// struct IsCompileTimeProperty<device_image_scope_key> : std::true_type {};
-// template <> struct IsCompileTimeProperty<host_access_key> : std::true_type {};
-// template <> struct IsCompileTimeProperty<init_mode_key> : std::true_type {};
-// template <>
-// struct IsCompileTimeProperty<implement_in_csr_key> : std::true_type {};
+// Map Property to MetaInfo
+template <resource_enum Access>
+struct PropertyMetaInfo<resource_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-resource";
+  static constexpr resource_enum value = Access;
+};
+template <size_t Access>
+struct PropertyMetaInfo<num_banks_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-num-banks";
+  static constexpr size_t value = Access;
+};
+template <size_t Access>
+struct PropertyMetaInfo<stride_size_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-stride-size";
+  static constexpr size_t value = Access;
+};
+template <size_t Access>
+struct PropertyMetaInfo<word_size_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-word-size";
+  static constexpr size_t value = Access;
+};
+template <bool Access>
+struct PropertyMetaInfo<bi_directional_ports_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-bi-directional-ports";
+  static constexpr bool value = Access;
+};
+template <bool Access>
+struct PropertyMetaInfo<clock_2x_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-clock-2x";
+  static constexpr bool value = Access;
+};
+template <ram_stitching_enum Access>
+struct PropertyMetaInfo<ram_stitching_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-ram-stitching";
+  static constexpr ram_stitching_enum value = Access;
+};
+template <size_t Access>
+struct PropertyMetaInfo<max_private_copies_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-max-private-copies";
+  static constexpr size_t value = Access;
+};
+template <size_t Access>
+struct PropertyMetaInfo<num_replicates_key::value_t<Access>> {
+  static constexpr const char *name = "sycl-num-replicates";
+  static constexpr size_t value = Access;
+};
 
-// template <> struct PropertyMetaInfo<device_image_scope_key::value_t> {
-//   static constexpr const char *name = "sycl-device-image-scope";
-//   static constexpr std::nullptr_t value = nullptr;
-// };
-// template <host_access_enum Access>
-// struct PropertyMetaInfo<host_access_key::value_t<Access>> {
-//   static constexpr const char *name = "sycl-host-access";
-//   static constexpr host_access_enum value = Access;
-// };
-// template <init_mode_enum Trigger>
-// struct PropertyMetaInfo<init_mode_key::value_t<Trigger>> {
-//   static constexpr const char *name = "sycl-init-mode";
-//   static constexpr init_mode_enum value = Trigger;
-// };
-// template <bool Enable>
-// struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
-//   static constexpr const char *name = "sycl-implement-in-csr";
-//   static constexpr bool value = Enable;
-// };
 } // namespace detail
 
 } // namespace ext::oneapi::experimental
