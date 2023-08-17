@@ -69,7 +69,6 @@ int main() {
      };
 
      d_ptr[3] = func(d_ptr[0], d_ptr[1], d_ptr[2]);
-
    }).wait();
 
   assert(a_ptr[0] == -1 && "a_ptr[0] value does not match.");
