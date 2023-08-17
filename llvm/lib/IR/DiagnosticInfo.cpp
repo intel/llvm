@@ -479,3 +479,7 @@ void DiagnosticInfoAspectsMismatch::print(DiagnosticPrinter &DP) const {
      << "\" but does not specify that aspect as available in its "
         "\"sycl::device_has\" attribute";
 }
+
+void DiagnosticInfoMachineFunctionSplit::print(DiagnosticPrinter &DP) const {
+  DP << "-fsplit-machine-functions is not valid for " << TargetTriple;
+}
