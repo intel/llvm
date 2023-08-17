@@ -123,6 +123,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   return MDiscardEvents ? createDiscardedEvent() : ResEvent;
 }
 
+
+
 void report(const code_location &CodeLoc) {
   std::cout << "Exception caught at ";
   if (CodeLoc.fileName())

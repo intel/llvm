@@ -510,8 +510,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (1 == DimDst && 1 == DimSrc) {
-      
+    if (1 == DimDst && 1 == DimSrc) {      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferWrite>(
@@ -534,7 +533,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
                                             DstAccessRange[DstPos.YTerm],
                                             DstAccessRange[DstPos.ZTerm]};
       if (1 == DimDst && 1 == DimSrc) {
-        
         if (OutEventImpl != nullptr)
           OutEventImpl->setHostEnqueueTime();
         Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
@@ -556,7 +554,6 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     pi_image_region_struct Region{DstAccessRange[DstPos.XTerm],
                                   DstAccessRange[DstPos.YTerm],
                                   DstAccessRange[DstPos.ZTerm]};
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageWrite>(
@@ -601,7 +598,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferRead>(
@@ -623,7 +619,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
                                             SrcAccessRange[SrcPos.YTerm],
                                             SrcAccessRange[SrcPos.ZTerm]};
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferReadRect>(
@@ -643,7 +638,6 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageRead>(
@@ -679,7 +673,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferCopy>(
@@ -706,7 +699,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct Region{SrcAccessRangeWidthBytes,
                                         SrcAccessRange[SrcPos.YTerm],
                                         SrcAccessRange[SrcPos.ZTerm]};
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferCopyRect>(
@@ -724,7 +716,6 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageCopy>(
@@ -828,7 +819,6 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
 
   const PluginPtr &Plugin = Queue->getPlugin();
   if (SYCLMemObj->getType() == detail::SYCLMemObjI::MemObjType::Buffer) {
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     if (Dim <= 1) {
@@ -841,7 +831,6 @@ void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
     throw runtime_error("Not supported configuration of fill requested",
                         PI_ERROR_INVALID_OPERATION);
   } else {
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageFill>(
@@ -933,7 +922,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
 
   if (!Len) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       SrcQueue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
@@ -948,7 +936,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                         PI_ERROR_INVALID_VALUE);
 
   const PluginPtr &Plugin = SrcQueue->getPlugin();
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call<PiApiKind::piextUSMEnqueueMemcpy>(
@@ -977,7 +964,6 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
 
   if (!Length) { // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
@@ -989,7 +975,6 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
   if (!Mem)
     throw runtime_error("NULL pointer argument in memory fill operation.",
                         PI_ERROR_INVALID_VALUE);
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1015,7 +1000,6 @@ void MemoryManager::prefetch_usm(
          "Host queue not supported in prefetch_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call<PiApiKind::piextUSMEnqueuePrefetch>(
@@ -1039,7 +1023,6 @@ void MemoryManager::advise_usm(
          "Host queue not supported in advise_usm.");
 
   const PluginPtr &Plugin = Queue->getPlugin();
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Plugin->call<PiApiKind::piextUSMEnqueueMemAdvise>(Queue->getHandleRef(), Mem,
@@ -1066,7 +1049,6 @@ void MemoryManager::copy_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
@@ -1088,7 +1070,6 @@ void MemoryManager::copy_2d_usm(
       &SupportsUSMMemcpy2D, nullptr);
 
   if (SupportsUSMMemcpy2D) {
-    
     if (OutEventImpl != nullptr)
       OutEventImpl->setHostEnqueueTime();
     // Direct memcpy2D is supported so we use this function.
@@ -1116,7 +1097,6 @@ void MemoryManager::copy_2d_usm(
   CopyEventsManaged.reserve(Height);
   // We'll need continuous range of events for a wait later as well.
   std::vector<sycl::detail::pi::PiEvent> CopyEvents(Height);
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   for (size_t I = 0; I < Height; ++I) {
@@ -1128,8 +1108,6 @@ void MemoryManager::copy_2d_usm(
     CopyEventsManaged.emplace_back(CopyEvents[I], Plugin,
                                    /*TakeOwnership=*/true);
   }
-
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   // Then insert a wait to coalesce the copy events.
@@ -1158,7 +1136,6 @@ void MemoryManager::fill_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
@@ -1170,7 +1147,6 @@ void MemoryManager::fill_2d_usm(
   if (!DstMem)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "NULL pointer argument in 2D memory fill operation.");
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1199,7 +1175,6 @@ void MemoryManager::memset_2d_usm(
   if (Width == 0 || Height == 0) {
     // no-op, but ensure DepEvents will still be waited on
     if (!DepEvents.empty()) {
-      
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Queue->getPlugin()->call<PiApiKind::piEnqueueEventsWait>(
@@ -1212,7 +1187,6 @@ void MemoryManager::memset_2d_usm(
     throw sycl::exception(
         sycl::make_error_code(errc::invalid),
         "NULL pointer argument in 2D memory memset operation.");
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
@@ -1336,7 +1310,6 @@ static void memcpyToDeviceGlobalDirect(
     sycl::detail::pi::PiEvent *OutEvent, detail::EventImplPtr OutEventImpl) {
   sycl::detail::pi::PiProgram Program =
       getOrBuildProgramForDeviceGlobal(Queue, DeviceGlobalEntry);
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   const PluginPtr &Plugin = Queue->getPlugin();
