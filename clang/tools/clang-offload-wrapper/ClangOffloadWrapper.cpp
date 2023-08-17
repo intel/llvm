@@ -124,9 +124,9 @@ static cl::opt<std::string> Output("o", cl::Required,
                                    cl::value_desc("filename"),
                                    cl::cat(ClangOffloadWrapperCategory));
 
-static cl::opt<std::string> PropAndEntries(
-    "prop_and_entries", cl::Optional,
-    cl::desc("Wrapped BC file containing properties and entry points to be used in constructing new wrapped BC file."),
+static cl::opt<std::string> WrappedBCInput(
+    "wrapped-bc-input", cl::Optional,
+    cl::desc("Wrapped BC input file to be updated with new code."),
     cl::value_desc("filename"), cl::cat(ClangOffloadWrapperCategory));
 
 static cl::opt<bool> Verbose("v", cl::desc("verbose output"),
@@ -1834,10 +1834,10 @@ int main(int argc, const char **argv) {
   verifyModule(*ModOrErr.get(), &llvm::errs());
 #endif
 
-  if (!PropAndEntries.empty()) {
+  if (!WrappedBCInput.empty()) {
     if (Knd != OffloadKind::SYCL) {
       reportError(createStringError(errc::invalid_argument,
-                                    "Property and Entries can only be used with SYCL offload kind"));
+                                    "--wrapped-bc-input can only be used with SYCL offload kind"));
       return 1;
     }
 
@@ -1845,7 +1845,7 @@ int main(int argc, const char **argv) {
     ExitOnError ExitOnErr;
 
     std::unique_ptr<MemoryBuffer> MB =
-      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(PropAndEntries)));
+      ExitOnErr(errorOrToExpected(MemoryBuffer::getFileOrSTDIN(WrappedBCInput)));
     std::unique_ptr<Module> M =
       ExitOnErr(getOwningLazyBitcodeModule(std::move(MB), Context,
                                            /*ShouldLazyLoadMetadata=*/true));
@@ -1858,10 +1858,9 @@ int main(int argc, const char **argv) {
 
     if (!OLD_ArrTy) {
       reportError(createStringError(errc::invalid_argument,
-                                    "Invalid Property and entries file\n"));
+                                    "Invalid --wrapped-bc-input file\n"));
       return 1;
     }
-    errs() << "Num elements " << OLD_ArrTy->getNumElements() << "\n";
 
     auto NEW_M = ModOrErr.get();
     auto NEW_DI = NEW_M->getGlobalVariable(".sycl_offloading.device_images",true);
@@ -1870,7 +1869,7 @@ int main(int argc, const char **argv) {
     auto *NEW_ArrTy = dyn_cast<ArrayType>(NEW_Ty);
     if (OLD_ArrTy->getNumElements()!=NEW_ArrTy->getNumElements()) {
       reportError(createStringError(errc::invalid_argument,
-                                    "Property and entries file does not match new BC file\n"));
+                                    "Number of images in --wrapped-bc-input file does not match new image count\n"));
       return 1;
     }
 
