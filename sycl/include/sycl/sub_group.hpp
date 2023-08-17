@@ -318,7 +318,7 @@ struct sub_group {
     (void)src;
     throw runtime_error("Sub-groups are not supported on host device.",
                         PI_ERROR_INVALID_DEVICE);
-#endif // __NVPTX__ || __AMDGCN__
+#endif // __SYCL_DEVICE_ONLY__
   }
 
   template <typename CVT, access::address_space Space,
