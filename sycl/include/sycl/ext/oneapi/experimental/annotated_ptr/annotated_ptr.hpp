@@ -146,6 +146,26 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
+  T operator++() {
+    return *this+=1;
+  }
+
+  T operator++(int) {
+    const T t = *this;
+    *this=(t + 1);
+    return t;
+  }
+
+  T operator--() {
+    return *this-=1;
+  }
+
+  T operator--(int) {
+    const T t = *this;
+    *this=(t - 1);
+    return t;
+  }
+
   template <class T2, class P2> friend class annotated_ptr;
 };
 
