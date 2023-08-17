@@ -24,21 +24,9 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-using std::enable_if;
-using std::integral_constant;
-using std::is_floating_point;
-using std::is_integral;
-using std::is_same;
-
-using std::basic_istream;
-using std::basic_ostream;
-using std::basic_ostringstream;
-
-using std::declval;
-
 namespace cplx::detail {
 
-template <bool _Val> using _BoolConstant = integral_constant<bool, _Val>;
+template <bool _Val> using _BoolConstant = std::integral_constant<bool, _Val>;
 
 template <class _Tp, class _Up>
 using _IsNotSame = _BoolConstant<!__is_same(_Tp, _Up)>;
