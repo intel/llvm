@@ -249,8 +249,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     if (phEvent) {
       *phEvent = ur_event_handle_t_::makeNative(
           UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, CuStream, StreamToken);
-      (*phEvent)->start();
-      (*phEvent)->record();
+      UR_CHECK_ERROR((*phEvent)->start());
+      UR_CHECK_ERROR((*phEvent)->record());
     }
 
     return UR_RESULT_SUCCESS;
@@ -390,7 +390,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     if (hQueue->getContext()->getDevice()->maxLocalMemSizeChosen()) {
@@ -428,7 +428,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       hKernel->clearLocalSize();
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
@@ -517,7 +517,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -526,7 +526,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         hostRowPitch, hostSlicePitch);
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingRead) {
@@ -564,7 +564,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -573,7 +573,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         bufferRowPitch, bufferSlicePitch);
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingWrite) {
@@ -614,7 +614,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
-      Result = RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     auto Src = hBufferSrc->Mem.BufferMem.get() + srcOffset;
@@ -623,7 +623,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     Result = UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -657,7 +657,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -666,7 +666,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         dstSlicePitch);
 
     if (phEvent) {
-      RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -748,7 +748,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_FILL, hQueue, Stream));
-      Result = RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     auto DstDevice = hBuffer->Mem.BufferMem.get() + offset;
@@ -779,7 +779,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     }
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -907,6 +907,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
+
+    ur_event_handle_t NewEvent = nullptr;
+    if (phEvent) {
+      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_READ,
+                                                hQueue, CuStream);
+      UR_CHECK_ERROR(NewEvent->start());
+    }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(
           cuMemcpyAtoHAsync(pDst, Array, ByteOffsetX, BytesToCopy, CuStream));
@@ -925,9 +932,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_READ,
-                                                     hQueue, CuStream);
-      NewEvent->record();
+      UR_CHECK_ERROR(NewEvent->record());
       *phEvent = NewEvent;
     }
 
@@ -977,7 +982,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     if (phEvent) {
       NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
                                                 hQueue, CuStream);
-      NewEvent->start();
+      UR_CHECK_ERROR(NewEvent->start());
     }
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
@@ -999,7 +1004,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     if (phEvent) {
-      NewEvent->record();
+      UR_CHECK_ERROR(NewEvent->record());
       *phEvent = NewEvent;
     }
   } catch (ur_result_t Err) {
@@ -1059,7 +1064,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     if (phEvent) {
       NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
                                                 hQueue, CuStream);
-      NewEvent->start();
+      UR_CHECK_ERROR(NewEvent->start());
     }
     ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
@@ -1081,7 +1086,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      NewEvent->record();
+      UR_CHECK_ERROR(NewEvent->record());
       *phEvent = NewEvent;
     }
   } catch (ur_result_t Err) {
@@ -1143,8 +1148,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
       try {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
-        (*phEvent)->start();
-        (*phEvent)->record();
+        UR_CHECK_ERROR((*phEvent)->start());
+        UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
         Result = Err;
       }
@@ -1192,8 +1197,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       try {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
-        (*phEvent)->start();
-        (*phEvent)->record();
+        UR_CHECK_ERROR((*phEvent)->start());
+        UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
         Result = Err;
       }
@@ -1223,7 +1228,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
 
     auto N = size / patternSize;
@@ -1248,7 +1253,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       break;
     }
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
@@ -1274,12 +1279,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_MEMCPY, hQueue, CuStream));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
     Result = UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
     }
     if (blocking) {
       Result = UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
@@ -1339,12 +1344,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
     Result = UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
@@ -1405,7 +1410,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
 
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
@@ -1424,7 +1429,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     }
 
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t err) {
@@ -1458,7 +1463,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     if (phEvent) {
       (*phEvent) = ur_event_handle_t_::makeNative(
           UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
-      (*phEvent)->start();
+      UR_CHECK_ERROR((*phEvent)->start());
     }
 
     // Determine the direction of copy using cuPointerGetAttribute
@@ -1479,7 +1484,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     result = UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, cuStream));
 
     if (phEvent) {
-      (*phEvent)->record();
+      UR_CHECK_ERROR((*phEvent)->record());
     }
     if (blocking) {
       result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
@@ -1513,13 +1518,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_READ, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     UR_CHECK_ERROR(cuMemcpyDtoHAsync(pDst, DevPtr + offset, size, CuStream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingRead) {
@@ -1560,13 +1565,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     UR_CHECK_ERROR(cuMemcpyHtoDAsync(DevPtr + offset, pSrc, size, CuStream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingWrite) {
