@@ -22,7 +22,7 @@
 #include <string_view>
 #include <vector>
 
-constexpr bool MeasureEventCost = true;
+constexpr bool MeasureEventCost = false;
 
 namespace xpti {
 bool ShowInColors = false;
@@ -134,6 +134,39 @@ public:
       // If no overlapping parent scope is found (recursively), add it as a
       // child to the scope of the nearest parent
       m_children[min] = span_t(min, max, label);
+    }
+  }
+
+  void clip_to_steady_state() {
+    size_t record_count = 0, skip_count = 0;
+    std::string record_marker("submit_impl");
+    for (auto &s : m_children) {
+      if (record_marker == s.second.m_label)
+        record_count++;
+    }
+    std::cout << "Records found with '" << record_marker
+              << "': " << record_count << "\n";
+    // For steady state, we will utilize only half of the records by ignoring
+    // the first half
+    if (record_count > 5) {
+      skip_count = record_count / 3;
+      // Clip the data model to one half of the records
+      record_count = 0;
+      spans_t::iterator it, limit;
+      uint64_t new_min;
+      for (it = m_children.begin(); it != m_children.end(); ++it) {
+        if (record_marker == it->second.m_label) {
+          if (record_count < skip_count) {
+            record_count++;
+          } else {
+            limit = it;
+            new_min = it->first;
+            break;
+          }
+        }
+      }
+      m_children.erase(m_children.begin(), limit);
+      m_min = new_min;
     }
   }
 
@@ -254,6 +287,8 @@ public:
   /// @brief Compute the required metrics to compare runs
   /// @param str_map  Functions calls to ignore first occurrences of
   void compute_metrics(xpti::utils::string::first_check_map_t *str_map) {
+    // Clip the data to steady state first
+    clip_to_steady_state();
     double ignore_time = find_ignore_time(str_map);
     std::cout << "Time to be ignored: " << std::fixed << std::setprecision(3)
               << ignore_time << "\n";
@@ -314,8 +349,9 @@ public:
         s.second.m_simulation.resize(size);
       recur_cost += simulate_run(level + 1, s.second, cost, sim_slot, size);
     }
-    recur_cost += 2 * cost;
-    root.m_simulation[sim_slot] = root.m_time * 1000 + recur_cost;
+    recur_cost += cost;
+    root.m_simulation[sim_slot] = root.m_time * 1000 - recur_cost;
+    recur_cost += cost;
     return recur_cost;
   }
 
@@ -332,9 +368,12 @@ public:
     label += stack_depth;
 
     auto &row = m_model.addRow(m_row++, label.c_str());
-    row[0] = (root.m_time * 1000) / (m_time * 1000) * 100.0;
-    for (int i = 1; i <= totals.size(); ++i) {
-      row[i] = root.m_simulation[i - 1] / totals[i - 1] * 100;
+    row[0] = root.m_time;
+    row[1] = (root.m_time * 1000) / (m_time * 1000) * 100.0;
+    int start_column = 2;
+    for (int i = 0; i < totals.size(); ++i) {
+      row[i * 2 + start_column] = root.m_simulation[i] / 1000;
+      row[i * 2 + start_column + 1] = root.m_simulation[i] / totals[i] * 100;
     }
 
     for (auto &s : root.m_children) {
@@ -347,8 +386,10 @@ public:
       return;
 
     test::utils::titles_t col_headers;
+    col_headers.push_back("Time(us)");
     col_headers.push_back("Baseline");
     for (auto &e : *overheads) {
+      col_headers.push_back("Time(us)");
       std::string overhead = std::string("Cost(") + std::to_string(e) + ")";
       col_headers.push_back(overhead);
     }
@@ -364,7 +405,7 @@ public:
           s.second.m_simulation.resize(size);
         recur_cost += simulate_run(1, s.second, e, sim_run, size);
       }
-      m_simulation[sim_run] = m_time * 1000 + recur_cost;
+      m_simulation[sim_run] = m_time * 1000 - recur_cost;
       sim_run++;
     }
     // Compiled all values we need, so now we do the reverse and compute the
