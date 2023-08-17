@@ -1363,10 +1363,9 @@ Decl *Sema::ActOnPropertyImplDecl(Scope *S,
     if (!Context.hasSameType(PropertyIvarType, IvarType)) {
       if (isa<ObjCObjectPointerType>(PropertyIvarType)
           && isa<ObjCObjectPointerType>(IvarType))
-        compat =
-          Context.canAssignObjCInterfaces(
-                                  PropertyIvarType->getAs<ObjCObjectPointerType>(),
-                                  IvarType->getAs<ObjCObjectPointerType>());
+        compat = Context.canAssignObjCInterfaces(
+            PropertyIvarType->castAs<ObjCObjectPointerType>(),
+            IvarType->castAs<ObjCObjectPointerType>());
       else {
         compat = (CheckAssignmentConstraints(PropertyIvarLoc, PropertyIvarType,
                                              IvarType)
@@ -2796,9 +2795,7 @@ void Sema::CheckObjCPropertyAttributes(Decl *PDecl,
     }
 
     // FIXME: Implement warning dependent on NSCopying being
-    // implemented. See also:
-    // <rdar://5168496&4855821&5607453&5096644&4947311&5698469&4947014&5168496>
-    // (please trim this list while you are at it).
+    // implemented.
   }
 
   if (!(Attributes & ObjCPropertyAttribute::kind_copy) &&
