@@ -936,7 +936,11 @@ static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   LLVMContext &C = Ty->getContext();
   StringRef Name = Ty->getName();
   if (Name.startswith("spirv."))
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return TargetTypeInfo(PointerType::get(C, 0), TargetExtType::HasZeroInit,
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+    return TargetTypeInfo(Type::getInt8PtrTy(C, 0), TargetExtType::HasZeroInit,
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
                           TargetExtType::CanBeGlobal);
 
   // Opaque types in the AArch64 name space.
