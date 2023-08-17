@@ -150,7 +150,6 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                         const std::vector<event> &DepEvents,
                         const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-  auto EventImpl = std::make_shared<detail::event_impl>(nullptr);
   return impl->mem_advise(impl, Ptr, Length, pi_mem_advice(Advice), DepEvents);
 }
 

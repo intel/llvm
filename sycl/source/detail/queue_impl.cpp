@@ -84,15 +84,13 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
   event ResEvent;
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  EventImpl = std::make_shared<detail::event_impl>(nullptr);
   if (MHasDiscardEventsSupport) {
-    EventImpl->setHostEnqueueTime();
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr,
-                            EventImpl);
+                            getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  sycl::detail::pi::PiEvent NativeEvent{};
+  ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -103,8 +101,7 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
-    sycl::detail::pi::PiEvent NativeEvent{};
-    EventImpl->setHostEnqueueTime();
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
                             EventImpl);
@@ -112,7 +109,6 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
     if (isInOrder()) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
@@ -175,21 +171,19 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
         },
         Self, {});
   }
-  event ResEvent;
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  auto OutEventImpl = std::make_shared<detail::event_impl>(nullptr);
   if ((!Src || !Dest) && Count != 0) {
     report(CodeLoc);
     throw runtime_error("NULL pointer argument in memory copy operation.",
                         PI_ERROR_INVALID_VALUE);
   }
   if (MHasDiscardEventsSupport) {
-    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr,
-                            OutEventImpl);
+                            getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  event ResEvent;
+  sycl::detail::pi::PiEvent NativeEvent{};  
+  ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -200,16 +194,14 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
-    sycl::detail::pi::PiEvent NativeEvent{};
-    EventImpl->setHostEnqueueTime();
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
-                            OutEventImpl);
+                            EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
     if (isInOrder()) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
@@ -227,17 +219,15 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
                              pi_mem_advice Advice,
-                             const std::vector<event> &DepEvents) {
-  event ResEvent;
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  auto OutEventImpl = std::make_shared<detail::event_impl>(nullptr);
+                             const std::vector<event> &DepEvents) { 
   if (MHasDiscardEventsSupport) {
-    EventImpl->setHostEnqueueTime();
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr,
-                              OutEventImpl);
+                              getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  event ResEvent;
+  sycl::detail::pi::PiEvent NativeEvent{};
+  ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -248,16 +238,14 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
-    sycl::detail::pi::PiEvent NativeEvent{};
-    EventImpl->setHostEnqueueTime();
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
-                              &NativeEvent, OutEventImpl);
+                              &NativeEvent, EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
 
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
     if (isInOrder()) {
       MLastEvent = ResEvent;
       // We don't create a command group for usm commands, so set it to None.
@@ -276,16 +264,15 @@ event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
     const std::vector<event> &DepEvents) {
-  event ResEvent;
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  auto OutEventImpl = std::make_shared<detail::event_impl>(nullptr);
   if (MHasDiscardEventsSupport) {
-    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  event ResEvent;
+  sycl::detail::pi::PiEvent NativeEvent{};
+  ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -296,17 +283,13 @@ event queue_impl::memcpyToDeviceGlobal(
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
-    sycl::detail::pi::PiEvent NativeEvent{};
-
-    EventImpl->setHostEnqueueTime();
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
 
     if (isInOrder()) {
       MLastEvent = ResEvent;
@@ -326,16 +309,15 @@ event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
     size_t Offset, const std::vector<event> &DepEvents) {
-  event ResEvent;
-  auto EventImpl = detail::getSyclObjImpl(ResEvent);
-  auto OutEventImpl = std::make_shared<detail::event_impl>(nullptr);
   if (MHasDiscardEventsSupport) {
-    EventImpl->setHostEnqueueTime();
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
+  event ResEvent;
+  sycl::detail::pi::PiEvent NativeEvent{};
+  ResEvent = prepareUSMEvent(Self, NativeEvent);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -345,17 +327,13 @@ event queue_impl::memcpyFromDeviceGlobal(
     // wait for it before submitting usm command.
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
-
-    EventImpl->setHostEnqueueTime();
-    sycl::detail::pi::PiEvent NativeEvent{};
+    auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent, OutEventImpl);
+        getOrWaitEvents(DepEvents, MContext), &NativeEvent, EventImpl);
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
 
     if (isInOrder()) {
       MLastEvent = ResEvent;
