@@ -12,9 +12,9 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <random>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
-#include <random>
 
 // Developer switch to use emulation mode on all backends, even those that
 // report native support, this is useful for debugging.
