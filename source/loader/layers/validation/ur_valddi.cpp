@@ -512,7 +512,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_ESIMD_SUPPORT_EXP < propName) {
+        if (UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
