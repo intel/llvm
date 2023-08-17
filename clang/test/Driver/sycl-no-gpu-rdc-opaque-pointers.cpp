@@ -5,8 +5,6 @@
 
 // UNSUPPORTED: system-windows
 
-/// FIXME: remove once opaque pointers are supported for all SYCL targets (i.e., SPIR-V)
-
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-gpu-rdc %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK_NORDC_OPAQUE_PTR
 // CHECK_NORDC_OPAQUE_PTR: clang{{.*}}
