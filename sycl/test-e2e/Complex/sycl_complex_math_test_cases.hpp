@@ -108,14 +108,14 @@ vector<cmplx<double>> cplx_test_cases<test_struct>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(INFINITYd, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
-    cmplx(NANd, INFINITYd),
-    cmplx(INFINITYd, NANd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(inf_val<double>, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
+    cmplx(nan_val<double>, inf_val<double>),
+    cmplx(inf_val<double>, nan_val<double>),
 };
 
 template <template <typename> typename test_struct>
@@ -126,8 +126,8 @@ template <template <typename, typename> typename test_struct>
 vector<double> deci_test_cases<test_struct>::std_test_values = {
     4.42,
     2.02,
-    INFINITYd,
-    NANd,
+    inf_val<double>,
+    nan_val<double>,
 };
 
 template <template <typename, typename> typename test_struct>
@@ -149,13 +149,13 @@ vector<cmplx<double>> cplx_test_cases<test_atan>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(INFINITYd, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
-    cmplx(NANd, INFINITYd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(inf_val<double>, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
+    cmplx(nan_val<double>, inf_val<double>),
 };
 
 // MSVC complex handles some error codes differently
@@ -163,7 +163,7 @@ vector<cmplx<double>> cplx_test_cases<test_atan>::std_test_values = {
 template <>
 vector<tuple<cmplx<double>, cmplx<double>>>
     cplx_test_cases<test_atan>::comp_test_values = {
-        tuple(cmplx(INFINITYd, NANd), cmplx(PI / 2.0, 0.0))};
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(PI / 2.0, 0.0))};
 
 // test_acosh
 template <> const char *cplx_test_cases<test_acosh>::test_name = "acosh test";
@@ -180,13 +180,13 @@ vector<cmplx<double>> cplx_test_cases<test_atanh>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(INFINITYd, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
-    cmplx(INFINITYd, NANd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(inf_val<double>, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
+    cmplx(inf_val<double>, nan_val<double>),
 };
 
 // MSVC complex handles some error codes differently
@@ -194,7 +194,7 @@ vector<cmplx<double>> cplx_test_cases<test_atanh>::std_test_values = {
 template <>
 vector<tuple<cmplx<double>, cmplx<double>>>
     cplx_test_cases<test_atanh>::comp_test_values = {
-        tuple(cmplx(NANd, INFINITYd), cmplx(0.0, PI / 2.0))};
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(0.0, PI / 2.0))};
 
 // test_conj
 template <> const char *cplx_test_cases<test_conj>::test_name = "conj test";
@@ -235,12 +235,12 @@ vector<cmplx<double>> cplx_test_cases<test_tan>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
-    cmplx(INFINITYd, NANd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
+    cmplx(inf_val<double>, nan_val<double>),
 };
 
 // MSVC complex handles some error codes differently
@@ -248,8 +248,8 @@ vector<cmplx<double>> cplx_test_cases<test_tan>::std_test_values = {
 template <>
 vector<tuple<cmplx<double>, cmplx<double>>>
     cplx_test_cases<test_tan>::comp_test_values = {
-        tuple(cmplx(INFINITYd, INFINITYd), cmplx(0.0, 1.0)),
-        tuple(cmplx(NANd, INFINITYd), cmplx(0.0, 1.0))};
+        tuple(cmplx(inf_val<double>, inf_val<double>), cmplx(0.0, 1.0)),
+        tuple(cmplx(nan_val<double>, inf_val<double>), cmplx(0.0, 1.0))};
 
 // test_tanh
 template <> const char *cplx_test_cases<test_tanh>::test_name = "tanh test";
@@ -260,12 +260,12 @@ vector<cmplx<double>> cplx_test_cases<test_tanh>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
-    cmplx(NANd, INFINITYd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
+    cmplx(nan_val<double>, inf_val<double>),
 };
 
 // MSVC complex handles some error codes differently
@@ -273,8 +273,8 @@ vector<cmplx<double>> cplx_test_cases<test_tanh>::std_test_values = {
 template <>
 vector<tuple<cmplx<double>, cmplx<double>>>
     cplx_test_cases<test_tanh>::comp_test_values = {
-        tuple(cmplx(INFINITYd, INFINITYd), cmplx(1.0, 0.0)),
-        tuple(cmplx(INFINITYd, NANd), cmplx(1.0, 0.0))};
+        tuple(cmplx(inf_val<double>, inf_val<double>), cmplx(1.0, 0.0)),
+        tuple(cmplx(inf_val<double>, nan_val<double>), cmplx(1.0, 0.0))};
 
 // test_abs
 template <> const char *cplx_test_cases<test_abs>::test_name = "abs test";
@@ -291,12 +291,12 @@ vector<cmplx<double>> cplx_test_cases<test_norm>::std_test_values = {
     cmplx(-1, 1),
     cmplx(1, -1),
     cmplx(-1, -1),
-    cmplx(INFINITYd, 2.02),
-    cmplx(4.42, INFINITYd),
-    cmplx(INFINITYd, INFINITYd),
-    cmplx(NANd, 2.02),
-    cmplx(4.42, NANd),
-    cmplx(NANd, NANd),
+    cmplx(inf_val<double>, 2.02),
+    cmplx(4.42, inf_val<double>),
+    cmplx(inf_val<double>, inf_val<double>),
+    cmplx(nan_val<double>, 2.02),
+    cmplx(4.42, nan_val<double>),
+    cmplx(nan_val<double>, nan_val<double>),
 };
 
 template <> const char *cplx_test_cases<test_norm>::test_name = "norm test";
@@ -323,7 +323,7 @@ template <>
 vector<double> deci_test_cases<test_deci_deci_arg>::std_test_values = {
     4.42,
     2.02,
-    INFINITYd,
+    inf_val<double>,
 };
 
 // test norm

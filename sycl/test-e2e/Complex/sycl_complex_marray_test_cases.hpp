@@ -101,35 +101,35 @@ std::vector<cmplx<double>>
     marray_cplx_test_cases<test_struct>::std_test_values = {
         cmplx<double>(0, 1),           cmplx<double>(0, -1),
         cmplx<double>(0, 0.5),         cmplx<double>(0, -0.5),
-        cmplx<double>(0, INFINITYd),   cmplx<double>(0, NANd),
+        cmplx<double>(0, inf_val<double>),   cmplx<double>(0, nan_val<double>),
 
         cmplx<double>(1, 1),           cmplx<double>(1, -1),
         cmplx<double>(1, 0.5),         cmplx<double>(1, -0.5),
-        cmplx<double>(1, 0),           cmplx<double>(1, INFINITYd),
-        cmplx<double>(1, NANd),
+        cmplx<double>(1, 0),           cmplx<double>(1, inf_val<double>),
+        cmplx<double>(1, nan_val<double>),
 
         cmplx<double>(-1, 1),          cmplx<double>(-1, -1),
         cmplx<double>(-1, 0.5),        cmplx<double>(-1, -0.5),
-        cmplx<double>(-1, 0),          cmplx<double>(-1, INFINITYd),
-        cmplx<double>(-1, NANd),
+        cmplx<double>(-1, 0),          cmplx<double>(-1, inf_val<double>),
+        cmplx<double>(-1, nan_val<double>),
 
         cmplx<double>(0.5, 1),         cmplx<double>(0.5, -1),
         cmplx<double>(0.5, 0.5),       cmplx<double>(0.5, -0.5),
-        cmplx<double>(0.5, 0),         cmplx<double>(0.5, INFINITYd),
-        cmplx<double>(0.5, NANd),
+        cmplx<double>(0.5, 0),         cmplx<double>(0.5, inf_val<double>),
+        cmplx<double>(0.5, nan_val<double>),
 
         cmplx<double>(-0.5, 1),        cmplx<double>(-0.5, -1),
         cmplx<double>(-0.5, 0.5),      cmplx<double>(-0.5, -0.5),
-        cmplx<double>(-0.5, 0),        cmplx<double>(-0.5, INFINITYd),
-        cmplx<double>(-0.5, NANd),
+        cmplx<double>(-0.5, 0),        cmplx<double>(-0.5, inf_val<double>),
+        cmplx<double>(-0.5, nan_val<double>),
 
-        cmplx<double>(INFINITYd, 1),   cmplx<double>(INFINITYd, -1),
-        cmplx<double>(INFINITYd, 0.5), cmplx<double>(INFINITYd, -0.5),
-        cmplx<double>(INFINITYd, 0),
+        cmplx<double>(inf_val<double>, 1),   cmplx<double>(inf_val<double>, -1),
+        cmplx<double>(inf_val<double>, 0.5), cmplx<double>(inf_val<double>, -0.5),
+        cmplx<double>(inf_val<double>, 0),
 
-        cmplx<double>(NANd, 1),        cmplx<double>(NANd, -1),
-        cmplx<double>(NANd, 0.5),      cmplx<double>(NANd, -0.5),
-        cmplx<double>(NANd, 0),        cmplx<double>(NANd, NANd),
+        cmplx<double>(nan_val<double>, 1),        cmplx<double>(nan_val<double>, -1),
+        cmplx<double>(nan_val<double>, 0.5),      cmplx<double>(nan_val<double>, -0.5),
+        cmplx<double>(nan_val<double>, 0),        cmplx<double>(nan_val<double>, nan_val<double>),
 };
 template <template <typename> typename test_struct>
 std::tuple<std::vector<cmplx<double>>, std::vector<cmplx<double>>>
@@ -306,7 +306,7 @@ struct marray_scalar_test_cases {
 // Default values
 template <template <typename> typename test_struct>
 std::vector<double> marray_scalar_test_cases<test_struct>::std_test_values = {
-    0, 0.5, 1, -0, -0.5, -1, INFINITYd, NANd,
+    0, 0.5, 1, -0, -0.5, -1, inf_val<double>, nan_val<double>,
 };
 template <template <typename> typename test_struct>
 std::tuple<std::vector<double>, std::vector<double>>
