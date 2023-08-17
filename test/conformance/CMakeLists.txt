@@ -8,9 +8,18 @@ set(UR_CONFORMANCE_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 function(add_test_adapter name adapter)
     set(TEST_TARGET_NAME test-${name})
     set(TEST_NAME ${name}-${adapter})
+
     add_test(NAME ${TEST_NAME}
-        COMMAND ${TEST_TARGET_NAME}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+        COMMAND ${CMAKE_COMMAND}
+        -D TEST_FILE=${Python3_EXECUTABLE}
+        -D TEST_ARGS="${UR_CONFORMANCE_TEST_DIR}/cts_exe.py --test_command ${CMAKE_BINARY_DIR}/bin/${TEST_TARGET_NAME}"
+        -D MODE=stdout
+        -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_${adapter}.match
+        -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
+        DEPENDS ${TEST_TARGET_NAME}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    )
+
     set_tests_properties(${TEST_NAME} PROPERTIES
         ENVIRONMENT "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_${adapter}>\""
         LABELS "conformance;${adapter}")

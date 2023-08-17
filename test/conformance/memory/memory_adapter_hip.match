@@ -1,0 +1,2 @@
+urMemBufferCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
+Segmentation fault
