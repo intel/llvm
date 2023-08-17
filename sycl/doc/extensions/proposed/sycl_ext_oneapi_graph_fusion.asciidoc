@@ -43,7 +43,7 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 This extension builds on top of the proposed SYCL graphs
-https://github.com/reble/llvm/blob/sycl-graph-update/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
 proposal]. All references to the "graphs proposal" refer to this proposal.
 
 == Status
@@ -57,9 +57,9 @@ not rely on APIs defined in this specification.*
 == Overview
 
 The SYCL graph
-https://github.com/reble/llvm/blob/sycl-graph-update/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
+https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc[extension
 proposal] seeks to reduce the runtime overhead linked to SYCL kernel submission
-and expose additional optimization opportunities. 
+and expose additional optimization opportunities.
 
 One of those further optimizations enabled by the graphs proposal is _kernel
 fusion_. Fusing two or more kernels executing on the same device into a single
@@ -121,7 +121,7 @@ can be added to the property list to indicate that the kernels in the
 command-graph should be fused. 
 
 ```c++
-sycl::ext::oneapi::experimental::property::command_graph::perform_fusion 
+sycl::ext::oneapi::experimental::property::graph::perform_fusion 
 ```
 
 The property is not prescriptive. Implementations are free to not perform fusion
@@ -140,14 +140,14 @@ The following property can be added to the `property_list` of the
 `command_graph<graph_state::modifiable>::finalize()` API.
 
 ```c++
-sycl::ext::oneapi::experimental::property::command_graph::no_barriers
+sycl::ext::oneapi::experimental::property::graph::no_barriers
 ```
 
 If the property list contains this property, no barriers are introduced between
 kernels in the fused kernel (see below section on synchronization on kernels). 
 
 The property only takes effect if the
-`sycl::ext::oneapi::experimental::property::command_graph::perform_fusion`
+`sycl::ext::oneapi::experimental::property::graph::perform_fusion`
 property is also part of the `property_list` of the same invocation of
 `command_graph<...>::finalize()`. 
 
@@ -530,7 +530,7 @@ int main() {
     // Trigger fusion during finalization.
     auto exec_graph =
         graph.finalize({sycl::ext::oneapi::experimental::property::
-                            command_graph::perform_fusion});
+                            graph::perform_fusion});
 
     q.ext_oneapi_graph(exec_graph);
 
@@ -608,7 +608,7 @@ int main() {
 
   // Trigger fusion during finalization.
   auto exec = graph.finalize({sycl::ext::oneapi::experimental::property::
-                                  command_graph::perform_fusion});
+                                  graph::perform_fusion});
 
   // use queue shortcut for graph submission
   q.ext_oneapi_graph(exec).wait();
