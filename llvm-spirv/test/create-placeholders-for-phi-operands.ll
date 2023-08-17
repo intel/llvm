@@ -7,10 +7,10 @@
 ; CHECK-LLVM: phi ptr [ [[savedstack:%.*]], {{.*}} ], [ [[savedstack_us:%.*]], {{.*}} ]
 
 ; CHECK-LLVM: BB.{{[0-9]+}}:
-; CHECK-LLVM: [[savedstack]] = call ptr @llvm.stacksave()
+; CHECK-LLVM: [[savedstack]] = call ptr @llvm.stacksave.p0()
 
 ; CHECK-LLVM: BB.{{[0-9]+}}:
-; CHECK-LLVM: [[savedstack_us]] = call ptr @llvm.stacksave()
+; CHECK-LLVM: [[savedstack_us]] = call ptr @llvm.stacksave.p0()
 
 ; ModuleID = 's.bc'
 source_filename = "llvm-link"
@@ -32,7 +32,7 @@ BB.0:
 
 BB.1:                                             ; preds = %BB.12.loopexit, %BB.11.loopexit
   %savedstack.sink = phi i8* [ %savedstack, %BB.12.loopexit ], [ %savedstack.us, %BB.11.loopexit ]
-  call void @llvm.stackrestore(i8* %savedstack.sink), !llvm.access.group !9
+  call void @llvm.stackrestore.p0(i8* %savedstack.sink), !llvm.access.group !9
   br label %BB.2
 
 BB.2:                                             ; preds = %BB.3, %BB.1, %BB.0
@@ -50,7 +50,7 @@ BB.4:                                             ; preds = %BB.3
   br i1 %4, label %BB.5, label %BB.6
 
 BB.5:                                             ; preds = %BB.4
-  %savedstack = call i8* @llvm.stacksave(), !llvm.access.group !9
+  %savedstack = call i8* @llvm.stacksave.p0(), !llvm.access.group !9
   br label %BB.12
 
 BB.6:                                             ; preds = %BB.4
@@ -58,7 +58,7 @@ BB.6:                                             ; preds = %BB.4
   %umax = select i1 %5, i32 %div.i, i32 1
   %arrayidx4812.us = getelementptr inbounds i32, i32 addrspace(1)* %0, i64 %2
   %arrayidx5113.us = getelementptr inbounds i32, i32 addrspace(1)* %1, i64 %2
-  %savedstack.us = call i8* @llvm.stacksave(), !llvm.access.group !9
+  %savedstack.us = call i8* @llvm.stacksave.p0(), !llvm.access.group !9
   br label %BB.9
 
 BB.7:                                             ; preds = %BB.8
@@ -108,10 +108,10 @@ BB.12.loopexit:
 declare spir_func i64 @_Z13get_global_idj(i32) local_unnamed_addr
 
 ; Function Attrs: nofree nosync nounwind willreturn
-declare i8* @llvm.stacksave() #1
+declare i8* @llvm.stacksave.p0() #1
 
 ; Function Attrs: nofree nosync nounwind willreturn
-declare void @llvm.stackrestore(i8*) #1
+declare void @llvm.stackrestore.p0(i8*) #1
 
 attributes #0 = { noinline nounwind mustprogress "contains-openmp-target"="true" "denormal-fp-math"="preserve-sign,preserve-sign" "denormal-fp-math-f32"="ieee,ieee" "frame-pointer"="all" "may-have-openmp-directive"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="true" "no-nans-fp-math"="true" "no-signed-zeros-fp-math"="true" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target.declare"="true" "unsafe-fp-math"="true" }
 attributes #1 = { nofree nosync nounwind willreturn }

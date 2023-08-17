@@ -1703,16 +1703,17 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   }
 
   case OpRestoreMemoryINTEL: {
+    IRBuilder<> Builder(BB);
     auto *Restore = static_cast<SPIRVRestoreMemoryINTEL *>(BV);
     llvm::Value *Ptr = transValue(Restore->getOperand(0), F, BB);
-    Function *StackRestore =
-        Intrinsic::getDeclaration(M, Intrinsic::stackrestore);
-    return mapValue(BV, CallInst::Create(StackRestore, {Ptr}, "", BB));
+    auto *StackRestore = Builder.CreateStackRestore(Ptr);
+    return mapValue(BV, StackRestore);
   }
 
   case OpSaveMemoryINTEL: {
-    Function *StackSave = Intrinsic::getDeclaration(M, Intrinsic::stacksave);
-    return mapValue(BV, CallInst::Create(StackSave, "", BB));
+    IRBuilder<> Builder(BB);
+    auto *StackSave = Builder.CreateStackSave();
+    return mapValue(BV, StackSave);
   }
 
   case OpBranch: {
