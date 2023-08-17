@@ -45,8 +45,8 @@ entry:
   %0 = bitcast [42 x i32]* %qqq to i8*
   call void @llvm.lifetime.start.p0i8(i64 168, i8* nonnull %0) #2
 
-; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
-  %1 = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave.p0()
+  %1 = call i8* @llvm.stacksave.p0()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
   %vla = alloca i32, i64 %a, align 16
@@ -54,11 +54,11 @@ entry:
   %arrayidx = getelementptr inbounds i32, i32* %vla, i64 %b
   %2 = load i32, i32* %arrayidx, align 4
 
-; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
-  call void @llvm.stackrestore(i8* %1)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr %[[#SavedMem]])
+  call void @llvm.stackrestore.p0(i8* %1)
 
-; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave()
-  %3 = call i8* @llvm.stacksave()
+; CHECK-LLVM: %[[#SavedMem:]] = call ptr @llvm.stacksave.p0()
+  %3 = call i8* @llvm.stacksave.p0()
 
 ; CHECK-LLVM: alloca i32, i64 %a, align 16
   %vla2 = alloca i32, i64 %a, align 16
@@ -70,8 +70,8 @@ entry:
   %5 = load i32, i32* %arrayidx4, align 4
   %add5 = add nsw i32 %add, %5
 
-; CHECK-LLVM: call void @llvm.stackrestore(ptr %[[#SavedMem]])
-  call void @llvm.stackrestore(i8* %3)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr %[[#SavedMem]])
+  call void @llvm.stackrestore.p0(i8* %3)
 
   call void @llvm.lifetime.end.p0i8(i64 168, i8* nonnull %0) #2
   ret i32 %add5
@@ -79,9 +79,9 @@ entry:
 
 declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
 
-declare i8* @llvm.stacksave() #2
+declare i8* @llvm.stacksave.p0() #2
 
-declare void @llvm.stackrestore(i8*) #2
+declare void @llvm.stackrestore.p0(i8*) #2
 
 declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
 
