@@ -2995,7 +2995,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(

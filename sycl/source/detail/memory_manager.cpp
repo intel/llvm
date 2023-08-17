@@ -788,7 +788,7 @@ void MemoryManager::copy(
               DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
   }
 }
-		
+
 // TODO: This function will remain until ABI-breaking change
 void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
                          QueueImplPtr SrcQueue, unsigned int DimSrc,
