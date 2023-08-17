@@ -279,11 +279,11 @@ public:
   }
 
   void setEventFromSubmitedExecCommandBuffer(bool value) {
-    EventFromSubmitedExecCommandBuffer = value;
+    MEventFromSubmitedExecCommandBuffer = value;
   }
 
   bool isEventFromSubmitedExecCommandBuffer() const {
-    return EventFromSubmitedExecCommandBuffer;
+    return MEventFromSubmitedExecCommandBuffer;
   }
 
 protected:
@@ -336,7 +336,7 @@ protected:
   /// This event is also be stored in the graph so a weak_ptr is used.
   std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
   /// Indicates that the event results from a command graph submission
-  bool EventFromSubmitedExecCommandBuffer = false;
+  bool MEventFromSubmitedExecCommandBuffer = false;
 
   // If this event represents a submission to a
   // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
