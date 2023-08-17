@@ -98,7 +98,8 @@ static Instruction *foldSelectBinOpIdentity(SelectInst &Sel,
   // +0.0 compares equal to -0.0, and so it does not behave as required for this
   // transform. Bail out if we can not exclude that possibility.
   if (isa<FPMathOperator>(BO))
-    if (!BO->hasNoSignedZeros() && !CannotBeNegativeZero(Y, &TLI))
+    if (!BO->hasNoSignedZeros() &&
+        !cannotBeNegativeZero(Y, IC.getDataLayout(), &TLI))
       return nullptr;
 
   // BO = binop Y, X
@@ -386,6 +387,32 @@ Instruction *InstCombinerImpl::foldSelectOpOp(SelectInst &SI, Instruction *TI,
           return CallInst::Create(TII->getCalledFunction(), {NewSel, MatchOp});
         }
       }
+
+      // select c, (ldexp v, e0), (ldexp v, e1) -> ldexp v, (select c, e0, e1)
+      // select c, (ldexp v0, e), (ldexp v1, e) -> ldexp (select c, v0, v1), e
+      //
+      // select c, (ldexp v0, e0), (ldexp v1, e1) ->
+      //     ldexp (select c, v0, v1), (select c, e0, e1)
+      if (TII->getIntrinsicID() == Intrinsic::ldexp) {
+        Value *LdexpVal0 = TII->getArgOperand(0);
+        Value *LdexpExp0 = TII->getArgOperand(1);
+        Value *LdexpVal1 = FII->getArgOperand(0);
+        Value *LdexpExp1 = FII->getArgOperand(1);
+        if (LdexpExp0->getType() == LdexpExp1->getType()) {
+          FPMathOperator *SelectFPOp = cast<FPMathOperator>(&SI);
+          FastMathFlags FMF = cast<FPMathOperator>(TII)->getFastMathFlags();
+          FMF &= cast<FPMathOperator>(FII)->getFastMathFlags();
+          FMF |= SelectFPOp->getFastMathFlags();
+
+          Value *SelectVal = Builder.CreateSelect(Cond, LdexpVal0, LdexpVal1);
+          Value *SelectExp = Builder.CreateSelect(Cond, LdexpExp0, LdexpExp1);
+
+          CallInst *NewLdexp = Builder.CreateIntrinsic(
+              TII->getType(), Intrinsic::ldexp, {SelectVal, SelectExp});
+          NewLdexp->setFastMathFlags(FMF);
+          return replaceInstUsesWith(SI, NewLdexp);
+        }
+      }
     }
 
     // icmp with a common operand also can have the common operand
@@ -476,7 +503,7 @@ static bool isSelect01(const APInt &C1I, const APInt &C2I) {
 /// optimization.
 Instruction *InstCombinerImpl::foldSelectIntoOp(SelectInst &SI, Value *TrueVal,
                                                 Value *FalseVal) {
-  // See the comment above GetSelectFoldableOperands for a description of the
+  // See the comment above getSelectFoldableOperands for a description of the
   // transformation we are doing here.
   auto TryFoldSelectIntoOp = [&](SelectInst &SI, Value *TrueVal,
                                  Value *FalseVal,
@@ -511,7 +538,7 @@ Instruction *InstCombinerImpl::foldSelectIntoOp(SelectInst &SI, Value *TrueVal,
     if (!isa<Constant>(OOp) ||
         (OOpIsAPInt && isSelect01(C->getUniqueInteger(), *OOpC))) {
       Value *NewSel = Builder.CreateSelect(SI.getCondition(), Swapped ? C : OOp,
-                                           Swapped ? OOp : C);
+                                           Swapped ? OOp : C, "", &SI);
       if (isa<FPMathOperator>(&SI))
         cast<Instruction>(NewSel)->setFastMathFlags(FMF);
       NewSel->takeName(TVI);
@@ -581,6 +608,44 @@ static Instruction *foldSelectICmpAndAnd(Type *SelType, const ICmpInst *Cmp,
   Value *MaskedX = Builder.CreateAnd(X, FullMask);
   Value *ICmpNeZero = Builder.CreateIsNotNull(MaskedX);
   return new ZExtInst(ICmpNeZero, SelType);
+}
+
+/// We want to turn:
+///   (select (icmp eq (and X, C1), 0), 0, (shl [nsw/nuw] X, C2));
+///   iff C1 is a mask and the number of its leading zeros is equal to C2
+/// into:
+///   shl X, C2
+static Value *foldSelectICmpAndZeroShl(const ICmpInst *Cmp, Value *TVal,
+                                       Value *FVal,
+                                       InstCombiner::BuilderTy &Builder) {
+  ICmpInst::Predicate Pred;
+  Value *AndVal;
+  if (!match(Cmp, m_ICmp(Pred, m_Value(AndVal), m_Zero())))
+    return nullptr;
+
+  if (Pred == ICmpInst::ICMP_NE) {
+    Pred = ICmpInst::ICMP_EQ;
+    std::swap(TVal, FVal);
+  }
+
+  Value *X;
+  const APInt *C2, *C1;
+  if (Pred != ICmpInst::ICMP_EQ ||
+      !match(AndVal, m_And(m_Value(X), m_APInt(C1))) ||
+      !match(TVal, m_Zero()) || !match(FVal, m_Shl(m_Specific(X), m_APInt(C2))))
+    return nullptr;
+
+  if (!C1->isMask() ||
+      C1->countLeadingZeros() != static_cast<unsigned>(C2->getZExtValue()))
+    return nullptr;
+
+  auto *FI = dyn_cast<Instruction>(FVal);
+  if (!FI)
+    return nullptr;
+
+  FI->setHasNoSignedWrap(false);
+  FI->setHasNoUnsignedWrap(false);
+  return FVal;
 }
 
 /// We want to turn:
@@ -995,6 +1060,8 @@ static Value *foldAbsDiff(ICmpInst *Cmp, Value *TVal, Value *FVal,
 /// \code
 ///   int a = ctlz(x & -x);
 //    x ? 31 - a : a;
+//    // or
+//    x ? 31 - a : 32;
 /// \code
 ///
 /// into:
@@ -1009,15 +1076,19 @@ static Instruction *foldSelectCtlzToCttz(ICmpInst *ICI, Value *TrueVal,
   if (ICI->getPredicate() == ICmpInst::ICMP_NE)
     std::swap(TrueVal, FalseVal);
 
+  Value *Ctlz;
   if (!match(FalseVal,
-             m_Xor(m_Deferred(TrueVal), m_SpecificInt(BitWidth - 1))))
+             m_Xor(m_Value(Ctlz), m_SpecificInt(BitWidth - 1))))
     return nullptr;
 
-  if (!match(TrueVal, m_Intrinsic<Intrinsic::ctlz>()))
+  if (!match(Ctlz, m_Intrinsic<Intrinsic::ctlz>()))
+    return nullptr;
+
+  if (TrueVal != Ctlz && !match(TrueVal, m_SpecificInt(BitWidth)))
     return nullptr;
 
   Value *X = ICI->getOperand(0);
-  auto *II = cast<IntrinsicInst>(TrueVal);
+  auto *II = cast<IntrinsicInst>(Ctlz);
   if (!match(II->getOperand(0), m_c_And(m_Specific(X), m_Neg(m_Specific(X)))))
     return nullptr;
 
@@ -1716,6 +1787,9 @@ Instruction *InstCombinerImpl::foldSelectInstWithICmp(SelectInst &SI,
   if (Instruction *V =
           foldSelectICmpAndAnd(SI.getType(), ICI, TrueVal, FalseVal, Builder))
     return V;
+
+  if (Value *V = foldSelectICmpAndZeroShl(ICI, TrueVal, FalseVal, Builder))
+    return replaceInstUsesWith(SI, V);
 
   if (Instruction *V = foldSelectCtlzToCttz(ICI, TrueVal, FalseVal, Builder))
     return V;
@@ -2508,6 +2582,48 @@ static Instruction *foldSelectToPhi(SelectInst &Sel, const DominatorTree &DT,
     if (auto *PN = foldSelectToPhiImpl(Sel, BB, DT, Builder))
       return PN;
   return nullptr;
+}
+
+/// Tries to reduce a pattern that arises when calculating the remainder of the
+/// Euclidean division. When the divisor is a power of two and is guaranteed not
+/// to be negative, a signed remainder can be folded with a bitwise and.
+///
+/// (x % n) < 0 ? (x % n) + n : (x % n)
+///    -> x & (n - 1)
+static Instruction *foldSelectWithSRem(SelectInst &SI, InstCombinerImpl &IC,
+                                       IRBuilderBase &Builder) {
+  Value *CondVal = SI.getCondition();
+  Value *TrueVal = SI.getTrueValue();
+  Value *FalseVal = SI.getFalseValue();
+
+  ICmpInst::Predicate Pred;
+  Value *Op, *RemRes, *Remainder;
+  const APInt *C;
+  bool TrueIfSigned = false;
+
+  if (!(match(CondVal, m_ICmp(Pred, m_Value(RemRes), m_APInt(C))) &&
+        IC.isSignBitCheck(Pred, *C, TrueIfSigned)))
+    return nullptr;
+
+  // If the sign bit is not set, we have a SGE/SGT comparison, and the operands
+  // of the select are inverted.
+  if (!TrueIfSigned)
+    std::swap(TrueVal, FalseVal);
+
+  // We are matching a quite specific pattern here:
+  // %rem = srem i32 %x, %n
+  // %cnd = icmp slt i32 %rem, 0
+  // %add = add i32 %rem, %n
+  // %sel = select i1 %cnd, i32 %add, i32 %rem
+  if (!(match(TrueVal, m_Add(m_Value(RemRes), m_Value(Remainder))) &&
+        match(RemRes, m_SRem(m_Value(Op), m_Specific(Remainder))) &&
+        IC.isKnownToBeAPowerOfTwo(Remainder, /*OrZero*/ true) &&
+        FalseVal == RemRes))
+    return nullptr;
+
+  Value *Add = Builder.CreateAdd(Remainder,
+                                 Constant::getAllOnesValue(RemRes->getType()));
+  return BinaryOperator::CreateAnd(Op, Add);
 }
 
 static Value *foldSelectWithFrozenICmp(SelectInst &Sel, InstCombiner::BuilderTy &Builder) {
@@ -3356,6 +3472,9 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
   if (Instruction *I = foldSelectExtConst(SI))
     return I;
 
+  if (Instruction *I = foldSelectWithSRem(SI, *this, Builder))
+    return I;
+
   // Fold (select C, (gep Ptr, Idx), Ptr) -> (gep Ptr, (select C, Idx, 0))
   // Fold (select C, Ptr, (gep Ptr, Idx)) -> (gep Ptr, (select C, 0, Idx))
   auto SelectGepWithBase = [&](GetElementPtrInst *Gep, Value *Base,
@@ -3374,6 +3493,8 @@ Instruction *InstCombinerImpl::visitSelectInst(SelectInst &SI) {
       std::swap(NewT, NewF);
     Value *NewSI =
         Builder.CreateSelect(CondVal, NewT, NewF, SI.getName() + ".idx", &SI);
+    if (Gep->isInBounds())
+      return GetElementPtrInst::CreateInBounds(ElementType, Ptr, {NewSI});
     return GetElementPtrInst::Create(ElementType, Ptr, {NewSI});
   };
   if (auto *TrueGep = dyn_cast<GetElementPtrInst>(TrueVal))
