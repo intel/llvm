@@ -132,6 +132,7 @@ enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
 struct complex_float {
   complex_float() = default;
+  complex_float(float real, float imag) : real(real), imag(imag) {}
   complex_float(std::complex<float> x) : real(x.real()), imag(x.imag()) {}
   operator std::complex<float>() { return {real, imag}; }
   float real, imag;
@@ -139,6 +140,7 @@ struct complex_float {
 
 struct complex_double {
   complex_double() = default;
+  complex_double(double real, double imag) : real(real), imag(imag) {}
   complex_double(std::complex<double> x) : real(x.real()), imag(x.imag()) {}
   operator std::complex<double>() { return {real, imag}; }
   double real, imag;
@@ -146,6 +148,7 @@ struct complex_double {
 
 struct complex_half {
   complex_half() = default;
+  complex_half(sycl::half real, sycl::half imag) : real(real), imag(imag) {}
   complex_half(std::complex<sycl::half> x) : real(x.real()), imag(x.imag()) {}
   operator std::complex<sycl::half>() { return {real, imag}; }
   sycl::half real, imag;
