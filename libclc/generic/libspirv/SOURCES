@@ -1,3 +1,4 @@
+../../ptx-nvidiacl/libspirv/atomic/loadstore_helpers.ll
 float16.cl
 subnormal_config.cl
 subnormal_helper_func.ll

@@ -80,8 +80,8 @@ entry:
 
 define i32 @__clc__atomic_uload_global_4_acquire(i32 addrspace(1)* nocapture %ptr) nounwind alwaysinline {
 entry:
-  tail call void @llvm.trap()
-  unreachable
+  %0 = load atomic volatile i32, i32 addrspace(1)* %ptr acquire, align 4
+  ret i32 %0
 }
 
 define i32 @__clc__atomic_uload_local_4_acquire(i32 addrspace(3)* nocapture %ptr) nounwind alwaysinline {
@@ -129,8 +129,8 @@ entry:
 
 define i32 @__clc__atomic_uload_global_4_seq_cst(i32 addrspace(1)* nocapture %ptr) nounwind alwaysinline {
 entry:
-  tail call void @llvm.trap()
-  unreachable
+  %0 = load atomic volatile i32, i32 addrspace(1)* %ptr seq_cst, align 4
+  ret i32 %0
 }
 
 define i32 @__clc__atomic_uload_local_4_seq_cst(i32 addrspace(3)* nocapture %ptr) nounwind alwaysinline {
