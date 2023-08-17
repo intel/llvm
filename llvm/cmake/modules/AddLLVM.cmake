@@ -1610,6 +1610,8 @@ function(add_unittest test_suite test_name)
     endif()
   endif()
 
+  target_link_options(${test_name} PRIVATE "${LLVM_UNITTEST_LINK_FLAGS}")
+
   set(outdir ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
   set_output_directory(${test_name} BINARY_DIR ${outdir} LIBRARY_DIR ${outdir})
   # libpthreads overrides some standard library symbols, so main
@@ -1709,10 +1711,15 @@ endfunction()
 # use it and can't be in a lit module. Use with make_paths_relative().
 string(CONCAT LLVM_LIT_PATH_FUNCTION
   "# Allow generated file to be relocatable.\n"
-  "from pathlib import Path\n"
+  "import os\n"
+  "import platform\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    return str((Path(__file__).parent / p).resolve())\n"
+  "    # Follows lit.util.abs_path_preserve_drive, which cannot be imported here.\n"
+  "    if platform.system() == 'Windows':\n"
+  "        return os.path.abspath(os.path.join(os.path.dirname(__file__), p))\n"
+  "    else:\n"
+  "        return os.path.realpath(os.path.join(os.path.dirname(__file__), p))\n"
   )
 
 # This function provides an automatic way to 'configure'-like generate a file
@@ -2358,9 +2365,6 @@ function(llvm_setup_rpath name)
     endif()
     if(LLVM_LINKER_IS_GNULD)
       # $ORIGIN is not interpreted at link time by ld.bfd
-      if(NOT LLVM_LIBRARY_OUTPUT_INTDIR)
-        message(SEND_ERROR "Project does not define LLVM_LIBRARY_OUTPUT_INTDIR and it is required")
-      endif()
       set_property(TARGET ${name} APPEND_STRING PROPERTY
                    LINK_FLAGS " -Wl,-rpath-link,${LLVM_LIBRARY_OUTPUT_INTDIR} ")
     endif()

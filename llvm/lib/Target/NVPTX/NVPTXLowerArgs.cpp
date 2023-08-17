@@ -190,8 +190,12 @@ static void convertToParamAS(Value *OldUser, Value *Param) {
       return NewGEP;
     }
     if (auto *BC = dyn_cast<BitCastInst>(I.OldInstruction)) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      auto *NewBCType = PointerType::get(BC->getContext(), ADDRESS_SPACE_PARAM);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
       auto *NewBCType = PointerType::getWithSamePointeeType(
           cast<PointerType>(BC->getType()), ADDRESS_SPACE_PARAM);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       return BitCastInst::Create(BC->getOpcode(), I.NewParam, NewBCType,
                                  BC->getName(), BC);
     }
@@ -407,9 +411,13 @@ void NVPTXLowerArgs::markPointerAsGlobal(Value *Ptr) {
   }
 
   Instruction *PtrInGlobal = new AddrSpaceCastInst(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Ptr, PointerType::get(Ptr->getContext(), ADDRESS_SPACE_GLOBAL),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
       Ptr,
       PointerType::getWithSamePointeeType(cast<PointerType>(Ptr->getType()),
                                           ADDRESS_SPACE_GLOBAL),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       Ptr->getName(), &*InsertPt);
   Value *PtrInGeneric = new AddrSpaceCastInst(PtrInGlobal, Ptr->getType(),
                                               Ptr->getName(), &*InsertPt);

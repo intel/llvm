@@ -2,11 +2,11 @@
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: EntryPoint 6 [[#KERNEL_ID:]] "_ZTS6kernel"
+; CHECK-SPIRV-DAG: EntryPoint [[#]] [[#KERNEL_ID:]] "_ZTS6kernel"
 ; CHECK-SPIRV-DAG: Name [[#BAR:]] "_Z3barii"
 ; CHECK-SPIRV-DAG: Name [[#BAZ:]] "_Z3bazii"
 ; CHECK-SPIRV: TypeInt [[#INT32:]] 32

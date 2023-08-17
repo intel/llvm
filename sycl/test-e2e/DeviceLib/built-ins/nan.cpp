@@ -45,14 +45,9 @@ template <typename T, typename R> void check_vec_nan(s::queue &Queue) {
 }
 
 int main() {
-  // Long may either be 32-bit or 64-bit, so we need to pick the corresponding
-  // floating-point type.
-  using long_float_t =
-      std::conditional_t<sizeof(unsigned long) == 8, double, float>;
-
   test_nan_call<unsigned short, s::half>();
   test_nan_call<unsigned int, float>();
-  test_nan_call<unsigned long, long_float_t>();
+  test_nan_call<unsigned long, double>();
   test_nan_call<unsigned long long, double>();
   test_nan_call<s::ushort2, s::half2>();
   test_nan_call<s::uint2, s::float2>();
@@ -79,7 +74,7 @@ int main() {
   check_scalar_nan<unsigned int, float>(Queue);
   check_vec_nan<uint32_t, float>(Queue);
   if (Queue.get_device().has(sycl::aspect::fp64)) {
-    check_scalar_nan<unsigned long, long_float_t>(Queue);
+    check_scalar_nan<unsigned long, double>(Queue);
     check_scalar_nan<unsigned long long, double>(Queue);
     check_vec_nan<uint64_t, double>(Queue);
     check_vec_nan<unsigned long long, double>(Queue);
