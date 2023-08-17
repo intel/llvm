@@ -26,6 +26,8 @@ constexpr bool MeasureEventCost = true;
 
 namespace xpti {
 bool ShowInColors = false;
+using overheads_t = std::vector<uint32_t>;
+overheads_t *GOverheads = nullptr;
 enum class FileFormat {
   JSON = 1,                        // Output in Perfetto UI JSON format
   CSV = 1 << 1,                    // Output summary statistics as a CSV
@@ -196,22 +198,39 @@ public:
     }
   }
 
+  /// @brief Scans the call stack information and gets the ignore time
+  /// @param root The node to compute the ignore time, if valid
+  /// @param str_map The list of fuction calls to ignore on first occurrence
+  /// @return Total time to ignore or not account for from the total runtime
   double ignore_time(span_t &root,
                      xpti::utils::string::first_check_map_t *str_map) {
     double ignore_time_acc = 0.0;
+    // Scan all the children of the current node and see if any of the children
+    // are in the ignore list and happen to be the first occurrence of the
+    // function call
     for (auto &s : root.m_children) {
       if (str_map->check(s.second.m_label)) {
         ignore_time_acc += s.second.m_max - s.second.m_min + 1;
       }
+      // Recurse to curren't node's childen
       ignore_time_acc += ignore_time(s.second, str_map);
     }
     return ignore_time_acc;
   }
 
+  /// @brief Finds the ignore time
+  /// @param str_map THe list of functions to ignore on first occurrence
+  /// @return The ignore time for all functions in the ignore list
   double find_ignore_time(xpti::utils::string::first_check_map_t *str_map) {
     return ignore_time(*this, str_map);
   }
 
+  /// @brief Compute the statistics for a ffive node in the call stack
+  /// @param level  The current level in the call stack
+  /// @param root The node in the current level to compute stats for
+  /// @param parent_duration The duration of parent scope
+  /// @param total_duration THe duration of application scope
+  /// @param ignore_cost The total time to ignore from stats
   void compute_level(int level, span_t &root, double parent_duration,
                      double total_duration, double ignore_cost) {
     double recorded_time = 0.0;
@@ -232,21 +251,27 @@ public:
     else
       root.m_per_empty_adj = 0;
   }
-
+  /// @brief Compute the required metrics to compare runs
+  /// @param str_map  Functions calls to ignore first occurrences of
   void compute_metrics(xpti::utils::string::first_check_map_t *str_map) {
     double ignore_time = find_ignore_time(str_map);
     std::cout << "Time to be ignored: " << std::fixed << std::setprecision(3)
               << ignore_time << "\n";
+    double curr_duration = (m_max - m_min + 1);
+    m_time = curr_duration / 1000.0;
+    m_per_parent = 100.0;
+    m_per_total = 100.0;
+    m_per_tot_adj = 100.0;
 
-    // compute_level(0, *this, (m_max - m_min + 1), (m_max - m_min + 1),
-    //               ignore_time);
     for (auto &s : m_children) {
       compute_level(1, s.second, (m_max - m_min + 1), (m_max - m_min + 1),
                     ignore_time);
     }
-    // std::cout << " Done computing call-stack and metrics\n";
   }
 
+  /// @brief Build a table row
+  /// @param level Currentl level operating in
+  /// @param root The current node in the stack
   void add_to_table(int level, span_t &root) {
     std::string stack_depth;
     for (int i = 1; i < level; ++i)
@@ -271,14 +296,83 @@ public:
   }
 
   void print_table() {
+    // The columns being computed for the call stack
     test::utils::titles_t col_headers{"Time(us)", "% Parent", "% Total",
                                       "% Total (Adj.)", "% Empty (Child)"};
     m_model.setHeaders(col_headers);
-    // add_to_table(0, *this);
     for (auto &s : m_children) {
       add_to_table(1, s.second);
     }
-    std::cout << " Printing call-stack table\n";
+    m_model.print();
+  }
+
+  double simulate_run(int level, span_t &root, uint32_t cost, int sim_slot,
+                      int size) {
+    double recur_cost = 0.0;
+    for (auto &s : root.m_children) {
+      if (sim_slot == 0)
+        s.second.m_simulation.resize(size);
+      recur_cost += simulate_run(level + 1, s.second, cost, sim_slot, size);
+    }
+    recur_cost += 2 * cost;
+    root.m_simulation[sim_slot] = root.m_time * 1000 + recur_cost;
+    return recur_cost;
+  }
+
+  void simulate_stats(int level, span_t &root, std::vector<double> &totals) {
+    std::string stack_depth;
+    for (int i = 1; i < level; ++i)
+      stack_depth += "--";
+    stack_depth += "+";
+
+    std::string label =
+        (std::string(root.m_label).size() > 25)
+            ? (std::string(root.m_label).substr(0, 25) + std::string("..."))
+            : std::string(root.m_label);
+    label += stack_depth;
+
+    auto &row = m_model.addRow(m_row++, label.c_str());
+    row[0] = (root.m_time * 1000) / (m_time * 1000) * 100.0;
+    for (int i = 1; i <= totals.size(); ++i) {
+      row[i] = root.m_simulation[i - 1] / totals[i - 1] * 100;
+    }
+
+    for (auto &s : root.m_children) {
+      simulate_stats(level + 1, s.second, totals);
+    }
+  }
+
+  void simulate(overheads_t *overheads) {
+    if (!overheads || overheads->size() == 0)
+      return;
+
+    test::utils::titles_t col_headers;
+    col_headers.push_back("Baseline");
+    for (auto &e : *overheads) {
+      std::string overhead = std::string("Cost(") + std::to_string(e) + ")";
+      col_headers.push_back(overhead);
+    }
+    m_model.setHeaders(col_headers);
+    auto size = overheads->size();
+    m_simulation.resize(size);
+
+    int sim_run = 0;
+    for (auto &e : *overheads) {
+      double recur_cost = 0.0;
+      for (auto &s : m_children) {
+        if (sim_run == 0)
+          s.second.m_simulation.resize(size);
+        recur_cost += simulate_run(1, s.second, e, sim_run, size);
+      }
+      m_simulation[sim_run] = m_time * 1000 + recur_cost;
+      sim_run++;
+    }
+    // Compiled all values we need, so now we do the reverse and compute the
+    // %total
+    for (auto &s : m_children) {
+      simulate_stats(1, s.second, m_simulation);
+    }
+
     m_model.print();
   }
 
@@ -288,8 +382,10 @@ public:
   const char *m_label;
   table_model_t m_model;
   spans_t m_children;
+  std::vector<double> m_simulation;
 };
 
+/// @brief Writer interface definition
 class writer {
 public:
   virtual void init() = 0;
@@ -297,6 +393,7 @@ public:
   virtual void write(record_t &r) = 0;
 };
 
+/// @brief JSON writer that implements the writer interface
 class json_writer : public writer {
 public:
   json_writer(bool synchronous = false)
@@ -461,8 +558,11 @@ public:
     }
 
     m_root.compute_metrics(m_ignore);
-    // m_root.print();
-    m_root.print_table();
+    if (GOverheads && GOverheads->size()) {
+      m_root.simulate(GOverheads);
+    } else {
+      m_root.print_table();
+    }
   }
 
 protected:

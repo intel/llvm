@@ -30,6 +30,7 @@ uint64_t GOutputFormats = 0;
 xpti::utils::string::list_t *GStreams = nullptr;
 xpti::utils::string::first_check_map_t *GIgnoreList = nullptr;
 extern bool xpti::ShowInColors;
+extern xpti::overheads_t *xpti::GOverheads;
 
 static void record_state(xpti::record_t &r, bool begin_scope) {
   xpti::utils::timer::measurement_t m;
@@ -106,6 +107,8 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // 1. XPTI_SYCL_PERF_OUTPUT=[json,csv,table,stack,all]
     // 2. XPTI_STREAMS=[all] or [sycl,sycl.pi,sycl.perf,sycl.perf.detail,...]
     // 3. XPTI_STDOUT_USE_COLOR=[1,0]
+    // 4. XPTI_IGNORE_LIST=piPlatformsGet,piProgramBuild
+    // 5. XPTI_SIMULATION=10,20,50,100
     //
     const char *ProfOutFile = std::getenv("XPTI_SYCL_PERF_OUTPUT");
     if (ProfOutFile)
@@ -119,6 +122,9 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     const char *FirstCallsToIgnore = std::getenv("XPTI_IGNORE_LIST");
     if (FirstCallsToIgnore)
       std::cout << "XPTI_IGNORE_LIST=" << FirstCallsToIgnore << "\n";
+    const char *SimulationOverheads = std::getenv("XPTI_SIMULATION");
+    if (SimulationOverheads)
+      std::cout << "XPTI_SIMULATION=" << SimulationOverheads << "\n";
 
     // Get the streams to monitor from the environment variable
     // In order to determine if the environment variable contains valid stream
@@ -159,6 +165,17 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
       // would like to ignore
       GIgnoreList->add("piProgramBuild");
       GIgnoreList->add("piPlatformsGet");
+    }
+
+    if (SimulationOverheads) {
+      xpti::GOverheads = new xpti::overheads_t;
+      if (xpti::GOverheads) {
+        auto streams = D.decode(SimulationOverheads);
+        for (auto &s : streams) {
+          uint32_t val = std::stoi(s);
+          xpti::GOverheads->push_back(val);
+        }
+      }
     }
 
     // Check the output format environmental variable and only accept valid

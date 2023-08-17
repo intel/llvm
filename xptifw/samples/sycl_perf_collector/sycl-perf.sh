@@ -20,19 +20,23 @@ clear='\033[0m'
 
 help()
 {
-    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value3> ${clear}[-h,--help] -- <executable> <arguments>"
-    echo -e "          ${green}-f,--format    Allowed values for ${yellow}<Value1>${green} are ${yellow}json,csv,table,stack,all${green}"
-    echo "          -i,--ignore    First time execution of certain calls take an order of magnitude more"
-    echo -e "                         time than subsequent calls listed in ${yellow}<Value32>${green}"
-    echo -e "                         Example:- ${yellow}piPlatformGet,piProgramBuild ${clear}"
-    echo "          -c,--color     Boolean option, if provided will display output in color for stack data"
-    echo "          -s,--streams   Streams to monitor in the SYCL runtime. Multiple streams can be provided"
-    echo -e "                         as comma separated values for ${yellow}<Value3>${green}"
-    echo -e "                         Example:- ${yellow}sycl,sycl.pi,sycl.perf ${clear}"
+    echo -e "Usage: sycl-perf.sh [-f,--format] ${yellow}<Value1> ${clear}[-i,--ignore] ${yellow}<Value2> ${clear}[-p,--projection] ${yellow}<Value3> ${clear}[-c,--color] [-s,--streams] ${yellow}<Value4> ${clear}[-h,--help] -- <executable> <arguments>"
+    echo -e "          ${green}-f,--format     Allowed values for ${yellow}<Value1>${green} are ${yellow}json,csv,table,stack,all${green}"
+    echo "          -i,--ignore     First time execution of certain calls take an order of magnitude more"
+    echo -e "                          time than subsequent calls listed in ${yellow}<Value2>${green}"
+    echo -e "                          Example:- ${yellow}piPlatformGet,piProgramBuild ${green}"
+    echo "          -p,--projection Sequence of comma separated instrumentation costs in nanoseconds that will be"
+    echo -e "                          used to simulate and project the impact of the overhead due to instrumentation"
+    echo -e "                          as provided in ${yellow}<Value3>${green}"
+    echo -e "                          Example:- ${yellow}10,50,150 ${green}"
+    echo "          -c,--color      Boolean option, if provided will display output in color for stack data"
+    echo "          -s,--streams    Streams to monitor in the SYCL runtime. Multiple streams can be provided"
+    echo -e "                          as comma separated values for ${yellow}<Value4>${green}"
+    echo -e "                          Example:- ${yellow}sycl,sycl.pi,sycl.perf ${clear}"
     echo "  "
-    echo -e "                         The script requires you to set the environment variable XPTI_PERF_DIR"
-    echo -e "                         before executing this script."
-    echo -e "                         Example: ${cyan}export XPTI_PERF_DIR=/path/to/xptifw/lib/RelWithDebInfo${clear}"
+    echo -e "                          The script requires you to set the environment variable XPTI_PERF_DIR"
+    echo -e "                          before executing this script."
+    echo -e "                          Example: ${cyan}export XPTI_PERF_DIR=/path/to/xptifw/lib/RelWithDebInfo${clear}"
     echo "  "
     echo "  "
     exit 2
@@ -62,8 +66,8 @@ fi
 # Default color is normal text and we change the colors only when the option is provided
 color=0
 
-SHORT=f:,s:,i:,h,c
-LONG=format:,streams:,ignore:,help,color
+SHORT=f:,s:,i:,p:,h,c
+LONG=format:,streams:,ignore:,projection:,help,color
 OPTS=$(getopt -a -n sycl-perf --options $SHORT --longoptions $LONG -- "$@")
 
 if [[ $? -ne 0 ]]; then
@@ -80,6 +84,10 @@ while [ : ]; do
         ;;
     -i | --ignore)
         ignore_list="$2"
+        shift 2
+        ;;
+    -p | --projection)
+        projection="$2"
         shift 2
         ;;
     -c | --color)
@@ -114,6 +122,10 @@ fi
 
 if [[ -n "$ignore_list"  ]]; then
 export XPTI_IGNORE_LIST=$ignore_list
+fi
+
+if [[ -n "$projection"  ]]; then
+export XPTI_SIMULATION=$projection
 fi
 
 if [[ -n "$streams"  ]]; then
