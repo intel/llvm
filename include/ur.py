@@ -832,6 +832,8 @@ class ur_device_info_v(IntEnum):
                                                     ## is implementation-defined, but newer devices should have a higher
                                                     ## version than older devices.
     VIRTUAL_MEMORY_SUPPORT = 114                    ## [::ur_bool_t] return true if the device supports virtual memory.
+    ESIMD_SUPPORT = 115                             ## [::ur_bool_t] returns true if the device supports ESIMD.
+
     BINDLESS_IMAGES_SUPPORT_EXP = 0x2000            ## [::ur_bool_t] returns true if the device supports the creation of
                                                     ## bindless images
     BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP = 0x2001 ## [::ur_bool_t] returns true if the device supports the creation of
