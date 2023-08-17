@@ -246,7 +246,7 @@ public:
                             size_t Width, size_t Height, char Value,
                             std::vector<sycl::detail::pi::PiEvent> DepEvents,
                             sycl::detail::pi::PiEvent *OutEvent);
-                            
+
   static void copy_to_device_global(
       const void *DeviceGlobalPtr, bool IsDeviceImageScoped, QueueImplPtr Queue,
       size_t NumBytes, size_t Offset, const void *SrcMem,

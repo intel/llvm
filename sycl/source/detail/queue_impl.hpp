@@ -158,10 +158,9 @@ public:
         if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
           MFallbackProfiling = true;
       } else {
-        throw sycl::exception(
-            make_error_code(errc::feature_not_supported),
-            "Cannot enable profiling, the associated device "
-            "does not have the queue_profiling aspect");
+        throw sycl::exception(make_error_code(errc::feature_not_supported),
+                              "Cannot enable profiling, the associated device "
+                              "does not have the queue_profiling aspect");
       }
     }
     if (has_property<ext::intel::property::queue::compute_index>()) {

@@ -329,7 +329,7 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - DeviceBaseTime  + endTime;
+        return MHostBaseTime - DeviceBaseTime + endTime;
       }
     }
     return 0;

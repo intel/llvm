@@ -510,7 +510,7 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
   size_t SrcSzWidthBytes = SrcSize[SrcPos.XTerm] * SrcElemSize;
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
-    if (1 == DimDst && 1 == DimSrc) {      
+    if (1 == DimDst && 1 == DimSrc) {
       if (OutEventImpl != nullptr)
         OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferWrite>(
@@ -767,7 +767,6 @@ void MemoryManager::copy(
               SrcAccessRange, SrcOffset, SrcElemSize, (char *)DstMem,
               std::move(TgtQueue), DimDst, DstSize, DstAccessRange, DstOffset,
               DstElemSize, std::move(DepEvents), OutEvent, OutEventImpl);
-
     else
       copyH2D(SYCLMemObj, (char *)SrcMem, std::move(SrcQueue), DimSrc, SrcSize,
               SrcAccessRange, SrcOffset, SrcElemSize,
@@ -944,7 +943,6 @@ void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
       DepEvents.data(), OutEvent);
 }
 
-		
 // TODO: This function will remain until ABI-breaking change
 void MemoryManager::copy_usm(const void *SrcMem, QueueImplPtr SrcQueue,
                              size_t Len, void *DstMem,
@@ -1199,9 +1197,9 @@ void MemoryManager::memset_2d_usm(
     void *DstMem, QueueImplPtr Queue, size_t Pitch, size_t Width, size_t Height,
     char Value, std::vector<sycl::detail::pi::PiEvent> DepEvents,
     sycl::detail::pi::PiEvent *OutEvent) {
-      MemoryManager::memset_2d_usm(DstMem, Queue, Pitch, Width, Height, Value,
+  MemoryManager::memset_2d_usm(DstMem, Queue, Pitch, Width, Height, Value,
                                DepEvents, OutEvent, nullptr);
-    }
+}
 
 static void memcpyToDeviceGlobalUSM(
     QueueImplPtr Queue, DeviceGlobalMapEntry *DeviceGlobalEntry,

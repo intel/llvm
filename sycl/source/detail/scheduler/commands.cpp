@@ -430,7 +430,6 @@ void Command::waitForPreparedHostEvents() const {
 void Command::waitForEvents(QueueImplPtr Queue,
                             std::vector<EventImplPtr> &EventImpls,
                             sycl::detail::pi::PiEvent &Event) {
-
   if (!EventImpls.empty()) {
     if (Queue->is_host()) {
       // Host queue can wait for events from different contexts, i.e. it may
@@ -473,7 +472,7 @@ void Command::waitForEvents(QueueImplPtr Queue,
           getPiEvents(EventImpls);
       flushCrossQueueDeps(EventImpls, getWorkerQueue());
       const PluginPtr &Plugin = Queue->getPlugin();
-      
+
       if (MEvent != nullptr)
         MEvent->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueEventsWait>(
@@ -1321,10 +1320,6 @@ pi_int32 MapMemObject::enqueueImp() {
 
   return PI_SUCCESS;
 }
-
-
-
-
 
 void MapMemObject::printDot(std::ostream &Stream) const {
   Stream << "\"" << this << "\" [style=filled, fillcolor=\"#77AFFF\", label=\"";
@@ -2341,7 +2336,6 @@ static pi_result SetKernelParamsAndLaunch(
     if (EnforcedLocalSize)
       LocalSize = RequiredWGSize;
   }
-  
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
@@ -2605,7 +2599,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
 
   pi_queue pi_q = Queue->getHandleRef();
   pi_result Error;
-  
+
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (read) {
@@ -2839,7 +2833,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       } else {
         assert(MQueue->getDeviceImplPtr()->getBackend() ==
                backend::ext_intel_esimd_emulator);
-        
         if (MEvent != nullptr)
           MEvent->setHostEnqueueTime();
         MQueue->getPlugin()->call<PiApiKind::piEnqueueKernelLaunch>(
@@ -2848,7 +2841,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
             NDRDesc.Dims, &NDRDesc.GlobalOffset[0], &NDRDesc.GlobalSize[0],
             &NDRDesc.LocalSize[0], 0, nullptr, nullptr);
       }
-
       return PI_SUCCESS;
     }
 
@@ -3022,7 +3014,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
       return PI_SUCCESS;
     }
     const PluginPtr &Plugin = MQueue->getPlugin();
-    
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueEventsWaitWithBarrier>(
@@ -3067,7 +3058,6 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =
         static_cast<CGExecCommandBuffer *>(MCommandGroup.get());
-    
     if (MEvent != nullptr)
       MEvent->setHostEnqueueTime();
     return MQueue->getPlugin()
