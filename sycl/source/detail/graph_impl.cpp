@@ -352,7 +352,18 @@ exec_graph_impl::~exec_graph_impl() {
   // We need to wait on all command buffer executions before we can release
   // them.
   for (auto &Event : MExecutionEvents) {
-    Event->wait(Event);
+   try {
+	   Event->wait(Event);
+   }
+   catch(std::runtime_error &e)
+   {
+      std::cout << "Runtime exception caught: " << e.what() << std::endl;
+   }
+   catch(sycl::exception &e)
+   {
+      std::cout << "SYCL exception caught: " << e.what() << std::endl;
+   }
+
   }
 
   for (auto Iter : MPiCommandBuffers) {
@@ -572,7 +583,7 @@ bool modifiable_command_graph::end_recording(
 
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
-    : MTag(rand()),
+    : MTag(random()),
       impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
   finalizeImpl(); // Create backend representation for executable graph
 }
