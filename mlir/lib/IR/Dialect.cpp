@@ -122,8 +122,11 @@ MLIRContext *DialectInterface::getContext() const {
 }
 
 DialectInterfaceCollectionBase::DialectInterfaceCollectionBase(
-    MLIRContext *ctx, TypeID interfaceKind) {
+    MLIRContext *ctx, TypeID interfaceKind, StringRef interfaceName) {
   for (auto *dialect : ctx->getLoadedDialects()) {
+#ifndef NDEBUG
+  dialect->handleUseOfUndefinedPromisedInterface(interfaceKind, interfaceName);
+#endif
     if (auto *interface = dialect->getRegisteredInterface(interfaceKind)) {
       interfaces.insert(interface);
       orderedInterfaces.push_back(interface);
@@ -206,6 +209,11 @@ void DialectRegistry::applyExtensions(Dialect *dialect) const {
   // Functor used to try to apply the given extension.
   auto applyExtension = [&](const DialectExtensionBase &extension) {
     ArrayRef<StringRef> dialectNames = extension.getRequiredDialects();
+    // An empty set is equivalent to always invoke.
+    if (dialectNames.empty()) {
+      extension.apply(ctx, dialect);
+      return;
+    }
 
     // Handle the simple case of a single dialect name. In this case, the
     // required dialect should be the current dialect.
@@ -248,6 +256,11 @@ void DialectRegistry::applyExtensions(MLIRContext *ctx) const {
   // Functor used to try to apply the given extension.
   auto applyExtension = [&](const DialectExtensionBase &extension) {
     ArrayRef<StringRef> dialectNames = extension.getRequiredDialects();
+    if (dialectNames.empty()) {
+      auto loadedDialects = ctx->getLoadedDialects();
+      extension.apply(ctx, loadedDialects);
+      return;
+    }
 
     // Check to see if all of the dialects for this extension are loaded.
     SmallVector<Dialect *> requiredDialects;
