@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 
-// RUN: %clangxx -Xclang -no-opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xclang -fnative-half-type -S -Xclang -emit-llvm %s -o -| FileCheck %s
+// RUN: %clangxx -Xclang -fno-sycl-raise-host -no-opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xclang -fnative-half-type -S -Xclang -emit-llvm %s -o -| FileCheck %s
 // RUN: %clangxx -Xclang -opaque-pointers -fsycl-device-only -fsycl-targets=nvptx64-nvidia-cuda -Xclang -fnative-half-type -S -Xclang -emit-llvm %s -o -| FileCheck %s --check-prefixes=CHECK-OPAQUE
 
 #include <sycl/ext/oneapi/experimental/cuda/builtins.hpp>

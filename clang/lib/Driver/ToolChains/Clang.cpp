@@ -5334,8 +5334,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // are currently not understood by mlir-translate. Therefore deactive the
       // debug assignment tracking when we want to raise this host module later
       // on to MLIR.
-      if (Args.hasArg(options::OPT_fsycl_raise_host))
+      if (Args.hasFlag(options::OPT_fsycl_raise_host,
+                       options::OPT_fno_sycl_raise_host, true)) {
         CmdArgs.push_back("-fexperimental-assignment-tracking=disabled");
+        CmdArgs.push_back("-opaque-pointer");
+      }
 
       if (!D.IsCLMode()) {
         // SYCL library is guaranteed to work correctly only with dynamic

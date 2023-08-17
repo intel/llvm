@@ -1,4 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -Xclang -no-opaque-pointers -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// Disable no opaque pointers
+// RUN: %clangxx -fno-sycl-raise-host -fsycl-device-only -Xclang -no-opaque-pointers -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // RUN: %clangxx -fsycl-device-only -Xclang -opaque-pointers -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
 // Tests for warnings when propagated aspects do not match the aspects available
