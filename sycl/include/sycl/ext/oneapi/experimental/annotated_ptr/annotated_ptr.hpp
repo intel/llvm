@@ -146,23 +146,19 @@ public:
   PROPAGATE_OP(<<)
   PROPAGATE_OP(>>)
 
-  T operator++() {
-    return *this+=1;
-  }
+  T operator++() { return *this += 1; }
 
   T operator++(int) {
     const T t = *this;
-    *this=(t + 1);
+    *this = (t + 1);
     return t;
   }
 
-  T operator--() {
-    return *this-=1;
-  }
+  T operator--() { return *this -= 1; }
 
   T operator--(int) {
     const T t = *this;
-    *this=(t - 1);
+    *this = (t - 1);
     return t;
   }
 
@@ -244,8 +240,7 @@ public:
   annotated_ptr(const annotated_ptr &) = default;
   annotated_ptr &operator=(annotated_ptr &) = default;
 
-  annotated_ptr(T *Ptr,
-                         const property_list_t & = properties{}) noexcept
+  annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
 
   // Constructs an annotated_ptr object from a raw pointer and variadic
