@@ -404,6 +404,7 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
   SourceManager &SM = CGM.getContext().getSourceManager();
   StringRef FileName;
   FileID FID;
+  std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
 
   if (Loc.isInvalid()) {
     if (CGM.getCodeGenOpts().SYCLUseMainFileName &&
@@ -418,6 +419,7 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
       // createFile() below for canonicalization if the source file was
       // specified with an absolute path.
       FileName = TheCU->getFile()->getFilename();
+      CSInfo = TheCU->getFile()->getChecksum();
     }
   } else {
     PresumedLoc PLoc = SM.getPresumedLoc(Loc);
@@ -437,8 +439,6 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
       return cast<llvm::DIFile>(V);
   }
 
-  SmallString<64> Checksum;
-
   if (SM.getFileEntryForID(SM.getMainFileID()) &&
       CGM.getCodeGenOpts().SYCLUseMainFileName && FID.isInvalid())
     // When an integration footer is involved, the main file is a temporary
@@ -446,11 +446,13 @@ llvm::DIFile *CGDebugInfo::getOrCreateFile(SourceLocation Loc) {
     // source file. We use it here to properly calculate its checksum.
     FID = ComputeValidFileID(SM, FileName);
 
-  std::optional<llvm::DIFile::ChecksumKind> CSKind =
+  if (!CSInfo) {
+    SmallString<64> Checksum;
+    std::optional<llvm::DIFile::ChecksumKind> CSKind =
       computeChecksum(FID, Checksum);
-  std::optional<llvm::DIFile::ChecksumInfo<StringRef>> CSInfo;
-  if (CSKind)
-    CSInfo.emplace(*CSKind, Checksum);
+    if (CSKind)
+      CSInfo.emplace(*CSKind, Checksum);
+  }
   return createFile(FileName, CSInfo, getSource(SM, SM.getFileID(Loc)));
 }
 
