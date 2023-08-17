@@ -85,6 +85,7 @@ Tools can be acquired via instructions in [third_party](/third_party/README.md).
 Required packages:
 - C++ compiler with C++17 support
 - [CMake](https://cmake.org/) >= 3.14.0
+- Python v3.6.6 or later
 
 For development and contributions:
 - clang-format-15.0 (can be installed with `python -m pip install clang-format==15.0.7`)
