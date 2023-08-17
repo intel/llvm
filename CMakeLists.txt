@@ -277,5 +277,5 @@ if(UR_FORMAT_CPP_STYLE)
         DEPENDS generate
     )
 else()
-    message(WARNING "UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' are not available")
+    message(STATUS "  UR_FORMAT_CPP_STYLE not set. Targets: 'generate' and 'check-generated' are not available")
 endif()
