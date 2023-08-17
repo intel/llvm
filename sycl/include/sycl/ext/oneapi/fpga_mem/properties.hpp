@@ -190,50 +190,50 @@ template <> struct IsCompileTimeProperty<max_private_copies_key> : std::true_typ
 template <> struct IsCompileTimeProperty<num_replicates_key> : std::true_type {};
 
 // Map Property to MetaInfo
-template <resource_enum Access>
-struct PropertyMetaInfo<resource_key::value_t<Access>> {
+template <resource_enum Value>
+struct PropertyMetaInfo<resource_key::value_t<Value>> {
   static constexpr const char *name = "sycl-resource";
-  static constexpr resource_enum value = Access;
+  static constexpr resource_enum value = Value;
 };
-template <size_t Access>
-struct PropertyMetaInfo<num_banks_key::value_t<Access>> {
+template <size_t Value>
+struct PropertyMetaInfo<num_banks_key::value_t<Value>> {
   static constexpr const char *name = "sycl-num-banks";
-  static constexpr size_t value = Access;
+  static constexpr size_t value = Value;
 };
-template <size_t Access>
-struct PropertyMetaInfo<stride_size_key::value_t<Access>> {
+template <size_t Value>
+struct PropertyMetaInfo<stride_size_key::value_t<Value>> {
   static constexpr const char *name = "sycl-stride-size";
-  static constexpr size_t value = Access;
+  static constexpr size_t value = Value;
 };
-template <size_t Access>
-struct PropertyMetaInfo<word_size_key::value_t<Access>> {
+template <size_t Value>
+struct PropertyMetaInfo<word_size_key::value_t<Value>> {
   static constexpr const char *name = "sycl-word-size";
-  static constexpr size_t value = Access;
+  static constexpr size_t value = Value;
 };
-template <bool Access>
-struct PropertyMetaInfo<bi_directional_ports_key::value_t<Access>> {
+template <bool Value>
+struct PropertyMetaInfo<bi_directional_ports_key::value_t<Value>> {
   static constexpr const char *name = "sycl-bi-directional-ports";
-  static constexpr bool value = Access;
+  static constexpr bool value = Value;
 };
-template <bool Access>
-struct PropertyMetaInfo<clock_2x_key::value_t<Access>> {
+template <bool Value>
+struct PropertyMetaInfo<clock_2x_key::value_t<Value>> {
   static constexpr const char *name = "sycl-clock-2x";
-  static constexpr bool value = Access;
+  static constexpr bool value = Value;
 };
-template <ram_stitching_enum Access>
-struct PropertyMetaInfo<ram_stitching_key::value_t<Access>> {
+template <ram_stitching_enum Value>
+struct PropertyMetaInfo<ram_stitching_key::value_t<Value>> {
   static constexpr const char *name = "sycl-ram-stitching";
-  static constexpr ram_stitching_enum value = Access;
+  static constexpr ram_stitching_enum value = Value;
 };
-template <size_t Access>
-struct PropertyMetaInfo<max_private_copies_key::value_t<Access>> {
+template <size_t Value>
+struct PropertyMetaInfo<max_private_copies_key::value_t<Value>> {
   static constexpr const char *name = "sycl-max-private-copies";
-  static constexpr size_t value = Access;
+  static constexpr size_t value = Value;
 };
-template <size_t Access>
-struct PropertyMetaInfo<num_replicates_key::value_t<Access>> {
+template <size_t Value>
+struct PropertyMetaInfo<num_replicates_key::value_t<Value>> {
   static constexpr const char *name = "sycl-num-replicates";
-  static constexpr size_t value = Access;
+  static constexpr size_t value = Value;
 };
 
 } // namespace detail
