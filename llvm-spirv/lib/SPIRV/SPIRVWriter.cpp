@@ -5796,6 +5796,11 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
     return BM->addCompositeConstructInst(transType(CI->getType()), Operands,
                                          BB);
   }
+  case OpMatrixTimesScalar: {
+    return BM->addMatrixTimesScalarInst(
+        transType(CI->getType()), transValue(CI->getArgOperand(0), BB)->getId(),
+        transValue(CI->getArgOperand(1), BB)->getId(), BB);
+  }
   default: {
     if (isCvtOpCode(OC) && OC != OpGenericCastToPtrExplicit) {
       return BM->addUnaryInst(OC, transScavengedType(CI),
