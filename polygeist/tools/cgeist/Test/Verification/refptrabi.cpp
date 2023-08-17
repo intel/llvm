@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O0 -w %s  --function=ll -S | FileCheck %s
+// RUN: cgeist  -O0 -w %s  --function=ll -S | FileCheck %s
 
 struct alignas(2) Half {
   unsigned short x;

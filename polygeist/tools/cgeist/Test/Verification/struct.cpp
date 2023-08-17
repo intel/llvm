@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s %stdinclude --function=func -S | FileCheck %s
+// RUN: cgeist  %s %stdinclude --function=func -S | FileCheck %s
 
 float hload(const void* data);
 

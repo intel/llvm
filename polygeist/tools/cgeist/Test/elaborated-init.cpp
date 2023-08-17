@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function='*' -S -std=c++14 | FileCheck %s
+// RUN: cgeist  %s --function='*' -S -std=c++14 | FileCheck %s
 struct A {
   using TheType = int[4];
 };

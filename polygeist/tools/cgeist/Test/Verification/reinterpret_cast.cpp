@@ -1,6 +1,6 @@
 #include <cstdint>
 
-// RUN: cgeist --use-opaque-pointers -O0 %s --function=* -S | FileCheck %s
+// RUN: cgeist  -O0 %s --function=* -S | FileCheck %s
 
 // CHECK-LABEL:   func.func @_Z17reinterpret_floatRf(
 // CHECK-SAME:                                       %[[VAL_0:.*]]: memref<?xf32>) -> memref<?xi32>

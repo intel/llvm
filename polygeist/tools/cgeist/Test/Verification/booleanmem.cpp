@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -w -O0 --function=* -S | FileCheck %s
+// RUN: cgeist  %s -w -O0 --function=* -S | FileCheck %s
 
 // CHECK-LABEL:   func.func @_Z14lambda_capturebb(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: i1,

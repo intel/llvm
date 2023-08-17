@@ -237,7 +237,7 @@ static llvm::cl::opt<std::string>
                       llvm::cl::cat(ToolOptions));
 
 llvm::cl::opt<bool>
-    UseOpaquePointers("use-opaque-pointers", llvm::cl::init(false),
+    UseOpaquePointers("use-opaque-pointers", llvm::cl::init(true),
                       llvm::cl::desc("Whether to use opaque pointers in MLIR"));
 
 static llvm::cl::opt<bool>
