@@ -1133,13 +1133,13 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
   assert(DeviceGlobalEntry->MIsDeviceImageScopeDecorated &&
          "device_global is not device image scope decorated.");
 
-  // If the device global is used in multiple kernel sets we cannot proceed.
-  if (DeviceGlobalEntry->MKSIds.size() > 1)
+  // If the device global is used in multiple device images we cannot proceed.
+  if (DeviceGlobalEntry->MImageIdentifiers.size() > 1)
     throw sycl::exception(make_error_code(errc::invalid),
                           "More than one image exists with the device_global.");
 
   // If there are no kernels using the device_global we cannot proceed.
-  if (DeviceGlobalEntry->MKSIds.size() == 0)
+  if (DeviceGlobalEntry->MImageIdentifiers.size() == 0)
     throw sycl::exception(make_error_code(errc::invalid),
                           "No image exists with the device_global.");
 
@@ -1153,9 +1153,9 @@ getOrBuildProgramForDeviceGlobal(QueueImplPtr Queue,
 
   // If there was no cached program, build one.
   auto Context = createSyclObjFromImpl<context>(ContextImpl);
-  KernelSetId KSId = *DeviceGlobalEntry->MKSIds.begin();
   ProgramManager &PM = ProgramManager::getInstance();
-  RTDeviceBinaryImage &Img = PM.getDeviceImage(KSId, Context, Device);
+  RTDeviceBinaryImage &Img =
+      PM.getDeviceImage(DeviceGlobalEntry->MImages, Context, Device);
   device_image_plain DeviceImage =
       PM.getDeviceImageFromBinaryImage(&Img, Context, Device);
   device_image_plain BuiltImage = PM.build(DeviceImage, {Device}, {});

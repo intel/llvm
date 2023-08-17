@@ -35,11 +35,6 @@ if(MLIR_STANDALONE_BUILD)
     "${CMAKE_CURRENT_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX}")
   set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
 
-  # Some LLVM CMake utilities use these aliases for the CMake builtin variables.
-  # We set them for compatibility.
-  set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
-  set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
-
   set(LLVM_LIT_ARGS "-sv" CACHE STRING "Default options for lit")
 endif()
 
@@ -112,7 +107,7 @@ add_definitions(-DMLIR_CUDA_CONVERSIONS_ENABLED=${MLIR_ENABLE_CUDA_CONVERSIONS})
 
 # Build the ROCm conversions and run according tests if the AMDGPU backend
 # is available.
-if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD AND MLIR_ENABLE_EXECUTION_ENGINE)
+if ("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
   set(MLIR_ENABLE_ROCM_CONVERSIONS 1)
 else()
   set(MLIR_ENABLE_ROCM_CONVERSIONS 0)

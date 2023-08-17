@@ -21,7 +21,8 @@
 // MCPU-SYNTACORE-SCR1-MAX: "-target-abi" "ilp32"
 
 // We cannot check much for -mcpu=native, but it should be replaced by a valid CPU string.
-// RUN: %clang --target=riscv64 -### -c %s 2>&1 -mcpu=native | FileCheck -check-prefix=MCPU-NATIVE %s
+// RUN: %clang --target=riscv64 -### -c %s -mcpu=native 2> %t.err || true
+// RUN: FileCheck --input-file=%t.err -check-prefix=MCPU-NATIVE %s
 // MCPU-NATIVE-NOT: "-target-cpu" "native"
 
 // RUN: %clang --target=riscv32 -### -c %s 2>&1 -mtune=rocket-rv32 | FileCheck -check-prefix=MTUNE-ROCKET32 %s
@@ -112,7 +113,8 @@
 // MCPU-SIFIVE-S76: "-nostdsysteminc" "-target-cpu" "sifive-s76"
 // MCPU-SIFIVE-S76: "-target-feature" "+m" "-target-feature" "+a" "-target-feature" "+f" "-target-feature" "+d"
 // MCPU-SIFIVE-S76: "-target-feature" "+c"
-// MCPU-SIFIVE-S76: "-target-feature" "+zicsr" "-target-feature" "+zifencei"
+// MCPU-SIFIVE-S76: "-target-feature" "+zicsr" "-target-feature" "+zifencei" "-target-feature" "+zihintpause"
+// MCPU-SIFIVE-S76: "-target-feature" "+xsfcie"
 // MCPU-SIFIVE-S76: "-target-abi" "lp64d"
 
 // mcpu with default march
@@ -175,7 +177,7 @@
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zicsr" "-target-feature" "+zifencei"
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zfh"
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zba" "-target-feature" "+zbb"
-// MCPU-SIFIVE-X280-SAME: "-target-feature" "+experimental-zvfh"
+// MCPU-SIFIVE-X280-SAME: "-target-feature" "+zvfh"
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zvl128b"
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zvl256b" "-target-feature" "+zvl32b"
 // MCPU-SIFIVE-X280-SAME: "-target-feature" "+zvl512b" "-target-feature" "+zvl64b"
@@ -183,8 +185,8 @@
 
 // Check failed cases
 
-// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv321 | FileCheck -check-prefix=FAIL-MCPU-NAME %s
+// RUN: not %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv321 | FileCheck -check-prefix=FAIL-MCPU-NAME %s
 // FAIL-MCPU-NAME: error: unsupported argument 'generic-rv321' to option '-mcpu='
 
-// RUN: %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv32 -march=rv64i | FileCheck -check-prefix=MISMATCH-ARCH %s
+// RUN: not %clang --target=riscv32 -### -c %s 2>&1 -mcpu=generic-rv32 -march=rv64i | FileCheck -check-prefix=MISMATCH-ARCH %s
 // MISMATCH-ARCH: cpu 'generic-rv32' does not support rv64
