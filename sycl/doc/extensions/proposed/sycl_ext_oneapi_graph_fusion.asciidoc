@@ -38,7 +38,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -79,9 +79,9 @@ recording mechanism, similar to the initial kernel fusion proposal; and another
 one using explicit graph building. Thus, future users will be able to choose
 from two different mechanisms to construct the sequence of kernels to fuse. As
 there is an explicit step for finalization of graphs before being submitted for
-execution, the fusion step can happen asynchronously and also eliminates many of
-the synchronization concerns that needed to be covered in the experimental
-kernel fusion proposal.
+execution, fusion can happen in this step, which also eliminates many of the
+synchronization concerns that needed to be covered in the experimental kernel
+fusion proposal.
 
 The aim of this document is to propose a mechanism for users to request the
 fusion of two or more kernels in a SYCL graph into a single kernel **at
@@ -460,29 +460,32 @@ struct AddKernel {
 
 int main() {
   constexpr size_t dataSize = 512;
-  int in1[dataSize], in2[dataSize], in3[dataSize], tmp1[dataSize],
-      tmp2[dataSize], tmp3[dataSize], out[dataSize];
+  int in1[dataSize], in2[dataSize], in3[dataSize], out[dataSize];
 
   queue q{default_selector_v};
 
-  ext::oneapi::experimental::command_graph graph{q.get_context(),
-                                                 q.get_device()};
   {
     buffer<int> bIn1{in1, range{dataSize}};
+    bIn1.set_write_back(false);
     buffer<int> bIn2{in2, range{dataSize}};
+    bIn2.set_write_back(false);
     buffer<int> bIn3{in3, range{dataSize}};
-    buffer<int> bTmp1{tmp1, range{dataSize}};
+    bIn3.set_write_back(false);
+    buffer<int> bTmp1{range{dataSize}};
     // Internalization specified on the buffer
     buffer<int> bTmp2{
-        tmp2,
         range{dataSize},
         {sycl::ext::oneapi::experimental::property::promote_private{}}};
     // Internalization specified on the buffer
     buffer<int> bTmp3{
-        tmp3,
         range{dataSize},
         {sycl::ext::oneapi::experimental::property::promote_private{}}};
     buffer<int> bOut{out, range{dataSize}};
+    bOut.set_write_back(false);
+
+    ext::oneapi::experimental::command_graph graph{
+        q.get_context(), q.get_device(),
+        sycl::ext::oneapi::experimental::property::graph::no_host_copy{}};
 
     graph.begin_recording(q);
 
@@ -530,6 +533,8 @@ int main() {
                             command_graph::perform_fusion});
 
     q.ext_oneapi_graph(exec_graph);
+
+    q.wait();
   }
   return 0;
 }
@@ -635,4 +640,5 @@ Ewan Crawford, Codeplay +
 |1|2023-02-16|Lukas Sommer|*Initial draft*
 |2|2023-03-16|Lukas Sommer|*Remove reference to outdated `add_malloc_device` API*
 |3|2023-04-11|Lukas Sommer|*Update usage examples for graph API changes*
+|4|2023-08-17|Lukas Sommer|*Update after graph extension has been merged*
 |========================================
