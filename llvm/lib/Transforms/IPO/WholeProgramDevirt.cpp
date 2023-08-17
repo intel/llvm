@@ -1441,7 +1441,11 @@ void DevirtModule::applyICallBranchFunnel(VTableSlotInfo &SlotInfo,
 
       IRBuilder<> IRB(&CB);
       std::vector<Value *> Args;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Args.push_back(VCallSite.VTable);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+      Args.push_back(IRB.CreateBitCast(VCallSite.VTable, Int8PtrTy));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::append_range(Args, CB.args());
 
       CallBase *NewCS = nullptr;
@@ -1712,7 +1716,12 @@ void DevirtModule::applyVirtualConstProp(CallSiteInfo &CSInfo, StringRef FnName,
       continue;
     auto *RetType = cast<IntegerType>(Call.CB.getType());
     IRBuilder<> B(&Call.CB);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Value *Addr = B.CreateGEP(Int8Ty, Call.VTable, Byte);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *Addr =
+        B.CreateGEP(Int8Ty, B.CreateBitCast(Call.VTable, Int8PtrTy), Byte);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     if (RetType->getBitWidth() == 1) {
       Value *Bits = B.CreateLoad(Int8Ty, Addr);
       Value *BitsAndBit = B.CreateAnd(Bits, Bit);
@@ -2010,14 +2019,25 @@ void DevirtModule::scanTypeCheckedLoadUsers(Function *TypeCheckedLoadFunc) {
     if (TypeCheckedLoadFunc->getIntrinsicID() ==
         Intrinsic::type_checked_load_relative) {
       Value *GEP = LoadB.CreateGEP(Int8Ty, Ptr, Offset);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       LoadedValue = LoadB.CreateLoad(Int32Ty, GEP);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+      Value *GEPPtr = LoadB.CreateBitCast(GEP, PointerType::getUnqual(Int32Ty));
+      LoadedValue = LoadB.CreateLoad(Int32Ty, GEPPtr);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       LoadedValue = LoadB.CreateSExt(LoadedValue, IntPtrTy);
       GEP = LoadB.CreatePtrToInt(GEP, IntPtrTy);
       LoadedValue = LoadB.CreateAdd(GEP, LoadedValue);
       LoadedValue = LoadB.CreateIntToPtr(LoadedValue, Int8PtrTy);
     } else {
       Value *GEP = LoadB.CreateGEP(Int8Ty, Ptr, Offset);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       LoadedValue = LoadB.CreateLoad(Int8PtrTy, GEP);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
+      Value *GEPPtr =
+          LoadB.CreateBitCast(GEP, PointerType::getUnqual(Int8PtrTy));
+      LoadedValue = LoadB.CreateLoad(Int8PtrTy, GEPPtr);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
 
     for (Instruction *LoadedPtr : LoadedPtrs) {

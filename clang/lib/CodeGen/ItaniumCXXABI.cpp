@@ -3866,7 +3866,9 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     // The vtable address point is 8 bytes after its start:
     // 4 for the offset to top + 4 for the relative offset to rtti.
     llvm::Constant *Eight = llvm::ConstantInt::get(CGM.Int32Ty, 8);
-    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.GlobalsInt8PtrTy);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+    VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     VTable =
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {

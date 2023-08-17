@@ -2738,7 +2738,6 @@ class llvm::sroa::AllocaSliceRewriter
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return IRB.CreateAddrSpaceCast(&NewAI, AccessTy);
   }
-
 public:
   AllocaSliceRewriter(const DataLayout &DL, AllocaSlices &AS, SROAPass &Pass,
                       AllocaInst &OldAI, AllocaInst &NewAI,
