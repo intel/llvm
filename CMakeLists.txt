@@ -18,7 +18,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
   set(CMAKE_FIND_FRAMEWORK NEVER)
 endif()
 
-find_package(Python3 COMPONENTS Interpreter)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
