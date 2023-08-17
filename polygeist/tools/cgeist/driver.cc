@@ -29,6 +29,7 @@
 #include "mlir/Conversion/SCFToControlFlow/SCFToControlFlow.h"
 #include "mlir/Conversion/SCFToOpenMP/SCFToOpenMP.h"
 #include "mlir/Dialect/Affine/Passes.h"
+#include "mlir/Dialect/Arith/Transforms/Passes.h"
 #include "mlir/Dialect/Async/IR/Async.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
 #include "mlir/Dialect/Func/Extensions/InlinerExtension.h"
@@ -817,6 +818,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
         ConvertOptions.syclImplementation = SYCLImplementation;
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
+      PM3.addPass(arith::createArithExpandOpsPass());
       PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       PM3.addPass(createReconcileUnrealizedCastsPass());
       // PM3.addPass(mlir::createLowerFuncToLLVMPass(options));

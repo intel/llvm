@@ -25,6 +25,13 @@ module {
     }
     return 
   }
+  func.func @complete(%lb: index, %ub: index, %step: index) {
+    scf.for %i = %lb to %ub step %step {
+      "foo"(%i) : (index) -> ()
+      scf.yield
+    }
+    return
+  }
 }
 
 // CHECK:   func.func @withinif(%arg0: memref<?xf64>, %arg1: i32, %arg2: memref<?xf64>, %arg3: i1) {
@@ -47,3 +54,15 @@ module {
 // CHECK-NEXT:     }
 // CHECK-NEXT:     return
 // CHECK-NEXT:   }
+
+// CHECK-LABEL:   func.func @complete(
+// CHECK-SAME:                        %[[VAL_0:.*]]: index, %[[VAL_1:.*]]: index, %[[VAL_2:.*]]: index) {
+// CHECK-NEXT:      %[[VAL_3:.*]] = arith.subi %[[VAL_1]], %[[VAL_0]] : index
+// CHECK-NEXT:      %[[VAL_4:.*]] = arith.ceildivui %[[VAL_3]], %[[VAL_2]] : index
+// CHECK-NEXT:      affine.for %[[VAL_5:.*]] = 0 to %[[VAL_4]] {
+// CHECK-NEXT:        %[[VAL_6:.*]] = arith.muli %[[VAL_5]], %[[VAL_2]] : index
+// CHECK-NEXT:        %[[VAL_7:.*]] = arith.addi %[[VAL_0]], %[[VAL_6]] : index
+// CHECK-NEXT:        "foo"(%[[VAL_7]]) : (index) -> ()
+// CHECK-NEXT:      }
+// CHECK-NEXT:      return
+// CHECK-NEXT:    }

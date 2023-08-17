@@ -113,7 +113,7 @@ struct ForOpRaising : public OpRewritePattern<scf::ForOp> {
                    << "Failed: more than one lower/upper bounds\n");
         return failure();
       }
-      ubs[0] = rewriter.create<DivUIOp>(
+      ubs[0] = rewriter.create<CeilDivUIOp>(
           loop.getLoc(),
           rewriter.create<SubIOp>(loop.getLoc(), loop.getUpperBound(),
                                   loop.getLowerBound()),
