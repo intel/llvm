@@ -908,11 +908,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
 
-    ur_event_handle_t NewEvent = nullptr;
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_READ,
-                                                hQueue, CuStream);
-      UR_CHECK_ERROR(NewEvent->start());
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_READ, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(
@@ -932,8 +933,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     if (phEvent) {
-      UR_CHECK_ERROR(NewEvent->record());
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
 
     if (blockingRead) {
@@ -978,11 +979,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
-    ur_event_handle_t NewEvent = nullptr;
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
-                                                hQueue, CuStream);
-      UR_CHECK_ERROR(NewEvent->start());
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
@@ -1004,8 +1006,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     if (phEvent) {
-      UR_CHECK_ERROR(NewEvent->record());
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1060,12 +1062,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     size_t BytesToCopy =
         ElementByteSize * SrcArrayDesc.NumChannels * region.width;
 
-    ur_event_handle_t NewEvent = nullptr;
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                hQueue, CuStream);
-      UR_CHECK_ERROR(NewEvent->start());
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
+
     ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
@@ -1086,8 +1090,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      UR_CHECK_ERROR(NewEvent->record());
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1460,10 +1464,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     CUstream cuStream = hQueue->getNextTransferStream();
     result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
                                phEventWaitList);
+
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      (*phEvent) = ur_event_handle_t_::makeNative(
-          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
-      UR_CHECK_ERROR((*phEvent)->start());
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     // Determine the direction of copy using cuPointerGetAttribute
@@ -1484,7 +1491,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     result = UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, cuStream));
 
     if (phEvent) {
-      UR_CHECK_ERROR((*phEvent)->record());
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
     if (blocking) {
       result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
