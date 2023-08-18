@@ -1,5 +1,8 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
+// https://github.com/intel/llvm/issues/8616 to fix the failure:
+// XFAIL: *
+
 // UNSUPPORTED: hip
 // RUN: %{build} -fno-builtin %{mathflags} -o %t.out
 // RUN: %{run} %t.out

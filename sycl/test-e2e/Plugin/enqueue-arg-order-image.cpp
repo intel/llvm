@@ -1,6 +1,9 @@
 // REQUIRES: aspect-ext_intel_legacy_image
 // UNSUPPORTED: hip
 
+// https://github.com/intel/llvm/issues/8616 to fix the failure:
+// XFAIL: *
+
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
 

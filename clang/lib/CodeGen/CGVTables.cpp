@@ -739,7 +739,11 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
                                   vtableHasLocalLinkage,
                                   /*isCompleteDtor=*/false);
     else
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       return builder.add(rtti);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      return builder.add(llvm::ConstantExpr::getBitCast(rtti, CGM.Int8PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   case VTableComponent::CK_FunctionPointer:
   case VTableComponent::CK_CompleteDtorPointer:
@@ -785,7 +789,11 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
           CGM.CreateRuntimeFunction(fnTy, name).getCallee());
       if (auto f = dyn_cast<llvm::Function>(fn))
         f->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Global);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       return fn;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      return llvm::ConstantExpr::getBitCast(fn, CGM.Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     };
 
     llvm::Constant *fnPtr;
@@ -824,6 +832,7 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
           builder, fnPtr, vtableAddressPoint, vtableHasLocalLinkage,
           component.getKind() == VTableComponent::CK_CompleteDtorPointer);
     } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       // TODO: this icky and only exists due to functions being in the generic
       //       address space, rather than the global one, even though they are
       //       globals;  fixing said issue might be intrusive, and will be done
@@ -835,6 +844,9 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
         fnPtr =
             llvm::ConstantExpr::getAddrSpaceCast(fnPtr, CGM.GlobalsInt8PtrTy);
       return builder.add(fnPtr);
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      return builder.add(llvm::ConstantExpr::getBitCast(fnPtr, CGM.Int8PtrTy));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
 

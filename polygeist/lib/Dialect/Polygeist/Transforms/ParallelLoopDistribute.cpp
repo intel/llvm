@@ -30,6 +30,7 @@
 #include <mlir/Dialect/Arith/IR/Arith.h>
 
 #include <deque>
+#include <set>
 
 #define DEBUG_TYPE "cpuify"
 #define DBGS() ::llvm::dbgs() << "[" DEBUG_TYPE "] "

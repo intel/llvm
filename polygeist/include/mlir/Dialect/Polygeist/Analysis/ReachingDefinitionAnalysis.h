@@ -71,15 +71,15 @@ struct UnderlyingValueLattice : public dataflow::Lattice<UnderlyingValue> {
 /// An analysis that uses forwarding of values along control-flow and callgraph
 /// edges to determine single underlying values for block arguments.
 class UnderlyingValueAnalysis
-    : public dataflow::SparseDataFlowAnalysis<UnderlyingValueLattice>,
+    : public dataflow::SparseForwardDataFlowAnalysis<UnderlyingValueLattice>,
       public RequiredDataFlowAnalyses<UnderlyingValueAnalysis> {
   friend class RequiredDataFlowAnalyses;
 
 public:
-  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
+  using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
 
   UnderlyingValueAnalysis(DataFlowSolver &solver)
-      : SparseDataFlowAnalysis<UnderlyingValueLattice>(solver) {}
+      : SparseForwardDataFlowAnalysis<UnderlyingValueLattice>(solver) {}
 
   /// Recursively retrieve the underlying value for \p value given the access
   /// function \p getUnderlyingValFn.
@@ -225,16 +225,16 @@ private:
 /// loaded from memory that might occur if the pointer/memref dereferenced by
 /// the load operation is possibly aliased to another pointer/memref.
 class ReachingDefinitionAnalysis
-    : public dataflow::DenseDataFlowAnalysis<ReachingDefinition>,
+    : public dataflow::DenseForwardDataFlowAnalysis<ReachingDefinition>,
       public RequiredDataFlowAnalyses<ReachingDefinitionAnalysis> {
   friend class RequiredDataFlowAnalyses;
 
 public:
-  using DenseDataFlowAnalysis::DenseDataFlowAnalysis;
+  using DenseForwardDataFlowAnalysis::DenseForwardDataFlowAnalysis;
 
   ReachingDefinitionAnalysis(DataFlowSolver &solver,
                              AliasAnalysis &aliasAnalysis)
-      : DenseDataFlowAnalysis<ReachingDefinition>(solver),
+      : DenseForwardDataFlowAnalysis<ReachingDefinition>(solver),
         aliasAnalysis(aliasAnalysis) {}
 
   /// Visit operation \p op and update the output state \p after with the

@@ -922,7 +922,8 @@ ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
   assert(isa<VectorType>(val.getType()) && "Expecting input vector");
   assert(Shape.size() == 1 && "We only support 1-D vectors for now");
   const auto CurrTy = cast<VectorType>(val.getType());
-  assert(CurrTy.getNumScalableDims() == 0 && "Scalable vectors not supported");
+  assert(CurrTy.getScalableDims().back() == 0 &&
+         "Scalable vectors not supported");
   const auto NewTy = VectorType::get(Shape, CurrTy.getElementType());
   if (CurrTy == NewTy)
     return *this;

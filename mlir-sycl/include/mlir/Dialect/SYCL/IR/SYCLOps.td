@@ -402,6 +402,12 @@ def SYCLCallOp : SYCL_Op<"call", [CallOpInterface]> {
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
     }
+
+    /// Get the argument operands to the called function as a mutable range, this is
+    /// required by the call interface.
+    MutableOperandRange getArgOperandsMutable() {
+      return getArgsMutable();
+    }
   }];    
 
   let assemblyFormat = [{

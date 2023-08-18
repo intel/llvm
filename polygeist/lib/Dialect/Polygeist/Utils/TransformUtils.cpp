@@ -141,7 +141,8 @@ static SmallVector<Value> computeThreadVector(FunctionOpInterface funcOp,
     return {};
 
   // Collect the operations yielding the global thread ids.
-  std::vector<T> getGlobalIdOps = getOperationsOfType<T>(funcOp).takeVector();
+  SmallVector<T, 0> getGlobalIdOps =
+      getOperationsOfType<T>(funcOp).takeVector();
   if (getGlobalIdOps.empty())
     return {};
 

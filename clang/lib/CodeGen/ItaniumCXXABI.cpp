@@ -3466,7 +3466,11 @@ ItaniumRTTIBuilder::GetAddrOfExternalRTTIDescriptor(QualType Ty) {
     }
   }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return GV;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+  return llvm::ConstantExpr::getBitCast(GV, CGM.Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 /// TypeInfoIsInStandardLibrary - Given a builtin type, returns whether the type
@@ -3946,7 +3950,11 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(QualType Ty) {
     assert(!OldGV->hasAvailableExternallyLinkage() &&
            "available_externally typeinfos not yet implemented");
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return OldGV;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    return llvm::ConstantExpr::getBitCast(OldGV, CGM.Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // Check if there is already an external RTTI descriptor for this type.
@@ -4008,7 +4016,11 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
     TypeNameField =
         llvm::ConstantExpr::getIntToPtr(TypeNameField, CGM.GlobalsInt8PtrTy);
   } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     TypeNameField = TypeName;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+    TypeNameField = llvm::ConstantExpr::getBitCast(TypeName, CGM.Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   Fields.push_back(TypeNameField);
 
@@ -4170,7 +4182,11 @@ llvm::Constant *ItaniumRTTIBuilder::BuildTypeInfo(
   TypeName->setPartition(CGM.getCodeGenOpts().SymbolPartition);
   GV->setPartition(CGM.getCodeGenOpts().SymbolPartition);
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   return GV;
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+  return llvm::ConstantExpr::getBitCast(GV, CGM.Int8PtrTy);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 /// BuildObjCObjectTypeInfo - Build the appropriate kind of type_info

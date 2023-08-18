@@ -225,8 +225,7 @@ static Value *MakeBinaryAtomicValue(
 
   llvm::IntegerType *IntType = llvm::IntegerType::get(
       CGF.getLLVMContext(), CGF.getContext().getTypeSize(T));
-  llvm::Type *IntPtrType =
-      llvm::PointerType::get(CGF.getLLVMContext(), AddrSpace);
+  llvm::Type *IntPtrType = IntType->getPointerTo(AddrSpace);
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   llvm::Value *Args[2];
