@@ -11,7 +11,7 @@
 // RUN: %{run} %t.out
 
 // This tests support of row major layout for matrix B which does automatic VNNI
-// transform. This is currently only available on AMX and XNX of PVC
+// transform. This is currently only available on AMX and XMX of PVC
 
 #include <iostream>
 #include <sycl/sycl.hpp>
