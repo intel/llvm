@@ -424,8 +424,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         sycl::detail::CGExecKernel *CG =
             static_cast<sycl::detail::CGExecKernel *>(
                 NodeImpl->MCommandGroup.get());
-        NewEvent = CreateNewEvent();
-        sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
+        auto OutEvent = CreateNewEvent();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles
@@ -433,7 +432,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
             // TODO: Pass accessor mem allocations
             nullptr,
             // TODO: Extract from handler
-            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT, NewEvent);
+            PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT);
         if (Res != pi_result::PI_SUCCESS) {
           throw sycl::exception(
               sycl::make_error_code(sycl::errc::kernel),

@@ -2298,9 +2298,9 @@ static pi_result SetKernelParamsAndLaunch(
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     sycl::detail::pi::PiKernel Kernel, NDRDescT &NDRDesc,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent, const KernelArgMask *EliminatedArgMask,
-    const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    const detail::EventImplPtr &OutEventImpl) {
+    const detail::EventImplPtr &OutEventImpl,
+    const KernelArgMask *EliminatedArgMask,
+    const std::function<void *(Requirement *Req)> &getMemAllocationFunc) {
   const PluginPtr &Plugin = Queue->getPlugin();
 
   auto setFunc = [&Plugin, Kernel, &DeviceImageImpl, &getMemAllocationFunc,
@@ -2341,7 +2341,8 @@ static pi_result SetKernelParamsAndLaunch(
   pi_result Error = Plugin->call_nocheck<PiApiKind::piEnqueueKernelLaunch>(
       Queue->getHandleRef(), Kernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
       &NDRDesc.GlobalSize[0], LocalSize, RawEvents.size(),
-      RawEvents.empty() ? nullptr : &RawEvents[0], OutEvent);
+      RawEvents.empty() ? nullptr : &RawEvents[0],
+      OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr);
   return Error;
 }
 
@@ -2452,10 +2453,9 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent,
+    const detail::EventImplPtr &OutEventImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
-    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig,
-    const detail::EventImplPtr &OutEventImpl) {
+    sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig) {
 
   // Run OpenCL kernel
   auto ContextImpl = Queue->getContextImplPtr();
@@ -2551,9 +2551,9 @@ pi_int32 enqueueImpKernel(
           sizeof(sycl::detail::pi::PiKernelCacheConfig), &KernelCacheConfig);
     }
 
-    Error = SetKernelParamsAndLaunch(
-        Queue, Args, DeviceImageImpl, Kernel, NDRDesc, EventsWaitList, OutEvent,
-        EliminatedArgMask, getMemAllocationFunc, OutEventImpl);
+    Error = SetKernelParamsAndLaunch(Queue, Args, DeviceImageImpl, Kernel,
+                                     NDRDesc, EventsWaitList, OutEventImpl,
+                                     EliminatedArgMask, getMemAllocationFunc);
   }
   if (PI_SUCCESS != Error) {
     // If we have got non-success error code, let's analyze it to emit nice
@@ -2570,8 +2570,7 @@ pi_int32
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         sycl::detail::pi::PiEvent *OutEvent, bool read,
-                         const detail::EventImplPtr &OutEventImpl) {
+                         const detail::EventImplPtr &OutEventImpl, bool read) {
   detail::HostPipeMapEntry *hostPipeEntry =
       ProgramManager::getInstance().getHostPipeEntry(PipeName);
 
@@ -2600,6 +2599,7 @@ enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
   pi_queue pi_q = Queue->getHandleRef();
   pi_result Error;
 
+  auto OutEvent = OutEventImpl ? &OutEventImpl->getHandleRef() : nullptr;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   if (read) {
@@ -2732,11 +2732,12 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
   auto RawEvents = getPiEvents(EventImpls);
   flushCrossQueueDeps(EventImpls, getWorkerQueue());
 
+  bool DiscardEvent = (MQueue->has_discard_events_support() &&
+                       MCommandGroup->getRequirements().size() == 0);
   sycl::detail::pi::PiEvent *Event =
-      (MQueue->has_discard_events_support() &&
-       MCommandGroup->getRequirements().size() == 0)
-          ? nullptr
-          : &MEvent->getHandleRef();
+      DiscardEvent ? nullptr : &MEvent->getHandleRef();
+  detail::EventImplPtr EventImpl = DiscardEvent ? nullptr : MEvent;
+
   switch (MCommandGroup->getType()) {
 
   case CG::CGTYPE::UpdateHost: {
@@ -2855,20 +2856,20 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
         ExecKernel->MSyclKernel;
     const std::string &KernelName = ExecKernel->MKernelName;
 
-    if (!Event) {
+    if (!EventImpl) {
       // Kernel only uses assert if it's non interop one
       bool KernelUsesAssert =
           !(SyclKernel && SyclKernel->isInterop()) &&
           ProgramManager::getInstance().kernelUsesAssert(KernelName);
       if (KernelUsesAssert) {
-        Event = &MEvent->getHandleRef();
+        EventImpl = MEvent;
       }
     }
 
-    return enqueueImpKernel(MQueue, NDRDesc, Args,
-                            ExecKernel->getKernelBundle(), SyclKernel,
-                            KernelName, RawEvents, Event, getMemAllocationFunc,
-                            ExecKernel->MKernelCacheConfig, MEvent);
+    return enqueueImpKernel(
+        MQueue, NDRDesc, Args, ExecKernel->getKernelBundle(), SyclKernel,
+        KernelName, RawEvents, EventImpl, getMemAllocationFunc,
+        ExecKernel->MKernelCacheConfig);
   }
   case CG::CGTYPE::CopyUSM: {
     CGCopyUSM *Copy = (CGCopyUSM *)MCommandGroup.get();
@@ -3048,11 +3049,11 @@ pi_int32 ExecCGCommand::enqueueImpQueue() {
     bool blocking = ExecReadWriteHostPipe->isBlocking();
     bool read = ExecReadWriteHostPipe->isReadHostPipe();
 
-    if (!Event) {
-      Event = &MEvent->getHandleRef();
+    if (!EventImpl) {
+      EventImpl = MEvent;
     }
     return enqueueReadWriteHostPipe(MQueue, pipeName, blocking, hostPtr,
-                                    typeSize, RawEvents, Event, read, MEvent);
+                                    typeSize, RawEvents, EventImpl, read);
   }
   case CG::CGTYPE::ExecCommandBuffer: {
     CGExecCommandBuffer *CmdBufferCG =

@@ -235,7 +235,6 @@ event handler::finalize() {
 
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -261,8 +260,8 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, OutEvent,
-                                 nullptr, MImpl->MKernelCacheConfig, NewEvent);
+                                 MKernel, MKernelName, RawEvents, NewEvent,
+                                 nullptr, MImpl->MKernelCacheConfig);
           }
         }
         return Result;
@@ -288,7 +287,6 @@ event handler::finalize() {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
-        OutEvent = &NewEvent->getHandleRef();
         NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
