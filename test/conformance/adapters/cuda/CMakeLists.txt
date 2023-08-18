@@ -3,7 +3,8 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_test_with_devices_environment(adapter-cuda 
+set(USE_LOCAL_TEST_CONFIGURATION ON)
+add_conformance_test_with_devices_environment(adapter-cuda
     cuda_fixtures.h
     context_tests.cpp
     cuda_urContextGetNativeHandle.cpp
