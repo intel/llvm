@@ -1,4 +1,3 @@
-; Must pass explicitly until it becomes the default on xmain
 ; RUN: opt < %s -msan-check-access-address=0 \
 ; RUN: -msan-track-origins=1 -S -passes=msan 2>&1 | FileCheck %s
 ; RUN: opt < %s -msan-check-access-address=0  \

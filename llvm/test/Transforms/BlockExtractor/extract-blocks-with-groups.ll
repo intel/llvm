@@ -3,8 +3,6 @@
 ; Make sure we can still extract a single basic block
 ; RUN: echo 'foo end' >> %t
 ; RUN: echo 'bar bb14;bb20' >> %t
-; TODO: Remove flag when the project supports opaque pointers
-; by default
 ; RUN: opt -S -passes=extract-blocks -extract-blocks-file=%t %s | FileCheck %s
 
 ; CHECK-LABEL: foo

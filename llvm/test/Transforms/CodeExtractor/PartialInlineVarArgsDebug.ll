@@ -1,5 +1,3 @@
-; TODO: Remove flag when the project supports opaque pointers
-; by default
 ; RUN: opt < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 ; CHECK-LABEL: @callee

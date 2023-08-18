@@ -1,5 +1,3 @@
-; TODO: Remove flag when the project supports opaque pointers
-; by default
 ; RUN: opt -passes=instcombine -S < %s | FileCheck %s
 ; RUN: opt -debugify-each -passes=instcombine -S < %s | FileCheck %s
 
