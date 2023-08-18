@@ -1,6 +1,3 @@
-// Added -Xclang -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
 // RUN: %clang -target x86_64-unknown-windows-msvc -fobjc-runtime=ios -Wno-objc-root-class -S -o - -emit-llvm %s | FileCheck %s
 // RUN: %clang -target x86_64-apple-ios -fobjc-runtime=ios -Wno-objc-root-class -S -o - -emit-llvm %s | FileCheck %s
 

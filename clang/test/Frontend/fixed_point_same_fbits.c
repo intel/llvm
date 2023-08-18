@@ -1,6 +1,3 @@
-// Added -Xclang -opaque-pointers.
-// FIXME: Align with the community code when project is ready to enable opaque
-// pointers by default
 // RUN: %clang -ffixed-point -S -emit-llvm -o - %s | FileCheck %s -check-prefix=DEFAULT
 // RUN: %clang_cc1 -ffixed-point -fpadding-on-unsigned-fixed-point -S -emit-llvm -o - %s | FileCheck %s -check-prefix=SAME
 
