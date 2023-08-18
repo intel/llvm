@@ -1,6 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// https://github.com/intel/llvm/issues/7585 to fix the failure:
+// XFAIL: gpu
+
 #include <sycl/sycl.hpp>
 
 #define TEST(FUNC, VEC_ELEM_TYPE, DIM, EXPECTED, DELTA, ...)                   \
