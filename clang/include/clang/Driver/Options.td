@@ -3684,6 +3684,16 @@ def fsycl_device_code_split_esimd : Flag<["-"], "fsycl-device-code-split-esimd">
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"split ESIMD device code from SYCL into a separate device binary image (default). Has effect only for SPIR-based targets. (experimental)">;
 def fno_sycl_device_code_split_esimd : Flag<["-"], "fno-sycl-device-code-split-esimd">,
   Visibility<[ClangOption, CLOption, DXCOption]>, HelpText<"do not split ESIMD and SYCL device code into separate device binary images. Has effect only for SPIR-based targets. (experimental)">;
+def fsycl_add_default_spec_consts_image : Flag<["-"], "fsycl-add-default-spec-consts-image">,
+  HelpText<"Option generates a copy of every device image that uses a specialization constant and "
+           "replaces all usages of specialization constant with default values specified by specialization_id. "
+           "If a device image doesn't use a specialization constant at all then no copy is generated. "
+           "SYCL Runtime then will be able to choose between new generated device image and "
+           "original one depending on whether a specialization constant value was changed from specified default value in specialization_id. "
+           "This option is only useful if used in conjunction with Ahead of Time Compilation (AOT).">;
+def fno_sycl_add_default_spec_consts_image: Flag<["-"], "fno-sycl-add-default-spec-consts-image">,
+  HelpText<"Option turns off generation of device image where all specialization constant usages are replaced "
+           "with default values.">;
 defm sycl_instrument_device_code
     : BoolFOption<"sycl-instrument-device-code",
           CodeGenOpts<"SPIRITTAnnotations">, DefaultFalse,

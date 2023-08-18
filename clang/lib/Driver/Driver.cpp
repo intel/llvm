@@ -6155,6 +6155,33 @@ class OffloadingActionBuilder final {
       }
     }
 
+    // Function checks that user passed -fsycl-add-default-spec-consts-image
+    // flag with at least one AOT target. If no AOT target has been passed then
+    // a warning is issued.
+    void checkForMisusedAddDefaultSpecConstsImageFlag(
+        Compilation &C, const DerivedArgList &Args,
+        const SmallVector<DeviceTargetInfo, 4> &Targets) const {
+      if (!Args.hasFlag(options::OPT_fsycl_add_default_spec_consts_image,
+                        options::OPT_fno_sycl_add_default_spec_consts_image,
+                        false))
+        return;
+
+      bool foundAOT = std::any_of(
+          Targets.begin(), Targets.end(), [](const DeviceTargetInfo &DTI) {
+            llvm::Triple T = DTI.TC->getTriple();
+            bool isSpirvAOT =
+                T.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+                T.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
+                T.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
+
+            return T.isNVPTX() || T.isAMDGCN() || isSpirvAOT;
+          });
+
+      if (!foundAOT)
+        C.getDriver().Diag(
+            diag::warn_drv_fsycl_add_default_spec_consts_image_flag_in_non_AOT);
+    }
+
     bool initialize() override {
       using namespace tools::SYCL;
       // Get the SYCL toolchains. If we don't get any, the action builder will
@@ -6386,6 +6413,7 @@ class OffloadingActionBuilder final {
       }
 
       checkForOffloadMismatch(C, Args, SYCLTargetInfoList);
+      checkForMisusedAddDefaultSpecConstsImageFlag(C, Args, SYCLTargetInfoList);
 
       DeviceLinkerInputs.resize(SYCLTargetInfoList.size());
       return false;
