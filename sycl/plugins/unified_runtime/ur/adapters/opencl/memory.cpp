@@ -8,8 +8,6 @@
 
 #include "common.hpp"
 
-#include <sycl/detail/cl.h>
-
 cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
   cl_image_format CLImageFormat;
   switch (PImageFormat->channelOrder) {

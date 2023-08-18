@@ -8,8 +8,6 @@
 
 #include "context.hpp"
 
-#include <sycl/detail/cl.h>
-
 ur_result_t cl_adapter::getDevicesFromContext(
     ur_context_handle_t hContext,
     std::unique_ptr<std::vector<cl_device_id>> &DevicesInCtx) {

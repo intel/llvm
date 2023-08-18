@@ -8,8 +8,6 @@
 
 #include "platform.hpp"
 
-#include <sycl/detail/cl.h>
-
 ur_result_t cl_adapter::getPlatformVersion(cl_platform_id Plat,
                                            oclv::OpenCLVersion &Version) {
 
