@@ -109,21 +109,22 @@ $ make
 
 List of options provided by CMake:
 
-| Name | Description | Values | Default |
-| - | - | - | - |
-| UR_BUILD_TESTS | Build the tests | ON/OFF | ON |
-| UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
-| UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
-| UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
-| UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
-| UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
-| UR_USE_UBSAN | Enable UndefinedBehavior Sanitizer | ON/OFF | OFF |
-| UR_USE_MSAN | Enable MemorySanitizer (clang only) | ON/OFF | OFF |
-| UR_ENABLE_TRACING | Enable XPTI-based tracing layer | ON/OFF | OFF |
-| UR_BUILD_ADAPTER_L0 | Fetch and use level-zero adapter from SYCL | ON/OFF | OFF |
-| UR_BUILD_ADAPTER_CUDA | Fetch and use cuda adapter from SYCL | ON/OFF | OFF |
-| UR_BUILD_ADAPTER_HIP | Fetch and use hip adapter from SYCL | ON/OFF | OFF |
-| UR_HIP_PLATFORM | Build hip adapter for AMD or NVIDIA platform | AMD/NVIDIA | AMD |
+| Name                    | Description                                            | Values     | Default |
+|-------------------------|--------------------------------------------------------|------------|---------|
+| UR_BUILD_TESTS          | Build the tests                                        | ON/OFF     | ON      |
+| UR_BUILD_TOOLS          | Build tools                                            | ON/OFF     | ON      |
+| UR_FORMAT_CPP_STYLE     | Format code style                                      | ON/OFF     | OFF     |
+| UR_DEVELOPER_MODE       | Treat warnings as errors and enables additional checks | ON/OFF     | OFF     |
+| UR_USE_ASAN             | Enable AddressSanitizer                                | ON/OFF     | OFF     |
+| UR_USE_TSAN             | Enable ThreadSanitizer                                 | ON/OFF     | OFF     |
+| UR_USE_UBSAN            | Enable UndefinedBehavior Sanitizer                     | ON/OFF     | OFF     |
+| UR_USE_MSAN             | Enable MemorySanitizer (clang only)                    | ON/OFF     | OFF     |
+| UR_ENABLE_TRACING       | Enable XPTI-based tracing layer                        | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_L0     | Fetch and use level-zero adapter from SYCL             | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_OPENCL | Fetch and use opencl adapter from SYCL                 | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_CUDA   | Fetch and use cuda adapter from SYCL                   | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_HIP    | Fetch and use hip adapter from SYCL                    | ON/OFF     | OFF     |
+| UR_HIP_PLATFORM         | Build hip adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 
 ### Additional make targets
 

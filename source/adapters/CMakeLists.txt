@@ -36,6 +36,13 @@ if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
     FetchSource(https://github.com/intel/llvm.git nightly-2023-08-01 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
 endif()
 
+# Temporarily fetch the opencl adapter from a fork until the PR has been merged.
+if(UR_BUILD_ADAPTER_OPENCL)
+    # fetch adapter sources from SYCL
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
+    FetchSource(https://github.com/fabiomestre/llvm.git opencl_adapter_unofficial "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
+endif()
+
 if(UR_BUILD_ADAPTER_L0)
     add_subdirectory(level_zero)
 endif()
@@ -46,4 +53,8 @@ endif()
 
 if(UR_BUILD_ADAPTER_HIP)
     add_subdirectory(hip)
+endif()
+
+if(UR_BUILD_ADAPTER_OPENCL)
+    add_subdirectory(opencl)
 endif()
