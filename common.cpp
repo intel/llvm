@@ -56,6 +56,28 @@ ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
   throw mapErrorUR(Result);
 }
 
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                         const char *File) {
+  if (Result == UR_RESULT_SUCCESS) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    std::cerr << "\nUR HIP ERROR:"
+              << "\n\tValue:           " << Result
+              << "\n\tFunction:        " << Function
+              << "\n\tSource Location: " << File << ":" << Line << "\n\n";
+  }
+
+  if (std::getenv("PI_HIP_ABORT") != nullptr ||
+      std::getenv("UR_HIP_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw Result;
+}
+
 hipError_t getHipVersionString(std::string &Version) {
   int DriverVersion = 0;
   auto Result = hipDriverGetVersion(&DriverVersion);
