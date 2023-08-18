@@ -14,6 +14,8 @@
 // -mllvm -inline-threshold=2000 added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
 
+#include <cstddef>
+
 constexpr size_t SG_SZ = 32;
 constexpr size_t TN = 16;
 
