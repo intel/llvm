@@ -27,7 +27,7 @@ All library level keys, accept target values and are defaulted if not specified.
   "target_info": [                                # Required: target information 
     {
       "target": "x86_64-macos",
-      "min_deployment": "10.14"                   # Required: minimum OS deployment version
+      "min_deployment": "10.14"                   # Optional: minOS defaults to 0
     },
     {
       "target": "arm64-macos",
@@ -72,6 +72,7 @@ using namespace llvm;
 using namespace llvm::json;
 using namespace llvm::MachO;
 
+namespace {
 struct JSONSymbol {
   SymbolKind Kind;
   std::string Name;
@@ -282,17 +283,16 @@ Expected<TargetList> getTargetsSection(const Object *Section) {
         getRequiredValue<StringRef>(TBDKey::Target, Obj, &Object::getString);
     if (!TargetStr)
       return make_error<JSONStubError>(getParseErrorMsg(TBDKey::Target));
-    auto VersionStr = getRequiredValue<StringRef>(TBDKey::Deployment, Obj,
-                                                  &Object::getString);
-    if (!VersionStr)
-      return make_error<JSONStubError>(getParseErrorMsg(TBDKey::Deployment));
-    VersionTuple Version;
-    if (Version.tryParse(*VersionStr))
-      return make_error<JSONStubError>(getParseErrorMsg(TBDKey::Deployment));
     auto TargetOrErr = Target::create(*TargetStr);
     if (!TargetOrErr)
       return make_error<JSONStubError>(getParseErrorMsg(TBDKey::Target));
+
+    auto VersionStr = Obj->getString(Keys[TBDKey::Deployment]);
+    VersionTuple Version;
+    if (VersionStr && Version.tryParse(*VersionStr))
+      return make_error<JSONStubError>(getParseErrorMsg(TBDKey::Deployment));
     TargetOrErr->MinDeployment = Version;
+
     // Convert to LLVM::Triple to accurately compute minOS + platform + arch
     // pairing.
     IFTargets.push_back(
@@ -697,6 +697,7 @@ Expected<std::vector<IFPtr>> getInlinedLibs(const Object *File) {
 }
 
 } // namespace StubParser
+} // namespace
 
 Expected<std::unique_ptr<InterfaceFile>>
 MachO::getInterfaceFileFromJSON(StringRef JSON) {

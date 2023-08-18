@@ -73,7 +73,7 @@ jobs:
         include:
           - name: ESIMD Emu
             runner: '["Linux", "x86-cpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001
             target_devices: ext_intel_esimd_emulator:gpu
             install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
