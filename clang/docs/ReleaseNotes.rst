@@ -122,6 +122,8 @@ Deprecated Compiler Flags
 Modified Compiler Flags
 -----------------------
 
+* ``-Woverriding-t-option`` is renamed to ``-Woverriding-option``.
+
 Removed Compiler Flags
 -------------------------
 
@@ -152,6 +154,10 @@ Bug Fixes in This Version
 - Fix a hang on valid C code passing a function type as an argument to
   ``typeof`` to form a function declaration.
   (`#64713 <https://github.com/llvm/llvm-project/issues/64713>_`)
+- Clang now respects ``-fwrapv`` and ``-ftrapv`` for ``__builtin_abs`` and
+  ``abs`` builtins.
+  (`#45129 <https://github.com/llvm/llvm-project/issues/45129>`_,
+  `#45794 <https://github.com/llvm/llvm-project/issues/45794>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -279,10 +285,17 @@ libclang
 Static Analyzer
 ---------------
 
+- Added a new checker ``core.BitwiseShift`` which reports situations where
+  bitwise shift operators produce undefined behavior (because some operand is
+  negative or too large).
+
 .. _release-notes-sanitizers:
 
 Sanitizers
 ----------
+- ``-fsanitize=signed-integer-overflow`` now instruments ``__builtin_abs`` and
+  ``abs`` builtins.
+
 
 Python Binding Changes
 ----------------------
