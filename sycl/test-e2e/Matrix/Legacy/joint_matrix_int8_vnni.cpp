@@ -17,6 +17,5 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 16
-constexpr size_t TN = 16;
 
 #include "joint_matrix_int8_vnni_impl.hpp"
