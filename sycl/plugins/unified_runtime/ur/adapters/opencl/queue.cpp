@@ -9,8 +9,6 @@
 #include "common.hpp"
 #include "platform.hpp"
 
-#include <sycl/detail/cl.h>
-
 cl_command_queue_info mapURQueueInfoToCL(const ur_queue_info_t PropName) {
 
   switch (PropName) {

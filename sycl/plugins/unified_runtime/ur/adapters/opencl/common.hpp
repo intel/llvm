@@ -7,13 +7,12 @@
 //===-----------------------------------------------------------------===//
 #pragma once
 
+#include <CL/cl.h>
+#include <CL/cl_ext.h>
 #include <climits>
 #include <map>
 #include <mutex>
 #include <regex>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.h>
 #include <ur/ur.hpp>
 
 /**

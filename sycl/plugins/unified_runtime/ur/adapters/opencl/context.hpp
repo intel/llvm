@@ -9,9 +9,6 @@
 
 #include "common.hpp"
 
-#include <sycl/detail/cl.h>
-#include <ur/ur.hpp>
-
 namespace cl_adapter {
 ur_result_t
 getDevicesFromContext(ur_context_handle_t hContext,

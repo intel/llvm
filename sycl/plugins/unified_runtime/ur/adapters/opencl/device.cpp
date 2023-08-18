@@ -11,7 +11,6 @@
 #include "platform.hpp"
 
 #include <cassert>
-#include <sycl/detail/cl.h>
 
 ur_result_t cl_adapter::getDeviceVersion(cl_device_id Dev,
                                          oclv::OpenCLVersion &Version) {

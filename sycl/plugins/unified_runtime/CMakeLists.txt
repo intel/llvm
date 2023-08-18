@@ -290,6 +290,10 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
       OpenCL-ICD
     )
 
+  # Suppress a compiler message about undefined CL_TARGET_OPENCL_VERSION.
+  # Define all symbols up to OpenCL 3.0.
+  target_compile_definitions(ur_adapter_opencl PRIVATE CL_TARGET_OPENCL_VERSION=300)
+
   set_target_properties("ur_adapter_opencl" PROPERTIES
     VERSION "0.0.0"
     SOVERSION "0"

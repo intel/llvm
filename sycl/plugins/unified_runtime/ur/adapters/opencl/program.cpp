@@ -352,13 +352,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   *ppFunctionPointer = 0;
   size_t Size;
   CL_RETURN_ON_FAILURE(clGetProgramInfo(cl_adapter::cast<cl_program>(hProgram),
-                                        PI_PROGRAM_INFO_KERNEL_NAMES, 0,
-                                        nullptr, &Size));
+                                        CL_PROGRAM_KERNEL_NAMES, 0, nullptr,
+                                        &Size));
 
   std::string KernelNames(Size, ' ');
 
   CL_RETURN_ON_FAILURE(clGetProgramInfo(
-      cl_adapter::cast<cl_program>(hProgram), PI_PROGRAM_INFO_KERNEL_NAMES,
+      cl_adapter::cast<cl_program>(hProgram), CL_PROGRAM_KERNEL_NAMES,
       KernelNames.size(), &KernelNames[0], nullptr));
 
   // Get rid of the null terminator and search for the kernel name. If the

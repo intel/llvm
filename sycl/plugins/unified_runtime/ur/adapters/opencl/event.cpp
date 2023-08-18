@@ -8,8 +8,6 @@
 
 #include "common.hpp"
 
-#include <sycl/detail/cl.h>
-
 cl_event_info convertUREventInfoToCL(const ur_event_info_t PropName) {
   switch (PropName) {
   case UR_EVENT_INFO_COMMAND_QUEUE:
