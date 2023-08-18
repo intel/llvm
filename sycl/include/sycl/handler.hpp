@@ -1038,7 +1038,7 @@ private:
     // multiple invocations the old kernel in a 32-bit global range.
 #ifdef __SYCL_ENABLE_LARGE_RANGE_WRAPPING__
     for (int i = 0; i < Dims; ++i)
-      if (NumWorkItems[i] > std::numeric_limits<uint32_t>::max())
+      if (NumWorkItems[i] > (std::numeric_limits<uint32_t>::max)())
         return parallel_for_large_range<KernelName>(NumWorkItems, Props,
                                                     KernelFunc);
 #endif
@@ -2173,7 +2173,7 @@ public:
     size_t WGSize = Dev.get_info<info::device::max_work_group_size>();
     // TODO: Check if the computation of .size() will overflow
     size_t NOldWorkItems = NumWorkItems.size();
-    auto NWorkGroups = std::numeric_limits<uint32_t>::max() / WGSize;
+    auto NWorkGroups = (std::numeric_limits<uint32_t>::max)() / WGSize;
     auto NNewWorkItems = NWorkGroups * WGSize;
     auto NNewWorkItemsPerOldWorkItems = NOldWorkItems / NNewWorkItems;
     if (NOldWorkItems % NNewWorkItems != 0)
