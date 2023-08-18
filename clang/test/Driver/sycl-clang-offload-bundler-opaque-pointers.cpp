@@ -23,7 +23,6 @@ int main() {
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 -fsycl-device-only %s -c -emit-llvm -o %s.spir64.bc
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx-nvidia-cuda -fsycl-device-only %s -c -emit-llvm -o %s.nvptx.bc
 // RUN: %clangxx -fsycl -target x86_64-unknown-linux-gnu %s -c -o %s.host.o
-// -fsycl -fno-sycl-instrument-device-code -fno-sycl-device-lib=all
 
 //
 // Check clang-offload-bundler obj for opaque pointers support error when spir64 with 
