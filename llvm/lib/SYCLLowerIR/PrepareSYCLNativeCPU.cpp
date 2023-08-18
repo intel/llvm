@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -302,9 +303,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   Type *StateType =
       StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
   if (!StateType)
-    report_fatal_error("Couldn't find the Native CPU state in the "
-                       "module, make sure that -D __SYCL_NATIVE_CPU__ is set",
-                       false);
+    return PreservedAnalyses::all();
   Type *StatePtrType = PointerType::get(StateType, 1);
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
