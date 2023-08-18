@@ -41,6 +41,7 @@
 #include <functional>
 #include <numeric>
 #include <utility>
+#include <set>
 #include <vector>
 
 using namespace llvm;
