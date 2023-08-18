@@ -80,11 +80,6 @@ endif()
 
 # Setup flags.
 add_link_flags_if(CXX_SUPPORTS_UNWINDLIB_EQ_NONE_FLAG --unwindlib=none)
-if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
-  add_link_flags_if_supported(-nostdlib++)
-else()
-  add_link_flags_if_supported(-nodefaultlibs)
-endif()
 
 # MINGW_LIBRARIES is defined in config-ix.cmake
 add_library_flags_if(MINGW "${MINGW_LIBRARIES}")
@@ -132,6 +127,8 @@ else()
   target_compile_options(unwind_shared_objects PRIVATE -fno-rtti)
 endif()
 target_link_libraries(unwind_shared_objects PRIVATE unwind-headers ${LIBUNWIND_LIBRARIES})
+target_compile_options(unwind_shared_objects PUBLIC "${LIBUNWIND_ADDITIONAL_COMPILE_FLAGS}")
+target_link_libraries(unwind_shared_objects PUBLIC "${LIBUNWIND_ADDITIONAL_LIBRARIES}")
 set_target_properties(unwind_shared_objects
   PROPERTIES
     CXX_EXTENSIONS OFF
@@ -170,6 +167,8 @@ else()
   target_compile_options(unwind_static_objects PRIVATE -fno-rtti)
 endif()
 target_link_libraries(unwind_static_objects PRIVATE unwind-headers ${LIBUNWIND_LIBRARIES})
+target_compile_options(unwind_static_objects PUBLIC "${LIBUNWIND_ADDITIONAL_COMPILE_FLAGS}")
+target_link_libraries(unwind_static_objects PUBLIC "${LIBUNWIND_ADDITIONAL_LIBRARIES}")
 set_target_properties(unwind_static_objects
   PROPERTIES
     CXX_EXTENSIONS OFF

@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=i386-unknown-unknown -mcpu=core2 %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=i386-unknown-unknown -mcpu=core2 %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=i386-unknown-unknown -mcpu=core2 %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
@@ -83,8 +83,8 @@ attributes #2 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-
 !21 = !DILocation(line: 3, column: 21, scope: !17)
 !22 = !DILocation(line: 4, column: 1, scope: !6)
 
-; CHECK: Address            Line   Column File   ISA Discriminator Flags
-; CHECK: ------------------ ------ ------ ------ --- ------------- -------------
-; CHECK: {{.*}}      3     15      1   0             1 
-; CHECK: {{.*}}      3     16      1   0             1 
-; CHECK: {{.*}}      3     11      1   0             1 
+; CHECK: Address            Line   Column File   ISA Discriminator OpIndex Flags
+; CHECK: ------------------ ------ ------ ------ --- ------------- ------- -------------
+; CHECK: {{.*}}                  3     15      1   0             1       0
+; CHECK: {{.*}}                  3     16      1   0             1       0
+; CHECK: {{.*}}                  3     11      1   0             1       0
