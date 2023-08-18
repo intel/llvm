@@ -18,6 +18,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
+#include <detail/xpti_registry.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -72,6 +73,7 @@ static sycl::detail::pi::PiProgram
 createBinaryProgram(const ContextImplPtr Context, const device &Device,
                     const unsigned char *Data, size_t DataLen,
                     const std::vector<pi_device_binary_property> Metadata) {
+  XPTI_LW_TRACE();
   const PluginPtr &Plugin = Context->getPlugin();
 #ifndef _NDEBUG
   pi_uint32 NumDevices = 0;
@@ -101,6 +103,7 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
 static sycl::detail::pi::PiProgram
 createSpirvProgram(const ContextImplPtr Context, const unsigned char *Data,
                    size_t DataLen) {
+  XPTI_LW_TRACE();
   sycl::detail::pi::PiProgram Program = nullptr;
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piProgramCreate>(Context->getHandleRef(), Data,
@@ -132,6 +135,7 @@ template <typename RetT, typename ExceptionT, typename GetCachedBuildFT,
 KernelProgramCache::BuildResult<RetT> *
 getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
            BuildFT &&Build) {
+  XPTI_LW_TRACE();
   using BuildState = KernelProgramCache::BuildState;
 
   auto [BuildResult, InsertionTookPlace] = GetCachedBuild();
@@ -208,6 +212,7 @@ getOrBuild(KernelProgramCache &KPCache, GetCachedBuildFT &&GetCachedBuild,
 static bool
 isDeviceBinaryTypeSupported(const context &C,
                             sycl::detail::pi::PiDeviceBinaryType Format) {
+  XPTI_LW_TRACE();
   // All formats except PI_DEVICE_BINARY_TYPE_SPIRV are supported.
   if (Format != PI_DEVICE_BINARY_TYPE_SPIRV)
     return true;
@@ -267,6 +272,7 @@ static const char *getFormatStr(sycl::detail::pi::PiDeviceBinaryType Format) {
 sycl::detail::pi::PiProgram
 ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
                                 const context &Context, const device &Device) {
+  XPTI_LW_TRACE();
   if (DbgProgMgr > 0)
     std::cerr << ">>> ProgramManager::createPIProgram(" << &Img << ", "
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
@@ -332,6 +338,7 @@ ProgramManager::createPIProgram(const RTDeviceBinaryImage &Img,
 
 static void appendLinkOptionsFromImage(std::string &LinkOpts,
                                        const RTDeviceBinaryImage &Img) {
+  XPTI_LW_TRACE();
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
   // Update only if link options are not overwritten by environment variable
   if (!LinkOptsEnv) {
@@ -368,6 +375,7 @@ static void
 appendCompileOptionsForGRFSizeProperties(std::string &CompileOpts,
                                          const RTDeviceBinaryImage &Img,
                                          bool IsEsimdImage) {
+  XPTI_LW_TRACE();
   // TODO: sycl-register-alloc-mode is deprecated and should be removed in the
   // next ABI break.
   pi_device_binary_property RegAllocModeProp =
@@ -413,6 +421,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
                                           const RTDeviceBinaryImage &Img,
                                           const std::vector<device> &Devs,
                                           const PluginPtr &) {
+  XPTI_LW_TRACE();
   // Build options are overridden if environment variables are present.
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
@@ -503,6 +512,7 @@ static void applyOptionsFromImage(std::string &CompileOpts,
                                   const RTDeviceBinaryImage &Img,
                                   const std::vector<device> &Devices,
                                   const PluginPtr &Plugin) {
+  XPTI_LW_TRACE();
   appendCompileOptionsFromImage(CompileOpts, Img, Devices, Plugin);
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
@@ -528,6 +538,7 @@ static void applyLinkOptionsFromEnvironment(std::string &LinkOpts) {
 
 static void applyOptionsFromEnvironment(std::string &CompileOpts,
                                         std::string &LinkOpts) {
+  XPTI_LW_TRACE();
   // Build options are overridden if environment variables are present.
   applyCompileOptionsFromEnvironment(CompileOpts);
   applyLinkOptionsFromEnvironment(LinkOpts);
@@ -539,6 +550,7 @@ ProgramManager::getOrCreatePIProgram(const RTDeviceBinaryImage &Img,
                                      const device &Device,
                                      const std::string &CompileAndLinkOptions,
                                      SerializedObj SpecConsts) {
+  XPTI_LW_TRACE();
   sycl::detail::pi::PiProgram NativePrg;
 
   auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
@@ -574,6 +586,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     const ContextImplPtr &ContextImpl, const DeviceImplPtr &DeviceImpl,
     const std::string &KernelName, const program_impl *Prg,
     bool JITCompilationIsRequired) {
+  XPTI_LW_TRACE();
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string CompileOpts;
@@ -690,6 +703,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
+  XPTI_LW_TRACE();
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -754,6 +768,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 sycl::detail::pi::PiProgram
 ProgramManager::getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
                                          const ContextImplPtr Context) {
+  XPTI_LW_TRACE();
   sycl::detail::pi::PiProgram Program;
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piKernelGetInfo>(Kernel, PI_KERNEL_INFO_PROGRAM,
@@ -765,6 +780,7 @@ ProgramManager::getPiProgramFromPiKernel(sycl::detail::pi::PiKernel Kernel,
 std::string
 ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
                                    const ContextImplPtr Context) {
+  XPTI_LW_TRACE();
   size_t PIDevicesSize = 0;
   const PluginPtr &Plugin = Context->getPlugin();
   Plugin->call<PiApiKind::piProgramGetInfo>(Program, PI_PROGRAM_INFO_DEVICES, 0,
@@ -812,6 +828,7 @@ ProgramManager::getProgramBuildLog(const sycl::detail::pi::PiProgram &Program,
 // pi_device_binary_struct can be created for each of them.
 static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
                           sycl::detail::pi::PiProgram &Prog) {
+  XPTI_LW_TRACE();
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
                      std::ifstream::in | std::ifstream::binary);
@@ -897,7 +914,7 @@ static sycl::detail::pi::PiProgram
 loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
                       const sycl::detail::pi::PiDevice &Device,
                       bool UseNativeLib) {
-
+  XPTI_LW_TRACE();
   auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
 
   auto LockedCache = Context->acquireCachedLibPrograms();
@@ -938,6 +955,7 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
 }
 
 ProgramManager::ProgramManager() {
+  XPTI_LW_TRACE();
   const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIR-V file is specified with an environment variable,
   // register the corresponding image
@@ -996,6 +1014,7 @@ template <typename StorageKey>
 RTDeviceBinaryImage *getBinImageFromMultiMap(
     const std::unordered_multimap<StorageKey, RTDeviceBinaryImage *> &ImagesSet,
     const StorageKey &Key, const context &Context, const device &Device) {
+  XPTI_LW_TRACE();
   auto [ItBegin, ItEnd] = ImagesSet.equal_range(Key);
   if (ItBegin == ItEnd)
     return nullptr;
@@ -1021,6 +1040,7 @@ RTDeviceBinaryImage &
 ProgramManager::getDeviceImage(const std::string &KernelName,
                                const context &Context, const device &Device,
                                bool JITCompilationIsRequired) {
+  XPTI_LW_TRACE();
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getDeviceImage(\"" << KernelName << "\", "
               << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
@@ -1116,6 +1136,7 @@ RTDeviceBinaryImage &ProgramManager::getDeviceImage(
     const std::unordered_set<RTDeviceBinaryImage *> &ImageSet,
     const context &Context, const device &Device,
     bool JITCompilationIsRequired) {
+  XPTI_LW_TRACE();
   assert(ImageSet.size() > 0);
 
   if (DbgProgMgr > 0) {
@@ -1165,6 +1186,7 @@ static std::vector<sycl::detail::pi::PiProgram>
 getDeviceLibPrograms(const ContextImplPtr Context,
                      const sycl::detail::pi::PiDevice &Device,
                      uint32_t DeviceLibReqMask) {
+  XPTI_LW_TRACE();
   std::vector<sycl::detail::pi::PiProgram> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -1234,7 +1256,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
     const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask) {
-
+  XPTI_LW_TRACE();
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
               << CompileOptions << ", " << LinkOptions << ", ... " << Device
@@ -1494,6 +1516,7 @@ void ProgramManager::debugPrintBinaryImages() const {
 
 void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
                                uint32_t SequenceID) const {
+  XPTI_LW_TRACE();
   const char *Prefix = std::getenv("SYCL_DUMP_IMAGES_PREFIX");
   std::string Fname(Prefix ? Prefix : "sycl_");
   const pi_device_binary_struct &RawImg = Img.getRawData();
@@ -1732,6 +1755,7 @@ ProgramManager::getDeviceGlobalEntry(const void *DeviceGlobalPtr) {
 std::vector<DeviceGlobalMapEntry *> ProgramManager::getDeviceGlobalEntries(
     const std::vector<std::string> &UniqueIds,
     bool ExcludeDeviceImageScopeDecorated) {
+  XPTI_LW_TRACE();
   std::vector<DeviceGlobalMapEntry *> FoundEntries;
   FoundEntries.reserve(UniqueIds.size());
 
@@ -1780,6 +1804,7 @@ HostPipeMapEntry *ProgramManager::getHostPipeEntry(const void *HostPipePtr) {
 
 device_image_plain ProgramManager::getDeviceImageFromBinaryImage(
     RTDeviceBinaryImage *BinImage, const context &Ctx, const device &Dev) {
+  XPTI_LW_TRACE();
   const bundle_state ImgState = getBinImageState(BinImage);
 
   assert(compatibleWithDevice(BinImage, Dev));
@@ -1802,7 +1827,7 @@ std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     const context &Ctx, const std::vector<device> &Devs,
     bundle_state TargetState, const std::vector<kernel_id> &KernelIDs) {
-
+  XPTI_LW_TRACE();
   // Collect unique raw device images taking into account kernel ids passed
   // TODO: Can we avoid repacking?
   std::set<RTDeviceBinaryImage *> BinImages;
@@ -1949,7 +1974,7 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
 
 void ProgramManager::bringSYCLDeviceImagesToState(
     std::vector<device_image_plain> &DeviceImages, bundle_state TargetState) {
-
+  XPTI_LW_TRACE();
   for (device_image_plain &DevImage : DeviceImages) {
     const bundle_state DevImageState = getSyclObjImpl(DevImage)->get_state();
 
@@ -1998,6 +2023,7 @@ std::vector<device_image_plain>
 ProgramManager::getSYCLDeviceImages(const context &Ctx,
                                     const std::vector<device> &Devs,
                                     bundle_state TargetState) {
+  XPTI_LW_TRACE();
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
@@ -2009,6 +2035,7 @@ ProgramManager::getSYCLDeviceImages(const context &Ctx,
 std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
     const context &Ctx, const std::vector<device> &Devs,
     const DevImgSelectorImpl &Selector, bundle_state TargetState) {
+  XPTI_LW_TRACE();
   // Collect device images with compatible state
   std::vector<device_image_plain> DeviceImages =
       getSYCLDeviceImagesWithCompatibleState(Ctx, Devs, TargetState);
@@ -2028,6 +2055,7 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
 std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
     const context &Ctx, const std::vector<device> &Devs,
     const std::vector<kernel_id> &KernelIDs, bundle_state TargetState) {
+  XPTI_LW_TRACE();
   // Fast path for when no kernel IDs are requested
   if (KernelIDs.empty())
     return {};
@@ -2082,7 +2110,7 @@ device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
                         const property_list &) {
-
+  XPTI_LW_TRACE();
   // TODO: Extract compile options from property list once the Spec clarifies
   // how they can be passed.
 
@@ -2148,6 +2176,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
                      const property_list &PropList) {
   (void)PropList;
 
+  XPTI_LW_TRACE();
   std::vector<pi_program> PIPrograms;
   PIPrograms.push_back(getSyclObjImpl(DeviceImage)->get_program_ref());
 
@@ -2250,6 +2279,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const property_list &PropList) {
   (void)PropList;
 
+  XPTI_LW_TRACE();
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
 
@@ -2394,6 +2424,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
 
   (void)PropList;
 
+  XPTI_LW_TRACE();
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 
   KernelProgramCache &Cache = Ctx->getKernelProgramCache();
@@ -2470,6 +2501,7 @@ multiply_with_overflow_check(T x, T y) {
 std::optional<sycl::exception>
 checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &Img) {
+  XPTI_LW_TRACE();
   auto getPropIt = [&Img](const std::string &PropName) {
     const RTDeviceBinaryImage::PropertyRange &PropRange =
         Img.getDeviceRequirements();

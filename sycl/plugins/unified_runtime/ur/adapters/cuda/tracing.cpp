@@ -36,12 +36,9 @@ constexpr int GMinVer = 1;
 static void cuptiCallback(void *, CUpti_CallbackDomain, CUpti_CallbackId CBID,
                           const void *CBData) {
   if (xptiTraceEnabled()) {
+    uint8_t CallStreamID = xptiRegisterStream(CUDA_CALL_STREAM_NAME);
+    uint8_t DebugStreamID = xptiRegisterStream(CUDA_DEBUG_STREAM_NAME);
     const auto *CBInfo = static_cast<const CUpti_CallbackData *>(CBData);
-
-    if (CBInfo->callbackSite == CUPTI_API_ENTER) {
-      CallCorrelationID = xptiGetUniqueId();
-      DebugCorrelationID = xptiGetUniqueId();
-    }
 
     const char *FuncName = CBInfo->functionName;
     uint32_t FuncID = static_cast<uint32_t>(CBID);
@@ -51,18 +48,28 @@ static void cuptiCallback(void *, CUpti_CallbackDomain, CUpti_CallbackId CBID,
     uint16_t TraceType = CBInfo->callbackSite == CUPTI_API_ENTER
                              ? xpti::trace_function_begin
                              : xpti::trace_function_end;
+    // Only notify if there are subscribers to the stream and have a registered
+    // callback for function_begin
+    if (xptiCheckTraceEnabled(CallStreamID, TraceType)) {
+      if (CBInfo->callbackSite == CUPTI_API_ENTER) {
+        CallCorrelationID = xptiGetUniqueId();
+      }
+      xptiNotifySubscribers(CallStreamID, TraceType, GCallEvent, nullptr,
+                            CallCorrelationID, FuncName);
+    }
 
-    uint8_t CallStreamID = xptiRegisterStream(CUDA_CALL_STREAM_NAME);
-    uint8_t DebugStreamID = xptiRegisterStream(CUDA_DEBUG_STREAM_NAME);
-
-    xptiNotifySubscribers(CallStreamID, TraceType, GCallEvent, nullptr,
-                          CallCorrelationID, FuncName);
-
-    xpti::function_with_args_t Payload{
-        FuncID, FuncName, const_cast<void *>(CBInfo->functionParams),
-        CBInfo->functionReturnValue, CBInfo->context};
-    xptiNotifySubscribers(DebugStreamID, TraceTypeArgs, GDebugEvent, nullptr,
-                          DebugCorrelationID, &Payload);
+    // Only notify if there are subscribers to the stream and have a registered
+    // callback for function_with_args_begin
+    if (xptiCheckTraceEnabled(DebugStreamID, TraceTypeArgs)) {
+      if (CBInfo->callbackSite == CUPTI_API_ENTER) {
+        DebugCorrelationID = xptiGetUniqueId();
+      }
+      xpti::function_with_args_t Payload{
+          FuncID, FuncName, const_cast<void *>(CBInfo->functionParams),
+          CBInfo->functionReturnValue, CBInfo->context};
+      xptiNotifySubscribers(DebugStreamID, TraceTypeArgs, GDebugEvent, nullptr,
+                            DebugCorrelationID, &Payload);
+    }
   }
 }
 #endif

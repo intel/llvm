@@ -28,6 +28,8 @@ namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
 extern xpti::trace_event_data_t *GPIArgCallEvent;
+extern uint8_t PiCallStreamID;
+extern uint8_t PiDebugCallStreamID;
 #endif
 
 template <PiApiKind Kind, size_t Idx, typename... Args>
@@ -177,17 +179,21 @@ public:
     // If arguments need to be captured, then a data structure can be sent in
     // the per_instance_user_data field.
     const char *PIFnName = PiCallInfo.getFuncName();
-    uint64_t CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
-    uint64_t CorrelationIDWithArgs = 0;
+    uint64_t CorrelationID = 0, CorrelationIDWithArgs = 0;
+
+    if (xptiCheckTraceEnabled(
+            PiCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_begin)) {
+      CorrelationID = pi::emitFunctionBeginTrace(PIFnName);
+    }
     unsigned char *ArgsDataPtr = nullptr;
-    using PackCallArgumentsTy =
-        decltype(packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...));
-    auto ArgsData =
-        xptiTraceEnabled()
-            ? packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...)
-            : PackCallArgumentsTy{};
-    // TODO check if stream is observed when corresponding API is present.
-    if (xptiTraceEnabled()) {
+    // If subscribers are listening to Pi debug call stream, then prepare the
+    // data for the notifications and emit notifications
+    if (xptiCheckTraceEnabled(
+            PiDebugCallStreamID,
+            (uint16_t)xpti::trace_point_type_t::function_with_args_begin)) {
+      auto ArgsData =
+          packCallArguments<PiApiOffset>(std::forward<ArgsT>(Args)...);
       ArgsDataPtr = ArgsData.data();
       CorrelationIDWithArgs = pi::emitFunctionWithArgsBeginTrace(
           static_cast<uint32_t>(PiApiOffset), PIFnName, ArgsDataPtr, *MPlugin);
@@ -208,7 +214,9 @@ public:
       R = PiCallInfo.getFuncPtr(*MPlugin)(Args...);
     }
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Close the function begin with a call to function end
+    // Close the function begin with a call to function end. It is not necessary
+    // to have a xptiTraceCheckEnabled() check here as it xists in the function
+    // call.
     pi::emitFunctionEndTrace(CorrelationID, PIFnName);
     pi::emitFunctionWithArgsEndTrace(CorrelationIDWithArgs,
                                      static_cast<uint32_t>(PiApiOffset),
