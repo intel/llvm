@@ -13,21 +13,21 @@ int main() {
   queue Q;
 
   auto *a = malloc_shared<int>(8, Q);
-  auto a_ptr = annotated_ptr{a, properties{buffer_location<0>}};
+  auto a_ptr = annotated_ptr{a, properties{alignment<8>}};
   for (int i = 0; i < 8; i++)
     a_ptr[i] = i;
 
   auto *b = malloc_shared<int>(4, Q);
-  auto b_ptr = annotated_ptr{b, properties{buffer_location<1>, alignment<16>}};
+  auto b_ptr = annotated_ptr{b, properties{alignment<16>}};
 
   auto *c = malloc_shared<test>(1, Q);
   c->b = malloc_shared<int>(1, Q);
-  auto c_ptr = annotated_ptr{c, properties{buffer_location<2>, alignment<16>}};
+  auto c_ptr = annotated_ptr{c, properties{alignment<16>}};
   c->a = 0;
   c->b[0] = 0;
 
   auto *d = malloc_shared<int>(4, Q);
-  auto d_ptr = annotated_ptr{d, properties{buffer_location<3>}};
+  auto d_ptr = annotated_ptr{d};
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
   Q.single_task([=]() {
