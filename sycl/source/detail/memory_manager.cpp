@@ -490,7 +490,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-             sycl::detail::pi::PiEvent &OutEvent) {
+             sycl::detail::pi::PiEvent &OutEvent,
+             const detail::EventImplPtr &OutEventImpl) {
   (void)SrcAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -510,6 +511,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
+      if (OutEventImpl != nullptr)
+        OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferWrite>(
           Queue, DstMem,
           /*blocking_write=*/PI_FALSE, DstXOffBytes, DstAccessRangeWidthBytes,
@@ -529,6 +532,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
       pi_buff_rect_region_struct RectRegion{DstAccessRangeWidthBytes,
                                             DstAccessRange[DstPos.YTerm],
                                             DstAccessRange[DstPos.ZTerm]};
+      if (OutEventImpl != nullptr)
+        OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferWriteRect>(
           Queue, DstMem,
           /*blocking_write=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
@@ -546,6 +551,8 @@ void copyH2D(SYCLMemObjI *SYCLMemObj, char *SrcMem, QueueImplPtr,
     pi_image_region_struct Region{DstAccessRange[DstPos.XTerm],
                                   DstAccessRange[DstPos.YTerm],
                                   DstAccessRange[DstPos.ZTerm]};
+    if (OutEventImpl != nullptr)
+      OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageWrite>(
         Queue, DstMem,
         /*blocking_write=*/PI_FALSE, &Origin, &Region, InputRowPitch,
@@ -561,7 +568,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
              sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
              unsigned int DstElemSize,
              std::vector<sycl::detail::pi::PiEvent> DepEvents,
-             sycl::detail::pi::PiEvent &OutEvent) {
+             sycl::detail::pi::PiEvent &OutEvent,
+             const detail::EventImplPtr &OutEventImpl) {
   (void)DstAccessRange;
   assert(SYCLMemObj && "The SYCLMemObj is nullptr");
 
@@ -587,6 +595,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
 
   if (MemType == detail::SYCLMemObjI::MemObjType::Buffer) {
     if (1 == DimDst && 1 == DimSrc) {
+      if (OutEventImpl != nullptr)
+        OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferRead>(
           Queue, SrcMem,
           /*blocking_read=*/PI_FALSE, SrcXOffBytes, SrcAccessRangeWidthBytes,
@@ -606,6 +616,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
       pi_buff_rect_region_struct RectRegion{SrcAccessRangeWidthBytes,
                                             SrcAccessRange[SrcPos.YTerm],
                                             SrcAccessRange[SrcPos.ZTerm]};
+      if (OutEventImpl != nullptr)
+        OutEventImpl->setHostEnqueueTime();
       Plugin->call<PiApiKind::piEnqueueMemBufferReadRect>(
           Queue, SrcMem,
           /*blocking_read=*/PI_FALSE, &BufferOffset, &HostOffset, &RectRegion,
@@ -623,6 +635,8 @@ void copyD2H(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
     pi_image_region_struct Region{SrcAccessRange[SrcPos.XTerm],
                                   SrcAccessRange[SrcPos.YTerm],
                                   SrcAccessRange[SrcPos.ZTerm]};
+    if (OutEventImpl != nullptr)
+      OutEventImpl->setHostEnqueueTime();
     Plugin->call<PiApiKind::piEnqueueMemImageRead>(
         Queue, SrcMem, PI_FALSE, &Offset, &Region, RowPitch, SlicePitch, DstMem,
         DepEvents.size(), DepEvents.data(), &OutEvent);
@@ -758,14 +772,14 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
               SrcAccessRange, SrcOffset, SrcElemSize,
               pi::cast<sycl::detail::pi::PiMem>(DstMem), std::move(TgtQueue),
               DimDst, DstSize, DstAccessRange, DstOffset, DstElemSize,
-              std::move(DepEvents), OutEvent);
+              std::move(DepEvents), OutEvent, OutEventImpl);
   } else {
     if (TgtQueue->is_host())
       copyD2H(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
               SrcElemSize, (char *)DstMem, std::move(TgtQueue), DimDst, DstSize,
               DstAccessRange, DstOffset, DstElemSize, std::move(DepEvents),
-              OutEvent);
+              OutEvent, OutEventImpl);
     else
       copyD2D(SYCLMemObj, pi::cast<sycl::detail::pi::PiMem>(SrcMem),
               std::move(SrcQueue), DimSrc, SrcSize, SrcAccessRange, SrcOffset,
