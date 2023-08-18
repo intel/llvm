@@ -536,15 +536,28 @@ protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
 
 public:
+  // TODO: the following function to be removed during next ABI break window
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
-
+  // TODO: the following function to be removed during next ABI break window
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {});
+
+  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, size_t OffsetInBytes = 0l,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {});
+
+  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0l,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
@@ -3183,7 +3196,10 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
 private:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder>{Impl} {}
+                               access::target::image, IsPlaceholder> {
+    Impl
+  }
+  {}
 
 public:
   template <typename AllocatorT>
@@ -3357,7 +3373,10 @@ protected:
 #ifndef __SYCL_DEVICE_ONLY__
   host_accessor(const detail::AccessorImplPtr &Impl)
       : accessor<DataT, Dimensions, AccessMode, target::host_buffer,
-                 access::placeholder::false_t>{Impl} {}
+                 access::placeholder::false_t> {
+    Impl
+  }
+  {}
 
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
