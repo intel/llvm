@@ -201,11 +201,9 @@ public:
     size_t FoundCnt = 0;
     for (std::shared_ptr<node_impl> SuccA : MSuccessors) {
       for (std::shared_ptr<node_impl> SuccB : Node->MSuccessors) {
-        if (isSimilar(Node)) {
-          if (SuccA->checkNodeRecursive(SuccB)) {
-            FoundCnt++;
-            break;
-          }
+        if (isSimilar(Node) && SuccA->checkNodeRecursive(SuccB)) {
+          FoundCnt++;
+          break;
         }
       }
     }
