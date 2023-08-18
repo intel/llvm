@@ -77,6 +77,15 @@ add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-combined-triples)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
+add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
+  ${CMAKE_CURRENT_BINARY_DIR}
+  ARGS ${RT_TEST_ARGS}
+  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
+  DEPENDS ${SYCL_TEST_DEPS}
+  ${SYCL_TEST_EXCLUDE}
+  EXCLUDE_FROM_CHECK_ALL
+  )
+  
 add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
