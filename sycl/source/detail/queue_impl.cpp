@@ -44,11 +44,9 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-static event
-prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
-                sycl::detail::pi::PiEvent NativeEvent) {
+static event prepareSYCLEventAssociatedWithQueue(
+    const std::shared_ptr<detail::queue_impl> &QueueImpl) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
-  EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
@@ -88,9 +86,8 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};
-  ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -102,9 +99,11 @@ event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
       MLastEvent.wait();
 
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
+    sycl::detail::pi::PiEvent NativeEvent{};
     MemoryManager::fill_usm(Ptr, Self, Count, Value,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
                             EventImpl);
+    EventImpl->getHandleRef() = NativeEvent;
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -181,9 +180,8 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                             getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};
-  ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -194,10 +192,12 @@ event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    sycl::detail::pi::PiEvent NativeEvent{};
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_usm(Src, Self, Count, Dest,
                             getOrWaitEvents(DepEvents, MContext), &NativeEvent,
                             EventImpl);
+    EventImpl->getHandleRef() = NativeEvent;
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -225,9 +225,8 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                               getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};
-  ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -238,10 +237,12 @@ event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    sycl::detail::pi::PiEvent NativeEvent{};
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::advise_usm(Ptr, Self, Length, Advice,
                               getOrWaitEvents(DepEvents, MContext),
                               &NativeEvent, EventImpl);
+    EventImpl->getHandleRef() = NativeEvent;
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -270,9 +271,8 @@ event queue_impl::memcpyToDeviceGlobal(
         getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};
-  ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -283,10 +283,12 @@ event queue_impl::memcpyToDeviceGlobal(
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
 
+    sycl::detail::pi::PiEvent NativeEvent{};
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_to_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
         getOrWaitEvents(DepEvents, MContext), &NativeEvent, EventImpl);
+    EventImpl->getHandleRef() = NativeEvent;
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
@@ -315,9 +317,8 @@ event queue_impl::memcpyFromDeviceGlobal(
         getOrWaitEvents(DepEvents, MContext), nullptr);
     return createDiscardedEvent();
   }
-  event ResEvent;
-  sycl::detail::pi::PiEvent NativeEvent{};
-  ResEvent = prepareUSMEvent(Self, NativeEvent);
+
+  event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
   {
     // We need to submit command and update the last event under same lock if we
     // have in-order queue.
@@ -327,10 +328,13 @@ event queue_impl::memcpyFromDeviceGlobal(
     // wait for it before submitting usm command.
     if (isInOrder() && MLastCGType == CG::CGTYPE::CodeplayHostTask)
       MLastEvent.wait();
+
+    sycl::detail::pi::PiEvent NativeEvent{};
     auto EventImpl = detail::getSyclObjImpl(ResEvent);
     MemoryManager::copy_from_device_global(
         DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
         getOrWaitEvents(DepEvents, MContext), &NativeEvent, EventImpl);
+    EventImpl->getHandleRef() = NativeEvent;
 
     if (MContext->is_host())
       return MDiscardEvents ? createDiscardedEvent() : event();
