@@ -11,6 +11,6 @@
 // RUN: %{run} %t.out
 
 #define SG_SZ 8
-#define TN 8
+constexpr size_t TN = 8;
 
 #include "../joint_matrix_bf16_fill_k_cache_impl.hpp"

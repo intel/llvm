@@ -18,7 +18,7 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
-#define SG_SZ 32
+constexpr size_t SG_SZ = 32;
 // Sub-matrix N dimension
 static constexpr size_t SN = 16;
 

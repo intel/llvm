@@ -33,14 +33,6 @@ constexpr unsigned int recordThresh = 10;
 
 #define BF16_EPSILON 0.00781250
 
-#if ((MATRIX_SIZE < tM) || (MATRIX_SIZE < tK) || (MATRIX_SIZE < TN))
-#error invalid matrix size
-#endif
-
-#if ((MATRIX_SIZE % tM) || (MATRIX_SIZE % TN) || (MATRIX_SIZE % tK))
-#error invalid matrix size detected: not a multiple of <tM,TN,tK>
-#endif
-
 float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
   y = y << 16;
@@ -331,6 +323,12 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
 }
 
 int main(void) {
+  assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= TN &&
+         "invalid matrix size");
+  assert((MATRIX_SIZE % tM) == 0 && (MATRIX_SIZE % TN) == 0 &&
+         (MATRIX_SIZE % tK) == 0 &&
+         "invalid matrix size detected: not a multiple of <tM,TN,tK>");
+
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);

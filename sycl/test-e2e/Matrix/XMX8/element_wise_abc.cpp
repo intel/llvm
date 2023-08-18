@@ -11,6 +11,6 @@
 // RUN: %{run} %t.out
 
 #define SG_SZ 8
-#define TN 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_abc_impl.hpp"

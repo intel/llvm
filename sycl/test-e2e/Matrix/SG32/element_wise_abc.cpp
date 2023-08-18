@@ -10,7 +10,9 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-#define SG_SZ 32
-#define TN 16
+#include <cstddef>
+
+constexpr size_t SG_SZ = 32;
+constexpr size_t TN = 16;
 
 #include "../element_wise_abc_impl.hpp"

@@ -21,7 +21,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 32
-#define TN 16
+constexpr size_t SG_SZ = 32;
+constexpr size_t TN = 16;
 
 #include "../element_wise_irreg_sum_rows_impl.hpp"

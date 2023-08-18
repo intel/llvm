@@ -19,7 +19,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-#define SG_SZ 32
-#define TN 16
+constexpr size_t SG_SZ = 32;
+constexpr size_t TN = 16;
 
 #include "../element_wise_all_ops_tf32_impl.hpp"
