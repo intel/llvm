@@ -92,6 +92,11 @@ LLVMContext::LLVMContext() : pImpl(new LLVMContextImpl(*this)) {
          "kcfi operand bundle id drifted!");
   (void)KCFIEntry;
 
+  auto *ConvergenceCtrlEntry = pImpl->getOrInsertBundleTag("convergencectrl");
+  assert(ConvergenceCtrlEntry->second == LLVMContext::OB_convergencectrl &&
+         "convergencectrl operand bundle id drifted!");
+  (void)ConvergenceCtrlEntry;
+
   SyncScope::ID SingleThreadSSID =
       pImpl->getOrInsertSyncScopeID("singlethread");
   assert(SingleThreadSSID == SyncScope::SingleThread &&
@@ -373,9 +378,17 @@ bool LLVMContext::hasSetOpaquePointersValue() const {
 }
 
 void LLVMContext::setOpaquePointers(bool Enable) const {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  assert(Enable && "Cannot disable opaque pointers");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   pImpl->setOpaquePointers(Enable);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 bool LLVMContext::supportsTypedPointers() const {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return false;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   return !pImpl->getOpaquePointers();
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }

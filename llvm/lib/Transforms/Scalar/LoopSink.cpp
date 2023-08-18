@@ -252,9 +252,11 @@ static bool sinkInstruction(
       }
     }
 
-    // Replaces uses of I with IC in N
+    // Replaces uses of I with IC in N, except PHI-use which is being taken
+    // care of by defs in PHI's incoming blocks.
     I.replaceUsesWithIf(IC, [N](Use &U) {
-      return cast<Instruction>(U.getUser())->getParent() == N;
+      Instruction *UIToReplace = cast<Instruction>(U.getUser());
+      return UIToReplace->getParent() == N && !isa<PHINode>(UIToReplace);
     });
     // Replaces uses of I with IC in blocks dominated by N
     replaceDominatedUsesWith(&I, IC, DT, N);

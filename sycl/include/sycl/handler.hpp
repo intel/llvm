@@ -1063,7 +1063,8 @@ private:
 
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The kernel is provided via an interoperability method.
+    // 2. The kernel is provided via an interoperability method (this uses a
+    // different code path).
     // 3. The range is already a multiple of the rounding factor.
     //
     // Cases 2 and 3 could be supported with extra effort.
@@ -1076,17 +1077,10 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Get the kernel name to check condition 2.
-    std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
-    bool DisableRounding =
-        this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0');
-
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
     // and the user-specified range is not a multiple of a "good" value.
-    if (!DisableRounding && (NumWorkItems[0] >= MinRangeX) &&
+    if (!this->DisableRangeRounding() && (NumWorkItems[0] >= MinRangeX) &&
         (NumWorkItems[0] % MinFactorX != 0)) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension

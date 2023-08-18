@@ -562,7 +562,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
 
       auto Align_val = Align(AttrVal);
       // apply alignment attributes to load/store
-      for (auto Pair : TargetedInstList) {
+      for (const auto &Pair : TargetedInstList) {
         auto *Inst = Pair.first;
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {
