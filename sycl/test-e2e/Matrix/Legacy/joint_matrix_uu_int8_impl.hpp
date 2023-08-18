@@ -1,4 +1,5 @@
 #define TM 8
+#define TN SG_SZ
 #define TK 32
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {

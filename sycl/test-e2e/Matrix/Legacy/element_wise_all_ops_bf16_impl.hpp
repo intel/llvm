@@ -1,5 +1,6 @@
 
 #define TM 8
+#define TN SG_SZ
 #define TK 16
 
 static float make_fp32(uint16_t x) {
