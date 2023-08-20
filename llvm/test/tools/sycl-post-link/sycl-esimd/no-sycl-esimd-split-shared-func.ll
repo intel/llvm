@@ -92,8 +92,7 @@ define dso_local spir_kernel void @ESIMD_kernel(float addrspace(1)* %ptr) #1 !sy
 entry:
   %ptr_as4 = addrspacecast float addrspace(1)* %ptr to ptr addrspace(4)
   %res = call x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> <float 1.0, float 1.0, float 1.0, float 1.0>)
-  %ptr_x4 = bitcast ptr addrspace(4) %ptr_as4 to ptr addrspace(4)
-  store <4 x float> %res, ptr addrspace(4) %ptr_x4
+  store <4 x float> %res, ptr addrspace(4) %ptr_as4
   ret void
 }
 
