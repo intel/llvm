@@ -93,8 +93,7 @@ entry:
   %tmp = alloca %struct.ComposConst, align 8
   %tmp1 = alloca %struct.ComposConst2, align 8
   %tmp2 = alloca %struct.ComposConst, align 8
-  %0 = bitcast ptr %tmp to ptr
-  call void @llvm.lifetime.start.p0i8(i64 24, ptr nonnull %0) #3
+  call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %tmp) #3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11ComposConstET_PKcPvS4_(ptr nonnull sret(%struct.ComposConst) align 8 %tmp, ptr getelementptr inbounds ([37 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v, i64 0, i64 0), ptr @id_compos, ptr null)
 ; CHECK-DEF: %[[GEP:[0-9a-z]+]] = getelementptr i8, ptr null, i32 8
 ; CHECK-DEF: %[[BITCAST:[0-9a-z]+]] = bitcast ptr %[[GEP]] to ptr
@@ -109,10 +108,10 @@ entry:
 ;
 ; CHECK: store %struct.ComposConst %[[C1]], ptr
 
-  call void @llvm.lifetime.end.p0i8(i64 24, ptr nonnull %0) #3
-  %1 = getelementptr inbounds %struct.ComposConst2, ptr %tmp1, i64 0, i32 0
-  call void @llvm.lifetime.start.p0i8(i64 24, ptr nonnull %1) #3
-  call void @_Z40__sycl_getComposite2020SpecConstantValueI12ComposConst2ET_PKcPvS4_(ptr nonnull sret(%struct.ComposConst2) align 8 %tmp1, ptr getelementptr inbounds ([39 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v, i64 0, i64 0), ptr getelementptr inbounds (%class.specialization_id.2, ptr @id_compos2, i64 0, i32 0, i32 0), ptr null)  call void @llvm.lifetime.end.p0i8(i64 24, ptr nonnull %1) #3
+  call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %0) #3
+  %0 = getelementptr inbounds %struct.ComposConst2, ptr %tmp1, i64 0, i32 0
+  call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %0) #3
+  call void @_Z40__sycl_getComposite2020SpecConstantValueI12ComposConst2ET_PKcPvS4_(ptr nonnull sret(%struct.ComposConst2) align 8 %tmp1, ptr getelementptr inbounds ([39 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_compos2E17specialization_idI12ComposConst2ES1_ET1_v, i64 0, i64 0), ptr getelementptr inbounds (%class.specialization_id.2, ptr @id_compos2, i64 0, i32 0, i32 0), ptr null)  call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %0) #3
 ; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, ptr null, i32 32
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast ptr %[[GEP1]] to ptr
 ; CHECK-DEF: %[[C2:[0-9a-z]+]] = load %struct.ComposConst2, ptr %[[BITCAST1]], align 8
@@ -126,8 +125,7 @@ entry:
 ;
 ; CHECK: store %struct.ComposConst2 %[[C2]], ptr
 
-  %2 = bitcast ptr %tmp2 to ptr
-  call void @llvm.lifetime.start.p0i8(i64 24, ptr nonnull %2) #3
+  call void @llvm.lifetime.start.p0(i64 24, ptr nonnull %tmp2) #3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11ComposConstET_PKcPvS4_(ptr nonnull sret(%struct.ComposConst) align 8 %tmp2, ptr getelementptr inbounds ([37 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z9id_composE17specialization_idI11ComposConstES1_ET1_v, i64 0, i64 0), ptr @id_compos, ptr null)
 ; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, ptr null, i32 8
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast ptr %[[GEP2]] to ptr
@@ -141,13 +139,12 @@ entry:
 ; CHECK-RT: %[[C3:[0-9a-z]+]] = call %struct.ComposConst @_Z29__spirv_SpecConstantCompositeidstruct.myConst_Rstruct.ComposConst(i32 %[[#SE1]], double %[[#SE2]], %struct.myConst %[[#CE1]])
 ;
 ; CHECK: store %struct.ComposConst %[[C3]], ptr
-  call void @llvm.lifetime.end.p0i8(i64 24, ptr nonnull %2) #3
+  call void @llvm.lifetime.end.p0(i64 24, ptr nonnull %tmp1) #3
   ret void
 }
 
 define void @test_zeroinit() {
   %tmp = alloca %struct.ComposConst3, align 4
-  %1 = bitcast ptr %tmp to ptr
 ; CHECK-DEF: %[[GEP3:[0-9a-z]+]] = getelementptr i8, ptr null, i32 56
 ; CHECK-DEF: %[[BITCAST3:[0-9a-z]+]] = bitcast ptr %[[GEP3]] to ptr
 ; CHECK-DEF: %[[C3:[0-9a-z]+]] = load %struct.ComposConst3, ptr %[[BITCAST3]], align 4
@@ -168,7 +165,6 @@ define void @test3() {
   %tmp2 = alloca %struct.MArrayConst2, align 8
   %tmp3 = alloca %struct.MArrayConst3, align 8
   %tmp4 = alloca %struct.MArrayConst4, align 8
-  %1 = bitcast ptr %tmp to ptr
 ; CHECK-DEF: %[[GEP1:[0-9a-z]+]] = getelementptr i8, ptr null, i32 72
 ; CHECK-DEF: %[[BITCAST1:[0-9a-z]+]] = bitcast ptr %[[GEP1]] to ptr
 ; CHECK-DEF: %[[C1:[0-9a-z]+]] = load %struct.VectorConst, ptr %[[BITCAST1]], align 8
@@ -178,7 +174,6 @@ define void @test3() {
 ; CHECK-RT: %[[#CE1:]] = call <2 x i32> @_Z29__spirv_SpecConstantCompositeii_RDv2_i(i32 %[[#SE1]], i32 %[[#SE2]])
 ; CHECK-RT: call %struct.VectorConst @_Z29__spirv_SpecConstantCompositeDv2_i_Rstruct.VectorConst(<2 x i32> %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11VectorConstET_PKcPvS4_(ptr nonnull sret(%struct.VectorConst) align 8 %tmp, ptr getelementptr inbounds ([38 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_vectorE17specialization_idI11VectorConstES1_ET1_v, i64 0, i64 0), ptr @id_vector, ptr null)
-  %2 = bitcast ptr %tmp1 to ptr
 ; CHECK-DEF: %[[GEP2:[0-9a-z]+]] = getelementptr i8, ptr null, i32 80
 ; CHECK-DEF: %[[BITCAST2:[0-9a-z]+]] = bitcast ptr %[[GEP2]] to ptr
 ; CHECK-DEF: %[[C2:[0-9a-z]+]] = load %struct.MArrayConst, ptr %[[BITCAST2]], align 4
@@ -189,21 +184,18 @@ define void @test3() {
 ; CHECK-RT: call %struct.MArrayConst @_Z29__spirv_SpecConstantCompositeA2_i_Rstruct.MArrayConst([2 x i32] %[[#CE1]])
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConstET_PKcPvS4_(ptr nonnull sret(%struct.MArrayConst) align 8 %tmp1, ptr getelementptr inbounds ([38 x i8], ptr @__builtin_unique_stable_name._Z27get_specialization_constantIL_Z10id_marrayE17specialization_idI11MArrayConstES1_ET1_v, i64 0, i64 0), ptr @id_marray, ptr null)
 ; Here we only check the mangling of generated __spirv_SpecConstantComposite function
-  %3 = bitcast ptr %tmp2 to ptr
 ; CHECK-RT: call %struct.MArrayConst2 @_Z29__spirv_SpecConstantCompositeA3_i_Rstruct.MArrayConst2
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst2ET_PKcPvS4_(ptr nonnull sret(%struct.MArrayConst2) align 8 %tmp2, ptr getelementptr inbounds ([39 x i8], ptr @__builtin_unique_stable_name.id_marray2, i64 0, i64 0), ptr @id_marray2, ptr null)
-  %4 = bitcast ptr %tmp3 to ptr
 ; CHECK-RT: call %struct.MArrayConst3 @_Z29__spirv_SpecConstantCompositeA3_x_Rstruct.MArrayConst3
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst3ET_PKcPvS4_(ptr nonnull sret(%struct.MArrayConst3) align 8 %tmp3, ptr getelementptr inbounds ([39 x i8], ptr @__builtin_unique_stable_name.id_marray3, i64 0, i64 0), ptr @id_marray3, ptr null)
-  %5 = bitcast ptr %tmp4 to ptr
 ; CHECK-RT: call %struct.MArrayConst4 @_Z29__spirv_SpecConstantCompositeA2_A2_A3_i_Rstruct.MArrayConst4
   call void @_Z40__sycl_getComposite2020SpecConstantValueI11MArrayConst4ET_PKcPvS4_(ptr nonnull sret(%struct.MArrayConst4) align 8 %tmp4, ptr getelementptr inbounds ([39 x i8], ptr @__builtin_unique_stable_name.id_marray4, i64 0, i64 0), ptr @id_marray4, ptr null)
   ret void
 }
 
-declare void @llvm.lifetime.start.p0i8(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
-declare void @llvm.lifetime.end.p0i8(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 declare dso_local double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPvS3_(ptr, ptr, ptr) local_unnamed_addr #1
 
