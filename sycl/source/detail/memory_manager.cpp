@@ -721,14 +721,15 @@ void copyD2D(SYCLMemObjI *SYCLMemObj, sycl::detail::pi::PiMem SrcMem,
   }
 }
 
-static void
-copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr, unsigned int DimSrc,
-        sycl::range<3> SrcSize, sycl::range<3> SrcAccessRange,
-        sycl::id<3> SrcOffset, unsigned int SrcElemSize, char *DstMem,
-        QueueImplPtr, unsigned int DimDst, sycl::range<3> DstSize,
-        sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
-        unsigned int DstElemSize, std::vector<sycl::detail::pi::PiEvent>,
-        sycl::detail::pi::PiEvent &, const detail::EventImplPtr &OutEventImpl) {
+static void copyH2H(SYCLMemObjI *, char *SrcMem, QueueImplPtr,
+                    unsigned int DimSrc, sycl::range<3> SrcSize,
+                    sycl::range<3> SrcAccessRange, sycl::id<3> SrcOffset,
+                    unsigned int SrcElemSize, char *DstMem, QueueImplPtr,
+                    unsigned int DimDst, sycl::range<3> DstSize,
+                    sycl::range<3> DstAccessRange, sycl::id<3> DstOffset,
+                    unsigned int DstElemSize,
+                    std::vector<sycl::detail::pi::PiEvent>,
+                    sycl::detail::pi::PiEvent &, const detail::EventImplPtr &) {
   if ((DimSrc != 1 || DimDst != 1) &&
       (SrcOffset != id<3>{0, 0, 0} || DstOffset != id<3>{0, 0, 0} ||
        SrcSize != SrcAccessRange || DstSize != DstAccessRange)) {
@@ -808,9 +809,8 @@ void MemoryManager::copy(SYCLMemObjI *SYCLMemObj, void *SrcMem,
 
 void MemoryManager::fill(SYCLMemObjI *SYCLMemObj, void *Mem, QueueImplPtr Queue,
                          size_t PatternSize, const char *Pattern,
-                         unsigned int Dim, sycl::range<3> Size,
-                         sycl::range<3> Range, sycl::id<3> Offset,
-                         unsigned int ElementSize,
+                         unsigned int Dim, sycl::range<3>, sycl::range<3> Range,
+                         sycl::id<3> Offset, unsigned int ElementSize,
                          std::vector<sycl::detail::pi::PiEvent> DepEvents,
                          sycl::detail::pi::PiEvent &OutEvent,
                          const detail::EventImplPtr &OutEventImpl) {

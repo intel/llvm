@@ -293,16 +293,16 @@ event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent) {
-      auto startTime =
+      auto StartTime =
           get_event_profiling_info<info::event_profiling::command_start>(
               this->getHandleRef(), this->getPlugin());
       if (!MFallbackProfiling) {
-        return startTime;
+        return StartTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - DeviceBaseTime + startTime;
+        return MHostBaseTime - DeviceBaseTime + StartTime;
       }
     }
     return 0;
@@ -320,16 +320,16 @@ uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
     if (MEvent) {
-      auto endTime =
+      auto EndTime =
           get_event_profiling_info<info::event_profiling::command_end>(
               this->getHandleRef(), this->getPlugin());
       if (!MFallbackProfiling) {
-        return endTime;
+        return EndTime;
       } else {
         auto DeviceBaseTime =
             get_event_profiling_info<info::event_profiling::command_submit>(
                 this->getHandleRef(), this->getPlugin());
-        return MHostBaseTime - DeviceBaseTime + endTime;
+        return MHostBaseTime - DeviceBaseTime + EndTime;
       }
     }
     return 0;

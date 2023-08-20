@@ -230,7 +230,7 @@ struct get_device_info_impl<std::vector<info::fp_config>,
 
 // Specialization for queue_profiling. In addition to pi_queue level profiling,
 // piGetDeviceAndHostTimer is not supported, command_submit, command_start,
-// command_end will be calculated. see MFallbackProfiling
+// command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
     pi_queue_properties Properties;
