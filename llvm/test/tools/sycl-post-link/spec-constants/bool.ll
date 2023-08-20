@@ -36,7 +36,7 @@ declare spir_func zeroext i1 @_Z37__sycl_getScalar2020SpecConstantValueIbET_PKcP
 declare spir_func void @_Z40__sycl_getComposite2020SpecConstantValueIN14get_spec_const13testing_types8no_cnstrEET_PKcPKvS7_(ptr addrspace(4) sret(%struct.user_type) align 4, ptr addrspace(4), ptr addrspace(4), ptr addrspace(4)) #1
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.memcpy.p4i8.p4i8.i64(ptr addrspace(4) noalias nocapture writeonly, ptr addrspace(4) noalias nocapture readonly, i64, i1 immarg) #2
+declare void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) noalias nocapture writeonly, ptr addrspace(4) noalias nocapture readonly, i64, i1 immarg) #2
 
 ; Function Attrs: convergent norecurse
 define weak_odr spir_kernel void @kernel_A(ptr addrspace(1) %_arg) #0 {
@@ -52,12 +52,10 @@ define weak_odr spir_kernel void @kernel_B(ptr addrspace(1) %_arg) #2 {
 entry:
   %ref.tmp.i = alloca %struct.user_type, align 4
   %ref.tmp.acast.i = addrspacecast ptr addrspace(0) %ref.tmp.i to ptr addrspace(4)
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueIN14get_spec_const13testing_types8no_cnstrEET_PKcPKvS7_(ptr addrspace(4) sret(%struct.user_type) align 4 %ref.tmp.acast.i, ptr addrspace(4) getelementptr inbounds ([7 x i8], ptr addrspace(4) addrspacecast (ptr addrspace(1) @name_B to ptr addrspace(4)), i64 0, i64 0), ptr addrspace(4) addrspacecast (ptr addrspace(1) bitcast (ptr addrspace(1) @spec_const2 to ptr addrspace(1)) to ptr addrspace(4)), ptr addrspace(4) null) #4
-  %0 = bitcast ptr %ref.tmp.i to ptr
-  %1 = bitcast ptr addrspace(1) %_arg to ptr addrspace(1)
-  %2 = addrspacecast ptr addrspace(1) %1 to ptr addrspace(4)
-  %3 = addrspacecast ptr %0 to ptr addrspace(4)
-  call void @llvm.memcpy.p4i8.p4i8.i64(ptr addrspace(4) noundef align 4 dereferenceable(12) %2, ptr addrspace(4) noundef align 4 dereferenceable(12) %3, i64 12, i1 false)
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueIN14get_spec_const13testing_types8no_cnstrEET_PKcPKvS7_(ptr addrspace(4) sret(%struct.user_type) align 4 %ref.tmp.acast.i, ptr addrspace(4) getelementptr inbounds ([7 x i8], ptr addrspace(4) addrspacecast (ptr addrspace(1) @name_B to ptr addrspace(4)), i64 0, i64 0), ptr addrspace(4) addrspacecast (ptr addrspace(1) @spec_const2 to ptr addrspace(4)), ptr addrspace(4) null) #4
+  %0 = addrspacecast ptr addrspace(1) %_arg to ptr addrspace(4)
+  %1 = addrspacecast ptr %ref.tmp.i to ptr addrspace(4)
+  call void @llvm.memcpy.p4.p4.i64(ptr addrspace(4) noundef align 4 dereferenceable(12) %0, ptr addrspace(4) noundef align 4 dereferenceable(12) %1, i64 12, i1 false)
   ret void
 }
 
