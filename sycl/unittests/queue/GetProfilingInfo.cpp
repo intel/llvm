@@ -409,9 +409,8 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
       event.get_profiling_info<sycl::info::event_profiling::command_end>();
   assert((submit_time && start_time && end_time) &&
          "Profiling information failed.");
-  assert((submit_time < start_time) &&
-         "Submit time should be less than start time.");
-  assert((submit_time < end_time) && "Start time should be less than end time");
+  EXPECT_LT(submit_time, start_time);
+  EXPECT_LT(submit_time, end_time);
 }
 
 TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
@@ -447,7 +446,6 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
       event.get_profiling_info<sycl::info::event_profiling::command_end>();
   assert((submit_time && start_time && end_time) &&
          "Profiling information failed.");
-  assert((submit_time < start_time) &&
-         "Submit time should be less than start time.");
-  assert((submit_time < end_time) && "Start time should be less than end time");
+  EXPECT_LT(submit_time, start_time);
+  EXPECT_LT(submit_time, end_time);
 }
