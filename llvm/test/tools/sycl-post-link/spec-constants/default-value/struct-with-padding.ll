@@ -26,7 +26,6 @@ define spir_kernel void @func1() {
 entry:
   %a.i = alloca %struct.A, align 4
   %a.ascast.i = addrspacecast %struct.A* %a.i to ptr addrspace(4)
-  %0 = bitcast %struct.A* %a.i to i8*
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(ptr addrspace(4) sret(%struct.A) align 4 %a.ascast.i, ptr addrspace(4) noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) bitcast ({ { float, i32, i8 } } addrspace(1)* @_ZL1c to ptr addrspace(1)) to ptr addrspace(4)), ptr addrspace(4) noundef null)
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(ptr addrspace(4) sret(%struct.A) align 4 %a.ascast.i, ptr addrspace(4) noundef addrspacecast (ptr getelementptr inbounds ([28 x i8], ptr @__usid_str, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) @_ZL1c to ptr addrspace(4)), ptr addrspace(4) noundef null)
   ret void
 }
