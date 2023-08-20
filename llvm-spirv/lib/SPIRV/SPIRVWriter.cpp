@@ -4339,6 +4339,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       return BM->addInstTemplate(OpLogicalNot, {TestInst->getId()}, BB, ResTy);
     };
 
+    // TODO: we can add some optimization for fcFinite check by replacing it
+    // with fabs + cmp to 0x7FF0000000000000
+
     // Integer parameter of the intrinsic is combined from several bit masks
     // referenced in FPClassTest enum from FloatingPointMode.h in LLVM.
     // Since a single intrinsic can provide multiple tests - here we might end
@@ -4358,11 +4361,8 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
             Constant::getIntegerValue(IntOpLLVMTy, InfWithQnanBit), BB);
         auto *BitCastToInt =
             BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
-        auto *IntAbs =
-            BM->addExtInst(OpSPIRVTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
-                           OpenCLLIB::SAbs, {BitCastToInt}, BB);
-        auto *TestIsQNan = BM->addCmpInst(OpUGreaterThanEqual, ResTy, IntAbs,
-                                          QNanBitConst, BB);
+        auto *TestIsQNan = BM->addCmpInst(OpUGreaterThanEqual, ResTy,
+                                          BitCastToInt, QNanBitConst, BB);
         if (FPClass & fcQNan) {
           ResultVec.emplace_back(GetInvertedTestIfNeeded(TestIsQNan));
         } else {
@@ -4403,13 +4403,10 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       // issubnormal(V) ==> unsigned(abs(V) - 1) < (all mantissa bits set)
       auto *BitCastToInt =
           BM->addUnaryInst(OpBitcast, OpSPIRVTy, InputFloat, BB);
-      SPIRVValue *IntAbs =
-          BM->addExtInst(OpSPIRVTy, BM->getExtInstSetId(SPIRVEIS_OpenCL),
-                         OpenCLLIB::SAbs, {BitCastToInt}, BB);
       auto *MantissaConst = transValue(
           Constant::getIntegerValue(IntOpLLVMTy, AllOneMantissa), BB);
       auto *MinusOne =
-          BM->addBinaryInst(OpISub, OpSPIRVTy, IntAbs, MantissaConst, BB);
+          BM->addBinaryInst(OpISub, OpSPIRVTy, BitCastToInt, MantissaConst, BB);
       auto *TestIsSubnormal =
           BM->addCmpInst(OpULessThan, ResTy, MinusOne, MantissaConst, BB);
       if (FPClass & fcPosSubnormal && FPClass & fcNegSubnormal)
