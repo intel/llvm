@@ -143,7 +143,9 @@ public:
   size_t get_global_mem_size() const { return _global_mem_size; }
   size_t get_local_mem_size() const { return _local_mem_size; }
   // set interface
-  void set_name(const char *name) { std::strncpy(_name, name, 256); }
+  void set_name(const char *name) {
+    std::strncpy(_name, name, device_info::NAME_BUFFER_SIZE);
+  }
   void set_max_work_item_sizes(const sycl::id<3> max_work_item_sizes) {
     _max_work_item_sizes = max_work_item_sizes;
     for (int i = 0; i < 3; ++i)
@@ -180,7 +182,9 @@ public:
   }
 
 private:
-  char _name[256];
+  constexpr static size_t NAME_BUFFER_SIZE = 256;
+
+  char _name[device_info::NAME_BUFFER_SIZE];
   sycl::id<3> _max_work_item_sizes;
   int _max_work_item_sizes_i[3];
   int _major;
@@ -219,15 +223,11 @@ public:
 
   bool is_native_host_atomic_supported() { return 0; }
   int get_major_version() const {
-    int major, minor;
-    get_version(major, minor);
-    return major;
+    return get_device_info().get_major_version();
   }
 
   int get_minor_version() const {
-    int major, minor;
-    get_version(major, minor);
-    return minor;
+    return get_device_info().get_minor_version();
   }
 
   int get_max_compute_units() const {
@@ -324,15 +324,16 @@ public:
   queue_ptr create_queue(bool print_on_async_exceptions = false,
                          bool in_order = true) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    sycl::async_handler eh = {};
     sycl::property_list prop = {};
-    if (print_on_async_exceptions) {
-      eh = detail::exception_handler;
-    }
     if (in_order) {
       prop = {sycl::property::queue::in_order()};
     }
-    _queues.push_back(std::make_shared<sycl::queue>(_ctx, *this, eh, prop));
+    if (print_on_async_exceptions) {
+      _queues.push_back(std::make_shared<sycl::queue>(
+          _ctx, *this, detail::exception_handler, prop));
+    } else {
+      _queues.push_back(std::make_shared<sycl::queue>(_ctx, *this, prop));
+    }
     return _queues.back().get();
   }
   void destroy_queue(queue_ptr &queue) {
@@ -388,8 +389,6 @@ private:
     std::lock_guard<std::mutex> lock(m_mutex);
     _events.push_back(event);
   }
-  friend sycl::event free_async(const std::vector<void *> &,
-                                const std::vector<sycl::event> &, sycl::queue);
   queue_ptr _default_queue;
   queue_ptr _saved_queue;
   sycl::context _ctx;

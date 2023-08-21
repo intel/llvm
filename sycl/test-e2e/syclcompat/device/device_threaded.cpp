@@ -36,7 +36,7 @@
 
 #include <syclcompat/device.hpp>
 
-#include "device_fixt.h"
+#include "device_fixt.hpp"
 
 int main() {
   // Check a thread is able to select a non-default device

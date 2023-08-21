@@ -34,7 +34,7 @@
 
 #include <syclcompat/device.hpp>
 
-#include "device_fixt.h"
+#include "device_fixt.hpp"
 
 int main() {
   /*
