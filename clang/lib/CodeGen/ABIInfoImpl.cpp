@@ -206,7 +206,6 @@ CodeGen::emitVoidPtrDirectVAArg(CodeGenFunction &CGF, Address VAListAddr,
 #else
   return Addr.withElementType(DirectTy);
 #endif
-
 }
 
 Address CodeGen::emitVoidPtrVAArg(CodeGenFunction &CGF, Address VAListAddr,
