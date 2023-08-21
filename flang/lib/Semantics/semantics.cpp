@@ -166,8 +166,6 @@ using StatementSemanticsPass2 = SemanticsVisitor<AllocateChecker,
     MiscChecker, NamelistChecker, NullifyChecker, PurityChecker,
     ReturnStmtChecker, SelectRankConstructChecker, SelectTypeChecker,
     StopChecker>;
-using StatementSemanticsPass3 =
-    SemanticsVisitor<AccStructureChecker, OmpStructureChecker, CUDAChecker>;
 
 static bool PerformStatementSemantics(
     SemanticsContext &context, parser::Program &program) {
@@ -178,10 +176,14 @@ static bool PerformStatementSemantics(
   StatementSemanticsPass1{context}.Walk(program);
   StatementSemanticsPass2 pass2{context};
   pass2.Walk(program);
-  if (context.languageFeatures().IsEnabled(common::LanguageFeature::OpenACC) ||
-      context.languageFeatures().IsEnabled(common::LanguageFeature::OpenMP) ||
-      context.languageFeatures().IsEnabled(common::LanguageFeature::CUDA)) {
-    StatementSemanticsPass3{context}.Walk(program);
+  if (context.languageFeatures().IsEnabled(common::LanguageFeature::OpenACC)) {
+    SemanticsVisitor<AccStructureChecker>{context}.Walk(program);
+  }
+  if (context.languageFeatures().IsEnabled(common::LanguageFeature::OpenMP)) {
+    SemanticsVisitor<OmpStructureChecker>{context}.Walk(program);
+  }
+  if (context.languageFeatures().IsEnabled(common::LanguageFeature::CUDA)) {
+    SemanticsVisitor<CUDAChecker>{context}.Walk(program);
   }
   if (!context.AnyFatalError()) {
     pass2.CompileDataInitializationsIntoInitializers();
@@ -518,8 +520,11 @@ bool Semantics::Perform() {
                     .statement.v.source == "__ppc_types")) {
       // Don't try to read the builtins module when we're actually building it.
     } else if (frontModule &&
-        std::get<parser::Statement<parser::ModuleStmt>>(frontModule->value().t)
-                .statement.v.source == "__fortran_ppc_intrinsics") {
+        (std::get<parser::Statement<parser::ModuleStmt>>(frontModule->value().t)
+                    .statement.v.source == "__ppc_intrinsics" ||
+            std::get<parser::Statement<parser::ModuleStmt>>(
+                frontModule->value().t)
+                    .statement.v.source == "mma")) {
       // The derived type definition for the vectors is needed.
       context_.UsePPCBuiltinTypesModule();
     } else {
@@ -557,9 +562,9 @@ void Semantics::DumpSymbolsSources(llvm::raw_ostream &os) const {
   for (const auto &pair : symbols) {
     const Symbol &symbol{pair.second};
     if (auto sourceInfo{allCooked.GetSourcePositionRange(symbol.name())}) {
-      os << symbol.name().ToString() << ": " << sourceInfo->first.file.path()
-         << ", " << sourceInfo->first.line << ", " << sourceInfo->first.column
-         << "-" << sourceInfo->second.column << "\n";
+      os << symbol.name().ToString() << ": " << sourceInfo->first.path << ", "
+         << sourceInfo->first.line << ", " << sourceInfo->first.column << "-"
+         << sourceInfo->second.column << "\n";
     } else if (symbol.has<semantics::UseDetails>()) {
       os << symbol.name().ToString() << ": "
          << symbol.GetUltimate().owner().symbol()->name().ToString() << "\n";

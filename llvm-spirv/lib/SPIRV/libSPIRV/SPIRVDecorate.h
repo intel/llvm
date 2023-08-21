@@ -371,7 +371,7 @@ public:
   SPIRVDecorationGroup(SPIRVModule *TheModule, SPIRVId TheId)
       : SPIRVEntry(TheModule, WC, OC, TheId) {
     validate();
-  };
+  }
   // Incomplete constructor
   SPIRVDecorationGroup() : SPIRVEntry(OC) {}
   void encodeAll(spv_ostream &O) const override;
@@ -631,12 +631,12 @@ public:
                                          SPIRVWord TargetWidth,
                                          spv::FPRoundingMode FloatControl)
       : SPIRVDecorate(spv::DecorationFunctionRoundingModeINTEL, TheTarget,
-                      TargetWidth, static_cast<SPIRVWord>(FloatControl)){};
+                      TargetWidth, static_cast<SPIRVWord>(FloatControl)) {}
 
-  SPIRVWord getTargetWidth() const { return Literals.at(0); };
+  SPIRVWord getTargetWidth() const { return Literals.at(0); }
   spv::FPRoundingMode getRoundingMode() const {
     return static_cast<spv::FPRoundingMode>(Literals.at(1));
-  };
+  }
 };
 
 class SPIRVDecorateFunctionDenormModeINTEL : public SPIRVDecorate {
@@ -646,12 +646,12 @@ public:
                                        SPIRVWord TargetWidth,
                                        spv::FPDenormMode FloatControl)
       : SPIRVDecorate(spv::DecorationFunctionDenormModeINTEL, TheTarget,
-                      TargetWidth, static_cast<SPIRVWord>(FloatControl)){};
+                      TargetWidth, static_cast<SPIRVWord>(FloatControl)) {}
 
-  SPIRVWord getTargetWidth() const { return Literals.at(0); };
+  SPIRVWord getTargetWidth() const { return Literals.at(0); }
   spv::FPDenormMode getDenormMode() const {
     return static_cast<spv::FPDenormMode>(Literals.at(1));
-  };
+  }
 };
 
 class SPIRVDecorateFunctionFloatingPointModeINTEL : public SPIRVDecorate {
@@ -661,19 +661,19 @@ public:
                                               SPIRVWord TargetWidth,
                                               spv::FPOperationMode FloatControl)
       : SPIRVDecorate(spv::DecorationFunctionFloatingPointModeINTEL, TheTarget,
-                      TargetWidth, static_cast<SPIRVWord>(FloatControl)){};
+                      TargetWidth, static_cast<SPIRVWord>(FloatControl)) {}
 
-  SPIRVWord getTargetWidth() const { return Literals.at(0); };
+  SPIRVWord getTargetWidth() const { return Literals.at(0); }
   spv::FPOperationMode getOperationMode() const {
     return static_cast<spv::FPOperationMode>(Literals.at(1));
-  };
+  }
 };
 
 class SPIRVDecorateStallEnableINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVDecorateStallEnableINTEL
   SPIRVDecorateStallEnableINTEL(SPIRVEntry *TheTarget)
-      : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget){};
+      : SPIRVDecorate(spv::DecorationStallEnableINTEL, TheTarget) {}
 };
 
 class SPIRVDecorateFuseLoopsInFunctionINTEL : public SPIRVDecorate {
@@ -682,7 +682,7 @@ public:
   SPIRVDecorateFuseLoopsInFunctionINTEL(SPIRVEntry *TheTarget, SPIRVWord Depth,
                                         SPIRVWord Independent)
       : SPIRVDecorate(spv::DecorationFuseLoopsInFunctionINTEL, TheTarget, Depth,
-                      Independent){};
+                      Independent) {}
 };
 
 class SPIRVDecorateMathOpDSPModeINTEL : public SPIRVDecorate {
@@ -691,21 +691,21 @@ public:
   SPIRVDecorateMathOpDSPModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Mode,
                                   SPIRVWord Propagate)
       : SPIRVDecorate(spv::DecorationMathOpDSPModeINTEL, TheTarget, Mode,
-                      Propagate){};
+                      Propagate) {}
 };
 
 class SPIRVDecorateAliasScopeINTEL : public SPIRVDecorateId {
 public:
   // Complete constructor for SPIRVDecorateAliasScopeINTEL
   SPIRVDecorateAliasScopeINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
-      : SPIRVDecorateId(spv::DecorationAliasScopeINTEL, TheTarget, AliasList){};
+      : SPIRVDecorateId(spv::DecorationAliasScopeINTEL, TheTarget, AliasList) {}
 };
 
 class SPIRVDecorateNoAliasINTEL : public SPIRVDecorateId {
 public:
   // Complete constructor for SPIRVDecorateNoAliasINTEL
   SPIRVDecorateNoAliasINTEL(SPIRVEntry *TheTarget, SPIRVId AliasList)
-      : SPIRVDecorateId(spv::DecorationNoAliasINTEL, TheTarget, AliasList){};
+      : SPIRVDecorateId(spv::DecorationNoAliasINTEL, TheTarget, AliasList) {}
 };
 
 class SPIRVDecorateInitiationIntervalINTEL : public SPIRVDecorate {
@@ -713,7 +713,7 @@ public:
   // Complete constructor for SPIRVDecorateInitiationIntervalINTEL
   SPIRVDecorateInitiationIntervalINTEL(SPIRVEntry *TheTarget, SPIRVWord Cycles)
       : SPIRVDecorate(spv::DecorationInitiationIntervalINTEL, TheTarget,
-                      Cycles){};
+                      Cycles) {}
 };
 
 class SPIRVDecorateMaxConcurrencyINTEL : public SPIRVDecorate {
@@ -721,14 +721,14 @@ public:
   // Complete constructor for SPIRVDecorateMaxConcurrencyINTEL
   SPIRVDecorateMaxConcurrencyINTEL(SPIRVEntry *TheTarget, SPIRVWord Invocations)
       : SPIRVDecorate(spv::DecorationMaxConcurrencyINTEL, TheTarget,
-                      Invocations){};
+                      Invocations) {}
 };
 
 class SPIRVDecoratePipelineEnableINTEL : public SPIRVDecorate {
 public:
   // Complete constructor for SPIRVDecoratePipelineEnableINTEL
   SPIRVDecoratePipelineEnableINTEL(SPIRVEntry *TheTarget, SPIRVWord Enable)
-      : SPIRVDecorate(spv::DecorationPipelineEnableINTEL, TheTarget, Enable){};
+      : SPIRVDecorate(spv::DecorationPipelineEnableINTEL, TheTarget, Enable) {}
 };
 
 class SPIRVDecorateHostAccessINTEL : public SPIRVDecorate {
@@ -741,7 +741,7 @@ public:
     for (auto &I : getVec(VarName))
       Literals.push_back(I);
     WordCount += Literals.size();
-  };
+  }
 
   SPIRVWord getAccessMode() const { return Literals.front(); }
   std::string getVarName() const {
@@ -783,7 +783,7 @@ public:
   // Complete constructor for SPIRVInitModeINTEL
   SPIRVDecorateInitModeINTEL(SPIRVEntry *TheTarget, SPIRVWord Trigger)
       : SPIRVDecorate(spv::internal::DecorationInitModeINTEL, TheTarget,
-                      Trigger){};
+                      Trigger) {}
 };
 
 class SPIRVDecorateImplementInCSRINTEL : public SPIRVDecorate {
@@ -791,7 +791,7 @@ public:
   // Complete constructor for SPIRVImplementInCSRINTEL
   SPIRVDecorateImplementInCSRINTEL(SPIRVEntry *TheTarget, SPIRVWord Value)
       : SPIRVDecorate(spv::internal::DecorationImplementInCSRINTEL, TheTarget,
-                      Value){};
+                      Value) {}
 };
 
 } // namespace SPIRV

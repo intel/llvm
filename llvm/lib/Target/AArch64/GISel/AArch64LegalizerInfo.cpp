@@ -14,6 +14,7 @@
 #include "AArch64LegalizerInfo.h"
 #include "AArch64RegisterBankInfo.h"
 #include "AArch64Subtarget.h"
+#include "llvm/CodeGen/GlobalISel/GenericMachineInstrs.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerHelper.h"
 #include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
 #include "llvm/CodeGen/GlobalISel/MIPatternMatch.h"
@@ -242,7 +243,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
 
   getActionDefinitionsBuilder(G_FREM).libcallFor({s32, s64});
 
-  getActionDefinitionsBuilder({G_FCEIL, G_FABS, G_FSQRT, G_FFLOOR, G_FRINT,
+  getActionDefinitionsBuilder({G_FCEIL, G_FSQRT, G_FFLOOR, G_FRINT,
                                G_FMA, G_INTRINSIC_TRUNC, G_INTRINSIC_ROUND,
                                G_FNEARBYINT, G_INTRINSIC_LRINT})
       // If we don't have full FP16 support, then scalarize the elements of
@@ -528,17 +529,23 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   getActionDefinitionsBuilder(G_SEXT_INREG)
       .legalFor({s32, s64})
       .legalFor(PackedVectorAllTypeList)
+      .maxScalar(0, s64)
       .lower();
 
   // FP conversions
   getActionDefinitionsBuilder(G_FPTRUNC)
       .legalFor(
           {{s16, s32}, {s16, s64}, {s32, s64}, {v4s16, v4s32}, {v2s32, v2s64}})
-      .clampMaxNumElements(0, s32, 2);
+      .clampNumElements(0, v4s16, v4s16)
+      .clampNumElements(0, v2s32, v2s32)
+      .scalarize(0);
+
   getActionDefinitionsBuilder(G_FPEXT)
       .legalFor(
           {{s32, s16}, {s64, s16}, {s64, s32}, {v4s32, v4s16}, {v2s64, v2s32}})
-      .clampMaxNumElements(0, s64, 2);
+      .clampNumElements(0, v4s32, v4s32)
+      .clampNumElements(0, v2s64, v2s64)
+      .scalarize(0);
 
   // Conversions
   getActionDefinitionsBuilder({G_FPTOSI, G_FPTOUI})
@@ -699,12 +706,13 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .clampMaxNumElements(1, p0, 2);
 
   getActionDefinitionsBuilder(G_INSERT_VECTOR_ELT)
-      .legalIf(typeInSet(0, {v16s8, v8s8, v8s16, v4s16, v4s32, v2s32, v2s64}));
+      .legalIf(typeInSet(0, {v16s8, v8s8, v8s16, v4s16, v4s32, v2s32, v2s64}))
+      .clampMinNumElements(0, s16, 4)
+      .clampMaxNumElements(0, s16, 8);
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR)
       .legalFor({{v8s8, s8},
                  {v16s8, s8},
-                 {v2s16, s16},
                  {v4s16, s16},
                  {v8s16, s16},
                  {v2s32, s32},
@@ -714,6 +722,7 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
       .clampNumElements(0, v4s32, v4s32)
       .clampNumElements(0, v2s64, v2s64)
       .minScalarOrElt(0, s8)
+      .widenVectorEltsToVectorMinSize(0, 64)
       .minScalarSameAs(1, 0);
 
   getActionDefinitionsBuilder(G_BUILD_VECTOR_TRUNC).lower();
@@ -755,8 +764,8 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
         // to be the same size as the dest.
         if (DstTy != SrcTy)
           return false;
-        return llvm::is_contained({v2s32, v4s32, v2s64, v2p0, v16s8, v8s16},
-                                  DstTy);
+        return llvm::is_contained(
+            {v2s64, v2p0, v2s32, v4s32, v4s16, v16s8, v8s8, v8s16}, DstTy);
       })
       // G_SHUFFLE_VECTOR can have scalar sources (from 1 x s vectors), we
       // just want those lowered into G_BUILD_VECTOR
@@ -911,22 +920,19 @@ AArch64LegalizerInfo::AArch64LegalizerInfo(const AArch64Subtarget &ST)
   // TODO: Vector types.
   getActionDefinitionsBuilder({G_SADDSAT, G_SSUBSAT}).lowerIf(isScalar(0));
 
-  // TODO: Vector types.
-  getActionDefinitionsBuilder({G_FMAXNUM, G_FMINNUM})
-      .legalFor({MinFPScalar, s32, s64})
-      .libcallFor({s128})
-      .minScalar(0, MinFPScalar);
-
-  getActionDefinitionsBuilder({G_FMAXIMUM, G_FMINIMUM})
+  getActionDefinitionsBuilder(
+      {G_FABS, G_FMAXNUM, G_FMINNUM, G_FMAXIMUM, G_FMINIMUM})
       .legalFor({MinFPScalar, s32, s64, v2s32, v4s32, v2s64})
       .legalIf([=](const LegalityQuery &Query) {
         const auto &Ty = Query.Types[0];
         return (Ty == v8s16 || Ty == v4s16) && HasFP16;
       })
-      .minScalar(0, MinFPScalar)
+      .libcallFor({s128})
+      .minScalarOrElt(0, MinFPScalar)
       .clampNumElements(0, v4s16, v8s16)
       .clampNumElements(0, v2s32, v4s32)
-      .clampNumElements(0, v2s64, v2s64);
+      .clampNumElements(0, v2s64, v2s64)
+      .moreElementsToNextPow2(0);
 
   // TODO: Libcall support for s128.
   // TODO: s16 should be legal with full FP16 support.
@@ -1112,7 +1118,7 @@ bool AArch64LegalizerInfo::legalizeSmallCMGlobalValue(
 
 bool AArch64LegalizerInfo::legalizeIntrinsic(LegalizerHelper &Helper,
                                              MachineInstr &MI) const {
-  switch (MI.getIntrinsicID()) {
+  switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
   case Intrinsic::vacopy: {
     unsigned PtrSize = ST->isTargetILP32() ? 4 : 8;
     unsigned VaListSize =
@@ -1482,8 +1488,7 @@ bool AArch64LegalizerInfo::legalizeCTPOP(MachineInstr &MI,
     llvm_unreachable("unexpected vector shape");
   MachineInstrBuilder UADD;
   for (LLT HTy : HAddTys) {
-    UADD = MIRBuilder.buildIntrinsic(Opc, {HTy}, /*HasSideEffects =*/false)
-                     .addUse(HSum);
+    UADD = MIRBuilder.buildIntrinsic(Opc, {HTy}).addUse(HSum);
     HSum = UADD.getReg(0);
   }
 
