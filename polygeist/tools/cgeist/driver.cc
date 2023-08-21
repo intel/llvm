@@ -818,6 +818,8 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
         ConvertOptions.syclImplementation = SYCLImplementation;
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
       }
+      // Needed to expand `arith.ceildivui` operations introduced by
+      // `-raise-scf-to-affine`
       PM3.addPass(arith::createArithExpandOpsPass());
       PM3.addPass(createConvertPolygeistToLLVM(ConvertOptions));
       PM3.addPass(createReconcileUnrealizedCastsPass());
