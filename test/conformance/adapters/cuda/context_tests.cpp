@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "context.hpp"
-#include "cuda_fixtures.h"
+#include "fixtures.h"
 #include "queue.hpp"
 #include <thread>
 
