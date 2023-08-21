@@ -221,7 +221,7 @@ public:
     _saved_queue = _default_queue = _queues[0].get();
   }
 
-  bool is_native_host_atomic_supported() { return 0; }
+  bool is_native_host_atomic_supported() { return false; }
   int get_major_version() const {
     return get_device_info().get_major_version();
   }
@@ -420,7 +420,7 @@ public:
   device_ext &cpu_device() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (_cpu_device == -1) {
-      throw std::runtime_error("no valid cpu device");
+      throw std::runtime_error("[SYCLcompat] No valid cpu device");
     } else {
       return *_devs[_cpu_device];
     }
