@@ -33,7 +33,7 @@ add_subdirectory(null)
 if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
     # fetch adapter sources from SYCL
     set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-    FetchSource(https://github.com/intel/llvm.git nightly-2023-08-01 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
+    FetchSource(https://github.com/intel/llvm.git nightly-2023-08-20 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
 endif()
 
 # Temporarily fetch the opencl adapter from a fork until the PR has been merged.
