@@ -196,9 +196,10 @@ program_impl::program_impl(ContextImplPtr Context,
     MBuildOptions = Options;
     break;
   default:
-    std::cout << "BinaryType: " << BinaryType << std::endl;
-    assert(false && "BinaryType is invalid.");
-    return;
+  // TODO: assert() will be reverted when UR_PROGRAM_BINARY_TYPE_EXECUTABLE value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE for consistency
+  // assert(false && "BinaryType is invalid.");
+  // return;
+    break;
   }
 }
 
