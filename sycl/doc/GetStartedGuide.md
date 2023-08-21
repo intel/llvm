@@ -664,11 +664,11 @@ environment variable.
 ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
 ```
 
-**NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
-explained in following section [Code the program for a specific
-GPU](#code-the-program-for-a-specific-gpu).
+**NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
+using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md))
+as explained in following section
+[Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
 
 #### AOT Target architectures
 
