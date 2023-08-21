@@ -6,6 +6,7 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
   set(UNIFIED_RUNTIME_TAG v0.7.1)
 
+  set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
@@ -40,13 +41,11 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   add_library(UnifiedRuntimeLoader ALIAS ur_loader)
   add_library(UnifiedRuntimeCommon ALIAS ur_common)
   add_library(UnifiedMallocFramework ALIAS unified_malloc_framework)
-  set(UMF_ENABLE_POOL_TRACKING ON)
 
   set(UNIFIED_RUNTIME_SOURCE_DIR
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
-
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
