@@ -152,9 +152,8 @@ get_ballot_group(Group group, bool predicate) {
     return ballot_group<sycl::sub_group>(~mask, predicate);
   }
 #else
-  static_assert(
-      false,
-      "ballot_group is not currently supported on this platform.");
+  static_assert(false,
+                "ballot_group is not currently supported on this platform.");
 #endif
 #else
   (void)predicate;

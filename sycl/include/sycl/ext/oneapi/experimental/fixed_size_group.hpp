@@ -161,9 +161,7 @@ get_fixed_size_group(Group group) {
 #elif defined(__SPIR__)
   return fixed_size_group<PartitionSize, sycl::sub_group>();
 #else
-  static_assert(
-      false,
-      "fixed_size_group is not currently supported on this platform.");
+  static_assert(false, "fixed_size_group is not currently supported on this platform.");
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
