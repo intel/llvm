@@ -3,7 +3,6 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include <random>
 #include <uur/fixtures.h>
 
 struct testParametersFill {
@@ -34,7 +33,7 @@ struct urEnqueueUSMFillTestWithParam
         host_mem = std::vector<uint8_t>(size);
         pattern_size = std::get<1>(GetParam()).pattern_size;
         pattern = std::vector<uint8_t>(pattern_size);
-        generatePattern();
+        uur::generateMemFillPattern(pattern);
 
         ur_device_usm_access_capability_flags_t device_usm = 0;
         ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
@@ -52,19 +51,6 @@ struct urEnqueueUSMFillTestWithParam
         }
 
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::TearDown());
-    }
-
-    void generatePattern() {
-
-        const size_t seed = 1;
-        std::mt19937 mersenne_engine{seed};
-        std::uniform_int_distribution<int> dist{0, 255};
-
-        auto gen = [&dist, &mersenne_engine]() {
-            return static_cast<uint8_t>(dist(mersenne_engine));
-        };
-
-        std::generate(begin(pattern), end(pattern), gen);
     }
 
     void verifyData() {
@@ -98,7 +84,11 @@ static std::vector<testParametersFill> test_cases{
     {256, 256},
     /* pattern_size < size */
     {1024, 256},
-};
+    /* pattern sizes corresponding to some common scalar and vector types */
+    {256, 4},
+    {256, 8},
+    {256, 16},
+    {256, 32}};
 
 UUR_TEST_SUITE_P(urEnqueueUSMFillTestWithParam, testing::ValuesIn(test_cases),
                  printFillTestString<urEnqueueUSMFillTestWithParam>);

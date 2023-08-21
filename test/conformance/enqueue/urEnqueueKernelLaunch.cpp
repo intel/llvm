@@ -120,3 +120,93 @@ TEST_P(urEnqueueKernelLaunch3DTest, Success) {
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, buffer_size, val);
 }
+
+struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
+
+    void SetUp() override {
+        program_name = "fill_usm";
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+
+        ur_bool_t virtual_memory_support = false;
+        ASSERT_SUCCESS(urDeviceGetInfo(
+            device, UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t),
+            &virtual_memory_support, nullptr));
+        if (!virtual_memory_support) {
+            GTEST_SKIP() << "Virtual memory is not supported.";
+        }
+
+        ASSERT_SUCCESS(urVirtualMemGranularityGetInfo(
+            context, device, UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
+            sizeof(granularity), &granularity, nullptr));
+
+        alloc_size = 1024;
+        virtual_page_size =
+            uur::RoundUpToNearestFactor(alloc_size, granularity);
+
+        ASSERT_SUCCESS(urPhysicalMemCreate(context, device, virtual_page_size,
+                                           nullptr, &physical_mem));
+
+        ASSERT_SUCCESS(urVirtualMemReserve(context, nullptr, virtual_page_size,
+                                           &virtual_ptr));
+
+        ASSERT_SUCCESS(urVirtualMemMap(context, virtual_ptr, virtual_page_size,
+                                       physical_mem, 0,
+                                       UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE));
+
+        int pattern = 0;
+        ASSERT_SUCCESS(urEnqueueUSMFill(queue, virtual_ptr, sizeof(pattern),
+                                        &pattern, virtual_page_size, 0, nullptr,
+                                        nullptr));
+        ASSERT_SUCCESS(urQueueFinish(queue));
+    }
+
+    void TearDown() override {
+
+        if (virtual_ptr) {
+            EXPECT_SUCCESS(
+                urVirtualMemUnmap(context, virtual_ptr, virtual_page_size));
+            EXPECT_SUCCESS(
+                urVirtualMemFree(context, virtual_ptr, virtual_page_size));
+        }
+
+        if (physical_mem) {
+            EXPECT_SUCCESS(urPhysicalMemRelease(physical_mem));
+        }
+
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::TearDown());
+    }
+
+    size_t granularity = 0;
+    size_t alloc_size = 0;
+    size_t virtual_page_size = 0;
+    ur_physical_mem_handle_t physical_mem = nullptr;
+    void *virtual_ptr = nullptr;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithVirtualMemory);
+
+TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
+    size_t work_dim = 1;
+    size_t global_offset = 0;
+    size_t global_size = alloc_size / sizeof(uint32_t);
+    uint32_t fill_val = 42;
+
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, virtual_ptr));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+
+    ur_event_handle_t kernel_evt;
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim,
+                                         &global_offset, &global_size, nullptr,
+                                         0, nullptr, &kernel_evt));
+
+    std::vector<uint32_t> data(global_size);
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, true, data.data(), virtual_ptr,
+                                      alloc_size, 1, &kernel_evt, nullptr));
+
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // verify fill worked
+    for (size_t i = 0; i < data.size(); i++) {
+        ASSERT_EQ(fill_val, data.at(i));
+    }
+}

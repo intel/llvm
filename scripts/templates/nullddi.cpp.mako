@@ -22,7 +22,7 @@ from templates import helper as th
 
 namespace driver
 {
-    %for obj in th.extract_objs(specs, r"function"):
+    %for obj in th.get_adapter_functions(specs):
     ///////////////////////////////////////////////////////////////////////////////
     <%
         fname = th.make_func_name(n, tags, obj)

@@ -33,7 +33,14 @@ class AdapterRegistry {
         if (forceLoadedAdaptersOpt.has_value()) {
             for (const auto &s : forceLoadedAdaptersOpt.value()) {
                 auto path = fs::path(s);
-                if (fs::exists(path)) {
+                bool exists = false;
+                try {
+                    exists = fs::exists(path);
+                } catch (std::exception &e) {
+                    logger::error(e.what());
+                }
+
+                if (exists) {
                     adaptersLoadPaths.emplace_back(std::vector{path});
                 } else {
                     logger::warning(

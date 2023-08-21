@@ -18,8 +18,8 @@ from templates.helper import param_traits, type_traits, value_traits
 import ctypes
 import itertools
 
-default_version = "0.5"
-all_versions = ["0.5", "1.0", "1.1", "2.0"]
+default_version = "0.7"
+all_versions = ["0.6", "0.7"]
 
 """
     preprocess object
@@ -915,9 +915,9 @@ def parse(section, version, tags, meta, ref):
                 for c in '_-':
                     name = name.replace(c, ' ')
             elif header:
-                # for d in _make_versions(d, float(version)):
-                objects.append(d)
-                meta = _generate_meta(d, header['ordinal'], meta)
+                for d in _make_versions(d, float(version)):
+                    objects.append(d)
+                    meta = _generate_meta(d, header['ordinal'], meta)
 
         if header:
             specs.append({
