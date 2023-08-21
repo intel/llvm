@@ -17,9 +17,9 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK-OPT-NEXT: .size: 4
 ; CHECK-OPT-NEXT: .value_kind:     by_value
 ; Function Attrs: noinline
-define amdgpu_kernel void @_ZTS14example_kernel(i32 addrspace(3)* %a) {
+define amdgpu_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
-  %0 = load i32, i32 addrspace(3)* %a
+  %0 = load i32, ptr addrspace(3) %a
   ret void
 }
 

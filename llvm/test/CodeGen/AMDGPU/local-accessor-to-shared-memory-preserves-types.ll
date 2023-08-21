@@ -29,7 +29,7 @@ entry:
 
 !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 
-!0 = distinct !{void (ptr addrspace(3), ptr addrspace(3), ptr addrspace(3), ptr addrspace(3))* @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 ; CHECK: !0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}

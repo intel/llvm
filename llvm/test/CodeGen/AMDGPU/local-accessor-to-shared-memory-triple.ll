@@ -20,9 +20,9 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK-INVALID-NOT: - .args:
 
 ; Function Attrs: noinline
-define amdgpu_kernel void @_ZTS14example_kernel(i32 addrspace(3)* %a) {
+define amdgpu_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
-  %0 = load i32, i32 addrspace(3)* %a
+  %0 = load i32, ptr addrspace(3) %a
   ret void
 }
 
