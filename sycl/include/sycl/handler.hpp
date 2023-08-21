@@ -333,12 +333,11 @@ multiply_with_overflow_check(T &dst, T x, T y) {
   if (x > (std::numeric_limits<T>::max)() / y) {
     return true;
   }
-  dst = x*y;
+  dst = x * y;
   return false;
 }
 
-template <int Dims>
-bool range_size_fits_in_size_t(const range<Dims> &r) {
+template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
   size_t acc = 1;
   for (int i = 0; i < Dims; ++i) {
     bool did_overflow = multiply_with_overflow_check(acc, acc, r[i]);

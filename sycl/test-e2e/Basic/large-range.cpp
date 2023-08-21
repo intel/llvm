@@ -72,7 +72,8 @@ int main(int argc, char *argv[]) {
   test_spec_constant("spec constant range<3>", q, B, range(N, 1, 1));
 
   try {
-    q.parallel_for(range(std::numeric_limits<size_t>::max(), 2), [](auto id){});
+    q.parallel_for(range(std::numeric_limits<size_t>::max(), 2),
+                   [](auto id) {});
   } catch (sycl::exception &e) {
     assert(e.code() == errc::runtime);
   }
