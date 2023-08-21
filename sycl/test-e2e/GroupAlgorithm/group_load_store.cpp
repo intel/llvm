@@ -10,7 +10,7 @@
 using namespace sycl;
 namespace sycl_ext = sycl::ext::oneapi::experimental;
 
-constexpr int SG_SIZE = 16;
+constexpr int SG_SIZE = 32;
 constexpr int N_WGS = 3;
 
 template <typename MemType, typename SpanType, int ELEMS_PER_WI,
