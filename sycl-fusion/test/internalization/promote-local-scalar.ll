@@ -133,7 +133,7 @@ attributes #5 = { nounwind }
 
 !12 = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 1, i32 1}
 !13 = !{!"none", !"none", !"none", !"none", !"none", !"none", !"none"}
-!14 = !{!"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"float*", !"float*"}
+!14 = !{!"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"ptr", !"ptr"}
 !15 = !{!"", !"", !"", !"", !"", !"", !""}
 !16 = !{!"KernelOne_accTmp", !"KernelOne_accTmp3", !"KernelOne_accIn1", !"KernelOne_accIn16", !"KernelOne_accIn2", !"KernelTwo_accOut", !"KernelTwo_accIn3"}
 !17 = !{!"local", !"none", !"none", !"none", !"none", !"none", !"none"}

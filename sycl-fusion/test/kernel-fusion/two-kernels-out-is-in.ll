@@ -220,7 +220,7 @@ attributes #5 = { nounwind }
 
 !6 = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 0}
 !7 = !{!"none", !"none", !"none", !"none", !"none", !"none"}
-!8 = !{!"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range"}
+!8 = !{!"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range"}
 !9 = !{!"", !"", !"", !"", !"", !""}
 !10 = !{!"_arg_accTmp", !"_arg_accTmp3", !"_arg_accIn1", !"_arg_accIn16", !"_arg_accIn2", !"_arg_accIn29"}
 !11 = !{!12, !14, !12, !14, !12, !14}
@@ -302,7 +302,7 @@ attributes #5 = { nounwind }
 ;.
 ; MD: [[#ADDR_SPACE]] = !{i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0, i32 1, i32 0}
 ; MD: [[#ACCESS_QUAL]] = !{!"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none"}
-; MD: [[#ARG_TYPE]] = !{!"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range", !"float*", !"class.sycl::_V1::range"}
+; MD: [[#ARG_TYPE]] = !{!"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range", !"ptr", !"class.sycl::_V1::range"}
 ; MD: [[#TYPE_QUAL]] = !{!"", !"", !"", !"", !"", !"", !"", !"", !"", !""}
 ; MD: [[#ARG_NAME]] = !{!"[[ARG1]]", !"[[ARG2]]", !"[[ARG3]]", !"[[ARG4]]", !"[[ARG5]]", !"[[ARG6]]", !"[[ARG7]]", !"[[ARG8]]", !"[[ARG9]]", !"[[ARG10]]"}
 ;.
