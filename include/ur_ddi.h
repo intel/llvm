@@ -1727,8 +1727,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMemcpyUSMExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemcpyUSMExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendUSMMemcpyExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMMemcpyExp_t)(
     ur_exp_command_buffer_handle_t,
     void *,
     const void *,
@@ -1738,8 +1738,20 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemcpyUSMExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferCopyExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendUSMFillExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMFillExp_t)(
+    ur_exp_command_buffer_handle_t,
+    void *,
+    const void *,
+    size_t,
+    size_t,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendMemBufferCopyExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1751,8 +1763,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferWriteExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferWriteExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     size_t,
@@ -1763,8 +1775,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferReadExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferReadExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     size_t,
@@ -1775,8 +1787,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadExp_t)(
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferCopyRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferCopyRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_mem_handle_t,
@@ -1792,8 +1804,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferCopyRectExp_t)
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferWriteRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferWriteRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_rect_offset_t,
@@ -1809,8 +1821,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferWriteRectExp_t
     ur_exp_command_buffer_sync_point_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function-pointer for urCommandBufferAppendMembufferReadRectExp
-typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadRectExp_t)(
+/// @brief Function-pointer for urCommandBufferAppendMemBufferReadRectExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadRectExp_t)(
     ur_exp_command_buffer_handle_t,
     ur_mem_handle_t,
     ur_rect_offset_t,
@@ -1821,6 +1833,19 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMembufferReadRectExp_t)
     size_t,
     size_t,
     void *,
+    uint32_t,
+    const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferAppendMemBufferFillExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferFillExp_t)(
+    ur_exp_command_buffer_handle_t,
+    ur_mem_handle_t,
+    const void *,
+    size_t,
+    size_t,
+    size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *);
@@ -1842,13 +1867,15 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferReleaseExp_t pfnReleaseExp;
     ur_pfnCommandBufferFinalizeExp_t pfnFinalizeExp;
     ur_pfnCommandBufferAppendKernelLaunchExp_t pfnAppendKernelLaunchExp;
-    ur_pfnCommandBufferAppendMemcpyUSMExp_t pfnAppendMemcpyUSMExp;
-    ur_pfnCommandBufferAppendMembufferCopyExp_t pfnAppendMembufferCopyExp;
-    ur_pfnCommandBufferAppendMembufferWriteExp_t pfnAppendMembufferWriteExp;
-    ur_pfnCommandBufferAppendMembufferReadExp_t pfnAppendMembufferReadExp;
-    ur_pfnCommandBufferAppendMembufferCopyRectExp_t pfnAppendMembufferCopyRectExp;
-    ur_pfnCommandBufferAppendMembufferWriteRectExp_t pfnAppendMembufferWriteRectExp;
-    ur_pfnCommandBufferAppendMembufferReadRectExp_t pfnAppendMembufferReadRectExp;
+    ur_pfnCommandBufferAppendUSMMemcpyExp_t pfnAppendUSMMemcpyExp;
+    ur_pfnCommandBufferAppendUSMFillExp_t pfnAppendUSMFillExp;
+    ur_pfnCommandBufferAppendMemBufferCopyExp_t pfnAppendMemBufferCopyExp;
+    ur_pfnCommandBufferAppendMemBufferWriteExp_t pfnAppendMemBufferWriteExp;
+    ur_pfnCommandBufferAppendMemBufferReadExp_t pfnAppendMemBufferReadExp;
+    ur_pfnCommandBufferAppendMemBufferCopyRectExp_t pfnAppendMemBufferCopyRectExp;
+    ur_pfnCommandBufferAppendMemBufferWriteRectExp_t pfnAppendMemBufferWriteRectExp;
+    ur_pfnCommandBufferAppendMemBufferReadRectExp_t pfnAppendMemBufferReadRectExp;
+    ur_pfnCommandBufferAppendMemBufferFillExp_t pfnAppendMemBufferFillExp;
     ur_pfnCommandBufferEnqueueExp_t pfnEnqueueExp;
 } ur_command_buffer_exp_dditable_t;
 

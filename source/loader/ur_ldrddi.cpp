@@ -6345,8 +6345,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+/// @brief Intercept function for urCommandBufferAppendUSMMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
@@ -6365,9 +6365,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMemcpyUSMExp =
-        dditable->ur.CommandBufferExp.pfnAppendMemcpyUSMExp;
-    if (nullptr == pfnAppendMemcpyUSMExp) {
+    auto pfnAppendUSMMemcpyExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMMemcpyExp;
+    if (nullptr == pfnAppendUSMMemcpyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6377,7 +6377,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
             ->handle;
 
     // forward to device-platform
-    result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+    result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
                                    numSyncPointsInWaitList, pSyncPointWaitList,
                                    pSyncPoint);
 
@@ -6385,8 +6385,50 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+/// @brief Intercept function for urCommandBufferAppendUSMFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,   ///< [in] handle of the command-buffer object.
+    void *pMemory,        ///< [in] pointer to USM allocated memory to fill.
+    const void *pPattern, ///< [in] pointer to the fill pattern.
+    size_t patternSize,   ///< [in] size in bytes of the pattern.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendUSMFillExp =
+        dditable->ur.CommandBufferExp.pfnAppendUSMFillExp;
+    if (nullptr == pfnAppendUSMFillExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnAppendUSMFillExp(hCommandBuffer, pMemory, pPattern, patternSize,
+                                 size, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -6407,9 +6449,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferCopyExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferCopyExp;
-    if (nullptr == pfnAppendMembufferCopyExp) {
+    auto pfnAppendMemBufferCopyExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferCopyExp;
+    if (nullptr == pfnAppendMemBufferCopyExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6425,7 +6467,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferCopyExp(
+    result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
@@ -6433,8 +6475,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6455,9 +6497,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferWriteExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferWriteExp;
-    if (nullptr == pfnAppendMembufferWriteExp) {
+    auto pfnAppendMemBufferWriteExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferWriteExp;
+    if (nullptr == pfnAppendMemBufferWriteExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6470,7 +6512,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferWriteExp(hCommandBuffer, hBuffer, offset, size,
+    result = pfnAppendMemBufferWriteExp(hCommandBuffer, hBuffer, offset, size,
                                         pSrc, numSyncPointsInWaitList,
                                         pSyncPointWaitList, pSyncPoint);
 
@@ -6478,8 +6520,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6499,9 +6541,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferReadExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferReadExp;
-    if (nullptr == pfnAppendMembufferReadExp) {
+    auto pfnAppendMemBufferReadExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferReadExp;
+    if (nullptr == pfnAppendMemBufferReadExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6514,7 +6556,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferReadExp(hCommandBuffer, hBuffer, offset, size,
+    result = pfnAppendMemBufferReadExp(hCommandBuffer, hBuffer, offset, size,
                                        pDst, numSyncPointsInWaitList,
                                        pSyncPointWaitList, pSyncPoint);
 
@@ -6522,8 +6564,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -6551,9 +6593,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferCopyRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferCopyRectExp;
-    if (nullptr == pfnAppendMembufferCopyRectExp) {
+    auto pfnAppendMemBufferCopyRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
+    if (nullptr == pfnAppendMemBufferCopyRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6569,7 +6611,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferCopyRectExp(
+    result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -6578,8 +6620,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6613,9 +6655,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferWriteRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferWriteRectExp;
-    if (nullptr == pfnAppendMembufferWriteRectExp) {
+    auto pfnAppendMemBufferWriteRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
+    if (nullptr == pfnAppendMemBufferWriteRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6628,7 +6670,7 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferWriteRectExp(
+    result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
@@ -6637,8 +6679,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -6670,9 +6712,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     auto dditable =
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->dditable;
-    auto pfnAppendMembufferReadRectExp =
-        dditable->ur.CommandBufferExp.pfnAppendMembufferReadRectExp;
-    if (nullptr == pfnAppendMembufferReadRectExp) {
+    auto pfnAppendMemBufferReadRectExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferReadRectExp;
+    if (nullptr == pfnAppendMemBufferReadRectExp) {
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
@@ -6685,9 +6727,55 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
     // forward to device-platform
-    result = pfnAppendMembufferReadRectExp(
+    result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    const void *pPattern,    ///< [in] pointer to the fill pattern.
+    size_t patternSize,      ///< [in] size in bytes of the pattern.
+    size_t offset,           ///< [in] offset into the buffer.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->dditable;
+    auto pfnAppendMemBufferFillExp =
+        dditable->ur.CommandBufferExp.pfnAppendMemBufferFillExp;
+    if (nullptr == pfnAppendMemBufferFillExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommandBuffer =
+        reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
+            ->handle;
+
+    // convert loader handle to platform handle
+    hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
+
+    // forward to device-platform
+    result = pfnAppendMemBufferFillExp(
+        hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     return result;
@@ -7115,20 +7203,24 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
             pDdiTable->pfnFinalizeExp = ur_loader::urCommandBufferFinalizeExp;
             pDdiTable->pfnAppendKernelLaunchExp =
                 ur_loader::urCommandBufferAppendKernelLaunchExp;
-            pDdiTable->pfnAppendMemcpyUSMExp =
-                ur_loader::urCommandBufferAppendMemcpyUSMExp;
-            pDdiTable->pfnAppendMembufferCopyExp =
-                ur_loader::urCommandBufferAppendMembufferCopyExp;
-            pDdiTable->pfnAppendMembufferWriteExp =
-                ur_loader::urCommandBufferAppendMembufferWriteExp;
-            pDdiTable->pfnAppendMembufferReadExp =
-                ur_loader::urCommandBufferAppendMembufferReadExp;
-            pDdiTable->pfnAppendMembufferCopyRectExp =
-                ur_loader::urCommandBufferAppendMembufferCopyRectExp;
-            pDdiTable->pfnAppendMembufferWriteRectExp =
-                ur_loader::urCommandBufferAppendMembufferWriteRectExp;
-            pDdiTable->pfnAppendMembufferReadRectExp =
-                ur_loader::urCommandBufferAppendMembufferReadRectExp;
+            pDdiTable->pfnAppendUSMMemcpyExp =
+                ur_loader::urCommandBufferAppendUSMMemcpyExp;
+            pDdiTable->pfnAppendUSMFillExp =
+                ur_loader::urCommandBufferAppendUSMFillExp;
+            pDdiTable->pfnAppendMemBufferCopyExp =
+                ur_loader::urCommandBufferAppendMemBufferCopyExp;
+            pDdiTable->pfnAppendMemBufferWriteExp =
+                ur_loader::urCommandBufferAppendMemBufferWriteExp;
+            pDdiTable->pfnAppendMemBufferReadExp =
+                ur_loader::urCommandBufferAppendMemBufferReadExp;
+            pDdiTable->pfnAppendMemBufferCopyRectExp =
+                ur_loader::urCommandBufferAppendMemBufferCopyRectExp;
+            pDdiTable->pfnAppendMemBufferWriteRectExp =
+                ur_loader::urCommandBufferAppendMemBufferWriteRectExp;
+            pDdiTable->pfnAppendMemBufferReadRectExp =
+                ur_loader::urCommandBufferAppendMemBufferReadRectExp;
+            pDdiTable->pfnAppendMemBufferFillExp =
+                ur_loader::urCommandBufferAppendMemBufferFillExp;
             pDdiTable->pfnEnqueueExp = ur_loader::urCommandBufferEnqueueExp;
         } else {
             // return pointers directly to platform's DDIs
