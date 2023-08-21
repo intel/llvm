@@ -492,6 +492,11 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
+    // Also store the actual accessor to make sure they are kept alive when
+    // commands are submitted
+    MAccessors.insert(MAccessors.end(),
+                      Node->MCommandGroup->getAccStorage().begin(),
+                      Node->MCommandGroup->getAccStorage().end());
   }
 
   Res =
@@ -546,6 +551,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     // handler.
     CGData.MRequirements.insert(CGData.MRequirements.end(),
                                 MRequirements.begin(), MRequirements.end());
+    CGData.MAccStorage.insert(CGData.MAccStorage.end(), MAccessors.begin(),
+                              MAccessors.end());
+
     // If we have no requirements or dependent events for the command buffer,
     // enqueue it directly
     if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
