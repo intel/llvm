@@ -3196,10 +3196,7 @@ class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
 private:
   accessor(const detail::AccessorImplPtr &Impl)
       : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder> {
-    Impl
-  }
-  {}
+                               access::target::image, IsPlaceholder>{Impl} {}
 
 public:
   template <typename AllocatorT>
@@ -3373,10 +3370,7 @@ protected:
 #ifndef __SYCL_DEVICE_ONLY__
   host_accessor(const detail::AccessorImplPtr &Impl)
       : accessor<DataT, Dimensions, AccessMode, target::host_buffer,
-                 access::placeholder::false_t> {
-    Impl
-  }
-  {}
+                 access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
   friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
