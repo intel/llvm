@@ -321,6 +321,33 @@ private:
 using std::enable_if_t;
 using sycl::detail::queue_impl;
 
+// Returns true if x*y will overflow in T;
+// otherwise, returns false and stores x*y in dst.
+template <typename T>
+static std::enable_if_t<std::is_unsigned_v<T>, bool>
+multiply_with_overflow_check(T &dst, T x, T y) {
+  if (y == 0) {
+    dst = 0;
+    return false;
+  }
+  if (x > (std::numeric_limits<T>::max)() / y) {
+    return true;
+  }
+  dst = x*y;
+  return false;
+}
+
+template <int Dims>
+bool range_size_fits_in_size_t(const range<Dims> &r) {
+  size_t acc = 1;
+  for (int i = 0; i < Dims; ++i) {
+    bool did_overflow = multiply_with_overflow_check(acc, acc, r[i]);
+    if (did_overflow)
+      return false;
+  }
+  return true;
+}
+
 } // namespace detail
 
 /// Command group handler class.
@@ -2171,7 +2198,11 @@ public:
                                 KernelType KernelFunc) {
     auto Dev = detail::getDeviceFromHandler(*this);
     size_t WGSize = Dev.get_info<info::device::max_work_group_size>();
-    // TODO: Check if the computation of .size() will overflow
+    if (!range_size_fits_in_size_t(NumWorkItems))
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "The total number of work-items in "
+                            "a range must fit within size_t");
+
     size_t NOldWorkItems = NumWorkItems.size();
     auto NWorkGroups = (std::numeric_limits<uint32_t>::max)() / WGSize;
     auto NNewWorkItems = NWorkGroups * WGSize;
