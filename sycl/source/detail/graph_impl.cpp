@@ -343,7 +343,6 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
 }
 
 exec_graph_impl::~exec_graph_impl() {
-  WriteLock Lock(MMutex);
   WriteLock LockImpl(MGraphImpl->MMutex);
 
   // clear all recording queue if not done before (no call to end_recording)
