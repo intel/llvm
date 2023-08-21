@@ -672,9 +672,9 @@ GPU](#code-the-program-for-a-specific-gpu).
 
 #### AOT Target architectures
 
-**NOTE**: When building for HIP AMD, you **MUST** use the AMD target triple and specify the
-target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
-as follows:
+**NOTE**: When building for HIP AMD, you **MUST** use the AMD target triple and
+specify the target architecture with
+`-Xsycl-target-backend --offload-arch=<arch>` as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
