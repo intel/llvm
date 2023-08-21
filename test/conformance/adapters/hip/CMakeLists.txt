@@ -5,10 +5,10 @@
 
 set(USE_LOCAL_TEST_CONFIGURATION ON)
 add_conformance_test_with_devices_environment(adapter-hip 
-    hip_fixtures.h
-    hip_urContextGetNativeHandle.cpp
-    hip_urDeviceGetNativeHandle.cpp
-    hip_urEventGetNativeHandle.cpp
+    fixtures.h
+    urContextGetNativeHandle.cpp
+    urDeviceGetNativeHandle.cpp
+    urEventGetNativeHandle.cpp
     test_context.cpp
 )
 target_link_libraries(test-adapter-hip PRIVATE rocmdrv)

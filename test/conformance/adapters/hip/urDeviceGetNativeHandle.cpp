@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "hip_fixtures.h"
+#include "fixtures.h"
 
 using urHipGetDeviceNativeHandle = uur::urDeviceTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urHipGetDeviceNativeHandle);
