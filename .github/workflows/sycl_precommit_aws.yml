@@ -13,12 +13,25 @@ on:
     workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
-    branches-ignore:
-      - sycl-mlir
 
 jobs:
+  setup:
+    runs-on: [Lunx, build]
+    outputs:
+      condition: ${{ steps.condition.outputs.condition }}
+    steps:
+      - id: condition
+        run: |
+          if [[ ${{ github.head_ref }} == "sycl-mlir" ]]; then
+            echo "condition=false" >> $GITHUB_OUTPUT
+          else
+            echo "condition=true" >> $GITHUB_OUTPUT
+          fi
+
   create-check:
+    needs: [setup]
     runs-on: [Linux, build]
+    if: ${{ needs.setup.outputs.condition }} == 'true'
     steps:
       - uses: actions/github-script@v6
         with:
@@ -39,8 +52,10 @@ jobs:
             })
 
   aws-start:
+    needs: [setup]
     runs-on: ubuntu-20.04
     environment: aws
+    if: ${{ needs.setup.outputs.condition }} == 'true'
     steps:
       - uses: actions/checkout@v3
         with:
