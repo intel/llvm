@@ -259,9 +259,9 @@ on building LLD refer to [LLD Build Guide](https://lld.llvm.org/).
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
-There is experimental support for DPC++ for HIP on Nvidia devices.
-There is no continuous integration for this and there are
-no guarantees for supported platforms or configurations.
+There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
+There is no continuous integration for this and there are no guarantees for
+supported platforms or configurations.
 
 This is a compatibility feature and the [CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
 should be preferred to run on NVIDIA GPUs.
