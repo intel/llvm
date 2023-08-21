@@ -11,16 +11,32 @@ void ur_check(const ur_result_t r) {
     }
 }
 
-std::vector<ur_platform_handle_t> get_platforms() {
+std::vector<ur_adapter_handle_t> get_adapters() {
+    uint32_t adapterCount = 0;
+    ur_check(urAdapterGet(0, nullptr, &adapterCount));
+
+    if (!adapterCount) {
+        throw std::runtime_error("No adapters available.");
+    }
+
+    std::vector<ur_adapter_handle_t> adapters(adapterCount);
+    ur_check(urAdapterGet(adapterCount, adapters.data(), nullptr));
+    return adapters;
+}
+
+std::vector<ur_platform_handle_t>
+get_platforms(std::vector<ur_adapter_handle_t> &adapters) {
     uint32_t platformCount = 0;
-    ur_check(urPlatformGet(1, nullptr, &platformCount));
+    ur_check(urPlatformGet(adapters.data(), adapters.size(), 1, nullptr,
+                           &platformCount));
 
     if (!platformCount) {
         throw std::runtime_error("No platforms available.");
     }
 
     std::vector<ur_platform_handle_t> platforms(platformCount);
-    ur_check(urPlatformGet(platformCount, platforms.data(), nullptr));
+    ur_check(urPlatformGet(adapters.data(), adapters.size(), platformCount,
+                           platforms.data(), nullptr));
     return platforms;
 }
 
@@ -43,9 +59,11 @@ template <typename T, size_t N> struct alignas(4096) AlignedArray {
 };
 
 int main() {
-    ur_check(urInit(UR_DEVICE_INIT_FLAG_GPU));
+    ur_loader_config_handle_t loader_config = nullptr;
+    ur_check(urInit(UR_DEVICE_INIT_FLAG_GPU, loader_config));
 
-    auto platforms = get_platforms();
+    auto adapters = get_adapters();
+    auto platforms = get_platforms(adapters);
     auto gpus = get_gpus(platforms.front());
     auto spv = generate_plus_one_spv();
 
@@ -74,8 +92,8 @@ int main() {
 
     ur_kernel_handle_t hKernel;
     ur_check(urKernelCreate(hProgram, "plus1", &hKernel));
-    ur_check(urKernelSetArgMemObj(hKernel, 0, dA));
-    ur_check(urKernelSetArgMemObj(hKernel, 1, dB));
+    ur_check(urKernelSetArgMemObj(hKernel, 0, nullptr, dA));
+    ur_check(urKernelSetArgMemObj(hKernel, 1, nullptr, dB));
 
     ur_queue_handle_t queue;
     ur_check(urQueueCreate(hContext, current_device, nullptr, &queue));
