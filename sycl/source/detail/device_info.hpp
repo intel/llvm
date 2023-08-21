@@ -228,28 +228,16 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
-inline bool checkNativeQueueProfiling(const DeviceImplPtr &Dev) {
-  pi_queue_properties Properties;
-  Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-      sizeof(Properties), &Properties, nullptr);
-  return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
-}
-
 // Specialization for queue_profiling. In addition to pi_queue level profiling,
-// piGetDeviceAndHostTimer support is needed for command_submit query support.
+// piGetDeviceAndHostTimer is not supported, command_submit, command_start,
+// command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    if (!checkNativeQueueProfiling(Dev))
-      return false;
-    sycl::detail::pi::PiResult Result =
-        Dev->getPlugin()
-            ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-                Dev->getHandleRef(), nullptr, nullptr);
-    if (Result == PI_ERROR_INVALID_OPERATION)
-      return false;
-    Dev->getPlugin()->checkPiResult(Result);
-    return true;
+    pi_queue_properties Properties;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
