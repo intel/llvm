@@ -36,8 +36,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   });
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access::mode::read>(cgh);
-    auto checked =
-        checked_buf.template get_access<access::mode::write>(cgh);
+    auto checked = checked_buf.template get_access<access::mode::write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items / 2, 32), [=](nd_item<1> it) {
       size_t id = it.get_global_id(0);
       for (int i = 1; i < N_iters; i++) {
