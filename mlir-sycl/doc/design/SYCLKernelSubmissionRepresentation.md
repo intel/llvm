@@ -68,7 +68,7 @@ values and other identifiers.
 
 All raising patterns operate on the CGF itself or annotation known to reside in
 the CGF after mandatory inlining (see
-[above](#prerequisites--known-limitations)). Hence, the handler is first
+[above](#prerequisites--known-limitations)). Hence, the handler is the first
 argument (after the `this` pointer) of the CGF.
 
 ### Host constructors
