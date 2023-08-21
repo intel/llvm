@@ -433,6 +433,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
       const ur_usm_host_desc_t *UsmHostDesc =
           reinterpret_cast<const ur_usm_host_desc_t *>(pNext);
       UsmHostFlags = UsmHostDesc->flags;
+      std::ignore = UsmHostFlags;
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
