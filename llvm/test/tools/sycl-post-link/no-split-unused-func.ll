@@ -2,26 +2,26 @@
 ; unused functions that are safe to remove even if there are no
 ; splits.
 ; RUN: sycl-post-link -split-esimd -S < %s -o %t.files.table
-; RUN: FileCheck %s -input-file=%t.files_0.ll
+; RUN: FileCheck %s -input-file=%t.files_0.ll --implicit-check-not=foo
 
+; CHECK: target datalayout
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-; CHECK: target datalayout
-; CHECK-NOT: foo
-; CHECK: attributes #0
 define linkonce_odr dso_local spir_func void @foo() local_unnamed_addr #0 {
 entry:
   ret void
 }
 
+; CHECK: _ZTSZ4mainEUlT_E0_
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @_ZTSZ4mainEUlT_E0_() local_unnamed_addr #0  !kernel_arg_buffer_location !6 !spir_kernel_omit_args !6 {
 entry:
   ret void
 }
 
-attributes #0 = { norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="foo.cpp" "uniform-work-group-size"="true" }
+; CHECK: attributes #0
+attributes #0 = { norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="file.cpp" "uniform-work-group-size"="true" }
 
 !opencl.spir.version = !{!0}
 !spirv.Source = !{!1}
