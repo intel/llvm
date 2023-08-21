@@ -17,6 +17,29 @@
 #include <ostream>
 
 namespace ur_params {
+template <typename T> struct is_handle : std::false_type {};
+template <> struct is_handle<ur_loader_config_handle_t> : std::true_type {};
+template <> struct is_handle<ur_adapter_handle_t> : std::true_type {};
+template <> struct is_handle<ur_platform_handle_t> : std::true_type {};
+template <> struct is_handle<ur_device_handle_t> : std::true_type {};
+template <> struct is_handle<ur_context_handle_t> : std::true_type {};
+template <> struct is_handle<ur_event_handle_t> : std::true_type {};
+template <> struct is_handle<ur_program_handle_t> : std::true_type {};
+template <> struct is_handle<ur_kernel_handle_t> : std::true_type {};
+template <> struct is_handle<ur_queue_handle_t> : std::true_type {};
+template <> struct is_handle<ur_native_handle_t> : std::true_type {};
+template <> struct is_handle<ur_sampler_handle_t> : std::true_type {};
+template <> struct is_handle<ur_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_physical_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_usm_pool_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_image_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_image_mem_handle_t> : std::true_type {};
+template <> struct is_handle<ur_exp_interop_mem_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_interop_semaphore_handle_t> : std::true_type {};
+template <>
+struct is_handle<ur_exp_command_buffer_handle_t> : std::true_type {};
+template <typename T> inline constexpr bool is_handle_v = is_handle<T>::value;
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr);
 template <typename T>
 inline void serializeFlag(std::ostream &os, uint32_t flag);
@@ -29,6 +52,10 @@ inline void serializeStruct(std::ostream &os, const void *ptr);
 template <>
 inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
                                                  uint32_t flag);
+
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_loader_config_info_t value, size_t size);
 
 template <>
 inline void serializeTagged(std::ostream &os, const void *ptr,
@@ -283,6 +310,8 @@ inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_rect_region_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_device_init_flag_t value);
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_loader_config_info_t value);
 inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value);
 inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_adapter_backend_t value);
@@ -2079,6 +2108,59 @@ inline void serializeFlag<ur_device_init_flag_t>(std::ostream &os,
         os << "unknown bit flags " << bits;
     } else if (first) {
         os << "0";
+    }
+}
+} // namespace ur_params
+inline std::ostream &operator<<(std::ostream &os,
+                                enum ur_loader_config_info_t value) {
+    switch (value) {
+
+    case UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS:
+        os << "UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS";
+        break;
+
+    case UR_LOADER_CONFIG_INFO_REFERENCE_COUNT:
+        os << "UR_LOADER_CONFIG_INFO_REFERENCE_COUNT";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+namespace ur_params {
+template <>
+inline void serializeTagged(std::ostream &os, const void *ptr,
+                            ur_loader_config_info_t value, size_t size) {
+    if (ptr == NULL) {
+        serializePtr(os, ptr);
+        return;
+    }
+
+    switch (value) {
+
+    case UR_LOADER_CONFIG_INFO_AVAILABLE_LAYERS: {
+
+        const char *tptr = (const char *)ptr;
+        serializePtr(os, tptr);
+    } break;
+
+    case UR_LOADER_CONFIG_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size
+               << ", expected: >=" << sizeof(uint32_t) << ")";
+            return;
+        }
+        os << (void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    default:
+        os << "unknown enumerator";
+        break;
     }
 }
 } // namespace ur_params
@@ -13359,6 +13441,86 @@ inline std::ostream &operator<<(
 
 inline std::ostream &
 operator<<(std::ostream &os,
+           const struct ur_loader_config_create_params_t *params) {
+
+    os << ".phLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->pphLoaderConfig));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_loader_config_retain_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_loader_config_release_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_loader_config_get_info_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    os << ", ";
+    os << ".propName = ";
+
+    os << *(params->ppropName);
+
+    os << ", ";
+    os << ".propSize = ";
+
+    os << *(params->ppropSize);
+
+    os << ", ";
+    os << ".pPropValue = ";
+    ur_params::serializeTagged(os, *(params->ppPropValue), *(params->ppropName),
+                               *(params->ppropSize));
+
+    os << ", ";
+    os << ".pPropSizeRet = ";
+
+    ur_params::serializePtr(os, *(params->ppPropSizeRet));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_loader_config_enable_layer_params_t *params) {
+
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    os << ", ";
+    os << ".pLayerName = ";
+
+    ur_params::serializePtr(os, *(params->ppLayerName));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
            const struct ur_mem_image_create_params_t *params) {
 
     os << ".hContext = ";
@@ -15205,10 +15367,6 @@ operator<<(std::ostream &os,
 }
 
 namespace ur_params {
-// https://devblogs.microsoft.com/oldnewthing/20190710-00/?p=102678
-template <typename, typename = void> constexpr bool is_type_complete_v = false;
-template <typename T>
-constexpr bool is_type_complete_v<T, std::void_t<decltype(sizeof(T))>> = true;
 
 template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
     if (ptr == nullptr) {
@@ -15217,7 +15375,7 @@ template <typename T> inline void serializePtr(std::ostream &os, T *ptr) {
         os << (void *)(ptr) << " (";
         serializePtr(os, *ptr);
         os << ")";
-    } else if constexpr (std::is_void_v<T> || !is_type_complete_v<T>) {
+    } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
         os << (void *)ptr;
     } else if constexpr (std::is_same_v<std::remove_cv_t<T>, char>) {
         os << (void *)(ptr) << " (";
@@ -15546,6 +15704,21 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
         os << (const struct ur_kernel_set_specialization_constants_params_t *)
                 params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_CREATE: {
+        os << (const struct ur_loader_config_create_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_RETAIN: {
+        os << (const struct ur_loader_config_retain_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_RELEASE: {
+        os << (const struct ur_loader_config_release_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_GET_INFO: {
+        os << (const struct ur_loader_config_get_info_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_CONFIG_ENABLE_LAYER: {
+        os << (const struct ur_loader_config_enable_layer_params_t *)params;
     } break;
     case UR_FUNCTION_MEM_IMAGE_CREATE: {
         os << (const struct ur_mem_image_create_params_t *)params;

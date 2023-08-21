@@ -10,7 +10,7 @@ end(4) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1
 begin(5) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {nullptr}, .pNumPlatforms = nullptr);
 end(5) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
 begin(6) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.0));
-end(6) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.6)) -> UR_RESULT_SUCCESS;
+end(6) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@)) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
 begin(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (0));
 end(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;

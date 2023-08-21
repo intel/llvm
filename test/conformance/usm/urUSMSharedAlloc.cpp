@@ -5,9 +5,10 @@
 
 #include <uur/fixtures.h>
 
-struct urUSMSharedAllocTest : uur::urQueueTest {
+struct urUSMSharedAllocTest : uur::urQueueTestWithParam<uur::BoolTestParam> {
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urQueueTest::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urQueueTestWithParam<uur::BoolTestParam>::SetUp());
         ur_device_usm_access_capability_flags_t shared_usm_cross = 0;
         ur_device_usm_access_capability_flags_t shared_usm_single = 0;
 
@@ -19,14 +20,33 @@ struct urUSMSharedAllocTest : uur::urQueueTest {
         if (!(shared_usm_cross || shared_usm_single)) {
             GTEST_SKIP() << "Shared USM is not supported by the device.";
         }
+
+        if (getParam().value) {
+            ur_usm_pool_desc_t pool_desc = {};
+            ASSERT_SUCCESS(urUSMPoolCreate(context, &pool_desc, &pool));
+        }
     }
+
+    void TearDown() override {
+        if (pool) {
+            ASSERT_SUCCESS(urUSMPoolRelease(pool));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urQueueTestWithParam<uur::BoolTestParam>::TearDown());
+    }
+
+    ur_usm_pool_handle_t pool = nullptr;
 };
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urUSMSharedAllocTest);
+
+UUR_TEST_SUITE_P(
+    urUSMSharedAllocTest,
+    testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
+    uur::deviceTestWithParamPrinter<uur::BoolTestParam>);
 
 TEST_P(urUSMSharedAllocTest, Success) {
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, pool,
                                     allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
@@ -54,7 +74,7 @@ TEST_P(urUSMSharedAllocTest, SuccessWithDescriptors) {
                            /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, nullptr,
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, pool,
                                     allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
@@ -75,7 +95,7 @@ TEST_P(urUSMSharedAllocTest, SuccessWithMultipleAdvices) {
         /* alignment */ 0};
     void *ptr = nullptr;
     size_t allocation_size = sizeof(int);
-    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, nullptr,
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &usm_desc, pool,
                                     allocation_size, &ptr));
 
     ur_event_handle_t event = nullptr;
@@ -92,27 +112,27 @@ TEST_P(urUSMSharedAllocTest, InvalidNullHandleContext) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-        urUSMSharedAlloc(nullptr, device, nullptr, nullptr, sizeof(int), &ptr));
+        urUSMSharedAlloc(nullptr, device, nullptr, pool, sizeof(int), &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidNullHandleDevice) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urUSMSharedAlloc(context, nullptr, nullptr, nullptr,
-                                      sizeof(int), &ptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_HANDLE,
+        urUSMSharedAlloc(context, nullptr, nullptr, pool, sizeof(int), &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urUSMSharedAlloc(context, device, nullptr, nullptr,
-                                      sizeof(int), nullptr));
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urUSMSharedAlloc(context, device, nullptr, pool, sizeof(int), nullptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_USM_SIZE,
-        urUSMSharedAlloc(context, device, nullptr, nullptr, -1, &ptr));
+        urUSMSharedAlloc(context, device, nullptr, pool, -1, &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
@@ -122,5 +142,5 @@ TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {
     desc.align = 5;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
-        urUSMSharedAlloc(context, device, &desc, nullptr, sizeof(int), &ptr));
+        urUSMSharedAlloc(context, device, &desc, pool, sizeof(int), &ptr));
 }

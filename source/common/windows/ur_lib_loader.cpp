@@ -30,7 +30,7 @@ LibLoader::loadAdapterLibrary(const char *name) {
 }
 
 void *LibLoader::getFunctionPtr(HMODULE handle, const char *func_name) {
-    return GetProcAddress(handle, func_name);
+    return reinterpret_cast<void *>(GetProcAddress(handle, func_name));
 }
 
 } // namespace ur_loader

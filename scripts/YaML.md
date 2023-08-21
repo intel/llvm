@@ -238,12 +238,13 @@ std::function<void(void*)> ur_callback_t;
 * A handle requires the following scalar fields: {`desc`, `name`}
   - `desc` will be used as the handles's description comment
   - `name` must be a unique ISO-C standard identifier, start with `$` tag, be snake_case and end with `_handle_t`
-* A handle may take the following optional scalar fields: {`class`, `alias`, `condition`, `ordinal`, `version`}
+* A handle may take the following optional scalar fields: {`class`, `alias`, `condition`, `ordinal`, `version`, `loader_only`}
   - `class` will be used to scope the handles declaration within the specified C++ class
   - `alias` will be used to declare the handle as an alias of another handle; specifically, aliases in another namespace
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the handles appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the handles will appear; `default="1.0"` This will also affect the order in which the handles appears within its section.
+  - `loader_only` will be used to decide whether the handle can be instantiated and managed only by the loader.
 * A handle may take the following optional field which can be a scalar, a sequence of scalars or scalars to sequences: {`details`}
   - `details` will be used as the handle's detailed comment
 
@@ -599,12 +600,14 @@ class ur_name_t(Structure):
 * A function requires the following scalar fields: {`desc`, `name`}
   - `desc` will be used as the function's description comment
   - `name` must be a unique ISO-C standard identifier, and be PascalCase
-* A function may take the following optional scalar fields: {`class`, `decl`, `condition`, `ordinal`, `version`}
+* A function may take the following optional scalar fields: {`class`, `decl`, `condition`, `ordinal`, `version`, `loader_only`}
   - `class` will be used to scope the function declaration within the specified C++ class
   - `decl` will be used to specify the function's linkage as one of the following: {`static`}
   - `condition` will be used as a C/C++ preprocessor `#if` conditional expression
   - `ordinal` will be used to override the default order (in which they appear) the function appears within its section; `default="1000"`
   - `version` will be used to define the minimum API version in which the function will appear; `default="1.0"` This will also affect the order in which the function appears within its section and class.
+  - `loader_only` will be used to decide whether the function will only be implemented by the loader and not appear in the adapters
+  interface.
 * A function requires the following sequence of mappings: {`params`}
   - A param requires the following scalar fields: {`desc`, `type`, `name`}
     + `desc` will be used as the params's description comment

@@ -66,7 +66,6 @@ function(add_ur_target_compile_options name)
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
-
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
         endif()
@@ -84,12 +83,6 @@ function(add_ur_target_compile_options name)
             /MD$<$<CONFIG:Debug>:d>
             /GS
         )
-        add_link_options(
-            /DYNAMICBASE
-            /HIGHENTROPYVA
-            /ALLOWISOLATION
-            /NXCOMPAT
-        )
 
         if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE /WX /GS)
@@ -97,14 +90,39 @@ function(add_ur_target_compile_options name)
     endif()
 endfunction()
 
+function(add_ur_target_link_options name)
+    if(NOT MSVC)
+        if (NOT APPLE)
+            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now")
+        endif()
+    elseif(MSVC)
+        target_link_options(${name} PRIVATE
+            /DYNAMICBASE
+            /HIGHENTROPYVA
+            /NXCOMPAT
+        )
+    endif()
+endfunction()
+
+function(add_ur_target_exec_options name)
+    if(MSVC)
+        target_link_options(${name} PRIVATE
+            /ALLOWISOLATION
+        )
+    endif()
+endfunction()
+
 function(add_ur_executable name)
     add_executable(${name} ${ARGN})
     add_ur_target_compile_options(${name})
+    add_ur_target_exec_options(${name})
+    add_ur_target_link_options(${name})
 endfunction()
 
 function(add_ur_library name)
     add_library(${name} ${ARGN})
     add_ur_target_compile_options(${name})
+    add_ur_target_link_options(${name})
 endfunction()
 
 include(FetchContent)
