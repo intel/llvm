@@ -657,8 +657,8 @@ The results are correct!
 ```
 
 **NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
-variable.
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR`
+environment variable.
 
 ```bash
 ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
