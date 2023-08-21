@@ -695,15 +695,17 @@ public:
   /// patterns even if a failure is encountered during the rewrite step.
   bool canRecoverFromRewriteFailure() const override { return true; }
 
-  /// PatternRewriter hook for replacing the results of an operation when the
-  /// given functor returns true.
+  /// PatternRewriter hook for replacing an operation when the given functor
+  /// returns "true".
   void replaceOpWithIf(
       Operation *op, ValueRange newValues, bool *allUsesReplaced,
       llvm::unique_function<bool(OpOperand &) const> functor) override;
 
-  /// PatternRewriter hook for replacing the results of an operation.
+  /// PatternRewriter hook for replacing an operation.
   void replaceOp(Operation *op, ValueRange newValues) override;
-  using PatternRewriter::replaceOp;
+
+  /// PatternRewriter hook for replacing an operation.
+  void replaceOp(Operation *op, Operation *newOp) override;
 
   /// PatternRewriter hook for erasing a dead operation. The uses of this
   /// operation *must* be made dead by the end of the conversion process,
@@ -1066,11 +1068,11 @@ void registerConversionPDLFunctions(RewritePatternSet &patterns);
 /// there is an op explicitly marked as illegal, the conversion terminates and
 /// the `unconvertedOps` set will not necessarily be complete.)
 LogicalResult
-applyPartialConversion(ArrayRef<Operation *> ops, ConversionTarget &target,
+applyPartialConversion(ArrayRef<Operation *> ops, const ConversionTarget &target,
                        const FrozenRewritePatternSet &patterns,
                        DenseSet<Operation *> *unconvertedOps = nullptr);
 LogicalResult
-applyPartialConversion(Operation *op, ConversionTarget &target,
+applyPartialConversion(Operation *op, const ConversionTarget &target,
                        const FrozenRewritePatternSet &patterns,
                        DenseSet<Operation *> *unconvertedOps = nullptr);
 
@@ -1079,9 +1081,9 @@ applyPartialConversion(Operation *op, ConversionTarget &target,
 /// fails, or if there are unreachable blocks in any of the regions nested
 /// within 'ops'.
 LogicalResult applyFullConversion(ArrayRef<Operation *> ops,
-                                  ConversionTarget &target,
+                                  const ConversionTarget &target,
                                   const FrozenRewritePatternSet &patterns);
-LogicalResult applyFullConversion(Operation *op, ConversionTarget &target,
+LogicalResult applyFullConversion(Operation *op, const ConversionTarget &target,
                                   const FrozenRewritePatternSet &patterns);
 
 /// Apply an analysis conversion on the given operations, and all nested

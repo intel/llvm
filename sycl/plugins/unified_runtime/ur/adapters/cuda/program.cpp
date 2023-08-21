@@ -173,8 +173,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
                       size_t length, const ur_program_properties_t *pProperties,
                       ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   ur_device_handle_t hDevice = hContext->getDevice();
   auto pBinary = reinterpret_cast<const uint8_t *>(pIL);
 
@@ -198,7 +196,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
   std::ignore = hContext;
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -220,11 +217,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramLink(ur_context_handle_t hContext, uint32_t count,
               const ur_program_handle_t *phPrograms, const char *pOptions,
               ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(count, UR_RESULT_ERROR_PROGRAM_LINK_FAILURE);
-  UR_ASSERT(phPrograms, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
@@ -284,10 +276,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
-  // Ignore unused parameter
-  (void)hDevice;
-
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  std::ignore = hDevice;
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
@@ -308,8 +297,6 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
                  size_t propSize, void *pProgramInfo, size_t *pPropSizeRet) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   UrReturnHelper ReturnValue(propSize, pProgramInfo, pPropSizeRet);
 
   switch (propName) {
@@ -336,10 +323,9 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
-urProgramRetain(ur_program_handle_t program) {
-  UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(program->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
-  program->incrementReferenceCount();
+urProgramRetain(ur_program_handle_t hProgram) {
+  UR_ASSERT(hProgram->getReferenceCount() > 0, UR_RESULT_ERROR_INVALID_PROGRAM);
+  hProgram->incrementReferenceCount();
   return UR_RESULT_SUCCESS;
 }
 
@@ -348,8 +334,6 @@ urProgramRetain(ur_program_handle_t program) {
 /// the context.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRelease(ur_program_handle_t hProgram) {
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-
   // double delete or someone is messing with the ref count.
   // either way, cannot safely proceed.
   UR_ASSERT(hProgram->getReferenceCount() != 0,
@@ -391,10 +375,8 @@ urProgramRelease(ur_program_handle_t hProgram) {
 ///
 /// \return ur_result_t
 UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
-    ur_program_handle_t program, ur_native_handle_t *nativeHandle) {
-  UR_ASSERT(program, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(nativeHandle, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  *nativeHandle = reinterpret_cast<ur_native_handle_t>(program->get());
+    ur_program_handle_t hProgram, ur_native_handle_t *nativeHandle) {
+  *nativeHandle = reinterpret_cast<ur_native_handle_t>(hProgram->get());
   return UR_RESULT_SUCCESS;
 }
 
@@ -408,10 +390,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     const uint8_t *pBinary, const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(phProgram, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pBinary != nullptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(hContext->getDevice()->get() == hDevice->get(),
             UR_RESULT_ERROR_INVALID_CONTEXT);
   UR_ASSERT(size, UR_RESULT_ERROR_INVALID_SIZE);
@@ -453,12 +431,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
     ur_device_handle_t hDevice, ur_program_handle_t hProgram,
     const char *pFunctionName, void **ppFunctionPointer) {
   // Check if device passed is the same the device bound to the context
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hProgram, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hDevice == hProgram->getContext()->getDevice(),
             UR_RESULT_ERROR_INVALID_DEVICE);
-  UR_ASSERT(pFunctionName, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(ppFunctionPointer, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   CUfunction Func;
   CUresult Ret = cuModuleGetFunction(&Func, hProgram->get(), pFunctionName);

@@ -580,7 +580,7 @@ void ASTDeclWriter::VisitDeclaratorDecl(DeclaratorDecl *D) {
 }
 
 void ASTDeclWriter::VisitFunctionDecl(FunctionDecl *D) {
-  static_assert(DeclContext::NumFunctionDeclBits == 29,
+  static_assert(DeclContext::NumFunctionDeclBits == 30,
                 "You need to update the serializer after you change the "
                 "FunctionDeclBits");
 
@@ -730,7 +730,7 @@ void ASTDeclWriter::VisitCXXDeductionGuideDecl(CXXDeductionGuideDecl *D) {
   addExplicitSpecifier(D->getExplicitSpecifier(), Record);
   Record.AddDeclRef(D->Ctor);
   VisitFunctionDecl(D);
-  Record.push_back(D->isCopyDeductionCandidate());
+  Record.push_back(static_cast<unsigned char>(D->getDeductionCandidateKind()));
   Code = serialization::DECL_CXX_DEDUCTION_GUIDE;
 }
 
@@ -1495,7 +1495,7 @@ void ASTDeclWriter::VisitCXXMethodDecl(CXXMethodDecl *D) {
 }
 
 void ASTDeclWriter::VisitCXXConstructorDecl(CXXConstructorDecl *D) {
-  static_assert(DeclContext::NumCXXConstructorDeclBits == 22,
+  static_assert(DeclContext::NumCXXConstructorDeclBits == 21,
                 "You need to update the serializer after you change the "
                 "CXXConstructorDeclBits");
 
@@ -2425,6 +2425,7 @@ void ASTWriter::WriteDeclAbbrevs() {
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::Fixed, 1)); //HadMultipleCandidates
   Abv->Add(BitCodeAbbrevOp(0)); // RefersToEnclosingVariableOrCapture
   Abv->Add(BitCodeAbbrevOp(0)); // NonOdrUseReason
+  Abv->Add(BitCodeAbbrevOp(0)); // IsImmediateEscalating
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // DeclRef
   Abv->Add(BitCodeAbbrevOp(BitCodeAbbrevOp::VBR, 6)); // Location
   DeclRefExprAbbrev = Stream.EmitAbbrev(std::move(Abv));

@@ -251,6 +251,11 @@ output format of the diagnostics that it generates.
                 ^
                 //
 
+   If the ``NO_COLOR`` environment variable is defined and not empty
+   (regardless of value), color diagnostics are disabled. If ``NO_COLOR`` is
+   defined and ``-fcolor-diagnostics`` is passed on the command line, Clang
+   will honor the command line argument.
+
 .. option:: -fansi-escape-codes
 
    Controls whether ANSI escape codes are used instead of the Windows Console
@@ -2395,6 +2400,14 @@ usual build cycle when using sample profilers for optimization:
    without the ``-b`` flag, you need to use ``--use_lbr=false`` when
    calling ``create_llvm_prof``.
 
+   Alternatively, the LLVM tool ``llvm-profgen`` can also be used to generate
+   the LLVM sample profile:
+
+   .. code-block:: console
+
+     $ llvm-profgen --binary=./code --output=code.prof--perfdata=perf.data
+
+
 4. Build the code again using the collected profile. This step feeds
    the profile back to the optimizers. This should result in a binary
    that executes faster than the original one. Note that you are not
@@ -2590,7 +2603,7 @@ instrumentation:
    environment variable to specify an alternate file. If non-default file name
    is specified by both the environment variable and the command line option,
    the environment variable takes precedence. The file name pattern specified
-   can include different modifiers: ``%p``, ``%h``, and ``%m``.
+   can include different modifiers: ``%p``, ``%h``, ``%m``, ``%t``, and ``%c``.
 
    Any instance of ``%p`` in that file name will be replaced by the process
    ID, so that you can easily distinguish the profile output from multiple
@@ -2626,6 +2639,8 @@ instrumentation:
 
      $ LLVM_PROFILE_FILE="code-%m.profraw" ./code
 
+   See `this <SourceBasedCodeCoverage.html#running-the-instrumented-program>`_ section
+   about the ``%t``, and ``%c`` modifiers.
 
 3. Combine profiles from multiple runs and convert the "raw" profile format to
    the input expected by clang. Use the ``merge`` command of the
@@ -2687,6 +2702,8 @@ programs using the same instrumentation method as ``-fprofile-generate``.
   the profile dumping path specified at command line, the environment variable
   ``LLVM_PROFILE_FILE`` can still be used to override
   the directory and filename for the profile file at runtime.
+  To override the path and filename at compile time, use
+  ``-Xclang -fprofile-instrument-path=/path/to/file_pattern.profraw``.
 
 .. option:: -fcs-profile-generate[=<dirname>]
 
@@ -3331,7 +3348,9 @@ Controlling implementation limits
 .. option:: -fconstexpr-steps=N
 
   Sets the limit for the number of full-expressions evaluated in a single
-  constant expression evaluation.  The default is 1048576.
+  constant expression evaluation. This also controls the maximum size
+  of array and dynamic array allocation that can be constant evaluated.
+  The default is 1048576.
 
 .. option:: -ftemplate-depth=N
 
@@ -3866,7 +3885,7 @@ codebases.
 
 On ``x86_64-mingw32``, passing i128(by value) is incompatible with the
 Microsoft x64 calling convention. You might need to tweak
-``WinX86_64ABIInfo::classify()`` in lib/CodeGen/TargetInfo.cpp.
+``WinX86_64ABIInfo::classify()`` in lib/CodeGen/Targets/X86.cpp.
 
 For the X86 target, clang supports the `-m16` command line
 argument which enables 16-bit code output. This is broadly similar to
@@ -4133,7 +4152,7 @@ options are spelled with a leading ``/``, they will be mistaken for a filename:
 
     clang-cl.exe: error: no such file or directory: '/foobar'
 
-Please `file a bug <https://bugs.llvm.org/enter_bug.cgi?product=clang&component=Driver>`_
+Please `file a bug <https://github.com/llvm/llvm-project/issues/new?labels=clang-cl>`_
 for any valid cl.exe flags that clang-cl does not understand.
 
 Execute ``clang-cl /?`` to see a list of supported options:

@@ -303,7 +303,41 @@ bool DummyDataObject::IsCompatibleWith(
     }
     return false;
   }
-  if (attrs != actual.attrs) {
+  if (type.type().IsPolymorphic() != actual.type.type().IsPolymorphic()) {
+    if (whyNot) {
+      *whyNot = "incompatible dummy data object polymorphism: "s +
+          type.type().AsFortran() + " vs " + actual.type.type().AsFortran();
+    }
+    return false;
+  }
+  if (type.type().category() == TypeCategory::Character) {
+    if (actual.type.type().IsAssumedLengthCharacter() !=
+        type.type().IsAssumedLengthCharacter()) {
+      if (whyNot) {
+        *whyNot = "assumed-length character vs explicit-length character";
+      }
+      return false;
+    }
+    if (!type.type().IsAssumedLengthCharacter() && type.LEN() &&
+        actual.type.LEN()) {
+      auto len{ToInt64(*type.LEN())};
+      auto actualLen{ToInt64(*actual.type.LEN())};
+      if (len.has_value() != actualLen.has_value()) {
+        if (whyNot) {
+          *whyNot = "constant-length vs non-constant-length character dummy "
+                    "arguments";
+        }
+        return false;
+      } else if (len && *len != *actualLen) {
+        if (whyNot) {
+          *whyNot = "character dummy arguments with distinct lengths";
+        }
+        return false;
+      }
+    }
+  }
+  if (!IdenticalSignificantAttrs(attrs, actual.attrs) ||
+      type.attrs() != actual.type.attrs()) {
     if (whyNot) {
       *whyNot = "incompatible dummy data object attributes";
     }
@@ -742,14 +776,18 @@ std::optional<DummyArgument> DummyArgument::FromActual(
   return common::visit(
       common::visitors{
           [&](const BOZLiteralConstant &) {
-            return std::make_optional<DummyArgument>(std::move(name),
-                DummyDataObject{
-                    TypeAndShape{DynamicType::TypelessIntrinsicArgument()}});
+            DummyDataObject obj{
+                TypeAndShape{DynamicType::TypelessIntrinsicArgument()}};
+            obj.attrs.set(DummyDataObject::Attr::DeducedFromActual);
+            return std::make_optional<DummyArgument>(
+                std::move(name), std::move(obj));
           },
           [&](const NullPointer &) {
-            return std::make_optional<DummyArgument>(std::move(name),
-                DummyDataObject{
-                    TypeAndShape{DynamicType::TypelessIntrinsicArgument()}});
+            DummyDataObject obj{
+                TypeAndShape{DynamicType::TypelessIntrinsicArgument()}};
+            obj.attrs.set(DummyDataObject::Attr::DeducedFromActual);
+            return std::make_optional<DummyArgument>(
+                std::move(name), std::move(obj));
           },
           [&](const ProcedureDesignator &designator) {
             if (auto proc{Procedure::Characterize(designator, context)}) {
@@ -769,8 +807,10 @@ std::optional<DummyArgument> DummyArgument::FromActual(
           },
           [&](const auto &) {
             if (auto type{TypeAndShape::Characterize(expr, context)}) {
+              DummyDataObject obj{std::move(*type)};
+              obj.attrs.set(DummyDataObject::Attr::DeducedFromActual);
               return std::make_optional<DummyArgument>(
-                  std::move(name), DummyDataObject{std::move(*type)});
+                  std::move(name), std::move(obj));
             } else {
               return std::optional<DummyArgument>{};
             }

@@ -39,6 +39,9 @@ public:
 
   ~InterpState();
 
+  InterpState(const InterpState &) = delete;
+  InterpState &operator=(const InterpState &) = delete;
+
   // Stack frame accessors.
   Frame *getSplitFrame() { return Parent.getCurrentFrame(); }
   Frame *getCurrentFrame() override;
@@ -88,6 +91,8 @@ public:
   SourceInfo getSource(const Function *F, CodePtr PC) const override {
     return M ? M->getSource(F, PC) : F->getSource(PC);
   }
+
+  Context &getContext() const { return Ctx; }
 
 private:
   /// AST Walker state.

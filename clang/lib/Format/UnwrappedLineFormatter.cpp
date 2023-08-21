@@ -74,6 +74,13 @@ public:
                    : Line.Level * PPIndentWidth;
       Indent += AdditionalIndent;
     } else {
+      // When going to lower levels, forget previous higher levels so that we
+      // recompute future higher levels. But don't forget them if we enter a PP
+      // directive, since these do not terminate a C++ code block.
+      if (!Line.InPPDirective) {
+        assert(Line.Level <= IndentForLevel.size());
+        IndentForLevel.resize(Line.Level + 1);
+      }
       Indent = getIndent(Line.Level);
     }
     if (static_cast<int>(Indent) + Offset >= 0)
@@ -88,14 +95,15 @@ public:
   /// level to the same indent.
   /// Note that \c nextLine must have been called before this method.
   void adjustToUnmodifiedLine(const AnnotatedLine &Line) {
+    if (Line.InPPDirective)
+      return;
+    assert(Line.Level < IndentForLevel.size());
+    if (Line.First->is(tok::comment) && IndentForLevel[Line.Level] != -1)
+      return;
     unsigned LevelIndent = Line.First->OriginalColumn;
     if (static_cast<int>(LevelIndent) - Offset >= 0)
       LevelIndent -= Offset;
-    assert(Line.Level < IndentForLevel.size());
-    if ((!Line.First->is(tok::comment) || IndentForLevel[Line.Level] == -1) &&
-        !Line.InPPDirective) {
-      IndentForLevel[Line.Level] = LevelIndent;
-    }
+    IndentForLevel[Line.Level] = LevelIndent;
   }
 
 private:
@@ -116,8 +124,8 @@ private:
         return true;
       }
       // Handle Qt signals.
-      else if ((RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals) &&
-                RootToken.Next && RootToken.Next->is(tok::colon))) {
+      else if (RootToken.isOneOf(Keywords.kw_signals, Keywords.kw_qsignals) &&
+               RootToken.Next && RootToken.Next->is(tok::colon)) {
         return true;
       } else if (RootToken.Next &&
                  RootToken.Next->isOneOf(Keywords.kw_slots,
@@ -148,6 +156,7 @@ private:
   /// at \p IndentForLevel[l], or a value < 0 if the indent for
   /// that level is unknown.
   unsigned getIndent(unsigned Level) const {
+    assert(Level < IndentForLevel.size());
     if (IndentForLevel[Level] != -1)
       return IndentForLevel[Level];
     if (Level == 0)
@@ -159,7 +168,10 @@ private:
   const AdditionalKeywords &Keywords;
   const unsigned AdditionalIndent;
 
-  /// The indent in characters for each level.
+  /// The indent in characters for each level. It remembers the indent of
+  /// previous lines (that are not PP directives) of equal or lower levels. This
+  /// is used to align formatted lines to the indent of previous non-formatted
+  /// lines. Think about the --lines parameter of clang-format.
   SmallVector<int> IndentForLevel;
 
   /// Offset of the current line relative to the indent level.
@@ -1411,20 +1423,28 @@ unsigned UnwrappedLineFormatter::format(
       NextLine = Joiner.getNextMergedLine(DryRun, IndentTracker);
       RangeMinLevel = UINT_MAX;
     }
-    if (!DryRun)
-      markFinalized(TheLine.First);
+    if (!DryRun) {
+      auto *Tok = TheLine.First;
+      if (Tok->is(tok::hash) && !Tok->Previous && Tok->Next &&
+          Tok->Next->isOneOf(tok::pp_if, tok::pp_ifdef, tok::pp_ifndef,
+                             tok::pp_elif, tok::pp_elifdef, tok::pp_elifndef,
+                             tok::pp_else, tok::pp_endif)) {
+        Tok = Tok->Next;
+      }
+      markFinalized(Tok);
+    }
   }
   PenaltyCache[CacheKey] = Penalty;
   return Penalty;
 }
 
-static auto newlinesBeforeLine(const AnnotatedLine &Line,
-                               const AnnotatedLine *PreviousLine,
-                               const AnnotatedLine *PrevPrevLine,
-                               const SmallVectorImpl<AnnotatedLine *> &Lines,
-                               const FormatStyle &Style) {
+static auto computeNewlines(const AnnotatedLine &Line,
+                            const AnnotatedLine *PreviousLine,
+                            const AnnotatedLine *PrevPrevLine,
+                            const SmallVectorImpl<AnnotatedLine *> &Lines,
+                            const FormatStyle &Style) {
   const auto &RootToken = *Line.First;
-  unsigned Newlines =
+  auto Newlines =
       std::min(RootToken.NewlinesBefore, Style.MaxEmptyLinesToKeep + 1);
   // Remove empty lines before "}" where applicable.
   if (RootToken.is(tok::r_brace) &&
@@ -1513,18 +1533,22 @@ void UnwrappedLineFormatter::formatFirstToken(
     unsigned NewlineIndent) {
   FormatToken &RootToken = *Line.First;
   if (RootToken.is(tok::eof)) {
-    unsigned Newlines = std::min(RootToken.NewlinesBefore, 1u);
+    unsigned Newlines =
+        std::min(RootToken.NewlinesBefore,
+                 Style.KeepEmptyLinesAtEOF ? Style.MaxEmptyLinesToKeep + 1 : 1);
     unsigned TokenIndent = Newlines ? NewlineIndent : 0;
     Whitespaces->replaceWhitespace(RootToken, Newlines, TokenIndent,
                                    TokenIndent);
     return;
   }
 
-  const auto Newlines =
-      RootToken.Finalized
-          ? RootToken.NewlinesBefore
-          : newlinesBeforeLine(Line, PreviousLine, PrevPrevLine, Lines, Style);
-  if (Newlines)
+  if (RootToken.Newlines < 0) {
+    RootToken.Newlines =
+        computeNewlines(Line, PreviousLine, PrevPrevLine, Lines, Style);
+    assert(RootToken.Newlines >= 0);
+  }
+
+  if (RootToken.Newlines > 0)
     Indent = NewlineIndent;
 
   // Preprocessor directives get indented before the hash only if specified. In
@@ -1536,7 +1560,7 @@ void UnwrappedLineFormatter::formatFirstToken(
     Indent = 0;
   }
 
-  Whitespaces->replaceWhitespace(RootToken, Newlines, Indent, Indent,
+  Whitespaces->replaceWhitespace(RootToken, RootToken.Newlines, Indent, Indent,
                                  /*IsAligned=*/false,
                                  Line.InPPDirective &&
                                      !RootToken.HasUnescapedNewline);

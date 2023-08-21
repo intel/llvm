@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <functional>
+#include <functional>  // for logical_and, logical_or, bit_and, bit_or, bit...
+#include <type_traits> // for common_type
+#include <utility>     // for forward
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename T = void> using plus = std::plus<T>;
 template <typename T = void> using multiplies = std::multiplies<T>;
@@ -35,38 +35,41 @@ template <typename T = void> struct logical_or {
 
 template <> struct logical_or<void> : std::logical_or<void> {};
 
+// sycl::minimum definition should be consistent with std::min
 template <typename T = void> struct minimum {
   T operator()(const T &lhs, const T &rhs) const {
-    return std::less<T>()(lhs, rhs) ? lhs : rhs;
+    return (rhs < lhs) ? rhs : lhs;
   }
 };
 
 template <> struct minimum<void> {
   struct is_transparent {};
   template <typename T, typename U>
-  auto operator()(T &&lhs, U &&rhs) const -> std::common_type_t<T &&, U &&> {
-    return std::less<>()(std::forward<const T>(lhs), std::forward<const U>(rhs))
-               ? std::forward<T>(lhs)
-               : std::forward<U>(rhs);
+  auto operator()(T &&lhs, U &&rhs) const ->
+      typename std::common_type<T &&, U &&>::type {
+    return (std::forward<const U>(rhs) < std::forward<const T>(lhs))
+               ? std::forward<U>(rhs)
+               : std::forward<T>(lhs);
   }
 };
 
+// sycl::maximum definition should be consistent with std::max
 template <typename T = void> struct maximum {
   T operator()(const T &lhs, const T &rhs) const {
-    return std::greater<T>()(lhs, rhs) ? lhs : rhs;
+    return (lhs < rhs) ? rhs : lhs;
   }
 };
 
 template <> struct maximum<void> {
   struct is_transparent {};
   template <typename T, typename U>
-  auto operator()(T &&lhs, U &&rhs) const -> std::common_type_t<T &&, U &&> {
-    return std::greater<>()(std::forward<const T>(lhs),
-                            std::forward<const U>(rhs))
-               ? std::forward<T>(lhs)
-               : std::forward<U>(rhs);
+  auto operator()(T &&lhs, U &&rhs) const ->
+      typename std::common_type<T &&, U &&>::type {
+    return (std::forward<const T>(lhs) < std::forward<const U>(rhs))
+               ? std::forward<U>(rhs)
+               : std::forward<T>(lhs);
   }
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

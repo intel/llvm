@@ -39,6 +39,7 @@
 #include "llvm/Support/ErrorHandling.h"
 
 #include <array>
+#include <bitset>
 #include <memory>
 
 using namespace llvm;
@@ -611,8 +612,8 @@ bool MLEvictAdvisor::loadInterferenceFeatures(
   unsigned Cascade = RA.getExtraInfo().getCascadeOrCurrentNext(VirtReg.reg());
 
   SmallVector<const LiveInterval *, MaxInterferences> InterferingIntervals;
-  for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units) {
-    LiveIntervalUnion::Query &Q = Matrix->query(VirtReg, *Units);
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+    LiveIntervalUnion::Query &Q = Matrix->query(VirtReg, Unit);
     // Different from the default heuristic, we don't make any assumptions
     // about what having more than 10 results in the query may mean.
     const auto &IFIntervals = Q.interferingVRegs(EvictInterferenceCutoff);

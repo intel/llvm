@@ -24,7 +24,6 @@ FileIOResult write_func(File *, const void *, size_t);
 FileIOResult read_func(File *, void *, size_t);
 ErrorOr<long> seek_func(File *, long, int);
 int close_func(File *);
-int flush_func(File *);
 
 } // anonymous namespace
 
@@ -34,9 +33,8 @@ class LinuxFile : public File {
 public:
   constexpr LinuxFile(int file_descriptor, uint8_t *buffer, size_t buffer_size,
                       int buffer_mode, bool owned, File::ModeFlags modeflags)
-      : File(&write_func, &read_func, &seek_func, &close_func, flush_func,
-             &cleanup_file<LinuxFile>, buffer, buffer_size, buffer_mode, owned,
-             modeflags),
+      : File(&write_func, &read_func, &seek_func, &close_func, buffer,
+             buffer_size, buffer_mode, owned, modeflags),
         fd(file_descriptor) {}
 
   int get_fd() const { return fd; }
@@ -46,7 +44,7 @@ namespace {
 
 FileIOResult write_func(File *f, const void *data, size_t size) {
   auto *lf = reinterpret_cast<LinuxFile *>(f);
-  int ret = __llvm_libc::syscall_impl(SYS_write, lf->get_fd(), data, size);
+  int ret = __llvm_libc::syscall_impl<int>(SYS_write, lf->get_fd(), data, size);
   if (ret < 0) {
     return {0, -ret};
   }
@@ -55,7 +53,7 @@ FileIOResult write_func(File *f, const void *data, size_t size) {
 
 FileIOResult read_func(File *f, void *buf, size_t size) {
   auto *lf = reinterpret_cast<LinuxFile *>(f);
-  int ret = __llvm_libc::syscall_impl(SYS_read, lf->get_fd(), buf, size);
+  int ret = __llvm_libc::syscall_impl<int>(SYS_read, lf->get_fd(), buf, size);
   if (ret < 0) {
     return {0, -ret};
   }
@@ -66,14 +64,24 @@ ErrorOr<long> seek_func(File *f, long offset, int whence) {
   auto *lf = reinterpret_cast<LinuxFile *>(f);
   long result;
 #ifdef SYS_lseek
-  int ret = __llvm_libc::syscall_impl(SYS_lseek, lf->get_fd(), offset, whence);
+  int ret =
+      __llvm_libc::syscall_impl<int>(SYS_lseek, lf->get_fd(), offset, whence);
+  result = ret;
+#elif defined(SYS_llseek)
+  int ret = __llvm_libc::syscall_impl<int>(SYS_llseek, lf->get_fd(),
+                                           (long)(((uint64_t)(offset)) >> 32),
+                                           (long)offset, &result, whence);
+  result = ret;
+#elif defined(SYS_llseek)
+  int ret = __llvm_libc::syscall_impl<int>(SYS_llseek, lf->get_fd(),
+                                           (long)(((uint64_t)(offset)) >> 32),
+                                           (long)offset, &result, whence);
   result = ret;
 #elif defined(SYS__llseek)
-  long result;
-  int ret = __llvm_libc::syscall_impl(SYS__llseek, lf->get_fd(), offset >> 32,
-                                      offset, &result, whence);
+  int ret = __llvm_libc::syscall_impl<int>(
+      SYS__llseek, lf->get_fd(), offset >> 32, offset, &result, whence);
 #else
-#error "lseek and _llseek syscalls not available to perform a seek operation."
+#error "lseek, llseek and _llseek syscalls not available."
 #endif
 
   if (ret < 0)
@@ -84,19 +92,11 @@ ErrorOr<long> seek_func(File *f, long offset, int whence) {
 
 int close_func(File *f) {
   auto *lf = reinterpret_cast<LinuxFile *>(f);
-  int ret = __llvm_libc::syscall_impl(SYS_close, lf->get_fd());
+  int ret = __llvm_libc::syscall_impl<int>(SYS_close, lf->get_fd());
   if (ret < 0) {
     return -ret;
   }
-  return 0;
-}
-
-int flush_func(File *f) {
-  auto *lf = reinterpret_cast<LinuxFile *>(f);
-  int ret = __llvm_libc::syscall_impl(SYS_fsync, lf->get_fd());
-  if (ret < 0) {
-    return -ret;
-  }
+  delete lf;
   return 0;
 }
 
@@ -134,10 +134,11 @@ ErrorOr<File *> openfile(const char *path, const char *mode) {
       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 
 #ifdef SYS_open
-  int fd = __llvm_libc::syscall_impl(SYS_open, path, open_flags, OPEN_MODE);
+  int fd =
+      __llvm_libc::syscall_impl<int>(SYS_open, path, open_flags, OPEN_MODE);
 #elif defined(SYS_openat)
-  int fd = __llvm_libc::syscall_impl(SYS_openat, AT_FDCWD, path, open_flags,
-                                     OPEN_MODE);
+  int fd = __llvm_libc::syscall_impl<int>(SYS_openat, AT_FDCWD, path,
+                                          open_flags, OPEN_MODE);
 #else
 #error "open and openat syscalls not available."
 #endif
@@ -183,3 +184,10 @@ static LinuxFile StdErr(2, nullptr, STDERR_BUFFER_SIZE, _IONBF, false,
 File *stderr = &StdErr;
 
 } // namespace __llvm_libc
+
+// Provide the external defintitions of the standard IO streams.
+extern "C" {
+FILE *stdin = reinterpret_cast<FILE *>(&__llvm_libc::StdIn);
+FILE *stderr = reinterpret_cast<FILE *>(&__llvm_libc::StdErr);
+FILE *stdout = reinterpret_cast<FILE *>(&__llvm_libc::StdOut);
+}

@@ -73,6 +73,8 @@ set(SCUDO_HEADERS
   memtag.h
   mem_map.h
   mem_map_base.h
+  mem_map_fuchsia.h
+  mem_map_linux.h
   mutex.h
   options.h
   platform.h
@@ -107,12 +109,21 @@ set(SCUDO_SOURCES
   fuchsia.cpp
   linux.cpp
   mem_map.cpp
+  mem_map_fuchsia.cpp
+  mem_map_linux.cpp
   release.cpp
   report.cpp
   rss_limit_checker.cpp
   string_utils.cpp
   timing.cpp
   )
+
+# Temporary hack until LLVM libc supports inttypes.h print format macros
+# See: https://github.com/llvm/llvm-project/issues/63317#issuecomment-1591906241
+if(LLVM_LIBC_INCLUDE_SCUDO)
+  list(REMOVE_ITEM SCUDO_HEADERS timing.h)
+  list(REMOVE_ITEM SCUDO_SOURCES timing.cpp)
+endif()
 
 # Enable the necessary instruction set for scudo_crc32.cpp, if available.
 # Newer compiler versions use -mcrc32 rather than -msse4.2.

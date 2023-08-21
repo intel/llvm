@@ -425,7 +425,7 @@ def POSIX : StandardSpec<"POSIX"> {
         FunctionSpec<
           "ftruncate",
           RetValSpec<IntType>,
-          [ArgSpec<ConstCharPtr>, ArgSpec<OffTType>]
+          [ArgSpec<IntType>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "geteuid",
@@ -580,7 +580,7 @@ def POSIX : StandardSpec<"POSIX"> {
         FunctionSpec<
           "truncate",
           RetValSpec<IntType>,
-          [ArgSpec<IntType>, ArgSpec<OffTType>]
+          [ArgSpec<ConstCharPtr>, ArgSpec<OffTType>]
         >,
         FunctionSpec<
           "unlink",
@@ -1200,7 +1200,7 @@ def POSIX : StandardSpec<"POSIX"> {
   HeaderSpec SysWait = HeaderSpec<
     "sys/wait.h",
     [], // Macros
-    [PidT, StructRUsage],
+    [PidT, StructRUsage, SigInfoType],
     [], // Enumerations
     [
       FunctionSpec<

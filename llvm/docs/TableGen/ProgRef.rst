@@ -225,10 +225,10 @@ TableGen provides "bang operators" that have a wide variety of uses:
                : !getdagname  !getdagop    !gt          !head        !if
                : !interleave  !isa         !le          !listconcat  !listremove
                : !listsplat   !logtwo      !lt          !mul         !ne
-               : !not         !or          !range       !setdagop    !shl
-               : !size        !sra         !srl         !strconcat   !sub
-               : !subst       !substr      !tail        !tolower     !toupper
-               : !xor
+               : !not         !or          !range       !setdagarg   !setdagname
+               : !setdagop    !shl         !size        !sra         !srl
+               : !strconcat   !sub         !subst       !substr      !tail
+               : !tolower     !toupper     !xor
 
 The ``!cond`` operator has a slightly different
 syntax compared to other bang operators, so it is defined separately:
@@ -475,7 +475,7 @@ sense after reading the remainder of this guide.
        def Foo#i;
 
 .. productionlist::
-   SimpleValue8: `ClassID` "<" `ValueListNE` ">"
+   SimpleValue8: `ClassID` "<" `ArgValueList` ">"
 
 This form creates a new anonymous record definition (as would be created by an
 unnamed ``def`` inheriting from the given class with the given template
@@ -642,11 +642,30 @@ of the fields of the class or record.
    RecordBody: `ParentClassList` `Body`
    ParentClassList: [":" `ParentClassListNE`]
    ParentClassListNE: `ClassRef` ("," `ClassRef`)*
-   ClassRef: (`ClassID` | `MultiClassID`) ["<" [`ValueList`] ">"]
+   ClassRef: (`ClassID` | `MultiClassID`) ["<" [`ArgValueList`] ">"]
+   ArgValueList: `PostionalArgValueList` [","] `NamedArgValueList`
+   PostionalArgValueList: [`Value` {"," `Value`}*]
+   NamedArgValueList: [`NameValue` "=" `Value` {"," `NameValue` "=" `Value`}*]
 
 A :token:`ParentClassList` containing a :token:`MultiClassID` is valid only
 in the class list of a ``defm`` statement. In that case, the ID must be the
 name of a multiclass.
+
+The argument values can be specified in two forms:
+
+* Positional argument (``value``). The value is assigned to the argument in the
+  corresponding position. For ``Foo<a0, a1>``, ``a0`` will be assigned to first
+  argument and ``a1`` will be assigned to second argument.
+* Named argument (``name=value``). The value is assigned to the argument with
+  the specified name. For ``Foo<a=a0, b=a1>``, ``a0`` will be assigned to the
+  argument with name ``a`` and ``a1`` will be assigned to the argument with
+  name ``b``.
+
+Required arguments can alse be specified as named argument.
+
+Note that the argument can only be specified once regardless of the way (named
+or positional) to specify and positional arguments should be put before named
+arguments.
 
 .. productionlist::
    Body: ";" | "{" `BodyItem`* "}"
@@ -1370,7 +1389,7 @@ DAG.
 
 The following bang operators are useful for working with DAGs:
 ``!con``, ``!dag``, ``!empty``, ``!foreach``, ``!getdagarg``, ``!getdagname``,
-``!getdagop``, ``!setdagop``, ``!size``.
+``!getdagop``, ``!setdagarg``, ``!setdagname``, ``!setdagop``, ``!size``.
 
 Defvar in a record body
 -----------------------
@@ -1820,6 +1839,16 @@ and non-0 as true.
 
 ``!range(``\ *list*\ ``)``
     Equivalent to ``!range(0, !size(list))``.
+
+``!setdagarg(``\ *dag*\ ``,``\ *key*\ ``,``\ *arg*\ ``)``
+    This operator produces a DAG node with the same operator and arguments as
+    *dag*, but replacing the value of the argument specified by the *key* with
+    *arg*. That *key* could be either an integer index or a string name.
+
+``!setdagname(``\ *dag*\ ``,``\ *key*\ ``,``\ *name*\ ``)``
+    This operator produces a DAG node with the same operator and arguments as
+    *dag*, but replacing the name of the argument specified by the *key* with
+    *name*. That *key* could be either an integer index or a string name.
 
 ``!setdagop(``\ *dag*\ ``,`` *op*\ ``)``
     This operator produces a DAG node with the same arguments as *dag*, but with its

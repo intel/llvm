@@ -747,8 +747,6 @@ public:
                                 unsigned TargetFlags = 0) {
     return getConstantPool(C, VT, Align, Offset, true, TargetFlags);
   }
-  SDValue getTargetIndex(int Index, EVT VT, int64_t Offset = 0,
-                         unsigned TargetFlags = 0);
   // When generating a branch to a BB, we don't in general know enough
   // to provide debug info for the BB at that time, so keep this one around.
   SDValue getBasicBlock(MachineBasicBlock *MBB);
@@ -947,6 +945,13 @@ public:
   /// Convert Op, which must be of integer type, to the
   /// integer type VT, by either zero-extending or truncating it.
   SDValue getZExtOrTrunc(SDValue Op, const SDLoc &DL, EVT VT);
+
+  /// Convert Op, which must be of integer type, to the
+  /// integer type VT, by either sign/zero-extending (depending on IsSigned) or
+  /// truncating it.
+  SDValue getExtOrTrunc(bool IsSigned, SDValue Op, const SDLoc &DL, EVT VT) {
+    return IsSigned ? getSExtOrTrunc(Op, DL, VT) : getZExtOrTrunc(Op, DL, VT);
+  }
 
   /// Return the expression required to zero extend the Op
   /// value assuming it was the smaller SrcTy value.
@@ -2346,6 +2351,19 @@ public:
       return false;
     default:
       return true;
+    }
+  }
+
+  /// Check if the provided node is save to speculatively executed given its
+  /// current arguments. So, while `udiv` the opcode is not safe to
+  /// speculatively execute, a given `udiv` node may be if the denominator is
+  /// known nonzero.
+  bool isSafeToSpeculativelyExecuteNode(const SDNode *N) const {
+    switch (N->getOpcode()) {
+    case ISD::UDIV:
+      return isKnownNeverZero(N->getOperand(1));
+    default:
+      return isSafeToSpeculativelyExecute(N->getOpcode());
     }
   }
 

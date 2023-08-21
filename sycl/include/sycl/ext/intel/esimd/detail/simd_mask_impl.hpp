@@ -15,7 +15,7 @@
 #include <sycl/ext/oneapi/experimental/detail/invoke_simd_types.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// @addtogroup sycl_esimd_core_vectors
@@ -103,7 +103,7 @@ public:
 
 private:
   /// @cond ESIMD_DETAIL
-  static inline constexpr bool mask_size_ok_for_mem_io() {
+  static constexpr bool mask_size_ok_for_mem_io() {
     constexpr unsigned Sz = sizeof(element_type) * N;
     return (Sz >= OperandSize::OWORD) && (Sz % OperandSize::OWORD == 0) &&
            isPowerOf2(Sz / OperandSize::OWORD) &&
@@ -151,5 +151,5 @@ public:
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

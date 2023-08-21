@@ -142,6 +142,7 @@ public:
       }
       return MEmptyString;
     }
+    return MEmptyString;
   }
 
 private:

@@ -80,8 +80,9 @@ bool verify_result(Centroid4 *centroids4, // gpu centroids result
     float errY = std::fabs(centroids4[j].y[k] - centroids[i].y) /
                  max(std::fabs(centroids4[j].y[k]), std::fabs(centroids[i].y));
     float errSize =
-        abs(centroids4[j].num_points[k] - centroids[i].num_points) /
-        max(abs(centroids4[j].num_points[k]), abs(centroids[i].num_points));
+        std::abs(centroids4[j].num_points[k] - centroids[i].num_points) /
+        max(std::abs(centroids4[j].num_points[k]),
+            std::abs(centroids[i].num_points));
     // std::cout << i << ": Wanted (" << centroids[i].x << ", " <<
     // centroids[i].y
     //        << ", " << centroids[i].num_points << ")" << std::endl;

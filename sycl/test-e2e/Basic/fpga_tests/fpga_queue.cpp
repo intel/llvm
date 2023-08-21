@@ -116,7 +116,7 @@ int main() {
       return -1;
     }
 
-    auto readBufferC = bufC.get_access<access::mode::read>();
+    auto readBufferC = bufC.get_host_access();
     for (size_t i = 0; i != dataSize; ++i) {
       if (readBufferC[i] != 2 * i) {
         std::cout << "Result mismatches " << readBufferC[i] << " Vs expected "

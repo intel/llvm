@@ -2347,6 +2347,12 @@ def fir_CallOp : fir_Op<"call",
       return {arg_operand_begin() + 1, arg_operand_end()};
     }
 
+    mlir::MutableOperandRange getArgOperandsMutable() {
+      if ((*this)->getAttrOfType<mlir::SymbolRefAttr>(getCalleeAttrName()))
+        return getArgsMutable();
+      return mlir::MutableOperandRange(*this, 1, getArgs().size() - 1);
+    }
+
     operand_iterator arg_operand_begin() { return operand_begin(); }
     operand_iterator arg_operand_end() { return operand_end(); }
 
@@ -2606,10 +2612,12 @@ def fir_ConvertOp : fir_OneResultOp<"convert", [NoMemoryEffect]> {
   let hasVerifier = 1;
 
   let extraClassDeclaration = [{
+    static bool isInteger(mlir::Type ty);
     static bool isIntegerCompatible(mlir::Type ty);
     static bool isFloatCompatible(mlir::Type ty);
     static bool isPointerCompatible(mlir::Type ty);
     static bool canBeConverted(mlir::Type inType, mlir::Type outType);
+    static bool areVectorsCompatible(mlir::Type inTy, mlir::Type outTy);
   }];
   let hasCanonicalizer = 1;
 }

@@ -171,7 +171,7 @@ bool BPFDAGToDAGISel::SelectInlineAsmMemoryOperand(
   }
 
   SDLoc DL(Op);
-  SDValue AluOp = CurDAG->getTargetConstant(ISD::ADD, DL, MVT::i32);;
+  SDValue AluOp = CurDAG->getTargetConstant(ISD::ADD, DL, MVT::i32);
   OutOps.push_back(Op0);
   OutOps.push_back(Op1);
   OutOps.push_back(AluOp);
@@ -192,15 +192,17 @@ void BPFDAGToDAGISel::Select(SDNode *Node) {
   default:
     break;
   case ISD::SDIV: {
-    DebugLoc Empty;
-    const DebugLoc &DL = Node->getDebugLoc();
-    if (DL != Empty)
-      errs() << "Error at line " << DL.getLine() << ": ";
-    else
-      errs() << "Error: ";
-    errs() << "Unsupport signed division for DAG: ";
-    Node->print(errs(), CurDAG);
-    errs() << "Please convert to unsigned div/mod.\n";
+    if (!Subtarget->hasSdivSmod()) {
+      DebugLoc Empty;
+      const DebugLoc &DL = Node->getDebugLoc();
+      if (DL != Empty)
+        errs() << "Error at line " << DL.getLine() << ": ";
+      else
+        errs() << "Error: ";
+      errs() << "Unsupport signed division for DAG: ";
+      Node->print(errs(), CurDAG);
+      errs() << "Please convert to unsigned div/mod.\n";
+    }
     break;
   }
   case ISD::INTRINSIC_W_CHAIN: {

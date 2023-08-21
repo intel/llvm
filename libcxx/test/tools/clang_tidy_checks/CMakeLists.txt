@@ -5,7 +5,7 @@
 set(LLVM_DIR_SAVE ${LLVM_DIR})
 set(Clang_DIR_SAVE ${Clang_DIR})
 
-# TODO LLVM 17 prefer to use teh stable release again instead of ToT.
+# TODO LLVM 17 prefer to use the stable release again instead of ToT.
 # libc++ normally prefers the use the last stable release instead of the ToT.
 # For modules we need ToT since they are still under heavy development. So
 # temporary the ToT version is preferred.
@@ -16,6 +16,7 @@ endif()
 
 set(SOURCES
     abi_tag_on_virtual.cpp
+    header_exportable_declarations.cpp
     hide_from_abi.cpp
     proper_version_checks.cpp
     qualify_declval.cpp

@@ -724,17 +724,31 @@ def LBZXTLS : XForm_1<31,  87, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$R
                       "lbzx $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LHZXTLS : XForm_1<31, 279, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "lhzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LHAXTLS : XForm_1<31, 343, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                      "lhax $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LWZXTLS : XForm_1<31,  23, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "lwzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LWAXTLS : XForm_1<31, 341, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                      "lwax $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LDXTLS  : XForm_1<31,  21, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "ldx $RST, $RA, $RB", IIC_LdStLD, []>, isPPC64;
 def LBZXTLS_32 : XForm_1<31,  87, (outs gprc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                          "lbzx $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LHZXTLS_32 : XForm_1<31, 279, (outs gprc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                          "lhzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LHAXTLS_32 : XForm_1<31, 343, (outs gprc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                         "lhax $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LWZXTLS_32 : XForm_1<31,  23, (outs gprc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                          "lwzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LWAXTLS_32 : XForm_1<31, 341, (outs gprc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                         "lwax $RST, $RA, $RB", IIC_LdStLoad, []>;
 
+}
+let mayLoad = 1, Predicates = [HasFPU] in {
+def LFSXTLS : XForm_25<31, 535, (outs f4rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "lfsx $RST, $RA, $RB", IIC_LdStLFD, []>;
+def LFDXTLS : XForm_25<31, 599, (outs f8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "lfdx $RST, $RA, $RB", IIC_LdStLFD, []>;
 }
 
 let mayStore = 1 in {
@@ -760,6 +774,14 @@ def STWXTLS_32 : XForm_8<31, 151, (outs), (ins gprc:$RST, ptr_rc_nor0:$RA, tlsre
                          "stwx $RST, $RA, $RB", IIC_LdStStore, []>,
                          PPC970_DGroup_Cracked;
 
+}
+let mayStore = 1, Predicates = [HasFPU] in {
+def STFSXTLS : XForm_8<31, 663, (outs), (ins f4rc:$RST, ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "stfsx $RST, $RA, $RB", IIC_LdStSTFD, []>,
+                       PPC970_DGroup_Cracked;
+def STFDXTLS : XForm_8<31, 727, (outs), (ins f8rc:$RST, ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "stfdx $RST, $RA, $RB", IIC_LdStSTFD, []>,
+                       PPC970_DGroup_Cracked;
 }
 
 let isCommutable = 1 in
@@ -834,10 +856,21 @@ def LBZXTLS_ : XForm_1<31,  87, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$
                       "lbzx $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LHZXTLS_ : XForm_1<31, 279, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "lhzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LHAXTLS_ : XForm_1<31, 343, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "lhax $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LWZXTLS_ : XForm_1<31,  23, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "lwzx $RST, $RA, $RB", IIC_LdStLoad, []>;
+def LWAXTLS_ : XForm_1<31, 341, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                       "lwax $RST, $RA, $RB", IIC_LdStLoad, []>;
 def LDXTLS_  : XForm_1<31,  21, (outs g8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
                       "ldx $RST, $RA, $RB", IIC_LdStLD, []>, isPPC64;
+}
+
+let mayLoad = 1, Predicates = [HasFPU] in {
+def LFSXTLS_ : XForm_25<31, 535, (outs f4rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                        "lfsx $RST, $RA, $RB", IIC_LdStLFD, []>;
+def LFDXTLS_ : XForm_25<31, 599, (outs f8rc:$RST), (ins ptr_rc_nor0:$RA, tlsreg:$RB),
+                        "lfdx $RST, $RA, $RB", IIC_LdStLFD, []>;
 }
 
 let mayStore = 1 in {
@@ -853,6 +886,15 @@ def STWXTLS_ : XForm_8<31, 151, (outs), (ins g8rc:$RST, ptr_rc_nor0:$RA, tlsreg:
 def STDXTLS_  : XForm_8<31, 149, (outs), (ins g8rc:$RST, ptr_rc_nor0:$RA, tlsreg:$RB),
                        "stdx $RST, $RA, $RB", IIC_LdStSTD, []>, isPPC64,
                        PPC970_DGroup_Cracked;
+}
+
+let mayStore = 1, Predicates = [HasFPU] in {
+def STFSXTLS_ : XForm_8<31, 663, (outs), (ins f4rc:$RST, ptr_rc_nor0:$RA, tlsreg:$RB),
+                        "stfsx $RST, $RA, $RB", IIC_LdStSTFD, []>,
+                        PPC970_DGroup_Cracked;
+def STFDXTLS_ : XForm_8<31, 727, (outs), (ins f8rc:$RST, ptr_rc_nor0:$RA, tlsreg:$RB),
+                        "stfdx $RST, $RA, $RB", IIC_LdStSTFD, []>,
+                        PPC970_DGroup_Cracked;
 }
 }
 
@@ -1910,8 +1952,19 @@ def : Pat<(add i64:$in, (PPChi tblockaddress:$g, 0)),
           (ADDIS8 $in, tblockaddress:$g)>;
 
 // AIX 64-bit small code model TLS access.
+// This is used for global dynamic accesses when loading the region handle and
+// variable offset, and also for local-exec accesses to load the offset of a
+// TLS variable from the TOC, prior to adding it to r13.
 def : Pat<(i64 (PPCtoc_entry tglobaltlsaddr:$disp, i64:$reg)),
           (i64 (LDtoc tglobaltlsaddr:$disp, i64:$reg))>;
+
+// The following pattern matches 64-bit local-exec TLS accesses on AIX.
+// PPCaddTls is used in local-exec accesses in order to:
+//   - Get the address of a variable (adding the variable offset to the thread
+//     pointer in r13).
+//   - Create an opportunity to optimize the user of the loaded address.
+def : Pat<(PPCaddTls i64:$in, i64:$addr),
+          (ADD8TLS $in, $addr)>;
 
 // 64-bits atomic loads and stores
 def : Pat<(atomic_load_64 DSForm:$src), (LD  memrix:$src)>;

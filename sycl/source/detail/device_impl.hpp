@@ -20,7 +20,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class platform;
@@ -242,6 +242,10 @@ public:
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
 
+  /// Check clGetDeviceAndHostTimer is available for fallback profiling
+
+  bool isGetDeviceAndHostTimerSupported();
+
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 
@@ -272,5 +276,5 @@ private:
 }; // class device_impl
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

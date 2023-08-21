@@ -8,13 +8,15 @@
 
 #pragma once
 
+#include <sycl/detail/pi.h>   // for PI_ERROR_INVALID_DEVICE
+#include <sycl/exception.hpp> // for runtime_error
+
+#include <stdint.h> // for int32_t, int64_t, uint32_t, uint64_t
+
 #define SYCL_EXT_ONEAPI_CUDA_ASYNC_BARRIER 1
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <cstddef>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -149,5 +151,5 @@ public:
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

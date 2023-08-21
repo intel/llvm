@@ -142,7 +142,9 @@ def SIFIVE_S76 : RISCVProcessorModel<"sifive-s76",
                                       FeatureStdExtA,
                                       FeatureStdExtF,
                                       FeatureStdExtD,
-                                      FeatureStdExtC],
+                                      FeatureStdExtC,
+                                      FeatureStdExtZihintpause,
+                                      FeatureVendorXSfcie],
                                      [TuneSiFive7]>;
 
 def SIFIVE_U54 : RISCVProcessorModel<"sifive-u54",
@@ -180,7 +182,8 @@ def SIFIVE_X280 : RISCVProcessorModel<"sifive-x280", SiFive7Model,
                                        FeatureStdExtZvfh,
                                        FeatureStdExtZba,
                                        FeatureStdExtZbb],
-                                      [TuneSiFive7]>;
+                                      [TuneSiFive7,
+                                       TuneDLenFactor2]>;
 
 def SYNTACORE_SCR1_BASE : RISCVProcessorModel<"syntacore-scr1-base",
                                               SyntacoreSCR1Model,

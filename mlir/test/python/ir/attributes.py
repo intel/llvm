@@ -23,7 +23,7 @@ def testParsePrint():
     gc.collect()
     # CHECK: "hello"
     print(str(t))
-    # CHECK: Attribute("hello")
+    # CHECK: StringAttr("hello")
     print(repr(t))
 
 
@@ -134,7 +134,7 @@ def testStandardAttrCasts():
         a1 = Attribute.parse('"attr1"')
         astr = StringAttr(a1)
         aself = StringAttr(astr)
-        # CHECK: Attribute("attr1")
+        # CHECK: StringAttr("attr1")
         print(repr(astr))
         try:
             tillegal = StringAttr(Attribute.parse("1.0"))
@@ -228,13 +228,28 @@ def testBoolAttr():
 @run
 def testFlatSymbolRefAttr():
     with Context() as ctx:
-        sattr = FlatSymbolRefAttr(Attribute.parse("@symbol"))
+        sattr = Attribute.parse("@symbol")
         # CHECK: symattr value: symbol
         print("symattr value:", sattr.value)
 
         # Test factory methods.
         # CHECK: default_get: @foobar
         print("default_get:", FlatSymbolRefAttr.get("foobar"))
+
+
+# CHECK-LABEL: TEST: testSymbolRefAttr
+@run
+def testSymbolRefAttr():
+    with Context() as ctx:
+        sattr = Attribute.parse("@symbol1::@symbol2")
+        # CHECK: symattr value: ['symbol1', 'symbol2']
+        print("symattr value:", sattr.value)
+
+        # CHECK: default_get: @symbol1::@symbol2
+        print("default_get:", SymbolRefAttr.get(["symbol1", "symbol2"]))
+
+        # CHECK: default_get: @"@symbol1"::@"@symbol2"
+        print("default_get:", SymbolRefAttr.get(["@symbol1", "@symbol2"]))
 
 
 # CHECK-LABEL: TEST: testOpaqueAttr
@@ -324,32 +339,32 @@ def testDenseIntAttr():
 
 @run
 def testDenseArrayGetItem():
-    def print_item(AttrClass, attr_asm):
-        attr = AttrClass(Attribute.parse(attr_asm))
+    def print_item(attr_asm):
+        attr = Attribute.parse(attr_asm)
         print(f"{len(attr)}: {attr[0]}, {attr[1]}")
 
     with Context():
         # CHECK: 2: 0, 1
-        print_item(DenseBoolArrayAttr, "array<i1: false, true>")
+        print_item("array<i1: false, true>")
         # CHECK: 2: 2, 3
-        print_item(DenseI8ArrayAttr, "array<i8: 2, 3>")
+        print_item("array<i8: 2, 3>")
         # CHECK: 2: 4, 5
-        print_item(DenseI16ArrayAttr, "array<i16: 4, 5>")
+        print_item("array<i16: 4, 5>")
         # CHECK: 2: 6, 7
-        print_item(DenseI32ArrayAttr, "array<i32: 6, 7>")
+        print_item("array<i32: 6, 7>")
         # CHECK: 2: 8, 9
-        print_item(DenseI64ArrayAttr, "array<i64: 8, 9>")
+        print_item("array<i64: 8, 9>")
         # CHECK: 2: 1.{{0+}}, 2.{{0+}}
-        print_item(DenseF32ArrayAttr, "array<f32: 1.0, 2.0>")
+        print_item("array<f32: 1.0, 2.0>")
         # CHECK: 2: 3.{{0+}}, 4.{{0+}}
-        print_item(DenseF64ArrayAttr, "array<f64: 3.0, 4.0>")
+        print_item("array<f64: 3.0, 4.0>")
 
 
 # CHECK-LABEL: TEST: testDenseIntAttrGetItem
 @run
 def testDenseIntAttrGetItem():
     def print_item(attr_asm):
-        attr = DenseIntElementsAttr(Attribute.parse(attr_asm))
+        attr = Attribute.parse(attr_asm)
         dtype = ShapedType(attr.type).element_type
         try:
             item = attr[0]
@@ -426,11 +441,11 @@ def testDictAttr():
 
         assert len(a) == 2
 
-        # CHECK: 42 : i32
-        print(a["integerattr"])
+        # CHECK: integerattr: IntegerAttr(42 : i32)
+        print("integerattr:", repr(a["integerattr"]))
 
-        # CHECK: "string"
-        print(a["stringattr"])
+        # CHECK: stringattr: StringAttr("string")
+        print("stringattr:", repr(a["stringattr"]))
 
         # CHECK: True
         print("stringattr" in a)
@@ -473,14 +488,14 @@ def testTypeAttr():
 @run
 def testArrayAttr():
     with Context():
-        raw = Attribute.parse("[42, true, vector<4xf32>]")
-    # CHECK: attr: [42, true, vector<4xf32>]
-    print("raw attr:", raw)
-    # CHECK: - 42
-    # CHECK: - true
-    # CHECK: - vector<4xf32>
-    for attr in ArrayAttr(raw):
-        print("- ", attr)
+        arr = Attribute.parse("[42, true, vector<4xf32>]")
+    # CHECK: arr: [42, true, vector<4xf32>]
+    print("arr:", arr)
+    # CHECK: - IntegerAttr(42 : i64)
+    # CHECK: - BoolAttr(true)
+    # CHECK: - TypeAttr(vector<4xf32>)
+    for attr in arr:
+        print("- ", repr(attr))
 
     with Context():
         intAttr = Attribute.parse("42")
@@ -489,18 +504,18 @@ def testArrayAttr():
         raw = ArrayAttr.get([vecAttr, boolAttr, intAttr])
     # CHECK: attr: [vector<4xf32>, true, 42]
     print("raw attr:", raw)
-    # CHECK: - vector<4xf32>
-    # CHECK: - true
-    # CHECK: - 42
-    arr = ArrayAttr(raw)
+    # CHECK: - TypeAttr(vector<4xf32>)
+    # CHECK: - BoolAttr(true
+    # CHECK: - IntegerAttr(42 : i64)
+    arr = raw
     for attr in arr:
-        print("- ", attr)
-    # CHECK: attr[0]: vector<4xf32>
-    print("attr[0]:", arr[0])
-    # CHECK: attr[1]: true
-    print("attr[1]:", arr[1])
-    # CHECK: attr[2]: 42
-    print("attr[2]:", arr[2])
+        print("- ", repr(attr))
+    # CHECK: attr[0]: TypeAttr(vector<4xf32>)
+    print("attr[0]:", repr(arr[0]))
+    # CHECK: attr[1]: BoolAttr(true)
+    print("attr[1]:", repr(arr[1]))
+    # CHECK: attr[2]: IntegerAttr(42 : i64)
+    print("attr[2]:", repr(arr[2]))
     try:
         print("attr[3]:", arr[3])
     except IndexError as e:
@@ -592,3 +607,14 @@ def testConcreteTypesRoundTrip():
         print(repr(type_attr.value))
         # CHECK: F32Type(f32)
         print(repr(type_attr.value.element_type))
+
+
+# CHECK-LABEL: TEST: testConcreteAttributesRoundTrip
+@run
+def testConcreteAttributesRoundTrip():
+    with Context(), Location.unknown():
+
+        # CHECK: FloatAttr(4.200000e+01 : f32)
+        print(repr(Attribute.parse("42.0 : f32")))
+
+        assert IntegerAttr.static_typeid is not None

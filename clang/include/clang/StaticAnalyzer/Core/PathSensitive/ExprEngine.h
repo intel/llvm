@@ -239,11 +239,6 @@ public:
     return {blockPtr, currStmtIdx};
   }
 
-  void GenerateAutoTransition(ExplodedNode *N);
-  void enqueueEndOfPath(ExplodedNodeSet &S);
-  void GenerateCallExitNode(ExplodedNode *N);
-
-
   /// Dump graph to the specified filename.
   /// If filename is empty, generate a temporary one.
   /// \return The filename the graph is written into.
@@ -607,8 +602,7 @@ public:
                                       StmtNodeBuilder &Bldr,
                                       ExplodedNode *Pred);
 
-  void handleUOExtension(ExplodedNodeSet::iterator I,
-                         const UnaryOperator* U,
+  void handleUOExtension(ExplodedNode *N, const UnaryOperator *U,
                          StmtNodeBuilder &Bldr);
 
 public:

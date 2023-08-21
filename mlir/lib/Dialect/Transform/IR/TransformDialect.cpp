@@ -28,10 +28,15 @@ void transform::detail::checkImplementsTransformOpInterface(
       *RegisteredOperationName::lookup(name, context);
   assert((opName.hasInterface<TransformOpInterface>() ||
           opName.hasInterface<PatternDescriptorOpInterface>() ||
+          opName.hasInterface<ConversionPatternDescriptorOpInterface>() ||
+          opName.hasInterface<TypeConverterBuilderOpInterface>() ||
           opName.hasTrait<OpTrait::IsTerminator>()) &&
          "non-terminator ops injected into the transform dialect must "
-         "implement TransformOpInterface or PatternDescriptorOpInterface");
-  if (!opName.hasInterface<PatternDescriptorOpInterface>()) {
+         "implement TransformOpInterface or PatternDescriptorOpInterface or "
+         "ConversionPatternDescriptorOpInterface");
+  if (!opName.hasInterface<PatternDescriptorOpInterface>() &&
+      !opName.hasInterface<ConversionPatternDescriptorOpInterface>() &&
+      !opName.hasInterface<TypeConverterBuilderOpInterface>()) {
     assert(opName.hasInterface<MemoryEffectOpInterface>() &&
            "ops injected into the transform dialect must implement "
            "MemoryEffectsOpInterface");
@@ -151,6 +156,13 @@ LogicalResult transform::TransformDialect::verifyOperationAttribute(
   }
   if (attribute.getName().getValue() == kArgConsumedAttrName ||
       attribute.getName().getValue() == kArgReadOnlyAttrName) {
+    if (!llvm::isa<UnitAttr>(attribute.getValue())) {
+      return op->emitError()
+             << attribute.getName() << " must be a unit attribute";
+    }
+    return success();
+  }
+  if (attribute.getName().getValue() == kSilenceTrackingFailuresAttrName) {
     if (!llvm::isa<UnitAttr>(attribute.getValue())) {
       return op->emitError()
              << attribute.getName() << " must be a unit attribute";

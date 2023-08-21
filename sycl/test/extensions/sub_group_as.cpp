@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
                         26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38,
                         39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,
                         52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63};
-            sycl::ext::oneapi::sub_group sg = it.get_sub_group();
+            sycl::sub_group sg = it.get_sub_group();
             if (!it.get_local_id(0)) {
               int end = it.get_global_id(0) + it.get_local_range()[0];
               for (int i = it.get_global_id(0); i < end; i++) {
@@ -89,19 +89,19 @@ int main(int argc, char *argv[]) {
   // CHECK-O3: call spir_func void {{.*}}assert
 
   // load() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}4sycl3_V13ext6oneapi9sub_group4load{{.*}}addrspace(4) %
+  // CHECK-O0: define{{.*}}spir_func i32 {{.*}}4sycl3_V19sub_group4load{{.*}}addrspace(4) %
   // CHECK-O0: call spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V13ext6oneapi9sub_group4load{{.*}}ptr addrspace(3) %
+  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V19sub_group4load{{.*}}ptr addrspace(3) %
   // CHECK-O0: call spir_func ptr addrspace(1) {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V13ext6oneapi9sub_group4load{{.*}}ptr addrspace(1) %
+  // CHECK-O0: call spir_func i32 {{.*}}sycl3_V19sub_group4load{{.*}}ptr addrspace(1) %
   // CHECK-O0: call spir_func void {{.*}}assert
 
   // store() accepting raw pointers method
-  // CHECK-O0: define{{.*}}spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}ptr addrspace(4) %
+  // CHECK-O0: define{{.*}}spir_func void {{.*}}4sycl3_V19sub_group5store{{.*}}ptr addrspace(4) %
   // CHECK-O0: call spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}, ptr addrspace(3) %
+  // CHECK-O0: call spir_func void {{.*}}4sycl3_V19sub_group5store{{.*}}, ptr addrspace(3) %
   // CHECK-O0: call spir_func ptr addrspace(1) {{.*}}SYCL_GenericCastToPtrExplicit_ToGlobal{{.*}}(ptr addrspace(4)
-  // CHECK-O0: call spir_func void {{.*}}4sycl3_V13ext6oneapi9sub_group5store{{.*}}, ptr addrspace(1) %
+  // CHECK-O0: call spir_func void {{.*}}4sycl3_V19sub_group5store{{.*}}, ptr addrspace(1) %
   // CHECK-O0: call spir_func void {{.*}}assert
 
   // CHECK-O0: define {{.*}}spir_func ptr addrspace(3) {{.*}}SYCL_GenericCastToPtrExplicit_ToLocal{{.*}}(ptr addrspace(4) %

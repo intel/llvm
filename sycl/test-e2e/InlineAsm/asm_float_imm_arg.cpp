@@ -9,8 +9,8 @@
 #include <sycl/sycl.hpp>
 #include <vector>
 
-constexpr double IMM_ARGUMENT = 0.5;
-using dataType = sycl::opencl::cl_double;
+constexpr float IMM_ARGUMENT = 0.5;
+using dataType = sycl::opencl::cl_float;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
@@ -42,7 +42,7 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 int main() {
   std::vector<dataType> input(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++)
-    input[i] = (double)1 / std::pow(2, i);
+    input[i] = (float)1 / std::pow(2, i);
 
   KernelFunctor<> f(input);
   if (!launchInlineASMTest(f))

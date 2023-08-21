@@ -26,7 +26,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 context_impl::context_impl(const device &Device, async_handler AsyncHandler,
@@ -373,7 +373,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
         if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
-
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       sycl::detail::pi::PiEvent InitEvent;
@@ -385,7 +384,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
 
       InitEventsRef.push_back(InitEvent);
     }
-
     return InitEventsRef;
   }
 }
@@ -496,5 +494,5 @@ context_impl::getProgramForHostPipe(const device &Device,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

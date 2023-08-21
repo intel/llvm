@@ -8,5 +8,6 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DeviceGlobal.cpp
   OneAPISubGroupMask.cpp
   CommandGraph.cpp
+  USMP2P.cpp
 )
 

@@ -12,6 +12,7 @@
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Options.h"
 #include "clang/Driver/SanitizerArgs.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Path.h"
@@ -111,6 +112,11 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Only support 32 and 64 bit.
   if (!(IsArch32Bit || IsArch64Bit))
     llvm_unreachable("Unsupported bit width value.");
+
+  if (Arg *A = C.getArgs().getLastArg(options::OPT_G)) {
+    D.Diag(diag::err_drv_unsupported_opt_for_target)
+        << A->getSpelling() << D.getTargetTriple();
+  }
 
   // Force static linking when "-static" is present.
   if (Args.hasArg(options::OPT_static))

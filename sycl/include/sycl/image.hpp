@@ -8,21 +8,40 @@
 
 #pragma once
 
-#include <sycl/detail/aligned_allocator.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>                     // for placeholder
+#include <sycl/aliases.hpp>                           // for cl_float, cl_half
+#include <sycl/backend_types.hpp>                     // for backend, backe...
+#include <sycl/buffer.hpp>                            // for range
+#include <sycl/context.hpp>                           // for context
+#include <sycl/detail/aligned_allocator.hpp>          // for aligned_allocator
+#include <sycl/detail/backend_traits.hpp>             // for InteropFeature...
+#include <sycl/detail/common.hpp>                     // for convertToArrayOfN
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
+#include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
+#include <sycl/detail/pi.h>                           // for pi_native_handle
+#include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
+#include <sycl/detail/type_list.hpp>                  // for is_contained
+#include <sycl/event.hpp>                             // for event
+#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range, rangeTo...
+#include <sycl/sampler.hpp>                           // for image_sampler
+#include <sycl/stl.hpp>                               // for make_unique_ptr
+#include <sycl/types.hpp>                             // for vec
 
-#include <cstddef>
+#include <cstddef>     // for size_t, nullptr_t
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint8_t, uint32_t
+#include <type_traits> // for enable_if_t
+#include <variant>     // for hash
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // forward declarations
 class handler;
@@ -269,6 +288,18 @@ protected:
   image_channel_order getChannelOrder() const;
 
   image_channel_type getChannelType() const;
+
+  void sampledImageConstructorNotification(const detail::code_location &CodeLoc,
+                                           void *UserObj, const void *HostObj,
+                                           uint32_t Dim, size_t Range[3],
+                                           image_format Format,
+                                           const image_sampler &Sampler);
+  void sampledImageDestructorNotification(void *UserObj);
+
+  void unsampledImageConstructorNotification(
+      const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
+      uint32_t Dim, size_t Range[3], image_format Format);
+  void unsampledImageDestructorNotification(void *UserObj);
 
   std::shared_ptr<detail::image_impl> impl;
 };
@@ -704,43 +735,62 @@ private:
       : common_base{Impl} {}
 
 public:
-  unsampled_image(image_format Format, const range<Dimensions> &Range,
-                  const property_list &PropList = {})
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
-  unsampled_image(image_format Format, const range<Dimensions> &Range,
-                  AllocatorT Allocator, const property_list &PropList = {})
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range, AllocatorT Allocator,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList) {}
+            Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(image_format Format, const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch,
-                  const property_list &PropList = {})
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(image_format Format, const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
-                  const property_list &PropList = {})
+  unsampled_image(
+      image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
@@ -748,49 +798,68 @@ public:
             detail::convertToArrayOfN<2, 0>(Pitch),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList) {}
+            Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
-  unsampled_image(void *HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const property_list &PropList = {})
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
-  unsampled_image(void *HostPointer, image_format Format,
-                  const range<Dimensions> &Range, AllocatorT Allocator,
-                  const property_list &PropList = {})
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      AllocatorT Allocator, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList) {}
+            Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(void *HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch,
-                  const property_list &PropList = {})
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(void *HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
-                  const property_list &PropList = {})
+  unsampled_image(
+      void *HostPointer, image_format Format, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
@@ -798,49 +867,70 @@ public:
             detail::convertToArrayOfN<2, 0>(Pitch),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList) {}
+            Dimensions, PropList) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
-  unsampled_image(std::shared_ptr<void> &HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const property_list &PropList = {})
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList, /*IsConstPtr*/ false) {}
+                    Dimensions, PropList, /*IsConstPtr*/ false) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
-  unsampled_image(std::shared_ptr<void> &HostPointer, image_format Format,
-                  const range<Dimensions> &Range, AllocatorT Allocator,
-                  const property_list &PropList = {})
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, AllocatorT Allocator,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
             detail::convertToArrayOfN<3, 1>(Range),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList, /*IsConstPtr*/ false) {}
+            Dimensions, PropList, /*IsConstPtr*/ false) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(std::shared_ptr<void> &HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch,
-                  const property_list &PropList = {})
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format),
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList, /*IsConstPtr*/ false) {}
+                    Dimensions, PropList, /*IsConstPtr*/ false) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  unsampled_image(std::shared_ptr<void> &HostPointer, image_format Format,
-                  const range<Dimensions> &Range,
-                  const range<Dimensions - 1> &Pitch, AllocatorT Allocator,
-                  const property_list &PropList = {})
+  unsampled_image(
+      std::shared_ptr<void> &HostPointer, image_format Format,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      AllocatorT Allocator, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(
             HostPointer, detail::FormatChannelOrder(Format),
             detail::FormatChannelType(Format),
@@ -848,7 +938,11 @@ public:
             detail::convertToArrayOfN<2, 0>(Pitch),
             make_unique_ptr<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
-            Dimensions, PropList, /*IsConstPtr*/ false) {}
+            Dimensions, PropList, /*IsConstPtr*/ false) {
+    common_base::unsampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format);
+  }
 
   /* -- common interface members -- */
 
@@ -860,7 +954,9 @@ public:
 
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
-  ~unsampled_image() = default;
+  ~unsampled_image() {
+    common_base::unsampledImageDestructorNotification((void *)this->impl.get());
+  }
 
   bool operator==(const unsampled_image &rhs) const {
     return this->impl == rhs.impl;
@@ -878,18 +974,20 @@ public:
                                           : access_mode::read_write),
             image_target AccessTarget = image_target::device>
   unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>
-  get_access(handler &CommandGroupHandlerRef,
-             const property_list &PropList = {}) {
-    return {*this, CommandGroupHandlerRef, PropList};
+  get_access(
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    return {*this, CommandGroupHandlerRef, PropList, CodeLoc};
   }
 
   template <typename DataT,
             access_mode AccessMode = (std::is_const_v<DataT>
                                           ? access_mode::read
                                           : access_mode::read_write)>
-  host_unsampled_image_accessor<DataT, Dimensions, AccessMode>
-  get_host_access(const property_list &PropList = {}) {
-    return {*this, PropList};
+  host_unsampled_image_accessor<DataT, Dimensions, AccessMode> get_host_access(
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    return {*this, PropList, CodeLoc};
   }
 
 private:
@@ -918,53 +1016,74 @@ private:
       : common_base{Impl} {}
 
 public:
-  sampled_image(const void *HostPointer, image_format Format,
-                image_sampler Sampler, const range<Dimensions> &Range,
-                const property_list &PropList = {})
+  sampled_image(
+      const void *HostPointer, image_format Format, image_sampler Sampler,
+      const range<Dimensions> &Range, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::sampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
+        detail::rangeToArray(Range).data(), Format, Sampler);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  sampled_image(const void *HostPointer, image_format Format,
-                image_sampler Sampler, const range<Dimensions> &Range,
-                const range<Dimensions - 1> &Pitch,
-                const property_list &PropList = {})
+  sampled_image(
+      const void *HostPointer, image_format Format, image_sampler Sampler,
+      const range<Dimensions> &Range, const range<Dimensions - 1> &Pitch,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::sampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
+        detail::rangeToArray(Range).data(), Format, Sampler);
+  }
 
-  sampled_image(std::shared_ptr<const void> &HostPointer, image_format Format,
-                image_sampler Sampler, const range<Dimensions> &Range,
-                const property_list &PropList = {})
+  sampled_image(
+      std::shared_ptr<const void> &HostPointer, image_format Format,
+      image_sampler Sampler, const range<Dimensions> &Range,
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::sampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format, Sampler);
+  }
 
   template <bool IsMultiDim = (Dimensions > 1),
             typename = std::enable_if_t<IsMultiDim>>
-  sampled_image(std::shared_ptr<const void> &HostPointer, image_format Format,
-                image_sampler Sampler, const range<Dimensions> &Range,
-                const range<Dimensions - 1> &Pitch,
-                const property_list &PropList = {})
+  sampled_image(
+      std::shared_ptr<const void> &HostPointer, image_format Format,
+      image_sampler Sampler, const range<Dimensions> &Range,
+      const range<Dimensions - 1> &Pitch, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current())
       : common_base(HostPointer, detail::FormatChannelOrder(Format),
                     detail::FormatChannelType(Format), Sampler,
                     detail::convertToArrayOfN<3, 1>(Range),
                     detail::convertToArrayOfN<2, 0>(Pitch),
                     make_unique_ptr<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
-                    Dimensions, PropList) {}
+                    Dimensions, PropList) {
+    common_base::sampledImageConstructorNotification(
+        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
+        detail::rangeToArray(Range).data(), Format, Sampler);
+  }
 
   /* -- common interface members -- */
 
@@ -976,7 +1095,9 @@ public:
 
   sampled_image &operator=(sampled_image &&rhs) = default;
 
-  ~sampled_image() = default;
+  ~sampled_image() {
+    common_base::sampledImageDestructorNotification((void *)this->impl.get());
+  }
 
   bool operator==(const sampled_image &rhs) const {
     return this->impl == rhs.impl;
@@ -987,16 +1108,17 @@ public:
   size_t byte_size() const noexcept { return common_base::get_size(); }
 
   template <typename DataT, image_target AccessTarget = image_target::device>
-  sampled_image_accessor<DataT, Dimensions, AccessTarget>
-  get_access(handler &CommandGroupHandlerRef,
-             const property_list &PropList = {}) {
-    return {*this, CommandGroupHandlerRef, PropList};
+  sampled_image_accessor<DataT, Dimensions, AccessTarget> get_access(
+      handler &CommandGroupHandlerRef, const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    return {*this, CommandGroupHandlerRef, PropList, CodeLoc};
   }
 
   template <typename DataT>
-  host_sampled_image_accessor<DataT, Dimensions>
-  get_host_access(const property_list &PropList = {}) {
-    return {*this, PropList};
+  host_sampled_image_accessor<DataT, Dimensions> get_host_access(
+      const property_list &PropList = {},
+      const detail::code_location CodeLoc = detail::code_location::current()) {
+    return {*this, PropList, CodeLoc};
   }
 
 private:
@@ -1012,7 +1134,7 @@ private:
   friend class sampled_image_accessor;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

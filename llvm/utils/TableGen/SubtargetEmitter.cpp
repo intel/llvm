@@ -20,13 +20,13 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/MC/MCInstrItineraries.h"
 #include "llvm/MC/MCSchedule.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
@@ -40,6 +40,15 @@ using namespace llvm;
 #define DEBUG_TYPE "subtarget-emitter"
 
 namespace {
+
+/// Sorting predicate to sort record pointers by their
+/// FieldName field.
+struct LessRecordFieldFieldName {
+  bool operator()(const Record *Rec1, const Record *Rec2) const {
+    return Rec1->getValueAsString("FieldName") <
+           Rec2->getValueAsString("FieldName");
+  }
+};
 
 class SubtargetEmitter {
   // Each processor has a SchedClassDesc table with an entry for each SchedClass.
@@ -202,15 +211,15 @@ void SubtargetEmitter::EmitSubtargetInfoMacroCalls(raw_ostream &OS) {
 
   std::vector<Record *> FeatureList =
       Records.getAllDerivedDefinitions("SubtargetFeature");
-  llvm::sort(FeatureList, LessRecordFieldName());
+  llvm::sort(FeatureList, LessRecordFieldFieldName());
 
   for (const Record *Feature : FeatureList) {
-    const StringRef Attribute = Feature->getValueAsString("Attribute");
+    const StringRef FieldName = Feature->getValueAsString("FieldName");
     const StringRef Value = Feature->getValueAsString("Value");
 
     // Only handle boolean features for now, excluding BitVectors and enums.
     const bool IsBool = (Value == "false" || Value == "true") &&
-                        !StringRef(Attribute).contains('[');
+                        !StringRef(FieldName).contains('[');
     if (!IsBool)
       continue;
 
@@ -219,9 +228,9 @@ void SubtargetEmitter::EmitSubtargetInfoMacroCalls(raw_ostream &OS) {
 
     // Define the getter with lowercased first char: xxxYyy() { return XxxYyy; }
     const std::string Getter =
-        Attribute.substr(0, 1).lower() + Attribute.substr(1).str();
+        FieldName.substr(0, 1).lower() + FieldName.substr(1).str();
 
-    OS << "GET_SUBTARGETINFO_MACRO(" << Attribute << ", " << Default << ", "
+    OS << "GET_SUBTARGETINFO_MACRO(" << FieldName << ", " << Default << ", "
        << Getter << ")\n";
   }
   OS << "#undef GET_SUBTARGETINFO_MACRO\n";
@@ -1453,6 +1462,12 @@ void SubtargetEmitter::EmitProcessorModels(raw_ostream &OS) {
     OS << "  " << (CompleteModel ? "true" : "false") << ", // "
        << "CompleteModel\n";
 
+    bool EnableIntervals =
+        (PM.ModelDef ? PM.ModelDef->getValueAsBit("EnableIntervals") : false);
+
+    OS << "  " << (EnableIntervals ? "true" : "false") << ", // "
+       << "EnableIntervals\n";
+
     OS << "  " << PM.Index << ", // Processor ID\n";
     if (PM.hasInstrSchedModel())
       OS << "  " << PM.ModelName << "ProcResources" << ",\n"
@@ -1798,17 +1813,17 @@ void SubtargetEmitter::ParseFeaturesFunction(raw_ostream &OS) {
     // Next record
     StringRef Instance = R->getName();
     StringRef Value = R->getValueAsString("Value");
-    StringRef Attribute = R->getValueAsString("Attribute");
+    StringRef FieldName = R->getValueAsString("FieldName");
 
     if (Value=="true" || Value=="false")
       OS << "  if (Bits[" << Target << "::"
          << Instance << "]) "
-         << Attribute << " = " << Value << ";\n";
+         << FieldName << " = " << Value << ";\n";
     else
       OS << "  if (Bits[" << Target << "::"
          << Instance << "] && "
-         << Attribute << " < " << Value << ") "
-         << Attribute << " = " << Value << ";\n";
+         << FieldName << " < " << Value << ") "
+         << FieldName << " = " << Value << ";\n";
   }
 
   OS << "}\n";

@@ -11,6 +11,20 @@
 
 include "mlir/Pass/PassBase.td"
 
+
+//===----------------------------------------------------------------------===//
+// ToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertToLLVMPass : Pass<"convert-to-llvm"> {
+  let summary = "Convert to LLVM via dialect interfaces found in the input IR";
+  let description = [{
+    This is a generic pass to convert to LLVM, it uses the
+    `ConvertToLLVMPatternInterface` dialect interface to delegate to dialects
+    the injection of conversion patterns.
+  }];
+}
+
 //===----------------------------------------------------------------------===//
 // AffineToStandard
 //===----------------------------------------------------------------------===//
@@ -167,7 +181,8 @@ def ConvertAsyncToLLVMPass : Pass<"convert-async-to-llvm", "ModuleOp"> {
 // BufferizationToMemRef
 //===----------------------------------------------------------------------===//
 
-def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref"> {
+def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref",
+                                        "mlir::ModuleOp"> {
   let summary = "Convert operations from the Bufferization dialect to the "
                 "MemRef dialect";
   let description = [{
@@ -195,7 +210,10 @@ def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref"> {
 
   }];
   let constructor = "mlir::createBufferizationToMemRefPass()";
-  let dependentDialects = ["arith::ArithDialect", "memref::MemRefDialect"];
+  let dependentDialects = [
+    "arith::ArithDialect", "memref::MemRefDialect", "scf::SCFDialect",
+    "func::FuncDialect"
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -361,6 +379,10 @@ def GpuToLLVMConversionPass : Pass<"gpu-to-llvm", "ModuleOp"> {
   }];
 
   let options = [
+    Option<"hostBarePtrCallConv", "use-bare-pointers-for-host", "bool",
+           /*default=*/"false",
+           "Use bare pointers to pass memref arguments to host functions. "
+           "All memrefs must have static shape.">,
     Option<"kernelBarePtrCallConv", "use-bare-pointers-for-kernels", "bool",
            /*default=*/"false",
              "Use bare pointers to pass memref arguments to kernels. "
@@ -422,6 +444,10 @@ def ConvertGpuOpsToNVVMOps : Pass<"convert-gpu-to-nvvm", "gpu::GPUModuleOp"> {
            "Bitwidth of the index type, 0 to use size of machine word">,
     Option<"hasRedux", "has-redux", "bool", /*default=*/"false",
            "Target gpu supports redux">,
+    Option<"useBarePtrCallConv", "use-bare-ptr-memref-call-conv", "bool",
+           /*default=*/"false",
+           "Replace memref arguments in GPU functions with bare pointers. "
+           "All memrefs must have static shape.">,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
                    /*default=*/"true", "Generate LLVM IR using opaque pointers "
                    "instead of typed pointers">,
@@ -543,21 +569,6 @@ def ConvertIndexToLLVMPass : Pass<"convert-index-to-llvm"> {
     Option<"indexBitwidth", "index-bitwidth", "unsigned",
            /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
            "Bitwidth of the index type, 0 to use size of machine word">,
-  ];
-}
-
-//===----------------------------------------------------------------------===//
-// LinalgToLLVM
-//===----------------------------------------------------------------------===//
-
-def ConvertLinalgToLLVMPass : Pass<"convert-linalg-to-llvm", "ModuleOp"> {
-  let summary = "Convert the operations from the linalg dialect into the LLVM "
-                "dialect";
-  let dependentDialects = ["scf::SCFDialect", "LLVM::LLVMDialect"];
-  let options = [
-     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                /*default=*/"true", "Generate LLVM IR using opaque pointers "
-                "instead of typed pointers">
   ];
 }
 
@@ -699,6 +710,21 @@ def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv"> {
            "int", /*default=*/"8",
            "The number of bits to store a boolean value">
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// NVVMToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertNVVMToLLVMPass : Pass<"convert-nvvm-to-llvm"> {
+  let summary = "Convert NVVM dialect to LLVM dialect";
+  let description = [{
+    This pass generates inline assembly for the NVVM ops which is not 
+    implemented in LLVM core.
+  }];
+  let dependentDialects = [
+    "NVVM::NVVMDialect",
+  ];  
 }
 
 //===----------------------------------------------------------------------===//
@@ -1011,6 +1037,35 @@ def TosaToTensor : Pass<"tosa-to-tensor"> {
 }
 
 //===----------------------------------------------------------------------===//
+// UBToLLVM
+//===----------------------------------------------------------------------===//
+
+def UBToLLVMConversionPass : Pass<"convert-ub-to-llvm"> {
+  let summary = "Convert UB dialect to LLVM dialect";
+  let description = [{
+    This pass converts supported UB ops to LLVM dialect instructions.
+  }];
+  let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// UBToSPIRV
+//===----------------------------------------------------------------------===//
+
+def UBToSPIRVConversionPass : Pass<"convert-ub-to-spirv"> {
+  let summary = "Convert UB dialect to SPIR-V dialect";
+  let description = [{
+    This pass converts supported UB ops to SPIR-V dialect ops.
+  }];
+  let dependentDialects = ["spirv::SPIRVDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // VectorToGPU
 //===----------------------------------------------------------------------===//
 
@@ -1054,10 +1109,40 @@ def ConvertVectorToSCF : Pass<"convert-vector-to-scf"> {
 }
 
 //===----------------------------------------------------------------------===//
+// VectorToArmSME
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToArmSME : Pass<"convert-vector-to-arm-sme"> {
+  let summary = "Lower the operations from the vector dialect into the ArmSME "
+                "dialect";
+  let description = [{
+    Pass that converts vector dialect operations into equivalent ArmSME dialect
+    operations.
+  }];
+  let dependentDialects = ["arm_sme::ArmSMEDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// ArmSMEToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertArmSMEToSCF : Pass<"convert-arm-sme-to-scf"> {
+  let summary = "Lower the operations from the ArmSME dialect into the SCF "
+                "dialect";
+  let constructor = "mlir::createConvertArmSMEToSCFPass()";
+  let dependentDialects = [
+    "scf::SCFDialect",
+    "arith::ArithDialect",
+    "vector::VectorDialect",
+    "arm_sme::ArmSMEDialect"
+  ];
+}
+
+//===----------------------------------------------------------------------===//
 // VectorToLLVM
 //===----------------------------------------------------------------------===//
 
-def ConvertVectorToLLVMPass : Pass<"convert-vector-to-llvm", "ModuleOp"> {
+def ConvertVectorToLLVMPass : Pass<"convert-vector-to-llvm"> {
   let summary = "Lower the operations from the vector dialect into the LLVM "
                 "dialect";
   let description = [{
@@ -1091,6 +1176,10 @@ def ConvertVectorToLLVMPass : Pass<"convert-vector-to-llvm", "ModuleOp"> {
     Option<"armSVE", "enable-arm-sve",
            "bool", /*default=*/"false",
            "Enables the use of ArmSVE dialect while lowering the vector "
+       "dialect.">,
+    Option<"armSME", "enable-arm-sme",
+           "bool", /*default=*/"false",
+           "Enables the use of ArmSME dialect while lowering the vector "
        "dialect.">,
     Option<"x86Vector", "enable-x86vector",
            "bool", /*default=*/"false",

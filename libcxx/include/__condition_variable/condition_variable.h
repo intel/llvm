@@ -20,6 +20,7 @@
 #include <__type_traits/enable_if.h>
 #include <__type_traits/is_floating_point.h>
 #include <__utility/move.h>
+#include <limits>
 #include <ratio>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -37,7 +38,7 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 _LIBCPP_DECLARE_STRONG_ENUM(cv_status){no_timeout, timeout};
 _LIBCPP_DECLARE_STRONG_ENUM_EPILOG(cv_status)
 
-class _LIBCPP_TYPE_VIS condition_variable {
+class _LIBCPP_EXPORTED_FROM_ABI condition_variable {
   __libcpp_condvar_t __cv_ = _LIBCPP_CONDVAR_INITIALIZER;
 
 public:

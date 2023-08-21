@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -filetype=obj -o %t.o < %t.ll
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck --check-prefix=LINUX %s
 ; RUN: llc -mtriple=x86_64-apple-darwin12 -filetype=obj -o %t.o < %t.ll
@@ -9,7 +9,7 @@
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck --check-prefix=NOPUB %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -filetype=obj -o %t.o < %t.ll
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck --check-prefix=LINUX %s
 ; RUN: llc -mtriple=x86_64-apple-darwin12 -filetype=obj -o %t.o < %t.ll
@@ -18,7 +18,7 @@
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck --check-prefix=NOPUB %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-pc-linux-gnu -filetype=obj -o %t.o < %t.ll
 ; RUN: llvm-dwarfdump -debug-pubnames %t.o | FileCheck --check-prefix=LINUX %s
 ; RUN: llc -mtriple=x86_64-apple-darwin12 -filetype=obj -o %t.o < %t.ll

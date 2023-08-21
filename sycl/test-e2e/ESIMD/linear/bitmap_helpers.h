@@ -25,11 +25,11 @@
 #include <sycl/detail/defines.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-  namespace ext {
-  namespace intel {
-  namespace util {
-  namespace bitmap {
+inline namespace _V1 {
+namespace ext {
+namespace intel {
+namespace util {
+namespace bitmap {
 
 #ifndef PACKED
 #ifdef _MSC_VER
@@ -255,8 +255,8 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
         return false;
       }
 
-      width = abs(*(short *)&header_out[18]);
-      height = abs(*(short *)&header_out[22]);
+      width = std::abs(*(short *)&header_out[18]);
+      height = std::abs(*(short *)&header_out[22]);
 
       img_out = (unsigned char *)std::malloc(width * height * 3);
       img_gold = (unsigned char *)std::malloc(width * height * 3);
@@ -276,7 +276,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
       fclose(f_gold);
 
       for (i = 0; i < width * height * 3; i++) {
-        if (abs(img_out[i] - img_gold[i]) > tolerance) {
+        if (std::abs(img_out[i] - img_gold[i]) > tolerance) {
           return false;
         }
       }
@@ -289,7 +289,7 @@ __SYCL_INLINE_VER_NAMESPACE(_V1) {
   } // end namespace util
   } // end namespace intel
   } // end namespace ext
-} // end __SYCL_INLINE_VER_NAMESPACE(_V1)
+  } // namespace _V1
 } // namespace sycl
 
 #endif // ESIMD_EXAMPLES_COMMON_BITMAP_HELPERS_H
