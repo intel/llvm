@@ -31,7 +31,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Checks whether two requirements overlap or not.
@@ -654,8 +654,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::findAllocaForReq(
       const Requirement *TmpReq = AllocaCmd->getRequirement();
       Res &= AllocaCmd->getType() == Command::CommandType::ALLOCA_SUB_BUF;
       Res &= TmpReq->MOffsetInBytes == Req->MOffsetInBytes;
-      Res &= TmpReq->MSYCLMemObj->getSizeInBytes() ==
-             Req->MSYCLMemObj->getSizeInBytes();
+      Res &= TmpReq->MAccessRange == Req->MAccessRange;
       Res &= AllowConst || !AllocaCmd->MIsConst;
     }
     return Res;
@@ -1632,5 +1631,5 @@ bool Scheduler::GraphBuilder::isInFusionMode(QueueIdT Id) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

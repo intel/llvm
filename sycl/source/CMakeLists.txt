@@ -69,6 +69,8 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
+
   # pi_win_proxy_loader
   if (WIN32)
     include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
@@ -92,6 +94,12 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
+
+    # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
+    # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
+    # Seems to be no way to suppress it except use -Wno-psabi
+    target_compile_options(${LIB_OBJ_NAME} PUBLIC -Wno-psabi)
+    
     if (UNIX AND NOT APPLE)
       set(linker_script "${CMAKE_CURRENT_SOURCE_DIR}/ld-version-script.txt")
       target_link_libraries(
@@ -153,6 +161,7 @@ set(SYCL_SOURCES
     "backend.cpp"
     "detail/accessor_impl.cpp"
     "detail/allowlist.cpp"
+    "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
     "detail/builtins_common.cpp"
     "detail/builtins_geometric.cpp"

@@ -6,6 +6,10 @@
 
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
 // RUN: %if !gpu %{ %{run} %t.out %}
+//
+// // Check that --fast-math works with cmath funcs for CUDA
+// RUN: %if cuda %{ %{build} -fno-builtin %{mathflags} -o %t.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if cuda %{ %{run} %t.out %}
 
 #include "math_utils.hpp"
 #include <cmath>
@@ -92,6 +96,9 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
 
         res_access[i++] = !(std::signbit(infinity) == 0);
         res_access[i++] = !(std::signbit(minus_infinity) != 0);
+
+#ifndef SYCL_E2E_FASTMATH
+        // -ffast-math is not guaranteed to correctly detect nan etc.
         res_access[i++] = !(std::isunordered(minus_nan, nan) != 0);
         res_access[i++] = !(std::isunordered(minus_infinity, infinity) == 0);
         res_access[i++] = !(std::isgreater(minus_infinity, infinity) == 0);
@@ -113,6 +120,11 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
         res_access[i++] = !(std::isnormal(minus_infinity) == 0);
         res_access[i++] = !(std::isnormal(subnormal) == 0);
         res_access[i++] = !(std::isnormal(1.0f) != 0);
+#else
+        for (; i < static_cast<int>(TEST_NUM);) {
+          res_access[i++] = 0;
+        }
+#endif
       });
     });
   }

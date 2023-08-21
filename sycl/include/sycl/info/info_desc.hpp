@@ -8,19 +8,25 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
+
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
 #include <sycl/aspects.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/id.hpp>
+#include <sycl/range.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class device;
 class platform;
 class kernel_id;
 enum class memory_scope;
+enum class memory_order;
 
 // TODO: stop using OpenCL directly, use PI.
 namespace info {
@@ -198,5 +204,5 @@ template <int Dimensions> struct max_work_groups;
 #include <sycl/info/ext_oneapi_device_traits.def>
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

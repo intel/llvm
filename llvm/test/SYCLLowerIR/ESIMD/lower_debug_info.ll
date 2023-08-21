@@ -9,7 +9,7 @@
 declare spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeET1_j(i32, i32)
 
 
-define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2){
+define spir_func void @func1(ptr addrspace(1) %arg1, i32 %arg2){
 ; CHECK-LABEL: @func1(
 ; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 0, i32 [[ARG2:%.*]]), !dbg [[DBG2:![0-9]+]]
 ; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DBG2]]
@@ -19,31 +19,22 @@ define spir_func void @func1(float addrspace(1)* %arg1, i32 %arg2){
   ret void
 }
 
-define spir_func void @func2(i64 addrspace(1)* %arg1) {
+define spir_func void @func2(ptr addrspace(1) %arg1) {
 ; CHECK-LABEL: @func2(
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata <3 x i64> undef, metadata [[META15:![0-9]+]], metadata !DIExpression()), !dbg [[DBG21:![0-9]+]]
-; CHECK-NEXT:    [[DOTESIMD:%.*]] = call <3 x i32> @llvm.genx.local.id.v3i32(), !dbg [[DBG22:![0-9]+]]
-; CHECK-NEXT:    [[LOCAL_ID_X:%.*]] = extractelement <3 x i32> [[DOTESIMD]], i32 0, !dbg [[DBG22]]
-; CHECK-NEXT:    [[LOCAL_ID_X_CAST_TY:%.*]] = zext i32 [[LOCAL_ID_X]] to i64, !dbg [[DBG22]]
-; CHECK-NEXT:    [[DOTESIMD1:%.*]] = call <3 x i32> @llvm.genx.local.size.v3i32(), !dbg [[DBG22]]
-; CHECK-NEXT:    [[WGSIZE_X:%.*]] = extractelement <3 x i32> [[DOTESIMD1]], i32 0, !dbg [[DBG22]]
-; CHECK-NEXT:    [[WGSIZE_X_CAST_TY:%.*]] = zext i32 [[WGSIZE_X]] to i64, !dbg [[DBG22]]
-; CHECK-NEXT:    [[GROUP_ID_X:%.*]] = call i32 @llvm.genx.group.id.x(), !dbg [[DBG22]]
-; CHECK-NEXT:    [[GROUP_ID_X_CAST_TY:%.*]] = zext i32 [[GROUP_ID_X]] to i64, !dbg [[DBG22]]
-; CHECK-NEXT:    [[MUL:%.*]] = mul i64 [[WGSIZE_X_CAST_TY]], [[GROUP_ID_X_CAST_TY]]
-; CHECK-NEXT:    [[ADD:%.*]] = add i64 [[LOCAL_ID_X_CAST_TY]], [[MUL]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 [[ADD]], metadata [[META17:![0-9]+]], metadata !DIExpression()), !dbg [[DBG22]]
-; CHECK-NEXT:    [[PTRIDX_I_I:%.*]] = getelementptr inbounds i64, i64 addrspace(1)* [[ARG1:%.*]], i64 2, !dbg [[DBG23:![0-9]+]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 addrspace(1)* [[PTRIDX_I_I]], metadata [[META19:![0-9]+]], metadata !DIExpression()), !dbg [[DBG23]]
-; CHECK-NEXT:    [[PTRIDX_ASCAST_I_I:%.*]] = addrspacecast i64 addrspace(1)* [[PTRIDX_I_I]] to i64 addrspace(4)*, !dbg [[DBG24:![0-9]+]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata i64 addrspace(4)* [[PTRIDX_ASCAST_I_I]], metadata [[META20:![0-9]+]], metadata !DIExpression()), !dbg [[DBG24]]
-; CHECK-NEXT:    store i64 [[ADD]], i64 addrspace(4)* [[PTRIDX_ASCAST_I_I]], align 4, !dbg [[DBG25:![0-9]+]]
-; CHECK-NEXT:    ret void, !dbg [[DBG26:![0-9]+]]
-;
-  %1 = load <3 x i64>, <3 x i64> addrspace(4)* addrspacecast (<3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId to <3 x i64> addrspace(4)*)
+; CHECK-NEXT:  [[V1:%.*]] = load <3 x i64>, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr addrspace(4)), align 32, !dbg !21
+; CHECK-NEXT:  call void @llvm.dbg.value(metadata <3 x i64> [[V1]], metadata !15, metadata !DIExpression()), !dbg [[DBG21:![0-9]+]]
+; CHECK-NEXT:  [[V2:%.*]] = extractelement <3 x i64> [[V1]], i64 0, !dbg [[DBG22:![0-9]+]]
+; CHECK-NEXT:  call void @llvm.dbg.value(metadata i64 [[V2]], metadata !17, metadata !DIExpression()), !dbg [[DBG22]]
+; CHECK-NEXT:  [[PTRIDX:%.*]] = getelementptr inbounds i64, ptr addrspace(1) %arg1, i64 2, !dbg [[DBG23:![0-9]+]]
+; CHECK-NEXT:  call void @llvm.dbg.value(metadata ptr addrspace(1) [[PTRIDX]], metadata !19, metadata !DIExpression()), !dbg [[DBG23]]
+; CHECK-NEXT:  [[PTRIDXCAST:%.*]] = addrspacecast ptr addrspace(1) [[PTRIDX]] to ptr addrspace(4), !dbg [[DBG24:![0-9]+]]
+; CHECK-NEXT:  call void @llvm.dbg.value(metadata ptr addrspace(4) [[PTRIDXCAST]], metadata !20, metadata !DIExpression()), !dbg [[DBG24]]
+; CHECK-NEXT:  store i64 [[V2]], ptr addrspace(4) [[PTRIDXCAST]], align 4, !dbg [[DBG25:![0-9]+]]
+; CHECK-NEXT:  ret void, !dbg [[DBG26:![0-9]+]]
+  %1 = load <3 x i64>, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr addrspace(4))
   %2 = extractelement <3 x i64> %1, i64 0
-  %ptridx.i.i = getelementptr inbounds i64, i64 addrspace(1)* %arg1, i64 2
-  %ptridx.ascast.i.i = addrspacecast i64 addrspace(1)* %ptridx.i.i to i64 addrspace(4)*
-  store i64 %2, i64 addrspace(4)* %ptridx.ascast.i.i
+  %ptridx.i.i = getelementptr inbounds i64, ptr addrspace(1) %arg1, i64 2
+  %ptridx.ascast.i.i = addrspacecast ptr addrspace(1) %ptridx.i.i to ptr addrspace(4)
+  store i64 %2, ptr addrspace(4) %ptridx.ascast.i.i
   ret void
 }
