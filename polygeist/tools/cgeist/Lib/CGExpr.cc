@@ -2496,13 +2496,18 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
 ValueCategory MLIRScanner::EmitConditionalOperator(ConditionalOperator *E,
                                                    bool isReference) {
   bool isVoid = E->getType()->isVoidType();
+  // FIXME: This `isReturnReference` trick is needed due to bad handling of
+  // lvalues all around codegen in cgeist. When that is fixed, we should rely
+  // solely on the `isReference` input argument.
+  bool isReturnReference = E->isLValue() || E->isXValue();
   ValueCategory cond = EvaluateExprAsBool(E->getCond());
   auto emitBody = [=](OpBuilder &builder, Location loc, Expr *expr) {
     ValueCategory res = isReference ? EmitLValue(expr) : Visit(expr);
     if (isVoid)
       builder.create<scf::YieldOp>(loc);
     else
-      builder.create<scf::YieldOp>(loc, res.val);
+      builder.create<scf::YieldOp>(
+          loc, isReturnReference ? res.val : res.getValue(builder));
   };
   auto emitThenBody = [&](OpBuilder &builder, Location loc) {
     emitBody(builder, loc, E->getTrueExpr());
@@ -2513,7 +2518,7 @@ ValueCategory MLIRScanner::EmitConditionalOperator(ConditionalOperator *E,
   auto ifOp = Builder.create<scf::IfOp>(getMLIRLocation(E->getExprLoc()),
                                         cond.val, emitThenBody, emitElseBody);
   return isVoid ? ValueCategory()
-                : ValueCategory(ifOp.getResults()[0], isReference);
+                : ValueCategory(ifOp.getResults()[0], isReturnReference);
 }
 
 ValueCategory
