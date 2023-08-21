@@ -225,13 +225,13 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
 
 ### Build DPC++ toolchain with support for HIP AMD
 
-There is beta support for DPC++ for HIP on AMD devices.
-It is not feature complete and it still contains known and unknown bugs.
-Currently it has only been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3,
-using the AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x (gfx90a) devices.
-The backend is tested by a relevant device/toolkit prior to a oneapi plugin release.
-Go to the plugin release [pages](https://developer.codeplay.com/products/oneapi/amd)
-for further details.
+There is beta support for oneAPI DPC++ for HIP on AMD devices. It is not feature
+complete and it still contains known and unknown bugs. Currently it has only
+been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3, using the
+AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
+(gfx90a) devices. The backend is tested by a relevant device/toolkit prior to a
+oneAPI plugin release. Go to the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
 
 To enable support for HIP devices, follow the instructions for the Linux
 DPC++ toolchain, but add the `--hip` flag to `configure.py`
