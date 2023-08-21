@@ -233,7 +233,7 @@ public:
     if (!SetDllDirectoryA("")) {
       assert(false && "Failed to update DLL search path");
     }
-    handle = LoadLibraryEx(path, NULL, NULL);
+    handle = LoadLibraryExA(path, NULL, NULL);
     if (!handle) {
       error = getLastError();
     }

@@ -32,7 +32,7 @@ void *loadOsLibrary(const std::string &LibraryPath) {
     assert(false && "Failed to update DLL search path");
   }
   // auto Result = (void *)LoadLibraryA(LibraryPath.c_str());
-  auto Result = (void *)LoadLibraryEx(LibraryPath.c_str(), NULL, NULL);
+  auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
