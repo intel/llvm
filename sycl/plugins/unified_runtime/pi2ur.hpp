@@ -918,10 +918,10 @@ inline pi_result piDeviceRetain(pi_device Device) {
 }
 
 inline pi_result piDeviceRelease(pi_device Device) {
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
-
-  auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
-  HANDLE_ERRORS(urDeviceRelease(UrDevice));
+  if (Device) {
+    auto UrDevice = reinterpret_cast<ur_device_handle_t>(Device);
+    HANDLE_ERRORS(urDeviceRelease(UrDevice));
+  }
   return PI_SUCCESS;
 }
 
