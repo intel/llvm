@@ -221,17 +221,7 @@ public:
               (!MGenericIsActive && MHACIt != Rhs.MHACIt));
     }
 
-    IteratorT &operator=(const IteratorT<IsConst> &Rhs) {
-      if (this == &Rhs)
-        return *this;
-
-      MHost = Rhs.MHost;
-      MGCIt = Rhs.MGCIt;
-      MHACIt = Rhs.MHACIt;
-      MGenericIsActive = Rhs.MGenericIsActive;
-
-      return *this;
-    }
+    IteratorT &operator=(const IteratorT<IsConst> &) = delete;
 
     // pre-increment
     IteratorT<IsConst> &operator++() {
