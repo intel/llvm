@@ -202,10 +202,11 @@ CodeGen::emitVoidPtrDirectVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
 #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   Addr = CGF.Builder.CreateElementBitCast(Addr, DirectTy);
+  return Addr;
 #else
   return Addr.withElementType(DirectTy);
 #endif
-  return Addr;
+
 }
 
 Address CodeGen::emitVoidPtrVAArg(CodeGenFunction &CGF, Address VAListAddr,
