@@ -7,13 +7,13 @@ target triple = "nvptx64-nvidia-cuda"
 ; This test checks that no transformation is applied when there are no entry points.
 
 ; Function Attrs: noinline
-define weak_odr dso_local void @_ZTS14example_kernel(i32 addrspace(3)* %a, i32 addrspace(1)* %b, i32 %c) {
-; CHECK: define weak_odr dso_local void @_ZTS14example_kernel(i32 addrspace(3)* %a, i32 addrspace(1)* %b, i32 %c) {
+define weak_odr dso_local void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
+; CHECK: define weak_odr dso_local void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(1) %b, i32 %c) {
 entry:
-  %0 = load i32, i32 addrspace(3)* %a
-; CHECK: %0 = load i32, i32 addrspace(3)* %a
-  %1 = load i32, i32 addrspace(1)* %b
-; CHECK: %1 = load i32, i32 addrspace(1)* %b
+  %0 = load i32, ptr addrspace(3) %a
+; CHECK: %0 = load i32, ptr addrspace(3) %a
+  %1 = load i32, ptr addrspace(1) %b
+; CHECK: %1 = load i32, ptr addrspace(1) %b
   %2 = add i32 %c, %c
 ; CHECK: %2 = add i32 %c, %c
   ret void
