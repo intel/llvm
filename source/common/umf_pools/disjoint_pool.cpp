@@ -966,10 +966,10 @@ DisjointPool::~DisjointPool() {
     size_t HighPeakSlabsInUse;
     if (impl->getParams().PoolTrace > 1) {
         auto name = impl->getParams().name;
-        impl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse,
-                         name.c_str());
-        if (TitlePrinted) {
-            try { // cannot throw in destructor
+        try { // cannot throw in destructor
+            impl->printStats(TitlePrinted, HighBucketSize, HighPeakSlabsInUse,
+                             name.c_str());
+            if (TitlePrinted) {
                 std::cout << "Current Pool Size "
                           << impl->getParams().limits->TotalSize.load()
                           << std::endl;
@@ -978,8 +978,8 @@ DisjointPool::~DisjointPool() {
                           << std::string(name.c_str() + 1) << ":"
                           << HighBucketSize << "," << HighPeakSlabsInUse
                           << ",64K" << std::endl;
-            } catch (...) { // ignore exceptions
             }
+        } catch (...) { // ignore exceptions
         }
     }
 }

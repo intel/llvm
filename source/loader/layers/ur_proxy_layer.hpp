@@ -20,7 +20,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 class __urdlllocal proxy_layer_context_t {
   public:
-    ur_api_version_t version = UR_API_VERSION_0_6;
+    ur_api_version_t version = UR_API_VERSION_CURRENT;
 
     virtual std::vector<std::string> getNames() const = 0;
     virtual bool isAvailable() const = 0;
