@@ -83,6 +83,7 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
+    "../unified_runtime/ur/adapters/cuda/usm.hpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
     # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
@@ -98,6 +99,8 @@ add_sycl_plugin(cuda
     cudadrv
     ${XPTI_LIBS}
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 
