@@ -366,7 +366,7 @@ public:
   void setLinkageType(SPIRVLinkageTypeKind);
   void setModule(SPIRVModule *TheModule);
   void setName(const std::string &TheName);
-  virtual void setScope(SPIRVEntry *Scope){};
+  virtual void setScope(SPIRVEntry *Scope) {}
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
@@ -533,6 +533,7 @@ public:
 
 class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
 public:
+  static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);

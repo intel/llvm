@@ -6,9 +6,11 @@
 //
 //===-----------------------------------------------------------------===//
 
+#include <array>
 #include <cassert>
 #include <sstream>
 
+#include "adapter.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
@@ -285,22 +287,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Bits);
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_CUSTOM.
-
-    size_t Global = 0;
-    detail::ur::assertion(cuDeviceTotalMem(&Global, hDevice->get()) ==
-                          CUDA_SUCCESS);
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                             32u * 1024u * 1024u);
-
-    return ReturnValue(uint64_t{MaxAlloc});
+    return ReturnValue(uint64_t{hDevice->getMaxAllocSize()});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
     bool Enabled = false;
@@ -542,13 +529,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&LocalMemSize,
-                             CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->maxLocalMemSizeChosen()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      int LocalMemSize = 0;
+      detail::ur::assertion(
+          cuDeviceGetAttribute(&LocalMemSize,
+                               CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+                               hDevice->get()) == CUDA_SUCCESS);
+      detail::ur::assertion(LocalMemSize >= 0);
+      return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ECCEnabled = 0;
@@ -1084,6 +1076,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
     // TODO: Investigate if this information is available on CUDA.
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
@@ -1201,13 +1195,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_result_t Result = urPlatformGet(0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_result_t Result =
+      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
       malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(NumPlatforms, Plat, nullptr);
+  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, Plat, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

@@ -8,12 +8,21 @@
 
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/context.hpp>                               // for context
+#include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                               // for pi_uint64
+#include <sycl/device.hpp>                                // for device
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>     // for image_mem_...
+#include <sycl/ext/oneapi/bindless_images_sampler.hpp>    // for bindless_i...
+#include <sycl/image.hpp>                                 // for image_chan...
+#include <sycl/queue.hpp>                                 // for queue
+#include <sycl/range.hpp>                                 // for range
 
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
-#include <sycl/ext/oneapi/bindless_images_sampler.hpp>
+#include <assert.h>    // for assert
+#include <stddef.h>    // for size_t
+#include <type_traits> // for is_scalar
 
 namespace sycl {
 inline namespace _V1 {
@@ -619,8 +628,8 @@ template <typename CoordT> constexpr size_t coord_size() {
  *             another
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &coords) {
+DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -655,8 +664,8 @@ DataT read_image(const unsampled_image_handle &imageHandle,
  *             another
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle,
-                 const CoordT &coords) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -686,8 +695,9 @@ DataT read_image(const sampled_image_handle &imageHandle,
  *  @return  Mipmap image data with LOD filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
-                 const float level) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const float level [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
@@ -718,8 +728,10 @@ DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
  *  @return  Mipmap image data with anisotropic filtering
  */
 template <typename DataT, typename CoordT>
-DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
-                 const CoordT &dX, const CoordT &dY) {
+DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &coords [[maybe_unused]],
+                 const CoordT &dX [[maybe_unused]],
+                 const CoordT &dY [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate and gradient to have 1, 2, or 4 "
@@ -748,8 +760,9 @@ DataT read_image(const sampled_image_handle &imageHandle, const CoordT &coords,
  *  @param   coords The coordinates at which to write image data
  */
 template <typename DataT, typename CoordT>
-void write_image(const unsampled_image_handle &imageHandle,
-                 const CoordT &Coords, const DataT &Color) {
+void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
+                 const CoordT &Coords [[maybe_unused]],
+                 const DataT &Color [[maybe_unused]]) {
   constexpr size_t coordSize = detail::coord_size<CoordT>();
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "

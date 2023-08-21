@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <cstddef>
-#include <type_traits>
-
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
+
+#include <cstddef>
+#include <string_view>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <variant>
 
 namespace sycl {
 inline namespace _V1 {
@@ -60,10 +65,7 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) {                                    \
-    (*m_Ptr) op rhs;                                                           \
-    return *this;                                                              \
-  }
+  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -91,7 +93,7 @@ struct PropertiesFilter {
       PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
       std::tuple<>>::type...>;
 };
-
+} // namespace
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -105,10 +107,10 @@ class annotated_ref<T, detail::properties_t<Props...>> {
 
 private:
   T *m_Ptr;
+  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
-  annotated_ref(const annotated_ref &) = default;
+  annotated_ref(const annotated_ref &) = delete;
 
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -120,7 +122,7 @@ public:
 #endif
   }
 
-  annotated_ref &operator=(const T &Obj) {
+  T operator=(const T &Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -128,23 +130,42 @@ public:
 #else
     *m_Ptr = Obj;
 #endif
-    return *this;
+    return Obj;
   }
 
-  annotated_ref &operator=(const annotated_ref &) = default;
+  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
 
-  PROPAGATE_OP(+=)
-  PROPAGATE_OP(-=)
-  PROPAGATE_OP(*=)
-  PROPAGATE_OP(/=)
-  PROPAGATE_OP(%=)
-  PROPAGATE_OP(^=)
-  PROPAGATE_OP(&=)
-  PROPAGATE_OP(|=)
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(*)
+  PROPAGATE_OP(/)
+  PROPAGATE_OP(%)
+  PROPAGATE_OP(^)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(|)
+  PROPAGATE_OP(<<)
+  PROPAGATE_OP(>>)
+
+  T operator++() { return *this += 1; }
+
+  T operator++(int) {
+    const T t = *this;
+    *this = (t + 1);
+    return t;
+  }
+
+  T operator--() { return *this -= 1; }
+
+  T operator--(int) {
+    const T t = *this;
+    *this = (t - 1);
+    return t;
+  }
+
+  template <class T2, class P2> friend class annotated_ptr;
 };
 
 #undef PROPAGATE_OP
-} // namespace
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
@@ -296,8 +317,7 @@ public:
 
   explicit operator bool() const noexcept { return m_Ptr != nullptr; }
 
-  operator T *() noexcept = delete;
-  operator T *() const = delete;
+  operator T *() const noexcept = delete;
 
   T *get() const noexcept { return m_Ptr; }
 

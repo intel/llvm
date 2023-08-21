@@ -413,7 +413,7 @@
 ; CHECK-ERROR: InvalidInstruction: Can't translate llvm instruction:
 ; CHECK-ERROR: Floating point instructions can't be translated correctly without enabled SPV_INTEL_arbitrary_precision_floating_point extension!
 
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis < %t.r.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 2 Capability Kernel

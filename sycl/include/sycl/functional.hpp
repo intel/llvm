@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <functional>
+#include <functional>  // for logical_and, logical_or, bit_and, bit_or, bit...
+#include <type_traits> // for common_type
+#include <utility>     // for forward
 
 namespace sycl {
 inline namespace _V1 {

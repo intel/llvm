@@ -29,20 +29,20 @@
 ; RUN: FileCheck < %t.spv.txt %s --check-prefix=CHECK-SPIRV-WORKAROUND-NEGATIVE
 ; RUN: llvm-spirv -preserve-ocl-kernel-arg-type-metadata-through-string %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers -preserve-ocl-kernel-arg-type-metadata-through-string %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r -preserve-ocl-kernel-arg-type-metadata-through-string %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-WORKAROUND
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-WORKAROUND-NEGATIVE
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
 
-; CHECK-SPIRV-WORKAROUND: String 17 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
-; CHECK-SPIRV-WORKAROUND-NEGATIVE-NOT: String 17 "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
+; CHECK-SPIRV-WORKAROUND: String [[#]] "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
+; CHECK-SPIRV-WORKAROUND-NEGATIVE-NOT: String [[#]] "kernel_arg_type.foo.cl::tt::vec<float, 4>*,"
 
 ; CHECK-LLVM-WORKAROUND: !kernel_arg_type [[TYPE:![0-9]+]]
 ; CHECK-LLVM-WORKAROUND: [[TYPE]] = !{!"cl::tt::vec<float, 4>*"}

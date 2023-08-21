@@ -48,16 +48,16 @@ and a wide range of compute accelerators such as GPU and FPGA.
 * C++ compiler
   * See LLVM's [host compiler toolchain requirements](../../llvm/docs/GettingStarted.rst#host-c-toolchain-both-compiler-and-standard-library)
 
-Alternatively, you can use a Docker image that has everything you need for building
-pre-installed:
+Alternatively, you can use a Docker image that has everything you need for
+building pre-installed:
 
 ```bash
-docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_base /bin/bash
+docker run --name sycl_build -it -v /local/workspace/dir/:/src ghcr.io/intel/llvm/ubuntu2204_build /bin/bash
 ```
 
 This command will start a terminal session, from which you can proceed with the
-instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on Docker
-commands.
+instructions below. See [Docker BKMs](developer/DockerBKMs.md) for more info on
+Docker commands.
 
 ### Create DPC++ workspace
 
@@ -119,10 +119,15 @@ You can use the following flags with `configure.py` (full list of available
 flags can be found by launching the script with `--help`):
 
 * `--werror` -> treat warnings as errors when compiling LLVM
-* `--cuda` -> use the cuda backend (see [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
-* `--hip` -> use the HIP backend (see [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
-* `--hip-platform` -> select the platform used by the hip backend, `AMD` or `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
-* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
+* `--cuda` -> use the cuda backend (see
+  [Nvidia CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda))
+* `--hip` -> use the HIP backend (see
+  [HIP](#build-dpc-toolchain-with-support-for-hip-amd))
+* `--hip-platform` -> select the platform used by the hip backend, `AMD` or
+  `NVIDIA` (see [HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd) or see
+  [HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia))
+* `--enable-esimd-emulator` -> enable ESIMD CPU emulation (see
+  [ESIMD CPU emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation))
 * `--enable-all-llvm-targets` -> build compiler (but not a runtime) with all
   supported targets
 * `--shared-libs` -> Build shared libraries
@@ -134,11 +139,12 @@ You can use the following flags with `compile.py` (full list of available flags
 can be found by launching the script with `--help`):
 
 * `-o` -> Path to build directory
-* `-t`, `--build-target` -> Build target (e.g., `clang` or `llvm-spirv`). Default is `deploy-sycl-toolchain`
+* `-t`, `--build-target` -> Build target (e.g., `clang` or `llvm-spirv`).
+  Default is `deploy-sycl-toolchain`
 * `-j`, `--build-parallelism` -> Number of threads to use for compilation
 
-**Please note** that no data about flags is being shared between `configure.py` and
-`compile.py` scripts, which means that if you configured your build to be
+**Please note** that no data about flags is being shared between `configure.py`
+and `compile.py` scripts, which means that if you configured your build to be
 placed in non-default directory using `-o` flag, you must also specify this flag
 and the same path in `compile.py` options. This allows you, for example, to
 configure several different builds and then build just one of them which is
@@ -146,9 +152,9 @@ needed at the moment.
 
 ### Build DPC++ toolchain with libc++ library
 
-There is experimental support for building and linking DPC++ runtime with
-libc++ library instead of libstdc++. To enable it the following CMake options
-should be used.
+There is experimental support for building and linking DPC++ runtime with libc++
+library instead of libstdc++. To enable it the following CMake options should be
+used.
 
 **Linux**:
 
@@ -170,9 +176,9 @@ python %DPCPP_HOME%\llvm\buildbot\compile.py
 ### Build DPC++ toolchain with support for NVIDIA CUDA
 
 To enable support for CUDA devices, follow the instructions for the Linux or
-Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note,
-the CUDA backend has Windows support; windows subsystem for
-linux (WSL) is not needed to build and run the CUDA backend.
+Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, the
+CUDA backend has Windows support; Windows Subsystem for Linux (WSL) is not
+needed to build and run the CUDA backend.
 
 Enabling this flag requires an installation of at least
 [CUDA 11.5](https://developer.nvidia.com/cuda-11-5-0-download-archive) on
@@ -188,7 +194,7 @@ match, use the CUDA executable `deviceQuery` which is usually found in
 
 **_NOTE:_** An installation of at least
 [CUDA 11.6](https://developer.nvidia.com/cuda-downloads) is recommended because
-there is a known issue with some math builtins when using -O1/O2/O3
+there is a known issue with some math built-ins when using -O1/O2/O3
 Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
 earlier versions of the CUDA toolkit: see
 [this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
@@ -207,11 +213,15 @@ for further details.
 
 **Non-standard CUDA location**:
 
-If the CUDA toolkit is installed in a non-default location on your system, two considerations must be made.
+If the CUDA toolkit is installed in a non-default location on your system, two
+considerations must be made.
 
-Firstly, **do not** add the toolkit to your standard environment variables (`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL headers.
+Firstly, **do not** add the toolkit to your standard environment variables
+(`PATH`, `LD_LIBRARY_PATH`), as to do so will create conflicts with OpenCL
+headers.
 
-Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
+Secondly, set the `CUDA_LIB_PATH` environment variable and pass the CMake
+variable `CUDA_TOOLKIT_ROOT_DIR` as follows:
 
 ```sh
 CUDA_LIB_PATH=/path/to/cuda/toolkit/lib64/stubs CC=gcc CXX=g++ python $DPCPP_HOME/llvm/buildbot/configure.py --cuda --cmake-opt="-DCUDA_TOOLKIT_ROOT_DIR=/path/to/cuda/toolkit"
@@ -233,29 +243,29 @@ AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
 oneAPI plugin release. Go to the plugin release
 [pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
 
-To enable support for HIP devices, follow the instructions for the Linux
-DPC++ toolchain, but add the `--hip` flag to `configure.py`
+To enable support for HIP devices, follow the instructions for the Linux DPC++
+toolchain, but add the `--hip` flag to `configure.py`.
 
-Enabling this flag requires an installation of
-ROCm on the system, for instruction on how to install this refer to
+Enabling this flag requires an installation of ROCm on the system, for
+instruction on how to install this refer to
 [AMD ROCm Installation Guide for Linux](https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html).
 
-The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it
-is installed somewhere else, the directory must be provided through
-the CMake variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed
-using the `--cmake-opt` option of `configure.py` as follows:
+The DPC++ build assumes that ROCm is installed in `/opt/rocm`, if it is
+installed somewhere else, the directory must be provided through the CMake
+variable `SYCL_BUILD_PI_HIP_ROCM_DIR` which can be passed using the
+`--cmake-opt` option of `configure.py` as follows:
 
 ```sh
 python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
 
-
-[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU compilation chain.
-The AMDGPU backend generates a standard ELF [ELF] relocatable code object that can be linked by lld to
-produce a standard ELF shared code object which can be loaded and executed on an AMDGPU target.
-The LLD project is enabled by default when configuring for HIP. For more details
-on building LLD refer to [LLD Build Guide](https://lld.llvm.org/).
+[LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
+compilation chain. The AMDGPU backend generates a standard ELF relocatable code
+object that can be linked by lld to produce a standard ELF shared code object
+which can be loaded and executed on an AMDGPU target. The LLD project is enabled
+by default when configuring for HIP. For more details on building LLD refer to
+[LLD Build Guide](https://lld.llvm.org/).
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
@@ -263,7 +273,8 @@ There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
 There is no continuous integration for this and there are no guarantees for
 supported platforms or configurations.
 
-This is a compatibility feature and the [CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+This is a compatibility feature and the
+[CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
 should be preferred to run on NVIDIA GPUs.
 
 To enable support for HIP NVIDIA devices, follow the instructions for the Linux
@@ -280,16 +291,15 @@ CUDA 11, and using a GeForce 1060 device.
 
 ### Build DPC++ toolchain with support for ESIMD CPU Emulation
 
-There is experimental support for DPC++ for using ESIMD CPU Emulation
+There is experimental support for DPC++ for using ESIMD CPU Emulation.
 
-This feature supports ESIMD CPU Emulation using CM_EMU library [CM
-Emulation project](https://github.com/intel/cm-cpu-emulation). The
-library package will be generated from source codes downloaded from
-its open source project and installed in your deploy directory during
-toolchain build.
+This feature supports ESIMD CPU Emulation using CM_EMU library
+[CM Emulation project](https://github.com/intel/cm-cpu-emulation). The library
+package will be generated from source codes downloaded from its open source
+project and installed in your deploy directory during toolchain build.
 
-To enable support for ESIMD CPU emulation, follow the instructions for
-the Linux DPC++ toolchain, but add the `--enable-esimd-emulator'.
+To enable support for ESIMD CPU emulation, follow the instructions for the Linux
+DPC++ toolchain, but add the `--enable-esimd-emulator'.
 
 Enabling this flag requires following packages installed.
 
@@ -303,16 +313,15 @@ Enabling this flag requires following packages installed.
   * libva
   * libva-devel
 
-Currently, this feature was tested and verified on Ubuntu 22.04
-environment.
+Currently, this feature was tested and verified on Ubuntu 22.04 environment.
 
 ### Build DPC++ toolchain with support for runtime kernel fusion
 
-Support for the experimental SYCL extension for user-driven kernel fusion
-at runtime is enabled by default.
+Support for the experimental SYCL extension for user-driven kernel fusion at
+runtime is enabled by default.
 
-To disable support for this feature, follow the instructions for the
-Linux DPC++ toolchain, but add the `--disable-fusion` flag.
+To disable support for this feature, follow the instructions for the Linux DPC++
+toolchain, but add the `--disable-fusion` flag.
 
 Kernel fusion is currently not yet supported on the Windows platform.
 
@@ -834,8 +843,6 @@ int CUDASelector(const sycl::device &Device) {
 
 ## Known Issues and Limitations
 
-* DPC++ device compiler fails if the same kernel was used in different
-  translation units.
 * SYCL 2020 support work is in progress.
 * 32-bit host/target is not supported.
 * DPC++ works only with OpenCL low level runtimes which support out-of-order
@@ -875,7 +882,7 @@ int CUDASelector(const sycl::device &Device) {
 
 ## Find More
 
-* [DPC++ specification](https://spec.oneapi.io/versions/latest/)
+* [oneAPI specifications](https://spec.oneapi.io/versions/latest/)
 * [SYCL\* specification](https://www.khronos.org/registry/SYCL)
 * [Level Zero specification](https://spec.oneapi.io/level-zero/latest/index.html)
 
