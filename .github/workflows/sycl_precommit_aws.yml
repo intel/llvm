@@ -22,7 +22,7 @@ jobs:
     steps:
       - id: condition
         run: |
-          if [[ ${{ github.head_ref }} == "sycl-mlir" ]]; then
+          if [[ ${{ github.base_ref }} == "sycl-mlir" ]]; then
             echo "condition=false" >> $GITHUB_OUTPUT
           else
             echo "condition=true" >> $GITHUB_OUTPUT
