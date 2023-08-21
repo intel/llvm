@@ -197,16 +197,17 @@ Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
 earlier versions of the CUDA toolkit: see
 [this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
 
-The CUDA backend should work on Windows or Linux operating systems with any
-GPU with compute capability (SM version) sm_50 or above. The default
-SM version for the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can
-attempt to specify the target architecture [ahead of time](#aot-target-architectures),
-provided that they use a 11.X CUDA Runtime version, but some features may
-not be supported. The CUDA backend has been tested with
-different Ubuntu linux distributions and a selection of supported CUDA toolkit versions
-and GPUs. The backend is tested by a relevant device/toolkit prior to a oneapi plugin release.
-Go to the plugin release [pages](https://developer.codeplay.com/products/oneapi/nvidia/)
-for further details.
+The CUDA backend should work on Windows or Linux operating systems with any GPU
+with compute capability (SM version) sm_50 or above. The default SM version for
+the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+the target architecture [ahead of time](#aot-target-architectures), provided
+that they use a 11.X CUDA Runtime version, but some features may not be
+supported. The CUDA backend has been tested with different Ubuntu Linux
+distributions and a selection of supported CUDA toolkit versions and GPUs.
+The backend is tested by a relevant device/toolkit prior to a ONEAPI plugin release.
+Go to the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/nvidia/) for further
+details.
 
 
 **Non-standard CUDA location**:
