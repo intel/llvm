@@ -3,7 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "cuda_fixtures.h"
+#include "fixtures.h"
 
 using urCudaDeviceCreateWithNativeHandle = uur::urPlatformTest;
 

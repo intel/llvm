@@ -5,13 +5,13 @@
 
 set(USE_LOCAL_TEST_CONFIGURATION ON)
 add_conformance_test_with_devices_environment(adapter-cuda
-    cuda_fixtures.h
+    fixtures.h
     context_tests.cpp
-    cuda_urContextGetNativeHandle.cpp
-    cuda_urDeviceGetNativeHandle.cpp
-    cuda_urDeviceCreateWithNativeHandle.cpp
-    cuda_urEventGetNativeHandle.cpp
-    cuda_urEventCreateWithNativeHandle.cpp
+    urContextGetNativeHandle.cpp
+    urDeviceGetNativeHandle.cpp
+    urDeviceCreateWithNativeHandle.cpp
+    urEventGetNativeHandle.cpp
+    urEventCreateWithNativeHandle.cpp
     kernel_tests.cpp
     memory_tests.cpp
 )
