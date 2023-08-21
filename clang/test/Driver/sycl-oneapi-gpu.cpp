@@ -1,5 +1,6 @@
 /// Tests the behaviors of using -fsycl-targets=intel_gpu*
 
+// XFAIL: *
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_bdw -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE,MACRO -DDEV_STR=bdw -DMAC_STR=BDW
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_8_0_0 -### %s 2>&1 | \

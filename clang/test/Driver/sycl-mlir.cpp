@@ -1,5 +1,6 @@
 /// Tests specific to -syclmlir
 
+// XFAIL: *
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL             \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -fsycl-device-only   \

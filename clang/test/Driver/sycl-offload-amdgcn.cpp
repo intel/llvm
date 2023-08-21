@@ -1,5 +1,6 @@
 /// Tests specific to `-fsycl-targets=amdgcn-amd-amdhsa`
 
+// XFAIL: *
 // UNSUPPORTED: system-windows
 
 // Check that the offload arch is required

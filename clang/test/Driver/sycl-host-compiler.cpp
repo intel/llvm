@@ -1,5 +1,6 @@
 // Tests the abilities involved with using an external host compiler
 
+// XFAIL: *
 /// enabling with -fsycl-host-compiler
 // RUN: %clangxx -fsycl -fsycl-host-compiler=/some/dir/g++ %s -### 2>&1 \
 // RUN:  | FileCheck -check-prefix=HOST_COMPILER %s

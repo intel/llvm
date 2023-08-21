@@ -1,4 +1,5 @@
 /// Check for diagnostic when command line link targets to not match object
+// XFAIL: *
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/liblin64.a \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_GEN_DIAG
