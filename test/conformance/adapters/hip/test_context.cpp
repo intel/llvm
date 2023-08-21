@@ -6,7 +6,7 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #include "context.hpp"
-#include "hip_fixtures.h"
+#include "fixtures.h"
 #include "queue.hpp"
 
 using urHipContextTest = uur::urDeviceTest;
