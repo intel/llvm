@@ -16,7 +16,7 @@ on:
 
 jobs:
   setup:
-    runs-on: [Lunx, build]
+    runs-on: [Linux, build]
     outputs:
       condition: ${{ steps.condition.outputs.condition }}
     steps:
