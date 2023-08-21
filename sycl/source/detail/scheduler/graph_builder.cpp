@@ -699,7 +699,7 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       Requirement ParentRequirement(
           /*Offset*/ {0, 0, 0}, ParentRange, ParentRange,
           access::mode::read_write, Req->MSYCLMemObj, /*Dims*/ 1,
-          /*Working with bytes*/ sizeof(char), /*offset*/ 0ul);
+          /*Working with bytes*/ sizeof(char), /*offset*/ size_t(0));
 
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, ToEnqueue);

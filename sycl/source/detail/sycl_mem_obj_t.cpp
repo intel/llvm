@@ -135,7 +135,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const int ElemSize = 1;
 
   Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                  Dims, ElemSize, 0ul);
+                  Dims, ElemSize, size_t(0));
   Req.MData = Ptr;
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
