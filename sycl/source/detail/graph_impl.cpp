@@ -578,9 +578,6 @@ bool modifiable_command_graph::end_recording(
 executable_command_graph::executable_command_graph(
     const std::shared_ptr<detail::graph_impl> &Graph, const sycl::context &Ctx)
     : impl(std::make_shared<detail::exec_graph_impl>(Ctx, Graph)) {
-  std::default_random_engine randEngine;
-  std::uniform_int_distribution<int> dist(0, RAND_MAX);
-  MTag = dist(randEngine);
   finalizeImpl(); // Create backend representation for executable graph
 }
 
