@@ -551,13 +551,13 @@ public:
 
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, size_t OffsetInBytes = 0l,
+                   int ElemSize, size_t OffsetInBytes = 0ul,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0l,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0ul,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
@@ -945,7 +945,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
+                         Dimensions, ImageElementSize, 0ul),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
@@ -974,7 +974,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
+                         Dimensions, ImageElementSize, 0ul),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
