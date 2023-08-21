@@ -16,14 +16,14 @@ void matrix_runtime_query(queue q) {
 
   std::cout << "The matrix hardware implementation in this device provides "
                "this number of combinations: "
-            << sizeof(combinations) << std::endl;
+            << combinations.size() << std::endl;
 
   bool max_sizes;
   if (combinations[0].maxsize == 0)
     max_sizes = true; // this is a max params hardware
   else
     max_sizes = false;
-  for (int i = 0; sizeof(combinations); i++) {
+  for (int i = 0; i < combinations.size(); i++) {
     if (Ta == combinations[i].atype && Tb == combinations[i].btype &&
         Tc == combinations[i].ctype && Td == combinations[i].dtype) {
       // joint matrix GEMM kernel can be called using these sizes
@@ -40,7 +40,6 @@ void matrix_runtime_query(queue q) {
                   << " K " << combinations[i].ksize << std::endl;
     }
   }
-  return;
 }
 
 int main() {

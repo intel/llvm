@@ -176,23 +176,23 @@ struct matrix_params<
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_xmx8(size_t sM, size_t sN, size_t sK) {
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 8 &&
+       sK == 32) ||
       (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 8 &&
+       sK == 32) ||
       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 8 &&
+       sK == 32) ||
       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 8 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 8 &&
+       sK == 32) ||
       (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
-       std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16) ||
+       std::is_same_v<Tc, float> && (sM >= 1 && sM <= 8) && sN == 8 &&
+       sK == 16) ||
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 8 && sK == 16))
+       (sM >= 1 && sM <= 8) && sN == 8 && sK == 16))
     return true;
   else
     return false;
@@ -252,7 +252,192 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::intel_gpu_dg1, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<((!std::is_same_v<Ta, void> && sM != 0))>::type> {
+    typename std::enable_if<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
+  // Validate that parameters are supported
+  static_assert(
+      (sM == 0 && sN == 0 && sK == 0) ||
+          (is_combination_valid_xmx8<Ta, Tb, Tc>(sM, sN, sK)),
+      "Invalid parameters for XMX8, query valid combinations "
+      "using: "
+      "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
+
+  // if combination is valid, construct the matrices
+  static constexpr std::size_t M = sM;
+  static constexpr std::size_t N = sN;
+  static constexpr std::size_t K = sK;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Default-values query:
+// Specialization for when only types are given, need to query only sizes
+
+template <typename Ta, typename Tb, typename Tc, typename Td>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g10, Ta, Tb, Tc, Td, 0, 0, 0,
+    typename std::enable_if<(!std::is_same_v<Ta, void> &&
+                             !std::is_same_v<Tb, void> &&
+                             !std::is_same_v<Tc, void>)>::type> {
+  static_assert((are_types_valid_xmx8<Ta, Tb, Tc>()),
+                "Invalid types for architecture::intel_gpu_dg1, supported "
+                "types are int8_t, uint8_t, half, and bf16");
+
+  // construct the matrices using the default sizes
+
+  static constexpr std::size_t M = 8;
+  static constexpr std::size_t N = 8;
+  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Validation query:
+// Specialization when both types and sizes are given
+template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
+          size_t sN, size_t sK>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g10, Ta, Tb, Tc, Td, sM, sN, sK,
+    typename std::enable_if<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
+  // Validate that parameters are supported
+  static_assert(
+      (sM == 0 && sN == 0 && sK == 0) ||
+          (is_combination_valid_xmx8<Ta, Tb, Tc>(sM, sN, sK)),
+      "Invalid parameters for XMX8, query valid combinations "
+      "using: "
+      "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
+
+  // if combination is valid, construct the matrices
+  static constexpr std::size_t M = sM;
+  static constexpr std::size_t N = sN;
+  static constexpr std::size_t K = sK;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Default-values query:
+// Specialization for when only types are given, need to query only sizes
+
+template <typename Ta, typename Tb, typename Tc, typename Td>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g11, Ta, Tb, Tc, Td, 0, 0, 0,
+    typename std::enable_if<(!std::is_same_v<Ta, void> &&
+                             !std::is_same_v<Tb, void> &&
+                             !std::is_same_v<Tc, void>)>::type> {
+  static_assert((are_types_valid_xmx8<Ta, Tb, Tc>()),
+                "Invalid types for architecture::intel_gpu_dg1, supported "
+                "types are int8_t, uint8_t, half, and bf16");
+
+  // construct the matrices using the default sizes
+
+  static constexpr std::size_t M = 8;
+  static constexpr std::size_t N = 8;
+  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Validation query:
+// Specialization when both types and sizes are given
+template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
+          size_t sN, size_t sK>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g11, Ta, Tb, Tc, Td, sM, sN, sK,
+    typename std::enable_if<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
+  // Validate that parameters are supported
+  static_assert(
+      (sM == 0 && sN == 0 && sK == 0) ||
+          (is_combination_valid_xmx8<Ta, Tb, Tc>(sM, sN, sK)),
+      "Invalid parameters for XMX8, query valid combinations "
+      "using: "
+      "q.get_device().get_info<sycl::info::device::matrix::combinations>()");
+
+  // if combination is valid, construct the matrices
+  static constexpr std::size_t M = sM;
+  static constexpr std::size_t N = sN;
+  static constexpr std::size_t K = sK;
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Default-values query:
+// Specialization for when only types are given, need to query only sizes
+
+template <typename Ta, typename Tb, typename Tc, typename Td>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g12, Ta, Tb, Tc, Td, 0, 0, 0,
+    typename std::enable_if<(!std::is_same_v<Ta, void> &&
+                             !std::is_same_v<Tb, void> &&
+                             !std::is_same_v<Tc, void>)>::type> {
+  static_assert((are_types_valid_xmx8<Ta, Tb, Tc>()),
+                "Invalid types for architecture::intel_gpu_dg1, supported "
+                "types are int8_t, uint8_t, half, and bf16");
+
+  // construct the matrices using the default sizes
+
+  static constexpr std::size_t M = 8;
+  static constexpr std::size_t N = 8;
+  static constexpr std::size_t K = ((sizeof(Ta) == 1) ? 32 : 16);
+
+  template <typename Group, layout Layout>
+  using joint_matrix_a = joint_matrix<Group, Ta, use::a, M, K, Layout>;
+  template <typename Group, layout Layout>
+  using joint_matrix_b = joint_matrix<Group, Tb, use::b, K, N, Layout>;
+  template <typename Group>
+  using joint_matrix_c = joint_matrix<Group, Tc, use::accumulator, M, N>;
+  template <typename Group>
+  using joint_matrix_d = joint_matrix<Group, Td, use::accumulator, M, N>;
+};
+
+// Validation query:
+// Specialization when both types and sizes are given
+template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
+          size_t sN, size_t sK>
+struct matrix_params<
+    architecture::intel_gpu_dg2_g12, Ta, Tb, Tc, Td, sM, sN, sK,
+    typename std::enable_if<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
   // Validate that parameters are supported
   static_assert(
       (sM == 0 && sN == 0 && sK == 0) ||
@@ -284,23 +469,23 @@ struct matrix_params<
 template <typename Ta, typename Tb, typename Tc>
 constexpr bool is_combination_valid_xmx16(size_t sM, size_t sN, size_t sK) {
   if ((std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 16 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 16 &&
+       sK == 32) ||
       (std::is_same_v<Ta, int8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 16 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 16 &&
+       sK == 32) ||
       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, int8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 16 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 16 &&
+       sK == 32) ||
       (std::is_same_v<Ta, uint8_t> && std::is_same_v<Tb, uint8_t> &&
-       std::is_same_v<Tc, int> && (sM == 1 || sM == 2 || sM == 4 || sM == 8) &&
-       sN == 16 && sK == 32) ||
+       std::is_same_v<Tc, int> && (sM >= 1 && sM <= 8) && sN == 16 &&
+       sK == 32) ||
       (std::is_same_v<Ta, half> && std::is_same_v<Tb, half> &&
-       std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 16 && sK == 16) ||
+       std::is_same_v<Tc, float> && (sM >= 1 && sM <= 8) && sN == 16 &&
+       sK == 16) ||
       (std::is_same_v<Ta, unsigned short> &&
        std::is_same_v<Tb, unsigned short> && std::is_same_v<Tc, float> &&
-       (sM == 1 || sM == 2 || sM == 4 || sM == 8) && sN == 16 && sK == 16))
+       (sM >= 1 && sM <= 8) && sN == 16 && sK == 16))
     return true;
   else
     return false;
@@ -361,7 +546,9 @@ template <typename Ta, typename Tb, typename Tc, typename Td, size_t sM,
           size_t sN, size_t sK>
 struct matrix_params<
     architecture::intel_gpu_pvc, Ta, Tb, Tc, Td, sM, sN, sK,
-    typename std::enable_if<((!std::is_same_v<Ta, void> && sM != 0))>::type> {
+    typename std::enable_if<(
+        !std::is_same_v<Ta, void> && !std::is_same_v<Tb, void> &&
+        !std::is_same_v<Tc, void> && sM != 0 && sN != 0 && sK != 0)>::type> {
   // Validate that parameters are supported
   static_assert(
       (sM == 0 && sN == 0 && sK == 0) ||
