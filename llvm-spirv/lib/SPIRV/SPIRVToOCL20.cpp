@@ -217,8 +217,7 @@ void SPIRVToOCL20Base::visitCallSPIRVAtomicCmpExchg(CallInst *CI) {
               [=](IRBuilder<> &Builder, Value *Expected) {
                 Builder.CreateStore(Expected, PExpected);
                 unsigned AddrSpc = SPIRAS_Generic;
-                Type *PtrTyAS = PointerType::getWithSamePointeeType(
-                    cast<PointerType>(PExpected->getType()), AddrSpc);
+                Type *PtrTyAS = PointerType::get(PExpected->getType(), AddrSpc);
                 Value *V = Builder.CreateAddrSpaceCast(
                     PExpected, PtrTyAS, PExpected->getName() + ".as");
                 return std::make_pair(V, TypedPointerType::get(MemTy, AddrSpc));

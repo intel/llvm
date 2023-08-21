@@ -369,7 +369,7 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
               LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
 
   urPrint("calling zeCommandListAppendMemoryCopyRegion() with"
-          "  ZeEvent %#lx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
 
   return UR_RESULT_SUCCESS;

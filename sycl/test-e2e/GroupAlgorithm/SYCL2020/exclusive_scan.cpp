@@ -1,10 +1,6 @@
 // RUN: %{build} -I . -o %t.out
 // RUN: %{run} %t.out
 
-// disabling hip because some of the binary_ops tested are not supported
-// getting undefined symbols for a handful of __spirv__ * functions.
-// XFAIL: hip
-
 #include "support.h"
 #include <algorithm>
 #include <cassert>

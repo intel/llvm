@@ -28,6 +28,8 @@ class context_impl;
 class device_impl;
 class platform_impl;
 class queue_impl;
+class event_impl;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
