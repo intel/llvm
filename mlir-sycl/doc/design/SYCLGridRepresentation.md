@@ -21,9 +21,9 @@ See the SYCL dialect documentation for more information on each operation.
 
 ### Lowering
 
-These lower to platform-specific built-ins, e.g., SPIR-V built-ins and the
-needed casts. If the array subscript order differs, this should be taken into
-account.
+The ND-range operations lower to platform-specific built-ins, e.g., SPIR-V
+built-ins and the necessary casts. If the array subscript order differs, this
+should be taken into account.
 
 ### Design decisions
 
@@ -89,7 +89,7 @@ file also generates call to register it with no further action.
 
 ### Looking up operations implementing `SYCLMethodOpInterface`
 
-In the codegen side, right before generating a `sycl.call` operation, we check
+In `cgeist` codegen, right before generating a `sycl.call` operation, we check
 whether there is an operation implementing `SYCLMethodOpInterface` homologous to
 that function call. In order to do that,
 `SYCLDialect::lookupMethod(mlir::TypeID, llvm::StringRef)` can be used, passing
@@ -104,7 +104,16 @@ operation used to cast to the base class is abstracted beforehand.
 ### Lowering
 
 Lowering of these operations mimics the homologous function implementations in
-[the SYCL headers](../../../sycl/include).
+[the SYCL headers](../../../sycl/include). These operations are lowered to
+operations of different dialects (`llvm`, `arith`, `memref`, `spirv`, and
+`vector`).
+
+Note each SYCL implementation may need a different lowering. Currently only
+DPC++ is supported. In order to support a new target, an homologous value should
+be added to `mlir::sycl::LoweringTarget` and new patterns should be
+implemented. See
+[SYCLToLLVM.cpp](../../lib/Conversion/SYCLToLLVM/SYCLToLLVM.cpp) and
+[DPCPP.cpp](../../lib/Conversion/SYCLToLLVM/DPCPP.cpp) for reference.
 
 ### Verification
 
