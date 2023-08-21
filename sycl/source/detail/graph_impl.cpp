@@ -12,7 +12,6 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
-#include <random>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
