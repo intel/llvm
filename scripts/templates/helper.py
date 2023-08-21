@@ -33,6 +33,13 @@ class obj_traits:
             return False
 
     @staticmethod
+    def is_handle(obj):
+        try:
+            return True if re.match(r"handle", obj['type']) else False
+        except:
+            return False
+
+    @staticmethod
     def is_experimental(obj):
         try:
             return True if re.search("Exp$", obj['name']) else False
@@ -46,7 +53,12 @@ class obj_traits:
         except:
             return None
 
-
+    @staticmethod
+    def is_loader_only(obj):
+        try:
+            return obj['loader_only']
+        except:
+            return False
 
 
 """
@@ -440,6 +452,7 @@ class function_traits:
         except:
             return False
 
+
 """
 Public:
     substitutes each tag['key'] with tag['value']
@@ -545,6 +558,31 @@ def extract_objs(specs, value):
         for obj in s['objects']:
             if re.match(value, obj['type']):
                 objs.append(obj)
+    return objs
+
+"""
+Public:
+    returns a list of all adapter functions
+"""
+def get_adapter_functions(specs):
+    objs = []
+    for s in specs:
+        for obj in s['objects']:
+            if obj_traits.is_function(obj) and not obj_traits.is_loader_only(obj):
+                objs.append(obj)
+    return objs
+
+"""
+Public:
+    returns a list of all adapter handles
+"""
+def get_adapter_handles(specs):
+    objs = []
+    for s in specs:
+        for obj in s['objects']:
+            if obj_traits.is_handle(obj) and not obj_traits.is_loader_only(obj):
+                objs.append(obj)
+
     return objs
 
 """
@@ -1047,6 +1085,9 @@ def get_pfntables(specs, meta, namespace, tags):
     tables = []
     for cname in sorted(meta['class'], key=lambda x: meta['class'][x]['ordinal']):
         objs, exp_objs = get_class_function_objs_exp(specs, cname)
+        objs = list(filter(lambda obj: not obj_traits.is_loader_only(obj), objs))
+        exp_objs = list(filter(lambda obj: not obj_traits.is_loader_only(obj), exp_objs))
+
         if len(objs) > 0:
             name = get_table_name(namespace, tags, objs[0])
             table = "%s_%s_dditable_t"%(namespace, _camel_to_snake(name))
@@ -1110,6 +1151,7 @@ def get_pfntables(specs, meta, namespace, tags):
 
 
     return tables
+
 
 """
 Private:

@@ -31,6 +31,7 @@ etors:
 type: function
 desc: "Create a loader config object."
 class: $xLoaderConfig
+loader_only: True
 name: Create
 decl: static
 params:
@@ -41,6 +42,7 @@ params:
 type: function
 desc: "Get a reference to the loader config object."
 class: $xLoaderConfig
+loader_only: True
 name: Retain
 decl: static
 details:
@@ -55,6 +57,7 @@ params:
 type: function
 desc: "Release config handle."
 class: $xLoaderConfig
+loader_only: True
 name: Release
 decl: static
 details:
@@ -80,6 +83,7 @@ etors:
 type: function
 desc: "Retrieves various information about the loader."
 class: $xLoaderConfig
+loader_only: True
 name: GetInfo
 decl: static
 details:
@@ -122,6 +126,7 @@ returns:
 type: function
 desc: "Enable a layer for the specified loader config."
 class: $xLoaderConfig
+loader_only: True
 name: EnableLayer
 decl: static
 params:
