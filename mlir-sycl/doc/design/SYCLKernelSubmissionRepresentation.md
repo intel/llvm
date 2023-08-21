@@ -99,7 +99,7 @@ particular `llvm.alloca` operation.
 
 ### Range information
 
-We use the undocumented Clang attribute `annotate` to mark up the range-related
+We use the Clang-specific C++ attribute `annotate` to mark up the range-related
 arguments in the different overloads of `sycl::handler::parallel_for`, e.g.:
 
 ```c++
