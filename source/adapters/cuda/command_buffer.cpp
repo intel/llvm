@@ -596,6 +596,49 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
   return Result;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, ur_mem_handle_t hBuffer,
+    const void *pPattern, size_t patternSize, size_t offset, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)hBuffer;
+  (void)pPattern;
+  (void)patternSize;
+  (void)offset;
+  (void)size;
+
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  detail::ur::die("Experimental Command-buffer feature is not "
+                  "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pPtr,
+    const void *pPattern, size_t patternSize, size_t size,
+    uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)pPtr;
+  (void)pPattern;
+  (void)patternSize;
+  (void)size;
+
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  detail::ur::die("Experimental Command-buffer feature is not "
+                  "implemented for CUDA adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
