@@ -142,6 +142,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_ballot_group(Group group, bool predicate) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__) || defined(__NVPTX__)
   // ballot_group partitions into two groups using the predicate
   // Membership mask for one group is negation of the other
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, predicate);
@@ -150,6 +151,11 @@ get_ballot_group(Group group, bool predicate) {
   } else {
     return ballot_group<sycl::sub_group>(~mask, predicate);
   }
+#else
+  static_assert(
+      false,
+      "ballot_group is not currently supported on this platform.");
+#endif
 #else
   (void)predicate;
   throw runtime_error("Non-uniform groups are not supported on host device.",

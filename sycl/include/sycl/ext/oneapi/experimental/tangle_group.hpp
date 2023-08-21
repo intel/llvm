@@ -148,6 +148,13 @@ get_tangle_group(Group group) {
   return tangle_group<sycl::sub_group>(mask);
 #elif defined(__NVPTX__)
   // TODO: Construct from compiler-generated mask
+  static_assert(
+      false,
+      "tangle_group is not currently supported on this platform.");
+#else
+  static_assert(
+      false,
+      "tangle_group is not currently supported on this platform.");
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

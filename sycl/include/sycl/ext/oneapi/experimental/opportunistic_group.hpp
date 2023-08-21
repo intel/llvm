@@ -147,6 +147,10 @@ inline opportunistic_group get_opportunistic_group() {
       sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
           active_mask, 32);
   return opportunistic_group(mask);
+#else
+  static_assert(
+      false,
+      "opportunistic_group is not currently supported on this platform.");
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",
