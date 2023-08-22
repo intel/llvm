@@ -765,9 +765,10 @@ Address ARMABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
 
   // Empty records are ignored for parameter passing purposes.
   if (isEmptyRecord(getContext(), Ty, true)) {
-    VAListAddr = VAListAddr.withElementType(CGF.Int8PtrTy);
+    VAListAddr = CGF.Builder.CreateElementBitCast(VAListAddr, CGF.Int8PtrTy);
     auto *Load = CGF.Builder.CreateLoad(VAListAddr);
-    return Address(Load, CGF.ConvertTypeForMem(Ty), SlotSize);
+    Address Addr = Address(Load, CGF.Int8Ty, SlotSize);
+    return CGF.Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(Ty));
   }
 
   CharUnits TySize = getContext().getTypeSizeInChars(Ty);

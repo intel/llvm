@@ -31,8 +31,8 @@ static Address complexTempStructure(CodeGenFunction &CGF, Address VAListAddr,
   }
 
   llvm::Type *EltTy = CGF.ConvertTypeForMem(CTy->getElementType());
-  RealAddr = RealAddr.withElementType(EltTy);
-  ImagAddr = ImagAddr.withElementType(EltTy);
+  RealAddr = CGF.Builder.CreateElementBitCast(RealAddr, EltTy);
+  ImagAddr = CGF.Builder.CreateElementBitCast(ImagAddr, EltTy);
   llvm::Value *Real = CGF.Builder.CreateLoad(RealAddr, ".vareal");
   llvm::Value *Imag = CGF.Builder.CreateLoad(ImagAddr, ".vaimag");
 
@@ -460,7 +460,8 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
         Builder.CreateMul(NumRegs, Builder.getInt8(RegSize.getQuantity()));
     RegAddr = Address(
         Builder.CreateInBoundsGEP(CGF.Int8Ty, RegAddr.getPointer(), RegOffset),
-        DirectTy, RegAddr.getAlignment().alignmentOfArrayElement(RegSize));
+        CGF.Int8Ty, RegAddr.getAlignment().alignmentOfArrayElement(RegSize));
+    RegAddr = Builder.CreateElementBitCast(RegAddr, DirectTy);
 
     // Increase the used-register count.
     NumRegs =
@@ -501,7 +502,7 @@ Address PPC32_SVR4_ABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAList,
                              OverflowArea.getElementType(), Align);
     }
 
-    MemAddr = OverflowArea.withElementType(DirectTy);
+    MemAddr = Builder.CreateElementBitCast(OverflowArea, DirectTy);
 
     // Increase the overflow area.
     OverflowArea = Builder.CreateConstInBoundsByteGEP(OverflowArea, Size);
