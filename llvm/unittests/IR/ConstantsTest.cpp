@@ -248,8 +248,6 @@ TEST(ConstantsTest, AsInstructionsTest) {
         "add nuw nsw i32 " P0STR ", " P0STR);
   CHECK(ConstantExpr::getSub(P0, P0), "sub i32 " P0STR ", " P0STR);
   CHECK(ConstantExpr::getMul(P0, P0), "mul i32 " P0STR ", " P0STR);
-  CHECK(ConstantExpr::getAnd(P0, P0), "and i32 " P0STR ", " P0STR);
-  CHECK(ConstantExpr::getOr(P0, P0), "or i32 " P0STR ", " P0STR);
   CHECK(ConstantExpr::getXor(P0, P0), "xor i32 " P0STR ", " P0STR);
   CHECK(ConstantExpr::getShl(P0, P0), "shl i32 " P0STR ", " P0STR);
   CHECK(ConstantExpr::getShl(P0, P0, true), "shl nuw i32 " P0STR ", " P0STR);
@@ -501,9 +499,9 @@ bool foldFuncPtrAndConstToNull(LLVMContext &Context, Module *TheModule,
 
   Constant *TheConstantExpr(ConstantExpr::getPtrToInt(Func, ConstantIntType));
 
-  bool Result =
-      ConstantExpr::get(Instruction::And, TheConstantExpr, TheConstant)
-          ->isNullValue();
+  Constant *C = ConstantFoldBinaryInstruction(Instruction::And, TheConstantExpr,
+                                              TheConstant);
+  bool Result = C && C->isNullValue();
 
   if (!TheModule) {
     // If the Module exists then it will delete the Function.
@@ -589,7 +587,8 @@ TEST(ConstantsTest, FoldGlobalVariablePtr) {
 
   Constant *TheConstantExpr(ConstantExpr::getPtrToInt(Global.get(), IntType));
 
-  ASSERT_TRUE(ConstantExpr::get(Instruction::And, TheConstantExpr, TheConstant)
+  ASSERT_TRUE(ConstantFoldBinaryInstruction(Instruction::And, TheConstantExpr,
+                                            TheConstant)
                   ->isNullValue());
 }
 
