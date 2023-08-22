@@ -35,6 +35,15 @@ def SYCLHostHandlerOp : SYCLOpTrait<"SYCLHostHandlerOp">;
 // OPERATIONS
 ////////////////////////////////////////////////////////////////////////////////
 
+//=--------------------------------------------------------------------------=//
+// Please keep the operation definition in sync with the design document
+// explaining the host-raising approach:
+//   mlir-sycl/doc/design/SYCLKernelSubmissionRepresentation.md
+// 
+// Build the `mlir-sycl-doc` target to render the ODS docs as Markdown and copy
+// the relevant parts over to the design document's appendix.
+//=--------------------------------------------------------------------------=//
+
 def SYCLHostConstructorOp : SYCL_HostOp<"constructor",
     [MemoryEffectsOpInterface]> {
   let summary = "Represents the member initialization of a SYCL object.";
