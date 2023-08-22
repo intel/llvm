@@ -132,19 +132,22 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
 std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     const std::shared_ptr<exec_graph_impl> &SubGraphExec) {
   std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
-  std::list<std::shared_ptr<node_impl>> NewNodesList;
 
   std::list<std::shared_ptr<node_impl>> NodesList = SubGraphExec->getSchedule();
+  std::list<std::shared_ptr<node_impl>> NewNodesList{NodesList.size()};
 
   // Duplication of nodes
+  std::list<std::shared_ptr<node_impl>>::iterator NewNodesIt =
+      NewNodesList.end();
   for (std::list<std::shared_ptr<node_impl>>::const_iterator NodeIt =
            NodesList.end();
        NodeIt != NodesList.begin();) {
     --NodeIt;
+    --NewNodesIt;
     auto Node = *NodeIt;
     std::shared_ptr<node_impl> NodeCopy;
     duplicateNode(Node, NodeCopy);
-    NewNodesList.push_back(NodeCopy);
+    *NewNodesIt = NodeCopy;
     NodesMap.insert({Node, NodeCopy});
     for (auto &NextNode : Node->MSuccessors) {
       if (NodesMap.find(NextNode) != NodesMap.end()) {

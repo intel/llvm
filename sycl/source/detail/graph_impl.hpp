@@ -74,42 +74,47 @@ public:
 
   /// Tests if two nodes have the same content,
   /// i.e. same command group
+  /// This function should only be used for internal purposes.
+  /// A true return from this operator is not a guarantee that the nodes are
+  /// equals according to the Common reference semantics. But this function is
+  /// an helper to verify that two nodes contain equivalent Command Groups.
   /// @param Node node to compare with
+  /// @return true if two nodes have equivament command groups. false otherwise.
   bool operator==(const node_impl &Node) {
     if (MCGType != Node.MCGType)
       return false;
 
-    if (MCGType == sycl::detail::CG::CGTYPE::Kernel) {
+    switch (MCGType) {
+    case sycl::detail::CG::CGTYPE::Kernel: {
       sycl::detail::CGExecKernel *ExecKernelA =
           static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
       sycl::detail::CGExecKernel *ExecKernelB =
           static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
-
-      if (ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) != 0)
-        return false;
+      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
     }
-    if (MCGType == sycl::detail::CG::CGTYPE::CopyUSM) {
+    case sycl::detail::CG::CGTYPE::CopyUSM: {
       sycl::detail::CGCopyUSM *CopyA =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
       sycl::detail::CGCopyUSM *CopyB =
           static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
-      if ((CopyA->getSrc() != CopyB->getSrc()) ||
-          (CopyA->getDst() != CopyB->getDst()) ||
-          (CopyA->getLength() == CopyB->getLength()))
-        return false;
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst()) &&
+             (CopyA->getLength() == CopyB->getLength());
     }
-    if ((MCGType == sycl::detail::CG::CGTYPE::CopyAccToAcc) ||
-        (MCGType == sycl::detail::CG::CGTYPE::CopyAccToPtr) ||
-        (MCGType == sycl::detail::CG::CGTYPE::CopyPtrToAcc)) {
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
       sycl::detail::CGCopy *CopyA =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
       sycl::detail::CGCopy *CopyB =
           static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
-      if ((CopyA->getSrc() != CopyB->getSrc()) ||
-          (CopyA->getDst() != CopyB->getDst()))
-        return false;
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst());
     }
-    return true;
+    default:
+      assert(false && "Unexpected command group type!");
+      return false;
+    }
   }
 
   /// Recursively add nodes to execution stack.
