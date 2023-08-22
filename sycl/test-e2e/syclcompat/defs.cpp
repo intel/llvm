@@ -20,15 +20,19 @@
  *     __sycl_compat_align__ tests
  **************************************************************************/
 
-#include <gtest/gtest.h>
-#include <sycl/sycl.hpp>
+// RUN: %clangxx -fsycl %s -o %t.out
+// RUN: %{run} %t.out
+
+#include <cassert>
 #include <syclcompat/defs.hpp>
 
-TEST(DEFS, Align) {
+int main() {
   struct __sycl_compat_align__(16) {
     int a;
     char c;
   }
   s;
-  EXPECT_EQ(sizeof(s), 16);
+  assert(sizeof(s) == 16);
+
+  return 0;
 }
