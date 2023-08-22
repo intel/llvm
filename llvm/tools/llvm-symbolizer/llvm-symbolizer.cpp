@@ -50,9 +50,7 @@ using namespace symbolize;
 namespace {
 enum ID {
   OPT_INVALID = 0, // This is not an option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -65,13 +63,7 @@ enum ID {
 #undef PREFIX
 
 static constexpr opt::OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {                                                                            \
-      PREFIX,      NAME,      HELPTEXT,                                        \
-      METAVAR,     OPT_##ID,  opt::Option::KIND##Class,                        \
-      PARAM,       FLAGS,     OPT_##GROUP,                                     \
-      OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -477,6 +469,20 @@ int main(int argc, char **argv) {
     Printer = std::make_unique<JSONPrinter>(outs(), Config);
   else
     Printer = std::make_unique<LLVMPrinter>(outs(), printError, Config);
+
+  // When an input file is specified, exit immediately if the file cannot be
+  // read. If getOrCreateModuleInfo succeeds, symbolizeInput will reuse the
+  // cached file handle.
+  if (auto *Arg = Args.getLastArg(OPT_obj_EQ); Arg) {
+    auto Status = Symbolizer.getOrCreateModuleInfo(Arg->getValue());
+    if (!Status) {
+      Request SymRequest = {Arg->getValue(), 0};
+      handleAllErrors(Status.takeError(), [&](const ErrorInfoBase &EI) {
+        Printer->printError(SymRequest, EI);
+      });
+      return EXIT_FAILURE;
+    }
+  }
 
   std::vector<std::string> InputAddresses = Args.getAllArgValues(OPT_INPUT);
   if (InputAddresses.empty()) {

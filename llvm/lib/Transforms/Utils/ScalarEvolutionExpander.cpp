@@ -163,7 +163,11 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
          "InsertNoopCastOfTo cannot change sizes!");
 
   // inttoptr only works for integral pointers. For non-integral pointers, we
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // can create a GEP on null with the integral value as index. Note that
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   // can create a GEP on i8* null  with the integral value as index. Note that
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   // it is safe to use GEP of null instead of inttoptr here, because only
   // expressions already based on a GEP of null should be converted to pointers
   // during expansion.
@@ -173,9 +177,15 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
       auto *Int8PtrTy = Builder.getInt8PtrTy(PtrTy->getAddressSpace());
       assert(DL.getTypeAllocSize(Builder.getInt8Ty()) == 1 &&
              "alloc size of i8 must by 1 byte for the GEP to be correct");
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      return Builder.CreateGEP(
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       auto *GEP = Builder.CreateGEP(
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
           Builder.getInt8Ty(), Constant::getNullValue(Int8PtrTy), V, "scevgep");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       return Builder.CreateBitCast(GEP, Ty);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
   // Short-circuit unnecessary bitcasts.
@@ -287,6 +297,7 @@ Value *SCEVExpander::InsertBinop(Instruction::BinaryOps Opcode,
   return BO;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 /// FactorOutConstant - Test if S is divisible by Factor, using signed
 /// division. If so, update S with Factor divided out and return true.
 /// S need not be evenly divisible if a reasonable remainder can be
@@ -423,6 +434,7 @@ static void SplitAddRecs(SmallVectorImpl<const SCEV *> &Ops,
   }
 }
 
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 /// expandAddToGEP - Expand an addition expression with a pointer type into
 /// a GEP instead of using ptrtoint+arithmetic+inttoptr. This helps
 /// BasicAliasAnalysis and other passes analyze the result. See the rules
@@ -450,6 +462,11 @@ static void SplitAddRecs(SmallVectorImpl<const SCEV *> &Ops,
 /// loop-invariant portions of expressions, after considering what
 /// can be folded using target addressing modes.
 ///
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+Value *SCEVExpander::expandAddToGEP(const SCEV *Offset, Type *Ty, Value *V) {
+  assert(!isa<Instruction>(V) ||
+         SE.DT.dominates(cast<Instruction>(V), &*Builder.GetInsertPoint()));
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
 Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
                                     const SCEV *const *op_end,
                                     PointerType *PTy,
@@ -502,7 +519,11 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
           }
         }
       }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Value *Idx = expandCodeForImpl(Offset, Ty);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       // Record the scaled array index for this level of the type. If
       // we didn't find any operands that could be factored, tentatively
       // assume that element zero was selected (since the zero offset
@@ -549,7 +570,14 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
             Constant::getNullValue(Type::getInt32Ty(Ty->getContext())));
         }
       }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Fold a GEP with constant operands.
+  if (Constant *CLHS = dyn_cast<Constant>(V))
+    if (Constant *CRHS = dyn_cast<Constant>(Idx))
+      return Builder.CreateGEP(Builder.getInt8Ty(), CLHS, CRHS);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       if (ArrayType *ATy = dyn_cast<ArrayType>(ElTy))
         ElTy = ATy->getElementType();
       else
@@ -560,7 +588,28 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
         break;
     }
   }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Do a quick scan to see if we have this GEP nearby.  If so, reuse it.
+  unsigned ScanLimit = 6;
+  BasicBlock::iterator BlockBegin = Builder.GetInsertBlock()->begin();
+  // Scanning starts from the last instruction before the insertion point.
+  BasicBlock::iterator IP = Builder.GetInsertPoint();
+  if (IP != BlockBegin) {
+    --IP;
+    for (; ScanLimit; --IP, --ScanLimit) {
+      // Don't count dbg.value against the ScanLimit, to avoid perturbing the
+      // generated code.
+      if (isa<DbgInfoIntrinsic>(IP))
+        ScanLimit++;
+      if (IP->getOpcode() == Instruction::GetElementPtr &&
+          IP->getOperand(0) == V && IP->getOperand(1) == Idx &&
+          cast<GEPOperator>(&*IP)->getSourceElementType() ==
+              Type::getInt8Ty(Ty->getContext()))
+        return &*IP;
+      if (IP == BlockBegin) break;
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   // If none of the operands were convertible to proper GEP indices, cast
   // the base to i8* and do an ugly getelementptr with that. It's still
   // better than ptrtoint+arithmetic+inttoptr at least.
@@ -600,7 +649,9 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
           return &*IP;
         if (IP == BlockBegin) break;
       }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 
     // Save the original insertion point so we can restore it when we're done.
     SCEVInsertPointGuard Guard(Builder, this);
@@ -617,15 +668,33 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
 
     // Emit a GEP.
     return Builder.CreateGEP(Builder.getInt8Ty(), V, Idx, "scevgep");
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Save the original insertion point so we can restore it when we're done.
+  SCEVInsertPointGuard Guard(Builder, this);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   {
     SCEVInsertPointGuard Guard(Builder, this);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Move the insertion point out of as many loops as we can.
+  while (const Loop *L = SE.LI.getLoopFor(Builder.GetInsertBlock())) {
+    if (!L->isLoopInvariant(V) || !L->isLoopInvariant(Idx)) break;
+    BasicBlock *Preheader = L->getLoopPreheader();
+    if (!Preheader) break;
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     // Move the insertion point out of as many loops as we can.
     while (const Loop *L = SE.LI.getLoopFor(Builder.GetInsertBlock())) {
       if (!L->isLoopInvariant(V)) break;
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    // Ok, move up a level.
+    Builder.SetInsertPoint(Preheader->getTerminator());
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       bool AnyIndexNotLoopInvariant = any_of(
           GepIndices, [L](Value *Op) { return !L->isLoopInvariant(Op); });
 
@@ -648,8 +717,13 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *const *op_begin,
     Value *GEP = Builder.CreateGEP(PTy->getNonOpaquePointerElementType(),
                                    Casted, GepIndices, "scevgep");
     Ops.push_back(SE.getUnknown(GEP));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Emit a GEP.
+  return Builder.CreateGEP(Builder.getInt8Ty(), V, Idx, "scevgep");
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   return expand(SE.getAddExpr(Ops));
 }
 
@@ -657,6 +731,7 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *Op, PointerType *PTy, Type *Ty,
                                     Value *V) {
   const SCEV *const Ops[1] = {Op};
   return expandAddToGEP(Ops, Ops + 1, PTy, Ty, V);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 /// PickMostRelevantLoop - Given two loops pick the one that's most relevant for
@@ -782,7 +857,11 @@ Value *SCEVExpander::visitAddExpr(const SCEVAddExpr *S) {
     }
 
     assert(!Op->getType()->isPointerTy() && "Only first op can be pointer");
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (isa<PointerType>(Sum->getType())) {
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     if (PointerType *PTy = dyn_cast<PointerType>(Sum->getType())) {
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       // The running sum expression is a pointer. Try to form a getelementptr
       // at this level with that as the base.
       SmallVector<const SCEV *, 4> NewOps;
@@ -795,7 +874,11 @@ Value *SCEVExpander::visitAddExpr(const SCEVAddExpr *S) {
             X = SE.getSCEV(U->getValue());
         NewOps.push_back(X);
       }
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Sum = expandAddToGEP(SE.getAddExpr(NewOps), Ty, Sum);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       Sum = expandAddToGEP(NewOps.begin(), NewOps.end(), PTy, Ty, Sum);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     } else if (Op->isNonConstantNegative()) {
       // Instead of doing a negate and add, just do a subtract.
       Value *W = expandCodeForImpl(SE.getNegativeSCEV(Op), Ty);
@@ -999,15 +1082,8 @@ Instruction *SCEVExpander::getIVIncOperand(Instruction *IncV,
         // allow any kind of GEP as long as it can be hoisted.
         continue;
       }
-      // This must be a pointer addition of constants (pretty), which is already
-      // handled, or some number of address-size elements (ugly). Ugly geps
-      // have 2 operands. i1* is used by the expander to represent an
-      // address-size element.
-      if (IncV->getNumOperands() != 2)
-        return nullptr;
-      unsigned AS = cast<PointerType>(IncV->getType())->getAddressSpace();
-      if (IncV->getType() != Type::getInt1PtrTy(SE.getContext(), AS)
-          && IncV->getType() != Type::getInt8PtrTy(SE.getContext(), AS))
+      // GEPs produced by SCEVExpander use i8 element type.
+      if (!cast<GEPOperator>(IncV)->getSourceElementType()->isIntegerTy(8))
         return nullptr;
       break;
     }
@@ -1112,6 +1188,9 @@ Value *SCEVExpander::expandIVInc(PHINode *PN, Value *StepV, const Loop *L,
   Value *IncV;
   // If the PHI is a pointer, use a GEP, otherwise use an add or sub.
   if (ExpandTy->isPointerTy()) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    IncV = expandAddToGEP(SE.getSCEV(StepV), IntTy, PN);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     PointerType *GEPPtrTy = cast<PointerType>(ExpandTy);
     // If the step isn't constant, don't use an implicitly scaled GEP, because
     // that would require a multiply inside the loop.
@@ -1121,6 +1200,7 @@ Value *SCEVExpander::expandIVInc(PHINode *PN, Value *StepV, const Loop *L,
     IncV = expandAddToGEP(SE.getSCEV(StepV), GEPPtrTy, IntTy, PN);
     if (IncV->getType() != PN->getType())
       IncV = Builder.CreateBitCast(IncV, PN->getType());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     IncV = useSubtract ?
       Builder.CreateSub(PN, StepV, Twine(IVName) + ".iv.next") :
@@ -1392,7 +1472,8 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
   if (PostIncLoops.count(L)) {
     PostIncLoopSet Loops;
     Loops.insert(L);
-    Normalized = cast<SCEVAddRecExpr>(normalizeForPostIncUse(S, Loops, SE));
+    Normalized = cast<SCEVAddRecExpr>(
+        normalizeForPostIncUse(S, Loops, SE, /*CheckInvertible=*/false));
   }
 
   // Strip off any non-loop-dominating component from the addrec start.
@@ -1519,12 +1600,24 @@ Value *SCEVExpander::expandAddRecExprLiterally(const SCEVAddRecExpr *S) {
 
   // Re-apply any non-loop-dominating offset.
   if (PostLoopOffset) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (isa<PointerType>(ExpandTy)) {
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     if (PointerType *PTy = dyn_cast<PointerType>(ExpandTy)) {
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       if (Result->getType()->isIntegerTy()) {
         Value *Base = expandCodeForImpl(PostLoopOffset, ExpandTy);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        Result = expandAddToGEP(SE.getUnknown(Result), IntTy, Base);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
         Result = expandAddToGEP(SE.getUnknown(Result), PTy, IntTy, Base);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        Result = expandAddToGEP(PostLoopOffset, IntTy, Result);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
         Result = expandAddToGEP(PostLoopOffset, PTy, IntTy, Result);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       }
     } else {
       Result = InsertNoopCastOfTo(Result, IntTy);
@@ -1578,10 +1671,18 @@ Value *SCEVExpander::visitAddRecExpr(const SCEVAddRecExpr *S) {
 
   // {X,+,F} --> X + {0,+,F}
   if (!S->getStart()->isZero()) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    if (isa<PointerType>(S->getType())) {
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     if (PointerType *PTy = dyn_cast<PointerType>(S->getType())) {
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
       Value *StartV = expand(SE.getPointerBase(S));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      return expandAddToGEP(SE.removePointerBase(S), Ty, StartV);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
       assert(StartV->getType() == PTy && "Pointer type mismatch for GEP!");
       return expandAddToGEP(SE.removePointerBase(S), PTy, Ty, StartV);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     }
 
     SmallVector<const SCEV *, 4> NewOps(S->operands());
@@ -1964,11 +2065,17 @@ SCEVExpander::replaceCongruentIVs(Loop *L, const DominatorTree *DT,
       OrigPhiRef = Phi;
       if (Phi->getType()->isIntegerTy() && TTI &&
           TTI->isTruncateFree(Phi->getType(), Phis.back()->getType())) {
-        // This phi can be freely truncated to the narrowest phi type. Map the
-        // truncated expression to it so it will be reused for narrow types.
-        const SCEV *TruncExpr =
-          SE.getTruncateExpr(SE.getSCEV(Phi), Phis.back()->getType());
-        ExprToIVMap[TruncExpr] = Phi;
+        // Make sure we only rewrite using simple induction variables;
+        // otherwise, we can make the trip count of a loop unanalyzable
+        // to SCEV.
+        const SCEV *PhiExpr = SE.getSCEV(Phi);
+        if (isa<SCEVAddRecExpr>(PhiExpr)) {
+          // This phi can be freely truncated to the narrowest phi type. Map the
+          // truncated expression to it so it will be reused for narrow types.
+          const SCEV *TruncExpr =
+              SE.getTruncateExpr(PhiExpr, Phis.back()->getType());
+          ExprToIVMap[TruncExpr] = Phi;
+        }
       }
       continue;
     }

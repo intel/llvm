@@ -373,7 +373,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
         if (OwnedPiEvent ZIEvent = DeviceGlobalUSM.getZeroInitEvent(Plugin))
           InitEventsRef.push_back(ZIEvent.TransferOwnership());
       }
-
       // Write the pointer to the device global and store the event in the
       // initialize events list.
       sycl::detail::pi::PiEvent InitEvent;
@@ -385,7 +384,6 @@ std::vector<sycl::detail::pi::PiEvent> context_impl::initializeDeviceGlobals(
 
       InitEventsRef.push_back(InitEvent);
     }
-
     return InitEventsRef;
   }
 }

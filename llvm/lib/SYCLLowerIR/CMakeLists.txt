@@ -54,7 +54,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/LowerESIMDKernelAttrs.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
-  ESIMD/LowerESIMDVecArg.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
