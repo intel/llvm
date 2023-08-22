@@ -1,6 +1,8 @@
 add_custom_target(SYCLUnitTests)
 set_target_properties(SYCLUnitTests PROPERTIES FOLDER "SYCL tests")
 
+include_directories(${BOOST_UNORDERED_INCLUDE_DIRS})
+
 foreach(flag_var
     CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
     CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
@@ -55,10 +57,3 @@ add_subdirectory(builtins)
 if (NOT WIN32)
   add_subdirectory(xpti_trace)
 endif()
-
-# Library unit testing
-include(AddSYCLLibraryUnitTest)
-add_custom_target(check-sycl-unittests-libs)
-add_dependencies(check-sycl-unittests check-sycl-unittests-libs)
-
-add_subdirectory(syclcompat)
