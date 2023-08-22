@@ -11,6 +11,7 @@
 
 #include <__algorithm/pstl_backends/cpu_backends/backend.h>
 #include <__config>
+#include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
 #include <__numeric/transform_reduce.h>
 #include <__type_traits/is_arithmetic.h>
@@ -106,8 +107,8 @@ _LIBCPP_HIDE_FROM_ABI _Tp __pstl_transform_reduce(
     _BinaryOperation1 __reduce,
     _BinaryOperation2 __transform) {
   if constexpr (__is_parallel_execution_policy_v<_ExecutionPolicy> &&
-                __has_random_access_iterator_category<_ForwardIterator1>::value &&
-                __has_random_access_iterator_category<_ForwardIterator2>::value) {
+                __has_random_access_iterator_category_or_concept<_ForwardIterator1>::value &&
+                __has_random_access_iterator_category_or_concept<_ForwardIterator2>::value) {
     return std::__terminate_on_exception([&] {
       return __par_backend::__parallel_transform_reduce(
           __first1,
@@ -130,8 +131,8 @@ _LIBCPP_HIDE_FROM_ABI _Tp __pstl_transform_reduce(
           });
     });
   } else if constexpr (__is_unsequenced_execution_policy_v<_ExecutionPolicy> &&
-                       __has_random_access_iterator_category<_ForwardIterator1>::value &&
-                       __has_random_access_iterator_category<_ForwardIterator2>::value) {
+                       __has_random_access_iterator_category_or_concept<_ForwardIterator1>::value &&
+                       __has_random_access_iterator_category_or_concept<_ForwardIterator2>::value) {
     return std::__simd_transform_reduce(
         __last1 - __first1, std::move(__init), std::move(__reduce), [&](__iter_diff_t<_ForwardIterator1> __i) {
           return __transform(__first1[__i], __first2[__i]);
@@ -156,15 +157,15 @@ _LIBCPP_HIDE_FROM_ABI _Tp __pstl_transform_reduce(
     _BinaryOperation __reduce,
     _UnaryOperation __transform) {
   if constexpr (__is_parallel_execution_policy_v<_ExecutionPolicy> &&
-                __has_random_access_iterator_category<_ForwardIterator>::value) {
+                __has_random_access_iterator_category_or_concept<_ForwardIterator>::value) {
     return std::__terminate_on_exception([&] {
       return __par_backend::__parallel_transform_reduce(
           std::move(__first),
           std::move(__last),
           [__transform](_ForwardIterator __iter) { return __transform(*__iter); },
           std::move(__init),
-          std::move(__reduce),
-          [=](_ForwardIterator __brick_first, _ForwardIterator __brick_last, _Tp __brick_init) {
+          __reduce,
+          [__transform, __reduce](auto __brick_first, auto __brick_last, _Tp __brick_init) {
             return std::__pstl_transform_reduce<__remove_parallel_policy_t<_ExecutionPolicy>>(
                 __cpu_backend_tag{},
                 std::move(__brick_first),
@@ -175,7 +176,7 @@ _LIBCPP_HIDE_FROM_ABI _Tp __pstl_transform_reduce(
           });
     });
   } else if constexpr (__is_unsequenced_execution_policy_v<_ExecutionPolicy> &&
-                       __has_random_access_iterator_category<_ForwardIterator>::value) {
+                       __has_random_access_iterator_category_or_concept<_ForwardIterator>::value) {
     return std::__simd_transform_reduce(
         __last - __first,
         std::move(__init),
