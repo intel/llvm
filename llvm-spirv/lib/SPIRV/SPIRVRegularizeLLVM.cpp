@@ -427,6 +427,8 @@ bool SPIRVRegularizeLLVMBase::regularize() {
       simplifyBuiltinVarAccesses(&GV);
   }
 
+  // Kernels called by other kernels
+  std::vector<Function *> CalledKernels;
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
     if (F->isDeclaration() && F->use_empty()) {
@@ -437,10 +439,12 @@ bool SPIRVRegularizeLLVMBase::regularize() {
     std::vector<Instruction *> ToErase;
     for (BasicBlock &BB : *F) {
       for (Instruction &II : BB) {
-        if (auto Call = dyn_cast<CallInst>(&II)) {
+        if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
-          if (CF && CF->isIntrinsic()) {
+          if (CF && CF->getCallingConv() == CallingConv::SPIR_KERNEL) {
+            CalledKernels.push_back(CF);
+          } else if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
             if (II->getIntrinsicID() == Intrinsic::memset ||
@@ -470,14 +474,17 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         }
 
         // Remove optimization info not supported by SPIRV
-        if (auto BO = dyn_cast<BinaryOperator>(&II)) {
+        if (auto *BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
 
         // FIXME: This is not valid handling for freeze instruction
-        if (auto FI = dyn_cast<FreezeInst>(&II)) {
-          FI->replaceAllUsesWith(FI->getOperand(0));
+        if (auto *FI = dyn_cast<FreezeInst>(&II)) {
+          auto *V = FI->getOperand(0);
+          if (isa<UndefValue>(V))
+            V = Constant::getNullValue(V->getType());
+          FI->replaceAllUsesWith(V);
           FI->dropAllReferences();
           ToErase.push_back(FI);
         }
@@ -493,32 +500,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             II.setMetadata(MDName, nullptr);
           }
         }
-        // Add an additional bitcast in case address space cast also changes
-        // pointer element type.
-        if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (!II.getContext().supportsTypedPointers())
-            continue;
-          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
-              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
-            Type *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy->getScalarType()),
-                cast<PointerType>(SrcTy->getScalarType())
-                    ->getPointerAddressSpace());
-            if (DestTy->isVectorTy())
-              InterTy = VectorType::get(
-                  InterTy, cast<VectorType>(DestTy)->getElementCount());
-            BitCastInst *NewBCast = new BitCastInst(
-                ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
-            AddrSpaceCastInst *NewASCast =
-                new AddrSpaceCastInst(NewBCast, DestTy, /*NameStr=*/"", ASCast);
-            ToErase.push_back(ASCast);
-            ASCast->dropAllReferences();
-            ASCast->replaceAllUsesWith(NewASCast);
-          }
-        }
-        if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
+        if (auto *Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
           // Transform:
           // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
           // To:

@@ -315,11 +315,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
     uint64_t *pHostTimestamp) {
-  std::ignore = hDevice;
-  std::ignore = pDeviceTimestamp;
-  std::ignore = pHostTimestamp;
-
-  DIE_NO_IMPLEMENTATION;
+  std::ignore = hDevice; // todo
+  if (pHostTimestamp) {
+    using namespace std::chrono;
+    *pHostTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+  if (pDeviceTimestamp) {
+    // todo: calculate elapsed time properly
+    using namespace std::chrono;
+    *pDeviceTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
