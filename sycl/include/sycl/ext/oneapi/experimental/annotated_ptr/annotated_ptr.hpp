@@ -238,7 +238,7 @@ public:
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
-  annotated_ptr &operator=(annotated_ptr &) = default;
+  annotated_ptr &operator=(const annotated_ptr &) = default;
 
   annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
@@ -320,10 +320,6 @@ public:
   operator T *() const noexcept = delete;
 
   T *get() const noexcept { return m_Ptr; }
-
-  annotated_ptr &operator=(T *) noexcept {
-    return annotated_ptr<T, property_list_t>(m_Ptr);
-  }
 
   annotated_ptr &operator++() noexcept {
     m_Ptr += 1;
