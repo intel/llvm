@@ -1014,7 +1014,7 @@ private:
         typename TransformUserItemType<Dims, LambdaArgType>::type>;
 
     static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
-                  "Kernel argument mustn't have a sycl::nd_item type in "
+                  "Kernel argument cannot have a sycl::nd_item type in "
                   "sycl::parallel_for with sycl::range");
 
     // TODO: Properties may change the kernel function, so in order to avoid
