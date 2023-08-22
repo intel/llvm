@@ -13,9 +13,9 @@ of its base classes in case of multiple inheritance).
 
 ## SYCL ND-range operations
 
-These operations query ND-range components as the number of work items or the
-global id. These can be ND `id` or `range` instances or `i32` scalars, depending
-on the operation.
+These operations query ND-range components such as the number of work items or
+the global id. These can be ND `id` or `range` instances or `i32` scalars,
+depending on the operation.
 
 See the SYCL dialect documentation for more information on each operation.
 
