@@ -182,7 +182,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // Note that the CCS devices and their respective subdevices share a
   // common ze_device_handle and therefore, also share USM allocators.
   auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    auto MemProvider = umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(
+    auto MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                            reinterpret_cast<ur_context_handle_t>(this), Device)
                            .second;
     DeviceMemPools.emplace(
@@ -193,7 +193,7 @@ ur_result_t ur_context_handle_t_::initialize() {
                                 .Configs[usm::DisjointPoolMemType::Device])
                             .second));
 
-    MemProvider = umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
     SharedMemPools.emplace(
@@ -204,10 +204,9 @@ ur_result_t ur_context_handle_t_::initialize() {
                                 .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
 
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(
-            reinterpret_cast<ur_context_handle_t>(this), Device)
-            .second;
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
@@ -217,7 +216,7 @@ ur_result_t ur_context_handle_t_::initialize() {
                     .Configs[usm::DisjointPoolMemType::SharedReadOnly])
                 .second));
 
-    MemProvider = umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(
+    MemProvider = umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
     DeviceMemProxyPools.emplace(
@@ -226,7 +225,7 @@ ur_result_t ur_context_handle_t_::initialize() {
             umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
                 .second));
 
-    MemProvider = umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(
                       reinterpret_cast<ur_context_handle_t>(this), Device)
                       .second;
     SharedMemProxyPools.emplace(
@@ -235,10 +234,9 @@ ur_result_t ur_context_handle_t_::initialize() {
             umf::poolMakeUnique<USMProxyPool, 1>({std::move(MemProvider)})
                 .second));
 
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(
-            reinterpret_cast<ur_context_handle_t>(this), Device)
-            .second;
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
     SharedReadOnlyMemProxyPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
@@ -264,7 +262,7 @@ ur_result_t ur_context_handle_t_::initialize() {
   // Create USM pool for host. Device and Shared USM allocations
   // are device-specific. Host allocations are not device-dependent therefore
   // we don't need a map with device as key.
-  auto MemProvider = umf::memoryProviderMakeUnique<USMHostMemoryProvider>(
+  auto MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
                          reinterpret_cast<ur_context_handle_t>(this), nullptr)
                          .second;
   HostMemPool =
@@ -273,7 +271,7 @@ ur_result_t ur_context_handle_t_::initialize() {
           DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
-  MemProvider = umf::memoryProviderMakeUnique<USMHostMemoryProvider>(
+  MemProvider = umf::memoryProviderMakeUnique<L0HostMemoryProvider>(
                     reinterpret_cast<ur_context_handle_t>(this), nullptr)
                     .second;
   HostMemProxyPool =

@@ -599,37 +599,16 @@ static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,
   return UR_RESULT_SUCCESS;
 }
 
-umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
-                                           ur_device_handle_t Dev) {
+umf_result_t L0MemoryProvider::initialize(ur_context_handle_t Ctx,
+                                          ur_device_handle_t Dev) {
   Context = Ctx;
   Device = Dev;
 
-  // Query L0 for the minimal page size and cache it in 'MinPageSize'
-  void *Ptr;
-  auto Res = allocateImpl(&Ptr, 1, 0);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
-  Res = USMQueryPageSize(Context, Ptr, &MinPageSize);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
-  Res = USMFreeImpl(Context, Ptr);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
   return UMF_RESULT_SUCCESS;
-
-err_set_status:
-  getLastStatusRef() = Res;
-  return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
-                                           void **Ptr) {
+enum umf_result_t L0MemoryProvider::alloc(size_t Size, size_t Align,
+                                          void **Ptr) {
   auto Res = allocateImpl(Ptr, Size, Align);
   if (Res != UR_RESULT_SUCCESS) {
     getLastStatusRef() = Res;
@@ -639,7 +618,7 @@ enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
   return UMF_RESULT_SUCCESS;
 }
 
-enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
+enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   (void)Size;
 
   auto Res = USMFreeImpl(Context, Ptr);
@@ -651,27 +630,76 @@ enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
-                                              int32_t *ErrCode) {
-  (void)ErrMsg;
-  *ErrCode = static_cast<int32_t>(getLastStatusRef());
+umf_result_t L0MemoryProvider::GetL0MinPageSize(void *Mem, size_t *PageSize) {
+  ur_result_t Res = UR_RESULT_SUCCESS;
+  void *Ptr = Mem;
+
+  if (!Mem) {
+    Res = allocateImpl(&Ptr, 1, 0);
+    if (Res != UR_RESULT_SUCCESS) {
+      goto err_set_status;
+    }
+  }
+
+  // Query L0 for the minimal page size.
+  Res = USMQueryPageSize(Context, Ptr, PageSize);
+  if (Res != UR_RESULT_SUCCESS) {
+    goto err_dealloc;
+  }
+
+  if (!Mem) {
+    Res = USMFreeImpl(Context, Ptr);
+    if (Res != UR_RESULT_SUCCESS) {
+      goto err_set_status;
+    }
+  }
+
+  return UMF_RESULT_SUCCESS;
+
+err_dealloc:
+  if (!Mem) {
+    USMFreeImpl(Context, Ptr);
+  }
+err_set_status:
+  getLastStatusRef() = Res;
+  return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
-  (void)Ptr;
+umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+  std::ignore = Ptr;
+
+  // Query L0 for min page size. Use provided 'Ptr'.
+  if (Ptr) {
+    return GetL0MinPageSize(Ptr, PageSize);
+  }
+
+  // Return cached min page size.
+  if (MinPageSizeCached) {
+    *PageSize = MinPageSize;
+    return UMF_RESULT_SUCCESS;
+  }
+
+  // Query L0 for min page size and cache it in 'MinPageSize'.
+  auto Ret = GetL0MinPageSize(nullptr, &MinPageSize);
+  if (Ret) {
+    return Ret;
+  }
+
   *PageSize = MinPageSize;
+  MinPageSizeCached = true;
+
   return UMF_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
+ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                                 uint32_t Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
                             Alignment);
 }
 
-ur_result_t USMSharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
-                                                          size_t Size,
-                                                          uint32_t Alignment) {
+ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
+                                                         size_t Size,
+                                                         uint32_t Alignment) {
   ur_usm_device_desc_t UsmDeviceDesc{};
   UsmDeviceDesc.flags = UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
   ur_usm_host_desc_t UsmHostDesc{};
@@ -679,14 +707,14 @@ ur_result_t USMSharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
                             &UsmHostDesc.flags, Size, Alignment);
 }
 
-ur_result_t USMDeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
+ur_result_t L0DeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                                 uint32_t Alignment) {
   return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
                             Alignment);
 }
 
-ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                uint32_t Alignment) {
+ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                               uint32_t Alignment) {
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
@@ -719,7 +747,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   }
 
   auto MemProvider =
-      umf::memoryProviderMakeUnique<USMHostMemoryProvider>(Context, nullptr)
+      umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Context, nullptr)
           .second;
 
   HostMemPool =
@@ -730,7 +758,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   for (auto device : Context->Devices) {
     MemProvider =
-        umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, device)
+        umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(Context, device)
             .second;
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
@@ -741,7 +769,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                             .second));
 
     MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, device)
+        umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(Context, device)
             .second;
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
@@ -751,10 +779,9 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                 .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
 
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(Context,
-                                                                       device)
-            .second;
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+                      Context, device)
+                      .second;
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(
@@ -886,15 +913,10 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
-  if (!UseUSMAllocator) {
-    ur_result_t Res = USMFreeImpl(Context, Ptr);
-    if (IndirectAccessTrackingEnabled)
-      UR_CALL(ContextReleaseHelper(Context));
-    return Res;
-  }
-
   auto hPool = umfPoolByPtr(Ptr);
   if (!hPool) {
+    if (IndirectAccessTrackingEnabled)
+      UR_CALL(ContextReleaseHelper(Context));
     return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
