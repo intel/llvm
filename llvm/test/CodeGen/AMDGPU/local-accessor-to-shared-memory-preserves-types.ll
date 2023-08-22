@@ -9,32 +9,28 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK: @_ZTS14example_kernel_shared_mem = external addrspace(3) global [0 x i8], align 4
 
 ; Function Attrs: noinline
-define amdgpu_kernel void @_ZTS14example_kernel(i32 addrspace(3)* %a, i64 addrspace(3)* %b, i16 addrspace(3)* %c, i8 addrspace(3)* %d) {
+define amdgpu_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a, ptr addrspace(3) %b, ptr addrspace(3) %c, ptr addrspace(3) %d) {
 ; CHECK: define amdgpu_kernel void @_ZTS14example_kernel(i32 %0, i32 %1, i32 %2, i32 %3) {
 entry:
-; CHECK: %4 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @_ZTS14example_kernel_shared_mem, i32 0, i32 %3
-; CHECK: %d = bitcast i8 addrspace(3)* %4 to i8 addrspace(3)*
-; CHECK: %5 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @_ZTS14example_kernel_shared_mem, i32 0, i32 %2
-; CHECK: %c = bitcast i8 addrspace(3)* %5 to i16 addrspace(3)*
-; CHECK: %6 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @_ZTS14example_kernel_shared_mem, i32 0, i32 %1
-; CHECK: %b = bitcast i8 addrspace(3)* %6 to i64 addrspace(3)*
-; CHECK: %7 = getelementptr inbounds [0 x i8], [0 x i8] addrspace(3)* @_ZTS14example_kernel_shared_mem, i32 0, i32 %0
-; CHECK: %a = bitcast i8 addrspace(3)* %7 to i32 addrspace(3)*
-  %0 = load i32, i32 addrspace(3)* %a
-; CHECK: %8 = load i32, i32 addrspace(3)* %a
-  %1 = load i64, i64 addrspace(3)* %b
-; CHECK: %9 = load i64, i64 addrspace(3)* %b
-  %2 = load i16, i16 addrspace(3)* %c
-; CHECK: %10 = load i16, i16 addrspace(3)* %c
-  %3 = load i8, i8 addrspace(3)* %d
-; CHECK: %11 = load i8, i8 addrspace(3)* %d
+; CHECK: %4 = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 %3
+; CHECK: %5 = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 %2
+; CHECK: %6 = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 %1
+; CHECK: %7 = getelementptr inbounds [0 x i8], ptr addrspace(3) @_ZTS14example_kernel_shared_mem, i32 0, i32 %0
+  %0 = load i32, ptr addrspace(3) %a
+; CHECK: %8 = load i32, ptr addrspace(3) %a
+  %1 = load i64, ptr addrspace(3) %b
+; CHECK: %9 = load i64, ptr addrspace(3) %b
+  %2 = load i16, ptr addrspace(3) %c
+; CHECK: %10 = load i16, ptr addrspace(3) %c
+  %3 = load i8, ptr addrspace(3) %d
+; CHECK: %11 = load i8, ptr addrspace(3) %d
   ret void
 }
 
 !amdgcn.annotations = !{!0, !1, !2, !1, !3, !3, !3, !3, !4, !4, !3}
 
-!0 = distinct !{void (i32 addrspace(3)*, i64 addrspace(3)*, i16 addrspace(3)*, i8 addrspace(3)*)* @_ZTS14example_kernel, !"kernel", i32 1}
-; CHECK: !0 = distinct !{void (i32, i32, i32, i32)* @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
+; CHECK: !0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}

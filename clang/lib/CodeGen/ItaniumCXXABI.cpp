@@ -777,7 +777,9 @@ CGCallee ItaniumCXXABI::EmitLoadOfMemberFunctionPointer(
             CGM.getIntrinsic(llvm::Intrinsic::load_relative,
                              {VTableOffset->getType()}),
             {VTable, VTableOffset});
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         VirtualFn = CGF.Builder.CreateBitCast(VirtualFn, FTy->getPointerTo());
+#endif
       } else {
         llvm::Value *VFPAddr =
             CGF.Builder.CreateGEP(CGF.Int8Ty, VTable, VTableOffset);
@@ -2116,19 +2118,27 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
                                                   llvm::Type *Ty,
                                                   SourceLocation Loc) {
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  llvm::Type *TyPtr = CGM.GlobalsInt8PtrTy;
+  llvm::Type *PtrTy = CGM.GlobalsInt8PtrTy;
 #else  // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *TyPtr = Ty->getPointerTo();
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
   auto *MethodDecl = cast<CXXMethodDecl>(GD.getDecl());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Value *VTable = CGF.GetVTablePtr(This, PtrTy, MethodDecl->getParent());
+#else
   llvm::Value *VTable = CGF.GetVTablePtr(
       This, TyPtr->getPointerTo(), MethodDecl->getParent());
+#endif
 
   uint64_t VTableIndex = CGM.getItaniumVTableContext().getMethodVTableIndex(GD);
   llvm::Value *VFunc;
   if (CGF.ShouldEmitVTableTypeCheckedLoad(MethodDecl->getParent())) {
     VFunc = CGF.EmitVTableTypeCheckedLoad(
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+        MethodDecl->getParent(), VTable, PtrTy,
+#else
         MethodDecl->getParent(), VTable, TyPtr,
+#endif
         VTableIndex *
             CGM.getContext().getTargetInfo().getPointerWidth(LangAS::Default) /
             8);
@@ -2137,12 +2147,25 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
 
     llvm::Value *VFuncLoad;
     if (CGM.getItaniumVTableContext().isRelativeLayout()) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      VFuncLoad = CGF.Builder.CreateCall(
+          CGM.getIntrinsic(llvm::Intrinsic::load_relative, {CGM.Int32Ty}),
+          {VTable, llvm::ConstantInt::get(CGM.Int32Ty, 4 * VTableIndex)});
+#else
       VTable = CGF.Builder.CreateBitCast(VTable, CGM.Int8PtrTy);
       llvm::Value *Load = CGF.Builder.CreateCall(
           CGM.getIntrinsic(llvm::Intrinsic::load_relative, {CGM.Int32Ty}),
           {VTable, llvm::ConstantInt::get(CGM.Int32Ty, 4 * VTableIndex)});
+
       VFuncLoad = CGF.Builder.CreateBitCast(Load, TyPtr);
+#endif
     } else {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      llvm::Value *VTableSlotPtr = CGF.Builder.CreateConstInBoundsGEP1_64(
+          PtrTy, VTable, VTableIndex, "vfn");
+      VFuncLoad = CGF.Builder.CreateAlignedLoad(PtrTy, VTableSlotPtr,
+                                                CGF.getPointerAlign());
+#else
       VTable =
           CGF.Builder.CreateBitCast(VTable, TyPtr->getPointerTo());
       llvm::Value *VTableSlotPtr = CGF.Builder.CreateConstInBoundsGEP1_64(
@@ -2150,6 +2173,7 @@ CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
       VFuncLoad =
           CGF.Builder.CreateAlignedLoad(TyPtr, VTableSlotPtr,
                                         CGF.getPointerAlign());
+#endif
     }
 
     // Add !invariant.load md to virtual function load to indicate that
