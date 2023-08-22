@@ -105,6 +105,8 @@ public:
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
 
+  bool MKernelIsCooperative = false;
+
   // Extra information for bindless image copy
   sycl::detail::pi::PiMemImageDesc MImageDesc;
   sycl::detail::pi::PiMemImageFormat MImageFormat;

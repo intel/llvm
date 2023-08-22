@@ -18,6 +18,16 @@
 void enableZeTracing();
 void disableZeTracing();
 
+namespace pi2ur {
+pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
+                                                     pi_uint32 *GroupCountRet) {
+  ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
+  const auto Result = zeKernelSuggestMaxCooperativeGroupCount(
+      UrKernel->ZeKernel, GroupCountRet);
+  return ur2piResult(ze2urResult(Result));
+}
+} // namespace pi2ur
+
 extern "C" {
 
 // Forward declarations
@@ -558,6 +568,14 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *OutEvent) {
+  return PI_SUCCESS;
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,
@@ -571,6 +589,12 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
                                      pi_native_handle *NativeHandle) {
   return pi2ur::piextKernelGetNativeHandle(Kernel, NativeHandle);
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
+                                                     pi_uint32 *GroupCountRet) {
+  return pi2ur::piextKernelSuggestMaxCooperativeGroupCount(Kernel,
+                                                           GroupCountRet);
 }
 
 //

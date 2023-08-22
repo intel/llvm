@@ -10,8 +10,10 @@
 
 #include <sycl/builtins.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/group.hpp>
 #include <sycl/memory_enums.hpp>
-#include <sycl/queue.hpp>
+#include <sycl/nd_item.hpp>
+#include <sycl/sub_group.hpp>
 
 #define SYCL_EXT_ONEAPI_ROOT_GROUP 1
 
@@ -105,16 +107,6 @@ template <int Dimensions> root_group<Dimensions> get_root_group() {
 } // namespace this_kernel
 
 } // namespace ext::oneapi::experimental
-
-template <>
-typename ext::oneapi::experimental::info::kernel_queue_specific::
-    max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(const queue &q) const {
-  // TODO: query the backend to return a value >= 1.
-  return 1;
-}
 
 template <int dimensions>
 void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,

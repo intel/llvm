@@ -2578,6 +2578,14 @@ pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
   return static_cast<pi_result>(result);
 }
 
+pi_result
+piextKernelSuggestMaxCooperativeGroupCount(pi_kernel kernel,
+                                           pi_uint32 *group_count_ret) {
+  (void)kernel;
+  *group_count_ret = 1;
+  return PI_SUCCESS;
+}
+
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
 
 pi_result piPluginInit(pi_plugin *PluginInit) {
@@ -2662,6 +2670,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelSetArgPointer, piextKernelSetArgPointer)
   _PI_CL(piextKernelCreateWithNativeHandle, piextKernelCreateWithNativeHandle)
   _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
+  _PI_CL(piextKernelSuggestMaxCooperativeGroupCount,
+         piextKernelSuggestMaxCooperativeGroupCount)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
   _PI_CL(piEventGetInfo, piEventGetInfo)

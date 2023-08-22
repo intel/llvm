@@ -90,6 +90,18 @@ template __SYCL_EXPORT uint32_t
 kernel::get_info<info::kernel_device_specific::max_sub_group_size>(
     const device &, const sycl::range<3> &) const;
 
+template <typename Param>
+typename Param::return_type
+kernel::ext_oneapi_get_info(const queue &Queue) const {
+  return impl->ext_oneapi_get_info<Param>(Queue);
+}
+
+template __SYCL_EXPORT typename ext::oneapi::experimental::info::
+    kernel_queue_specific::max_num_work_group_sync::return_type
+    kernel::ext_oneapi_get_info<
+        ext::oneapi::experimental::info::kernel_queue_specific::
+            max_num_work_group_sync>(const queue &Queue) const;
+
 kernel::kernel(std::shared_ptr<detail::kernel_impl> Impl) : impl(Impl) {}
 
 pi_native_handle kernel::getNative() const { return impl->getNative(); }

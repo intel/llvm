@@ -853,6 +853,13 @@ mock_piextKernelGetNativeHandle(pi_kernel kernel,
   return PI_SUCCESS;
 }
 
+inline pi_result
+mock_piextKernelSuggestMaxCooperativeGroupCount(pi_kernel kernel,
+                                                pi_uint32 *group_count_ret) {
+  *group_count_ret = 1;
+  return PI_SUCCESS;
+}
+
 //
 // Events
 //
@@ -962,6 +969,15 @@ inline pi_result mock_piSamplerRelease(pi_sampler sampler) {
 // Queue Commands
 //
 inline pi_result mock_piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event) {
+  *event = createDummyHandle<pi_event>();
+  return PI_SUCCESS;
+}
+
+inline pi_result mock_piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,

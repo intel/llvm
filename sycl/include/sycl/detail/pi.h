@@ -1629,6 +1629,14 @@ __SYCL_EXPORT pi_result piextKernelCreateWithNativeHandle(
 __SYCL_EXPORT pi_result
 piextKernelGetNativeHandle(pi_kernel kernel, pi_native_handle *nativeHandle);
 
+/// Gets the max work group count for a cooperative kernel.
+///
+/// \param kernel is the PI kernel being queried.
+/// \param totalGroupCount is a pointer to where the query result will be
+/// stored.
+__SYCL_EXPORT pi_result piextKernelSuggestMaxCooperativeGroupCount(
+    pi_kernel kernel, pi_uint32 *group_count_ret);
+
 //
 // Events
 //
@@ -1706,6 +1714,12 @@ __SYCL_EXPORT pi_result piSamplerRelease(pi_sampler sampler);
 // Queue Commands
 //
 __SYCL_EXPORT pi_result piEnqueueKernelLaunch(
+    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
+    const pi_event *event_wait_list, pi_event *event);
+
+__SYCL_EXPORT pi_result piextEnqueueCooperativeKernelLaunch(
     pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
     const size_t *global_work_offset, const size_t *global_work_size,
     const size_t *local_work_size, pi_uint32 num_events_in_wait_list,

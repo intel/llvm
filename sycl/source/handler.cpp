@@ -256,10 +256,10 @@ event handler::finalize() {
                 nullptr);
             Result = PI_SUCCESS;
           } else {
-            Result =
-                enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, OutEvent,
-                                 nullptr, MImpl->MKernelCacheConfig);
+            Result = enqueueImpKernel(
+                MQueue, MNDRDesc, MArgs, KernelBundleImpPtr, MKernel,
+                MKernelName, RawEvents, OutEvent, nullptr,
+                MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative);
           }
         }
         return Result;
@@ -312,7 +312,7 @@ event handler::finalize() {
         std::move(MImpl->MKernelBundle), std::move(CGData), std::move(MArgs),
         MKernelName, std::move(MStreamStorage),
         std::move(MImpl->MAuxiliaryResources), MCGType,
-        MImpl->MKernelCacheConfig, MCodeLoc));
+        MImpl->MKernelCacheConfig, MImpl->MKernelIsCooperative, MCodeLoc));
     break;
   }
   case detail::CG::CopyAccToPtr:
@@ -1295,6 +1295,10 @@ handler::getContextImplPtr() const {
 void handler::setKernelCacheConfig(
     sycl::detail::pi::PiKernelCacheConfig Config) {
   MImpl->MKernelCacheConfig = Config;
+}
+
+void handler::setKernelIsCooperative(bool KernelIsCooperative) {
+  MImpl->MKernelIsCooperative = KernelIsCooperative;
 }
 
 void handler::ext_oneapi_graph(
