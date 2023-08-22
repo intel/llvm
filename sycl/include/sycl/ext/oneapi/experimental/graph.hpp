@@ -44,7 +44,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_bindless_images = 7
 };
 
-const char *UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
+inline const char *
+UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
   using UGF = UnsupportedGraphFeatures;
   switch (Feature) {
   case UGF::sycl_reductions:
