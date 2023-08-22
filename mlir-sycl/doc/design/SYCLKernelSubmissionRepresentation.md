@@ -89,13 +89,30 @@ sycl.host.constructor(%accessor, %buffer, %handler, %propertylist, %codeloc)
     : (!llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr, !llvm.ptr) -> ()
 ```
 
-Note that in contrast to the constructor operations
-intended for the modeling of device code, the host-side constructor operation
-does *not* include the allocation of the object. Hence, a common pattern in the
-host raising process is looking for a `host.constructor` op in the users of a
-particular `llvm.alloca` operation.
+The host-side constructor operation differs from the `sycl.constructor`
+operation used in device code in the following aspects:
+- `sycl.host.constructor` does *not* include the allocation of the object.
+  Hence, a common pattern in the host raising process is looking for a
+  `host.constructor` op in the users of a particular `llvm.alloca` operation.
+- As SYCL objects are passed around as `!llvm.ptr` values in the host IR
+  (instead of `memref`s of SYCL dialect types), the operation carries a type
+  attribute to encode additional high-level information (see below) about the
+  constructed SYCL entities.
 
-> TODO: Elaborate here, or in a separate document?
+We currently extract the following information and encode it in the type
+attribute:
+- `sycl::buffer`: dimensions, sub-buffer flag
+- `sycl::accessor`: dimensions, access mode, access target, presence of a
+  (sub-)range and offset
+- `sycl::range`, `sycl::id`, `sycl::nd_range`: dimensions
+
+As a general rule, we do not attempt to extract the element type of
+buffers/accessors from the mangled constructor names, as these types are not
+relevant to the host raising process.
+
+Note that the various raising patterns for the constructor operation delete the
+original `call` or `invoke` to the constructor. In the latter case, an
+unconditional branch to the non-exceptional successor block is introduced.
 
 ### Range information
 
@@ -167,8 +184,8 @@ as opaque LLVM pointers. However, the `set_captured` op optionally stores a type
 attribute with the corresponding SYCL dialect type (e.g. `!sycl.accessor<...>`
 as shown in the example).
 
-The basic idea in the `RaiseSetCaptured` pattern is to detect the captured
-values is to annotate the lambda object in the SYCL headers.
+The `RaiseSetCaptured` pattern relies on an annotation in the SYCL headers to
+identify the lambda object in the host IR.
 
 ```c++
 void parallel_for(/* range, offset or nd-range */,
@@ -226,8 +243,9 @@ sycl.host.handler.set_kernel %handler -> @device_functions::@_ZTS10KernelName : 
 
 As an intermediate step to raising `set_kernel`, the SYCL dialect also defines
 the [`sycl.host.get_kernel`](#syclhostget_kernel-syclsyclhostgetkernelop)
-operation, which replaces `llvm.mlir.addressof` operations that reference a
-`gpu.func` with the `kernel` attribute.
+operation. It replaces `llvm.mlir.addressof` operations of string constants
+containing a kernel function name, and introduces an actual symbol reference to
+the corresponding `gpu.func`.
 
 ### Raising `schedule_kernel`
 
