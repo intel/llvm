@@ -124,10 +124,12 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
                                   UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_FLOAT,
                                   UR_IMAGE_CHANNEL_TYPE_FLOAT);
+#if CUDA_VERSION >= 11050
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+#endif
 #undef MAP
   default:
     return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;
