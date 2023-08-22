@@ -74,7 +74,10 @@ Submit an [issue](https://github.com/intel/llvm/issues) or initiate a
 
 ### How to contribute to DPC++
 
-See [ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md).
+This project welcomes contributions from the community. Please refer to [CONTRIBUTING](/CONTRIBUTING.md) 
+for general guidelines around contributing to this project. You can then see 
+[ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md) for DPC++ specific 
+guidelines.
 
 ## Late-outline OpenMP\* and OpenMP\* Offload
 
