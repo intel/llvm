@@ -374,6 +374,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
     NewEvent->setStateIncomplete();
+    NewEvent->setEventFromSubmitedExecCommandBuffer(true);
     return NewEvent;
   });
 
@@ -390,12 +391,21 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     // If we have no requirements or dependent events for the command buffer,
     // enqueue it directly
     if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
+      if (NewEvent != nullptr)
+        NewEvent->setHostEnqueueTime();
       pi_result Res =
           Queue->getPlugin()
               ->call_nocheck<
                   sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
                   CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
-      if (Res != pi_result::PI_SUCCESS) {
+      if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Graphs cannot be submitted to a queue which uses "
+            "immediate command lists. Use "
+            "sycl::ext::intel::property::queue::no_immediate_"
+            "command_list to disable them.");
+      } else if (Res != pi_result::PI_SUCCESS) {
         throw sycl::exception(
             errc::event,
             "Failed to enqueue event for command buffer submission");
@@ -424,8 +434,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         sycl::detail::CGExecKernel *CG =
             static_cast<sycl::detail::CGExecKernel *>(
                 NodeImpl->MCommandGroup.get());
-        NewEvent = CreateNewEvent();
-        sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
+        auto OutEvent = CreateNewEvent();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles
@@ -521,17 +530,32 @@ bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
                             "differs from the graph device.");
     }
 
+    if (QueueImpl->is_in_fusion_mode()) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "SYCL queue in kernel in fusion mode "
+                            "can NOT be recorded.");
+    }
+
+    if (QueueImpl->get_context() != impl->getContext()) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "begin_recording called for a queue whose context "
+                            "differs from the graph context.");
+    }
+    if (QueueImpl->get_device() != impl->getDevice()) {
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "begin_recording called for a queue whose device "
+                            "differs from the graph device.");
+    }
+
     if (QueueImpl->getCommandGraph() == nullptr) {
       QueueImpl->setCommandGraph(impl);
       impl->addQueue(QueueImpl);
       return true;
     }
     if (QueueImpl->getCommandGraph() != impl) {
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "begin_recording called for a queue which is already "
-          "recording to a different graph.");
-    }
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "begin_recording called for a queue which is already "
+                            "recording to a different graph.");
   }
   // Queue was already recording to this graph.
   return false;

@@ -684,6 +684,13 @@ auto AlignVectors::createAdjustedPointer(IRBuilderBase &Builder, Value *Ptr,
                                          Type *ValTy, int Adjust,
                                          const InstMap &CloneMap) const
     -> Value * {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (auto *I = dyn_cast<Instruction>(Ptr))
+    if (Instruction *New = CloneMap.lookup(I))
+      Ptr = New;
+  return Builder.CreateGEP(Type::getInt8Ty(HVC.F.getContext()), Ptr,
+                           HVC.getConstInt(Adjust), "gep");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   auto remap = [&](Value *V) -> Value * {
     if (auto *I = dyn_cast<Instruction>(V)) {
       for (auto [Old, New] : CloneMap)
@@ -711,6 +718,7 @@ auto AlignVectors::createAdjustedPointer(IRBuilderBase &Builder, Value *Ptr,
   Value *Tmp1 = Builder.CreateGEP(Type::getInt8Ty(HVC.F.getContext()),
                                   remap(Tmp0), HVC.getConstInt(Adjust), "gep");
   return Builder.CreatePointerCast(remap(Tmp1), ValTy->getPointerTo(), "cst");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 auto AlignVectors::createAlignedPointer(IRBuilderBase &Builder, Value *Ptr,

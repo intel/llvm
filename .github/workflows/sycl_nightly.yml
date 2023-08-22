@@ -13,7 +13,7 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
+      build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
       retention-days: 90
 
@@ -53,12 +53,6 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
             image_options: -u 1001
             target_devices: opencl:cpu
-
-          - name: ESIMD Emu
-            runner: '["Linux", "x86-cpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
-            target_devices: ext_intel_esimd_emulator:gpu
 
           - name: Self-hosted CUDA
             runner: '["Linux", "cuda"]'

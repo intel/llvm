@@ -252,10 +252,9 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  sub_group_mask(const sub_group_mask &rhs)
-      : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
+  sub_group_mask(const sub_group_mask &rhs) = default;
 
-  sub_group_mask &operator=(const sub_group_mask &rhs) = delete;
+  sub_group_mask &operator=(const sub_group_mask &rhs) = default;
 
   template <typename Group>
   friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,

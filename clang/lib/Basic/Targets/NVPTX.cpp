@@ -170,7 +170,7 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__PTX__");
   Builder.defineMacro("__NVPTX__");
-  if (Opts.CUDAIsDevice || Opts.OpenMPIsDevice || Opts.SYCLIsDevice ||
+  if (Opts.CUDAIsDevice || Opts.OpenMPIsTargetDevice || Opts.SYCLIsDevice ||
       !HostTarget) {
     // Set __CUDA_ARCH__ or __SYCL_CUDA_ARCH__ for the GPU specified.
     // The SYCL-specific macro is used to distinguish the SYCL and CUDA APIs.
@@ -216,6 +216,8 @@ void NVPTXTargetInfo::getTargetDefines(const LangOptions &Opts,
       case CudaArch::GFX1101:
       case CudaArch::GFX1102:
       case CudaArch::GFX1103:
+      case CudaArch::GFX1150:
+      case CudaArch::GFX1151:
       case CudaArch::Generic:
       case CudaArch::LAST:
         break;

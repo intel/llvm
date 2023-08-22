@@ -255,8 +255,13 @@ public:
   /// True if this is an instance of PointerType.
   bool isPointerTy() const { return getTypeID() == PointerTyID; }
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   /// True if this is an instance of an opaque PointerType.
+  LLVM_DEPRECATED("Use isPointerTy() instead", "isPointerTy")
+  bool isOpaquePointerTy() const { return isPointerTy(); };
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   bool isOpaquePointerTy() const;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   /// Return true if this is a pointer type or a vector of pointer types.
   bool isPtrOrPtrVectorTy() const { return getScalarType()->isPointerTy(); }
@@ -408,24 +413,22 @@ public:
 
   inline StringRef getTargetExtName() const;
 
-  /// This method is deprecated without replacement. Pointer element types are
-  /// not available with opaque pointers.
-  [[deprecated("Deprecated without replacement, see "
-               "https://llvm.org/docs/OpaquePointers.html for context and "
-               "migration instructions")]]
-  Type *getPointerElementType() const {
-    return getNonOpaquePointerElementType();
-  }
-
   /// Only use this method in code that is not reachable with opaque pointers,
   /// or part of deprecated methods that will be removed as part of the opaque
   /// pointers transition.
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  [[deprecated("Pointers no longer have element types")]]
+  Type *getNonOpaquePointerElementType() const {
+    llvm_unreachable("Pointers no longer have element types");
+  }
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Type *getNonOpaquePointerElementType() const {
     assert(getTypeID() == PointerTyID);
     assert(NumContainedTys &&
            "Attempting to get element type of opaque pointer");
     return ContainedTys[0];
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   /// Given vector type, change the element type,
   /// whilst keeping the old number of elements.

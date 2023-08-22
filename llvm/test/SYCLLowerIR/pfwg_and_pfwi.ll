@@ -14,62 +14,58 @@
 %struct.foo.0 = type { i8 }
 
 
-define internal spir_func void @wibble(%struct.bar addrspace(4)* %arg, %struct.zot* byval(%struct.zot) align 8 %arg1) align 2 !work_group_scope !0 {
+define internal spir_func void @wibble(ptr addrspace(4) %arg, ptr byval(%struct.zot) align 8 %arg1) align 2 !work_group_scope !0 {
 ; CHECK-LABEL: @wibble(
 ; CHECK-NEXT:  bb:
-; CHECK-NEXT:    [[TMP0:%.*]] = alloca [[STRUCT_BAR:%.*]] addrspace(4)*, align 8
+; CHECK-NEXT:    [[TMP0:%.*]] = alloca ptr addrspace(4), align 8
 ; CHECK-NEXT:    [[TMP1:%.*]] = alloca [[STRUCT_FOO_0:%.*]], align 1
-; CHECK-NEXT:    [[TMP2:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    [[TMP2:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0:[0-9]+]]
 ; CHECK-NEXT:    [[CMPZ3:%.*]] = icmp eq i64 [[TMP2]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ3]], label [[LEADER:%.*]], label [[MERGE:%.*]]
 ; CHECK:       leader:
-; CHECK-NEXT:    [[TMP3:%.*]] = bitcast %struct.zot* [[ARG1:%.*]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 16 bitcast ([[STRUCT_ZOT:%.*]] addrspace(3)* @ArgShadow to i8 addrspace(3)*), i8* align 8 [[TMP3]], i64 96, i1 false)
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 16 @ArgShadow, ptr align 8 [[ARG1:%.*]], i64 96, i1 false)
 ; CHECK-NEXT:    br label [[MERGE]]
 ; CHECK:       merge:
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[TMP4:%.*]] = bitcast %struct.zot* [[ARG1]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 8 [[TMP4]], i8 addrspace(3)* align 16 bitcast ([[STRUCT_ZOT]] addrspace(3)* @ArgShadow to i8 addrspace(3)*), i64 96, i1 false)
-; CHECK-NEXT:    [[TMP5:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 8 [[ARG1]], ptr addrspace(3) align 16 @ArgShadow, i64 96, i1 false)
+; CHECK-NEXT:    [[TMP5:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ:%.*]] = icmp eq i64 [[TMP5]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ]], label [[WG_LEADER:%.*]], label [[WG_CF:%.*]]
 ; CHECK:       wg_leader:
-; CHECK-NEXT:    store [[STRUCT_BAR]] addrspace(4)* [[ARG:%.*]], [[STRUCT_BAR]] addrspace(4)** [[TMP0]], align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[ARG:%.*]], ptr [[TMP0]], align 8
 ; CHECK-NEXT:    br label [[WG_CF]]
 ; CHECK:       wg_cf:
-; CHECK-NEXT:    [[TMP6:%.*]] = load i64, i64 addrspace(1)* @__spirv_BuiltInLocalInvocationIndex, align 4
+; CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr addrspace(1) @__spirv_BuiltInLocalInvocationIndex, align 4
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
 ; CHECK-NEXT:    [[CMPZ2:%.*]] = icmp eq i64 [[TMP6]], 0
 ; CHECK-NEXT:    br i1 [[CMPZ2]], label [[TESTMAT:%.*]], label [[LEADERMAT:%.*]]
 ; CHECK:       TestMat:
-; CHECK-NEXT:    [[TMP7:%.*]] = bitcast %struct.foo.0* [[TMP1]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p3i8.p0i8.i64(i8 addrspace(3)* align 8 getelementptr inbounds ([[STRUCT_FOO_0]], [[STRUCT_FOO_0]] addrspace(3)* @WGCopy.1, i32 0, i32 0), i8* align 1 [[TMP7]], i64 1, i1 false)
-; CHECK-NEXT:    [[MAT_LD:%.*]] = load [[STRUCT_BAR]] addrspace(4)*, [[STRUCT_BAR]] addrspace(4)** [[TMP0]], align 8
-; CHECK-NEXT:    store [[STRUCT_BAR]] addrspace(4)* [[MAT_LD]], [[STRUCT_BAR]] addrspace(4)* addrspace(3)* @WGCopy, align 8
+; CHECK-NEXT:    call void @llvm.memcpy.p3.p0.i64(ptr addrspace(3) align 8 @WGCopy.1, ptr align 1 [[TMP1]], i64 1, i1 false)
+; CHECK-NEXT:    [[MAT_LD:%.*]] = load ptr addrspace(4), ptr [[TMP0]], align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD]], ptr addrspace(3) @WGCopy, align 8
 ; CHECK-NEXT:    br label [[LEADERMAT]]
 ; CHECK:       LeaderMat:
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[MAT_LD1:%.*]] = load [[STRUCT_BAR]] addrspace(4)*, [[STRUCT_BAR]] addrspace(4)* addrspace(3)* @WGCopy, align 8
-; CHECK-NEXT:    store [[STRUCT_BAR]] addrspace(4)* [[MAT_LD1]], [[STRUCT_BAR]] addrspace(4)** [[TMP0]], align 8
-; CHECK-NEXT:    [[TMP8:%.*]] = bitcast %struct.foo.0* [[TMP1]] to i8*
-; CHECK-NEXT:    call void @llvm.memcpy.p0i8.p3i8.i64(i8* align 1 [[TMP8]], i8 addrspace(3)* align 8 getelementptr inbounds ([[STRUCT_FOO_0]], [[STRUCT_FOO_0]] addrspace(3)* @WGCopy.1, i32 0, i32 0), i64 1, i1 false)
+; CHECK-NEXT:    [[MAT_LD1:%.*]] = load ptr addrspace(4), ptr addrspace(3) @WGCopy, align 8
+; CHECK-NEXT:    store ptr addrspace(4) [[MAT_LD1]], ptr [[TMP0]], align 8
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p3.i64(ptr align 1 [[TMP1]], ptr addrspace(3) align 8 @WGCopy.1, i64 1, i1 false)
 ; CHECK-NEXT:    call void @_Z22__spirv_ControlBarrierjjj(i32 2, i32 2, i32 272) #[[ATTR0]]
-; CHECK-NEXT:    [[TMP9:%.*]] = addrspacecast %struct.zot* [[ARG1]] to [[STRUCT_ZOT]] addrspace(4)*
-; CHECK-NEXT:    call spir_func void @bar([[STRUCT_ZOT]] addrspace(4)* [[TMP9]], %struct.foo.0* byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
+; CHECK-NEXT:    [[TMP9:%.*]] = addrspacecast ptr [[ARG1]] to ptr addrspace(4)
+; CHECK-NEXT:    call spir_func void @bar(ptr addrspace(4) [[TMP9]], ptr byval([[STRUCT_FOO_0]]) align 1 [[TMP1]])
 ; CHECK-NEXT:    ret void
 ;
 bb:
-  %0 = alloca %struct.bar addrspace(4)*, align 8
+  %0 = alloca ptr addrspace(4), align 8
   %1 = alloca %struct.foo.0, align 1
-  store %struct.bar addrspace(4)* %arg, %struct.bar addrspace(4)** %0, align 8
-  %2 = addrspacecast %struct.zot* %arg1 to %struct.zot addrspace(4)*
-  call spir_func void @bar(%struct.zot addrspace(4)* %2, %struct.foo.0* byval(%struct.foo.0) align 1 %1)
+  store ptr addrspace(4) %arg, ptr %0, align 8
+  %2 = addrspacecast ptr %arg1 to ptr addrspace(4)
+  call spir_func void @bar(ptr addrspace(4) %2, ptr byval(%struct.foo.0) align 1 %1)
   ret void
 }
 
-define internal spir_func void @bar(%struct.zot addrspace(4)* %arg, %struct.foo.0* byval(%struct.foo.0) align 1 %arg1) align 2 !work_item_scope !0 !parallel_for_work_item !0 {
+define internal spir_func void @bar(ptr addrspace(4) %arg, ptr byval(%struct.foo.0) align 1 %arg1) align 2 !work_item_scope !0 !parallel_for_work_item !0 {
 bb:
   ret void
 }
