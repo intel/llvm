@@ -13156,7 +13156,8 @@ static Value *EmitX86MaskedStore(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
   Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = Ops[0];
+  Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(
@@ -13173,7 +13174,8 @@ static Value *EmitX86MaskedLoad(CodeGenFunction &CGF, ArrayRef<Value *> Ops,
   Value *Ptr = CGF.Builder.CreatePointerBitCastOrAddrSpaceCast(
       Ops[0], llvm::PointerType::getUnqual(Ty));
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = Ops[0];
+  Value *Ptr = CGF.Builder.CreateAddrSpaceCast(
+      Ops[0], llvm::PointerType::getUnqual(Ops[1]->getType()));
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   Value *MaskVec = getMaskVecValue(
@@ -16599,7 +16601,9 @@ Value *CodeGenFunction::EmitPPCBuiltinExpr(unsigned BuiltinID,
       // Storing the whole vector, simply store it on BE and reverse bytes and
       // store on LE.
       if (Width == 16) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
         Value *BC = Builder.CreateBitCast(Op0, Op2->getType()->getPointerTo());
+#endif
         Value *StVec = Op2;
         if (IsLE) {
           SmallVector<int, 16> RevMask;
@@ -22682,7 +22686,7 @@ Value *CodeGenFunction::EmitHexagonBuiltinExpr(unsigned BuiltinID,
   case Hexagon::BI__builtin_HEXAGON_V6_vsubcarryo_128B: {
     // Get the type from the 0-th argument.
     llvm::Type *VecType = ConvertType(E->getArg(0)->getType());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     Address PredAddr = Builder.CreateElementBitCast(
         EmitPointerWithAlignment(E->getArg(2)), VecType);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
