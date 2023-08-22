@@ -46,6 +46,8 @@ C++ Specific Potentially Breaking Changes
 
 ABI Changes in This Version
 ---------------------------
+- Following the SystemV ABI for x86-64, ``__int128`` arguments will no longer
+  be split between a register and a stack slot.
 
 What's New in Clang |release|?
 ==============================
@@ -154,6 +156,9 @@ Bug Fixes in This Version
 - Fix a hang on valid C code passing a function type as an argument to
   ``typeof`` to form a function declaration.
   (`#64713 <https://github.com/llvm/llvm-project/issues/64713>_`)
+- Clang now reports missing-field-initializers warning for missing designated
+  initializers in C++.
+  (`#56628 <https://github.com/llvm/llvm-project/issues/56628>`_)
 - Clang now respects ``-fwrapv`` and ``-ftrapv`` for ``__builtin_abs`` and
   ``abs`` builtins.
   (`#45129 <https://github.com/llvm/llvm-project/issues/45129>`_,
@@ -177,7 +182,7 @@ Bug Fixes to C++ Support
   a Unicode character whose name contains a ``-``.
   (Fixes `#64161 <https://github.com/llvm/llvm-project/issues/64161>`_)
 
-- Fix cases where we ignore ambiguous name lookup when looking up memebers.
+- Fix cases where we ignore ambiguous name lookup when looking up members.
   (`#22413 <https://github.com/llvm/llvm-project/issues/22413>`_),
   (`#29942 <https://github.com/llvm/llvm-project/issues/29942>`_),
   (`#35574 <https://github.com/llvm/llvm-project/issues/35574>`_) and
@@ -293,9 +298,9 @@ Static Analyzer
 
 Sanitizers
 ----------
+
 - ``-fsanitize=signed-integer-overflow`` now instruments ``__builtin_abs`` and
   ``abs`` builtins.
-
 
 Python Binding Changes
 ----------------------

@@ -270,9 +270,11 @@ using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 /// and its address map.
 class DWARFFile {
 public:
+  using UnloadCallbackTy = std::function<void(StringRef FileName)>;
   DWARFFile(StringRef Name, std::unique_ptr<DWARFContext> Dwarf,
             std::unique_ptr<AddressesMap> Addresses,
-            const std::vector<std::string> &Warnings)
+            const std::vector<std::string> &Warnings,
+            UnloadCallbackTy = nullptr)
       : FileName(Name), Dwarf(std::move(Dwarf)),
         Addresses(std::move(Addresses)), Warnings(Warnings) {}
 
@@ -338,7 +340,7 @@ public:
     Pub,       ///< .debug_pubnames, .debug_pubtypes
     DebugNames ///< .debug_names.
   };
-  typedef std::function<void(const DWARFFile &File)> inputVerificationHandler;
+  typedef std::function<void(const DWARFFile &File, llvm::StringRef Output)> inputVerificationHandler;
   typedef std::function<ErrorOr<DWARFFile &>(StringRef ContainerName,
                                              StringRef Path)>
       objFileLoader;

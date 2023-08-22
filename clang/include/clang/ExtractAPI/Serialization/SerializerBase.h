@@ -33,6 +33,36 @@ public:
 
     getDerived()->traverseCXXClassRecords();
 
+    getDerived()->traverseClassTemplateRecords();
+
+    getDerived()->traverseClassTemplateSpecializationRecords();
+
+    getDerived()->traverseClassTemplatePartialSpecializationRecords();
+
+    getDerived()->traverseCXXInstanceMethods();
+
+    getDerived()->traverseCXXStaticMethods();
+
+    getDerived()->traverseCXXMethodTemplates();
+
+    getDerived()->traverseCXXMethodTemplateSpecializations();
+
+    getDerived()->traverseCXXFields();
+
+    getDerived()->traverseCXXFieldTemplates();
+
+    getDerived()->traverseConcepts();
+
+    getDerived()->traverseGlobalVariableTemplateRecords();
+
+    getDerived()->traverseGlobalVariableTemplateSpecializationRecords();
+
+    getDerived()->traverseGlobalVariableTemplatePartialSpecializationRecords();
+
+    getDerived()->traverseGlobalFunctionTemplateRecords();
+
+    getDerived()->traverseGlobalFunctionTemplateSpecializationRecords();
+
     getDerived()->traverseStructRecords();
 
     getDerived()->traverseObjCInterfaces();
@@ -76,6 +106,95 @@ public:
       getDerived()->visitCXXClassRecord(*Class.second);
   }
 
+  void traverseCXXMethodTemplates() {
+    for (const auto &MethodTemplate : API.getCXXMethodTemplates())
+      getDerived()->visitMethodTemplateRecord(*MethodTemplate.second);
+  }
+
+  void traverseCXXMethodTemplateSpecializations() {
+    for (const auto &MethodTemplateSpecialization :
+         API.getCXXMethodTemplateSpecializations())
+      getDerived()->visitMethodTemplateSpecializationRecord(
+          *MethodTemplateSpecialization.second);
+  }
+
+  void traverseClassTemplateRecords() {
+    for (const auto &ClassTemplate : API.getClassTemplates())
+      getDerived()->visitClassTemplateRecord(*ClassTemplate.second);
+  }
+
+  void traverseClassTemplateSpecializationRecords() {
+    for (const auto &ClassTemplateSpecialization :
+         API.getClassTemplateSpecializations())
+      getDerived()->visitClassTemplateSpecializationRecord(
+          *ClassTemplateSpecialization.second);
+  }
+
+  void traverseClassTemplatePartialSpecializationRecords() {
+    for (const auto &ClassTemplatePartialSpecialization :
+         API.getClassTemplatePartialSpecializations())
+      getDerived()->visitClassTemplatePartialSpecializationRecord(
+          *ClassTemplatePartialSpecialization.second);
+  }
+
+  void traverseCXXInstanceMethods() {
+    for (const auto &InstanceMethod : API.getCXXInstanceMethods())
+      getDerived()->visitCXXInstanceMethodRecord(*InstanceMethod.second);
+  }
+
+  void traverseCXXStaticMethods() {
+    for (const auto &InstanceMethod : API.getCXXStaticMethods())
+      getDerived()->visitCXXStaticMethodRecord(*InstanceMethod.second);
+  }
+
+  void traverseCXXFields() {
+    for (const auto &CXXField : API.getCXXFields())
+      getDerived()->visitCXXFieldRecord(*CXXField.second);
+  }
+
+  void traverseCXXFieldTemplates() {
+    for (const auto &CXXFieldTemplate : API.getCXXFieldTemplates())
+      getDerived()->visitCXXFieldTemplateRecord(*CXXFieldTemplate.second);
+  }
+
+  void traverseGlobalVariableTemplateRecords() {
+    for (const auto &GlobalVariableTemplate : API.getGlobalVariableTemplates())
+      getDerived()->visitGlobalVariableTemplateRecord(
+          *GlobalVariableTemplate.second);
+  }
+
+  void traverseGlobalVariableTemplateSpecializationRecords() {
+    for (const auto &GlobalVariableTemplateSpecialization :
+         API.getGlobalVariableTemplateSpecializations())
+      getDerived()->visitGlobalVariableTemplateSpecializationRecord(
+          *GlobalVariableTemplateSpecialization.second);
+  }
+
+  void traverseGlobalVariableTemplatePartialSpecializationRecords() {
+    for (const auto &GlobalVariableTemplatePartialSpecialization :
+         API.getGlobalVariableTemplatePartialSpecializations())
+      getDerived()->visitGlobalVariableTemplatePartialSpecializationRecord(
+          *GlobalVariableTemplatePartialSpecialization.second);
+  }
+
+  void traverseGlobalFunctionTemplateRecords() {
+    for (const auto &GlobalFunctionTemplate : API.getGlobalFunctionTemplates())
+      getDerived()->visitGlobalFunctionTemplateRecord(
+          *GlobalFunctionTemplate.second);
+  }
+
+  void traverseGlobalFunctionTemplateSpecializationRecords() {
+    for (const auto &GlobalFunctionTemplateSpecialization :
+         API.getGlobalFunctionTemplateSpecializations())
+      getDerived()->visitGlobalFunctionTemplateSpecializationRecord(
+          *GlobalFunctionTemplateSpecialization.second);
+  }
+
+  void traverseConcepts() {
+    for (const auto &Concept : API.getConcepts())
+      getDerived()->visitConceptRecord(*Concept.second);
+  }
+
   void traverseObjCInterfaces() {
     for (const auto &Interface : API.getObjCInterfaces())
       getDerived()->visitObjCContainerRecord(*Interface.second);
@@ -116,6 +235,40 @@ public:
   void visitStaticFieldRecord(const StaticFieldRecord &Record){};
 
   void visitCXXClassRecord(const CXXClassRecord &Record){};
+
+  void visitClassTemplateRecord(const ClassTemplateRecord &Record){};
+
+  void visitClassTemplateSpecializationRecord(
+      const ClassTemplateSpecializationRecord &Record){};
+
+  void visitClassTemplatePartialSpecializationRecord(
+      const ClassTemplatePartialSpecializationRecord &Record){};
+
+  void visitCXXInstanceRecord(const CXXInstanceMethodRecord &Record){};
+
+  void visitCXXStaticRecord(const CXXStaticMethodRecord &Record){};
+
+  void visitMethodTemplateRecord(const CXXMethodTemplateRecord &Record){};
+
+  void visitMethodTemplateSpecializationRecord(
+      const CXXMethodTemplateSpecializationRecord &Record){};
+
+  void visitCXXFieldTemplateRecord(const CXXFieldTemplateRecord &Record){};
+
+  void visitGlobalVariableTemplateRecord(
+      const GlobalVariableTemplateRecord &Record) {}
+
+  void visitGlobalVariableTemplateSpecializationRecord(
+      const GlobalVariableTemplateSpecializationRecord &Record){};
+
+  void visitGlobalVariableTemplatePartialSpecializationRecord(
+      const GlobalVariableTemplatePartialSpecializationRecord &Record){};
+
+  void visitGlobalFunctionTemplateRecord(
+      const GlobalFunctionTemplateRecord &Record){};
+
+  void visitGlobalFunctionTemplateSpecializationRecord(
+      const GlobalFunctionTemplateSpecializationRecord &Record){};
 
   /// Visit an Objective-C container record.
   void visitObjCContainerRecord(const ObjCContainerRecord &Record){};

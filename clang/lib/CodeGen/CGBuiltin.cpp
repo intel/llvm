@@ -1932,9 +1932,8 @@ static Value *EmitOverflowCheckedAbs(CodeGenFunction &CGF, const CallExpr *E,
 
   // Try to eliminate overflow check.
   if (const auto *VCI = dyn_cast<llvm::ConstantInt>(ArgValue)) {
-    if (!VCI->isMinSignedValue()) {
+    if (!VCI->isMinSignedValue())
       return EmitAbs(CGF, ArgValue, true);
-    }
   }
 
   CodeGenFunction::SanitizerScope SanScope(&CGF);
@@ -2852,6 +2851,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
       }
       [[fallthrough]];
     case LangOptions::SOB_Trapping:
+      // TODO: Somehow handle the corner case when the address of abs is taken.
       Result = EmitOverflowCheckedAbs(*this, E, SanitizeOverflow);
       break;
     }

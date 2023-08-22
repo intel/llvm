@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm %s -o - -fwrapv -fsanitize=signed-integer-overflow | FileCheck %s --check-prefix=WRAPV
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm %s -o - -ftrapv | FileCheck %s --check-prefixes=BOTH-TRAP,TRAPV
-// RUN: %clang_cc1 -triple x86_64-unknown-unknown -emit-llvm %s -o - -fsanitize=signed-integer-overflow | FileCheck %s --check-prefixes=BOTH-TRAP,CATCH_UB
+// RUN: %clang_cc1 -triple x86_64 -emit-llvm %s -o - -fwrapv -fsanitize=signed-integer-overflow | FileCheck %s --check-prefix=WRAPV
+// RUN: %clang_cc1 -triple x86_64 -emit-llvm %s -o - -ftrapv | FileCheck %s --check-prefixes=BOTH-TRAP,TRAPV
+// RUN: %clang_cc1 -triple x86_64 -emit-llvm %s -o - -fsanitize=signed-integer-overflow | FileCheck %s --check-prefixes=BOTH-TRAP,CATCH_UB
 // COM: TODO: Support -ftrapv-handler.
 
 extern int abs(int x);
