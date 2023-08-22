@@ -193,11 +193,17 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 
 std::shared_ptr<node_impl>
 graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
+  // Copy deps so we can modify them
+  auto Deps = Dep;
+
   const std::shared_ptr<node_impl> &NodeImpl = std::make_shared<node_impl>();
 
+  // Add any deps from the vector of extra dependencies
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
   // TODO: Encapsulate in separate function to avoid duplication
-  if (!Dep.empty()) {
-    for (auto &N : Dep) {
+  if (!Deps.empty()) {
+    for (auto &N : Deps) {
       N->registerSuccessor(NodeImpl, N); // register successor
       this->removeRoot(NodeImpl);        // remove receiver from root node
                                          // list
@@ -218,6 +224,13 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   sycl::handler Handler{Impl};
   CGF(Handler);
   Handler.finalize();
+
+  if (Handler.MCGType == sycl::detail::CG::Barrier) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
+        "SYCL Graph Explicit API. Please use empty nodes instead.");
+  }
 
   // If the handler recorded a subgraph return that here as the relevant nodes
   // have already been added. The node returned here is an empty node with
@@ -293,6 +306,9 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   // list
   Deps.insert(Deps.end(), UniqueDeps.begin(), UniqueDeps.end());
 
+  // Add any deps from the extra dependencies vector
+  Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
+
   const std::shared_ptr<node_impl> &NodeImpl =
       std::make_shared<node_impl>(CGType, std::move(CommandGroup));
   if (!Deps.empty()) {
@@ -304,6 +320,12 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   } else {
     this->addRoot(NodeImpl);
   }
+
+  // Set barrier nodes as prerequisites (new start points) for subsequent nodes
+  if (CGType == sycl::detail::CG::Barrier) {
+    MExtraDependencies.push_back(NodeImpl);
+  }
+
   return NodeImpl;
 }
 
@@ -413,6 +435,20 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
     }
   }
   removeRoot(Dest); // remove receiver from root node list
+}
+
+std::vector<sycl::detail::EventImplPtr> graph_impl::getExitNodesEvents() {
+  std::vector<sycl::detail::EventImplPtr> Events;
+  auto EnqueueExitNodesEvents = [&](std::shared_ptr<node_impl> &Node,
+                                    std::deque<std::shared_ptr<node_impl>> &) {
+    if (Node->MSuccessors.size() == 0) {
+      Events.push_back(getEventForNode(Node));
+    }
+    return false;
+  };
+
+  searchDepthFirst(EnqueueExitNodesEvents);
+  return Events;
 }
 
 // Check if nodes are empty and if so loop back through predecessors until we
