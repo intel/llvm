@@ -28,7 +28,9 @@ on:
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda --enable-esimd-emulator"
+        #Temporarily disable extra builds until opaque pointer is supported.
+        default: ""
+        #default: "--hip --cuda --enable-esimd-emulator"
       build_artifact_suffix:
         type: string
         required: true
@@ -82,7 +84,9 @@ on:
       build_configure_extra_args:
         type: choice
         options:
-          - "--hip --cuda --enable-esimd-emulator"
+          #Temporarily disable extra builds until opaque pointer is supported.
+          - ""
+          #- "--hip --cuda --enable-esimd-emulator"
       # Cache properties need to match CC/CXX/CMake opts. Any additional choices
       # would need extra care.
       build_cache_root:

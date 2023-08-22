@@ -126,7 +126,8 @@ def do_configure(args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
-        if sys.platform != "darwin":
+        # Temporarily disable extra builds until opaque pointer is supported.
+        if False and sys.platform != "darwin":
             # libclc is required for CI validation
             if 'libclc' not in llvm_enable_projects:
                 llvm_enable_projects += ';libclc'
