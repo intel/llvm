@@ -476,7 +476,7 @@ node.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::property::node
+namespace sycl::ext::oneapi::experimental::property::node {
 class depends_on {
   public:
     template<typename... NodeTN>
@@ -1376,14 +1376,24 @@ submitted in its entirety for execution via
 [source, c++]
 ----
   using namespace sycl;
+  namespace sycl_ext = sycl::ext::oneapi::experimental;
+
   queue q{default_selector{}};
 
-  // New object representing graph of command-groups
-  ext::oneapi::experimental::command_graph graph(q.get_context(), q.get_device());
+  // Lifetime of buffers must exceed the lifetime of graphs they are used in.
+  buffer<T> bufferA{dataA.data(), range<1>{elements}};
+  bufferA.set_write_back(false);
+  buffer<T> bufferB{dataB.data(), range<1>{elements}};
+  bufferB.set_write_back(false);
+  buffer<T> bufferC{dataC.data(), range<1>{elements}};
+  bufferC.set_write_back(false);
+
   {
-    buffer<T> bufferA{dataA.data(), range<1>{elements}};
-    buffer<T> bufferB{dataB.data(), range<1>{elements}};
-    buffer<T> bufferC{dataC.data(), range<1>{elements}};
+    // New object representing graph of command-groups
+    sycl_ext::command_graph graph(q.get_context(), q.get_device(),
+          {sycl_ext::property::graph::assume_buffer_outlives_graph{},
+           sycl_ext::property::graph::assume_data_outlives_buffer{}});
+
 
     // `q` will be put in the recording state where commands are recorded to
     // `graph` rather than submitted for execution immediately.
@@ -1433,17 +1443,23 @@ submitted in its entirety for execution via
     // queue `q` will be returned to the executing state where commands are
     // submitted immediately for extension.
     graph.end_recording();
+
+    // Finalize the modifiable graph to create an executable graph that can be
+    // submitted for execution.
+    auto exec_graph = graph.finalize();
+
+    // Execute graph
+    q.submit([&](handler& cgh) {
+      cgh.ext_oneapi_graph(exec_graph);
+    }).wait();
   }
 
-  // Finalize the modifiable graph to create an executable graph that can be
-  // submitted for execution.
-  auto exec_graph = graph.finalize();
+  // Check output using host accessors
+  host_accessor hostAccA(bufferA);
+  host_accessor hostAccB(bufferB);
+  host_accessor hostAccC(bufferC);
 
-  // Execute graph
-  q.submit([&](handler& cgh) {
-    cgh.ext_oneapi_graph(exec_graph);
-  });
-
+  ...
 ----
 
 == Future Direction [[future-direction]]
