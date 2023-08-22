@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/annotated_usm/alloc_base.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_usm/alloc_base.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -52,9 +52,10 @@ aligned_alloc_device_annotated(size_t alignment, size_t count,
                                const device &syclDevice,
                                const context &syclContext,
                                const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(aligned_alloc_device_annotated(alignment, count * sizeof(T),
-                                              syclDevice, syclContext, propList)
-              .get())};
+  return {static_cast<T *>(
+      aligned_alloc_device_annotated(alignment, count * sizeof(T), syclDevice,
+                                     syclContext, propList)
+          .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -111,9 +112,10 @@ std::enable_if_t<
 malloc_device_annotated(size_t count, const device &syclDevice,
                         const context &syclContext,
                         const propertyListA &propList = properties{}) {
-  return {static_cast<T *>(malloc_device_annotated(count * sizeof(T), syclDevice,
-                                       syclContext, propList)
-              .get())};
+  return {
+      static_cast<T *>(malloc_device_annotated(count * sizeof(T), syclDevice,
+                                               syclContext, propList)
+                           .get())};
 }
 
 template <typename propertyListA = detail::empty_properties_t,
@@ -143,5 +145,5 @@ malloc_device_annotated(size_t count, const queue &syclQueue,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

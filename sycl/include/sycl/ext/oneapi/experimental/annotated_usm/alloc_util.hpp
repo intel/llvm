@@ -9,10 +9,10 @@
 #pragma once
 
 #include <numeric>
-#include <sycl/ext/oneapi/annotated_arg/properties.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -20,6 +20,43 @@ namespace experimental {
 using alloc = sycl::usm::alloc;
 using usm_buffer_location =
     ext::intel::experimental::property::usm::buffer_location;
+using namespace ext::intel::experimental;
+
+//===----------------------------------------------------------------------===//
+//        Specific properties of annotated_ptr
+//===----------------------------------------------------------------------===//
+struct usm_kind_key {
+  template <alloc Kind>
+  using value_t =
+      property_value<usm_kind_key, std::integral_constant<alloc, Kind>>;
+};
+
+template <alloc Kind> inline constexpr usm_kind_key::value_t<Kind> usm_kind;
+
+template <> struct is_property_key<usm_kind_key> : std::true_type {};
+
+template <typename T, alloc Kind>
+struct is_valid_property<T, usm_kind_key::value_t<Kind>>
+    : std::bool_constant<std::is_pointer<T>::value> {};
+
+template <typename T, typename PropertyListT>
+struct is_property_key_of<usm_kind_key, annotated_ptr<T, PropertyListT>>
+    : std::true_type {};
+
+namespace detail {
+
+template <> struct PropertyToKind<usm_kind_key> {
+  static constexpr PropKind Kind = PropKind::UsmKind;
+};
+
+template <> struct IsCompileTimeProperty<usm_kind_key> : std::true_type {};
+
+template <alloc Kind> struct PropertyMetaInfo<usm_kind_key::value_t<Kind>> {
+  static constexpr const char *name = "sycl-usm-kind";
+  static constexpr alloc value = Kind;
+};
+
+} // namespace detail
 
 ////
 //  Type traits for USM allocation with property support
@@ -234,5 +271,5 @@ inline void check_host_aspect(const context &syclContext) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

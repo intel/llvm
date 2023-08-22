@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/annotated_arg/annotated_ptr.hpp>
+#include <sycl/ext/oneapi/experimental/annotated_ptr/annotated_ptr.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -32,5 +32,5 @@ void free(annotated_ptr<T, propList> &ptr, const queue &syclQueue) {
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
