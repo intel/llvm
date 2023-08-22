@@ -1355,7 +1355,8 @@ struct NDRangeReduction<
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
-          DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
+          DoReducePartialSumsInLastWG[0] =
+              ++NFinished == static_cast<int>(NWorkGroups);
         }
 
         workGroupBarrier();
