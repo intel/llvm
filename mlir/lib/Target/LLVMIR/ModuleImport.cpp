@@ -558,10 +558,17 @@ LogicalResult ModuleImport::convertMetadata() {
 }
 
 LogicalResult ModuleImport::convertComdats() {
+  auto &comdatSymbolTable = llvmModule->getComdatSymbolTable();
+  if (comdatSymbolTable.empty())
+    // COMDAT can be omitted from the LLVM module. Return early in this case to
+    // avoid creating an empty global operation, which could cause verification
+    // to fail.
+    return success();
+
   ComdatOp comdat = getGlobalComdatOp();
   OpBuilder::InsertionGuard guard(builder);
   builder.setInsertionPointToEnd(&comdat.getBody().back());
-  for (auto &kv : llvmModule->getComdatSymbolTable()) {
+  for (auto &kv : comdatSymbolTable) {
     StringRef name = kv.getKey();
     llvm::Comdat::SelectionKind selector = kv.getValue().getSelectionKind();
     builder.create<ComdatSelectorOp>(mlirModule.getLoc(), name,
