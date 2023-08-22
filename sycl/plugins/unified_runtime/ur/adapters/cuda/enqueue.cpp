@@ -1294,8 +1294,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   if (!IsPinned && (Mem->getMapFlags() & UR_MAP_FLAG_WRITE)) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, Mem->getMapOffset(), Mem->getSize(),
-        pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, hMem, true, Mem->getMapOffset(), Mem->getSize(), pMappedPtr,
+        numEventsInWaitList, phEventWaitList, phEvent);
   } else {
     ScopedDevice Active(hQueue->getDevice());
 
