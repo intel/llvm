@@ -81,7 +81,6 @@ def ApplyLowerBroadcastPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerContractionPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_contraction",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -119,8 +118,11 @@ def ApplyLowerMaskedTransfersPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_masked_transfers",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
   let description = [{
-    Indicates that masked vector.transfer and vector.gather operations should
-    be lowered to finer-grained vector primitives.
+    Apply opt-in patterns that lower vector.mask operations surrounding 
+    side-effecting ops:
+      - MaskedTransferReadOpPattern
+      - MaskedTransferWriteOpPattern
+      - MaskedGatherOpPattern
 
     This is usually a late step that is run after bufferization as part of the
     process of lowering to e.g. LLVM or NVVM.
@@ -143,7 +145,6 @@ def ApplyMaterializeMasksPatternsOp : Op<Transform_Dialect,
   let assemblyFormat = "attr-dict";
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerMultiReductionPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_multi_reduction",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -232,7 +233,6 @@ def ApplyLowerTransferPatternsOp : Op<Transform_Dialect,
   }];
 }
 
-// TODO: evolve lowering_strategy to proper enums.
 def ApplyLowerTransposePatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.lower_transpose",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -259,7 +259,6 @@ def ApplyLowerTransposePatternsOp : Op<Transform_Dialect,
   }];
 }
 
-// TODO: evolve split_transfer_strategy to proper enums.
 def ApplySplitTransferFullPartialPatternsOp : Op<Transform_Dialect,
     "apply_patterns.vector.split_transfer_full_partial",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
@@ -306,13 +305,31 @@ def ApplyTransferToScfPatternsOp : Op<Transform_Dialect,
   }];
 }
 
-def ApplyFoldTensorSliceIntoTransferPatternsOp : Op<Transform_Dialect,
-    "apply_patterns.vector.fold_tensor_slice_into_transfer",
+def ApplyFoldArithExtensionPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.fold_arith_extension",
     [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
   let description = [{
-    Indicates that tensor.extract_slice -> vector.transfer_read and
-    vector.transfer_write -> tensor.insert_slice op chains should be folded into
-    vector tranfer read and write ops
+    Collect a set of patterns that fold arithmetic extension on floating point
+    into vector contract for the backends with native support.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
+def ApplyVectorReductionToContractPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.vector.reduction_to_contract",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Apply opt-in patterns that convert reductions to contract:
+      - MultiReduceToContract
+      - CombineContractBroadcast
+      - CombineContractABTranspose
+      - CombineContractResultTranspose
+      - ReorderCastOpsOnBroadcast
+      - ReorderElementwiseOpsOnTranspose
+
+    These patterns have the effect of rewriting a vector.multi_reduce into a 
+    vector.contract.
   }];
 
   let assemblyFormat = "attr-dict";

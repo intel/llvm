@@ -235,7 +235,6 @@ event handler::finalize() {
 
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -249,6 +248,9 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
+            // Capture the host timestamp for profiling (queue time)
+            if (NewEvent != nullptr)
+              NewEvent->setHostEnqueueTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
@@ -258,7 +260,7 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, OutEvent,
+                                 MKernel, MKernelName, RawEvents, NewEvent,
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
@@ -285,8 +287,6 @@ event handler::finalize() {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
-        OutEvent = &NewEvent->getHandleRef();
-
         NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
@@ -795,6 +795,9 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 }
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_enqueue_barrier>();
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
@@ -889,6 +892,9 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
 void handler::ext_oneapi_copy(
     void *Src, ext::oneapi::experimental::image_mem_handle Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -922,7 +928,9 @@ void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
-
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest.raw_handle;
 
@@ -955,6 +963,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     ext::oneapi::experimental::image_mem_handle Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -988,6 +999,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
     sycl::range<3> DestOffset, sycl::range<3> DestExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src.raw_handle;
   MDstPtr = Dest;
 
@@ -1020,6 +1034,9 @@ void handler::ext_oneapi_copy(
 void handler::ext_oneapi_copy(
     void *Src, void *Dest,
     const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1055,6 +1072,9 @@ void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
     size_t DeviceRowPitch, sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = Src;
   MDstPtr = Dest;
 
@@ -1088,6 +1108,9 @@ void handler::ext_oneapi_copy(
 
 void handler::ext_oneapi_wait_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreWait);
@@ -1095,6 +1118,9 @@ void handler::ext_oneapi_wait_external_semaphore(
 
 void handler::ext_oneapi_signal_external_semaphore(
     sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MImpl->MInteropSemaphoreHandle =
       (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
   setType(detail::CG::SemaphoreSignal);
@@ -1102,6 +1128,9 @@ void handler::ext_oneapi_signal_external_semaphore(
 
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
+
+  throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                             UnsupportedGraphFeatures::sycl_kernel_bundle>();
 
   std::shared_ptr<detail::queue_impl> PrimaryQueue =
       MImpl->MSubmissionPrimaryQueue;
