@@ -167,9 +167,9 @@ if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
 endif()
 if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_PI_LEVEL_ZERO ON)
+endif()
 if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
   set(SYCL_BUILD_NATIVE_CPU ON)
-endif()
 endif()
 
 # Configure SYCL version macro
@@ -179,13 +179,36 @@ set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+
+# Generate SYCL builtins
+find_package(Python3 REQUIRED)
+add_custom_command(
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/builtins_generator.py
+  OUTPUT "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
+         "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
+         "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
+  COMMENT "Generating SYCL builtin headers"
+)
+
+add_custom_target(sycl-builtins-header
+  DEPENDS "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
+          "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
+          "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
+)
+
+# Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_scalar_gen.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_vector_gen.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/builtins_marray_gen.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
 include(AddBoostMp11Headers)
+include(FetchBoostUnorderedHeaders)
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -193,30 +216,40 @@ include(AddBoostMp11Headers)
 file(GLOB_RECURSE HEADERS_IN_SYCL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/sycl/*")
 file(GLOB_RECURSE HEADERS_IN_CL_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/CL/*")
 file(GLOB_RECURSE HEADERS_IN_STD_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/std/*")
+file(GLOB_RECURSE HEADERS_IN_SYCLCOMPAT_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/syclcompat/*" "${sycl_inc_dir}/syclcompat.hpp")
+
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
 string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
   OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
+string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
+  OUT_HEADERS_IN_SYCLCOMPAT_DIR "${HEADERS_IN_SYCLCOMPAT_DIR}")
 
 # Copy SYCL headers from sources to build directory
 add_custom_target(sycl-headers
   DEPENDS ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
+          ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          sycl-builtins-header
           boost_mp11-headers)
 
 add_custom_command(
   OUTPUT  ${OUT_HEADERS_IN_SYCL_DIR}
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
+          ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
   DEPENDS ${HEADERS_IN_SYCL_DIR}
           ${HEADERS_IN_CL_DIR}
           ${HEADERS_IN_STD_DIR}
+          ${HEADERS_IN_SYCLCOMPAT_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
+  COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
@@ -224,6 +257,8 @@ install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONE
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
+install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
+install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)
   set(SYCL_RT_LIBS sycl${SYCL_MAJOR_VERSION})

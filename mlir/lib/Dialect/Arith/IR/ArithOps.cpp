@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -25,6 +26,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -33,18 +35,29 @@ using namespace mlir::arith;
 // Pattern helpers
 //===----------------------------------------------------------------------===//
 
+static IntegerAttr
+applyToIntegerAttrs(PatternRewriter &builder, Value res, Attribute lhs,
+                    Attribute rhs,
+                    function_ref<int64_t(int64_t, int64_t)> binFn) {
+  return builder.getIntegerAttr(res.getType(),
+                                binFn(llvm::cast<IntegerAttr>(lhs).getInt(),
+                                      llvm::cast<IntegerAttr>(rhs).getInt()));
+}
+
 static IntegerAttr addIntegerAttrs(PatternRewriter &builder, Value res,
                                    Attribute lhs, Attribute rhs) {
-  return builder.getIntegerAttr(res.getType(),
-                                llvm::cast<IntegerAttr>(lhs).getInt() +
-                                    llvm::cast<IntegerAttr>(rhs).getInt());
+  return applyToIntegerAttrs(builder, res, lhs, rhs, std::plus<int64_t>());
 }
 
 static IntegerAttr subIntegerAttrs(PatternRewriter &builder, Value res,
                                    Attribute lhs, Attribute rhs) {
-  return builder.getIntegerAttr(res.getType(),
-                                llvm::cast<IntegerAttr>(lhs).getInt() -
-                                    llvm::cast<IntegerAttr>(rhs).getInt());
+  return applyToIntegerAttrs(builder, res, lhs, rhs, std::minus<int64_t>());
+}
+
+static IntegerAttr mulIntegerAttrs(PatternRewriter &builder, Value res,
+                                   Attribute lhs, Attribute rhs) {
+  return applyToIntegerAttrs(builder, res, lhs, rhs,
+                             std::multiplies<int64_t>());
 }
 
 /// Invert an integer comparison predicate.
@@ -117,13 +130,10 @@ namespace {
 /// Return the type of the same shape (scalar, vector or tensor) containing i1.
 static Type getI1SameShape(Type type) {
   auto i1Type = IntegerType::get(type.getContext(), 1);
-  if (auto tensorType = llvm::dyn_cast<RankedTensorType>(type))
-    return RankedTensorType::get(tensorType.getShape(), i1Type);
+  if (auto shapedType = llvm::dyn_cast<ShapedType>(type))
+    return shapedType.cloneWith(std::nullopt, i1Type);
   if (llvm::isa<UnrankedTensorType>(type))
     return UnrankedTensorType::get(i1Type);
-  if (auto vectorType = llvm::dyn_cast<VectorType>(type))
-    return VectorType::get(vectorType.getShape(), i1Type,
-                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -379,6 +389,11 @@ OpFoldResult arith::MulIOp::fold(FoldAdaptor adaptor) {
   return constFoldBinaryOp<IntegerAttr>(
       adaptor.getOperands(),
       [](const APInt &a, const APInt &b) { return a * b; });
+}
+
+void arith::MulIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<MulIMulIConstant>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1094,6 +1109,42 @@ OpFoldResult arith::RemFOp::fold(FoldAdaptor adaptor) {
                                       });
 }
 
+static Attribute getBoolAttribute(Type type, MLIRContext *ctx, bool value) {
+  auto boolAttr = BoolAttr::get(ctx, value);
+  ShapedType shapedType = llvm::dyn_cast_or_null<ShapedType>(type);
+  if (!shapedType)
+    return boolAttr;
+  return DenseElementsAttr::get(shapedType, boolAttr);
+}
+
+//===----------------------------------------------------------------------===//
+// IsNanOp
+//===----------------------------------------------------------------------===//
+OpFoldResult IsNanOp::fold(FoldAdaptor adaptor) {
+  if (bitEnumContainsAll(getFastmath(), FastMathFlags::nnan))
+    return getBoolAttribute(getType(), getContext(), false);
+  return constFoldCastOp<FloatAttr, IntegerAttr>(
+      adaptor.getOperands(), getType(),
+      [](const APFloat &x, bool &success) -> APInt {
+        success = true;
+        return APInt(1, x.isNaN());
+      });
+}
+
+//===----------------------------------------------------------------------===//
+// IsInfOp
+//===----------------------------------------------------------------------===//
+OpFoldResult IsInfOp::fold(FoldAdaptor adaptor) {
+  if (bitEnumContainsAll(getFastmath(), FastMathFlags::ninf))
+    return getBoolAttribute(getType(), getContext(), false);
+  return constFoldCastOp<FloatAttr, IntegerAttr>(
+      adaptor.getOperands(), getType(),
+      [](const APFloat &x, bool &success) -> APInt {
+        success = true;
+        return APInt(1, x.isInfinity());
+      });
+}
+
 //===----------------------------------------------------------------------===//
 // Utility functions for verifying cast ops
 //===----------------------------------------------------------------------===//
@@ -1132,9 +1183,21 @@ static Type getTypeIfLikeOrMemRef(Type type) {
                            type_list<ElementTypes...>());
 }
 
+/// Return false if both types are ranked tensor with mismatching encoding.
+static bool hasSameEncoding(Type typeA, Type typeB) {
+  auto rankedTensorA = dyn_cast<RankedTensorType>(typeA);
+  auto rankedTensorB = dyn_cast<RankedTensorType>(typeB);
+  if (!rankedTensorA || !rankedTensorB)
+    return true;
+  return rankedTensorA.getEncoding() == rankedTensorB.getEncoding();
+}
+
 static bool areValidCastInputsAndOutputs(TypeRange inputs, TypeRange outputs) {
-  return inputs.size() == 1 && outputs.size() == 1 &&
-         succeeded(verifyCompatibleShapes(inputs.front(), outputs.front()));
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  if (!hasSameEncoding(inputs.front(), outputs.front()))
+    return false;
+  return succeeded(verifyCompatibleShapes(inputs.front(), outputs.front()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -1630,14 +1693,6 @@ static bool applyCmpPredicateToEqualOperands(arith::CmpIPredicate predicate) {
     return false;
   }
   llvm_unreachable("unknown cmpi predicate kind");
-}
-
-static Attribute getBoolAttribute(Type type, MLIRContext *ctx, bool value) {
-  auto boolAttr = BoolAttr::get(ctx, value);
-  ShapedType shapedType = llvm::dyn_cast_or_null<ShapedType>(type);
-  if (!shapedType)
-    return boolAttr;
-  return DenseElementsAttr::get(shapedType, boolAttr);
 }
 
 static std::optional<int64_t> getIntegerWidth(Type t) {
@@ -2375,6 +2430,38 @@ TypedAttr mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
     break;
   }
   return nullptr;
+}
+
+/// Return the identity numeric value associated to the give op.
+std::optional<TypedAttr> mlir::arith::getNeutralElement(Operation *op) {
+  std::optional<AtomicRMWKind> maybeKind =
+      llvm::TypeSwitch<Operation *, std::optional<AtomicRMWKind>>(op)
+          // Floating-point operations.
+          .Case([](arith::AddFOp op) { return AtomicRMWKind::addf; })
+          .Case([](arith::MulFOp op) { return AtomicRMWKind::mulf; })
+          .Case([](arith::MaxFOp op) { return AtomicRMWKind::maxf; })
+          .Case([](arith::MinFOp op) { return AtomicRMWKind::minf; })
+          // Integer operations.
+          .Case([](arith::AddIOp op) { return AtomicRMWKind::addi; })
+          .Case([](arith::OrIOp op) { return AtomicRMWKind::ori; })
+          .Case([](arith::XOrIOp op) { return AtomicRMWKind::ori; })
+          .Case([](arith::AndIOp op) { return AtomicRMWKind::andi; })
+          .Case([](arith::MaxUIOp op) { return AtomicRMWKind::maxu; })
+          .Case([](arith::MinUIOp op) { return AtomicRMWKind::minu; })
+          .Case([](arith::MaxSIOp op) { return AtomicRMWKind::maxs; })
+          .Case([](arith::MinSIOp op) { return AtomicRMWKind::mins; })
+          .Case([](arith::MulIOp op) { return AtomicRMWKind::muli; })
+          .Default([](Operation *op) { return std::nullopt; });
+  if (!maybeKind) {
+    op->emitError() << "Unknown neutral element for: " << *op;
+    return std::nullopt;
+  }
+
+  // Builder only used as helper for attribute creation.
+  OpBuilder b(op->getContext());
+  Type resultType = op->getResult(0).getType();
+
+  return getIdentityValueAttr(*maybeKind, resultType, b, op->getLoc());
 }
 
 /// Returns the identity value associated with an AtomicRMWKind op.

@@ -36,8 +36,6 @@ export namespace std::filesystem {
   using std::filesystem::recursive_directory_iterator;
 
   // [fs.rec.dir.itr.nonmembers], range access for recursive directory iterators
-  using std::filesystem::begin;
-  using std::filesystem::end;
 
   // [fs.class.file.status], file status
   using std::filesystem::file_status;
@@ -112,11 +110,11 @@ export namespace std::filesystem {
 } // namespace std::filesystem
 
 // [fs.path.hash], hash support
-namespace std {
+export namespace std {
   using std::hash;
 }
 
-namespace std::ranges {
+export namespace std::ranges {
   using std::ranges::enable_borrowed_range;
   using std::ranges::enable_view;
 } // namespace std::ranges
