@@ -22,8 +22,8 @@ See the SYCL dialect documentation for more information on each operation.
 ### Lowering
 
 The ND-range operations lower to platform-specific built-ins, e.g., SPIR-V
-built-ins and the necessary casts. If the array subscript order differs, this
-should be taken into account.
+built-ins and the necessary casts. If the array subscript order differs, this is
+taken into account.
 
 ### Design decisions
 
