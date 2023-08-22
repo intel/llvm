@@ -27,7 +27,7 @@ include(AddSYCLUnitTest)
 add_custom_target(check-sycl-unittests)
 
 # TODO PI tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_PI_TESTS "Enable PI-specific unit tests" ON)
+option(SYCL_PI_TESTS "Enable PI-specific unit tests" OFF)
 
 if (SYCL_PI_TESTS)
   add_subdirectory(pi)
