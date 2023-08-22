@@ -248,7 +248,10 @@ Error SYCLInternalizerImpl::canPromoteGEP(GetElementPtrInst *GEPI,
     // required.
     return Error::success();
   }
-  // Recurse to check all users of the GEP.
+  // Recurse to check all users of the GEP. We are either already in
+  // `InAggregate` mode, or inspect the current instruction. Recall that a GEP's
+  // first index is used to step through the base pointer, whereas any
+  // additional indices represent addressing into an aggregrate type.
   return canPromoteValue(GEPI, LocalSize,
                          InAggregate || GEPI->getNumIndices() >= 2);
 }
@@ -372,6 +375,10 @@ void SYCLInternalizerImpl::promoteGEPI(GetElementPtrInst *GEPI,
     auto *ValTy = cast<PointerType>(Val->getType());
     GEPI->mutateType(PointerType::getWithSamePointeeType(
         cast<PointerType>(GEPI->getType()), ValTy->getAddressSpace()));
+    // Recurse to promote to all users of the GEP. We are either already in
+    // `InAggregate` mode, or inspect the current instruction. Recall that a
+    // GEP's first index is used to step through the base pointer, whereas any
+    // additional indices represent addressing into an aggregrate type.
     return promoteValue(GEPI, LocalSize,
                         InAggregate || GEPI->getNumIndices() >= 2);
   }
