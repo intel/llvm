@@ -275,8 +275,8 @@ convertOperatorToInstr(Operator *Op, Instruction *I) {
                                         Indices, "ncpu_gep", I);
 
   } else {
-    // Todo: proper error
-    assert(false);
+    report_fatal_error("Error while processing operators for Native CPU ",
+                       false);
   }
   Op->replaceUsesWithIf(NewInst, [&](Use &U) { return U.getUser() == I; });
   // If the new instruction is used by a constant expr, return the new pair

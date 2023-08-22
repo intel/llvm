@@ -43,7 +43,6 @@
 #include "Targets/XCore.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/DiagnosticFrontend.h"
-#include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/TargetParser/Triple.h"
 
