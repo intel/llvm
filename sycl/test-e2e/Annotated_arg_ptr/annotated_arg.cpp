@@ -12,21 +12,21 @@ struct test {
 int main() {
   queue Q;
 
-  auto *a = malloc_share<int>(8, Q);
+  auto *a = malloc_shared<int>(8, Q);
   auto a_ptr = annotated_arg{a};
   for (int i = 0; i < 8; i++)
     a_ptr[i] = i;
 
-  auto *b = malloc_share<int>(4, Q);
+  auto *b = malloc_shared<int>(4, Q);
   auto b_ptr = annotated_arg{b};
 
-  auto *c = malloc_share<test>(1, Q);
-  c->b = malloc_share<int>(1, Q);
+  auto *c = malloc_shared<test>(1, Q);
+  c->b = malloc_shared<int>(1, Q);
   auto c_ptr = annotated_arg{c};
   c_ptr->a = 0;
   c_ptr->b[0] = 0;
 
-  auto *d = malloc_share<int>(4, Q);
+  auto *d = malloc_shared<int>(4, Q);
   auto d_ptr = annotated_arg{d};
   for (int i = 0; i < 4; i++)
     d_ptr[i] = i;
