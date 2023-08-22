@@ -388,6 +388,8 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     // If we have no requirements or dependent events for the command buffer,
     // enqueue it directly
     if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
+      if (NewEvent != nullptr)
+        NewEvent->setHostEnqueueTime();
       pi_result Res =
           Queue->getPlugin()
               ->call_nocheck<
@@ -422,8 +424,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
         sycl::detail::CGExecKernel *CG =
             static_cast<sycl::detail::CGExecKernel *>(
                 NodeImpl->MCommandGroup.get());
-        NewEvent = CreateNewEvent();
-        sycl::detail::pi::PiEvent *OutEvent = &NewEvent->getHandleRef();
+        auto OutEvent = CreateNewEvent();
         pi_int32 Res = sycl::detail::enqueueImpKernel(
             Queue, CG->MNDRDesc, CG->MArgs,
             // TODO: Handler KernelBundles

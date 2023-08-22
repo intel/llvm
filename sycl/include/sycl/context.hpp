@@ -8,12 +8,27 @@
 
 #pragma once
 
-#include <sycl/async_handler.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/async_handler.hpp>             // for async_handler
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>            // for context_impl
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_context_info_desc
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/device.hpp>                    // for device
+#include <sycl/platform.hpp>                  // for platform
+#include <sycl/property_list.hpp>             // for property_list
+
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr, hash, opera...
+#include <type_traits> // for add_pointer_t
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 // 4.6.2 Context class
 

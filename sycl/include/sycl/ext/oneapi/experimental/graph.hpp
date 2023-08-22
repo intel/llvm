@@ -8,14 +8,17 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/impl_utils.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/context.hpp>                // for context
+#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
+#include <sycl/device.hpp>                 // for device
+#include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
-#include <functional>
-#include <memory>
-#include <vector>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <type_traits> // for true_type
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

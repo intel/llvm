@@ -932,12 +932,14 @@ inline pi_result piPluginGetLastError(char **Message) {
   // reference for the urAdapterGetLastError call, then release it.
   ur_adapter_handle_t Adapter;
   urAdapterGet(1, &Adapter, nullptr);
+  // FIXME: ErrorCode should store a native error, but these are not being used
+  // in CUDA adapter at the moment
   int32_t ErrorCode;
-  urAdapterGetLastError(Adapter, const_cast<const char **>(Message),
-                        &ErrorCode);
+  ur_result_t Res = urAdapterGetLastError(
+      Adapter, const_cast<const char **>(Message), &ErrorCode);
   urAdapterRelease(Adapter);
 
-  return PI_SUCCESS;
+  return ur2piResult(Res);
 }
 
 inline pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
@@ -1382,6 +1384,10 @@ piextDeviceSelectBinary(pi_device Device, // TODO: does this need to be context?
                     __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0)
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_AMDGCN;
+    else if (strcmp(Binaries[BinaryCount]->DeviceTargetSpec,
+                    __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0)
+      UrBinaries[BinaryCount].pDeviceTargetSpec =
+          "native_cpu"; // todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
     else
       UrBinaries[BinaryCount].pDeviceTargetSpec =
           UR_DEVICE_BINARY_TARGET_UNKNOWN;
@@ -1618,7 +1624,6 @@ inline pi_result piextQueueCreateWithNativeHandle(
   PI_ASSERT(Context, PI_ERROR_INVALID_CONTEXT);
   PI_ASSERT(NativeHandle, PI_ERROR_INVALID_VALUE);
   PI_ASSERT(Queue, PI_ERROR_INVALID_QUEUE);
-  PI_ASSERT(Device, PI_ERROR_INVALID_DEVICE);
 
   ur_context_handle_t UrContext =
       reinterpret_cast<ur_context_handle_t>(Context);

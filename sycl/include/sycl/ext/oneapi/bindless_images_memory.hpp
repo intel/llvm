@@ -8,10 +8,16 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/device.hpp>
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
-#include <sycl/image.hpp>
+#include <sycl/context.hpp>                               // for context
+#include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
+#include <sycl/device.hpp>                                // for device
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
+#include <sycl/image.hpp>                                 // for image_chan...
+#include <sycl/range.hpp>                                 // for range
+
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr
+#include <variant> // for hash
 
 namespace sycl {
 inline namespace _V1 {

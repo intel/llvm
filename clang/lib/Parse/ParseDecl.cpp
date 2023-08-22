@@ -1939,6 +1939,7 @@ Parser::DeclGroupPtrTy Parser::ParseSimpleDeclaration(
     RecordDecl *AnonRecord = nullptr;
     Decl *TheDecl = Actions.ParsedFreeStandingDeclSpec(
         getCurScope(), AS_none, DS, ParsedAttributesView::none(), AnonRecord);
+    Actions.ActOnDefinedDeclarationSpecifier(TheDecl);
     DS.complete(TheDecl);
     if (AnonRecord) {
       Decl* decls[] = {AnonRecord, TheDecl};
@@ -1946,6 +1947,9 @@ Parser::DeclGroupPtrTy Parser::ParseSimpleDeclaration(
     }
     return Actions.ConvertDeclToDeclGroup(TheDecl);
   }
+
+  if (DS.hasTagDefinition())
+    Actions.ActOnDefinedDeclarationSpecifier(DS.getRepAsDecl());
 
   if (DeclSpecStart)
     DS.SetRangeStart(*DeclSpecStart);
@@ -2982,6 +2986,8 @@ Parser::getDeclSpecContextFromDeclaratorContext(DeclaratorContext Context) {
     return DeclSpecContext::DSC_condition;
   case DeclaratorContext::ConversionId:
     return DeclSpecContext::DSC_conv_operator;
+  case DeclaratorContext::CXXNew:
+    return DeclSpecContext::DSC_new;
   case DeclaratorContext::Prototype:
   case DeclaratorContext::ObjCResult:
   case DeclaratorContext::ObjCParameter:
@@ -2990,7 +2996,6 @@ Parser::getDeclSpecContextFromDeclaratorContext(DeclaratorContext Context) {
   case DeclaratorContext::Block:
   case DeclaratorContext::ForInit:
   case DeclaratorContext::SelectionInit:
-  case DeclaratorContext::CXXNew:
   case DeclaratorContext::CXXCatch:
   case DeclaratorContext::ObjCCatch:
   case DeclaratorContext::BlockLiteral:
