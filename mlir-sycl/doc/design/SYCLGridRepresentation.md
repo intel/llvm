@@ -17,6 +17,27 @@ These operations query ND-range components such as the number of work items or
 the global id. These can be ND `id` or `range` instances or `i32` scalars,
 depending on the operation.
 
+Note `i32` scalars will only be returned by operations encoding
+sub-group-related information:
+
+- `sycl.num_sub_groups`;
+- `sycl.sub_group_size`;
+- `sycl.sub_group_id`;
+- `sycl.sub_group_local_id`;
+- `sycl.sub_group_max_size`.
+
+This decision was made as, looking [at the SYCL specification for the
+`sub_group`
+class](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sub-group-class),
+we can find homologous member functions for the first four operations returning
+`uint32_t` (represented as `i32` in our dialect). Also, for
+`sycl.sub_group_max_size`, an homologous kernel descriptor of `uint32_t` type
+can be found [in the SYCL
+spec](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_kernel_information_descriptors).
+
+For flavours of `sub_group` member functions returning an `id<1>` or `range<1>`,
+a conversion between `i32` and the target type will be needed.
+
 See the SYCL dialect documentation for more information on each operation.
 
 ### Lowering
