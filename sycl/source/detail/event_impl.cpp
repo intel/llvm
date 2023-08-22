@@ -278,6 +278,11 @@ void event_impl::checkProfilingPreconditions() const {
         "Profiling information is unavailable as the queue associated with "
         "the event does not have the 'enable_profiling' property.");
   }
+  if (MEventFromSubmitedExecCommandBuffer) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Profiling information is unavailable for events "
+                          "returned by a graph submission.");
+  }
 }
 
 template <>
