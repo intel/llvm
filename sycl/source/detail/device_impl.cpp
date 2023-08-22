@@ -630,9 +630,10 @@ uint64_t device_impl::getCurrentDeviceTime() {
 
 bool device_impl::isGetDeviceAndHostTimerSupported() {
   const auto &Plugin = getPlugin();
+  uint64_t DeviceTime = 0, HostTime = 0;
   auto Result =
       Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-          MDevice, &MDeviceHostBaseTime.first, &MDeviceHostBaseTime.second);
+          MDevice, &DeviceTime, &HostTime);
   return Result != PI_ERROR_INVALID_OPERATION;
 }
 

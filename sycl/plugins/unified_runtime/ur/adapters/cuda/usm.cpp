@@ -144,8 +144,12 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
     return Err;
   }
 
+#ifdef NDEBUG
+  std::ignore = Alignment;
+#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
+#endif
   return UR_RESULT_SUCCESS;
 }
 
@@ -161,8 +165,12 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
     return Err;
   }
 
+#ifdef NDEBUG
+  std::ignore = Alignment;
+#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
+#endif
   return UR_RESULT_SUCCESS;
 }
 
@@ -176,8 +184,12 @@ ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
     return Err;
   }
 
+#ifdef NDEBUG
+  std::ignore = Alignment;
+#else
   assert((Alignment == 0 ||
           reinterpret_cast<std::uintptr_t>(*ResultPtr) % Alignment == 0));
+#endif
   return UR_RESULT_SUCCESS;
 }
 

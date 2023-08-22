@@ -538,6 +538,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     auto NewEvent = std::make_shared<sycl::detail::event_impl>(Queue);
     NewEvent->setContextImpl(Queue->getContextImplPtr());
     NewEvent->setStateIncomplete();
+    NewEvent->setEventFromSubmitedExecCommandBuffer(true);
     return NewEvent;
   });
 
@@ -564,7 +565,14 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               ->call_nocheck<
                   sycl::detail::PiApiKind::piextEnqueueCommandBuffer>(
                   CommandBuffer, Queue->getHandleRef(), 0, nullptr, OutEvent);
-      if (Res != pi_result::PI_SUCCESS) {
+      if (Res == pi_result::PI_ERROR_INVALID_QUEUE_PROPERTIES) {
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "Graphs cannot be submitted to a queue which uses "
+            "immediate command lists. Use "
+            "sycl::ext::intel::property::queue::no_immediate_"
+            "command_list to disable them.");
+      } else if (Res != pi_result::PI_SUCCESS) {
         throw sycl::exception(
             errc::event,
             "Failed to enqueue event for command buffer submission");
@@ -678,6 +686,12 @@ modifiable_command_graph::finalize(const sycl::property_list &) const {
 
 bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
+
+  if (QueueImpl->is_in_fusion_mode()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "SYCL queue in kernel in fusion mode "
+                          "can NOT be recorded.");
+  }
 
   if (QueueImpl->get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
