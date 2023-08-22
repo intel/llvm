@@ -71,49 +71,43 @@ struct __nativecpu_state {
 #define __SYCL_NCPU_GLOBAL_AS __attribute((address_space(1)))
 #define __SYCL_HC_ATTRS                                                        \
   __attribute__((weak)) __attribute((alwaysinline))                            \
-  [[intel::device_indirectly_callable]] 
+  [[intel::device_indirectly_callable]]
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_global_id(__SYCL_NCPU_GLOBAL_AS
-                            __nativecpu_state *s) {
+__dpcpp_nativecpu_global_id(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MGlobal_id[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_global_range(__SYCL_NCPU_GLOBAL_AS
-                               __nativecpu_state *s) {
+__dpcpp_nativecpu_global_range(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MGlobal_range[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_get_wg_size(__SYCL_NCPU_GLOBAL_AS
-                              __nativecpu_state *s) {
+__dpcpp_nativecpu_get_wg_size(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MWorkGroup_size[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_get_wg_id(__SYCL_NCPU_GLOBAL_AS
-                            __nativecpu_state *s) {
+__dpcpp_nativecpu_get_wg_id(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MWorkGroup_id[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_get_local_id(__SYCL_NCPU_GLOBAL_AS
-                               __nativecpu_state *s) {
+__dpcpp_nativecpu_get_local_id(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MLocal_id[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_get_num_groups(__SYCL_NCPU_GLOBAL_AS
-                                 __nativecpu_state *s) {
+__dpcpp_nativecpu_get_num_groups(__SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MNumGroups[0]);
 }
 
 extern "C" __SYCL_HC_ATTRS __SYCL_NCPU_GLOBAL_AS size_t *
-__dpcpp_nativecpu_get_global_offset(__SYCL_NCPU_GLOBAL_AS
-                                    __nativecpu_state *s) {
+__dpcpp_nativecpu_get_global_offset(
+    __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return &(s->MGlobalOffset[0]);
 }
 #undef __SYCL_HC_ATTRS
-#undef __SYCL_NCPU_GLOBAL_AS 
+#undef __SYCL_NCPU_GLOBAL_AS
 #endif

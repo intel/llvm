@@ -40,8 +40,8 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <functional>
 #include <numeric>
-#include <utility>
 #include <set>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -409,7 +409,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
   }
-
 
   for (auto &F : M) {
     fixCallingConv(&F);

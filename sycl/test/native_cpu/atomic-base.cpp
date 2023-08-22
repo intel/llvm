@@ -1,4 +1,5 @@
-// Simple test that checks that we can run a simple applications that uses builtins
+// Simple test that checks that we can run a simple applications that uses
+// builtins
 // REQUIRES: native_cpu_be
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
@@ -18,9 +19,9 @@ int add_pre_inc_test(queue q, size_t N) {
       auto sum = sum_buf.template get_access<access::mode::read_write>(cgh);
       cgh.parallel_for(range<1>(N), [=](item<1> it) {
         int gid = it.get_id(0);
-        auto atm = sycl::atomic_ref <int, memory_order::relaxed,
-             scope, space> (sum[0]);
-         ++atm;
+        auto atm =
+            sycl::atomic_ref<int, memory_order::relaxed, scope, space>(sum[0]);
+        ++atm;
       });
     });
   }
@@ -33,10 +34,9 @@ int main() {
   const int N = 10;
   sycl::queue q;
   int res = add_pre_inc_test(q, N);
-  if(res != N) {
+  if (res != N) {
     std::cout << "Error, result is " << res << " but should be " << N << "\n";
     return 1;
   }
   return 0;
 }
-
