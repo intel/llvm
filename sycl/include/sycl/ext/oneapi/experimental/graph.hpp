@@ -44,7 +44,7 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_bindless_images = 7
 };
 
-constexpr const char *
+inline const char *
 UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
   using UGF = UnsupportedGraphFeatures;
   switch (Feature) {
@@ -64,9 +64,10 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
-  default:
-    return {};
   }
+
+  assert(false && "Unhandled graphs feature");
+  return {};
 }
 
 class node_impl;
