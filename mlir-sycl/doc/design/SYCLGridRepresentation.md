@@ -33,9 +33,9 @@ There are two reasons why these were omitted:
 
 1. There is no correspondence with the SYCL specification: The SYCL spec points
    out the compiler should have tools to build kernel-input `id`, `item` and
-   `nd_item`, (these operations are our representation of that)`, but it does
-   not specify that there should be any user-callable function querying this, so
-   no need for that flavor of these operations;
+   `nd_item`, (these operations are our representation of that), but it does not
+   specify that there should be any user-callable function querying this, so no
+   need for that flavor of these operations;
 2. As per the lowering section, a "flip" of the components might be needed when
    lowering. In order to do so, we need to know the **dimensionality** of the
    kernel. As this wouldn't be possible in the general case, unless that is
