@@ -55,27 +55,25 @@ entry:
   %ref.tmp29.sroa.0.i = alloca target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3), align 8
   %agg.tmp15.sroa.0.sroa.2.0..sroa_idx = getelementptr inbounds %"class.sycl::_V1::range", ptr %_arg_accB5, i64 0, i32 0, i32 0, i64 1
   %agg.tmp15.sroa.0.sroa.2.0.copyload = load i64, ptr %agg.tmp15.sroa.0.sroa.2.0..sroa_idx, align 8
-  %0 = getelementptr inbounds %"class.sycl::_V1::id", ptr %_arg_accB6, i64 0, i32 0, i32 0, i64 0
-  %agg.tmp16.sroa.0.sroa.0.0.copyload = load i64, ptr %0, align 8
+  %agg.tmp16.sroa.0.sroa.0.0.copyload = load i64, ptr %_arg_accB6, align 8
   %agg.tmp16.sroa.0.sroa.2.0..sroa_idx = getelementptr inbounds %"class.sycl::_V1::id", ptr %_arg_accB6, i64 0, i32 0, i32 0, i64 1
   %agg.tmp16.sroa.0.sroa.2.0.copyload = load i64, ptr %agg.tmp16.sroa.0.sroa.2.0..sroa_idx, align 8
   %mul.i4.i.i.i.i45 = mul i64 %agg.tmp16.sroa.0.sroa.0.0.copyload, %agg.tmp15.sroa.0.sroa.2.0.copyload
   %add.i6.i.i.i.i46 = add i64 %mul.i4.i.i.i.i45, %agg.tmp16.sroa.0.sroa.2.0.copyload
   %add.ptr.i47 = getelementptr inbounds i8, ptr addrspace(1) %_arg_accB, i64 %add.i6.i.i.i.i46
-  %1 = load <3 x i64>, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32
-  %2 = extractelement <3 x i64> %1, i64 1
-  %3 = extractelement <3 x i64> %1, i64 0
-  %4 = load <3 x i64>, ptr addrspace(1) @__spirv_BuiltInLocalInvocationId, align 32
-  %5 = extractelement <3 x i64> %4, i64 1
-  %6 = extractelement <3 x i64> %4, i64 0
-  %cmp.i.i = icmp ult i64 %2, 2147483648
-  %cmp.i54.i = icmp ult i64 %3, 2147483648
-  %cmp.i56.i = icmp ult i64 %5, 2147483648
-  %sub.i = sub nsw i64 %2, %5
-  %cmp.i58.i = icmp ult i64 %6, 2147483648
-  %sub5.i = sub nsw i64 %3, %6
-  %sub_c.sroa.0.i.0.i.0..sroa_cast = bitcast ptr %sub_c.sroa.0.i to ptr
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %sub_c.sroa.0.i.0.i.0..sroa_cast)
+  %0 = load <3 x i64>, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32
+  %1 = extractelement <3 x i64> %0, i64 1
+  %2 = extractelement <3 x i64> %0, i64 0
+  %3 = load <3 x i64>, ptr addrspace(1) @__spirv_BuiltInLocalInvocationId, align 32
+  %4 = extractelement <3 x i64> %3, i64 1
+  %5 = extractelement <3 x i64> %3, i64 0
+  %cmp.i.i = icmp ult i64 %1, 2147483648
+  %cmp.i54.i = icmp ult i64 %2, 2147483648
+  %cmp.i56.i = icmp ult i64 %4, 2147483648
+  %sub.i = sub nsw i64 %1, %4
+  %cmp.i58.i = icmp ult i64 %5, 2147483648
+  %sub5.i = sub nsw i64 %2, %5
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   %call.i.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z26__spirv_CompositeConstruct(i32 noundef 0) #4
   store target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) %call.i.i, ptr %sub_c.sroa.0.i, align 8
   %mul.i = mul nsw i64 %sub.i, 12
@@ -88,9 +86,6 @@ entry:
   %add.ptr.i.i105141.i = getelementptr i8, ptr addrspace(1) %add.ptr.i47, i64 %mul26.i
   %mul22.i = shl i64 %_arg_N, 2
   %add.ptr.i108140.i = getelementptr i8, ptr addrspace(1) %add.ptr.i.i105141.i, i64 %idx.neg.i.i104.i
-  %ref.tmp29.sroa.0.i.0.i.0..sroa_cast = bitcast ptr %ref.tmp29.sroa.0.i to ptr
-  %7 = bitcast ptr %ref.tmp29.sroa.0.i to ptr
-  %8 = bitcast ptr %sub_c.sroa.0.i to ptr
   br label %for.cond.i
 
 for.cond.i:                                       ; preds = %for.body.i, %entry
@@ -111,13 +106,13 @@ for.body.i:                                       ; preds = %for.cond.i
   %add.ptr.i111.i = getelementptr i8, ptr addrspace(1) %add.ptr.i108140.i, i64 %mul23.i
   %call.ascast.i72.i = addrspacecast ptr addrspace(1) %add.ptr.i111.i to ptr addrspace(4)
   %call1.i73.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i8, 2, 48, 12, 3) @_Z32__spirv_CooperativeMatrixLoadKHR_2(ptr addrspace(4) noundef %call.ascast.i72.i, i64 noundef %mul22.i) #4
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i.0.i.0..sroa_cast)
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i = load target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3), ptr %sub_c.sroa.0.i, align 8
   %call.i77.i = tail call spir_func noundef target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) @_Z34__spirv_CooperativeMatrixMulAddKHR(target("spirv.CooperativeMatrixKHR", i8, 0, 12, 48, 3) noundef %call1.i.i, target("spirv.CooperativeMatrixKHR", i8, 2, 48, 12, 3) noundef %call1.i73.i, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0.125.i, i32 noundef 12) #4
   store target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) %call.i77.i, ptr %ref.tmp29.sroa.0.i, align 8
-  %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i = load i64, ptr %7, align 8
-  store i64 %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i, ptr %8, align 8
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i.0.i.0..sroa_cast)
+  %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i = load i64, ptr %ref.tmp29.sroa.0.i, align 8
+  store i64 %ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.i.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0.ref.tmp29.sroa.0.0..i, ptr %sub_c.sroa.0.i, align 8
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %ref.tmp29.sroa.0.i)
   %add.i = add nuw nsw i32 %k.0.i, 1
   br label %for.cond.i
 
@@ -129,7 +124,7 @@ _ZZZ15matrix_multiplyIiaLm24ELm96ELm24ELm96ELm24ELm24EEvR10big_matrixIT_XT5_EXT6
   %call.ascast.i.i = addrspacecast ptr addrspace(1) %add.ptr.i81.i to ptr addrspace(4)
   %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i = load target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3), ptr %sub_c.sroa.0.i, align 8
   tail call spir_func void @_Z33__spirv_CooperativeMatrixStoreKHR(ptr addrspace(4) noundef %call.ascast.i.i, target("spirv.CooperativeMatrixKHR", i32, 3, 12, 12, 3) noundef %sub_c.sroa.0.i.0.sub_c.sroa.0.i.0.sub_c.sroa.0.0.sub_c.sroa.0.0.sub_c.sroa.0.0..i, i32 noundef 0, i64 noundef %_arg_N, i32 noundef 1) #4
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %sub_c.sroa.0.i.0.i.0..sroa_cast)
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %sub_c.sroa.0.i)
   ret void
 }
 
