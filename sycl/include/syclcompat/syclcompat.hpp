@@ -27,3 +27,5 @@
 #include <syclcompat/dims.hpp>
 #include <syclcompat/kernel.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/id_query.hpp>
+#include <syclcompat/launch.hpp>
