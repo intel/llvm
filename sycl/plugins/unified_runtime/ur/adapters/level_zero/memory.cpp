@@ -1621,7 +1621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
   try {
-    auto UrImage = new _ur_image(Context, ZeImage);
+    auto UrImage = new _ur_image(Context, ZeImage, true /*OwnZeMemHandle*/);
     *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
 
 #ifndef NDEBUG
