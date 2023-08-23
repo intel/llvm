@@ -148,8 +148,7 @@ program_impl::program_impl(ContextImplPtr Context,
                                             PiDevices.data(), nullptr);
   MDevices = MContext->get_info<info::context::devices>();
   assert(!MDevices.empty() && "No device found for this program");
-  sycl::detail::pi::PiDevice Device =
-      getSyclObjImpl(MDevices[0])->getHandleRef();
+  sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
   cl_program_binary_type BinaryType;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
