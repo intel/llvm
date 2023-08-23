@@ -31,7 +31,7 @@ void *loadOsLibrary(const std::string &LibraryPath) {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  // auto Result = (void *)LoadLibraryA(LibraryPath.c_str());
+
   auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
