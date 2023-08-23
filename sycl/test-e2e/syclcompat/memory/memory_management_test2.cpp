@@ -21,7 +21,7 @@
  **************************************************************************/
 
 // The original source was under the license below:
-// ====------ MemoryManagementTest2.cpp---------- -*- C++ -* ----===////
+// ====------ memory_management_test2.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

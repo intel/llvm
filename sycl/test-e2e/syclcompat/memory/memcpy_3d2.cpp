@@ -14,14 +14,14 @@
  *
  *  SYCLcompat API
  *
- *  memcpy_3d_2.cpp
+ *  memcpy_3d2.cpp
  *
  *  Description:
  *    3D memory copy tests
  **************************************************************************/
 
 // The original source was under the license below:
-// ====------ Memcpy3D2.cpp ------------------------------ -*- C++ -* ----===//
+// ====------ memcpy_3d2.cpp ------------------------------ -*- C++ -* ----===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
