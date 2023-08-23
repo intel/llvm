@@ -11,7 +11,6 @@
 
 ; Check first in trapping mode.
 ; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
-; RUN:   \
 ; RUN:	 -wholeprogramdevirt-check=trap \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,px \
@@ -22,7 +21,6 @@
 
 ; Check next in fallback mode.
 ; RUN: llvm-lto2 run %t2.o -save-temps -pass-remarks=. \
-; RUN:   \
 ; RUN:	 -wholeprogramdevirt-check=fallback \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t2.o,test,px \

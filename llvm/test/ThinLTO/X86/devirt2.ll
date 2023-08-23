@@ -38,7 +38,6 @@
 
 ; Index based WPD
 ; RUN: llvm-lto2 run %t3.o %t4.o -save-temps -pass-remarks=. \
-; RUN:   \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \
@@ -73,7 +72,6 @@
 
 ; Index based WPD, distributed backends
 ; RUN: llvm-lto2 run %t3.o %t4.o -save-temps \
-; RUN:   \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -thinlto-distributed-indexes -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \
@@ -98,7 +96,6 @@
 
 ; New PM
 ; RUN: llvm-lto2 run %t1.o %t2.o -save-temps -pass-remarks=. \
-; RUN:   \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -o %t5 \
 ; RUN:   -r=%t1.o,test,px \

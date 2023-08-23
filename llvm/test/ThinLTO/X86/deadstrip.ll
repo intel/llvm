@@ -12,7 +12,6 @@
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s --check-prefix=CHECK-NM
 
 ; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.out -save-temps -stats \
-; RUN:   \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
 ; RUN:   -r %t1.bc,_dead_func,pl \
@@ -110,7 +109,6 @@
 ; and it shouldn't be internalized.
 ; RUN: opt %p/Inputs/deadstrip.ll -o %t3.bc
 ; RUN: llvm-lto2 run %t1.bc %t3.bc -o %t4.out -save-temps \
-; RUN:   \
 ; RUN:   -r %t1.bc,_main,plx \
 ; RUN:   -r %t1.bc,_bar,pl \
 ; RUN:   -r %t1.bc,_dead_func,pl \
