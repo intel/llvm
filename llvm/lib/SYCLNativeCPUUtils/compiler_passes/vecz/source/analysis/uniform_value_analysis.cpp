@@ -106,13 +106,13 @@ bool UniformValueResult::isValueOrMaskVarying(const Value *V) const {
 }
 
 /// @brief Utility function to check whether an instruction is a call to a
-/// subgroup reduction or subgroup broadcast operaton.
+/// reduction or broadcast operaton.
 ///
 /// @param[in] I Instruction to check
 /// @param[in] BI BuiltinInfo for platform-specific builtin IDs
-/// @return true if the instruction is a call to a subgroup reduction or
+/// @return true if the instruction is a call to a reduction or broadcast
 /// builtin.
-static bool isSubgroupBroadcastOrReduction(
+static bool isGroupBroadcastOrReduction(
     const Instruction &I, const compiler::utils::BuiltinInfo &BI) {
   if (!isa<CallInst>(&I)) {
     return false;
@@ -123,7 +123,7 @@ static bool isSubgroupBroadcastOrReduction(
     return false;
   }
   auto Info = BI.isMuxGroupCollective(BI.analyzeBuiltin(*Callee).ID);
-  return Info && Info->isSubGroupScope() &&
+  return Info && (Info->isSubGroupScope() || Info->isWorkGroupScope()) &&
          (Info->isAnyAll() || Info->isReduction() || Info->isBroadcast());
 }
 
@@ -132,9 +132,9 @@ void UniformValueResult::findVectorLeaves(
   compiler::utils::BuiltinInfo &BI = Ctx.builtins();
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
-      // Subgroup reductions and broadcasts are always vector leaves regardless
-      // of uniformity.
-      if (isSubgroupBroadcastOrReduction(I, BI)) {
+      // Reductions and broadcasts are always vector leaves regardless of
+      // uniformity.
+      if (isGroupBroadcastOrReduction(I, BI)) {
         Leaves.push_back(&I);
         continue;
       }
