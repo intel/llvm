@@ -498,8 +498,8 @@ private:
     return LambdaName == KernelName;
   }
 
-  /// Saves the location of user's code passed in \param CodeLoc for future
-  /// usage in finalize() method.
+  /// Saves the location of user's code passed in \p CodeLoc for future usage in
+  /// finalize() method.
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
   /// Constructs CG object of specific type, passes it to Scheduler and
@@ -2630,9 +2630,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
@@ -2642,9 +2642,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
@@ -2654,9 +2654,8 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
-  /// is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if \p
+  /// Dest is nullptr. The behavior is undefined if \p Dest is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
@@ -2681,19 +2680,18 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Width is the width in bytes of the 2D region to copy.
   /// \param Height is the height in number of row of the 2D region to copy.
   template <typename T = unsigned char,
@@ -2740,16 +2738,15 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
   /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
@@ -2791,17 +2788,17 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
-  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// \param DestPitch is the pitch of the rows in \p Dest.
+  /// \param Value is the value to fill into the region in \p Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
@@ -2831,13 +2828,13 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
@@ -2870,13 +2867,12 @@ public:
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param NumBytes and
-  /// \param DestOffset.
+  /// memory range \p Dest, as specified through \p NumBytes and \p DestOffset.
   ///
   /// \param Dest is the destination device_glboal.
   /// \param Src is a USM pointer to the source memory.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param DestOffset is the offset into \param Dest to copy to.
+  /// \param DestOffset is the offset into \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
               const void *Src, size_t NumBytes = sizeof(T),
@@ -2904,13 +2900,12 @@ public:
 
   /// Copies data from a device_global to USM memory.
   /// Throws an exception if the copy operation intends to read outside the
-  /// memory range \param Src, as specified through \param NumBytes and
-  /// \param SrcOffset.
+  /// memory range \p Src, as specified through \p NumBytes and \p SrcOffset.
   ///
   /// \param Dest is a USM pointer to copy to.
   /// \param Src is the source device_global.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param SrcOffset is the offset into \param Src to copy from.
+  /// \param SrcOffset is the offset into \p Src to copy from.
   template <typename T, typename PropertyListT>
   void
   memcpy(void *Dest,
@@ -2941,13 +2936,12 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
   /// region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Dest, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is the destination device_glboal.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \param StartIndex is the index of the first element in \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void copy(const std::remove_all_extents_t<T> *Src,
             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
@@ -2960,13 +2954,13 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a
   /// device_global to a USM memory region.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Src, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Src, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is the source device_global.
   /// \param Dest is a USM pointer to copy to.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \param StartIndex is the index of the first element in \p Src to copy
+  ///        from.
   template <typename T, typename PropertyListT>
   void
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
@@ -3242,18 +3236,18 @@ private:
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data getting read back / to. \param Block
-  /// if read opeartion is blocking, default to false.
+  ///        expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if read operation is blocking, default to false.
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data write / to. \param Block
-  /// if write opeartion is blocking, default to false.
+  /// expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
