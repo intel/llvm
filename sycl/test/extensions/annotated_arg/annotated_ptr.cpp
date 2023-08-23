@@ -1,4 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
+// expected-no-diagnostics
 
 #include "sycl/sycl.hpp"
 #include <sycl/ext/intel/fpga_extensions.hpp>
@@ -109,9 +110,7 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
-  // Deprecated
   // Implicit conversion
-  // expected-warning@+1 {{'annotated_ptr<void>' is deprecated}}
   a1 = raw;
 
   // Property merge
