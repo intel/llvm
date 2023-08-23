@@ -88,11 +88,46 @@
 #endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
+#if defined(__SYCL_UNNAMED_LAMBDA__)
+// We can't use nested types (e.g. struct S defined inside main() routine) to
+// name kernels. At the same time, we have to provide a unique kernel name for
+// sycl::fill and the only thing we can use to introduce that uniqueness (in
+// general) is the template parameter T which might be exactly that nested type.
+// That means we cannot support sycl::fill(void *, T&, size_t) for such types in
+// general. However, we can do better than that when unnamed lambdas are
+// enabled, so do it here! See also https://github.com/intel/llvm/issues/469.
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __fill = sycl::detail::auto_name;
+template <typename T> using __usmfill = sycl::detail::auto_name;
+template <typename T> using __usmfill2d = sycl::detail::auto_name;
+template <typename T> using __usmmemcpy2d = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyAcc2Ptr = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyPtr2Acc = sycl::detail::auto_name;
+
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
+using __copyAcc2Acc = sycl::detail::auto_name;
+#else
+// Limited fallback path for when unnamed lambdas aren't available. Cannot
+// handle nested types.
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __fill;
-
 template <typename T> class __usmfill;
 template <typename T> class __usmfill2d;
 template <typename T> class __usmmemcpy2d;
@@ -114,6 +149,7 @@ template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::placeholder IsPlaceholder_Src,
           sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
+#endif
 
 // For unit testing purposes
 class MockHandler;
@@ -462,8 +498,8 @@ private:
     return LambdaName == KernelName;
   }
 
-  /// Saves the location of user's code passed in \param CodeLoc for future
-  /// usage in finalize() method.
+  /// Saves the location of user's code passed in \p CodeLoc for future usage in
+  /// finalize() method.
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
   /// Constructs CG object of specific type, passes it to Scheduler and
@@ -860,9 +896,8 @@ private:
       return false;
 
     range<1> LinearizedRange(Src.size());
-    parallel_for<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    parallel_for<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                               ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         LinearizedRange, [=](id<1> Id) {
           size_t Index = Id[0];
           id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
@@ -889,9 +924,8 @@ private:
     if (!MIsHost)
       return false;
 
-    single_task<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    single_task<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                              ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
     return true;
   }
@@ -908,8 +942,7 @@ private:
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
-    parallel_for<
-        class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
@@ -927,7 +960,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
-    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
           *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
@@ -944,8 +977,7 @@ private:
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
-    parallel_for<
-        class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
@@ -962,7 +994,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
         });
@@ -1036,6 +1068,10 @@ private:
     using TransformedArgType = std::conditional_t<
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
         typename TransformUserItemType<Dims, LambdaArgType>::type>;
+
+    static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
+                  "Kernel argument cannot have a sycl::nd_item type in "
+                  "sycl::parallel_for with sycl::range");
 
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
@@ -2547,13 +2583,11 @@ public:
       *PatternPtr = Pattern;
     } else if constexpr (Dims == 0) {
       // Special case for zero-dim accessors.
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
@@ -2568,7 +2602,7 @@ public:
     throwIfActionIsCreated();
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
     });
@@ -2596,9 +2630,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
@@ -2608,9 +2642,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
@@ -2620,9 +2654,8 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
-  /// is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if \p
+  /// Dest is nullptr. The behavior is undefined if \p Dest is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
@@ -2647,19 +2680,18 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Width is the width in bytes of the 2D region to copy.
   /// \param Height is the height in number of row of the 2D region to copy.
   template <typename T = unsigned char,
@@ -2706,16 +2738,15 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
   /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
@@ -2757,17 +2788,17 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
-  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// \param DestPitch is the pitch of the rows in \p Dest.
+  /// \param Value is the value to fill into the region in \p Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
@@ -2797,13 +2828,13 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
@@ -2836,13 +2867,12 @@ public:
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param NumBytes and
-  /// \param DestOffset.
+  /// memory range \p Dest, as specified through \p NumBytes and \p DestOffset.
   ///
   /// \param Dest is the destination device_glboal.
   /// \param Src is a USM pointer to the source memory.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param DestOffset is the offset into \param Dest to copy to.
+  /// \param DestOffset is the offset into \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
               const void *Src, size_t NumBytes = sizeof(T),
@@ -2870,13 +2900,12 @@ public:
 
   /// Copies data from a device_global to USM memory.
   /// Throws an exception if the copy operation intends to read outside the
-  /// memory range \param Src, as specified through \param NumBytes and
-  /// \param SrcOffset.
+  /// memory range \p Src, as specified through \p NumBytes and \p SrcOffset.
   ///
   /// \param Dest is a USM pointer to copy to.
   /// \param Src is the source device_global.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param SrcOffset is the offset into \param Src to copy from.
+  /// \param SrcOffset is the offset into \p Src to copy from.
   template <typename T, typename PropertyListT>
   void
   memcpy(void *Dest,
@@ -2907,13 +2936,12 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
   /// region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Dest, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is the destination device_glboal.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \param StartIndex is the index of the first element in \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void copy(const std::remove_all_extents_t<T> *Src,
             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
@@ -2926,13 +2954,13 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a
   /// device_global to a USM memory region.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Src, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Src, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is the source device_global.
   /// \param Dest is a USM pointer to copy to.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \param StartIndex is the index of the first element in \p Src to copy
+  ///        from.
   template <typename T, typename PropertyListT>
   void
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
@@ -3208,18 +3236,18 @@ private:
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data getting read back / to. \param Block
-  /// if read opeartion is blocking, default to false.
+  ///        expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if read operation is blocking, default to false.
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data write / to. \param Block
-  /// if write opeartion is blocking, default to false.
+  /// expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
@@ -3273,7 +3301,7 @@ private:
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmmemcpy2d<T>>(
+    parallel_for<__usmmemcpy2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           const T *CastedSrc = static_cast<const T *>(Src);
@@ -3319,7 +3347,7 @@ private:
     // Limit number of work items to be resistant to big fill operations.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmfill2d<T>>(
+    parallel_for<__usmfill2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           for (uint32_t I = 0; I < Iterations[0]; ++I) {
