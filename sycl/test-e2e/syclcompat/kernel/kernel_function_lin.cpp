@@ -33,7 +33,7 @@
 // REQUIRES: linux
 
 // RUN: %clangxx -fPIC -shared -fsycl -fsycl-targets=%{sycl_triple} %S/Inputs/kernel_module_lin.cpp -o %t.so
-// RUN: %clangxx -D__TEST_SHARED_LIB='"%t.so"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.shared %s -o %t.out
+// RUN: %clangxx -D__TEST_SHARED_LIB='"%t.so"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.so %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <dlfcn.h>
