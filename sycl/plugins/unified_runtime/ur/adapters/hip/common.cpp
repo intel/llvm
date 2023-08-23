@@ -9,6 +9,23 @@
 
 #include <sstream>
 
+#ifdef SYCL_ENABLE_KERNEL_FUSION
+ur_result_t mapErrorUR(amd_comgr_status_t Result) {
+  switch (Result) {
+  case AMD_COMGR_STATUS_SUCCESS:
+    return UR_RESULT_SUCCESS;
+  case AMD_COMGR_STATUS_ERROR:
+    return UR_RESULT_ERROR_UNKNOWN;
+  case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
+    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+  case AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES:
+    return UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  default:
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+}
+#endif
+
 ur_result_t mapErrorUR(hipError_t Result) {
   switch (Result) {
   case hipSuccess:
@@ -27,6 +44,52 @@ ur_result_t mapErrorUR(hipError_t Result) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
 }
+
+#ifdef SYCL_ENABLE_KERNEL_FUSION
+ur_result_t checkErrorUR(amd_comgr_status_t Result, const char *Function,
+                         int Line, const char *File) {
+  if (Result == AMD_COMGR_STATUS_SUCCESS) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    const char *ErrorString = nullptr;
+    const char *ErrorName = nullptr;
+    switch (Result) {
+    case AMD_COMGR_STATUS_ERROR:
+      ErrorName = "AMD_COMGR_STATUS_ERROR";
+      ErrorString = "Generic error";
+      break;
+    case AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT:
+      ErrorName = "AMD_COMGR_STATUS_ERROR_INVALID_ARGUMENT";
+      ErrorString =
+          "One of the actual arguments does not meet a precondition stated in "
+          "the documentation of the corresponding formal argument.";
+      break;
+    case AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES:
+      ErrorName = "AMD_COMGR_STATUS_ERROR_OUT_OF_RESOURCES";
+      ErrorString = "Failed to allocate the necessary resources";
+      break;
+    default:
+      break;
+    }
+    std::cerr << "\nUR HIP ERROR:"
+              << "\n\tValue:           " << Result
+              << "\n\tName:            " << ErrorName
+              << "\n\tDescription:     " << ErrorString
+              << "\n\tFunction:        " << Function
+              << "\n\tSource Location: " << File << ":" << Line << "\n\n";
+  }
+
+  if (std::getenv("PI_HIP_ABORT") != nullptr ||
+      std::getenv("UR_HIP_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw mapErrorUR(Result);
+}
+#endif
 
 ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
                          const char *File) {

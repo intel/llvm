@@ -20,6 +20,28 @@ namespace jit_compiler {
 
 using BinaryAddress = const uint8_t *;
 
+/// Possible barrier flags
+enum class BarrierFlags : int {
+  None = 0,
+  Local = 1,
+  Global = 2,
+  LocalAndGlobal = Local | Global
+};
+
+constexpr BarrierFlags getNoBarrierFlag() { return BarrierFlags::None; }
+constexpr BarrierFlags getLocalAndGlobalBarrierFlag() {
+  return BarrierFlags::LocalAndGlobal;
+}
+constexpr bool isNoBarrierFlag(BarrierFlags Flag) {
+  return Flag == BarrierFlags::None;
+}
+constexpr bool hasLocalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<int>(Flag) & static_cast<int>(BarrierFlags::Local);
+}
+constexpr bool hasGlobalBarrierFlag(BarrierFlags Flag) {
+  return static_cast<int>(Flag) & static_cast<int>(BarrierFlags::Global);
+}
+
 ///
 /// Enumerate possible kinds of parameters.
 /// 1:1 correspondence with the definition in kernel_desc.hpp in the DPC++ SYCL
@@ -35,7 +57,7 @@ enum class ParameterKind : uint32_t {
 };
 
 /// Different binary formats supported as input to the JIT compiler.
-enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX };
+enum class BinaryFormat : uint32_t { INVALID, LLVM, SPIRV, PTX, AMDGCN };
 
 /// Information about a device intermediate representation module (e.g., SPIR-V,
 /// LLVM IR) from DPC++.

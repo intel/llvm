@@ -25,7 +25,7 @@ public:
   /// contain an entry for the fused kernel.
   static std::unique_ptr<SYCLModuleInfo>
   runFusionPasses(llvm::Module &Mod, SYCLModuleInfo &InputInfo,
-                  int BarriersFlags);
+                  BarrierFlags BarriersFlags);
 };
 } // namespace fusion
 } // namespace jit_compiler

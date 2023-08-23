@@ -60,7 +60,8 @@ public:
               const std::vector<SYCLKernelInfo> &KernelInformation,
               const std::vector<std::string> &KernelsToFuse,
               const std::string &FusedKernelName,
-              jit_compiler::ParamIdentList &Identities, int BarriersFlags,
+              jit_compiler::ParamIdentList &Identities,
+              BarrierFlags BarriersFlags,
               const std::vector<jit_compiler::ParameterInternalization>
                   &Internalization,
               const std::vector<jit_compiler::JITConstant> &JITConstants);

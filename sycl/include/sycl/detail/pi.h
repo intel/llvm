@@ -948,6 +948,8 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
   "@reqd_work_group_size"
 #define __SYCL_PI_PROGRAM_METADATA_GLOBAL_ID_MAPPING "@global_id_mapping"
 
+#define __SYCL_PI_PROGRAM_METADATA_TAG_NEED_FINALIZATION "Requires finalization"
+
 /// This struct is a record of the device binary information. If the Kind field
 /// denotes a portable binary type (SPIR-V or LLVM IR), the DeviceTargetSpec
 /// field can still be specific and denote e.g. FPGA target. It must match the

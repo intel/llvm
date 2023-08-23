@@ -907,7 +907,8 @@ struct get_device_info_impl<
     // and LevelZero.
     return (Dev->getBackend() == backend::ext_oneapi_level_zero) ||
            (Dev->getBackend() == backend::opencl) ||
-           (Dev->getBackend() == backend::ext_oneapi_cuda);
+           (Dev->getBackend() == backend::ext_oneapi_cuda) ||
+           (Dev->getBackend() == backend::ext_oneapi_hip);
 #else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
     (void)Dev;
     return false;

@@ -35,6 +35,12 @@ PropertyContainer::PropertyContainer(const std::string &Name, void *Data,
   std::memcpy(Value.get(), Data, Size);
 }
 
+PropertyContainer::PropertyContainer(const std::string &Name, uint32_t Data)
+    : PropName{new char[Name.length() + 1]}, Value{}, ValueSize{Data},
+      PropType{PI_PROPERTY_TYPE_UINT32} {
+  std::memcpy(PropName.get(), Name.c_str(), Name.length() + 1);
+}
+
 _pi_device_binary_property_struct PropertyContainer::getPIProperty() {
   return _pi_device_binary_property_struct{PropName.get(), Value.get(),
                                            PropType, ValueSize};

@@ -21,6 +21,10 @@ struct ur_program_handle_t_ {
   size_t BinarySizeInBytes;
   std::atomic_uint32_t RefCount;
   ur_context_handle_t Context;
+  std::string ExecutableCache;
+
+  // Metadata
+  bool IsRelocatable = false;
 
   constexpr static size_t MAX_LOG_SIZE = 8192u;
 
@@ -31,9 +35,12 @@ struct ur_program_handle_t_ {
   ur_program_handle_t_(ur_context_handle_t Ctxt);
   ~ur_program_handle_t_();
 
+  ur_result_t setMetadata(const ur_program_metadata_t *Metadata, size_t Length);
+
   ur_result_t setBinary(const char *Binary, size_t BinarySizeInBytes);
 
   ur_result_t buildProgram(const char *BuildOptions);
+  ur_result_t finalizeRelocatable();
   ur_context_handle_t getContext() const { return Context; };
 
   native_type get() const noexcept { return Module; };

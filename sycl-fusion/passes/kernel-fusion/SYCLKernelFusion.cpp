@@ -230,13 +230,12 @@ static FusionInsertPoints addGuard(IRBuilderBase &Builder,
   return {Entry, CallInsertion, Exit};
 }
 
-static Expected<CallInst *>
-createFusionCall(IRBuilderBase &Builder, Function *F,
-                 ArrayRef<Value *> CallArgs,
-                 const jit_compiler::NDRange &SrcNDRange,
-                 const jit_compiler::NDRange &FusedNDRange, bool IsLast,
-                 int BarriersFlags, jit_compiler::Remapper &Remapper,
-                 bool ShouldRemap, TargetFusionInfo &TargetInfo) {
+static Expected<CallInst *> createFusionCall(
+    IRBuilderBase &Builder, Function *F, ArrayRef<Value *> CallArgs,
+    const jit_compiler::NDRange &SrcNDRange,
+    const jit_compiler::NDRange &FusedNDRange, bool IsLast,
+    jit_compiler::BarrierFlags BarriersFlags, jit_compiler::Remapper &Remapper,
+    bool ShouldRemap, TargetFusionInfo &TargetInfo) {
   const auto IPs = addGuard(Builder, SrcNDRange, FusedNDRange, IsLast);
 
   if (ShouldRemap) {
@@ -261,7 +260,7 @@ createFusionCall(IRBuilderBase &Builder, Function *F,
   Builder.SetInsertPoint(IPs.Exit);
 
   // Insert barrier if needed
-  if (!IsLast && BarriersFlags > 0) {
+  if (!IsLast && !jit_compiler::isNoBarrierFlag(BarriersFlags)) {
     TargetInfo.createBarrierCall(Builder, BarriersFlags);
   }
 

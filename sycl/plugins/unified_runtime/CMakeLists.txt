@@ -247,6 +247,10 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
 
   if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
+    if(SYCL_ENABLE_KERNEL_FUSION)
+      target_compile_definitions(ur_adapter_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+      target_link_libraries(ur_adapter_hip PUBLIC amd_comgr)
+    endif(SYCL_ENABLE_KERNEL_FUSION)
     # Set HIP define to select AMD platform
     target_compile_definitions(ur_adapter_hip PRIVATE __HIP_PLATFORM_AMD__)
   elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")

@@ -191,6 +191,15 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
     KernelBin = *BinaryOrError;
     break;
   }
+  case BinaryFormat::AMDGCN: {
+    llvm::Expected<KernelBinary *> BinaryOrError =
+        translateToAMDGCN(Kernel, Mod, JITCtx);
+    if (auto Error = BinaryOrError.takeError()) {
+      return Error;
+    }
+    KernelBin = *BinaryOrError;
+    break;
+  }
   default: {
     return createStringError(
         inconvertibleErrorCode(),
@@ -286,4 +295,75 @@ KernelTranslator::translateToPTX(SYCLKernelInfo &KernelInfo, llvm::Module &Mod,
 
   return &JITCtx.emplaceKernelBinary(std::move(PTXASM), BinaryFormat::PTX);
 #endif // FUSION_JIT_SUPPORT_PTX
+}
+
+llvm::Expected<KernelBinary *>
+KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
+                                    llvm::Module &Mod, JITContext &JITCtx) {
+#ifndef FUSION_JIT_SUPPORT_AMDGCN
+  (void)KernelInfo;
+  (void)Mod;
+  (void)JITCtx;
+  return createStringError(inconvertibleErrorCode(),
+                           "AMDGPU translation not supported in this build");
+#else  // FUSION_JIT_SUPPORT_AMDGCN
+
+  LLVMInitializeAMDGPUTargetInfo();
+  LLVMInitializeAMDGPUTarget();
+  LLVMInitializeAMDGPUAsmPrinter();
+  LLVMInitializeAMDGPUTargetMC();
+
+  static const char *TARGET_CPU_ATTRIBUTE = "target-cpu";
+  static const char *TARGET_FEATURE_ATTRIBUTE = "target-features";
+
+  std::string TargetTriple{"amdgcn-amd-amdhsa"};
+
+  std::string ErrorMessage;
+  const auto *Target =
+      llvm::TargetRegistry::lookupTarget(TargetTriple, ErrorMessage);
+
+  if (!Target) {
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Failed to load and translate AMDGCN LLVM IR module with error %s",
+        ErrorMessage.c_str());
+  }
+
+  llvm::StringRef TargetCPU{"gfx906"};
+  llvm::StringRef TargetFeatures{""};
+  if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name)) {
+    if (KernelFunc->hasFnAttribute(TARGET_CPU_ATTRIBUTE)) {
+      TargetCPU =
+          KernelFunc->getFnAttribute(TARGET_CPU_ATTRIBUTE).getValueAsString();
+    }
+    if (KernelFunc->hasFnAttribute(TARGET_FEATURE_ATTRIBUTE)) {
+      TargetFeatures = KernelFunc->getFnAttribute(TARGET_FEATURE_ATTRIBUTE)
+                           .getValueAsString();
+    }
+  }
+
+  // FIXME: Check whether we can provide more accurate target information here
+  auto *TargetMachine = Target->createTargetMachine(
+      TargetTriple, TargetCPU, TargetFeatures, {}, llvm::Reloc::PIC_,
+      std::nullopt, llvm::CodeGenOpt::Default);
+
+  std::string AMDObj;
+  {
+    llvm::legacy::PassManager PM;
+    llvm::raw_string_ostream OBJStream{AMDObj};
+    llvm::buffer_ostream BufferedOBJ{OBJStream};
+
+    if (TargetMachine->addPassesToEmitFile(PM, BufferedOBJ, nullptr,
+                                           llvm::CGFT_ObjectFile)) {
+      return createStringError(
+          inconvertibleErrorCode(),
+          "Failed to construct pass pipeline to emit output");
+    }
+
+    PM.run(Mod);
+    OBJStream.flush();
+  }
+
+  return &JITCtx.emplaceKernelBinary(std::move(AMDObj), BinaryFormat::AMDGCN);
+#endif // FUSION_JIT_SUPPORT_AMDGCN
 }

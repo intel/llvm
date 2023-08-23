@@ -26,7 +26,7 @@ endif()
 # Set HIP lib dir
 set(SYCL_BUILD_PI_HIP_LIB_DIR "" CACHE STRING "Override HIP lib dir path (set to \"\" for default behavior)")
 if("${SYCL_BUILD_PI_HIP_LIB_DIR}" STREQUAL "")
-  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/hip/lib")
+  set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_ROCM_DIR}/lib")
 else()
   set(PI_HIP_LIB_DIR "${SYCL_BUILD_PI_HIP_LIB_DIR}")
 endif()
@@ -149,6 +149,18 @@ if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
       INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
   )
   target_link_libraries(pi_hip PUBLIC rocmdrv)
+
+  if(SYCL_ENABLE_KERNEL_FUSION)
+    add_library(amd_comgr SHARED IMPORTED GLOBAL)
+    set_target_properties(
+      amd_comgr PROPERTIES
+        IMPORTED_LOCATION                    "${PI_HIP_LIB_DIR}/libamd_comgr.so"
+        INTERFACE_INCLUDE_DIRECTORIES        "${HIP_HEADERS}"
+        INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${HIP_HEADERS}"
+    )
+    target_link_libraries(pi_hip PUBLIC amd_comgr)
+    target_compile_definitions(pi_hip PRIVATE SYCL_ENABLE_KERNEL_FUSION)
+  endif(SYCL_ENABLE_KERNEL_FUSION)
 
   # Set HIP define to select AMD platform
   target_compile_definitions(pi_hip PRIVATE __HIP_PLATFORM_AMD__)
