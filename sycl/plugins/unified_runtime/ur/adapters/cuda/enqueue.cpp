@@ -569,9 +569,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 
   try {
     ScopedDevice Active(DeviceToCopyFrom);
-    // FIXME: We can only use the default stream here since the active device
-    // may not be the active queue
-    CUstream CuStream{0};
+    // Use the default stream if copying across devices
+    CUstream CuStream = DeviceToCopyFrom == hQueue->getDevice()
+                            ? hQueue->getNextTransferStream()
+                            : CUstream{0};
 
     Result = enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
     if (Buffer->LastEventWritingToMemObj != nullptr) {
@@ -1634,9 +1635,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
   try {
     ScopedDevice Active(DeviceToCopyFrom);
-    // FIXME: We can only use the default stream here since the active device
-    // may not be the active queue
-    CUstream CuStream{0};
+    // Use the default stream if copying across devices
+    CUstream CuStream = DeviceToCopyFrom == hQueue->getDevice()
+                            ? hQueue->getNextTransferStream()
+                            : CUstream{0};
 
     Result = enqueueEventsWait(CuStream, numEventsInWaitList, phEventWaitList);
     if (Buffer->LastEventWritingToMemObj != nullptr) {
