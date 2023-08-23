@@ -25,10 +25,10 @@ ur_result_t enqueueEventsWait(CUstream Stream, uint32_t NumEventsInWaitList,
     auto Result = forLatestEvents(
         EventWaitList, NumEventsInWaitList,
         [Stream](ur_event_handle_t Event) -> ur_result_t {
+          ScopedDevice Active(Event->getDevice());
           if (Event->isCompleted() || Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
-            ScopedDevice Active(Event->getDevice());
             return UR_CHECK_ERROR(cuStreamWaitEvent(Stream, Event->get(), 0));
           }
         });
