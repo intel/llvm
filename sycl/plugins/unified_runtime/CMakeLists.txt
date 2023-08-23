@@ -1,10 +1,10 @@
-# PI Unified Runtime plugin library
+# PI Unified Runtime plugin library.
 #
 if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_DIR)
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG v0.7)
+  set(UNIFIED_RUNTIME_TAG v0.7.1)
 
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
@@ -165,11 +165,13 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/usm.hpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
       Threads::Threads
       cudadrv
   )
@@ -178,6 +180,13 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+
+  if(UMF_ENABLE_POOL_TRACKING)
+    target_compile_definitions("ur_adapter_cuda" PRIVATE
+      UMF_ENABLE_POOL_TRACKING)
+  else()
+    message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+  endif()
 endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
