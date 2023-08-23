@@ -22,6 +22,7 @@ constexpr unsigned int recordThresh = 10;
 
 #define tM 8
 #define tK 16
+constexpr size_t tN = TN;
 
 #define MCACHE1 32
 #define NCACHE1 (SG_SZ * 4)
@@ -62,7 +63,7 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   assert(colsA == rowsB);
   assert(rowsA % tM == 0);
   assert(colsA % tK == 0);
-  assert(colsB % TN == 0);
+  assert(colsB % tN == 0);
 
   auto pA = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(A);
@@ -86,33 +87,33 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           auto m1 = it.get_local_id(0);
           auto n1 = it.get_local_id(1) / sgSize;
           auto sg = it.get_sub_group();
-          joint_matrix<sub_group, TResult, use::accumulator, tM, TN>
-              tC[MCACHE1 / tM][NCACHE1 / TN]
+          joint_matrix<sub_group, TResult, use::accumulator, tM, tN>
+              tC[MCACHE1 / tM][NCACHE1 / tN]
 #ifdef INIT_LIST
-              = {joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>(),
-                 joint_matrix<sub_group, TResult, use::accumulator, tM, TN>()}
+              = {joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>(),
+                 joint_matrix<sub_group, TResult, use::accumulator, tM, tN>()}
 #endif
           ;
 #ifdef MANUAL_UNROLL
           manually_unroll_loop<unsigned int, MCACHE1 / tM>([&](auto m) {
-            manually_unroll_loop<unsigned int, NCACHE1 / TN>([&](auto n) {
+            manually_unroll_loop<unsigned int, NCACHE1 / tN>([&](auto n) {
 #else
           for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
-            for (unsigned int n = 0; n < NCACHE1 / TN; n++) {
+            for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 #endif
               joint_matrix_fill(sg, tC[m][n], 0);
 #ifdef MANUAL_UNROLL
@@ -146,35 +147,35 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
 #endif
             ;
 
-            joint_matrix<sub_group, TOperand, use::b, tK, TN,
+            joint_matrix<sub_group, TOperand, use::b, tK, tN,
                          ext::intel::experimental::matrix::layout::packed>
-                tB[NCACHE1 / TN][KCACHE2 / KCACHE1]
+                tB[NCACHE1 / tN][KCACHE2 / KCACHE1]
 #ifdef INIT_LIST
                 =
                     {
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                         joint_matrix<
-                            sub_group, TOperand, use::b, tK, TN,
+                            sub_group, TOperand, use::b, tK, tN,
                             ext::intel::experimental::matrix::layout::packed>(),
                     }
 #endif
@@ -202,14 +203,14 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
               } // m
 #endif
 #ifdef MANUAL_UNROLL
-              manually_unroll_loop<unsigned int, NCACHE1 / TN>([&](auto n) {
+              manually_unroll_loop<unsigned int, NCACHE1 / tN>([&](auto n) {
 #else
-              for (unsigned int n = 0; n < NCACHE1 / TN; n++) {
+              for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 #endif
                 joint_matrix_load(
                     sg, tB[n][k1],
                     pB + (k * tK / vnniFactor) * (colsB * vnniFactor) +
-                        (n2 * NCACHE2 + n1 * NCACHE1 + n * TN) * vnniFactor,
+                        (n2 * NCACHE2 + n1 * NCACHE1 + n * tN) * vnniFactor,
                     colsB * vnniFactor);
 #ifdef MANUAL_UNROLL
               });
@@ -222,9 +223,9 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
               for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
 #endif
 #ifdef MANUAL_UNROLL
-                manually_unroll_loop<unsigned int, NCACHE1 / TN>([&](auto n) {
+                manually_unroll_loop<unsigned int, NCACHE1 / tN>([&](auto n) {
 #else
-                for (unsigned int n = 0; n < NCACHE1 / TN; n++) {
+                for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 
 #endif
                   tC[m][n] =
@@ -245,14 +246,14 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
           for (unsigned int m = 0; m < MCACHE1 / tM; m++) {
 #endif
 #ifdef MANUAL_UNROLL
-            manually_unroll_loop<unsigned int, NCACHE1 / TN>([&](auto n) {
+            manually_unroll_loop<unsigned int, NCACHE1 / tN>([&](auto n) {
 #else
-            for (unsigned int n = 0; n < NCACHE1 / TN; n++) {
+            for (unsigned int n = 0; n < NCACHE1 / tN; n++) {
 #endif
               joint_matrix_store(
                   sg, tC[m][n],
                   pC + (m2 * MCACHE2 + m1 * MCACHE1 + m * tM) * colsB +
-                      (n2 * NCACHE2 + n1 * NCACHE1 + n * TN),
+                      (n2 * NCACHE2 + n1 * NCACHE1 + n * tN),
                   colsB, layout::row_major);
 #ifdef MANUAL_UNROLL
             }); // n
@@ -323,11 +324,11 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
 }
 
 int main(void) {
-  assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= TN &&
+  assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= tN &&
          "invalid matrix size");
-  assert((MATRIX_SIZE % tM) == 0 && (MATRIX_SIZE % TN) == 0 &&
+  assert((MATRIX_SIZE % tM) == 0 && (MATRIX_SIZE % tN) == 0 &&
          (MATRIX_SIZE % tK) == 0 &&
-         "invalid matrix size detected: not a multiple of <tM,TN,tK>");
+         "invalid matrix size detected: not a multiple of <tM,tN,tK>");
 
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
