@@ -6101,7 +6101,7 @@ class OffloadingActionBuilder final {
         std::string SectionTriple = SyclTarget.TC->getTriple().str();
         if (SyclTarget.BoundArch) {
           SectionTriple += "-";
-	  SectionTriple += SyclTarget.BoundArch;
+          SectionTriple += SyclTarget.BoundArch;
         }
         // If any matching section is found, we are good.
         if (std::find(UniqueSections.begin(), UniqueSections.end(),
