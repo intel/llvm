@@ -188,20 +188,17 @@ program_impl::program_impl(ContextImplPtr Context,
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
-    break;
+    return;
   case PI_PROGRAM_BINARY_TYPE_LIBRARY:
   case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
-    break;
-  default:
-    // TODO: assert() will be reverted when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
-    // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE for consistency
-    // assert(false && "BinaryType is invalid.");
-    // return;
-    break;
+    return;
   }
+  // TODO: assert() will be reverted when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
+  // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE for consistency
+  // assert(false && "BinaryType is invalid.");
 }
 
 program_impl::program_impl(ContextImplPtr Context,
