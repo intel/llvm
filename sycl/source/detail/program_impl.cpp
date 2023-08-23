@@ -197,7 +197,7 @@ program_impl::program_impl(ContextImplPtr Context,
     return;
   }
   // TODO: assert() will be reverted when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
-  // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE for consistency
+  // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE value
   // assert(false && "BinaryType is invalid.");
 }
 
