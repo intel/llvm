@@ -93,11 +93,7 @@ public:
     tryToEnable();
   }
 
-  ProxyLoader(bool loaded, xpti_plugin_handle_t fw_plugin_handle)
-      : m_loaded(loaded), m_fw_plugin_handle(fw_plugin_handle) {}
-
-  ProxyLoader(const ProxyLoader &rhs)
-      : ProxyLoader(rhs.m_loaded, rhs.m_fw_plugin_handle) {}
+  ProxyLoader&operator=(const ProxyLoader&) = delete;
 
   ~ProxyLoader() {
     // If the loading of the framework library was
