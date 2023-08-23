@@ -24,7 +24,6 @@
 
 #include <cassert>
 #include <cmath>
-#include <unistd.h>
 
 inline void check(float *h_data, float *h_ref, size_t width, size_t height,
                   size_t depth) {
