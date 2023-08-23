@@ -14,15 +14,24 @@
  *
  *  SYCLcompat
  *
- *  syclcompat.hpp
+ *  common.hpp
  *
  *  Description:
- *    Main include internal header for SYCLcompat
+ *     Common helpers to help with syclcompat functionality tests
  **************************************************************************/
 
 #pragma once
 
-#include <syclcompat/defs.hpp>
-#include <syclcompat/device.hpp>
-#include <syclcompat/dims.hpp>
-#include <syclcompat/memory.hpp>
+// Typed call helper
+// Iterates over all types and calls Functor f for each of them
+template <typename types, typename Functor>
+void instantiate_all_types(Functor &&f) {
+  auto for_each_type_call =
+      [&]<template <typename...> class T, typename... Rest>(T<Rest...> *) {
+        (f.template operator()<Rest>(), ...);
+      };
+  for_each_type_call(static_cast<types *>(nullptr));
+}
+
+#define INSTANTIATE_ALL_TYPES(types, f)                                        \
+  instantiate_all_types<types>([]<typename T>() { f<T>(); });

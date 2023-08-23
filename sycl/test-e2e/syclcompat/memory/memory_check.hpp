@@ -12,17 +12,24 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  SYCLcompat
+ *  SYCLcompat API
  *
- *  syclcompat.hpp
+ *  memory_check.hpp
  *
  *  Description:
- *    Main include internal header for SYCLcompat
+ *    Memory content helper for the Memory functionality tests
  **************************************************************************/
 
 #pragma once
 
-#include <syclcompat/defs.hpp>
-#include <syclcompat/device.hpp>
-#include <syclcompat/dims.hpp>
-#include <syclcompat/memory.hpp>
+#include <cassert>
+#include <cmath>
+#include <unistd.h>
+
+inline void check(float *h_data, float *h_ref, size_t width, size_t height,
+                  size_t depth) {
+  for (size_t i = 0; i < width * height * depth; i++) {
+    float diff = fabs(h_data[i] - h_ref[i]);
+    assert(diff <= 1.e-6);
+  }
+}
