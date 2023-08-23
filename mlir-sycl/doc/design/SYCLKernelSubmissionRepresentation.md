@@ -11,6 +11,11 @@ In this document, we introduce the `sycl.host.schedule_kernel` operation, and
 describe its multi-stage raising process from LLVM-IR involving additional
 intermediate operations.
 
+The operations discussed in this document are defined in
+`mlir-sycl/include/mlir/Dialect/SYCL/IR/SYCLHostOps.td`. Build the target
+`mlir-sycl-doc` in a build directory named `build` to enable the links to the
+operations' rendered Markdown documentation.
+
 ## Prerequisites / known limitations
 
 - Our approach is currently limited to kernels passed as a lambda function to an
@@ -23,7 +28,8 @@ and the latter being inlined into the CGF.
 
 ## The `sycl.host.schedule_kernel` operation
 
-The [`schedule_kernel`](#syclhostschedule_kernel-syclsyclhostschedulekernel)
+The
+[`schedule_kernel`](../../../build/docs/Dialects/SYCLOps.md#syclhostschedule_kernel-syclsyclhostschedulekernel)
 operation ties together the CGF's handler object, a symbol reference to a lambda
 function (i.e. the kernel), range information as passed to the `parallel_for`
 invocation, and the arguments captured by the lambda object.
@@ -75,9 +81,9 @@ argument (after the `this` pointer) of the CGF.
 
 We raise calls/invokes to specific constructors of SYCL API classes (`buffer`,
 `accessor`, `range`, etc.) to the
-[`sycl.host.constructor`](#syclhostconstructor-syclsyclhostconstructorop) op,
-which ties together arguments for construction and the SYCL dialect type of the
-entity being initialized.
+[`sycl.host.constructor`](../../../build/docs/Dialects/SYCLOps.md#syclhostconstructor-syclsyclhostconstructorop)
+op, which ties together arguments for construction and the SYCL dialect type of
+the entity being initialized.
 
 For example, the instantiation of an accessor in the CGF results in the
 following raised IR:
@@ -138,7 +144,7 @@ This results in the following MLIR for the CGF:
 ```
 
 The `RaiseSetNDRange` pattern scans the CGF for these annotations and inserts a
-[`sycl.host.handler.set_nd_range`](#syclhosthandlerset_nd_range-syclsyclhosthandlersetndrange)
+[`sycl.host.handler.set_nd_range`](../../../build/docs/Dialects/SYCLOps.md#syclhosthandlerset_nd_range-syclsyclhosthandlersetndrange)
 operation with the marked up pointer values after the last annotation op:
 
 ```mlir
@@ -152,8 +158,8 @@ analogously.
 
 In the SYCL source code, the variables captured by value in the lambda function
 passed to `parallel_for` represent the kernel's arguments. We defined the
-[`sycl.host.set_captured`](#syclhostset_captured-syclsyclhostsetcaptured) op to
-model the *i*th variable being captured in the CGF.
+[`sycl.host.set_captured`](../../../build/docs/Dialects/SYCLOps.md#syclhostset_captured-syclsyclhostsetcaptured)
+op to model the *i*th variable being captured in the CGF.
 
 For example:
 
@@ -228,7 +234,7 @@ actual captured object.
 
 We are raising the assignment of `sycl::handler::MKernelName` in the
 `sycl::handler::StoreLambda` method (called from `parallel_for`) to the
-[`sycl.host.handler.set_kernel`](#syclhosthandlerset_kernel-syclsyclhosthandlersetkernel)
+[`sycl.host.handler.set_kernel`](../../../build/docs/Dialects/SYCLOps.md#syclhosthandlerset_kernel-syclsyclhosthandlersetkernel)
 operation. The rationale is that this assignment can be pattern-matched
 reliably, links the CGF to the actual kernel function, and marks a point in the
 submission process where it is guaranteed that range and argument information is
@@ -242,7 +248,8 @@ sycl.host.handler.set_kernel %handler -> @device_functions::@_ZTS10KernelName : 
 ```
 
 As an intermediate step to raising `set_kernel`, the SYCL dialect also defines
-the [`sycl.host.get_kernel`](#syclhostget_kernel-syclsyclhostgetkernelop)
+the
+[`sycl.host.get_kernel`](../../../build/docs/Dialects/SYCLOps.md#syclhostget_kernel-syclsyclhostgetkernelop)
 operation. It replaces `llvm.mlir.addressof` operations of string constants
 containing a kernel function name, and introduces an actual symbol reference to
 the corresponding `gpu.func`.
@@ -293,236 +300,3 @@ block containing the `set_kernel` op (due to the inbetween `llvm.invoke` of
     of the `host.constructor` ops may have failed or happened after application
     of the `RaiseSetCaptured` pattern, or the constructor op is in a different
     function.
-
-## Appendix: Excerpt from ODS documentation
-### `sycl.host.constructor` (sycl::SYCLHostConstructorOp)
-
-_Represents the member initialization of a SYCL object._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.constructor` `(` operands `)` attr-dict `:` functional-type(operands, results)
-```
-
-This operation differs from `sycl.constructor` as it will take a
-`llvm.ptr` to any type instead of requiring a memref of a `sycl` type.
-
-This difference is the reason why this operation was introduced in
-the first place: this is a short-term solution to represent construction of
-a SYCL object in the host side. Using a `sycl.constructor` operation would
-imply performing heavy modifications to the host LLVM code (or blurring the
-semantics of the `sycl.constructor` operation).
-
-Note that, despite the more relaxed typing, the `type` attribute still needs
-to be a type in the `sycl` dialect.
-
-Interfaces: MemoryEffectsOpInterface
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `type` | ::mlir::TypeAttr | An Attribute containing a Type
-
-#### Operands:
-
-| Operand | Description |
-| :-----: | ----------- |
-| `dst` | LLVM pointer type
-| `args` | any type
-
-### `sycl.host.get_kernel` (sycl::SYCLHostGetKernelOp)
-
-_Defines a reference to a SYCL kernel, i.e., a `gpu.func` with `kernel` attribute._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.get_kernel` $kernel_name attr-dict `:` type($res)
-```
-
-
-Traits: AlwaysSpeculatableImplTrait
-
-Interfaces: ConditionallySpeculatable, NoMemoryEffect (MemoryEffectOpInterface), SymbolUserOpInterface
-
-Effects: MemoryEffects::Effect{}
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `kernel_name` | ::mlir::SymbolRefAttr | symbol reference attribute
-
-#### Results:
-
-| Result | Description |
-| :----: | ----------- |
-| `res` | LLVM pointer type
-
-### `sycl.host.handler.set_kernel` (sycl::SYCLHostHandlerSetKernel)
-
-_Assigns a kernel to a `sycl::handler`, thus pairing the handler and the kernel being launched._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.handler.set_kernel` $handler `->` $kernel_name attr-dict `:` type($handler)
-```
-
-
-Traits: SYCLHostHandlerOp
-
-Interfaces: SymbolUserOpInterface
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `kernel_name` | ::mlir::SymbolRefAttr | symbol reference attribute
-
-#### Operands:
-
-| Operand | Description |
-| :-----: | ----------- |
-| `handler` | LLVM pointer type
-
-### `sycl.host.handler.set_nd_range` (sycl::SYCLHostHandlerSetNDRange)
-
-_Assigns an nd-range to a `sycl::handler`, setting the nd-range of the kernel to be launched._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.handler.set_nd_range` $handler `->` (`nd_range` $nd_range^):(`range`)? $range
-              (`,` `offset` $offset^)? attr-dict `:` type(operands)
-```
-
-The `range` operand expects an `nd_range` pointer or a `range` pointer. In
-the latter case, an `id` pointer can be optionally given as the `offset`. In
-the former case, the `nd_range` attribute must be set.
-
-Traits: SYCLHostHandlerOp
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `nd_range` | ::mlir::UnitAttr | unit attribute
-
-#### Operands:
-
-| Operand | Description |
-| :-----: | ----------- |
-| `handler` | LLVM pointer type
-| `range` | LLVM pointer type
-| `offset` | LLVM pointer type
-
-### `sycl.host.schedule_kernel` (sycl::SYCLHostScheduleKernel)
-
-_Schedules a SYCL kernel launch._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.schedule_kernel` $handler `->` $kernel_name
-              (`[` (`nd_range` $nd_range^):(```range`)? $range^ (`,` `offset` $offset^)? `]`)? ``
-              custom<ArgsWithSYCLTypes>($args, $sycl_types)
-              attr-dict `:` functional-type(operands, results)
-```
-
-This operation represents the scheduling of a launch of the given kernel
-function with the specified handler, range and kernel arguments. Its purpose
-is to collect the information surfaced by the host-raising process about a 
-particular launch, thereby providing an entry-point for host-device analyses
-and optimizations.
-
-If the `range` operand is not present, this operation represents a
-*single_task* launch, otherwise a *parallel_for* invocation. The `range`
-operand expects an `nd_range` pointer or a `range` pointer. In the latter
-case, an `id` pointer can be optionally given as the `offset`. In the former
-case, the `nd_range` attribute must be set.
-
-Pointer arguments can be annotated with the SYCL type of the entity they
-refer to, e.g. an accessor. Internally, this information is stored in the
-`sycl_types` type array attribute, sized to match the number of arguments.
-If no such type annotation is available for an argument, the `None` type
-shall be used as a placeholder.
-
-Note that due to the current focus on host-device optimizations for
-individual launches, this operation currently does not model the queue or
-the command-group handler associated with the launch, nor does it observe or
-yield any events.
-
-Example:
-```
-sycl.host.schedule_kernel %handler -> @kernels::@k0[range %1]
-  (%2: !sycl_accessor_1_f32_rw_gb, %3)
-  : (!llvm.ptr, !llvm.ptr, !llvm.ptr, i32) -> ()
-```
-
-Traits: AttrSizedOperandSegments
-
-Interfaces: MemoryEffectOpInterface, SymbolUserOpInterface
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `kernel_name` | ::mlir::SymbolRefAttr | symbol reference attribute
-| `sycl_types` | ::mlir::ArrayAttr | type array attribute
-| `nd_range` | ::mlir::UnitAttr | unit attribute
-
-#### Operands:
-
-| Operand | Description |
-| :-----: | ----------- |
-| `handler` | LLVM pointer type
-| `range` | LLVM pointer type
-| `offset` | LLVM pointer type
-| `args` | any type
-
-### `sycl.host.set_captured` (sycl::SYCLHostSetCaptured)
-
-_Marks a value as captured by a kernel function object._
-
-
-Syntax:
-
-```
-operation ::= `sycl.host.set_captured` $lambda `[` $index `]` `=` $value attr-dict
-              `:` type(operands) (` ` `(` $sycl_type^ `)`)?
-```
-
-This operation represents that the given `value` was captured in the kernel
-function object `lambda` at index `index`. If a special SYCL entity is
-captured (e.g. an acccessor), its type is stored in the `sycl_type`
-attribute. The op is created during the progressive raising towards the
-`sycl.host.schedule_kernel` op.
-
-Example:
-```
-sycl.host.set_captured %lambda[1] = %scalar : !llvm.ptr, !llvm.ptr, i32
-sycl.host.set_captured %lambda[2] = %accessor 
-  : !llvm.ptr, !llvm.ptr, !llvm.ptr (!sycl_accessor_1_f32_rw_gb)
-```
-
-#### Attributes:
-
-| Attribute | MLIR Type | Description |
-| :-------: | :-------: | ----------- |
-| `index` | ::mlir::IntegerAttr | 64-bit signless integer attribute
-| `sycl_type` | ::mlir::TypeAttr | any type attribute
-
-#### Operands:
-
-| Operand | Description |
-| :-----: | ----------- |
-| `lambda` | LLVM pointer type
-| `value` | any type
