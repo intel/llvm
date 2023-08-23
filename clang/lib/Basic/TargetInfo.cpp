@@ -517,7 +517,7 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
   if (Opts.FakeAddressSpaceMap)
     AddrSpaceMap = &FakeAddrSpaceMap;
 
-  if (Opts.SYCLIsNativeCPU) {
+  if (Opts.SYCLIsDevice && Opts.SYCLIsNativeCPU) {
     // For SYCL Native CPU we use the NVPTXAddrSpaceMap because
     // we need builtins to be mangled with AS information
 

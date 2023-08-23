@@ -34,7 +34,7 @@ void test() {
   gen_test<int>(q);
   //CHECK:  define weak void @_ZTS6init_aIiE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
@@ -46,7 +46,7 @@ void test() {
   gen_test<float>(q);
   //CHECK:  define weak void @_ZTS6init_aIfE(ptr %{{.*}}, ptr addrspace(1) {{.*}}) #{{.*}} {
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
-  //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}
+  //CHECK:  %{{.*}} = load ptr addrspace(1), ptr %{{.*}}
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}
   //CHECK:  %{{.*}} = load ptr, ptr %{{.*}}, align 8
   //CHECK:  %{{.*}} = getelementptr %{{.*}}, ptr %{{.*}}, i64 {{.*}}

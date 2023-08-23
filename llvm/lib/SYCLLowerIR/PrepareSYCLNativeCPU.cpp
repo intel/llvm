@@ -138,13 +138,13 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
     // Load the correct NativeCPUDesc and load the pointer from it
     auto *Addr = Builder.CreateGEP(NativeCPUArgDescType, BaseNativeCPUArg,
                                    {Builder.getInt64(UsedI)});
-    auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
     if (Arg->getType()->isPointerTy()) {
       // If the arg is a pointer, just use it
-      auto *ASCast = Builder.CreateAddrSpaceCast(Load, Arg->getType());
-      KernelArgs.push_back(ASCast);
+      auto *Load = Builder.CreateLoad(Arg->getType(), Addr);
+      KernelArgs.push_back(Load);
     } else {
       // Otherwise, load the scalar value and use that
+      auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
       auto *Scalar = Builder.CreateLoad(Arg->getType(), Load);
       KernelArgs.push_back(Scalar);
     }
