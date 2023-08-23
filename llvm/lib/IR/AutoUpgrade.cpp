@@ -591,89 +591,6 @@ static bool UpgradeX86IntrinsicFunction(Function *F, StringRef Name,
   return false;
 }
 
-<<<<<<< HEAD
-=======
-static Intrinsic::ID ShouldUpgradeNVPTXBF16Intrinsic(StringRef Name) {
-  if (Name.consume_front("abs."))
-    return StringSwitch<Intrinsic::ID>(Name)
-        .Case("bf16", Intrinsic::nvvm_abs_bf16)
-        .Case("bf16x2", Intrinsic::nvvm_abs_bf16x2)
-        .Default(Intrinsic::not_intrinsic);
-
-  if (Name.consume_front("fma.rn."))
-    return StringSwitch<Intrinsic::ID>(Name)
-        .Case("bf16", Intrinsic::nvvm_fma_rn_bf16)
-        .Case("bf16x2", Intrinsic::nvvm_fma_rn_bf16x2)
-        .Case("ftz_bf16", Intrinsic::nvvm_fma_rn_ftz_bf16)
-        .Case("ftz.bf16x2", Intrinsic::nvvm_fma_rn_ftz_bf16x2)
-        .Case("ftz.relu.bf16", Intrinsic::nvvm_fma_rn_ftz_relu_bf16)
-        .Case("ftz.relu.bf16x2", Intrinsic::nvvm_fma_rn_ftz_relu_bf16x2)
-        .Case("ftz_sat.bf16", Intrinsic::nvvm_fma_rn_ftz_sat_bf16)
-        .Case("ftz_sat.bf16x2", Intrinsic::nvvm_fma_rn_ftz_sat_bf16x2)
-        .Case("relu.bf16", Intrinsic::nvvm_fma_rn_relu_bf16)
-        .Case("relu.bf16x2", Intrinsic::nvvm_fma_rn_relu_bf16x2)
-        .Case("sat.bf16", Intrinsic::nvvm_fma_rn_sat_bf16)
-        .Case("sat.bf16x2", Intrinsic::nvvm_fma_rn_sat_bf16x2)
-        .Default(Intrinsic::not_intrinsic);
-
-  if (Name.consume_front("fmax."))
-    return StringSwitch<Intrinsic::ID>(Name)
-        .Case("bf16", Intrinsic::nvvm_fmax_bf16)
-        .Case("bf16x2", Intrinsic::nvvm_fmax_bf16x2)
-        .Case("ftz.bf16", Intrinsic::nvvm_fmax_ftz_bf16)
-        .Case("ftz.bf16x2", Intrinsic::nvvm_fmax_ftz_bf16x2)
-        .Case("ftz.nan.bf16", Intrinsic::nvvm_fmax_ftz_nan_bf16)
-        .Case("ftz.nan.bf16x2", Intrinsic::nvvm_fmax_ftz_nan_bf16x2)
-        .Case("ftz.nan.xorsign.abs.bf16",
-              Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16)
-        .Case("ftz.nan.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16x2)
-        .Case("ftz.xorsign.abs.bf16", Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16)
-        .Case("ftz.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16x2)
-        .Case("nan.bf16", Intrinsic::nvvm_fmax_nan_bf16)
-        .Case("nan.bf16x2", Intrinsic::nvvm_fmax_nan_bf16x2)
-        .Case("nan.xorsign.abs.bf16", Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16)
-        .Case("nan.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16x2)
-        .Case("xorsign.abs.bf16", Intrinsic::nvvm_fmax_xorsign_abs_bf16)
-        .Case("xorsign.abs.bf16x2", Intrinsic::nvvm_fmax_xorsign_abs_bf16x2)
-        .Default(Intrinsic::not_intrinsic);
-
-  if (Name.consume_front("fmin."))
-    return StringSwitch<Intrinsic::ID>(Name)
-        .Case("bf16", Intrinsic::nvvm_fmin_bf16)
-        .Case("bf16x2", Intrinsic::nvvm_fmin_bf16x2)
-        .Case("ftz.bf16", Intrinsic::nvvm_fmin_ftz_bf16)
-        .Case("ftz.bf16x2", Intrinsic::nvvm_fmin_ftz_bf16x2)
-        .Case("ftz.nan_bf16", Intrinsic::nvvm_fmin_ftz_nan_bf16)
-        .Case("ftz.nan_bf16x2", Intrinsic::nvvm_fmin_ftz_nan_bf16x2)
-        .Case("ftz.nan.xorsign.abs.bf16",
-              Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16)
-        .Case("ftz.nan.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16x2)
-        .Case("ftz.xorsign.abs.bf16", Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16)
-        .Case("ftz.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16x2)
-        .Case("nan.bf16", Intrinsic::nvvm_fmin_nan_bf16)
-        .Case("nan.bf16x2", Intrinsic::nvvm_fmin_nan_bf16x2)
-        .Case("nan.xorsign.abs.bf16", Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16)
-        .Case("nan.xorsign.abs.bf16x2",
-              Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16x2)
-        .Case("xorsign.abs.bf16", Intrinsic::nvvm_fmin_xorsign_abs_bf16)
-        .Case("xorsign.abs.bf16x2", Intrinsic::nvvm_fmin_xorsign_abs_bf16x2)
-        .Default(Intrinsic::not_intrinsic);
-
-  if (Name.consume_front("neg."))
-    return StringSwitch<Intrinsic::ID>(Name)
-        .Case("bf16", Intrinsic::nvvm_neg_bf16)
-        .Case("bf16x2", Intrinsic::nvvm_neg_bf16x2)
-        .Default(Intrinsic::not_intrinsic);
-
-  return Intrinsic::not_intrinsic;
-}
-
->>>>>>> b045c36ab92f4ff478dab678aaff4680fbccc7ea
 static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   assert(F && "Illegal to upgrade a non-existent Function.");
 
@@ -1069,23 +986,9 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
     break;
   }
   case 'n': {
-    if (Name.consume_front("nvvm.")) {
-      // Check for nvvm intrinsics corresponding exactly to an LLVM intrinsic.
-      if (F->arg_size() == 1) {
-        Intrinsic::ID IID =
-            StringSwitch<Intrinsic::ID>(Name)
-                .Cases("brev32", "brev64", Intrinsic::bitreverse)
-                .Case("clz.i", Intrinsic::ctlz)
-                .Case("popc.i", Intrinsic::ctpop)
-                .Default(Intrinsic::not_intrinsic);
-        if (IID != Intrinsic::not_intrinsic) {
-          NewFn = Intrinsic::getDeclaration(F->getParent(), IID,
-                                            {F->getReturnType()});
-          return true;
-        }
-      }
+    if (Name.startswith("nvvm.")) {
+      Name = Name.substr(5);
 
-<<<<<<< HEAD
       // The following nvvm intrinsics correspond exactly to an LLVM intrinsic.
       Intrinsic::ID IID = StringSwitch<Intrinsic::ID>(Name)
                               .Cases("brev32", "brev64", Intrinsic::bitreverse)
@@ -1096,41 +999,24 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
         NewFn = Intrinsic::getDeclaration(F->getParent(), IID,
                                           {F->getReturnType()});
         return true;
-=======
-      // Check for nvvm intrinsics that need a return type adjustment.
-      if (!F->getReturnType()->getScalarType()->isBFloatTy()) {
-        Intrinsic::ID IID = ShouldUpgradeNVPTXBF16Intrinsic(Name);
-        if (IID != Intrinsic::not_intrinsic) {
-          NewFn = nullptr;
-          return true;
-        }
->>>>>>> b045c36ab92f4ff478dab678aaff4680fbccc7ea
       }
 
       // The following nvvm intrinsics correspond exactly to an LLVM idiom, but
       // not to an intrinsic alone.  We expand them in UpgradeIntrinsicCall.
       //
       // TODO: We could add lohi.i2d.
-      bool Expand = false;
-      if (Name.consume_front("abs."))
-        // nvvm.abs.{i,ii}
-        Expand = Name == "i" || Name == "ll";
-      else if (Name == "clz.ll" || Name == "popc.ll" || Name == "h2f")
-        Expand = true;
-      else if (Name.consume_front("max.") || Name.consume_front("min."))
-        // nvvm.{min,max}.{i,ii,ui,ull}
-        Expand = Name == "i" || Name == "ll" || Name == "ui" || Name == "ull";
-      else if (Name.consume_front("atomic.load.add."))
-        // nvvm.atomic.load.add.{f32.p,f64.p}
-        Expand = Name.startswith("f32.p") || Name.startswith("f64.p");
-      else
-        Expand = false;
-
+      bool Expand = StringSwitch<bool>(Name)
+                        .Cases("abs.i", "abs.ll", true)
+                        .Cases("clz.ll", "popc.ll", "h2f", true)
+                        .Cases("max.i", "max.ll", "max.ui", "max.ull", true)
+                        .Cases("min.i", "min.ll", "min.ui", "min.ull", true)
+                        .StartsWith("atomic.load.add.f32.p", true)
+                        .StartsWith("atomic.load.add.f64.p", true)
+                        .Default(false);
       if (Expand) {
         NewFn = nullptr;
         return true;
       }
-      break; // No other 'nvvm.*'.
     }
     break;
   }
