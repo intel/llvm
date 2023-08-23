@@ -2036,88 +2036,7 @@ ValueCategory MLIRScanner::VisitCastExpr(CastExpr *E) {
 
 ValueCategory
 MLIRScanner::VisitConditionalOperator(clang::ConditionalOperator *E) {
-  auto Cond = Visit(E->getCond()).getValue(Builder);
-  assert(Cond != nullptr);
-  if (auto LT = dyn_cast<mlir::LLVM::LLVMPointerType>(Cond.getType())) {
-    auto NullptrLlvm = Builder.create<mlir::LLVM::NullOp>(Loc, LT);
-    Cond = Builder.create<mlir::LLVM::ICmpOp>(
-        Loc, mlir::LLVM::ICmpPredicate::ne, Cond, NullptrLlvm);
-  }
-  auto PrevTy = cast<mlir::IntegerType>(Cond.getType());
-  if (!PrevTy.isInteger(1)) {
-    Cond = Builder.create<arith::CmpIOp>(
-        Loc, arith::CmpIPredicate::ne, Cond,
-        Builder.create<arith::ConstantIntOp>(Loc, 0, PrevTy));
-  }
-  std::vector<mlir::Type> Types;
-  if (!E->getType()->isVoidType())
-    Types.push_back(Glob.getTypes().getMLIRType(E->getType()));
-  auto IfOp = Builder.create<mlir::scf::IfOp>(Loc, Types, Cond,
-                                              /*hasElseRegion*/ true);
-
-  auto Oldpoint = Builder.getInsertionPoint();
-  auto *Oldblock = Builder.getInsertionBlock();
-  Builder.setInsertionPointToStart(&IfOp.getThenRegion().back());
-
-  auto TrueExpr = Visit(E->getTrueExpr());
-
-  bool IsReference = E->isLValue() || E->isXValue();
-
-  std::vector<mlir::Value> TrueArray;
-  if (!E->getType()->isVoidType()) {
-    if (!TrueExpr.val)
-      E->dump();
-
-    assert(TrueExpr.val);
-    mlir::Value Truev;
-    if (IsReference) {
-      assert(TrueExpr.isReference);
-      Truev = TrueExpr.val;
-    } else {
-      if (TrueExpr.isReference)
-        if (auto MT = dyn_cast<MemRefType>(TrueExpr.val.getType()))
-          if (MT.getShape().size() != 1) {
-            E->dump();
-            E->getTrueExpr()->dump();
-            llvm::errs() << " trueExpr: " << TrueExpr.val << "\n";
-            assert(0);
-          }
-      Truev = TrueExpr.getValue(Builder);
-    }
-    assert(Truev != nullptr);
-    TrueArray.push_back(Truev);
-    Builder.create<mlir::scf::YieldOp>(Loc, TrueArray);
-  }
-
-  Builder.setInsertionPointToStart(&IfOp.getElseRegion().back());
-
-  auto FalseExpr = Visit(E->getFalseExpr());
-  std::vector<mlir::Value> Falsearray;
-  if (!E->getType()->isVoidType()) {
-    mlir::Value Falsev;
-    if (IsReference) {
-      assert(FalseExpr.isReference);
-      Falsev = FalseExpr.val;
-    } else
-      Falsev = FalseExpr.getValue(Builder);
-    assert(Falsev != nullptr);
-    Falsearray.push_back(Falsev);
-    Builder.create<mlir::scf::YieldOp>(Loc, Falsearray);
-  }
-
-  Builder.setInsertionPoint(Oldblock, Oldpoint);
-
-  for (size_t I = 0; I < TrueArray.size(); I++)
-    Types[I] = TrueArray[I].getType();
-  auto NewIfOp = Builder.create<mlir::scf::IfOp>(Loc, Types, Cond,
-                                                 /*hasElseRegion*/ true);
-  NewIfOp.getThenRegion().takeBody(IfOp.getThenRegion());
-  NewIfOp.getElseRegion().takeBody(IfOp.getElseRegion());
-  IfOp.erase();
-  return NewIfOp.getNumResults()
-             ? ValueCategory(NewIfOp.getResult(0), /*isReference*/ IsReference,
-                             TrueExpr.ElementType)
-             : nullptr;
+  return EmitConditionalOperator(E, /*isReference=*/false);
 }
 
 ValueCategory MLIRScanner::VisitStmtExpr(clang::StmtExpr *Stmt) {
@@ -2565,11 +2484,51 @@ ValueCategory MLIRScanner::EmitLValue(Expr *E) {
     assert(!Ty->isAnyComplexType() && "Handle complex types.");
     return EmitCompoundAssignmentLValue(CAO);
   }
+  case Expr::ConditionalOperatorClass:
+    return EmitConditionalOperatorLValue(cast<ConditionalOperator>(E));
   case Expr::ParenExprClass:
     return EmitLValue(cast<ParenExpr>(E)->getSubExpr());
   case Expr::ArraySubscriptExprClass:
     return EmitArraySubscriptExpr(cast<ArraySubscriptExpr>(E));
   }
+}
+
+ValueCategory MLIRScanner::EmitConditionalOperator(ConditionalOperator *E,
+                                                   bool /*isReference*/) {
+  bool isVoid = E->getType()->isVoidType();
+  // FIXME: This `isReturnReference` trick is needed due to bad handling of
+  // lvalues all around codegen in cgeist. When that is fixed, we should rely
+  // solely on the `isReference` input argument.
+  bool isReturnReference = E->isGLValue();
+  ValueCategory cond = EvaluateExprAsBool(E->getCond());
+  std::optional<mlir::Type> elementType;
+  auto emitBody = [&](OpBuilder &builder, Location loc, Expr *expr) {
+    ValueCategory res = isReturnReference ? EmitLValue(expr) : Visit(expr);
+    if (isVoid) {
+      builder.create<scf::YieldOp>(loc);
+    } else {
+      if (isReturnReference && !elementType)
+        elementType = res.ElementType;
+      builder.create<scf::YieldOp>(
+          loc, isReturnReference ? res.val : res.getValue(builder));
+    }
+  };
+  auto emitThenBody = [&](OpBuilder &builder, Location loc) {
+    emitBody(builder, loc, E->getTrueExpr());
+  };
+  auto emitElseBody = [&](OpBuilder &builder, Location loc) {
+    emitBody(builder, loc, E->getFalseExpr());
+  };
+  auto ifOp = Builder.create<scf::IfOp>(getMLIRLocation(E->getExprLoc()),
+                                        cond.val, emitThenBody, emitElseBody);
+  return isVoid ? ValueCategory()
+                : ValueCategory(ifOp.getResults()[0], isReturnReference,
+                                elementType);
+}
+
+ValueCategory
+MLIRScanner::EmitConditionalOperatorLValue(ConditionalOperator *E) {
+  return EmitConditionalOperator(E, /*isReference=*/true);
 }
 
 ValueCategory MLIRScanner::EmitBinaryOperatorLValue(BinaryOperator *E) {
@@ -3164,6 +3123,12 @@ ValueCategory MLIRScanner::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
       cast<mlir::IntegerType>(Glob.getTypes().getMLIRType(E->getType()));
   return ValueCategory{Builder.create<arith::ConstantIntOp>(Loc, Val, Ty),
                        /*isReference*/ false};
+}
+
+ValueCategory MLIRScanner::EvaluateExprAsBool(Expr *E) {
+  return EmitScalarConversion(Visit(E), E->getType(),
+                              Glob.getTypes().getContext().BoolTy,
+                              E->getExprLoc());
 }
 
 ValueCategory MLIRScanner::EmitCompare(clang::BinaryOperator *E,
