@@ -125,6 +125,7 @@ TEST(ConstantsTest, FP128Test) {
   EXPECT_TRUE(isa<ConstantFP>(X));
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 TEST(ConstantsTest, PointerCast) {
   LLVMContext C;
   Type *Int8PtrTy = Type::getInt8PtrTy(C);
@@ -188,7 +189,66 @@ TEST(ConstantsTest, PointerCast) {
   EXPECT_NE(Constant::getNullValue(Int32Ptr1Ty),
             ConstantExpr::getAddrSpaceCast(NullInt32Ptr1, Int32PtrTy));
 }
+#else
+TEST(ConstantsTest, PointerCast) {
+  LLVMContext C;
+  Type *PtrTy = PointerType::get(C, 0);
+  Type *Int64Ty = Type::getInt64Ty(C);
+  VectorType *PtrVecTy = FixedVectorType::get(PtrTy, 4);
+  VectorType *Int64VecTy = FixedVectorType::get(Int64Ty, 4);
+  VectorType *PtrScalableVecTy = ScalableVectorType::get(PtrTy, 4);
+  VectorType *Int64ScalableVecTy = ScalableVectorType::get(Int64Ty, 4);
 
+  // ptrtoint ptr to i64
+  EXPECT_EQ(
+      Constant::getNullValue(Int64Ty),
+      ConstantExpr::getPointerCast(Constant::getNullValue(PtrTy), Int64Ty));
+
+  // bitcast ptr to ptr
+  EXPECT_EQ(Constant::getNullValue(PtrTy),
+            ConstantExpr::getPointerCast(Constant::getNullValue(PtrTy), PtrTy));
+
+  // ptrtoint <4 x ptr> to <4 x i64>
+  EXPECT_EQ(Constant::getNullValue(Int64VecTy),
+            ConstantExpr::getPointerCast(Constant::getNullValue(PtrVecTy),
+                                         Int64VecTy));
+
+  // ptrtoint <vscale x 4 x ptr> to <vscale x 4 x i64>
+  EXPECT_EQ(Constant::getNullValue(Int64ScalableVecTy),
+            ConstantExpr::getPointerCast(
+                Constant::getNullValue(PtrScalableVecTy), Int64ScalableVecTy));
+
+  // bitcast <4 x ptr> to <4 x ptr>
+  EXPECT_EQ(
+      Constant::getNullValue(PtrVecTy),
+      ConstantExpr::getPointerCast(Constant::getNullValue(PtrVecTy), PtrVecTy));
+
+  // bitcast <vscale x 4 x ptr> to <vscale x 4 x ptr>
+  EXPECT_EQ(Constant::getNullValue(PtrScalableVecTy),
+            ConstantExpr::getPointerCast(
+                Constant::getNullValue(PtrScalableVecTy), PtrScalableVecTy));
+
+  Type *Ptr1Ty = PointerType::get(C, 1);
+  ConstantInt *K = ConstantInt::get(Type::getInt64Ty(C), 1234);
+
+  // Make sure that addrspacecast of inttoptr is not folded away.
+  EXPECT_NE(K, ConstantExpr::getAddrSpaceCast(
+                   ConstantExpr::getIntToPtr(K, PtrTy), Ptr1Ty));
+  EXPECT_NE(K, ConstantExpr::getAddrSpaceCast(
+                   ConstantExpr::getIntToPtr(K, Ptr1Ty), PtrTy));
+
+  Constant *NullPtr0 = Constant::getNullValue(PtrTy);
+  Constant *NullPtr1 = Constant::getNullValue(Ptr1Ty);
+
+  // Make sure that addrspacecast of null is not folded away.
+  EXPECT_NE(Constant::getNullValue(PtrTy),
+            ConstantExpr::getAddrSpaceCast(NullPtr0, Ptr1Ty));
+
+  EXPECT_NE(Constant::getNullValue(Ptr1Ty),
+            ConstantExpr::getAddrSpaceCast(NullPtr1, PtrTy));
+}
+
+#endif
 #define CHECK(x, y)                                                            \
   {                                                                            \
     std::string __s;                                                           \
@@ -202,7 +262,6 @@ TEST(ConstantsTest, PointerCast) {
 
 TEST(ConstantsTest, AsInstructionsTest) {
   LLVMContext Context;
-  Context.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("MyModule", Context));
 
   Type *Int64Ty = Type::getInt64Ty(Context);
@@ -668,7 +727,11 @@ TEST(ConstantsTest, isElementWiseEqual) {
   EXPECT_FALSE(CF12U2->isElementWiseEqual(CF12U1));
   EXPECT_FALSE(CF12U1->isElementWiseEqual(CF12U2));
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   PointerType *PtrTy = Type::getInt8PtrTy(Context);
+#else
+  PointerType *PtrTy = PointerType::get(Context, 0);
+#endif
   Constant *CPU = UndefValue::get(PtrTy);
   Constant *CP0 = ConstantPointerNull::get(PtrTy);
 
