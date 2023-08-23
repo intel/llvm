@@ -883,6 +883,7 @@ supported parameter combination is specified in the following table.
 
 
 [frame="none",options="header"]
+[cols="40%, 60%"]
 |======================
 | A and B type | C and D type | M | N | K | Minimum Compute Capability
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp32`
