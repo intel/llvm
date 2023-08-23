@@ -3167,7 +3167,9 @@ void KernelFusionCommand::setFusionStatus(FusionStatus Status) {
 }
 
 void KernelFusionCommand::resetQueue() {
-  assert(MStatus != FusionStatus::ACTIVE && "Cannot release the queue attached to the KernelFusionCommand if it is active.");
+  assert(MStatus != FusionStatus::ACTIVE &&
+         "Cannot release the queue attached to the KernelFusionCommand if it "
+         "is active.");
   MQueue.reset();
   MWorkerQueue.reset();
 }

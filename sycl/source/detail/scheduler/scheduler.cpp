@@ -573,8 +573,9 @@ void Scheduler::startFusion(QueueImplPtr Queue) {
   MGraphBuilder.startFusion(Queue);
 }
 
-void Scheduler::cleanUpCmdFusion(sycl::detail::queue_impl* Queue) {
-  // No graph lock, we might be called because the graph builder is releasing resources.
+void Scheduler::cleanUpCmdFusion(sycl::detail::queue_impl *Queue) {
+  // No graph lock, we might be called because the graph builder is releasing
+  // resources.
   WriteLockT FusionMapLock = acquireFusionWriteLock();
   MGraphBuilder.cleanUpCmdFusion(Queue);
 }

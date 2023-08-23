@@ -728,7 +728,8 @@ public:
   void setFusionStatus(FusionStatus Status);
 
   /// Reset the queue. This can be required as the command is held in order
-  /// to maintain events alive, however this prevent the normal destruction of the queue.
+  /// to maintain events alive, however this prevent the normal destruction of
+  /// the queue.
   void resetQueue();
 
   bool isActive() const { return MStatus == FusionStatus::ACTIVE; }

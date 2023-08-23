@@ -449,7 +449,7 @@ public:
 
   void startFusion(QueueImplPtr Queue);
 
-  void cleanUpCmdFusion(sycl::detail::queue_impl* Queue);
+  void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
 
   void cancelFusion(QueueImplPtr Queue);
 
@@ -654,7 +654,7 @@ protected:
 
     /// Clean up the internal fusion commands held for the given queue.
     /// @param Queue the queue for which to remove the fusion commands.
-    void cleanUpCmdFusion(sycl::detail::queue_impl* Queue);
+    void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
 
     void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
 
