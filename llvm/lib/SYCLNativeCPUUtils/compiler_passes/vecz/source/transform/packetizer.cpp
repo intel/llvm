@@ -1086,14 +1086,17 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
   auto const Builtin = BI.analyzeBuiltin(*callee);
   auto const Info = BI.isMuxGroupCollective(Builtin.ID);
 
-  if (!Info || !Info->isSubGroupScope() ||
+  if (!Info || (!Info->isSubGroupScope() && !Info->isWorkGroupScope()) ||
       (!Info->isAnyAll() && !Info->isReduction())) {
     return nullptr;
   }
 
+  bool isWorkGroup = Info->isWorkGroupScope();
+  unsigned argIdx = isWorkGroup ? 1 : 0;
+
   SmallVector<Value *, 16> opPackets;
-  IRBuilder<> B(buildAfter(CI, F));
-  auto *const argTy = CI->getArgOperand(0)->getType();
+  IRBuilder<> B(CI);
+  auto *const argTy = CI->getArgOperand(argIdx)->getType();
   auto packetWidth = getPacketWidthForType(argTy);
 
   // Don't vector predicate if we have to split into multiple packets. The
@@ -1105,7 +1108,7 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
     return nullptr;
   }
 
-  auto op = packetize(CI->getArgOperand(0));
+  auto op = packetize(CI->getArgOperand(argIdx));
 
   // Reduce the packet values in-place.
   // TODO: can we add 'reassoc' to the floating-point reductions to absolve
@@ -1147,9 +1150,16 @@ Value *Packetizer::Impl::packetizeSubgroupReduction(Instruction *I) {
   Value *v =
       createSimpleTargetReduction(B, &TTI, opPackets.front(), Info->Recurrence);
 
-  IC.deleteInstructionLater(CI);
-
-  CI->replaceAllUsesWith(v);
+  if (isWorkGroup) {
+    // For a work group operation, we leave the original reduction function and
+    // divert the subgroup reduction through it, giving us a work group
+    // reduction over subgroup reductions.
+    CI->setOperand(argIdx, v);
+    v = CI;
+  } else {
+    IC.deleteInstructionLater(CI);
+    CI->replaceAllUsesWith(v);
+  }
 
   return v;
 }
@@ -1163,14 +1173,21 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
   Function *callee = CI->getCalledFunction();
   auto const Builtin = BI.analyzeBuiltin(*callee);
 
-  if (auto Info = BI.isMuxGroupCollective(Builtin.ID);
-      !Info || !Info->isSubGroupScope() || !Info->isBroadcast()) {
+  bool isWorkGroup = false;
+  if (auto Info = BI.isMuxGroupCollective(Builtin.ID)) {
+    if (!Info->isBroadcast() ||
+        (!Info->isSubGroupScope() && !Info->isWorkGroupScope())) {
+      return nullptr;
+    }
+    isWorkGroup = Info->isWorkGroupScope();
+  } else {
     return nullptr;
   }
 
-  IRBuilder<> B(buildAfter(CI, F));
+  IRBuilder<> B(CI);
 
-  auto *const src = CI->getArgOperand(0);
+  unsigned argIdx = isWorkGroup ? 1 : 0;
+  auto *const src = CI->getArgOperand(argIdx);
 
   auto op = packetize(src);
   PACK_FAIL_IF(!op);
@@ -1183,7 +1200,19 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
     return src;
   }
 
-  auto *const idx = CI->getArgOperand(1);
+  auto *idx = CI->getArgOperand(argIdx + 1);
+  if (isWorkGroup) {
+    // When it's a work group broadcast, we need to sanitize the input index so
+    // that it stays within the range of one subgroup.
+    auto *const minVal =
+        ConstantInt::get(idx->getType(), SimdWidth.getKnownMinValue());
+    Value *idxFactor = minVal;
+    if (SimdWidth.isScalable()) {
+      idxFactor = B.CreateVScale(minVal);
+    }
+    idx = B.CreateURem(idx, idxFactor);
+  }
+
   Value *val = nullptr;
   // Optimize the constant fixed-vector case, where we can choose the exact
   // subpacket to extract from directly.
@@ -1207,9 +1236,16 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
     val = B.CreateExtractElement(op.getAsValue(), idx);
   }
 
-  IC.deleteInstructionLater(CI);
-
-  CI->replaceAllUsesWith(val);
+  if (isWorkGroup) {
+    // For a work group operation, we leave the origial broadcast function and
+    // divert the subgroup reduction through it, giving us a work group
+    // reduction over subgroup reductions.
+    CI->setOperand(argIdx, val);
+    val = CI;
+  } else {
+    IC.deleteInstructionLater(CI);
+    CI->replaceAllUsesWith(val);
+  }
 
   return val;
 }
