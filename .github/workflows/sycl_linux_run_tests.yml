@@ -164,8 +164,7 @@ jobs:
     - name: Install drivers
       if: inputs.install_drivers == 'true'
       run: |
-        sudo cp devops/scripts/get_release.py /opt/
-        sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
+        echo "$GITHUB_TOKEN" | sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Install drivers (deprecated CI interface)
       if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
       run: |
