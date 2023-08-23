@@ -99,7 +99,7 @@ public:
 // nop.
 class ur_mutex {
   std::mutex Mutex;
-  friend class ur_lock_guard;
+  friend class ur_lock;
 
 public:
   void lock() {
@@ -113,11 +113,15 @@ public:
   }
 };
 
-class ur_lock_guard {
-  std::lock_guard<std::mutex> lock;
+class ur_lock {
+  std::unique_lock<std::mutex> Lock;
 
 public:
-  explicit ur_lock_guard(ur_mutex &Mutex) : lock{Mutex.Mutex} {};
+  explicit ur_lock(ur_mutex &Mutex) {
+    if (!SingleThreadMode) {
+      Lock = std::unique_lock<std::mutex>(Mutex.Mutex);
+    }
+  }
 };
 
 /// SpinLock is a synchronization primitive, that uses atomic variable and

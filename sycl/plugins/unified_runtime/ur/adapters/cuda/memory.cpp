@@ -483,7 +483,7 @@ ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
   ScopedDevice Active(hDevice);
-  ur_lock_guard LockGuard(MemoryAllocationMutex);
+  ur_lock LockGuard(MemoryAllocationMutex);
 
   CUdeviceptr &DevPtr = getNativePtr(hDevice);
 

@@ -284,18 +284,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   std::vector<ur_event_handle_t> DepEvents(
       phEventWaitList, phEventWaitList + numEventsInWaitList);
+  std::vector<ur_lock> MemMigrationLocks;
+  MemMigrationLocks.reserve(hKernel->Args.MemObjArgs.size());
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
   // runtime. However since UR handles memory dependencies within a context
   // we may need to add more events to our dependent events list
   for (auto &MemArg : hKernel->Args.MemObjArgs) {
     if (MemArg.Mem->isBuffer()) {
-      MemArg.Mem->MemoryMigrationMutex.lock();
+      bool PushBack = false;
       if (auto MemDepEvent =
               ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
           MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
                                    MemDepEvent) == DepEvents.end()) {
         DepEvents.push_back(MemDepEvent);
+        PushBack = true;
+      }
+      if ((MemArg.AccessFlags &
+           (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) ||
+          PushBack) {
+        MemMigrationLocks.emplace_back(
+            ur_lock{MemArg.Mem->MemoryMigrationMutex});
       }
     }
   }
@@ -422,6 +431,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
+    // Once event has been started we can unlock MemoryMigrationMutex
+    for (auto &MemArg : hKernel->Args.MemObjArgs) {
+      // Telling the ur_mem_handle_t that it will need to wait on this kernel
+      // if it has been written to
+      if (phEvent && MemArg.Mem->isBuffer()) {
+        if (MemArg.AccessFlags &
+            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+          ur_cast<ur_buffer_ *>(MemArg.Mem)
+              ->setLastEventWritingToMemObj(RetImplEvent.get());
+        }
+      }
+    }
+    // We can release the MemoryMigrationMutexes now
+    MemMigrationLocks.clear();
+
     if (hQueue->getDevice()->maxLocalMemSizeChosen()) {
       // Set up local memory requirements for kernel.
       auto Device = hQueue->getDevice();
@@ -458,27 +482,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
-      for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        // Telling the ur_mem_handle_t that it will need to wait on this kernel
-        // if it has been written to
-        if (MemArg.Mem->isBuffer()) {
-          if (MemArg.AccessFlags &
-              (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
-            ur_cast<ur_buffer_ *>(MemArg.Mem)
-                ->setLastEventWritingToMemObj(RetImplEvent.get());
-          }
-          MemArg.Mem->MemoryMigrationMutex.unlock();
-        }
-      }
       *phEvent = RetImplEvent.release();
-    } else {
-      for (auto &MemArg : hKernel->Args.MemObjArgs) {
-        if (MemArg.Mem->isBuffer()) {
-          MemArg.Mem->MemoryMigrationMutex.unlock();
-        }
-      }
     }
-
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -554,7 +559,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hBuffer->isBuffer(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
-  hBuffer->MemoryMigrationMutex.lock();
+  ur_lock MemoryMigrationLock(hBuffer->MemoryMigrationMutex);
 
   ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -607,8 +612,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
   } catch (ur_result_t Err) {
     Result = Err;
   }
-  hBuffer->MemoryMigrationMutex.unlock();
-
   return Result;
 }
 
@@ -1618,7 +1621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
                 numEventsInWaitList == 0,
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
   ur_buffer_ *Buffer = ur_cast<ur_buffer_ *>(hBuffer);
-  hBuffer->MemoryMigrationMutex.lock();
+  ur_lock MemoryMigrationLock(hBuffer->MemoryMigrationMutex);
 
   UR_ASSERT(offset + size <= Buffer->Size, UR_RESULT_ERROR_INVALID_SIZE);
 
@@ -1672,8 +1675,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   } catch (ur_result_t Err) {
     Result = Err;
   }
-  hBuffer->MemoryMigrationMutex.unlock();
-
   return Result;
 }
 
