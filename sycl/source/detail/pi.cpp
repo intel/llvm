@@ -24,6 +24,11 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/version.hpp>
 
+#if _WIN32
+#include <sycl/detail/windows_os_utils.hpp>
+#endif
+
+
 #include <bitset>
 #include <cstdarg>
 #include <cstring>
@@ -453,7 +458,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
 
 #if _WIN32
   std::filesystem::path LibSYCLDir =
-      sycl::detail::OSUtil::getCurrentDSODirPath();
+      sycl::detail::getCurrentDSODirPath();
 #else
   const std::string LibSYCLDir =
       sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;

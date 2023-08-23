@@ -19,6 +19,9 @@
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
 
 #include <cstdint> // for uint64_t, uint32_t
+// DPCPP is supported on some linux systems where default compiler is gcc 7.5 which doesn't provide <filesystem> support.
+// On Windows, minimal supported version of Visual sSudio is 2019 where <filesystem> is available (supported since Visual Studio 2017 version 15.7).
+// TODO: use <filesystem> on Linux as well when support matrix will change.
 #if _WIN32
 #include <filesystem>
 #endif

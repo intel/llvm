@@ -236,6 +236,7 @@ set(SYCL_SOURCES
     "spirv_ops.cpp"
     "esimd_emulator_device_interface.cpp"
     "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
+    "$<$<PLATFORM_ID:Windows>:detail/windows_os_utils.cpp>"
     "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
 )
 
