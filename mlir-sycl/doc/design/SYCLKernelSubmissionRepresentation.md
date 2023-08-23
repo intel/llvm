@@ -108,8 +108,10 @@ operation used in device code in the following aspects:
 We currently extract the following information and encode it in the type
 attribute:
 - `sycl::buffer`: dimensions, sub-buffer flag
-- `sycl::accessor`: dimensions, access mode, access target, presence of a
-  (sub-)range and offset
+- `sycl::accessor`: dimensions, access mode, access target. The `!sycl.accessor`
+  type's body type list can be either `!llvm.void`, `!sycl.range` or
+  `!sycl.range`+`!sycl.id`, and encodes whether the accessor is constructed with
+  a range, or range and offset.
 - `sycl::range`, `sycl::id`, `sycl::nd_range`: dimensions
 
 As a general rule, we do not attempt to extract the element type of
