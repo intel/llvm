@@ -93,7 +93,7 @@ public:
     tryToEnable();
   }
 
-  ProxyLoader&operator=(const ProxyLoader&) = delete;
+  ProxyLoader &operator=(const ProxyLoader &) = delete;
 
   ~ProxyLoader() {
     // If the loading of the framework library was
