@@ -88,11 +88,46 @@
 #endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
+#if defined(__SYCL_UNNAMED_LAMBDA__)
+// We can't use nested types (e.g. struct S defined inside main() routine) to
+// name kernels. At the same time, we have to provide a unique kernel name for
+// sycl::fill and the only thing we can use to introduce that uniqueness (in
+// general) is the template parameter T which might be exactly that nested type.
+// That means we cannot support sycl::fill(void *, T&, size_t) for such types in
+// general. However, we can do better than that when unnamed lambdas are
+// enabled, so do it here! See also https://github.com/intel/llvm/issues/469.
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __fill = sycl::detail::auto_name;
+template <typename T> using __usmfill = sycl::detail::auto_name;
+template <typename T> using __usmfill2d = sycl::detail::auto_name;
+template <typename T> using __usmmemcpy2d = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyAcc2Ptr = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyPtr2Acc = sycl::detail::auto_name;
+
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
+using __copyAcc2Acc = sycl::detail::auto_name;
+#else
+// Limited fallback path for when unnamed lambdas aren't available. Cannot
+// handle nested types.
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __fill;
-
 template <typename T> class __usmfill;
 template <typename T> class __usmfill2d;
 template <typename T> class __usmmemcpy2d;
@@ -114,6 +149,7 @@ template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::placeholder IsPlaceholder_Src,
           sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
+#endif
 
 // For unit testing purposes
 class MockHandler;
@@ -860,9 +896,8 @@ private:
       return false;
 
     range<1> LinearizedRange(Src.size());
-    parallel_for<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    parallel_for<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                               ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         LinearizedRange, [=](id<1> Id) {
           size_t Index = Id[0];
           id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
@@ -889,9 +924,8 @@ private:
     if (!MIsHost)
       return false;
 
-    single_task<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    single_task<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                              ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
     return true;
   }
@@ -908,8 +942,7 @@ private:
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
-    parallel_for<
-        class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
@@ -927,7 +960,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
-    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
           *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
@@ -944,8 +977,7 @@ private:
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
-    parallel_for<
-        class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
@@ -962,7 +994,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
         });
@@ -2551,13 +2583,11 @@ public:
       *PatternPtr = Pattern;
     } else if constexpr (Dims == 0) {
       // Special case for zero-dim accessors.
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
@@ -2572,7 +2602,7 @@ public:
     throwIfActionIsCreated();
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
     });
@@ -3277,7 +3307,7 @@ private:
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmmemcpy2d<T>>(
+    parallel_for<__usmmemcpy2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           const T *CastedSrc = static_cast<const T *>(Src);
@@ -3323,7 +3353,7 @@ private:
     // Limit number of work items to be resistant to big fill operations.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmfill2d<T>>(
+    parallel_for<__usmfill2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           for (uint32_t I = 0; I < Iterations[0]; ++I) {
