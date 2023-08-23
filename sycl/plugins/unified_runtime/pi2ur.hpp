@@ -712,7 +712,7 @@ inline pi_result ur2piProgramBuildInfoValue(ur_program_build_info_t ParamName,
       case UR_PROGRAM_BINARY_TYPE_LIBRARY:
         return PI_PROGRAM_BINARY_TYPE_LIBRARY;
       case UR_PROGRAM_BINARY_TYPE_EXECUTABLE:
-        return PI_PROGRAM_BINARY_TYPE_LIBRARY;
+        return PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
       default:
         die("ur_program_binary_type_t: unhandled value");
       }
@@ -720,7 +720,7 @@ inline pi_result ur2piProgramBuildInfoValue(ur_program_build_info_t ParamName,
     return Value.convert<ur_program_binary_type_t, pi_program_binary_type>(
         ConvertFunc);
   }
-  
+
   if (ParamName == UR_PROGRAM_BUILD_INFO_STATUS) {
     auto ConvertFunc = [](ur_program_build_status_t UrValue) {
       switch (UrValue) {
@@ -2534,7 +2534,7 @@ inline pi_result piProgramGetBuildInfo(pi_program Program, pi_device Device,
   HANDLE_ERRORS(urProgramGetBuildInfo(UrProgram, UrDevice, PropName,
                                       ParamValueSize, ParamValue,
                                       ParamValueSizeRet));
-  ur2piProgramBuildInfoValue(PropName,ParamValueSize, &SizeInOut, ParamValue);
+  ur2piProgramBuildInfoValue(PropName, ParamValueSize, &SizeInOut, ParamValue);
   return PI_SUCCESS;
 }
 
