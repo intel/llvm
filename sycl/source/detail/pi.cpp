@@ -16,6 +16,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
+#include <filesystem>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/device_filter.hpp>
@@ -383,11 +384,19 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   return PluginNames;
 }
 
+#if _WIN32
+// Load the Plugin by calling the OS dependent library loading call.
+// Return the handle to the Library.
+void *loadPlugin(const std::filesystem::path &PluginPath) {
+  return loadOsPluginLibrary(PluginPath);
+}
+#else
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
   return loadOsPluginLibrary(PluginPath);
 }
+#endif
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
@@ -442,15 +451,24 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
+#if _WIN32
+  std::filesystem::path LibSYCLDir =
+      sycl::detail::OSUtil::getCurrentDSODirPath();
+#else
   const std::string LibSYCLDir =
       sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
+#endif
 
   for (unsigned int I = 0; I < PluginNames.size(); I++) {
     std::shared_ptr<PiPlugin> PluginInformation = std::make_shared<PiPlugin>(
         PiPlugin{_PI_H_VERSION_STRING, _PI_H_VERSION_STRING,
                  /*Targets=*/nullptr, /*FunctionPointers=*/{}});
 
+#if _WIN32
+    void *Library = loadPlugin(LibSYCLDir / PluginNames[I].first);
+#else
     void *Library = loadPlugin(LibSYCLDir + PluginNames[I].first);
+#endif
 
     if (!Library) {
       if (trace(PI_TRACE_ALL)) {

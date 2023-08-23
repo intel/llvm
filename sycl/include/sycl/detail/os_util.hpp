@@ -12,7 +12,10 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib>    // for size_t
+#include <cstdlib> // for size_t
+#ifdef _WIN32
+#include <filesystem>
+#endif
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
@@ -48,6 +51,11 @@ public:
 
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
+
+#ifdef __SYCL_RT_OS_WINDOWS
+  /// Returns an absolute path to a directory where the object was found.
+  static std::filesystem::path getCurrentDSODirPath();
+#endif
 
 #ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
