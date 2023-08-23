@@ -5,7 +5,7 @@
 
 // UNSUPPORTED: system-windows
 
-// RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda -fno-gpu-rdc %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
+// RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -fno-gpu-rdc %s --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=CHECK_NORDC_OPAQUE_PTR
 // CHECK_NORDC_OPAQUE_PTR: clang{{.*}}
 // CHECK_NORDC_OPAQUE_PTR-NOT: llvm-link
