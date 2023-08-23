@@ -16,8 +16,6 @@
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
-#include <deque>
-
 // Developer switch to use emulation mode on all backends, even those that
 // report native support, this is useful for debugging.
 #define FORCE_EMULATION_MODE 0
