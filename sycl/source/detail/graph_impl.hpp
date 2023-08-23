@@ -20,6 +20,7 @@
 #include <functional>
 #include <list>
 #include <set>
+#include <shared_mutex>
 
 namespace sycl {
 inline namespace _V1 {
@@ -122,7 +123,7 @@ public:
   /// @param Schedule Execution ordering to add node to.
   void sortTopological(std::shared_ptr<node_impl> NodeImpl,
                        std::list<std::shared_ptr<node_impl>> &Schedule) {
-    for (auto Next : MSuccessors) {
+    for (auto &Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
         Next->sortTopological(Next, Schedule);
@@ -225,6 +226,37 @@ public:
     return false;
   }
 
+  /// Recursive traversal of successor nodes checking for
+  /// equivalent node successions in Node
+  /// @param Node pointer to the starting node for structure comparison
+  /// @return true is same structure found, false otherwise
+  bool checkNodeRecursive(std::shared_ptr<node_impl> Node) {
+    size_t FoundCnt = 0;
+    for (std::shared_ptr<node_impl> SuccA : MSuccessors) {
+      for (std::shared_ptr<node_impl> SuccB : Node->MSuccessors) {
+        if (isSimilar(Node) && SuccA->checkNodeRecursive(SuccB)) {
+          FoundCnt++;
+          break;
+        }
+      }
+    }
+    if (FoundCnt != MSuccessors.size()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Recusively computes the number of successor nodes
+  /// @return number of successor nodes
+  size_t depthSearchCount() const {
+    size_t NumberOfNodes = 1;
+    for (const auto &Succ : MSuccessors) {
+      NumberOfNodes += Succ->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
@@ -238,6 +270,12 @@ private:
 /// Implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device to create nodes with.
@@ -318,6 +356,7 @@ public:
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
   getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
+    ReadLock Lock(MMutex);
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
             [NodeImpl](auto &it) { return it.second == NodeImpl; });
@@ -370,6 +409,95 @@ public:
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
 
+  /// Checks if the graph_impl of Graph has a similar structure to
+  /// the graph_impl of the caller.
+  /// Graphs are considered similar if they have same numbers of nodes
+  /// of the same type with similar predecessor and successor nodes (number and
+  /// type). Two nodes are considered similar if they have the same
+  /// command-group type. For command-groups of type "kernel", the "signature"
+  /// of the kernel is also compared (i.e. the name of the command-group).
+  /// @param Graph if reference to the graph to compare with.
+  /// @param DebugPrint if set to true throw exception with additional debug
+  /// information about the spotted graph differences.
+  /// @return true if the two graphs are similar, false otherwise
+  bool hasSimilarStructure(std::shared_ptr<detail::graph_impl> Graph,
+                           bool DebugPrint = false) const {
+    if (this == Graph.get())
+      return true;
+
+    if (MContext != Graph->MContext) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MContext are not the same.");
+      }
+      return false;
+    }
+
+    if (MDevice != Graph->MDevice) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MDevice are not the same.");
+      }
+      return false;
+    }
+
+    if (MEventsMap.size() != Graph->MEventsMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MEventsMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MInorderQueueMap.size() != Graph->MInorderQueueMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MInorderQueueMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MRoots.size() != Graph->MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MRoots sizes are not the same.");
+      }
+      return false;
+    }
+
+    size_t RootsFound = 0;
+    for (std::shared_ptr<node_impl> NodeA : MRoots) {
+      for (std::shared_ptr<node_impl> NodeB : Graph->MRoots) {
+        if (NodeA->isSimilar(NodeB)) {
+          if (NodeA->checkNodeRecursive(NodeB)) {
+            RootsFound++;
+            break;
+          }
+        }
+      }
+    }
+
+    if (RootsFound != MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Root Nodes do NOT match.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  // Returns the number of nodes in the Graph
+  // @return Number of nodes in the Graph
+  size_t getNumberOfNodes() const {
+    size_t NumberOfNodes = 0;
+    for (const auto &Node : MRoots) {
+      NumberOfNodes += Node->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
   /// Context associated with this graph.
   sycl::context MContext;
@@ -403,6 +531,12 @@ private:
 /// Class representing the implementation of command_graph<executable>.
 class exec_graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
@@ -482,6 +616,10 @@ private:
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
+  /// Thread-safe implementation note: in the current implementation
+  /// multiple exec_graph_impl can reference the same graph_impl object.
+  /// This specificity must be taken into account when trying to lock
+  /// the graph_impl mutex from an exec_graph_impl to avoid deadlock.
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>

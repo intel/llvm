@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "clang/AST/RecordLayout.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/SmallVectorMemoryBuffer.h"
@@ -1043,6 +1044,17 @@ TEST_P(ImportExpr, DependentSizedArrayType) {
                  has(fieldDecl(hasType(dependentSizedArrayType())))))));
 }
 
+TEST_P(ImportExpr, DependentSizedExtVectorType) {
+  MatchVerifier<Decl> Verifier;
+  testImport("template<typename T, int Size>"
+             "class declToImport {"
+             "  typedef T __attribute__((ext_vector_type(Size))) type;"
+             "};",
+             Lang_CXX03, "", Lang_CXX03, Verifier,
+             classTemplateDecl(has(cxxRecordDecl(
+                 has(typedefDecl(hasType(dependentSizedExtVectorType())))))));
+}
+
 TEST_P(ASTImporterOptionSpecificTestBase, ImportUsingPackDecl) {
   Decl *FromTU = getTuDecl(
       "struct A { int operator()() { return 1; } };"
@@ -1292,6 +1304,29 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportChooseExpr) {
   EXPECT_EQ(FromChooseExpr->isConditionTrue(), ToChooseExpr->isConditionTrue());
   EXPECT_EQ(FromChooseExpr->isConditionDependent(),
             ToChooseExpr->isConditionDependent());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportConvertVectorExpr) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      "typedef double v4double __attribute__((__vector_size__(32)));"
+      "typedef float  v4float  __attribute__((__vector_size__(16)));"
+      "v4float vf;"
+      "void declToImport() { (void)__builtin_convertvector(vf, v4double); }",
+      Lang_CXX03, "", Lang_CXX03);
+
+  auto ToResults =
+      match(convertVectorExpr().bind("convert"), To->getASTContext());
+  auto FromResults =
+      match(convertVectorExpr().bind("convert"), From->getASTContext());
+
+  const ConvertVectorExpr *FromConvertVectorExpr =
+      selectFirst<ConvertVectorExpr>("convert", FromResults);
+  ASSERT_TRUE(FromConvertVectorExpr);
+
+  const ConvertVectorExpr *ToConvertVectorExpr =
+      selectFirst<ConvertVectorExpr>("convert", ToResults);
+  ASSERT_TRUE(ToConvertVectorExpr);
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase, ImportGenericSelectionExpr) {
@@ -2330,6 +2365,43 @@ TEST_P(ImportFunctions,
   // Check that the redecl chain is intact.
   EXPECT_EQ(ToBFOutOfClass->getPreviousDecl(), ToBFInClass);
   EXPECT_EQ(ToDFOutOfClass->getPreviousDecl(), ToDFInClass);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportVirtualOverriddenMethodOnALoop) {
+  // B::f() calls => f1() ==> C ==> C::f()
+  //     \
+  //      \---- A::f()
+  //
+  // C::f()'s ImportOverriddenMethods() asserts B::isVirtual(), so B::f()'s
+  // ImportOverriddenMethods() should be completed before B::f()'s body
+  const char *Code =
+      R"(
+      void f1();
+      class A {
+        virtual void f(){}
+      };
+      class B: public A {
+        void f() override {
+          f1();
+        }
+      };
+      class C: public B {
+        void f() override {}
+      };
+      void f1() { C c; }
+      )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11);
+
+  auto *FromF = FirstDeclMatcher<CXXMethodDecl>().match(
+      FromTU, cxxMethodDecl(hasName("B::f")));
+
+  auto *ToBF = Import(FromF, Lang_CXX11);
+  EXPECT_TRUE(ToBF->isVirtual());
+
+  auto *ToCF = FirstDeclMatcher<CXXMethodDecl>().match(
+      ToBF->getTranslationUnitDecl(), cxxMethodDecl(hasName("C::f")));
+  EXPECT_TRUE(ToCF->isVirtual());
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase, ImportVariableChainInC) {
@@ -3931,8 +4003,58 @@ TEST_P(ImportClasses, ImportNestedPrototypeThenDefinition) {
   EXPECT_EQ(ToDef->getPreviousDecl(), ToProto);
 }
 
+struct ImportFriendClasses : ASTImporterOptionSpecificTestBase {
+  void testRecursiveFriendClassTemplate(Decl *FromTu) {
+    auto *FromD = FirstDeclMatcher<ClassTemplateDecl>().match(
+        FromTu, classTemplateDecl());
 
-struct ImportFriendClasses : ASTImporterOptionSpecificTestBase {};
+    auto Pattern = classTemplateDecl(
+        has(cxxRecordDecl(has(friendDecl(has(classTemplateDecl()))))));
+    ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromD, Pattern));
+
+    auto *FromFriend =
+        FirstDeclMatcher<FriendDecl>().match(FromD, friendDecl());
+    auto *FromRecordOfFriend =
+        cast<ClassTemplateDecl>(FromFriend->getFriendDecl())
+            ->getTemplatedDecl();
+    EXPECT_NE(FromRecordOfFriend, FromD->getTemplatedDecl());
+    EXPECT_TRUE(FromRecordOfFriend->getPreviousDecl() == nullptr);
+
+    auto *FromDC = FromRecordOfFriend->getDeclContext();
+    auto *FromLexicalDC = FromRecordOfFriend->getLexicalDeclContext();
+    ASSERT_EQ(FromDC, cast<DeclContext>(FromTu));
+    ASSERT_EQ(FromLexicalDC, cast<DeclContext>(FromD->getTemplatedDecl()));
+
+    ASSERT_FALSE(FromDC->containsDecl(FromRecordOfFriend));
+    ASSERT_FALSE(FromLexicalDC->containsDecl(FromRecordOfFriend));
+    ASSERT_FALSE(cast<RecordDecl>(FromRecordOfFriend)
+                     ->getLookupParent()
+                     ->lookup(FromRecordOfFriend->getDeclName())
+                     .empty());
+
+    auto *ToD = Import(FromD, Lang_CXX03);
+    EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToD, Pattern));
+
+    auto *ToFriend = FirstDeclMatcher<FriendDecl>().match(ToD, friendDecl());
+    auto *ToRecordOfFriend =
+        cast<ClassTemplateDecl>(ToFriend->getFriendDecl())->getTemplatedDecl();
+
+    EXPECT_NE(ToRecordOfFriend, ToD->getTemplatedDecl());
+    EXPECT_TRUE(ToRecordOfFriend->getPreviousDecl() == nullptr);
+
+    auto *ToDC = ToRecordOfFriend->getDeclContext();
+    auto *ToLexicalDC = ToRecordOfFriend->getLexicalDeclContext();
+    ASSERT_EQ(ToDC, cast<DeclContext>(ToD->getTranslationUnitDecl()));
+    ASSERT_EQ(ToLexicalDC, cast<DeclContext>(ToD->getTemplatedDecl()));
+
+    ASSERT_FALSE(ToDC->containsDecl(ToRecordOfFriend));
+    ASSERT_FALSE(ToLexicalDC->containsDecl(ToRecordOfFriend));
+    ASSERT_FALSE(cast<RecordDecl>(ToRecordOfFriend)
+                     ->getLookupParent()
+                     ->lookup(ToRecordOfFriend->getDeclName())
+                     .empty());
+  }
+};
 
 TEST_P(ImportFriendClasses, ImportOfFriendRecordDoesNotMergeDefinition) {
   Decl *FromTU = getTuDecl(
@@ -4037,20 +4159,19 @@ TEST_P(ImportFriendClasses, ImportOfRecursiveFriendClassTemplate) {
       )",
       Lang_CXX03, "input.cc");
 
-  auto *FromD =
-      FirstDeclMatcher<ClassTemplateDecl>().match(FromTu, classTemplateDecl());
-  auto *ToD = Import(FromD, Lang_CXX03);
+  testRecursiveFriendClassTemplate(FromTu);
+}
 
-  auto Pattern = classTemplateDecl(
-      has(cxxRecordDecl(has(friendDecl(has(classTemplateDecl()))))));
-  ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromD, Pattern));
-  EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToD, Pattern));
-
-  auto *Class =
-      FirstDeclMatcher<ClassTemplateDecl>().match(ToD, classTemplateDecl());
-  auto *Friend = FirstDeclMatcher<FriendDecl>().match(ToD, friendDecl());
-  EXPECT_NE(Friend->getFriendDecl(), Class);
-  EXPECT_EQ(Friend->getFriendDecl()->getPreviousDecl(), Class);
+TEST_P(ImportFriendClasses,
+       ImportOfRecursiveFriendClassTemplateWithNonTypeParm) {
+  Decl *FromTu = getTuDecl(
+      R"(
+      template<class A1, A1 A> class declToImport {
+        template<class B1, B1> friend class declToImport;
+      };
+      )",
+      Lang_CXX03, "input.cc");
+  testRecursiveFriendClassTemplate(FromTu);
 }
 
 TEST_P(ImportFriendClasses, ProperPrevDeclForClassTemplateDecls) {
@@ -7372,7 +7493,7 @@ TEST_P(ImportFunctions, CTADImplicit) {
       cxxDeductionGuideDecl(hasParameter(0, hasType(asString("A<T>")))));
   auto *ToD = Import(FromD, Lang_CXX17);
   ASSERT_TRUE(ToD);
-  EXPECT_TRUE(ToD->isCopyDeductionCandidate());
+  EXPECT_EQ(ToD->getDeductionCandidateKind(), DeductionCandidate::Copy);
   // Check that the deduced class template is also imported.
   EXPECT_TRUE(findFromTU(FromD)->Importer->GetAlreadyImportedOrNull(
       FromD->getDeducedTemplate()));
@@ -7971,6 +8092,66 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportDeductionGuideDifferentOrder) {
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportFieldsFirstForCorrectRecordLayout) {
+  // UnaryOperator(&) triggers RecordLayout computation, which relies on
+  // correctly imported fields.
+  auto Code =
+      R"(
+      class A {
+        int m() {
+          return &((A *)0)->f1 - &((A *)0)->f2;
+        }
+        int f1;
+        int f2;
+      };
+      )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11);
+
+  auto *FromF = FirstDeclMatcher<CXXMethodDecl>().match(
+      FromTU, cxxMethodDecl(hasName("A::m")));
+  Import(FromF, Lang_CXX11);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       ImportCirularRefFieldsWithoutCorruptedRecordLayoutCache) {
+  // Import sequence: A => A.b => B => B.f() => ... => UnaryOperator(&) => ...
+  //
+  // UnaryOperator(&) should not introduce invalid RecordLayout since 'A' is
+  // still not completely imported.
+  auto Code =
+      R"(
+      class B;
+      class A {
+        B* b;
+        int c;
+      };
+      class B {
+        A *f() { return &((B *)0)->a; }
+        A a;
+      };
+      )";
+
+  auto *FromR = FirstDeclMatcher<CXXRecordDecl>().match(
+      getTuDecl(Code, Lang_CXX11), cxxRecordDecl(hasName("A")));
+  FromR = FromR->getDefinition();
+  auto &FromAST = FromR->getASTContext();
+  auto *ToR = Import(FromR, Lang_CXX11);
+  auto &ToAST = ToR->getASTContext();
+
+  uint64_t SecondFieldOffset = FromAST.getTypeSize(FromAST.VoidPtrTy);
+
+  EXPECT_TRUE(FromR->isCompleteDefinition());
+  const auto &FromLayout = FromAST.getASTRecordLayout(FromR);
+  EXPECT_TRUE(FromLayout.getFieldOffset(0) == 0);
+  EXPECT_TRUE(FromLayout.getFieldOffset(1) == SecondFieldOffset);
+
+  EXPECT_TRUE(ToR->isCompleteDefinition());
+  const auto &ToLayout = ToAST.getASTRecordLayout(ToR);
+  EXPECT_TRUE(ToLayout.getFieldOffset(0) == 0);
+  EXPECT_TRUE(ToLayout.getFieldOffset(1) == SecondFieldOffset);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
        ImportRecordWithLayoutRequestingExpr) {
   TranslationUnitDecl *FromTU = getTuDecl(
       R"(
@@ -8105,6 +8286,83 @@ TEST_P(ASTImporterOptionSpecificTestBase,
   auto *ToF = Import(FromF, Lang_CXX11);
   EXPECT_TRUE(ToF);
   EXPECT_TRUE(ToX->getInClassInitializer());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportRecursiveFieldInitializer) {
+  const char *Code =
+      R"(
+      struct AP_TECS;
+
+      struct AP_Landing {
+        AP_TECS *TECS_controller;
+      };
+
+      struct AP_TECS {
+        AP_Landing landing;
+      };
+
+      class Plane {
+        AP_TECS TECS_controller{landing};
+        AP_Landing landing{&TECS_controller};
+      };
+      )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11);
+
+  auto *FromR = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("Plane")));
+  for (FieldDecl *F : FromR->fields())
+    EXPECT_TRUE(F->getInClassInitializer());
+  auto *ToR = Import(FromR, Lang_CXX11);
+  for (FieldDecl *F : ToR->fields())
+    EXPECT_TRUE(F->getInClassInitializer());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportFieldInitializerWithItself) {
+  const char *Code =
+      R"(
+      class A {
+        int a{a};
+      };
+      )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11);
+  auto *FromA = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("A")));
+  EXPECT_TRUE(FromA->field_begin()->getInClassInitializer());
+  auto *ToA = Import(FromA, Lang_CXX11);
+  EXPECT_TRUE(ToA->field_begin()->getInClassInitializer());
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase, ImportRecursiveFieldInitializer1) {
+  // FIXME: This is a example of recursive field initialization that is not
+  // supported.
+  // The following import chain occurs (not complete):
+  // import of A => A.a => in-class initializer of A.a => ref_B() => B => B.b
+  // => in-class initializer of B.b => ref_A() => CXXConstructExpr for A =>
+  // CXXDefaultInitExpr for A.a => in-class initializer of A.a
+  // in-class initializer of A.a is created in two different instances in this
+  // case (import of FieldDecl and CXXDefaultInitExpr). Probably not a big
+  // problem because it is an Expr (the second construction can be ignored
+  // instead of assert). But such recursive init code should not occur in
+  // practice.
+  const char *Code =
+      R"(
+      static int ref_A();
+      static int ref_B();
+      struct A {
+        int a = ref_B();
+      };
+      struct B {
+        int b = ref_A();
+      };
+      int ref_B() { B b; return b.b; }
+      int ref_A() { A a; return a.a; }
+      )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11);
+  auto *FromA = FirstDeclMatcher<CXXRecordDecl>().match(
+      FromTU, cxxRecordDecl(hasName("A")));
+  EXPECT_TRUE(FromA->field_begin()->getInClassInitializer());
+  // auto *ToA = Import(FromA, Lang_CXX11);
+  // EXPECT_TRUE(ToA->field_begin()->getInClassInitializer());
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase, isNewDecl) {
