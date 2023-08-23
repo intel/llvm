@@ -95,7 +95,7 @@ public:
   /// @param Schedule Execution ordering to add node to.
   void sortTopological(std::shared_ptr<node_impl> NodeImpl,
                        std::list<std::shared_ptr<node_impl>> &Schedule) {
-    for (auto Next : MSuccessors) {
+    for (auto &Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
         Next->sortTopological(Next, Schedule);

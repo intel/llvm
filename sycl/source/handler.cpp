@@ -223,7 +223,7 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+    if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
         !MQueue->is_in_fusion_mode() &&
         CGData.MRequirements.size() + CGData.MEvents.size() +
                 MStreamStorage.size() ==
@@ -424,7 +424,7 @@ event handler::finalize() {
     // Empty nodes are handled by Graph like standard nodes
     // For Standard mode (non-graph),
     // empty nodes are not sent to the scheduler to save time
-    if (MGraph || MQueue->getCommandGraph()) {
+    if (MGraph || (MQueue && MQueue->getCommandGraph())) {
       CommandGroup.reset(
           new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
     } else {
