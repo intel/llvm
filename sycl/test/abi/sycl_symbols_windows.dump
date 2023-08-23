@@ -1109,6 +1109,7 @@
 ?getCommandGraph@handler@_V1@sycl@@AEBA?AV?$shared_ptr@Vgraph_impl@detail@experimental@oneapi@ext@_V1@sycl@@@std@@XZ
 ?getContextImplPtr@handler@_V1@sycl@@AEBAAEBV?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@std@@XZ
 ?getCurrentDSODir@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@XZ
+?getCurrentDSODirPath@OSUtil@detail@_V1@sycl@@SA?AVpath@filesystem@std@@XZ
 ?getDeviceFromHandler@detail@_V1@sycl@@YA?AVdevice@23@AEAVhandler@23@@Z
 ?getDevices@image_impl@detail@_V1@sycl@@AEAA?AV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@std@@V?$shared_ptr@Vcontext_impl@detail@_V1@sycl@@@6@@Z
 ?getDirName@OSUtil@detail@_V1@sycl@@SA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBD@Z
