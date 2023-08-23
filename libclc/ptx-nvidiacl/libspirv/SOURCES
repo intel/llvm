@@ -1,5 +1,5 @@
 reflect.ll
-atomic/loadstore_helpers.ll
+../../generic/libspirv/atomic/loadstore_helpers.ll
 cl_khr_int64_extended_atomics/minmax_helpers.ll
 integer/mul24.cl
 integer/mul_hi.cl
