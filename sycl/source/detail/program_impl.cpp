@@ -196,7 +196,7 @@ program_impl::program_impl(ContextImplPtr Context,
     MBuildOptions = Options;
     return;
   }
-  // TODO: assert() will be reverted when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
+  // TODO: uncomment the assert when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
   // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE value
   // assert(false && "BinaryType is invalid.");
 }
