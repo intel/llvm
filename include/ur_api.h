@@ -7,7 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  * @file ur_api.h
- * @version v0.7-r0
+ * @version v0.8-r0
  *
  */
 #ifndef UR_API_H_INCLUDED
@@ -1022,7 +1022,8 @@ urPlatformGetInfo(
 typedef enum ur_api_version_t {
     UR_API_VERSION_0_6 = UR_MAKE_VERSION(0, 6),     ///< version 0.6
     UR_API_VERSION_0_7 = UR_MAKE_VERSION(0, 7),     ///< version 0.7
-    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 7), ///< latest known version
+    UR_API_VERSION_0_8 = UR_MAKE_VERSION(0, 8),     ///< version 0.8
+    UR_API_VERSION_CURRENT = UR_MAKE_VERSION(0, 8), ///< latest known version
     /// @cond
     UR_API_VERSION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
