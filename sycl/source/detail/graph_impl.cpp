@@ -518,44 +518,44 @@ modifiable_command_graph::finalize(const sycl::property_list &) const {
 
 bool modifiable_command_graph::begin_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl) {
-    if (QueueImpl->get_context() != impl->getContext()) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "begin_recording called for a queue whose context "
-                            "differs from the graph context.");
-    }
-    if (QueueImpl->get_device() != impl->getDevice()) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "begin_recording called for a queue whose device "
-                            "differs from the graph device.");
-    }
+  assert(QueueImpl);
+  if (QueueImpl->get_context() != impl->getContext()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording called for a queue whose context "
+                          "differs from the graph context.");
+  }
+  if (QueueImpl->get_device() != impl->getDevice()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording called for a queue whose device "
+                          "differs from the graph device.");
+  }
 
-    if (QueueImpl->is_in_fusion_mode()) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "SYCL queue in kernel in fusion mode "
-                            "can NOT be recorded.");
-    }
+  if (QueueImpl->is_in_fusion_mode()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "SYCL queue in kernel in fusion mode "
+                          "can NOT be recorded.");
+  }
 
-    if (QueueImpl->get_context() != impl->getContext()) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "begin_recording called for a queue whose context "
-                            "differs from the graph context.");
-    }
-    if (QueueImpl->get_device() != impl->getDevice()) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "begin_recording called for a queue whose device "
-                            "differs from the graph device.");
-    }
+  if (QueueImpl->get_context() != impl->getContext()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording called for a queue whose context "
+                          "differs from the graph context.");
+  }
+  if (QueueImpl->get_device() != impl->getDevice()) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording called for a queue whose device "
+                          "differs from the graph device.");
+  }
 
-    if (QueueImpl->getCommandGraph() == nullptr) {
-      QueueImpl->setCommandGraph(impl);
-      impl->addQueue(QueueImpl);
-      return true;
-    }
-    if (QueueImpl->getCommandGraph() != impl) {
-      throw sycl::exception(sycl::make_error_code(errc::invalid),
-                            "begin_recording called for a queue which is already "
-                            "recording to a different graph.");
+  if (QueueImpl->getCommandGraph() == nullptr) {
+    QueueImpl->setCommandGraph(impl);
+    impl->addQueue(QueueImpl);
+    return true;
+  }
+  if (QueueImpl->getCommandGraph() != impl) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording called for a queue which is already "
+                          "recording to a different graph.");
   }
   // Queue was already recording to this graph.
   return false;
