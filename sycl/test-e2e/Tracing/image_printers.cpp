@@ -38,7 +38,6 @@ int main() {
       CGH.single_task<class EmptyTask>([=]() {});
     });
 #endif
-
   }
   return 0;
 }
