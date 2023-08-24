@@ -28,7 +28,6 @@
 #include <sycl/detail/windows_os_utils.hpp>
 #endif
 
-
 #include <bitset>
 #include <cstdarg>
 #include <cstring>
@@ -457,8 +456,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
               << "No Plugins Found." << std::endl;
 
 #if _WIN32
-  std::filesystem::path LibSYCLDir =
-      sycl::detail::getCurrentDSODirPath();
+  std::filesystem::path LibSYCLDir = sycl::detail::getCurrentDSODirPath();
 #else
   const std::string LibSYCLDir =
       sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;

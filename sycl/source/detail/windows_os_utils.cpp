@@ -7,17 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include <Windows.h>
+#include <cassert>
 #include <direct.h>
 #include <filesystem>
 #include <malloc.h>
 #include <shlwapi.h>
 #include <sycl/detail/windows_os_utils.hpp>
-#include <cassert>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
 
 OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
@@ -36,7 +35,8 @@ OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
 
 std::filesystem::path getCurrentDSODirPath() {
   wchar_t Path[MAX_PATH];
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODirPath));
+  auto Handle =
+      getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODirPath));
   DWORD Ret = GetModuleFileName(
       reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
       reinterpret_cast<LPWSTR>(&Path), sizeof(Path));
@@ -50,7 +50,6 @@ std::filesystem::path getCurrentDSODirPath() {
 
   return std::filesystem::path(Path);
 }
-
 
 } // namespace detail
 } // namespace _V1

@@ -14,7 +14,6 @@
 #include <malloc.h>
 #include <shlwapi.h>
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
