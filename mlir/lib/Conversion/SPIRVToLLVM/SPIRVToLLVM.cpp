@@ -33,7 +33,7 @@ using namespace mlir;
 // Constants
 //===----------------------------------------------------------------------===//
 
-static constexpr unsigned defaultAddressSpace = 0;
+constexpr unsigned defaultAddressSpace = 0;
 
 //===----------------------------------------------------------------------===//
 // Utility functions
@@ -266,19 +266,14 @@ static std::optional<Type> convertArrayType(spirv::ArrayType type,
   return LLVM::LLVMArrayType::get(llvmElementType, numElements);
 }
 
-#define STORAGE_SPACE_MAP(storage, space)                                      \
-  case spirv::StorageClass::storage:                                           \
-    return space;
-
-#define CLIENT_MAP(client, storage)                                            \
-  case spirv::ClientAPI::client:                                               \
-    return mapTo##client##AddressSpace(storage);
-
 static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
   // Based on
   // https://registry.khronos.org/SPIR-V/specs/unified1/OpenCL.ExtendedInstructionSet.100.html#_binary_form
   // and clang/lib/Basic/Targets/SPIR.h.
   switch (storageClass) {
+#define STORAGE_SPACE_MAP(storage, space)                                      \
+  case spirv::StorageClass::storage:                                           \
+    return space;
     STORAGE_SPACE_MAP(Function, 0)
     STORAGE_SPACE_MAP(CrossWorkgroup, 1)
     STORAGE_SPACE_MAP(Input, 1)
@@ -287,6 +282,7 @@ static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
     STORAGE_SPACE_MAP(Generic, 4)
     STORAGE_SPACE_MAP(DeviceOnlyINTEL, 5)
     STORAGE_SPACE_MAP(HostOnlyINTEL, 6)
+#undef STORAGE_SPACE_MAP
   default:
     return defaultAddressSpace;
   }
@@ -295,7 +291,11 @@ static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
 static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
                                   spirv::StorageClass storageClass) {
   switch (clientAPI) {
+#define CLIENT_MAP(client, storage)                                            \
+  case spirv::ClientAPI::client:                                               \
+    return mapTo##client##AddressSpace(storage);
     CLIENT_MAP(OpenCL, storageClass)
+#undef CLIENT_MAP
   default:
     return defaultAddressSpace;
   }
@@ -303,12 +303,11 @@ static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
 
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
-static std::optional<Type> convertPointerType(spirv::PointerType type,
-                                              LLVMTypeConverter &converter,
-                                              spirv::ClientAPI clientAPI) {
+static Type convertPointerType(spirv::PointerType type,
+                               LLVMTypeConverter &converter,
+                               spirv::ClientAPI clientAPI) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  const auto addressSpace =
-      mapToAddressSpace(clientAPI, type.getStorageClass());
+  unsigned addressSpace = mapToAddressSpace(clientAPI, type.getStorageClass());
   return converter.getPointerType(pointeeType, addressSpace);
 }
 
@@ -770,8 +769,6 @@ public:
       : SPIRVToLLVMConversion<spirv::GlobalVariableOp>(
             std::forward<Args>(args)...),
         clientAPI(clientAPI) {}
-
-  using SPIRVToLLVMConversion<spirv::GlobalVariableOp>::SPIRVToLLVMConversion;
 
   LogicalResult
   matchAndRewrite(spirv::GlobalVariableOp op, OpAdaptor adaptor,
