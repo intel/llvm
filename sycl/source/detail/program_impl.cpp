@@ -146,7 +146,9 @@ program_impl::program_impl(ContextImplPtr Context,
                                             sizeof(sycl::detail::pi::PiDevice) *
                                                 NumDevices,
                                             PiDevices.data(), nullptr);
-  MDevices = MContext->get_info<info::context::devices>();
+  // Note that a platform_impl::devices() contains only devices that are created
+  // for the program.
+  MDevices = MContext->getPlatformImpl()->get_devices();
   assert(!MDevices.empty() && "No device found for this program");
   sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
