@@ -18,15 +18,7 @@
 #include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
 #include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
 
-#include <cstdint> // for uint64_t, uint32_t
-// DPCPP is supported on some linux systems where default compiler is gcc 7.5
-// which doesn't provide <filesystem> support. On Windows, minimal supported
-// version of Visual Studio is 2019 where <filesystem> is available (supported
-// since Visual Studio 2017 version 15.7).
-// TODO: use <filesystem> on Linux as well when support matrix will change.
-#if _WIN32
-#include <filesystem>
-#endif
+#include <cstdint>     // for uint64_t, uint32_t
 #include <memory>      // for shared_ptr
 #include <sstream>     // for operator<<, basic_ostream, string...
 #include <stddef.h>    // for size_t
@@ -177,29 +169,18 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              pi_context_extended_deleter func,
                                              void *user_data);
 
-// Function to unload a shared library
-// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
-int unloadOsLibrary(void *Library);
-
-#if _WIN32
-// Function to load a shared library
-// Implementation is OS dependent
-void *loadOsLibrary(const std::filesystem::path &Library);
-
-// Function to load the shared plugin library
-// On Windows, this will have been pre-loaded by proxy loader.
-// Implementation is OS dependent.
-void *loadOsPluginLibrary(const std::filesystem::path &Library);
-#else
 // Function to load a shared library
 // Implementation is OS dependent
 void *loadOsLibrary(const std::string &Library);
+
+// Function to unload a shared library
+// Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)
+int unloadOsLibrary(void *Library);
 
 // Function to load the shared plugin library
 // On Windows, this will have been pre-loaded by proxy loader.
 // Implementation is OS dependent.
 void *loadOsPluginLibrary(const std::string &Library);
-#endif
 
 // Function to unload the shared plugin library
 // Implementation is OS dependent (see posix-pi.cpp and windows-pi.cpp)

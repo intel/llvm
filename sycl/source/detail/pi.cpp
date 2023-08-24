@@ -384,19 +384,11 @@ std::vector<std::pair<std::string, backend>> findPlugins() {
   return PluginNames;
 }
 
-#if _WIN32
-// Load the Plugin by calling the OS dependent library loading call.
-// Return the handle to the Library.
-void *loadPlugin(const std::filesystem::path &PluginPath) {
-  return loadOsPluginLibrary(PluginPath);
-}
-#else
 // Load the Plugin by calling the OS dependent library loading call.
 // Return the handle to the Library.
 void *loadPlugin(const std::string &PluginPath) {
   return loadOsPluginLibrary(PluginPath);
 }
-#endif
 
 // Unload the given plugin by calling teh OS-specific library unloading call.
 // \param Library OS-specific library handle created when loading.
