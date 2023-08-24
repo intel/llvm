@@ -94,25 +94,25 @@ void preloadLibraries() {
   MapT &dllMap = getDllMap();
 
   auto ocl_path = LibSYCLDir / __SYCL_OPENCL_PLUGIN_NAME;
-  dllMap.emplace(ocl_path, LoadLibrary(ocl_path.wstring().c_str()));
+  dllMap.emplace(ocl_path, LoadLibraryEx(ocl_path.wstring().c_str(), NULL, NULL));
 
   auto l0_path = LibSYCLDir / __SYCL_LEVEL_ZERO_PLUGIN_NAME;
-  dllMap.emplace(l0_path, LoadLibrary(l0_path.wstring().c_str()));
+  dllMap.emplace(l0_path, LoadLibraryEx(l0_path.wstring().c_str(), NULL, NULL));
 
   auto cuda_path = LibSYCLDir / __SYCL_CUDA_PLUGIN_NAME;
-  dllMap.emplace(cuda_path, LoadLibrary(cuda_path.wstring().c_str()));
+  dllMap.emplace(cuda_path, LoadLibraryEx(cuda_path.wstring().c_str(), NULL, NULL));
 
   auto esimd_path = LibSYCLDir / __SYCL_ESIMD_EMULATOR_PLUGIN_NAME;
-  dllMap.emplace(esimd_path, LoadLibrary(esimd_path.wstring().c_str()));
+  dllMap.emplace(esimd_path, LoadLibraryEx(esimd_path.wstring().c_str(), NULL, NULL));
 
   auto hip_path = LibSYCLDir / __SYCL_HIP_PLUGIN_NAME;
-  dllMap.emplace(hip_path, LoadLibrary(hip_path.wstring().c_str()));
+  dllMap.emplace(hip_path, LoadLibraryEx(hip_path.wstring().c_str(), NULL, NULL));
 
   auto ur_path = LibSYCLDir / __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
-  dllMap.emplace(ur_path, LoadLibrary(ur_path.wstring().c_str()));
+  dllMap.emplace(ur_path, LoadLibraryEx(ur_path.wstring().c_str(), NULL, NULL));
 
   auto nativecpu_path = LibSYCLDir / __SYCL_NATIVE_CPU_PLUGIN_NAME;
-  dllMap.emplace(nativecpu_path, LoadLibrary(nativecpu_path.wstring().c_str()));
+  dllMap.emplace(nativecpu_path, LoadLibraryEx(nativecpu_path.wstring().c_str(), NULL, NULL));
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

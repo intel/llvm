@@ -101,6 +101,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # -other restrictions).
         substitutions.append(('%{build}', '%clangxx -fsycl -fsycl-targets=%{sycl_triple} %s'))
 
+        compilation_cmd_pthread = "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
+        substitutions.append(('%{build_pthread_inc}', compilation_cmd_pthread))
+
         def get_extra_env(sycl_devices):
             # Note: It's possible that the system has a device from below but
             # current llvm-lit invocation isn't configured to include it. We
