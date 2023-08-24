@@ -72,20 +72,6 @@ bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
   return SuccessorAddedDep;
 }
 
-/// Recursively append CurrentNode to Outputs if a given node is an exit node
-/// @param[in] CurrentNode Node to check as exit node.
-/// @param[inout] Outputs list of exit nodes.
-void appendExitNodesFromRoot(std::shared_ptr<node_impl> CurrentNode,
-                             std::vector<std::shared_ptr<node_impl>> &Outputs) {
-  if (CurrentNode->MSuccessors.size() > 0) {
-    for (auto Successor : CurrentNode->MSuccessors) {
-      appendExitNodesFromRoot(Successor, Outputs);
-    }
-  } else {
-    Outputs.push_back(CurrentNode);
-  }
-}
-
 void duplicateNode(const std::shared_ptr<node_impl> Node,
                    std::shared_ptr<node_impl> &NodeCopy) {
   if (Node->MCGType == sycl::detail::CG::None) {
