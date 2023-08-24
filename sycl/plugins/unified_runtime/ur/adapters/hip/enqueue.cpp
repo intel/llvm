@@ -252,7 +252,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ur_device_handle_t Dev = hQueue->getDevice();
+    ScopedContext Active(Dev);
+    ur_context_handle_t Ctx = hQueue->getContext();
 
     uint32_t StreamToken;
     ur_stream_quard Guard;
@@ -260,6 +262,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     hipFunction_t HIPFunc = hKernel->get();
 
+    hipDevice_t HIPDev = Dev->get();
+    for (const void *P : hKernel->getPtrArgs()) {
+      auto [Addr, Size] = Ctx->getUSMMapping(P);
+      if (!Addr)
+        continue;
+      if (hipMemPrefetchAsync(Addr, Size, HIPDev, HIPStream) != hipSuccess)
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGS;
+    }
     Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
@@ -301,7 +311,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       int DeviceMaxLocalMem = 0;
       Result = UR_CHECK_ERROR(hipDeviceGetAttribute(
           &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
-          hQueue->getDevice()->get()));
+          HIPDev));
 
       static const int EnvVal = std::atoi(LocalMemSzPtr);
       if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
