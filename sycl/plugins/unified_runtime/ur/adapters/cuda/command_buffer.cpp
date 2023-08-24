@@ -8,13 +8,16 @@
 
 #include "command_buffer.hpp"
 #include "common.hpp"
-
-/// Stub implementations of UR experimental feature command-buffers
+#include "enqueue.hpp"
+#include "event.hpp"
+#include "kernel.hpp"
+#include "memory.hpp"
+#include "queue.hpp"
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice)
     : Context(hContext),
-      Device(hDevice), cudaGraph{nullptr}, cudaGraphExec{nullptr}, RefCount{1} {
+      Device(hDevice), CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }
@@ -29,10 +32,43 @@ ur_exp_command_buffer_handle_t_::~ur_exp_command_buffer_handle_t_() {
   urDeviceRelease(Device);
 
   // Release the memory allocated to the CudaGraph
-  cuGraphDestroy(cudaGraph);
+  cuGraphDestroy(CudaGraph);
 
   // Release the memory allocated to the CudaGraphExec
-  cuGraphExecDestroy(cudaGraphExec);
+  cuGraphExecDestroy(CudaGraphExec);
+}
+
+/// Helper function for finding the Cuda Nodes associated with the
+/// commands in a command-buffer, each event is pointed to by a sync-point in
+/// the wait list.
+///
+/// @param[in] CommandBuffer to lookup the events from.
+/// @param[in] NumSyncPointsInWaitList Length of \p SyncPointWaitList.
+/// @param[in] SyncPointWaitList List of sync points in \p CommandBuffer
+/// to find the events for.
+/// @param[out] CuNodesList Return parameter for the Cuda Nodes associated with
+/// each sync-point in \p SyncPointWaitList.
+///
+/// @return UR_RESULT_SUCCESS or an error code on failure
+static ur_result_t getNodesFromSyncPoints(
+    const ur_exp_command_buffer_handle_t &CommandBuffer,
+    size_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    std::vector<CUgraphNode> &CuNodesList) {
+  // Map of ur_exp_command_buffer_sync_point_t to ur_event_handle_t defining
+  // the event associated with each sync-point
+  auto SyncPoints = CommandBuffer->SyncPoints;
+
+  // For each sync-point add associated L0 event to the return list.
+  for (size_t i = 0; i < NumSyncPointsInWaitList; i++) {
+    if (auto NodeHandle = SyncPoints.find(SyncPointWaitList[i]);
+        NodeHandle != SyncPoints.end()) {
+      CuNodesList.push_back(*NodeHandle->second.get());
+    } else {
+      return UR_RESULT_ERROR_INVALID_VALUE;
+    }
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
@@ -51,7 +87,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
 
   auto RetCommandBuffer = *hCommandBuffer;
   try {
-    UR_CHECK_ERROR(cuGraphCreate(&RetCommandBuffer->cudaGraph, 0));
+    UR_CHECK_ERROR(cuGraphCreate(&RetCommandBuffer->CudaGraph, 0));
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -77,8 +113,8 @@ urCommandBufferReleaseExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t hCommandBuffer) {
   try {
-    UR_CHECK_ERROR(cuGraphInstantiate(&hCommandBuffer->cudaGraphExec,
-                                      hCommandBuffer->cudaGraph, 0));
+    UR_CHECK_ERROR(cuGraphInstantiate(&hCommandBuffer->CudaGraphExec,
+                                      hCommandBuffer->CudaGraph, 0));
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
@@ -92,19 +128,82 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
     ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-  (void)hCommandBuffer;
-  (void)hKernel;
-  (void)workDim;
-  (void)pGlobalWorkOffset;
-  (void)pGlobalWorkSize;
-  (void)pLocalWorkSize;
-  (void)numSyncPointsInWaitList;
-  (void)pSyncPointWaitList;
-  (void)pSyncPoint;
+  // Preconditions
+  UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
+            UR_RESULT_ERROR_INVALID_KERNEL);
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  CUgraphNode GraphNode;
+
+  std::vector<CUgraphNode> DepsList;
+  UR_CALL(getNodesFromSyncPoints(hCommandBuffer, numSyncPointsInWaitList,
+                                 pSyncPointWaitList, DepsList));
+
+  if (*pGlobalWorkSize == 0) {
+    try {
+      // Create a empty node if the kernel worload size is zero
+      Result = UR_CHECK_ERROR(
+          cuGraphAddEmptyNode(&GraphNode, hCommandBuffer->CudaGraph,
+                              DepsList.data(), DepsList.size()));
+
+      // Get sync point and register the event with it.
+      *pSyncPoint = hCommandBuffer->GetNextSyncPoint();
+      hCommandBuffer->RegisterSyncPoint(
+          *pSyncPoint, std::make_shared<CUgraphNode>(GraphNode));
+    } catch (ur_result_t Err) {
+      Result = Err;
+    }
+    return Result;
+  }
+
+  // Set the number of threads per block to the number of threads per warp
+  // by default unless user has provided a better number
+  size_t ThreadsPerBlock[3] = {32u, 1u, 1u};
+  size_t BlocksPerGrid[3] = {1u, 1u, 1u};
+
+  uint32_t LocalSize = hKernel->getLocalSize();
+  CUfunction CuFunc = hKernel->get();
+
+  if ((Result = setKernelParams(
+           hCommandBuffer->Context, hCommandBuffer->Device, workDim,
+           pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize, hKernel, CuFunc,
+           ThreadsPerBlock, BlocksPerGrid)) != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+
+  try {
+    // Set node param structure with the kernel related data
+    auto &ArgIndices = hKernel->getArgIndices();
+    CUDA_KERNEL_NODE_PARAMS nodeParams;
+    nodeParams.func = CuFunc;
+    nodeParams.gridDimX = BlocksPerGrid[0];
+    nodeParams.gridDimY = BlocksPerGrid[1];
+    nodeParams.gridDimZ = BlocksPerGrid[2];
+    nodeParams.blockDimX = ThreadsPerBlock[0];
+    nodeParams.blockDimY = ThreadsPerBlock[1];
+    nodeParams.blockDimZ = ThreadsPerBlock[2];
+    nodeParams.sharedMemBytes = LocalSize;
+    nodeParams.kernelParams = const_cast<void **>(ArgIndices.data());
+    nodeParams.extra = nullptr;
+
+    // Create and add an new kernel node to the Cuda graph
+    Result = UR_CHECK_ERROR(
+        cuGraphAddKernelNode(&GraphNode, hCommandBuffer->CudaGraph,
+                             DepsList.data(), DepsList.size(), &nodeParams));
+
+    if (LocalSize != 0)
+      hKernel->clearLocalSize();
+
+    // Get sync point and register the event with it.
+    *pSyncPoint = hCommandBuffer->GetNextSyncPoint();
+    hCommandBuffer->RegisterSyncPoint(*pSyncPoint,
+                                      std::make_shared<CUgraphNode>(GraphNode));
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
@@ -275,13 +374,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_queue_handle_t hQueue,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  (void)hCommandBuffer;
-  (void)hQueue;
-  (void)numEventsInWaitList;
-  (void)phEventWaitList;
-  (void)phEvent;
+  ur_result_t Result = UR_RESULT_SUCCESS;
 
-  detail::ur::die("Experimental Command-buffer feature is not "
-                  "implemented for CUDA adapter.");
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  try {
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    ScopedContext Active(hQueue->getContext());
+    uint32_t StreamToken;
+    ur_stream_guard_ Guard;
+    CUstream CuStream = hQueue->getNextComputeStream(
+        numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
+
+    if ((Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                    phEventWaitList)) != UR_RESULT_SUCCESS) {
+      return Result;
+    }
+
+    if (phEvent) {
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent->start();
+    }
+
+    // Launch graph
+    Result =
+        UR_CHECK_ERROR(cuGraphLaunch(hCommandBuffer->CudaGraphExec, CuStream));
+
+    if (phEvent) {
+      Result = RetImplEvent->record();
+      *phEvent = RetImplEvent.release();
+    }
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
 }
