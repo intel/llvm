@@ -1,5 +1,5 @@
 // Test that `sycl.math.*` operations are constructed ...
-// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
+// RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
 // RUN:     -O0 -w -emit-mlir -S -o %t.mlir %s
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f32 < %t.mlir
 // RUN: FileCheck %s --check-prefix=MLIR -DMLIR_TYPE=f64 < %t.mlir
@@ -9,7 +9,7 @@
 // RUN: FileCheck %s --check-prefix=MLIR '-DMLIR_TYPE=!sycl_vec_sycl_half_2_' < %t.mlir
 
 // ... and lowered to the corresponding LLVM intrinsics.
-// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
+// RUN: clang++  -fsycl -fsycl-device-only -fsycl-targets=spir64-unknown-unknown-syclmlir \
 // RUN:     -O0 -w -emit-llvm -S -o %t.ll %s
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=float -DINTR_TYPE=f32 < %t.ll
 // RUN: FileCheck %s --check-prefix=LLVM -DLLVM_TYPE=double -DINTR_TYPE=f64 < %t.ll

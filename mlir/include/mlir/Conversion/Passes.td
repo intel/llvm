@@ -158,7 +158,7 @@ def ConvertAsyncToLLVMPass : Pass<"convert-async-to-llvm", "ModuleOp"> {
   ];
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-           /*default=*/"false", "Generate LLVM IR using opaque pointers "
+           /*default=*/"true", "Generate LLVM IR using opaque pointers "
            "instead of typed pointers">,
   ];
 }
@@ -260,7 +260,7 @@ def ConvertControlFlowToLLVMPass : Pass<"convert-cf-to-llvm", "ModuleOp"> {
            /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
            "Bitwidth of the index type, 0 to use size of machine word">,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                   /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                   /*default=*/"true", "Generate LLVM IR using opaque pointers "
                    "instead of typed pointers">,
   ];
 }
@@ -323,7 +323,7 @@ def ConvertFuncToLLVMPass : Pass<"convert-func-to-llvm", "ModuleOp"> {
            "String description (LLVM format) of the data layout that is "
            "expected on the produced module">,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                       /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                       /*default=*/"true", "Generate LLVM IR using opaque pointers "
                        "instead of typed pointers">,
   ];
 }
@@ -375,7 +375,7 @@ def GpuToLLVMConversionPass : Pass<"gpu-to-llvm", "ModuleOp"> {
                "Annotation attribute string for GPU binary"
                >,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-               /*default=*/"false", "Generate LLVM IR using opaque pointers "
+               /*default=*/"true", "Generate LLVM IR using opaque pointers "
                "instead of typed pointers">,
   ];
 
@@ -401,7 +401,7 @@ def LowerHostCodeToLLVMPass : Pass<"lower-host-to-llvm", "ModuleOp"> {
 
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                 /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                 /*default=*/"true", "Generate LLVM IR using opaque pointers "
                  "instead of typed pointers">
   ];
 
@@ -431,7 +431,7 @@ def ConvertGpuOpsToNVVMOps : Pass<"convert-gpu-to-nvvm", "gpu::GPUModuleOp"> {
            "Replace memref arguments in GPU functions with bare pointers. "
            "All memrefs must have static shape.">,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                   /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                   /*default=*/"true", "Generate LLVM IR using opaque pointers "
                    "instead of typed pointers">,
   ];
 }
@@ -468,7 +468,7 @@ def ConvertGpuOpsToROCDLOps : Pass<"convert-gpu-to-rocdl", "gpu::GPUModuleOp"> {
             clEnumValN(::mlir::gpu::amd::Runtime::OpenCL, "OpenCL", "OpenCL")
           )}]>,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-               /*default=*/"false", "Generate LLVM IR using opaque pointers "
+               /*default=*/"true", "Generate LLVM IR using opaque pointers "
                "instead of typed pointers">,
   ];
 }
@@ -524,7 +524,7 @@ def ConvertVulkanLaunchFuncToVulkanCallsPass
 
   let options = [
      Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-            /*default=*/"false", "Generate LLVM IR using opaque pointers "
+            /*default=*/"true", "Generate LLVM IR using opaque pointers "
             "instead of typed pointers">
   ];
 
@@ -562,11 +562,10 @@ def ConvertLinalgToLLVMPass : Pass<"convert-linalg-to-llvm", "ModuleOp"> {
   let summary = "Convert the operations from the linalg dialect into the LLVM "
                 "dialect";
   let dependentDialects = ["scf::SCFDialect", "LLVM::LLVMDialect"];
-
   let options = [
      Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-            /*default=*/"false", "Generate LLVM IR using opaque pointers "
-            "instead of typed pointers">
+                /*default=*/"true", "Generate LLVM IR using opaque pointers "
+                "instead of typed pointers">
   ];
 }
 
@@ -680,7 +679,7 @@ def FinalizeMemRefToLLVMConversionPass :
            "Use generic allocation and deallocation functions instead of the "
            "classic 'malloc', 'aligned_alloc' and 'free' functions">,
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-               /*default=*/"false", "Generate LLVM IR using opaque pointers "
+               /*default=*/"true", "Generate LLVM IR using opaque pointers "
                "instead of typed pointers">
   ];
 }
@@ -725,7 +724,7 @@ def ConvertNVGPUToNVVMPass : Pass<"convert-nvgpu-to-nvvm"> {
   ];
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-              /*default=*/"false", "Generate LLVM IR using opaque pointers "
+              /*default=*/"true", "Generate LLVM IR using opaque pointers "
               "instead of typed pointers">
   ];
 }
@@ -807,7 +806,7 @@ def ConvertSCFToOpenMPPass : Pass<"convert-scf-to-openmp", "ModuleOp"> {
 
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                 /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                 /*default=*/"true", "Generate LLVM IR using opaque pointers "
                  "instead of typed pointers">
   ];
 
@@ -896,7 +895,7 @@ def ConvertSPIRVToLLVMPass : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
 
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                 /*default=*/"false", "Generate LLVM IR using opaque pointers "
+                 /*default=*/"true", "Generate LLVM IR using opaque pointers "
                  "instead of typed pointers">,
     Option<"clientAPI", "client-api", "::mlir::spirv::ClientAPI",
 	   /*default=*/"::mlir::spirv::ClientAPI::Unknown",
@@ -1120,7 +1119,7 @@ def ConvertVectorToLLVMPass : Pass<"convert-vector-to-llvm"> {
            "Enables the use of X86Vector dialect while lowering the vector "
 	   "dialect.">,
 	  Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-               /*default=*/"false", "Generate LLVM IR using opaque pointers "
+               /*default=*/"true", "Generate LLVM IR using opaque pointers "
                "instead of typed pointers">
   ];
 }

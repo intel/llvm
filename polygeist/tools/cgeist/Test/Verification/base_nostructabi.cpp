@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* --struct-abi=0 -memref-abi=0 -S | FileCheck %s
+// RUN: cgeist  %s --function=* --struct-abi=0 -memref-abi=0 -S | FileCheck %s
 
 void run0(void*);
 void run1(void*);

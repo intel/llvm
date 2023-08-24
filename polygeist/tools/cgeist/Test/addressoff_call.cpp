@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist  %s --function=* -S | FileCheck %s
 unsigned long foo(unsigned);
 inline unsigned long inlineFunc(unsigned i) noexcept {
   return foo(i);

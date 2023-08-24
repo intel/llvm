@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O0 --function=* -S | FileCheck %s
+// RUN: cgeist  %s -O0 --function=* -S | FileCheck %s
 
 extern "C" {
 

@@ -1,6 +1,6 @@
-// RUN: cgeist --use-opaque-pointers %s -O3 --function=* -S | FileCheck %s
+// RUN: cgeist  %s -O3 --function=* -S | FileCheck %s
 // COM: Simply check we can lower
-// RUN: cgeist --use-opaque-pointers %s -O3 --function=* -S -emit-llvm
+// RUN: cgeist  %s -O3 --function=* -S -emit-llvm
 
 void foo(int);
 

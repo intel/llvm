@@ -121,10 +121,7 @@ using namespace llvm::opt;
 static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
                             bool Diagnose) {
   // Host raising only works with opaque pointers.
-  // Returns a pair of bool:
-  //  first is true if opaque pointer is used
-  //  second is true if set by user flag
-  const auto UseOpaquePointers = [&]() -> std::pair<bool, bool> {
+  const auto UseOpaquePointers = [&]() {
     constexpr llvm::StringLiteral Pos = "-opaque-pointers";
     constexpr llvm::StringLiteral Neg = "-no-opaque-pointers";
 
@@ -136,14 +133,9 @@ static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
           return Val == Pos || Val == Neg;
         });
     constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
-    return (Iter == FilteredArgs.end())
-               ? std::pair<bool, bool>{Default, false}
-               : std::pair<bool, bool>{Pos == (*Iter)->getValue(), true};
+    return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
   };
-  bool UseSYCL = Args.hasFlag(options::OPT_fsycl, options::OPT_fno_sycl, false);
-  bool ShouldRaise =
-      UseSYCL && Args.hasFlag(options::OPT_fsycl_raise_host,
-                              options::OPT_fno_sycl_raise_host, true);
+  bool ShouldRaise = Args.hasArg(options::OPT_fsycl_raise_host);
   if (ShouldRaise) {
     if (Args.hasArg(options::OPT_fsyntax_only) ||
         Args.hasArg(options::OPT_fsycl_link_EQ) ||
@@ -155,16 +147,11 @@ static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
             << "-fsycl-raise-host" << A->getSpelling();
       ShouldRaise = false;
     }
-    auto IsOpaquePointerSet = UseOpaquePointers();
-    if (!IsOpaquePointerSet.first) {
-      if (Diagnose) {
-        if (IsOpaquePointerSet.second) {
-          C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
-              << "-fsycl-raise-host"
-              << "-Xclang -opaque-pointers";
-        } else
-          C.getDriver().Diag(diag::warn_drv_sycl_ignoring_no_opaque_pointer);
-      }
+    if (!UseOpaquePointers()) {
+      if (Diagnose)
+        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
+            << "-fsycl-raise-host"
+            << "-Xclang -opaque-pointers";
       ShouldRaise = false;
     }
   }
