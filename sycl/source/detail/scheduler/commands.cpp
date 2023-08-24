@@ -2385,7 +2385,7 @@ pi_int32 enqueueImpCommandBufferKernel(
   pi_program PiProgram = nullptr;
 
   auto Kernel = CommandGroup.MSyclKernel;
-  const KernelArgMask *EliminatedArgMask;
+  const KernelArgMask *EliminatedArgMask = nullptr;
   if (Kernel != nullptr) {
     PiKernel = Kernel->getHandleRef();
   } else {
