@@ -8,7 +8,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen %S/Inputs/SYCL/objlin64.o \
 // RUN:   -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=SPIR64_GEN_DIAG
-// SPIR64_GEN_DIAG: linked binaries do not contain expected 'spir64_gen-unknown-unknown--' target; found targets: 'spir64-unknown-unknown{{.*}}, spir64-unknown-unknown{{.*}}' [-Wsycl-target]
+// SPIR64_GEN_DIAG: linked binaries do not contain expected 'spir64_gen-unknown-unknown' target; found targets: 'spir64-unknown-unknown{{.*}}, spir64-unknown-unknown{{.*}}' [-Wsycl-target]
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64 %S/Inputs/SYCL/liblin64.a \
 // RUN:   -### %s 2>&1 \
@@ -33,7 +33,7 @@
 // RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_60 \
 // RUN:   %S/Inputs/SYCL/objnvptx64-sm_50.o -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=NVPTX64_DIAG
-// NVPTX64_DIAG: linked binaries do not contain expected 'nvptx64-nvidia-cuda--sm_60' target; found targets: 'nvptx64-nvidia-cuda--sm_50' [-Wsycl-target]
+// NVPTX64_DIAG: linked binaries do not contain expected 'nvptx64-nvidia-cuda-sm_60' target; found targets: 'nvptx64-nvidia-cuda-sm_50' [-Wsycl-target]
 
 // RUN: %clangxx -fsycl -nocudalib -fsycl-targets=nvptx64-nvidia-cuda -Xsycl-target-backend --cuda-gpu-arch=sm_50 \
 // RUN:   %S/Inputs/SYCL/libnvptx64-sm_50.a -### %s 2>&1 \
@@ -61,7 +61,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 -nogpulib\
 // RUN:   %S/Inputs/SYCL/objamdgcn-gfx908.o -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=AMDGCN_DIAG
-// AMDGCN_DIAG: linked binaries do not contain expected 'amdgcn-amd-amdhsa--gfx906' target; found targets: 'amdgcn-amd-amdhsa--gfx908' [-Wsycl-target]
+// AMDGCN_DIAG: linked binaries do not contain expected 'amdgcn-amd-amdhsa-gfx906' target; found targets: 'amdgcn-amd-amdhsa-gfx908' [-Wsycl-target]
 
 // RUN: %clangxx -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx908 -nogpulib\
 // RUN:   %S/Inputs/SYCL/libamdgcn-gfx908.a -### %s 2>&1 \

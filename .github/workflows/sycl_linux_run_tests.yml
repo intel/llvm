@@ -96,7 +96,6 @@ on:
           - 'opencl:acc'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
-          - 'ext_intel_esimd_emulator:gpu'
       tests_selector:
         type: choice
         options:
