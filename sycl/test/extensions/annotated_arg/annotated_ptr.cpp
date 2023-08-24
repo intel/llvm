@@ -10,6 +10,7 @@
 
 using namespace sycl;
 using namespace ext::oneapi::experimental;
+using namespace ext::intel::experimental;
 
 using annotated_ptr_t1 =
     annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>,
@@ -108,6 +109,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<float> tmp21;
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
+
+  // Implicit conversion
+  a1 = raw;
 
   // Property merge
   auto arg31 = annotated_ptr_t3(raw, buffer_location<0>, awidth<32>);     // OK

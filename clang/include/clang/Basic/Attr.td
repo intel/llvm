@@ -2105,9 +2105,8 @@ def : MutualExclusions<[Likely, Unlikely]>;
 def NoMerge : DeclOrStmtAttr {
   let Spellings = [Clang<"nomerge">];
   let Documentation = [NoMergeDocs];
-  let Subjects = SubjectList<[Function, Stmt], ErrorDiag,
-                             "functions and statements">;
-  let SimpleHandler = 1;
+  let Subjects = SubjectList<[Function, Stmt, Var], ErrorDiag,
+                             "functions, statements and variables">;
 }
 
 def MustTail : StmtAttr {
@@ -3404,8 +3403,42 @@ def AArch64SVEPcs: DeclOrTypeAttr {
 
 def ArmStreaming : TypeAttr, TargetSpecificAttr<TargetAArch64> {
   let Spellings = [RegularKeyword<"__arm_streaming">];
-  let Documentation = [ArmStreamingDocs];
+  let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
+  let Documentation = [ArmSmeStreamingDocs];
 }
+
+def ArmStreamingCompatible : TypeAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_streaming_compatible">];
+  let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
+  let Documentation = [ArmSmeStreamingCompatibleDocs];
+}
+
+def ArmSharedZA : TypeAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_shared_za">];
+  let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
+  let Documentation = [ArmSmeSharedZADocs];
+}
+
+def ArmPreservesZA : TypeAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_preserves_za">];
+  let Subjects = SubjectList<[HasFunctionProto], ErrorDiag>;
+  let Documentation = [ArmSmePreservesZADocs];
+}
+
+def ArmLocallyStreaming : InheritableAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_locally_streaming">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [ArmSmeLocallyStreamingDocs];
+}
+
+def ArmNewZA : InheritableAttr, TargetSpecificAttr<TargetAArch64> {
+  let Spellings = [RegularKeyword<"__arm_new_za">];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [ArmSmeNewZADocs];
+}
+def : MutualExclusions<[ArmNewZA, ArmSharedZA]>;
+def : MutualExclusions<[ArmNewZA, ArmPreservesZA]>;
+
 
 def Pure : InheritableAttr {
   let Spellings = [GCC<"pure">];
@@ -4031,6 +4064,7 @@ def VecTypeHint : InheritableAttr {
   let Spellings = [GNU<"vec_type_hint">, CXX11<"sycl", "vec_type_hint">];
   let Args = [TypeArgument<"TypeHint">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
+  let SupportsNonconformingLambdaSyntax = 1;
   let Documentation = [Undocumented];
 }
 
@@ -5243,3 +5277,10 @@ def ReadOnlyPlacement : InheritableAttr {
   let Subjects = SubjectList<[Record]>;
   let Documentation = [ReadOnlyPlacementDocs];
 }
+
+def AvailableOnlyInDefaultEvalMethod : InheritableAttr {
+  let Spellings = [Clang<"available_only_in_default_eval_method">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Documentation = [Undocumented];
+}
+

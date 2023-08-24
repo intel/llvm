@@ -28,10 +28,9 @@
 #include "llvm/Bitcode/BitcodeWriterPass.h"
 #include "llvm/GenXIntrinsics/GenXSPIRVWriterAdaptor.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -52,6 +51,7 @@
 #include "llvm/Support/SystemUtils.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/StripDeadPrototypes.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/DCE.h"
@@ -174,17 +174,20 @@ cl::opt<module_split::IRSplitMode> SplitMode(
 cl::opt<bool> DoSymGen{"symbols", cl::desc("generate exported symbol files"),
                        cl::cat(PostLinkCat)};
 
-enum SpecConstMode { SC_USE_RT_VAL, SC_USE_DEFAULT_VAL };
+enum SpecConstLowerMode { SC_NATIVE_MODE, SC_EMULATION_MODE };
 
-cl::opt<SpecConstMode> SpecConstLower{
+cl::opt<SpecConstLowerMode> SpecConstLower{
     "spec-const",
     cl::desc("lower and generate specialization constants information"),
     cl::Optional,
-    cl::init(SC_USE_RT_VAL),
+    cl::init(SC_NATIVE_MODE),
     cl::values(
-        clEnumValN(SC_USE_RT_VAL, "rt", "spec constants are set at runtime"),
-        clEnumValN(SC_USE_DEFAULT_VAL, "default",
-                   "set spec constants to C++ defaults")),
+        clEnumValN(SC_NATIVE_MODE, "native",
+                   "lower spec constants to native spirv instructions so that "
+                   "these values could be set at runtime"),
+        clEnumValN(
+            SC_EMULATION_MODE, "emulation",
+            "remove specialization constants and replace it with emulation")),
     cl::cat(PostLinkCat)};
 
 cl::opt<bool> EmitKernelParamInfo{
@@ -208,6 +211,13 @@ cl::opt<bool> EmitOnlyKernelsAsEntryPoints{
 cl::opt<bool> DeviceGlobals{
     "device-globals",
     cl::desc("Lower and generate information about device global variables"),
+    cl::cat(PostLinkCat)};
+
+cl::opt<bool> GenerateDeviceImageWithDefaultSpecConsts{
+    "generate-device-image-default-spec-consts",
+    cl::desc("Generate new device image(s) which is a copy of output images "
+             "but contain specialization constants "
+             "replaced with default values from specialization id(s)."),
     cl::cat(PostLinkCat)};
 
 struct GlobalBinImageProps {
@@ -336,14 +346,15 @@ void saveModuleIR(Module &M, StringRef OutFilename) {
   raw_fd_ostream Out{OutFilename, EC, sys::fs::OF_None};
   checkError(EC, "error opening the file '" + OutFilename + "'");
 
-  // TODO: Use the new PassManager instead?
-  legacy::PassManager PrintModule;
-
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  PassBuilder PB;
+  PB.registerModuleAnalyses(MAM);
   if (OutputAssembly)
-    PrintModule.add(createPrintModulePass(Out, ""));
+    MPM.addPass(PrintModulePass(Out));
   else if (Force || !CheckBitcodeOutputToConsole(Out))
-    PrintModule.add(createBitcodeWriterPass(Out));
-  PrintModule.run(M);
+    MPM.addPass(BitcodeWriterPass(Out));
+  MPM.run(M, MAM);
 }
 
 std::string saveModuleIR(Module &M, int I, StringRef Suff) {
@@ -454,12 +465,11 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (MD.isESIMD()) {
     PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({"isEsimdImage", true});
   }
-  bool HasRegAllocMode = false;
   {
     StringRef RegAllocModeAttr = "sycl-register-alloc-mode";
     uint32_t RegAllocModeVal;
 
-    HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
+    bool HasRegAllocMode = llvm::any_of(MD.entries(), [&](const Function *F) {
       if (!F->hasFnAttribute(RegAllocModeAttr))
         return false;
       const auto &Attr = F->getFnAttribute(RegAllocModeAttr);
@@ -484,9 +494,6 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
       return true;
     });
     if (HasGRFSize) {
-      if (HasRegAllocMode)
-        error("Unsupported use of both register_alloc_mode and "
-              "grf_size");
       PropSet[PropSetRegTy::SYCL_MISC_PROP].insert({GRFSizeAttr, GRFSizeVal});
     }
   }
@@ -541,6 +548,10 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
   if (!HostPipePropertyMap.empty()) {
     PropSet.add(PropSetRegTy::SYCL_HOST_PIPES, HostPipePropertyMap);
   }
+
+  if (MD.isSpecConstantDefault())
+    PropSet[PropSetRegTy::SYCL_MISC_PROP].insert(
+        {"specConstsReplacedWithDefault", 1});
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, Suff);
@@ -609,11 +620,7 @@ bool lowerEsimdConstructs(module_split::ModuleDesc &MD) {
     FPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
   }
-  if (!MD.getModule().getContext().supportsTypedPointers()) {
-    MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
-  } else {
-    MPM.addPass(ESIMDLowerVecArgPass{});
-  }
+  MPM.addPass(ESIMDOptimizeVecArgCallConvPass{});
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
@@ -699,8 +706,9 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
 
   ModulePassManager RunSpecConst;
   ModuleAnalysisManager MAM;
-  bool SetSpecConstAtRT = (SpecConstLower == SC_USE_RT_VAL);
-  SpecConstantsPass SCP(SetSpecConstAtRT);
+  SpecConstantsPass SCP(SpecConstLower == SC_NATIVE_MODE
+                            ? SpecConstantsPass::HandlingMode::native
+                            : SpecConstantsPass::HandlingMode::emulation);
   // Register required analysis
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   RunSpecConst.addPass(std::move(SCP));
@@ -709,6 +717,35 @@ bool processSpecConstants(module_split::ModuleDesc &MD) {
   PreservedAnalyses Res = RunSpecConst.run(MD.getModule(), MAM);
   MD.Props.SpecConstsMet = !Res.areAllPreserved();
   return MD.Props.SpecConstsMet;
+}
+
+/// Function generates the copy of the given ModuleDesc where all uses of
+/// Specialization Constants are replaced by corresponding default values.
+/// If the Module in MD doesn't contain specialization constants then
+/// std::nullopt is returned.
+std::optional<module_split::ModuleDesc>
+processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
+  std::optional<module_split::ModuleDesc> NewModuleDesc;
+  if (!checkModuleContainsSpecConsts(MD.getModule()))
+    return NewModuleDesc;
+
+  NewModuleDesc = MD.clone();
+  NewModuleDesc->setSpecConstantDefault(true);
+
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  SpecConstantsPass SCP(SpecConstantsPass::HandlingMode::default_values);
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  MPM.addPass(std::move(SCP));
+  MPM.addPass(StripDeadPrototypesPass());
+
+  PreservedAnalyses Res = MPM.run(NewModuleDesc->getModule(), MAM);
+  NewModuleDesc->Props.SpecConstsMet = !Res.areAllPreserved();
+  assert(NewModuleDesc->Props.SpecConstsMet &&
+         "This property should be true since the presence of SpecConsts "
+         "has been checked before the run of the pass");
+  NewModuleDesc->rebuildEntryPoints();
+  return std::move(NewModuleDesc);
 }
 
 constexpr int MAX_COLUMNS_IN_FILE_TABLE = 3;
@@ -859,7 +896,6 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
 
   for (auto &MD : Result) {
     DUMP_ENTRY_POINTS(MD.entries(), MD.Name.c_str(), 3);
-    Modified |= processSpecConstants(MD);
     if (LowerEsimd && MD.isESIMD())
       Modified |= lowerEsimdConstructs(MD);
   }
@@ -972,9 +1008,22 @@ processInputModule(std::unique_ptr<Module> M) {
     DUMP_ENTRY_POINTS(MDesc.entries(), MDesc.Name.c_str(), 1);
 
     MDesc.fixupLinkageOfDirectInvokeSimdTargets();
+
     SmallVector<module_split::ModuleDesc, 2> MMs =
         handleESIMD(std::move(MDesc), Modified, SplitOccurred);
     assert(MMs.size() && "at least one module is expected after ESIMD split");
+
+    SmallVector<module_split::ModuleDesc, 2> MMsWithDefaultSpecConsts;
+    for (size_t I = 0; I != MMs.size(); ++I) {
+      if (GenerateDeviceImageWithDefaultSpecConsts) {
+        std::optional<module_split::ModuleDesc> NewMD =
+            processSpecConstantsWithDefaultValues(MMs[I]);
+        if (NewMD)
+          MMsWithDefaultSpecConsts.push_back(std::move(*NewMD));
+      }
+
+      Modified |= processSpecConstants(MMs[I]);
+    }
 
     if (IROutputOnly) {
       if (SplitOccurred) {
@@ -1000,6 +1049,16 @@ processInputModule(std::unique_ptr<Module> M) {
     }
 
     ++ID;
+
+    if (!MMsWithDefaultSpecConsts.empty()) {
+      for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
+        module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
+        IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
+        addTableRow(*Table, T);
+      }
+
+      ++ID;
+    }
   }
   return Table;
 }
@@ -1046,7 +1105,7 @@ int main(int argc, char **argv) {
       "Normally, the tool generates a number of files and \"file table\"\n"
       "file listing all generated files in a table manner. For example, if\n"
       "the input file 'example.bc' contains two kernels, then the command\n"
-      "  $ sycl-post-link --split=kernel --symbols --spec-const=rt \\\n"
+      "  $ sycl-post-link --split=kernel --symbols --spec-const=native \\\n"
       "    -o example.table example.bc\n"
       "will produce 'example.table' file with the following content:\n"
       "  [Code|Properties|Symbols]\n"
@@ -1054,7 +1113,7 @@ int main(int argc, char **argv) {
       "  example_1.bc|example_1.prop|example_1.sym\n"
       "When only specialization constant processing is needed, the tool can\n"
       "output a single transformed IR file if --ir-output-only is specified:\n"
-      "  $ sycl-post-link --ir-output-only --spec-const=default \\\n"
+      "  $ sycl-post-link --ir-output-only --spec-const=emulation \\\n"
       "    -o example_p.bc example.bc\n"
       "will produce single output file example_p.bc suitable for SPIRV\n"
       "translation.\n"
@@ -1069,6 +1128,8 @@ int main(int argc, char **argv) {
   bool DoProgMetadata = EmitProgramMetadata.getNumOccurrences() > 0;
   bool DoExportedSyms = EmitExportedSymbols.getNumOccurrences() > 0;
   bool DoDeviceGlobals = DeviceGlobals.getNumOccurrences() > 0;
+  bool DoGenerateDeviceImageWithDefaulValues =
+      GenerateDeviceImageWithDefaultSpecConsts.getNumOccurrences() > 0;
 
   if (!DoSplit && !DoSpecConst && !DoSymGen && !DoParamInfo &&
       !DoProgMetadata && !DoSplitEsimd && !DoExportedSyms && !DoDeviceGlobals &&
@@ -1104,6 +1165,11 @@ int main(int argc, char **argv) {
   if (IROutputOnly && DoExportedSyms) {
     errs() << "error: -" << EmitExportedSymbols.ArgStr << " can't be used with"
            << " -" << IROutputOnly.ArgStr << "\n";
+    return 1;
+  }
+  if (IROutputOnly && DoGenerateDeviceImageWithDefaulValues) {
+    errs() << "error: -" << GenerateDeviceImageWithDefaultSpecConsts.ArgStr
+           << " can't be used with -" << IROutputOnly.ArgStr << "\n";
     return 1;
   }
 

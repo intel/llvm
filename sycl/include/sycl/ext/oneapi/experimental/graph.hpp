@@ -8,16 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/context.hpp>                // for context
+#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
+#include <sycl/device.hpp>                 // for device
+#include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
-#include <functional>
-#include <memory>
-#include <vector>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <type_traits> // for true_type
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 class queue;
@@ -27,6 +31,45 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
+// List of sycl features and extensions which are not supported by graphs. Used
+// for throwing errors when these features are used with graphs.
+enum class UnsupportedGraphFeatures {
+  sycl_reductions = 0,
+  sycl_specialization_constants = 1,
+  sycl_kernel_bundle = 2,
+  sycl_ext_oneapi_kernel_properties = 3,
+  sycl_ext_oneapi_enqueue_barrier = 4,
+  sycl_ext_oneapi_memcpy2d = 5,
+  sycl_ext_oneapi_device_global = 6,
+  sycl_ext_oneapi_bindless_images = 7
+};
+
+inline const char *
+UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
+  using UGF = UnsupportedGraphFeatures;
+  switch (Feature) {
+  case UGF::sycl_reductions:
+    return "Reductions";
+  case UGF::sycl_specialization_constants:
+    return "Specialization Constants";
+  case UGF::sycl_kernel_bundle:
+    return "Kernel Bundles";
+  case UGF::sycl_ext_oneapi_kernel_properties:
+    return "sycl_ext_oneapi_kernel_properties";
+  case UGF::sycl_ext_oneapi_enqueue_barrier:
+    return "sycl_ext_oneapi_enqueue_barrier";
+  case UGF::sycl_ext_oneapi_memcpy2d:
+    return "sycl_ext_oneapi_memcpy2d";
+  case UGF::sycl_ext_oneapi_device_global:
+    return "sycl_ext_oneapi_device_global";
+  case UGF::sycl_ext_oneapi_bindless_images:
+    return "sycl_ext_oneapi_bindless_images";
+  }
+
+  assert(false && "Unhandled graphs feature");
+  return {};
+}
+
 class node_impl;
 class graph_impl;
 class exec_graph_impl;
@@ -220,7 +263,6 @@ protected:
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
 
-  int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
 } // namespace detail
@@ -282,5 +324,5 @@ template <>
 struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
                       ext::oneapi::experimental::node> : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

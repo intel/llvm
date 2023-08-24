@@ -16,7 +16,7 @@
 #include "pi_win_proxy_loader.hpp"
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 namespace pi {
 
@@ -31,7 +31,8 @@ void *loadOsLibrary(const std::string &LibraryPath) {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  auto Result = (void *)LoadLibraryA(LibraryPath.c_str());
+
+  auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
@@ -67,5 +68,5 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
 
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

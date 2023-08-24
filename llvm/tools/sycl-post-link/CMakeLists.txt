@@ -2,6 +2,7 @@ set(LLVM_LINK_COMPONENTS
   BitWriter
   Core
   IPO
+  IRPrinter
   IRReader
   Support
   TargetParser

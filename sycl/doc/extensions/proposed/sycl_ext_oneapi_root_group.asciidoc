@@ -501,8 +501,7 @@ synchronization are restricted to launching at most one work-group).
 Detecting that a developer has attempted to synchronize a `root_group` from
 an incompatible kernel launch could use a similar mechanism to that outlined in
 the
-https://github.com/intel/llvm/blob/sycl/sycl/doc/design/OptionalDeviceFeatures.md
-link:../../doc/design/OptionalDeviceFeatures.md[optional device features]
+link:../../../doc/design/OptionalDeviceFeatures.md[optional device features]
 design document. Specifically, the overload of `sycl::group_barrier` accepting
 a `root_group` could be marked with an attribute denoting that the function
 requires root-group synchronization, and the compiler could propagate that

@@ -26,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GSYCLGraphEvent;
@@ -100,6 +100,12 @@ void event_impl::setComplete() {
   assert(false && "setComplete is not supported for non-host event");
 }
 
+static uint64_t inline getTimestamp() {
+  auto Timestamp = std::chrono::high_resolution_clock::now().time_since_epoch();
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(Timestamp)
+      .count();
+}
+
 const sycl::detail::pi::PiEvent &event_impl::getHandleRef() const {
   return MEvent;
 }
@@ -151,12 +157,10 @@ event_impl::event_impl(sycl::detail::pi::PiEvent Event,
 event_impl::event_impl(const QueueImplPtr &Queue)
     : MQueue{Queue},
       MIsProfilingEnabled{Queue->is_host() || Queue->MIsProfilingEnabled},
-      MLimitedProfiling{MIsProfilingEnabled && Queue->isProfilingLimited()} {
+      MFallbackProfiling{MIsProfilingEnabled && Queue->isProfilingFallback()} {
   this->setContextImpl(Queue->getContextImplPtr());
-
   if (Queue->is_host()) {
     MState.store(HES_NotComplete);
-
     if (Queue->has_property<property::queue::enable_profiling>()) {
       MHostProfilingInfo.reset(new HostProfilingInfo());
       if (!MHostProfilingInfo)
@@ -274,19 +278,17 @@ void event_impl::checkProfilingPreconditions() const {
         "Profiling information is unavailable as the queue associated with "
         "the event does not have the 'enable_profiling' property.");
   }
+  if (MEventFromSubmitedExecCommandBuffer) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Profiling information is unavailable for events "
+                          "returned by a graph submission.");
+  }
 }
 
 template <>
 uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_submit>() {
   checkProfilingPreconditions();
-  if (MLimitedProfiling)
-    throw sycl::exception(
-        make_error_code(sycl::errc::invalid),
-        "Submit profiling information is temporarily unsupported on this "
-        "device. This is indicated by the lack of queue_profiling aspect, but, "
-        "as a temporary workaround, profiling can still be enabled to use "
-        "command_start and command_end profiling info.");
   return MSubmitTime;
 }
 
@@ -295,9 +297,19 @@ uint64_t
 event_impl::get_profiling_info<info::event_profiling::command_start>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_start>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto StartTime =
+          get_event_profiling_info<info::event_profiling::command_start>(
+              this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return StartTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + StartTime;
+      }
+    }
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -312,9 +324,19 @@ template <>
 uint64_t event_impl::get_profiling_info<info::event_profiling::command_end>() {
   checkProfilingPreconditions();
   if (!MHostEvent) {
-    if (MEvent)
-      return get_event_profiling_info<info::event_profiling::command_end>(
-          this->getHandleRef(), this->getPlugin());
+    if (MEvent) {
+      auto EndTime =
+          get_event_profiling_info<info::event_profiling::command_end>(
+              this->getHandleRef(), this->getPlugin());
+      if (!MFallbackProfiling) {
+        return EndTime;
+      } else {
+        auto DeviceBaseTime =
+            get_event_profiling_info<info::event_profiling::command_submit>(
+                this->getHandleRef(), this->getPlugin());
+        return MHostBaseTime - DeviceBaseTime + EndTime;
+      }
+    }
     return 0;
   }
   if (!MHostProfilingInfo)
@@ -352,12 +374,6 @@ event_impl::get_info<info::event::command_execution_status>() {
   return MHostEvent && MState.load() != HES_Complete
              ? sycl::info::event_command_status::submitted
              : info::event_command_status::complete;
-}
-
-static uint64_t getTimestamp() {
-  auto TimeStamp = std::chrono::high_resolution_clock::now().time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::nanoseconds>(TimeStamp)
-      .count();
 }
 
 void HostProfilingInfo::start() { StartTime = getTimestamp(); }
@@ -442,18 +458,32 @@ void event_impl::cleanDepEventsThroughOneLevel() {
 }
 
 void event_impl::setSubmissionTime() {
-  if (!MIsProfilingEnabled || MLimitedProfiling)
+  if (!MIsProfilingEnabled)
     return;
-  if (QueueImplPtr Queue = MQueue.lock()) {
-    try {
-      MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
-    } catch (feature_not_supported &e) {
-      throw sycl::exception(
-          make_error_code(errc::profiling),
-          std::string("Unable to get command group submission time: ") +
-              e.what());
+  if (!MFallbackProfiling) {
+    if (QueueImplPtr Queue = MQueue.lock()) {
+      try {
+        MSubmitTime = Queue->getDeviceImplPtr()->getCurrentDeviceTime();
+      } catch (feature_not_supported &e) {
+        throw sycl::exception(
+            make_error_code(errc::profiling),
+            std::string("Unable to get command group submission time: ") +
+                e.what());
+      }
     }
+  } else {
+    // Capture the host timestamp for a return value of function call
+    // <info::event_profiling::command_submit>. See MFallbackProfiling
+    MSubmitTime = getTimestamp();
   }
+}
+
+void event_impl::setHostEnqueueTime() {
+  if (!MIsProfilingEnabled || !MFallbackProfiling)
+    return;
+  // Capture a host timestamp to use normalize profiling time in
+  // <command_start> and <command_end>. See MFallbackProfiling
+  MHostBaseTime = getTimestamp();
 }
 
 uint64_t event_impl::getSubmissionTime() { return MSubmitTime; }
@@ -464,5 +494,5 @@ bool event_impl::isCompleted() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -12,7 +12,7 @@
 #include <memory>
 #include <vector>
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 struct NativeCPUArgDesc {
@@ -22,7 +22,7 @@ struct NativeCPUArgDesc {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 struct __nativecpu_state {
@@ -59,9 +59,12 @@ struct __nativecpu_state {
     MLocal_id[0] = local0;
     MLocal_id[1] = local1;
     MLocal_id[2] = local2;
-    MGlobal_id[0] = MWorkGroup_size[0] * MWorkGroup_id[0] + MLocal_id[0];
-    MGlobal_id[1] = MWorkGroup_size[1] * MWorkGroup_id[1] + MLocal_id[1];
-    MGlobal_id[2] = MWorkGroup_size[2] * MWorkGroup_id[2] + MLocal_id[2];
+    MGlobal_id[0] =
+        MWorkGroup_size[0] * MWorkGroup_id[0] + MLocal_id[0] + MGlobalOffset[0];
+    MGlobal_id[1] =
+        MWorkGroup_size[1] * MWorkGroup_id[1] + MLocal_id[1] + MGlobalOffset[1];
+    MGlobal_id[2] =
+        MWorkGroup_size[2] * MWorkGroup_id[2] + MLocal_id[2] + MGlobalOffset[2];
   }
 };
 #ifdef __SYCL_DEVICE_ONLY__

@@ -13,17 +13,18 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.h>
+#include <sycl/backend_types.hpp>  // for backend
+#include <sycl/detail/export.hpp>  // for __SYCL_EXPORT
+#include <sycl/detail/os_util.hpp> // for __SYCL_RT_OS_LINUX
+#include <sycl/detail/pi.h>        // for piContextCreate, piContextGetInfo
 
-#include <cassert>
-#include <cstdint>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <vector>
+#include <cstdint>     // for uint64_t, uint32_t
+#include <memory>      // for shared_ptr
+#include <sstream>     // for operator<<, basic_ostream, string...
+#include <stddef.h>    // for size_t
+#include <string>      // for char_traits, string
+#include <type_traits> // for false_type, true_type
+#include <vector>      // for vector
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 // Forward declarations
@@ -33,7 +34,7 @@ struct trace_event_data_t;
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class context;
 
@@ -298,7 +299,7 @@ template <class To, class FromE> To cast(std::vector<FromE> Values) {
 } // namespace pi
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef _PI_API

@@ -26,6 +26,18 @@
 using namespace sycl;
 using namespace sycl::ext::intel;
 
+#ifdef SATURATION_ON
+#define ESIMD_SATURATION_TAG                                                   \
+  esimd::saturation_on_tag {}
+#define ESIMD_SATURATE(T, x) esimd::saturate<T>(x)
+#define HOST_SATURATE(x) std::max(0.0f, std::min((x), 1.0f))
+#else
+#define ESIMD_SATURATION_TAG                                                   \
+  esimd::saturation_off_tag {}
+#define ESIMD_SATURATE(T, x) (x)
+#define HOST_SATURATE(x) (x)
+#endif
+
 // --- Data initialization functions
 
 // Initialization data for trigonometric functions' input.
@@ -102,22 +114,17 @@ enum class MathOp {
 
 // --- Template functions calculating given math operation on host and device
 
-enum ArgKind {
-  AllVec,
-  AllSca,
-  Sca1Vec2,
-  Sca2Vec1
-};
+enum ArgKind { AllVec, AllSca, Sca1Vec2, Sca2Vec1 };
 
-template <class T, int N, MathOp Op, int Args=AllVec> struct ESIMDf;
-template <class T, int N, MathOp Op, int Args=AllVec> struct BinESIMDf;
-template <class T, int N, MathOp Op, int Args=AllVec> struct SYCLf;
+template <class T, int N, MathOp Op, int Args = AllVec> struct ESIMDf;
+template <class T, int N, MathOp Op, int Args = AllVec> struct BinESIMDf;
+template <class T, int N, MathOp Op, int Args = AllVec> struct SYCLf;
 
 template <class T, MathOp Op> struct HostFunc;
 
 #define DEFINE_HOST_OP(Op, HostOp)                                             \
   template <class T> struct HostFunc<T, MathOp::Op> {                          \
-    T operator()(T X) { return HostOp; }                                       \
+    T operator()(T X) { return HOST_SATURATE(HostOp); }                        \
   };
 
 DEFINE_HOST_OP(sin, std::sin(X));
@@ -136,7 +143,7 @@ DEFINE_HOST_OP(log2, std::log2(X));
 
 #define DEFINE_HOST_BIN_OP(Op, HostOp)                                         \
   template <class T> struct HostFunc<T, MathOp::Op> {                          \
-    T operator()(T X, T Y) { return HostOp; }                                  \
+    T operator()(T X, T Y) { return HOST_SATURATE(HostOp); }                   \
   };
 
 DEFINE_HOST_BIN_OP(div_ieee, X / Y);
@@ -148,12 +155,12 @@ DEFINE_HOST_BIN_OP(pow, std::pow(X, Y));
   template <class T, int N> struct ESIMDf<T, N, MathOp::Op, AllVec> {          \
     esimd::simd<T, N>                                                          \
     operator()(esimd::simd<T, N> X) const SYCL_ESIMD_FUNCTION {                \
-      return esimd::Op<T, N>(X);                                               \
+      return esimd::Op<T, N>(X, ESIMD_SATURATION_TAG);                         \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct ESIMDf<T, N, MathOp::Op, AllSca> {          \
     esimd::simd<T, N> operator()(T X) const SYCL_ESIMD_FUNCTION {              \
-      return esimd::Op<T, N>(X);                                               \
+      return esimd::Op<T, N>(X, ESIMD_SATURATION_TAG);                         \
     }                                                                          \
   };
 
@@ -174,26 +181,26 @@ DEFINE_ESIMD_DEVICE_OP(log2);
 #define DEFINE_ESIMD_DEVICE_BIN_OP(Op)                                         \
   template <class T, int N> struct BinESIMDf<T, N, MathOp::Op, AllSca> {       \
     esimd::simd<T, N> operator()(T X, T Y) const SYCL_ESIMD_FUNCTION {         \
-      return esimd::Op<T, N>(X, Y);                                            \
+      return esimd::Op<T, N>(X, Y, ESIMD_SATURATION_TAG);                      \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct BinESIMDf<T, N, MathOp::Op, AllVec> {       \
     esimd::simd<T, N>                                                          \
     operator()(esimd::simd<T, N> X,                                            \
                esimd::simd<T, N> Y) const SYCL_ESIMD_FUNCTION {                \
-      return esimd::Op<T, N>(X, Y);                                            \
+      return esimd::Op<T, N>(X, Y, ESIMD_SATURATION_TAG);                      \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct BinESIMDf<T, N, MathOp::Op, Sca1Vec2> {     \
     esimd::simd<T, N>                                                          \
     operator()(T X, esimd::simd<T, N> Y) const SYCL_ESIMD_FUNCTION {           \
-      return esimd::Op<T, N>(X, Y);                                            \
+      return esimd::Op<T, N>(X, Y, ESIMD_SATURATION_TAG);                      \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct BinESIMDf<T, N, MathOp::Op, Sca2Vec1> {     \
     esimd::simd<T, N> operator()(esimd::simd<T, N> X,                          \
                                  T Y) const SYCL_ESIMD_FUNCTION {              \
-      return esimd::Op<T, N>(X, Y);                                            \
+      return esimd::Op<T, N>(X, Y, ESIMD_SATURATION_TAG);                      \
     }                                                                          \
   };
 
@@ -205,12 +212,12 @@ DEFINE_ESIMD_DEVICE_BIN_OP(pow);
     esimd::simd<T, N>                                                          \
     operator()(esimd::simd<T, N> X) const SYCL_ESIMD_FUNCTION {                \
       /* T must be float for SYCL, so not a template parameter for sycl::Op*/  \
-      return sycl::Op<N>(X);                                                   \
+      return ESIMD_SATURATE(T, sycl::Op<N>(X));                                \
     }                                                                          \
   };                                                                           \
   template <class T, int N> struct SYCLf<T, N, MathOp::Op, AllSca> {           \
     esimd::simd<T, N> operator()(T X) const SYCL_ESIMD_FUNCTION {              \
-      return sycl::Op<N>(X);                                                   \
+      return ESIMD_SATURATE(T, sycl::Op<N>(X));                                \
     }                                                                          \
   };
 
@@ -304,10 +311,11 @@ struct BinaryDeviceFunc {
 template <class T, int N, MathOp Op,
           template <class, int, MathOp, int> class Kernel,
           typename InitF = InitNarrow<T>>
-bool test(queue &Q, const std::string &Name,
-          InitF Init = InitNarrow<T>{}, float delta = 0.0f) {
+bool test(queue &Q, const std::string &Name, InitF Init = InitNarrow<T>{},
+          float delta = 0.0f) {
 
-  constexpr size_t Size = 1024 * 128;
+  constexpr size_t Size =
+      std::is_same_v<T, sycl::half> ? (16 * 128) : (1024 * 128);
   constexpr bool IsBinOp = (Op == MathOp::div_ieee) || (Op == MathOp::pow);
 
   T *A = new T[Size];
@@ -319,9 +327,9 @@ bool test(queue &Q, const std::string &Name,
     Init(A, B, Size);
   }
   const char *kind =
-    std::is_same_v<Kernel<T, N, Op, AllVec>, ESIMDf<T, N, Op, AllVec>>
-                         ? "ESIMD"
-                         : "SYCL";
+      std::is_same_v<Kernel<T, N, Op, AllVec>, ESIMDf<T, N, Op, AllVec>>
+          ? "ESIMD"
+          : "SYCL";
   std::cout << "  " << Name << " test, kind=" << kind << "...\n";
 
   try {
@@ -340,12 +348,11 @@ bool test(queue &Q, const std::string &Name,
       auto PC = BufC.template get_access<access::mode::write>(CGH);
       if constexpr (IsBinOp) {
         auto PB = BufB.template get_access<access::mode::read>(CGH);
-        BinaryDeviceFunc<T, N, Op, Kernel, decltype(PA), decltype(PC)> F(
-            PA, PB, PC);
+        BinaryDeviceFunc<T, N, Op, Kernel, decltype(PA), decltype(PC)> F(PA, PB,
+                                                                         PC);
         CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, F);
       } else {
-        UnaryDeviceFunc<T, N, Op, Kernel, decltype(PA), decltype(PC)> F(PA,
-                                                                        PC);
+        UnaryDeviceFunc<T, N, Op, Kernel, decltype(PA), decltype(PC)> F(PA, PC);
         CGH.parallel_for(nd_range<1>{GlobalRange, LocalRange}, F);
       }
     });
@@ -353,6 +360,9 @@ bool test(queue &Q, const std::string &Name,
   } catch (sycl::exception &Exc) {
     std::cout << "    *** ERROR. SYCL exception caught: << " << Exc.what()
               << "\n";
+    delete[] A;
+    delete[] B;
+    delete[] C;
     return false;
   }
 
@@ -372,15 +382,19 @@ bool test(queue &Q, const std::string &Name,
     }
     CheckT Test = C[I];
 
-    if (delta == 0.0f) {
-      delta = sizeof(T) > 2 ? 0.0001 : 0.01;
-    }
+    if (delta == 0.0f)
+      delta = 0.0001;
+    if constexpr (sizeof(T) <= 2)
+      delta = delta + delta;
 
     bool BothFinite = std::isfinite(Test) && std::isfinite(Gold);
     if (BothFinite && std::abs(Test - Gold) > delta) {
       if (++ErrCnt < 10) {
         std::cout << "    failed at index " << I << ", " << Test
                   << " != " << Gold << " (gold)\n";
+        std::cout << "    A = " << (T)A[I] << ", B = " << (T)B[I]
+                  << ", diff = " << std::abs(Test - Gold)
+                  << ", max-delta = " << delta << "\n";
       }
     }
   }
@@ -439,10 +453,9 @@ template <class T, int N> bool testESIMDDivIEEE(queue &Q) {
 
 template <class T, int N> bool testESIMDPow(queue &Q) {
   bool Pass = true;
-  std::cout << "--- TESTING ESIMD pow, T=" << typeid(T).name()
-            << ", N = " << N << "...\n";
-  Pass &= test<T, N, MathOp::pow, BinESIMDf>(
-      Q, "pow", InitBin<T>{}, 0.1);
+  std::cout << "--- TESTING ESIMD pow, T=" << typeid(T).name() << ", N = " << N
+            << "...\n";
+  Pass &= test<T, N, MathOp::pow, BinESIMDf>(Q, "pow", InitBin<T>{}, 0.1);
   return Pass;
 }
 
@@ -465,9 +478,16 @@ template <class T, int N> bool testSYCL(queue &Q) {
 
 int main(void) {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(Q);
   auto Dev = Q.get_device();
-  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
-            << "\n";
+#ifndef SKIP_NEW_GPU_DRIVER_VERSION_CHECK
+  if (!esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "27012", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.27012 or newer.\n";
+    return 0;
+  }
+#endif
+
   bool Pass = true;
 #ifdef TEST_IEEE_DIV_REM
   Pass &= testESIMDSqrtIEEE<float, 16>(Q);
@@ -476,7 +496,7 @@ int main(void) {
     Pass &= testESIMDSqrtIEEE<double, 32>(Q);
     Pass &= testESIMDDivIEEE<double, 32>(Q);
   }
-#else  // !TEST_IEEE_DIV_REM
+#else // !TEST_IEEE_DIV_REM
   Pass &= testESIMD<half, 8>(Q);
   Pass &= testESIMD<float, 16>(Q);
   Pass &= testESIMD<float, 32>(Q);

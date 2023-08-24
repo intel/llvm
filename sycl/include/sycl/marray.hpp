@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/aliases.hpp>       // for half
+#include <sycl/detail/common.hpp> // for ArrayCreator
+#include <sycl/half_type.hpp>     // for half
 
-#include <array>
-#include <type_traits>
-#include <utility>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <cstdint>     // for int64_t, int8_t, uint64_t, int16_t
+#include <type_traits> // for enable_if_t, remove_const, is_conv...
+#include <utility>     // for index_sequence, make_index_sequence
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename DataT, std::size_t N> class marray;
 
@@ -132,7 +132,7 @@ public:
 
   // Available only when: NumElements == 1
   template <std::size_t Size = NumElements,
-            typename = typename std::enable_if<Size == 1>>
+            typename = std::enable_if_t<Size == 1>>
   operator Type() const {
     return MData[0];
   }
@@ -210,7 +210,7 @@ public:
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -235,7 +235,7 @@ public:
     return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
@@ -404,5 +404,5 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
