@@ -2,9 +2,10 @@
 /// Perform several driver tests for SYCL offloading with AOT enabled
 ///
 
+// Check that when -fintelfpga is passed without -fsycl, no error is thrown.
 // RUN:   %clang -### -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-FINTELFPGA %s
-// CHK-NO-FSYCL-FINTELFPGA: error: '-fintelfpga' must be used in conjunction with '-fsycl' to enable offloading
+// CHK-NO-FSYCL-FINTELFPGA-NOT: error: '-fintelfpga' must be used in conjunction with '-fsycl' to enable offloading
 
 /// Check error for -fsycl-targets -fintelfpga conflict
 // RUN:   %clang -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -fsycl  %s 2>&1 \

@@ -1107,9 +1107,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
 
   // Make -fintelfpga flag imply -fsycl.
-  if (SYCLfpga && !HasValidSYCLRuntime) {
+  if (SYCLfpga && !HasValidSYCLRuntime)
     HasValidSYCLRuntime = true;
-  }
+
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
@@ -6129,9 +6129,8 @@ class OffloadingActionBuilder final {
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
 
       // Make -fintelfpga flag imply -fsycl.
-      if (SYCLfpga && !HasValidSYCLRuntime) {
+      if (SYCLfpga && !HasValidSYCLRuntime)
         HasValidSYCLRuntime = true;
-      }
 
       if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
