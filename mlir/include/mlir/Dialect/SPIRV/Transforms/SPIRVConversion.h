@@ -141,11 +141,11 @@ class AccessChainOp;
 /// inserts the global variable associated for the builtin within the nearest
 /// symbol table enclosing `op`. Returns null Value on error.
 ///
-/// The global name being generated will be mangled using prefix \p prefix and
-/// suffix \p suffix.
+/// The global name being generated will be mangled using `preffix` and
+/// `suffix`.
 Value getBuiltinVariableValue(Operation *op, BuiltIn builtin, Type integerType,
                               OpBuilder &builder,
-                              StringRef prefix = "__builtin_var_",
+                              StringRef prefix = "__builtin__",
                               StringRef suffix = "__");
 
 /// Gets the value at the given `offset` of the push constant storage with a
