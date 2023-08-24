@@ -213,7 +213,7 @@ graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
   std::vector<std::shared_ptr<node_impl>> Deps;
 
   // Add any nodes specified by event dependencies into the dependency list
-  for (auto Dep : Events) {
+  for (const auto &Dep : Events) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
       Deps.push_back(NodeImpl->second);
     } else {
@@ -370,7 +370,7 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
   MPiCommandBuffers[Device] = OutCommandBuffer;
 
   // TODO extract kernel bundle logic from enqueueImpKernel
-  for (auto Node : MSchedule) {
+  for (const auto &Node : MSchedule) {
     // Empty nodes are not processed as other nodes, but only their
     // dependencies are propagated in findRealDeps
     if (Node->isEmpty())
@@ -422,7 +422,7 @@ exec_graph_impl::~exec_graph_impl() {
     Event->wait(Event);
   }
 
-  for (auto Iter : MPiCommandBuffers) {
+  for (const auto &Iter : MPiCommandBuffers) {
     if (auto CmdBuf = Iter.second; CmdBuf) {
       pi_result Res = Plugin->call_nocheck<
           sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
@@ -688,7 +688,7 @@ void executable_command_graph::finalizeImpl() {
   impl->schedule();
 
   auto Context = impl->getContext();
-  for (auto Device : Context.get_devices()) {
+  for (const auto &Device : Context.get_devices()) {
     bool CmdBufSupport =
         Device.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
