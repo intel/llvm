@@ -50,6 +50,11 @@ public:
   static std::string getDirName(const char *Path);
 
 #ifdef __SYCL_RT_OS_WINDOWS
+  /// Returns an absolute path to a directory where the object was found.
+  static std::filesystem::path getCurrentDSODirPath();
+#endif
+
+#ifdef __SYCL_RT_OS_WINDOWS
   static constexpr const char *DirSep = "\\";
 #else
   static constexpr const char *DirSep = "/";
