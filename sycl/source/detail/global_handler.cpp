@@ -259,11 +259,11 @@ void GlobalHandler::unloadPlugins() {
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
     for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter is reserved for future use that can control
-      // some parameters in the plugin tear-down process.
-      // Currently, it is not used.
-      void *PluginParameter = nullptr;
-      Plugin->call<PiApiKind::piTearDown>(PluginParameter);
+      // PluginParameter for Teardown is the boolean tracking if a
+      // given plugin has been teardown successfully.
+      // This tracking prevents usage of this plugin after teardown
+      // has been completed to avoid invalid resource access.
+      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
       Plugin->unload();
     }
   }
