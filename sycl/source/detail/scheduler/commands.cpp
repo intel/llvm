@@ -70,6 +70,9 @@ bool CurrentCodeLocationValid() {
 struct DemangleHandle {
   char *p;
   DemangleHandle(char *ptr) : p(ptr) {}
+
+  DemangleHandle &operator=(const DemangleHandle &) = delete;
+
   ~DemangleHandle() { std::free(p); }
 };
 static std::string demangleKernelName(std::string Name) {
