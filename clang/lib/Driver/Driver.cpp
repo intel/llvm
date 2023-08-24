@@ -1104,7 +1104,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *SYCLAddTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
-  Arg *SYCLfpga = getArgRequiringSYCLRuntime(options::OPT_fintelfpga);
+  Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
+
+  // Make -fintelfpga flag imply -fsycl.
+  if (SYCLfpga && !HasValidSYCLRuntime) {
+    HasValidSYCLRuntime = true;
+  }
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
@@ -6114,6 +6119,7 @@ class OffloadingActionBuilder final {
       Arg *SYCLTargets =
               C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
+      bool SYCLfpga = C.getInputArgs().hasArg(options::OPT_fintelfpga);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
@@ -6121,6 +6127,11 @@ class OffloadingActionBuilder final {
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+
+      // Make -fintelfpga flag imply -fsycl.
+      if (SYCLfpga && !HasValidSYCLRuntime) {
+        HasValidSYCLRuntime = true;
+      }
 
       if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {
