@@ -6,15 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/backend.hpp>
 #include <sycl/detail/defines.hpp>
 
 #include <cassert>
 #include <filesystem>
 #include <string>
+#include <vector>
 #include <windows.h>
 #include <winreg.h>
 
 #include "pi_win_proxy_loader.hpp"
+#include <sycl/detail/windows_os_utils.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -65,6 +68,22 @@ int unloadOsPluginLibrary(void *Library) {
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return reinterpret_cast<void *>(
       GetProcAddress((HMODULE)Library, FunctionName.c_str()));
+}
+
+// Load plugins corresponding to provided list of plugin names.
+std::vector<std::tuple<std::string, backend, void *>>
+loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
+  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins;
+  const std::filesystem::path LibSYCLDir = sycl::detail::getCurrentDSODirPath();
+
+  for (auto &PluginName : PluginNames) {
+    void *Library = getPreloadedPlugin(LibSYCLDir / PluginName.first);
+    LoadedPlugins.push_back(std::make_tuple(std::move(PluginName.first),
+                                            std::move(PluginName.second),
+                                            std::move(Library)));
+  }
+
+  return LoadedPlugins;
 }
 
 } // namespace pi
