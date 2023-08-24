@@ -242,6 +242,10 @@ public:
   /// @throw sycl::feature_not_supported if feature is not supported on device
   uint64_t getCurrentDeviceTime();
 
+  /// Check clGetDeviceAndHostTimer is available for fallback profiling
+
+  bool isGetDeviceAndHostTimerSupported();
+
   /// Get the backend of this device
   backend getBackend() const { return MPlatform->getBackend(); }
 
@@ -266,7 +270,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
-  mutable ext::oneapi::experimental::architecture MDeviceArch;
+  mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl

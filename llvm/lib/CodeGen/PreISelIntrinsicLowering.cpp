@@ -70,7 +70,9 @@ static bool lowerLoadRelative(Function &F) {
 
   bool Changed = false;
   Type *Int32Ty = Type::getInt32Ty(F.getContext());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *Int32PtrTy = Int32Ty->getPointerTo();
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Type *Int8Ty = Type::getInt8Ty(F.getContext());
 
   for (Use &U : llvm::make_early_inc_range(F.uses())) {
@@ -81,11 +83,14 @@ static bool lowerLoadRelative(Function &F) {
     IRBuilder<> B(CI);
     Value *OffsetPtr =
         B.CreateGEP(Int8Ty, CI->getArgOperand(0), CI->getArgOperand(1));
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *OffsetI32 = B.CreateAlignedLoad(Int32Ty, OffsetPtr, Align(4));
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
     Value *OffsetPtrI32 = B.CreateBitCast(OffsetPtr, Int32PtrTy);
     Value *OffsetI32 = B.CreateAlignedLoad(Int32Ty, OffsetPtrI32, Align(4));
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
     Value *ResultPtr = B.CreateGEP(Int8Ty, CI->getArgOperand(0), OffsetI32);
-
     CI->replaceAllUsesWith(ResultPtr);
     CI->eraseFromParent();
     Changed = true;
@@ -161,6 +166,16 @@ static bool lowerObjCCall(Function &F, const char *NewFn,
     // * tail on either side is stronger than none, but not notail
     CallInst::TailCallKind TCK = CI->getTailCallKind();
     NewCI->setTailCallKind(std::max(TCK, OverridingTCK));
+
+    // Transfer the 'returned' attribute from the intrinsic to the call site.
+    // By applying this only to intrinsic call sites, we avoid applying it to
+    // non-ARC explicit calls to things like objc_retain which have not been
+    // auto-upgraded to use the intrinsics.
+    unsigned Index;
+    if (F.getAttributes().hasAttrSomewhere(Attribute::Returned, &Index) &&
+        Index)
+      NewCI->addParamAttr(Index - AttributeList::FirstArgIndex,
+                          Attribute::Returned);
 
     if (!CI->use_empty())
       CI->replaceAllUsesWith(NewCI);
