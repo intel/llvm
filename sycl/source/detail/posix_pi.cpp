@@ -56,7 +56,7 @@ loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
       sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
 
   for (auto &PluginName : PluginNames) {
-    void *Library = loadPlugin(LibSYCLDir + PluginName.first);
+    void *Library = loadOsPluginLibrary(LibSYCLDir + PluginName.first);
     LoadedPlugins.push_back(std::make_tuple(std::move(PluginName.first),
                                             std::move(PluginName.second),
                                             std::move(Library)));
