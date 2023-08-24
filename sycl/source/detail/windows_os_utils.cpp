@@ -8,9 +8,7 @@
 
 #include <Windows.h>
 #include <cassert>
-#include <direct.h>
 #include <filesystem>
-#include <malloc.h>
 #include <shlwapi.h>
 #include <sycl/detail/windows_os_utils.hpp>
 

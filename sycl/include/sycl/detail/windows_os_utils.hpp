@@ -8,11 +8,7 @@
 
 #pragma once
 
-#include <Windows.h>
-#include <direct.h>
 #include <filesystem>
-#include <malloc.h>
-#include <shlwapi.h>
 
 namespace sycl {
 inline namespace _V1 {
