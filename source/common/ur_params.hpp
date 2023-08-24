@@ -11342,7 +11342,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pfnDeleter = ";
 
-    os << *(params->ppfnDeleter);
+    os << reinterpret_cast<void *>(*(params->ppfnDeleter));
 
     os << ", ";
     os << ".pUserData = ";
@@ -12995,7 +12995,7 @@ operator<<(std::ostream &os,
     os << ", ";
     os << ".pfnNotify = ";
 
-    os << *(params->ppfnNotify);
+    os << reinterpret_cast<void *>(*(params->ppfnNotify));
 
     os << ", ";
     os << ".pUserData = ";
