@@ -178,12 +178,11 @@ Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, the
 CUDA backend has Windows support; Windows Subsystem for Linux (WSL) is not
 needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of at least
-[CUDA 11.5](https://developer.nvidia.com/cuda-11-5-0-download-archive) on
-the system, refer to
+Refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+for CUDA toolkit installation instructions.
 
 Errors may occur if DPC++ is built with a toolkit version which is higher than
 the CUDA driver version. In order to check that the CUDA driver and toolkits
@@ -197,11 +196,16 @@ Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
 earlier versions of the CUDA toolkit: see
 [this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
 
+**_NOTE:_** CUDA toolkit versions earlier than 11.0 are not regularly tested,
+but should work for appropriate devices. Note that for example some oneapi
+extensions that require sm_80 and later architectures also require at least CUDA
+11.0.
+
 The CUDA backend should work on Windows or Linux operating systems with any GPU
 with compute capability (SM version) sm_50 or above. The default SM version for
 the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
 the target architecture [ahead of time](#aot-target-architectures), provided
-that they use a 11.X CUDA Runtime version, but some features may not be
+that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
 supported. The CUDA backend has been tested with different Ubuntu Linux
 distributions and a selection of supported CUDA toolkit versions and GPUs.
 The backend is tested by a relevant device/toolkit prior to a ONEAPI plugin release.
