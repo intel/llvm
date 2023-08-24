@@ -137,10 +137,7 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
   std::list<std::shared_ptr<node_impl>> NewNodesList{NodesList.size()};
 
   // Duplication of nodes
-  std::list<std::shared_ptr<node_impl>>::iterator NewNodesIt =
-      NewNodesList.end();
-  for (std::list<std::shared_ptr<node_impl>>::const_iterator NodeIt =
-           NodesList.end();
+  for (auto NodeIt = NodesList.end(), NewNodesIt = NewNodesList.end();
        NodeIt != NodesList.begin();) {
     --NodeIt;
     --NewNodesIt;
