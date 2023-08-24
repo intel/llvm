@@ -57,9 +57,8 @@ loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
 
   for (auto &PluginName : PluginNames) {
     void *Library = loadOsPluginLibrary(LibSYCLDir + PluginName.first);
-    LoadedPlugins.push_back(std::make_tuple(std::move(PluginName.first),
-                                            std::move(PluginName.second),
-                                            std::move(Library)));
+    LoadedPlugins.push_back(std::make_tuple(
+        std::move(PluginName.first), std::move(PluginName.second), Library));
   }
 
   return LoadedPlugins;

@@ -73,13 +73,13 @@ static std::filesystem::path getCurrentDSODirPath() {
   auto Handle =
       getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODirPath));
   DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
-      reinterpret_cast<LPWSTR>(&Path), sizeof(Path));
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
+      sizeof(Path));
   assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
   assert(Ret > 0 && "GetModuleFileName failed");
   (void)Ret;
 
-  BOOL RetCode = PathRemoveFileSpec(reinterpret_cast<LPWSTR>(&Path));
+  BOOL RetCode = PathRemoveFileSpec(Path);
   assert(RetCode && "PathRemoveFileSpec failed");
   (void)RetCode;
 
@@ -94,9 +94,8 @@ loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
 
   for (auto &PluginName : PluginNames) {
     void *Library = getPreloadedPlugin(LibSYCLDir / PluginName.first);
-    LoadedPlugins.push_back(std::make_tuple(std::move(PluginName.first),
-                                            std::move(PluginName.second),
-                                            std::move(Library)));
+    LoadedPlugins.push_back(std::make_tuple(
+        std::move(PluginName.first), std::move(PluginName.second), Library));
   }
 
   return LoadedPlugins;

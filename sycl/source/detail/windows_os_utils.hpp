@@ -11,8 +11,8 @@
 #include <shlwapi.h>
 
 using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
+constexpr OSModuleHandle ExeModuleHandle = -1;
+inline OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
   HMODULE PhModule;
   DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
