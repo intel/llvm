@@ -29,6 +29,8 @@
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
+#include <detail/windows_os_utils.hpp>
+
 #include <Windows.h>
 #include <direct.h>
 #include <malloc.h>
@@ -139,23 +141,6 @@ std::string OSUtil::getDirName(const char *Path) {
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
-// TODO: Just inline it.
-using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
 
 /// Returns an absolute path where the object was found.
 //  pi_win_proxy_loader.dll uses this same logic. If it is changed
@@ -190,23 +175,6 @@ std::string OSUtil::getDirName(const char *Path) {
 
   // If no directory separator is present return initial path like dirname does
   return Tmp;
-}
-
-std::filesystem::path OSUtil::getCurrentDSODirPath() {
-  wchar_t Path[MAX_PATH];
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
-      reinterpret_cast<LPWSTR>(&Path), sizeof(Path));
-  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
-  assert(Ret > 0 && "GetModuleFileName failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpec(reinterpret_cast<LPWSTR>(&Path));
-  assert(RetCode && "PathRemoveFileSpec failed");
-  (void)RetCode;
-
-  return std::filesystem::path(Path);
 }
 
 #elif defined(__SYCL_RT_OS_DARWIN)

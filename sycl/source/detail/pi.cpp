@@ -436,7 +436,10 @@ std::vector<PluginPtr> &initialize() {
   return GlobalHandler::instance().getPlugins();
 }
 
-// OS specific
+// Implementation of this function is OS specific. Please see windows_pi.cpp and
+// posix_pi.cpp.
+// TODO: refactor code when support matrix for DPCPP changes and <filesystem> is
+// available on all supported systems.
 std::vector<std::tuple<std::string, backend, void *>>
 loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames);
 
@@ -448,6 +451,7 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins) {
     std::cerr << "SYCL_PI_TRACE[all]: "
               << "No Plugins Found." << std::endl;
 
+  // Get library handles for the list of plugins.
   std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins =
       loadPlugins(std::move(PluginNames));
 

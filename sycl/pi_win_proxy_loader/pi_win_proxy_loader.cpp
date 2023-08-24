@@ -44,22 +44,6 @@
 
 // ------------------------------------
 
-static constexpr const char *DirSep = "\\";
-
-// cribbed from sycl/source/detail/os_util.cpp
-std::string getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // Remove trailing directory separators
-  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
-
-  size_t pos = Tmp.find_last_of("/\\");
-  if (pos != std::string::npos)
-    return Tmp.substr(0, pos);
-
-  // If no directory separator is present return initial path like dirname does
-  return Tmp;
-}
-
 // cribbed from sycl/source/detail/os_util.cpp
 // TODO: Just inline it.
 using OSModuleHandle = intptr_t;
@@ -81,26 +65,7 @@ static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
 
 // cribbed from sycl/source/detail/os_util.cpp
 /// Returns an absolute path where the object was found.
-std::string getCurrentDSODir() {
-  char Path[MAX_PATH];
-  Path[0] = '\0';
-  Path[sizeof(Path) - 1] = '\0';
-  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileNameA(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
-      reinterpret_cast<LPSTR>(&Path), sizeof(Path));
-  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
-  assert(Ret > 0 && "GetModuleFileNameA failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpecA(reinterpret_cast<LPSTR>(&Path));
-  assert(RetCode && "PathRemoveFileSpecA failed");
-  (void)RetCode;
-
-  return Path;
-}
-
-std::filesystem::path getCurrentDSODirPath() {
+std::wstring getCurrentDSODir() {
   wchar_t Path[MAX_PATH];
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
   DWORD Ret = GetModuleFileName(
@@ -114,7 +79,7 @@ std::filesystem::path getCurrentDSODirPath() {
   assert(RetCode && "PathRemoveFileSpec failed");
   (void)RetCode;
 
-  return std::filesystem::path(std::wstring(Path));
+  return Path;
 }
 
 // these are cribbed from include/sycl/detail/pi.hpp
@@ -164,7 +129,7 @@ void preloadLibraries() {
   }
 
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
-  std::filesystem::path LibSYCLDir = getCurrentDSODirPath();
+  std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
   MapT &dllMap = getDllMap();
 
