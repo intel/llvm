@@ -13,9 +13,6 @@
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
 #include <cstdlib> // for size_t
-#ifdef _WIN32
-#include <filesystem>
-#endif
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
