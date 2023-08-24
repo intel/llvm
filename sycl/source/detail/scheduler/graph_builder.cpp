@@ -695,10 +695,10 @@ AllocaCommandBase *Scheduler::GraphBuilder::getOrCreateAllocaForReq(
       // Get parent requirement. It's hard to get right parents' range
       // so full parent requirement has range represented in bytes
       range<3> ParentRange{Req->MSYCLMemObj->getSizeInBytes(), 1, 1};
-      Requirement ParentRequirement(/*Offset*/ {0, 0, 0}, ParentRange,
-                                    ParentRange, access::mode::read_write,
-                                    Req->MSYCLMemObj, /*Dims*/ 1,
-                                    /*Working with bytes*/ sizeof(char));
+      Requirement ParentRequirement(
+          /*Offset*/ {0, 0, 0}, ParentRange, ParentRange,
+          access::mode::read_write, Req->MSYCLMemObj, /*Dims*/ 1,
+          /*Working with bytes*/ sizeof(char), /*offset*/ size_t(0));
 
       auto *ParentAlloca =
           getOrCreateAllocaForReq(Record, &ParentRequirement, Queue, ToEnqueue);
@@ -1586,8 +1586,8 @@ Scheduler::GraphBuilder::completeFusion(QueueImplPtr Queue,
   }
 
   createGraphForCommand(FusedKernelCmd.get(), FusedKernelCmd->getCG(), false,
-                        FusedKernelCmd->getCG().getRequirements(), FusedEventDeps,
-                        Queue, ToEnqueue);
+                        FusedKernelCmd->getCG().getRequirements(),
+                        FusedEventDeps, Queue, ToEnqueue);
 
   ToEnqueue.push_back(FusedKernelCmd.get());
 
