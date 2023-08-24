@@ -99,6 +99,6 @@ attributes #0 = { nofree norecurse nounwind writeonly "correctly-rounded-divide-
 !2 = !{!"clang version 11.0.0 (https://github.com/llvm/llvm-project.git f11016b41a94d2bad8824d5e2833d141fda24502)"}
 !3 = !{i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1, i32 1}
 !4 = !{!"none", !"none", !"none", !"none", !"none", !"none", !"none", !"none"}
-!5 = !{!"bool*", !"char*", !"short*", !"int*", !"long*", !"ptr", !"ptr", !"ptr"}
+!5 = !{!"bool*", !"char*", !"short*", !"int*", !"long*", !"half*", !"float*", !"double*"}
 !6 = !{!"", !"", !"", !"", !"", !"", !"", !""}
 !7 = !{!"cl_khr_fp16"}

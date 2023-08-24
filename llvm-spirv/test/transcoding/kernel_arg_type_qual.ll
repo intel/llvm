@@ -39,5 +39,5 @@ attributes #1 = { convergent noinline norecurse nounwind optnone }
 !2 = !{!"clang version 13.0.0"}
 !3 = !{i32 1, i32 1}
 !4 = !{!"none", !"none"}
-!5 = !{!"ptr", !"ptr"}
+!5 = !{!"float*", !"float*"}
 !6 = !{!"volatile", !"const", !""}

@@ -38,8 +38,8 @@ attributes #0 = { nounwind }
 
 !1 = !{i32 1, i32 0}
 !2 = !{!"none", !"none", !"none"}
-!3 = !{!"ptr", !"float2", !"int"}
-!4 = !{!"ptr", !"float2", !"int"}
+!3 = !{!"float*", !"float2", !"int"}
+!4 = !{!"float*", !"float2", !"int"}
 !5 = !{!"", !"", !""}
 !6 = !{i32 1, i32 2}
 !7 = !{i32 2, i32 0}

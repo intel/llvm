@@ -60,9 +60,9 @@ attributes #1 = { nounwind }
 
 !1 = !{i32 1, i32 0, i32 1, i32 1, i32 1}
 !2 = !{!"read_only", !"none", !"none", !"none", !"none"}
-!3 = !{!"image2d_depth_t", !"sampler_t", !"ptr", !"ptr", !"ptr"}
+!3 = !{!"image2d_depth_t", !"sampler_t", !"float*", !"float*", !"float*"}
 !4 = !{!"", !"", !"", !"", !""}
-!5 = !{!"image2d_depth_t", !"sampler_t", !"ptr", !"ptr", !"ptr"}
+!5 = !{!"image2d_depth_t", !"sampler_t", !"float*", !"float*", !"float*"}
 !6 = !{i32 2, i32 0}
 !7 = !{!"cl_khr_depth_images"}
 !8 = !{!"cl_images"}
