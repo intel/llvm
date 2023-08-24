@@ -818,8 +818,8 @@ struct SimplifySubViewUsers : public OpRewritePattern<memref::SubViewOp> {
     bool changed = false;
     int64_t offs = -1;
     for (auto tup :
-         llvm::zip(subindex.static_offsets(), subindex.static_sizes(),
-                   subindex.static_strides())) {
+         llvm::zip(subindex.getStaticOffsets(), subindex.getStaticSizes(),
+                   subindex.getStaticStrides())) {
       auto sz = rewriter.getI64IntegerAttr(std::get<1>(tup)).getValue();
 
       auto stride = rewriter.getI64IntegerAttr(std::get<2>(tup)).getValue();

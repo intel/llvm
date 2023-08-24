@@ -2840,7 +2840,8 @@ static bool parseMLIR(const char *Argv0, std::vector<std::string> Filenames,
       return false;
 
     // Create TargetInfo for the other side of CUDA and OpenMP compilation.
-    if ((Clang->getLangOpts().CUDA || Clang->getLangOpts().OpenMPIsDevice ||
+    if ((Clang->getLangOpts().CUDA ||
+         Clang->getLangOpts().OpenMPIsTargetDevice ||
          Clang->getLangOpts().SYCLIsDevice) &&
         !Clang->getFrontendOpts().AuxTriple.empty()) {
       auto TO = std::make_shared<clang::TargetOptions>();

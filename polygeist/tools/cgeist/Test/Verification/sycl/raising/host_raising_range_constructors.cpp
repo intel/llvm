@@ -7,7 +7,7 @@
 template <typename... Args>
 void keep(Args&&...);
 
-// CHECK-LABEL:   llvm.func @_Z5rangem(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z5rangem(
 // CHECK-SAME:                         %[[VAL_0:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -22,7 +22,7 @@ void range(std::size_t i) {
   keep(range);
 }
 
-// CHECK-LABEL:   llvm.func @_Z5rangemm(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z5rangemm(
 // CHECK-SAME:                          %[[VAL_0:.*]]: i64 {llvm.noundef},
 // CHECK-SAME:                          %[[VAL_1:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
@@ -38,7 +38,7 @@ void range(std::size_t i, std::size_t j) {
   keep(range);
 }
 
-// CHECK-LABEL:   llvm.func @_Z5rangemmm(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z5rangemmm(
 // CHECK-SAME:                           %[[VAL_0:.*]]: i64 {llvm.noundef}, %[[VAL_1:.*]]: i64 {llvm.noundef}, %[[VAL_2:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:      %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -65,7 +65,7 @@ void range(sycl::range<Dimensions> &&other) {
   keep(range);
 }
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi1EEvRKN4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi1EEvRKN4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                 %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -78,7 +78,7 @@ void range(sycl::range<Dimensions> &&other) {
 // CHECK-NEXT:    }
 template void range<1>(const sycl::range<1> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi2EEvRKN4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi2EEvRKN4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                 %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -90,7 +90,7 @@ template void range<1>(const sycl::range<1> &);
 // CHECK-NEXT:    }
 template void range<2>(const sycl::range<2> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi3EEvRKN4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi3EEvRKN4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                 %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -102,7 +102,7 @@ template void range<2>(const sycl::range<2> &);
 // CHECK-NEXT:    }
 template void range<3>(const sycl::range<3> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi1EEvON4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi1EEvON4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -115,7 +115,7 @@ template void range<3>(const sycl::range<3> &);
 // CHECK-NEXT:    }
 template void range<1>(sycl::range<1> &&);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi2EEvON4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi2EEvON4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -127,7 +127,7 @@ template void range<1>(sycl::range<1> &&);
 // CHECK-NEXT:    }
 template void range<2>(sycl::range<2> &&);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z5rangeILi3EEvON4sycl3_V15rangeIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z5rangeILi3EEvON4sycl3_V15rangeIXT_EEE(
 // CHECK-SAME:                                                                %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::range.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr

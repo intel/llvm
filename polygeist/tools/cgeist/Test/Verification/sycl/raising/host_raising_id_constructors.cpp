@@ -13,7 +13,7 @@ void id() {
   keep(id);
 }
 
-// CHECK-LABEL:   llvm.func @_Z2idm(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z2idm(
 // CHECK-SAME:                      %[[VAL_0:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -28,7 +28,7 @@ void id(std::size_t i) {
   keep(id);
 }
 
-// CHECK-LABEL:   llvm.func @_Z2idmm(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z2idmm(
 // CHECK-SAME:                       %[[VAL_0:.*]]: i64 {llvm.noundef},
 // CHECK-SAME:                       %[[VAL_1:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:           %[[VAL_2:.*]] = llvm.mlir.constant(1 : i32) : i32
@@ -44,7 +44,7 @@ void id(std::size_t i, std::size_t j) {
   keep(id);
 }
 
-// CHECK-LABEL:   llvm.func @_Z2idmmm(
+// CHECK-LABEL:   llvm.func local_unnamed_addr @_Z2idmmm(
 // CHECK-SAME:                        %[[VAL_0:.*]]: i64 {llvm.noundef}, %[[VAL_1:.*]]: i64 {llvm.noundef}, %[[VAL_2:.*]]: i64 {llvm.noundef})
 // CHECK-NEXT:           %[[VAL_3:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_4:.*]] = llvm.alloca %[[VAL_3]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -71,7 +71,7 @@ void id(sycl::id<Dimensions> &&other) {
   keep(id);
 }
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi1EEvv()
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi1EEvv()
 // CHECK-NEXT:           %[[VAL_0:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK-NEXT:           llvm.intr.lifetime.start 8, %[[VAL_1]] : !llvm.ptr
@@ -82,7 +82,7 @@ void id(sycl::id<Dimensions> &&other) {
 // CHECK-NEXT:         }
 template void id<1>();
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi2EEvv()
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi2EEvv()
 // CHECK-NEXT:           %[[VAL_0:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK-NEXT:           llvm.intr.lifetime.start 16, %[[VAL_1]] : !llvm.ptr
@@ -93,7 +93,7 @@ template void id<1>();
 // CHECK-NEXT:         }
 template void id<2>();
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi3EEvv()
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi3EEvv()
 // CHECK-NEXT:           %[[VAL_0:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.alloca %[[VAL_0]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
 // CHECK-NEXT:           llvm.intr.lifetime.start 24, %[[VAL_1]] : !llvm.ptr
@@ -104,7 +104,7 @@ template void id<2>();
 // CHECK-NEXT:         }
 template void id<3>();
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi1EEvRKN4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi1EEvRKN4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -117,7 +117,7 @@ template void id<3>();
 // CHECK-NEXT:         }
 template void id<1>(const sycl::id<1> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi2EEvRKN4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi2EEvRKN4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -129,7 +129,7 @@ template void id<1>(const sycl::id<1> &);
 // CHECK-NEXT:    }
 template void id<2>(const sycl::id<2> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi3EEvRKN4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi3EEvRKN4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                           %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -141,7 +141,7 @@ template void id<2>(const sycl::id<2> &);
 // CHECK-NEXT:    }
 template void id<3>(const sycl::id<3> &);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi1EEvON4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi1EEvON4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 8 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:           %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:           %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id", (struct<"class.sycl::_V1::detail::array", (array<1 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -154,7 +154,7 @@ template void id<3>(const sycl::id<3> &);
 // CHECK-NEXT:         }
 template void id<1>(sycl::id<1> &&);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi2EEvON4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi2EEvON4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 16 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.0", (struct<"class.sycl::_V1::detail::array.1", (array<2 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr
@@ -166,7 +166,7 @@ template void id<1>(sycl::id<1> &&);
 // CHECK-NEXT:    }
 template void id<2>(sycl::id<2> &&);
 
-// CHECK-LABEL:   llvm.func weak_odr @_Z2idILi3EEvON4sycl3_V12idIXT_EEE(
+// CHECK-LABEL:   llvm.func weak_odr local_unnamed_addr @_Z2idILi3EEvON4sycl3_V12idIXT_EEE(
 // CHECK-SAME:                                                          %[[VAL_0:.*]]: !llvm.ptr {llvm.align = 8 : i64, llvm.dereferenceable = 24 : i64, llvm.nonnull, llvm.noundef})
 // CHECK-NEXT:      %[[VAL_1:.*]] = llvm.mlir.constant(1 : i32) : i32
 // CHECK-NEXT:      %[[VAL_2:.*]] = llvm.alloca %[[VAL_1]] x !llvm.struct<"class.sycl::_V1::id.2", (struct<"class.sycl::_V1::detail::array.3", (array<3 x i64>)>)> {alignment = 8 : i64} : (i32) -> !llvm.ptr

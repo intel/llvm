@@ -260,7 +260,7 @@
 
 // CHK-UNBUNDLER-RAISE: "{{.*}}clang-offload-bundler" "-type=o" "-targets=host-x86_64-unknown-linux-gnu,sycl-spir64-unknown-unknown"
 
-// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
+// RUN: not %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
 // RUN: -fsycl-raise-host -Xclang -no-opaque-pointers                   \
 // RUN: -fsycl-targets=spir64-unknown-unknown-syclmlir %s 2>&1          \
@@ -268,7 +268,7 @@
 
 // CHK-RAISE-TYPED-PTR: error: invalid argument '-fsycl-raise-host' only allowed with '-Xclang -opaque-pointers'
 
-// RUN: %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
+// RUN: not %clangxx -### --sysroot=%S/Inputs/SYCL -fsycl-device-only       \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -c -Xcgeist -S          \
 // RUN: -fsycl-raise-host -fsycl-host-compiler=g++                      \
 // RUN: -Xclang -opaque-pointers                                        \

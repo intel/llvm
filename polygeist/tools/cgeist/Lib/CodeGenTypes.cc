@@ -814,9 +814,14 @@ void CodeGenTypes::constructAttributeList(
         FuncAttrsBuilder.addPassThroughAttribute(
             "uniform-work-group-size",
             StringAttr::get(
-                Ctx, llvm::toStringRef(CGM.getCodeGenOpts().UniformWGSize)));
+                Ctx, llvm::toStringRef(CGM.getLangOpts().OffloadUniformBlock)));
       }
     }
+
+    if (TargetDecl->hasAttr<CUDAGlobalAttr>() &&
+        CGM.getLangOpts().OffloadUniformBlock)
+      FuncAttrsBuilder.addPassThroughAttribute("uniform-work-group-size",
+                                               StringAttr::get(Ctx, "true"));
   }
 
   // Attach "no-builtins" attributes to:
