@@ -145,8 +145,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(phNativeContext, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  *phNativeContext =
-      reinterpret_cast<ur_native_handle_t>(hContext->getDevices()[0]);
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(
+      hContext->getDevices()[0]->getNativeContext());
   return UR_RESULT_SUCCESS;
 }
 
