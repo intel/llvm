@@ -283,7 +283,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Write device global variable is out of range.",
                     UR_RESULT_ERROR_INVALID_VALUE);
-    return UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
   // Copy engine is preferred only for host to device transfer.
@@ -332,7 +332,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
   if (GlobalVarSize < Offset + Count) {
     setErrorMessage("Read from device global variable is out of range.",
                     UR_RESULT_ERROR_INVALID_VALUE);
-    return UR_RESULT_ERROR_UNKNOWN;
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
   }
 
   // Copy engine is preferred only for host to device transfer.
