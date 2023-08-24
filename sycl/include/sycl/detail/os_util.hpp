@@ -12,7 +12,7 @@
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdlib> // for size_t
+#include <cstdlib>    // for size_t
 #include <string>     // for string
 #include <sys/stat.h> // for stat
 
