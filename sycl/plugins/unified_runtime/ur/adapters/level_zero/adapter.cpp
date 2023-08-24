@@ -179,8 +179,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetLastError(
     int32_t *Error ///< [out] pointer to an integer where the adapter specific
                    ///< error code will be stored.
 ) {
+  std::ignore = Adapter;
   std::ignore = Error;
-  *ppMessage = ErrorMessage;
+  *Message = ErrorMessage;
   return ErrorMessageCode;
 }
 
