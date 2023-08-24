@@ -1,5 +1,5 @@
 ///
-/// tests specific to -fintelfpga -fsycl
+/// tests specific to -fintelfpga implying -fsycl
 ///
 
 /// Check SYCL headers path
