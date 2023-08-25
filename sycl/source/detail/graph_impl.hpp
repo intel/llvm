@@ -73,6 +73,51 @@ public:
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
 
+  /// Tests if two nodes have the same content,
+  /// i.e. same command group
+  /// This function should only be used for internal purposes.
+  /// A true return from this operator is not a guarantee that the nodes are
+  /// equals according to the Common reference semantics. But this function is
+  /// an helper to verify that two nodes contain equivalent Command Groups.
+  /// @param Node node to compare with
+  /// @return true if two nodes have equivament command groups. false otherwise.
+  bool operator==(const node_impl &Node) {
+    if (MCGType != Node.MCGType)
+      return false;
+
+    switch (MCGType) {
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      sycl::detail::CGExecKernel *ExecKernelA =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      sycl::detail::CGExecKernel *ExecKernelB =
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
+      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+    }
+    case sycl::detail::CG::CGTYPE::CopyUSM: {
+      sycl::detail::CGCopyUSM *CopyA =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      sycl::detail::CGCopyUSM *CopyB =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst()) &&
+             (CopyA->getLength() == CopyB->getLength());
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
+      sycl::detail::CGCopy *CopyA =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      sycl::detail::CGCopy *CopyB =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst());
+    }
+    default:
+      assert(false && "Unexpected command group type!");
+      return false;
+    }
+  }
+
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
@@ -83,10 +128,8 @@ public:
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
         Next->sortTopological(Next, Schedule);
     }
-    // We don't need to schedule empty nodes as they are only used when
-    // calculating dependencies
-    if (!NodeImpl->isEmpty())
-      Schedule.push_front(NodeImpl);
+
+    Schedule.push_front(NodeImpl);
   }
 
   /// Checks if this node has a given requirement.
@@ -171,26 +214,16 @@ public:
   /// Tests is the caller is similar to Node
   /// @return True if the two nodes are similar
   bool isSimilar(std::shared_ptr<node_impl> Node) {
-    if (MCGType != Node->MCGType)
-      return false;
-
     if (MSuccessors.size() != Node->MSuccessors.size())
       return false;
 
     if (MPredecessors.size() != Node->MPredecessors.size())
       return false;
 
-    if ((MCGType == sycl::detail::CG::CGTYPE::Kernel) &&
-        (Node->MCGType == sycl::detail::CG::CGTYPE::Kernel)) {
-      sycl::detail::CGExecKernel *ExecKernelA =
-          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
-      sycl::detail::CGExecKernel *ExecKernelB =
-          static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+    if (*this == *Node.get())
+      return true;
 
-      if (ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) != 0)
-        return false;
-    }
-    return true;
+    return false;
   }
 
   /// Recursive traversal of successor nodes checking for
@@ -336,11 +369,12 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
-  /// Adds sub-graph nodes from an executable graph to this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// Duplicates and Adds sub-graph nodes from an executable graph to this
+  /// graph.
+  /// @param SubGraphExec sub-graph to add to the parent.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addSubgraphNodes(const std::shared_ptr<exec_graph_impl> &SubGraphExec);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -486,6 +520,12 @@ private:
   /// Insert node into list of root nodes.
   /// @param Root Node to add to list of root nodes.
   void addRoot(const std::shared_ptr<node_impl> &Root);
+
+  /// Adds nodes to the exit nodes of this graph.
+  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// @return An empty node is used to schedule dependencies on this sub-graph.
+  std::shared_ptr<node_impl>
+  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
 };
 
 /// Class representing the implementation of command_graph<executable>.
@@ -536,6 +576,10 @@ public:
   const std::list<std::shared_ptr<node_impl>> &getSchedule() const {
     return MSchedule;
   }
+
+  /// Query the graph_impl.
+  /// @return pointer to the graph_impl MGraphImpl
+  const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
 
 private:
   /// Create a command-group for the node and add it to command-buffer by going

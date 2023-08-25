@@ -48,6 +48,22 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
+// Load plugins corresponding to provided list of plugin names.
+std::vector<std::tuple<std::string, backend, void *>>
+loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
+  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins;
+  const std::string LibSYCLDir =
+      sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
+
+  for (auto &PluginName : PluginNames) {
+    void *Library = loadOsPluginLibrary(LibSYCLDir + PluginName.first);
+    LoadedPlugins.push_back(std::make_tuple(
+        std::move(PluginName.first), std::move(PluginName.second), Library));
+  }
+
+  return LoadedPlugins;
+}
+
 } // namespace detail::pi
 } // namespace _V1
 } // namespace sycl
