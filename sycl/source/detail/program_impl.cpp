@@ -147,7 +147,8 @@ program_impl::program_impl(ContextImplPtr Context,
                                                 NumDevices,
                                             PiDevices.data(), nullptr);
 
-  std::vector<device> PlatformDevices = MContext->getPlatformImpl()->get_devices();
+  std::vector<device> PlatformDevices =
+      MContext->getPlatformImpl()->get_devices();
   // Keep only the subset of the devices (associated with context) that
   // were actually used to create the program.
   // This is possible when clCreateProgramWithBinary is used.
