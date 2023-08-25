@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022-2023 Intel Corporation
 #
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
@@ -9,176 +9,8 @@
 #
 --- #--------------------------------------------------------------------------
 type: header
-desc: "Intel $OneApi Unified Runtime APIs for Runtime"
-ordinal: "0"
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Supported device initialization flags"
-class: $x
-name: $x_device_init_flags_t
-etors:
-    - name: GPU
-      desc: "initialize GPU device adapters."
-    - name: CPU
-      desc: "initialize CPU device adapters."
-    - name: FPGA
-      desc: "initialize FPGA device adapters."
-    - name: MCA
-      desc: "initialize MCA device adapters."
-    - name: VPU
-      desc: "initialize VPU device adapters."
---- #--------------------------------------------------------------------------
-type: function
-desc: "Create a loader config object."
-class: $xLoaderConfig
-loader_only: True
-name: Create
-decl: static
-params:
-    - type: $x_loader_config_handle_t*
-      name: phLoaderConfig
-      desc: "[out] Pointer to handle of loader config object created."
---- #--------------------------------------------------------------------------
-type: function
-desc: "Get a reference to the loader config object."
-class: $xLoaderConfig
-loader_only: True
-name: Retain
-decl: static
-details:
-    - "Get a reference to the loader config handle. Increment its reference count"
-    - "The application may call this function from simultaneous threads."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: $x_loader_config_handle_t
-      name: hLoaderConfig
-      desc: "[in] loader config handle to retain"
---- #--------------------------------------------------------------------------
-type: function
-desc: "Release config handle."
-class: $xLoaderConfig
-loader_only: True
-name: Release
-decl: static
-details:
-    - "Decrement reference count and destroy the config handle if reference count becomes zero."
-    - "The application may call this function from simultaneous threads."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: $x_loader_config_handle_t
-      name: hLoaderConfig
-      desc: "[in] config handle to release"
---- #--------------------------------------------------------------------------
-type: enum
-desc: "Supported loader info"
-class: $xLoaderConfig
-name: $x_loader_config_info_t
-typed_etors: True
-etors:
-    - name: AVAILABLE_LAYERS
-      desc: "[char[]] Null-terminated, semi-colon separated list of available layers."
-    - name: REFERENCE_COUNT
-      desc: "[uint32_t] Reference count of the loader config object."
---- #--------------------------------------------------------------------------
-type: function
-desc: "Retrieves various information about the loader."
-class: $xLoaderConfig
-loader_only: True
-name: GetInfo
-decl: static
-details:
-    - "The application may call this function from simultaneous threads."
-    - "The implementation of this function should be lock-free."
-params:
-    - type: $x_loader_config_handle_t
-      name: hLoaderConfig
-      desc: "[in] handle of the loader config object"
-    - type: $x_loader_config_info_t
-      name: propName
-      desc: "[in] type of the info to retrieve"
-    - type: "size_t"
-      name: propSize
-      desc: |
-            [in] the number of bytes pointed to by pPropValue.
-    - type: "void*"
-      name: pPropValue
-      desc: |
-            [out][optional][typename(propName, propSize)] array of bytes holding the info.
-            If propSize is not equal to or greater than the real number of bytes needed to return the info
-            then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
-    - type: "size_t*"
-      name: pPropSizeRet
-      desc: |
-            [out][optional] pointer to the actual size in bytes of the queried propName.
-returns:
-    - $X_RESULT_ERROR_UNSUPPORTED_ENUMERATION:
-        - "If `propName` is not supported by the loader."
-    - $X_RESULT_ERROR_INVALID_SIZE:
-        - "`propSize == 0 && pPropValue != NULL`"
-        - "If `propSize` is less than the real number of bytes needed to return the info."
-    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
-        - "`propSize != 0 && pPropValue == NULL`"
-        - "`pPropValue == NULL && pPropSizeRet == NULL`"
-    - $X_RESULT_ERROR_INVALID_DEVICE
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
---- #--------------------------------------------------------------------------
-type: function
-desc: "Enable a layer for the specified loader config."
-class: $xLoaderConfig
-loader_only: True
-name: EnableLayer
-decl: static
-params:
-    - type: $x_loader_config_handle_t
-      name: hLoaderConfig
-      desc: "[in] Handle to config object the layer will be enabled for."
-    - type: const char*
-      name: pLayerName
-      desc: "[in] Null terminated string containing the name of the layer to enable."
-returns:
-    - $X_RESULT_ERROR_LAYER_NOT_PRESENT:
-        - "If layer specified with `pLayerName` can't be found by the loader."
---- #--------------------------------------------------------------------------
-type: function
-desc: "Initialize the $OneApi adapter(s)"
-class: $x
-name: Init
-decl: static
-ordinal: "0"
-details: 
-    - "The application must call this function before calling any other function."
-    - "If this function is not called then all other functions will return $X_RESULT_ERROR_UNINITIALIZED."
-    - "Only one instance of each adapter will be initialized per process."
-    - "The application may call this function multiple times with different flags or environment variables enabled."
-    - "The application must call this function after forking new processes. Each forked process must call this function."
-    - "The application may call this function from simultaneous threads."
-    - "The implementation of this function must be thread-safe for scenarios where multiple libraries may initialize the adapter(s) simultaneously."
-params:
-    - type: $x_device_init_flags_t
-      name: device_flags
-      desc: |
-            [in] device initialization flags.
-            must be 0 (default) or a combination of $x_device_init_flag_t.
-      init: "0"
-    - type: $x_loader_config_handle_t
-      name: hLoaderConfig
-      desc: "[in][optional] Handle of loader config handle."
-returns:
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
---- #--------------------------------------------------------------------------
-type: function
-desc: "Tear down the $OneApi instance and release all its resources"
-class: $x
-name: TearDown
-decl: static
+desc: "Intel $OneApi Unified Runtime APIs for Adapter"
 ordinal: "1"
-params:
-    - type: void*
-      name: pParams
-      desc: "[in] pointer to tear down parameters"
-returns:
-    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves all available adapters"
@@ -218,7 +50,8 @@ name: AdapterRelease
 decl: static
 ordinal: "3"
 details:
-    - "When the reference count of the adapter reaches zero, the adapter may perform adapter-specififc resource teardown"
+    - "When the reference count of the adapter reaches zero, the adapter may perform adapter-specififc resource teardown. Resources
+       must be left in a state where it safe for the adapter to be subsequently reinitialized with $xAdapterGet"
 params:
   - type: "$x_adapter_handle_t"
     name: hAdapter

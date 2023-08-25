@@ -117,8 +117,6 @@ class ur_function_v(IntEnum):
     QUEUE_CREATE_WITH_NATIVE_HANDLE = 96            ## Enumerator for ::urQueueCreateWithNativeHandle
     QUEUE_FINISH = 97                               ## Enumerator for ::urQueueFinish
     QUEUE_FLUSH = 98                                ## Enumerator for ::urQueueFlush
-    INIT = 99                                       ## Enumerator for ::urInit
-    TEAR_DOWN = 100                                 ## Enumerator for ::urTearDown
     SAMPLER_CREATE = 101                            ## Enumerator for ::urSamplerCreate
     SAMPLER_RETAIN = 102                            ## Enumerator for ::urSamplerRetain
     SAMPLER_RELEASE = 103                           ## Enumerator for ::urSamplerRelease
@@ -196,6 +194,8 @@ class ur_function_v(IntEnum):
     ADAPTER_RETAIN = 179                            ## Enumerator for ::urAdapterRetain
     ADAPTER_GET_LAST_ERROR = 180                    ## Enumerator for ::urAdapterGetLastError
     ADAPTER_GET_INFO = 181                          ## Enumerator for ::urAdapterGetInfo
+    LOADER_INIT = 182                               ## Enumerator for ::urLoaderInit
+    LOADER_TEAR_DOWN = 183                          ## Enumerator for ::urLoaderTearDown
 
 class ur_function_t(c_int):
     def __str__(self):
@@ -2871,6 +2871,53 @@ class ur_physical_mem_dditable_t(Structure):
     ]
 
 ###############################################################################
+## @brief Function-pointer for urAdapterGet
+if __use_win_types:
+    _urAdapterGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
+else:
+    _urAdapterGet_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
+
+###############################################################################
+## @brief Function-pointer for urAdapterRelease
+if __use_win_types:
+    _urAdapterRelease_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+else:
+    _urAdapterRelease_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urAdapterRetain
+if __use_win_types:
+    _urAdapterRetain_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+else:
+    _urAdapterRetain_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
+
+###############################################################################
+## @brief Function-pointer for urAdapterGetLastError
+if __use_win_types:
+    _urAdapterGetLastError_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
+else:
+    _urAdapterGetLastError_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
+
+###############################################################################
+## @brief Function-pointer for urAdapterGetInfo
+if __use_win_types:
+    _urAdapterGetInfo_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+else:
+    _urAdapterGetInfo_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
+
+
+###############################################################################
+## @brief Table of Global functions pointers
+class ur_global_dditable_t(Structure):
+    _fields_ = [
+        ("pfnAdapterGet", c_void_p),                                    ## _urAdapterGet_t
+        ("pfnAdapterRelease", c_void_p),                                ## _urAdapterRelease_t
+        ("pfnAdapterRetain", c_void_p),                                 ## _urAdapterRetain_t
+        ("pfnAdapterGetLastError", c_void_p),                           ## _urAdapterGetLastError_t
+        ("pfnAdapterGetInfo", c_void_p)                                 ## _urAdapterGetInfo_t
+    ]
+
+###############################################################################
 ## @brief Function-pointer for urEnqueueKernelLaunch
 if __use_win_types:
     _urEnqueueKernelLaunch_t = WINFUNCTYPE( ur_result_t, ur_queue_handle_t, ur_kernel_handle_t, c_ulong, POINTER(c_size_t), POINTER(c_size_t), POINTER(c_size_t), c_ulong, POINTER(ur_event_handle_t), POINTER(ur_event_handle_t) )
@@ -3544,69 +3591,6 @@ class ur_usm_p2p_exp_dditable_t(Structure):
     ]
 
 ###############################################################################
-## @brief Function-pointer for urInit
-if __use_win_types:
-    _urInit_t = WINFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
-else:
-    _urInit_t = CFUNCTYPE( ur_result_t, ur_device_init_flags_t, ur_loader_config_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urTearDown
-if __use_win_types:
-    _urTearDown_t = WINFUNCTYPE( ur_result_t, c_void_p )
-else:
-    _urTearDown_t = CFUNCTYPE( ur_result_t, c_void_p )
-
-###############################################################################
-## @brief Function-pointer for urAdapterGet
-if __use_win_types:
-    _urAdapterGet_t = WINFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
-else:
-    _urAdapterGet_t = CFUNCTYPE( ur_result_t, c_ulong, POINTER(ur_adapter_handle_t), POINTER(c_ulong) )
-
-###############################################################################
-## @brief Function-pointer for urAdapterRelease
-if __use_win_types:
-    _urAdapterRelease_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
-else:
-    _urAdapterRelease_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urAdapterRetain
-if __use_win_types:
-    _urAdapterRetain_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t )
-else:
-    _urAdapterRetain_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t )
-
-###############################################################################
-## @brief Function-pointer for urAdapterGetLastError
-if __use_win_types:
-    _urAdapterGetLastError_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
-else:
-    _urAdapterGetLastError_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, POINTER(c_char_p), POINTER(c_long) )
-
-###############################################################################
-## @brief Function-pointer for urAdapterGetInfo
-if __use_win_types:
-    _urAdapterGetInfo_t = WINFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-else:
-    _urAdapterGetInfo_t = CFUNCTYPE( ur_result_t, ur_adapter_handle_t, ur_adapter_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
-
-
-###############################################################################
-## @brief Table of Global functions pointers
-class ur_global_dditable_t(Structure):
-    _fields_ = [
-        ("pfnInit", c_void_p),                                          ## _urInit_t
-        ("pfnTearDown", c_void_p),                                      ## _urTearDown_t
-        ("pfnAdapterGet", c_void_p),                                    ## _urAdapterGet_t
-        ("pfnAdapterRelease", c_void_p),                                ## _urAdapterRelease_t
-        ("pfnAdapterRetain", c_void_p),                                 ## _urAdapterRetain_t
-        ("pfnAdapterGetLastError", c_void_p),                           ## _urAdapterGetLastError_t
-        ("pfnAdapterGetInfo", c_void_p)                                 ## _urAdapterGetInfo_t
-    ]
-
-###############################################################################
 ## @brief Function-pointer for urVirtualMemGranularityGetInfo
 if __use_win_types:
     _urVirtualMemGranularityGetInfo_t = WINFUNCTYPE( ur_result_t, ur_context_handle_t, ur_device_handle_t, ur_virtual_mem_granularity_info_t, c_size_t, c_void_p, POINTER(c_size_t) )
@@ -3759,6 +3743,7 @@ class ur_dditable_t(Structure):
         ("Sampler", ur_sampler_dditable_t),
         ("Mem", ur_mem_dditable_t),
         ("PhysicalMem", ur_physical_mem_dditable_t),
+        ("Global", ur_global_dditable_t),
         ("Enqueue", ur_enqueue_dditable_t),
         ("Queue", ur_queue_dditable_t),
         ("BindlessImagesExp", ur_bindless_images_exp_dditable_t),
@@ -3766,7 +3751,6 @@ class ur_dditable_t(Structure):
         ("USMExp", ur_usm_exp_dditable_t),
         ("CommandBufferExp", ur_command_buffer_exp_dditable_t),
         ("UsmP2PExp", ur_usm_p2p_exp_dditable_t),
-        ("Global", ur_global_dditable_t),
         ("VirtualMem", ur_virtual_mem_dditable_t),
         ("Device", ur_device_dditable_t)
     ]
@@ -3785,7 +3769,7 @@ class UR_DDI:
         self.__dditable = ur_dditable_t()
 
         # initialize the UR
-        self.__dll.urInit(0, 0)
+        self.__dll.urLoaderInit(0, 0)
 
         # call driver to get function pointers
         Platform = ur_platform_dditable_t()
@@ -3928,6 +3912,20 @@ class UR_DDI:
         self.urPhysicalMemRelease = _urPhysicalMemRelease_t(self.__dditable.PhysicalMem.pfnRelease)
 
         # call driver to get function pointers
+        Global = ur_global_dditable_t()
+        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
+        if r != ur_result_v.SUCCESS:
+            raise Exception(r)
+        self.__dditable.Global = Global
+
+        # attach function interface to function address
+        self.urAdapterGet = _urAdapterGet_t(self.__dditable.Global.pfnAdapterGet)
+        self.urAdapterRelease = _urAdapterRelease_t(self.__dditable.Global.pfnAdapterRelease)
+        self.urAdapterRetain = _urAdapterRetain_t(self.__dditable.Global.pfnAdapterRetain)
+        self.urAdapterGetLastError = _urAdapterGetLastError_t(self.__dditable.Global.pfnAdapterGetLastError)
+        self.urAdapterGetInfo = _urAdapterGetInfo_t(self.__dditable.Global.pfnAdapterGetInfo)
+
+        # call driver to get function pointers
         Enqueue = ur_enqueue_dditable_t()
         r = ur_result_v(self.__dll.urGetEnqueueProcAddrTable(version, byref(Enqueue)))
         if r != ur_result_v.SUCCESS:
@@ -4067,22 +4065,6 @@ class UR_DDI:
         self.urUsmP2PEnablePeerAccessExp = _urUsmP2PEnablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnEnablePeerAccessExp)
         self.urUsmP2PDisablePeerAccessExp = _urUsmP2PDisablePeerAccessExp_t(self.__dditable.UsmP2PExp.pfnDisablePeerAccessExp)
         self.urUsmP2PPeerAccessGetInfoExp = _urUsmP2PPeerAccessGetInfoExp_t(self.__dditable.UsmP2PExp.pfnPeerAccessGetInfoExp)
-
-        # call driver to get function pointers
-        Global = ur_global_dditable_t()
-        r = ur_result_v(self.__dll.urGetGlobalProcAddrTable(version, byref(Global)))
-        if r != ur_result_v.SUCCESS:
-            raise Exception(r)
-        self.__dditable.Global = Global
-
-        # attach function interface to function address
-        self.urInit = _urInit_t(self.__dditable.Global.pfnInit)
-        self.urTearDown = _urTearDown_t(self.__dditable.Global.pfnTearDown)
-        self.urAdapterGet = _urAdapterGet_t(self.__dditable.Global.pfnAdapterGet)
-        self.urAdapterRelease = _urAdapterRelease_t(self.__dditable.Global.pfnAdapterRelease)
-        self.urAdapterRetain = _urAdapterRetain_t(self.__dditable.Global.pfnAdapterRetain)
-        self.urAdapterGetLastError = _urAdapterGetLastError_t(self.__dditable.Global.pfnAdapterGetLastError)
-        self.urAdapterGetInfo = _urAdapterGetInfo_t(self.__dditable.Global.pfnAdapterGetInfo)
 
         # call driver to get function pointers
         VirtualMem = ur_virtual_mem_dditable_t()

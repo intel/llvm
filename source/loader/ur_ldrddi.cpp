@@ -34,41 +34,6 @@ ur_exp_interop_semaphore_factory_t ur_exp_interop_semaphore_factory;
 ur_exp_command_buffer_factory_t ur_exp_command_buffer_factory;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urInit
-__urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
-    ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-    ur_loader_config_handle_t
-        hLoaderConfig ///< [in][optional] Handle of loader config handle.
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    for (auto &platform : context->platforms) {
-        if (platform.initStatus != UR_RESULT_SUCCESS) {
-            continue;
-        }
-        platform.initStatus =
-            platform.dditable.ur.Global.pfnInit(device_flags, hLoaderConfig);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urTearDown
-__urdlllocal ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-) {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    for (auto &platform : context->platforms) {
-        platform.dditable.ur.Global.pfnTearDown(pParams);
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t
@@ -6994,8 +6959,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
         if (ur_loader::context->platforms.size() != 1 ||
             ur_loader::context->forceIntercept) {
             // return pointers to loader's DDIs
-            pDdiTable->pfnInit = ur_loader::urInit;
-            pDdiTable->pfnTearDown = ur_loader::urTearDown;
             pDdiTable->pfnAdapterGet = ur_loader::urAdapterGet;
             pDdiTable->pfnAdapterRelease = ur_loader::urAdapterRelease;
             pDdiTable->pfnAdapterRetain = ur_loader::urAdapterRetain;

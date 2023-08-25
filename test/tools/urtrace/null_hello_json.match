@@ -1,6 +1,5 @@
 {
  "traceEvents": [
-{            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urInit",            "args": "(.device_flags = 0, .hLoaderConfig = nullptr)"        },
 Platform initialized.
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterGet",            "args": "(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (1))"        },
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterGet",            "args": "(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr)"        },
@@ -14,7 +13,6 @@ API version: @PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urDeviceGetInfo",            "args": "(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}} (Null Device), .pPropSizeRet = nullptr)"        },
 Found a Null Device gpu.
 {            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urAdapterRelease",            "args": "(.hAdapter = {{.*}})"        },
-{            "cat": "UR",             "ph": "X",            "pid": {{.*}},            "tid": {{.*}},            "ts": {{.*}},            "dur": {{.*}},            "name": "urTearDown",            "args": "(.pParams = nullptr)"        },
 {"name": "", "cat": "", "ph": "", "pid": "", "tid": "", "ts": ""}
 ]
 }

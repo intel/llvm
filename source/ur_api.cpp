@@ -149,21 +149,21 @@ ur_result_t UR_APICALL urLoaderConfigEnableLayer(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Initialize the 'oneAPI' adapter(s)
+/// @brief Initialize the 'oneAPI' loader
 ///
 /// @details
 ///     - The application must call this function before calling any other
 ///       function.
 ///     - If this function is not called then all other functions will return
 ///       ::UR_RESULT_ERROR_UNINITIALIZED.
-///     - Only one instance of each adapter will be initialized per process.
+///     - Only one instance of the loader will be initialized per process.
 ///     - The application may call this function multiple times with different
 ///       flags or environment variables enabled.
 ///     - The application must call this function after forking new processes.
 ///       Each forked process must call this function.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function must be thread-safe for scenarios
-///       where multiple libraries may initialize the adapter(s) simultaneously.
+///       where multiple libraries may initialize the loader simultaneously.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -173,7 +173,7 @@ ur_result_t UR_APICALL urLoaderConfigEnableLayer(
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///         + `::UR_DEVICE_INIT_FLAGS_MASK & device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urInit(
+ur_result_t UR_APICALL urLoaderInit(
     ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
     ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
     ur_loader_config_handle_t
@@ -184,19 +184,15 @@ ur_result_t UR_APICALL urInit(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Tear down the 'oneAPI' instance and release all its resources
+/// @brief Tear down the 'oneAPI' loader and release all its resources
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pParams`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
-ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-) {
+ur_result_t UR_APICALL urLoaderTearDown(void) {
     ur_result_t result = UR_RESULT_SUCCESS;
     return result;
 }
@@ -244,7 +240,9 @@ ur_result_t UR_APICALL urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown
+///       perform adapter-specififc resource teardown. Resources must be left in
+///       a state where it safe for the adapter to be subsequently reinitialized
+///       with ::urAdapterGet
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
