@@ -576,7 +576,7 @@ The table below provides a description for each of the member
 variables in `matrix_params` class and the forms in which  they are
 defined.
 
-[frame="none",options="header"]
+[frame="none",options="header",cols="40%,60%"]
 |======================
 | Member/type alias in `matrix_params` | Description
 |`M`|when no sizes are provided by the user, indicates the suggested
@@ -883,7 +883,6 @@ supported parameter combination is specified in the following table.
 
 
 [frame="none",options="header"]
-[cols="40%, 60%"]
 |======================
 | A and B type | C and D type | M | N | K | Minimum Compute Capability
 .3+| `matrix_type::fp16`  .3+| `matrix_type::fp32`
