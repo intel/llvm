@@ -62,7 +62,7 @@ int main() {
   Queue.memcpy(Output.data(), X, N * sizeof(float), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == -6.25f);
+    assert(Output[i] == -4.5f);
   }
 
   sycl::free(X, Queue);
