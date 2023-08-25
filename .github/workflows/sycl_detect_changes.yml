@@ -52,6 +52,9 @@ jobs:
               # devops/* contains config files, including drivers versions.
               # Allow them to be tested in pre-commit.
               - devops/*/**
+            drivers:
+              - devops/dependencies.json
+              - devops/scripts/install_drivers.sh
 
       - name: Set output
         id: result

@@ -284,12 +284,10 @@ class annotated_ptr {
     explicit operator bool() const noexcept;
 
     // Implicit conversion is not supported
-    operator T*() noexcept = delete;
     operator T*() const noexcept = delete;
 
     T* get() const noexcept;
 
-    annotated_ptr& operator=(T*) noexcept;
     annotated_ptr& operator=(const annotated_ptr&) noexcept = default;
 
     annotated_ptr& operator++() noexcept;
@@ -336,7 +334,7 @@ underlying pointer is initialized to `nullptr`.
 a|
 [source,c++]
 ----
-annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
+explicit annotated_ptr(T *Ptr, const PropertyListT &P = properties{}) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -349,7 +347,7 @@ a|
 [source,c++]
 ----
 template<typename... PropertyValueTs>
-annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
+explicit annotated_ptr(T *Ptr, const PropertyValueTs... props) noexcept;
 ----
 |
 Constructs an `annotated_ptr` object. Does not allocate new storage. The
@@ -389,16 +387,6 @@ in the two lists with different values, a compile-time error is triggered.
 Common properties with the same value (or no value) are allowed.
 
 `T2*` must be implicitly convertible to `T*`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ptr(const annotated_ptr &) noexcept = default;
-----
-|
-Constructs an `annotated_ptr` object from another `annotated_ptr` with the same
-type and properties.
 
 // --- ROW BREAK ---
 a|
@@ -452,39 +440,11 @@ Returns `false` if the underlying pointer is null, returns `true` otherwise.
 a|
 [source,c++]
 ----
-/*unspecified*/ operator T*() noexcept = delete;
-/*unspecified*/ operator const T*() const noexcept = delete;
-----
-|
-Implicit conversion to a pointer to the underlying type is not supported.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
 T* get() const noexcept;
 ----
 |
 Returns the underlying raw pointer. The raw pointer will not retain the
 annotations.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ptr& operator=(T*) noexcept;
-----
-|
-Allows assignment from a pointer to type `T`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ptr& operator=(const annotated_ptr &) noexcept = default;
-----
-|
-Allows assignment from an `annotated_ptr` with the same parameterization.
 
 // --- ROW BREAK ---
 a|
@@ -562,11 +522,16 @@ namespace sycl::ext::oneapi::experimental {
 template <typename T, typename PropertyListT = properties<>>
 class annotated_ref {
   public:
-    annotated_ref(T*);
-    annotated_ref(const annotated_ref&) = default;
+    annotated_ref(const annotated_ref&) = delete;
     operator T() const;
-    annotated_ref& operator=(const T &);
-    annotated_ref& operator=(const annotated_ref&) = default;
+    T operator=(const T &) const;
+    T operator=(const annotated_ref&) const;
+    // OP is: +=, -=, *=, /=, %=, <<=, >>=, &=, |=, ^=
+    T operatorOP(const T &) const;
+    T operator++();
+    T operator++(int);
+    T operator--();
+    T operator--(int);
   };
 } // namespace sycl::ext::oneapi::experimental
 ```
@@ -576,15 +541,6 @@ Member Functions are described in the table below
 [frame="topbot",options="header"]
 |===
 |Functions |Description
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
-annotated_ref(const annotated_ref&) = default;
-----
-|
-Compiler generated copy constructor.
 
 // --- ROW BREAK ---
 a|
@@ -600,7 +556,7 @@ annotations when the object is loaded from memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const T &);
+T operator=(const T &);
 ----
 |
 Writes an object of type `T` to the location referenced by this wrapper,
@@ -610,11 +566,51 @@ applying the annotations when the object is stored to memory.
 a|
 [source,c++]
 ----
-annotated_ref& operator=(const annotated_ref&) = default;
+T operator=(const annotated_ref& other);
+----
+a|
+Equivalent to:
+```c++
+tmp T = other;   // Reads from memory
+                 // with annotations
+*this = T;       // Writes to memory
+                 // with annotations
+return T;
+```
+Does not rebind the reference!
+
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operatorOP(const T &);
+----
+a|
+Where [code]#OP# is: [code]#pass:[+=]#, [code]#-=#,[code]#*=#, [code]#/=#, [code]#%=#, [code]#+<<=+#, [code]#>>=#, [code]#&=#, [code]#\|=#, [code]#^=#.
+
+Compound assignment operators. Return result by value.
+Available only if the corresponding non-compound operator is available for `T`.
+Equivalent to:
+```c++
+T tmp = *this;     // Reads from memory
+                   // with annotations
+tmp = tmp OP val;
+*this = tmp;       // Writes to memory
+                   // with annotations
+return tmp;
+```
+// --- ROW BREAK ---
+a|
+[source,c++]
+----
+T operator++();
+T operator++(int);
+T operator--();
+T operator--(int);
 ----
 |
-Assign from another `annotated_ref` object.
-
+increment and decrement operator of annotated_ref. The annotations are applied
+when the object `T` is loaded and stored to the memory.
 |===
 
 === Properties
@@ -700,6 +696,7 @@ the alignment is set up.
 [options="header"]
 |========================================
 |Rev|Date|Author|Changes
+|4|2023-06-28|Roland Schulz|API fixes: constructors and annotated_ref assignment
 |3|2022-04-05|Abhishek Tiwari|*Addressed review comments*
 |2|2022-03-07|Abhishek Tiwari|*Corrected API and updated description*
 |1|2021-11-01|Abhishek Tiwari|*Initial internal review version*

@@ -175,6 +175,11 @@ unsigned ConstantArrayType::getNumAddressingBits(const ASTContext &Context,
   return TotalSize.getActiveBits();
 }
 
+unsigned
+ConstantArrayType::getNumAddressingBits(const ASTContext &Context) const {
+  return getNumAddressingBits(Context, getElementType(), getSize());
+}
+
 unsigned ConstantArrayType::getMaxSizeBits(const ASTContext &Context) {
   unsigned Bits = Context.getTypeSize(Context.getSizeType());
 
@@ -2348,14 +2353,11 @@ bool Type::isIncompleteType(NamedDecl **Def) const {
 }
 
 bool Type::isSizelessBuiltinType() const {
+  if (isSVESizelessBuiltinType() || isRVVSizelessBuiltinType())
+    return true;
+
   if (const BuiltinType *BT = getAs<BuiltinType>()) {
     switch (BT->getKind()) {
-      // SVE Types
-#define SVE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/AArch64SVEACLETypes.def"
-#define RVV_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
-#include "clang/Basic/RISCVVTypes.def"
-      return true;
       // WebAssembly reference types
 #define WASM_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
@@ -2667,11 +2669,14 @@ HasNonDeletedDefaultedEqualityComparison(const CXXRecordDecl *Decl) {
   return llvm::all_of(Decl->bases(),
                       [](const CXXBaseSpecifier &BS) {
                         if (const auto *RD = BS.getType()->getAsCXXRecordDecl())
-                          HasNonDeletedDefaultedEqualityComparison(RD);
+                          return HasNonDeletedDefaultedEqualityComparison(RD);
                         return true;
                       }) &&
          llvm::all_of(Decl->fields(), [](const FieldDecl *FD) {
            auto Type = FD->getType();
+           if (Type->isArrayType())
+             Type = Type->getBaseElementTypeUnsafe()->getCanonicalTypeUnqualified();
+
            if (Type->isReferenceType() || Type->isEnumeralType())
              return false;
            if (const auto *RD = Type->getAsCXXRecordDecl())
@@ -2684,7 +2689,7 @@ bool QualType::isTriviallyEqualityComparableType(
     const ASTContext &Context) const {
   QualType CanonicalType = getCanonicalType();
   if (CanonicalType->isIncompleteType() || CanonicalType->isDependentType() ||
-      CanonicalType->isEnumeralType())
+      CanonicalType->isEnumeralType() || CanonicalType->isArrayType())
     return false;
 
   if (const auto *RD = CanonicalType->getAsCXXRecordDecl()) {
@@ -3392,12 +3397,19 @@ FunctionProtoType::FunctionProtoType(QualType result, ArrayRef<QualType> params,
     argSlot[i] = params[i];
   }
 
+  // Propagate the SME ACLE attributes.
+  if (epi.AArch64SMEAttributes != SME_NormalFunction) {
+    auto &ExtraBits = *getTrailingObjects<FunctionTypeExtraBitfields>();
+    assert(epi.AArch64SMEAttributes <= SME_AttributeMask &&
+           "Not enough bits to encode SME attributes");
+    ExtraBits.AArch64SMEAttributes = epi.AArch64SMEAttributes;
+  }
+
   // Fill in the exception type array if present.
   if (getExceptionSpecType() == EST_Dynamic) {
     auto &ExtraBits = *getTrailingObjects<FunctionTypeExtraBitfields>();
     size_t NumExceptions = epi.ExceptionSpec.Exceptions.size();
-    assert(NumExceptions <= UINT16_MAX &&
-           "Not enough bits to encode exceptions");
+    assert(NumExceptions <= 1023 && "Not enough bits to encode exceptions");
     ExtraBits.NumExceptionType = NumExceptions;
 
     assert(hasExtraBitfields() && "missing trailing extra bitfields!");
@@ -3554,8 +3566,11 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
   // This is followed by an optional "consumed argument" section of the
   // same length as the first type sequence:
   //      bool*
-  // Finally, we have the ext info and trailing return type flag:
-  //      int bool
+  // This is followed by the ext info:
+  //      int
+  // Finally we have a trailing return type flag (bool)
+  // combined with AArch64 SME Attributes, to save space:
+  //      int
   //
   // There is no ambiguity between the consumed arguments and an empty EH
   // spec because of the leading 'bool' which unambiguously indicates
@@ -3588,8 +3603,9 @@ void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID, QualType Result,
     for (unsigned i = 0; i != NumParams; ++i)
       ID.AddInteger(epi.ExtParameterInfos[i].getOpaqueValue());
   }
+
   epi.ExtInfo.Profile(ID);
-  ID.AddBoolean(epi.HasTrailingReturn);
+  ID.AddInteger((epi.AArch64SMEAttributes << 1) | epi.HasTrailingReturn);
 }
 
 void FunctionProtoType::Profile(llvm::FoldingSetNodeID &ID,
@@ -4720,14 +4736,10 @@ AutoType::AutoType(QualType DeducedAsType, AutoTypeKeyword Keyword,
     auto *ArgBuffer =
         const_cast<TemplateArgument *>(getTypeConstraintArguments().data());
     for (const TemplateArgument &Arg : TypeConstraintArgs) {
-      // If we have a deduced type, our constraints never affect semantic
-      // dependence. Prior to deduction, however, our canonical type depends
-      // on the template arguments, so we are a dependent type if any of them
-      // is dependent.
-      TypeDependence ArgDependence = toTypeDependence(Arg.getDependence());
-      if (!DeducedAsType.isNull())
-        ArgDependence = toSyntacticDependence(ArgDependence);
-      addDependence(ArgDependence);
+      // We only syntactically depend on the constraint arguments. They don't
+      // affect the deduced type, only its validity.
+      addDependence(
+          toSyntacticDependence(toTypeDependence(Arg.getDependence())));
 
       new (ArgBuffer++) TemplateArgument(Arg);
     }

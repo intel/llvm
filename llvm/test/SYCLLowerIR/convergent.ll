@@ -7,7 +7,7 @@
 
 %struct.baz = type { i64 }
 
-define internal spir_func void @wibble(%struct.baz* byval(%struct.baz) %arg1) !work_group_scope !0 {
+define internal spir_func void @wibble(ptr byval(%struct.baz) %arg1) !work_group_scope !0 {
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_xv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_yv()
 ; CHECK-PTX:   call i64 @_Z27__spirv_LocalInvocationId_zv()

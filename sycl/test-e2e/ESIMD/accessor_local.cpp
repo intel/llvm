@@ -1,10 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: GPU driver on Windows requires a fix/update.
-// XFAIL: windows
-
-// esimd_emulator does not yet support local accessors
 // UNSUPPORTED: esimd_emulator
 
 // This test verifies usage of local_accessor methods operator[]

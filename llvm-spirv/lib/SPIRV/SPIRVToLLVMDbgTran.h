@@ -106,6 +106,9 @@ private:
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
   MDNode *transDebugInlinedNonSemanticShader200(const SPIRVExtInst *Inst);
 
+  void appendToSourceLangLiteral(DICompileUnit *CompileUnit,
+                                 SPIRVWord SourceLang);
+
   DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst,
                                       const std::string CompilerVersion = "",
                                       const std::string Flags = "");

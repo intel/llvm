@@ -97,49 +97,20 @@ public:
     case Value::Kind::Integer:
     case Value::Kind::TopBool:
     case Value::Kind::AtomicBool:
-      break;
-    case Value::Kind::Reference:
-      JOS.attributeObject(
-          "referent", [&] { dump(cast<ReferenceValue>(V).getReferentLoc()); });
+    case Value::Kind::FormulaBool:
       break;
     case Value::Kind::Pointer:
       JOS.attributeObject(
           "pointee", [&] { dump(cast<PointerValue>(V).getPointeeLoc()); });
       break;
-    case Value::Kind::Struct:
-      for (const auto &Child : cast<StructValue>(V).children())
-        JOS.attributeObject("f:" + Child.first->getNameAsString(),
-                            [&] { dump(*Child.second); });
+    case Value::Kind::Record:
+      for (const auto &Child : cast<RecordValue>(V).getLoc().children())
+        JOS.attributeObject("f:" + Child.first->getNameAsString(), [&] {
+          if (Child.second)
+            if (Value *Val = Env.getValue(*Child.second))
+              dump(*Val);
+        });
       break;
-    case Value::Kind::Disjunction: {
-      auto &VV = cast<DisjunctionValue>(V);
-      JOS.attributeObject("lhs", [&] { dump(VV.getLeftSubValue()); });
-      JOS.attributeObject("rhs", [&] { dump(VV.getRightSubValue()); });
-      break;
-    }
-    case Value::Kind::Conjunction: {
-      auto &VV = cast<ConjunctionValue>(V);
-      JOS.attributeObject("lhs", [&] { dump(VV.getLeftSubValue()); });
-      JOS.attributeObject("rhs", [&] { dump(VV.getRightSubValue()); });
-      break;
-    }
-    case Value::Kind::Negation: {
-      auto &VV = cast<NegationValue>(V);
-      JOS.attributeObject("not", [&] { dump(VV.getSubVal()); });
-      break;
-    }
-    case Value::Kind::Implication: {
-      auto &VV = cast<ImplicationValue>(V);
-      JOS.attributeObject("if", [&] { dump(VV.getLeftSubValue()); });
-      JOS.attributeObject("then", [&] { dump(VV.getRightSubValue()); });
-      break;
-    }
-    case Value::Kind::Biconditional: {
-      auto &VV = cast<BiconditionalValue>(V);
-      JOS.attributeObject("lhs", [&] { dump(VV.getLeftSubValue()); });
-      JOS.attributeObject("rhs", [&] { dump(VV.getRightSubValue()); });
-      break;
-    }
     }
 
     for (const auto& Prop : V.properties())
@@ -149,10 +120,12 @@ public:
     // Running the SAT solver is expensive, but knowing which booleans are
     // guaranteed true/false here is valuable and hard to determine by hand.
     if (auto *B = llvm::dyn_cast<BoolValue>(&V)) {
-      JOS.attribute("truth", Env.flowConditionImplies(*B) ? "true"
-                             : Env.flowConditionImplies(Env.makeNot(*B))
-                                 ? "false"
-                                 : "unknown");
+      JOS.attribute("formula", llvm::to_string(B->formula()));
+      JOS.attribute(
+          "truth", Env.flowConditionImplies(B->formula()) ? "true"
+                   : Env.flowConditionImplies(Env.arena().makeNot(B->formula()))
+                       ? "false"
+                       : "unknown");
     }
   }
   void dump(const StorageLocation &L) {
@@ -193,15 +166,14 @@ public:
     this->CFG = &CFG;
     *OS << llvm::StringRef(HTMLLogger_html).split("<?INJECT?>").first;
 
-    if (const auto *D = CFG.getDecl()) {
-      const auto &SM = A.getASTContext().getSourceManager();
-      *OS << "<title>";
-      if (const auto *ND = dyn_cast<NamedDecl>(D))
-        *OS << ND->getNameAsString() << " at ";
-      *OS << SM.getFilename(D->getLocation()) << ":"
-          << SM.getSpellingLineNumber(D->getLocation());
-      *OS << "</title>\n";
-    };
+    const auto &D = CFG.getDecl();
+    const auto &SM = A.getASTContext().getSourceManager();
+    *OS << "<title>";
+    if (const auto *ND = dyn_cast<NamedDecl>(&D))
+      *OS << ND->getNameAsString() << " at ";
+    *OS << SM.getFilename(D.getLocation()) << ":"
+        << SM.getSpellingLineNumber(D.getLocation());
+    *OS << "</title>\n";
 
     *OS << "<style>" << HTMLLogger_css << "</style>\n";
     *OS << "<script>" << HTMLLogger_js << "</script>\n";
@@ -280,10 +252,17 @@ public:
       if (ElementIndex > 0) {
         auto S =
             Iters.back().first->Elements[ElementIndex - 1].getAs<CFGStmt>();
-        if (const Expr *E = S ? llvm::dyn_cast<Expr>(S->getStmt()) : nullptr)
-          if (auto *Loc = State.Env.getStorageLocation(*E, SkipPast::None))
-            JOS->attributeObject(
-                "value", [&] { ModelDumper(*JOS, State.Env).dump(*Loc); });
+        if (const Expr *E = S ? llvm::dyn_cast<Expr>(S->getStmt()) : nullptr) {
+          if (E->isPRValue()) {
+            if (auto *V = State.Env.getValue(*E))
+              JOS->attributeObject(
+                  "value", [&] { ModelDumper(*JOS, State.Env).dump(*V); });
+          } else {
+            if (auto *Loc = State.Env.getStorageLocation(*E))
+              JOS->attributeObject(
+                  "value", [&] { ModelDumper(*JOS, State.Env).dump(*Loc); });
+          }
+        }
       }
       if (!ContextLogs.empty()) {
         JOS->attribute("logs", ContextLogs);
@@ -327,9 +306,7 @@ private:
   // tokens are associated with, and even which BB element (so that clicking
   // can select the right element).
   void writeCode() {
-    if (!CFG->getDecl())
-      return;
-    const auto &AST = CFG->getDecl()->getASTContext();
+    const auto &AST = CFG->getDecl().getASTContext();
     bool Invalid = false;
 
     // Extract the source code from the original file.
@@ -337,7 +314,7 @@ private:
     // indentation to worry about), but we need the boundaries of particular
     // AST nodes and the printer doesn't provide this.
     auto Range = clang::Lexer::makeFileCharRange(
-        CharSourceRange::getTokenRange(CFG->getDecl()->getSourceRange()),
+        CharSourceRange::getTokenRange(CFG->getDecl().getSourceRange()),
         AST.getSourceManager(), AST.getLangOpts());
     if (Range.isInvalid())
       return;
@@ -484,8 +461,9 @@ private:
       GraphS << "  " << blockID(I) << " [id=" << blockID(I) << "]\n";
     for (const auto *Block : CFG) {
       for (const auto &Succ : Block->succs()) {
-        GraphS << "  " << blockID(Block->getBlockID()) << " -> "
-               << blockID(Succ.getReachableBlock()->getBlockID()) << "\n";
+        if (Succ.getReachableBlock())
+          GraphS << "  " << blockID(Block->getBlockID()) << " -> "
+                 << blockID(Succ.getReachableBlock()->getBlockID()) << "\n";
       }
     }
     GraphS << "}\n";

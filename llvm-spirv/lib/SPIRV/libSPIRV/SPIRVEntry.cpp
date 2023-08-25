@@ -267,7 +267,7 @@ SPIRVEntry::getValueTypes(const std::vector<SPIRVId> &IdVec) const {
 std::vector<SPIRVId>
 SPIRVEntry::getIds(const std::vector<SPIRVValue *> ValueVec) const {
   std::vector<SPIRVId> IdVec;
-  for (auto I : ValueVec)
+  for (auto *I : ValueVec)
     IdVec.push_back(I->getId());
   return IdVec;
 }
@@ -621,9 +621,11 @@ void SPIRVEntryPoint::encode(spv_ostream &O) const {
 }
 
 void SPIRVEntryPoint::decode(std::istream &I) {
-  getDecoder(I) >> ExecModel >> Target >> Name >> Variables;
+  getDecoder(I) >> ExecModel >> Target >> Name;
+  Variables.resize(WordCount - FixedWC - getSizeInWords(Name) + 1);
+  getDecoder(I) >> Variables;
   Module->setName(getOrCreateTarget(), Name);
-  Module->addEntryPoint(ExecModel, Target);
+  Module->addEntryPoint(ExecModel, Target, Name, Variables);
 }
 
 void SPIRVExecutionMode::encode(spv_ostream &O) const {

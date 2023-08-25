@@ -17,7 +17,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getContext());
+    ScopedContext Active(hProgram->getContext()->getDevice());
 
     hipFunction_t HIPFunc;
     Result = UR_CHECK_ERROR(
@@ -256,7 +256,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgPointer(
     ur_kernel_handle_t hKernel, uint32_t argIndex,
     const ur_kernel_arg_pointer_properties_t *, const void *pArgValue) {
-  hKernel->setKernelArg(argIndex, sizeof(pArgValue), pArgValue);
+  hKernel->setKernelPtrArg(argIndex, sizeof(pArgValue), pArgValue);
   return UR_RESULT_SUCCESS;
 }
 
