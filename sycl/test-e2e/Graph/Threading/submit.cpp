@@ -1,7 +1,16 @@
-// Tests basic adding of nodes with USM pointers,
-// and submission of the graph.
+// REQUIRES: level_zero, gpu
+// RUN: %{build_pthread_inc} -o %t.out
+// RUN: %{run} %t.out
+// RUN: %if ext_oneapi_level_zero %{env ZE_DEBUG=4 %{run} %t.out 2>&1 | FileCheck %s %}
+//
+// CHECK-NOT: LEAK
+
+// Test calling queue::submit(graph) in a threaded situation.
+// The second run is to check that there are no leaks reported with the embedded
+// ZE_DEBUG=4 testing capability.
 
 #include "../graph_common.hpp"
+
 #include <thread>
 
 int main() {
@@ -17,7 +26,7 @@ int main() {
   std::iota(DataC.begin(), DataC.end(), 1000);
 
   std::vector<T> ReferenceA(DataA), ReferenceB(DataB), ReferenceC(DataC);
-  calculate_reference_data(Iterations, Size, ReferenceA, ReferenceB,
+  calculate_reference_data(NumThreads, Size, ReferenceA, ReferenceB,
                            ReferenceC);
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
@@ -31,24 +40,27 @@ int main() {
   Queue.copy(DataC.data(), PtrC, Size);
   Queue.wait_and_throw();
 
-  // Add commands to graph
-  add_nodes(Graph, Queue, Size, PtrA, PtrB, PtrC);
+  Graph.begin_recording(Queue);
+  run_kernels_usm(Queue, Size, PtrA, PtrB, PtrC);
+  Graph.end_recording();
 
   Barrier SyncPoint{NumThreads};
 
   auto GraphExec = Graph.finalize();
-
   auto SubmitGraph = [&]() {
     SyncPoint.wait();
     Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   };
 
-  event Event;
-  for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
-    });
+  std::vector<std::thread> Threads;
+  Threads.reserve(NumThreads);
+
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    Threads.emplace_back(SubmitGraph);
+  }
+
+  for (unsigned i = 0; i < NumThreads; ++i) {
+    Threads[i].join();
   }
 
   Queue.wait_and_throw();
