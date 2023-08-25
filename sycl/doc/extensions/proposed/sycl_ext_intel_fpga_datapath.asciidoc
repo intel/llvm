@@ -40,7 +40,7 @@ This extension is written against the SYCL 2020 revision 7 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension does not depend on other SYCL extensions, it is self-contained. Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_datapath` extension.
+This extension does not depend on other SYCL extensions; it is self-contained. Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_datapath` extension.
 
 * link:sycl_ext_intel_fpga_mem.asciidoc[sycl_ext_intel_fpga_mem.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
 
