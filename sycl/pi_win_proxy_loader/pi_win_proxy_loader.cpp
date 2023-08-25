@@ -151,25 +151,26 @@ void preloadLibraries() {
   MapT &dllMap = getDllMap();
 
   std::string ocl_path = LibSYCLDir + __SYCL_OPENCL_PLUGIN_NAME;
-  dllMap.emplace(ocl_path, LoadLibraryA(ocl_path.c_str()));
+  dllMap.emplace(ocl_path, LoadLibraryExA(ocl_path.c_str(), NULL, NULL));
 
   std::string l0_path = LibSYCLDir + __SYCL_LEVEL_ZERO_PLUGIN_NAME;
-  dllMap.emplace(l0_path, LoadLibraryA(l0_path.c_str()));
+  dllMap.emplace(l0_path, LoadLibraryExA(l0_path.c_str(), NULL, NULL));
 
   std::string cuda_path = LibSYCLDir + __SYCL_CUDA_PLUGIN_NAME;
-  dllMap.emplace(cuda_path, LoadLibraryA(cuda_path.c_str()));
+  dllMap.emplace(cuda_path, LoadLibraryExA(cuda_path.c_str(), NULL, NULL));
 
   std::string esimd_path = LibSYCLDir + __SYCL_ESIMD_EMULATOR_PLUGIN_NAME;
-  dllMap.emplace(esimd_path, LoadLibraryA(esimd_path.c_str()));
+  dllMap.emplace(esimd_path, LoadLibraryExA(esimd_path.c_str(), NULL, NULL));
 
   std::string hip_path = LibSYCLDir + __SYCL_HIP_PLUGIN_NAME;
-  dllMap.emplace(hip_path, LoadLibraryA(hip_path.c_str()));
+  dllMap.emplace(hip_path, LoadLibraryExA(hip_path.c_str(), NULL, NULL));
 
   std::string ur_path = LibSYCLDir + __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
-  dllMap.emplace(ur_path, LoadLibraryA(ur_path.c_str()));
+  dllMap.emplace(ur_path, LoadLibraryExA(ur_path.c_str(), NULL, NULL));
 
   std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
-  dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
+  dllMap.emplace(nativecpu_path,
+                 LoadLibraryExA(nativecpu_path.c_str(), NULL, NULL));
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);

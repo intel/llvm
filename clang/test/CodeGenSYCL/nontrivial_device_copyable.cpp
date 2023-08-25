@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2020 -opaque-pointers -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple spir64 -fsycl-is-device -internal-isystem %S/Inputs -disable-llvm-passes -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s
 
 // Tests that SYCL kernel arguments with non-trivially copyable types are
 // passed by-valued.

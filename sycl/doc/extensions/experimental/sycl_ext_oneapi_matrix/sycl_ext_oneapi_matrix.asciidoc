@@ -549,7 +549,7 @@ joint_matrix<sub_group, int, use::accumulator, msize, nsize> sub_c;
 ## Future-looking API
 
 ### Memory scope
-The current experimental API uses `joint_` semantics to define the memory scope of the matrix. The long term solution is to use the proposed link:../supported/sycl_ext_oneapi_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
+The current experimental API uses `joint_` semantics to define the memory scope of the matrix. The long term solution is to use the proposed link:../../supported/sycl_ext_oneapi_local_memory.asciidoc[`group_local_memory` extension] to allocate the matrix in local memory associated with a SYCL group as shown in the example below.
 
 
 ```c++
