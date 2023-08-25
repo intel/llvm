@@ -579,31 +579,70 @@ defined.
 [frame="none",options="header",cols="40%,60%"]
 |======================
 | Member/type alias in `matrix_params` | Description
-|`M`|when no sizes are provided by the user, indicates the suggested
+a|
+[source]
+----
+static constexpr size_t M
+----
+|when no sizes are provided by the user, indicates the suggested
 default size for M; usually this corresponds to the maximum size the
 implementation supports. In validation mode, where the user does
 provide sizes, this is the same value M that the user provides if M is
 supported by the implementation
-|`N`|when no sizes are provided by the user, indicates the suggested
+
+a|
+[source]
+----
+static constexpr size_t N
+----
+|when no sizes are provided by the user, indicates the suggested
 default size for N; usually this corresponds to the maximum size the
 implementation supports. In validation mode, where the user does
 provide sizes, this is the same value N that the user provides if N is
 supported by the implementation
-|`K`| when no sizes are provided by the user, indicates the suggested
+
+a|
+[source]
+----
+static constexpr size_t K
+----
+|when no sizes are provided by the user, indicates the suggested
 default size for K; usually this corresponds to the maximum size the
 implementation supports. In validation mode, where the user does
 provide sizes, this is the same value K that the user provides if K is
 supported by the implementation
-|`template <typename Group, layout Layout> +
-using joint_matrix_a;`| type alias for `joint_matrix` for matrix A
-|`template <typename Group, layout Layout> +
-using joint_matrix_b;`| type alias for `joint_matrix` for matrix B
-|`template <typename Group> +
-using joint_matrix_c;`| type alias for `joint_matrix` for the input
-matrix accumulator
-|`template <typename Group> +
-using joint_matrix_d;`| type alias for `joint_matrix` for the output
-matrix accumulator
+
+a|
+[source]
+----
+template <typename Group, layout Layout>
+using joint_matrix_a
+----
+|type alias for `joint_matrix` for matrix A
+
+a|
+[source]
+----
+template <typename Group, layout Layout>
+using joint_matrix_b
+----
+|type alias for `joint_matrix` for matrix B
+
+a|
+[source]
+----
+template <typename Group>
+using joint_matrix_c
+----
+|type alias for `joint_matrix` for the input matrix accumulator
+
+a|
+[source]
+----
+template <typename Group>
+using joint_matrix_d
+----
+|type alias for `joint_matrix` for the output matrix accumulator
 |======================
 
 ```c++
