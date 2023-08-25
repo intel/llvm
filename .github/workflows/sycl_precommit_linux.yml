@@ -18,6 +18,8 @@ on:
     - '**.md'
     - '**.rst'
     - '.github/workflows/sycl_precommit_windows.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 jobs:
   detect_changes:
