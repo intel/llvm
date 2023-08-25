@@ -1,4 +1,3 @@
-urInit(.device_flags = 0, .hLoaderConfig = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
 Platform initialized.
 urAdapterGet(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
 urAdapterGet(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
@@ -12,4 +11,3 @@ urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
 Found a Null Device gpu.
 urAdapterRelease(.hAdapter = {{.*}}) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)
-urTearDown(.pParams = nullptr) -> UR_RESULT_SUCCESS; ({{[0-9]+}}ns)

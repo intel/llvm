@@ -60,6 +60,14 @@ void context_t::initLayers() const {
     }
 }
 
+void context_t::tearDownLayers() const {
+    for (auto &l : layers) {
+        if (l->isAvailable()) {
+            l->tearDown();
+        }
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
 __urdlllocal ur_result_t
 context_t::Init(ur_device_init_flags_t device_flags,
@@ -72,7 +80,7 @@ context_t::Init(ur_device_init_flags_t device_flags,
     result = ur_loader::context->init();
 
     if (UR_RESULT_SUCCESS == result) {
-        result = urInit();
+        result = urLoaderInit();
     }
 
     if (hLoaderConfig) {
@@ -172,6 +180,12 @@ ur_result_t urLoaderConfigEnableLayer(ur_loader_config_handle_t hLoaderConfig,
         return UR_RESULT_ERROR_LAYER_NOT_PRESENT;
     }
     hLoaderConfig->enabledLayers.insert(pLayerName);
+    return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urLoaderTearDown() {
+    context->tearDownLayers();
+
     return UR_RESULT_SUCCESS;
 }
 } // namespace ur_lib

@@ -872,6 +872,7 @@ def parse(section, version, tags, meta, ref):
     specs = []
 
     files = util.findFiles(path, "*.yml")
+    files.sort(key = lambda f: 0 if f.endswith('common.yml') else 1)
     registry = [f for f in files if f.endswith('registry.yml')][0]
 
     enum_extensions = []

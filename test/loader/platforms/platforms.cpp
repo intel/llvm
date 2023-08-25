@@ -24,12 +24,12 @@ int main(int argc, char *argv[]) {
     ur_result_t status;
 
     // Initialize the platform
-    status = urInit(0, nullptr);
+    status = urLoaderInit(0, nullptr);
     if (status != UR_RESULT_SUCCESS) {
-        error("urInit failed with return code: {}", status);
+        error("urLoaderInit failed with return code: {}", status);
         return 1;
     }
-    info("urInit succeeded.");
+    info("urLoaderInit succeeded.");
 
     uint32_t adapterCount = 0;
     std::vector<ur_adapter_handle_t> adapters;
@@ -89,6 +89,6 @@ int main(int argc, char *argv[]) {
         free(name);
     }
 out:
-    urTearDown(nullptr);
+    urLoaderTearDown();
     return status == UR_RESULT_SUCCESS ? 0 : 1;
 }
