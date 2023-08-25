@@ -2305,10 +2305,10 @@ unsigned SchedBoundary::getNextResourceCycleByInstance(unsigned InstanceIdx,
   unsigned NextUnreserved = ReservedCycles[InstanceIdx];
   // If this resource has never been used, always return cycle zero.
   if (NextUnreserved == InvalidCycle)
-    return 0;
+    return CurrCycle;
   // For bottom-up scheduling add the cycles needed for the current operation.
   if (!isTop())
-    NextUnreserved += Cycles;
+    NextUnreserved = std::max(CurrCycle, NextUnreserved + Cycles);
   return NextUnreserved;
 }
 
@@ -2331,20 +2331,24 @@ SchedBoundary::getNextResourceCycle(const MCSchedClassDesc *SC, unsigned PIdx,
          "Cannot have zero instances of a ProcResource");
 
   if (isUnbufferedGroup(PIdx)) {
-    // If any subunits are used by the instruction, report that the resource
-    // group is available at 0, effectively removing the group record from
-    // hazarding and basing the hazarding decisions on the subunit records.
-    // Otherwise, choose the first available instance from among the subunits.
-    // Specifications which assign cycles to both the subunits and the group or
-    // which use an unbuffered group with buffered subunits will appear to
-    // schedule strangely. In the first case, the additional cycles for the
-    // group will be ignored.  In the second, the group will be ignored
-    // entirely.
+    // If any subunits are used by the instruction, report that the
+    // subunits of the resource group are available at the first cycle
+    // in which the unit is available, effectively removing the group
+    // record from hazarding and basing the hazarding decisions on the
+    // subunit records. Otherwise, choose the first available instance
+    // from among the subunits.  Specifications which assign cycles to
+    // both the subunits and the group or which use an unbuffered
+    // group with buffered subunits will appear to schedule
+    // strangely. In the first case, the additional cycles for the
+    // group will be ignored.  In the second, the group will be
+    // ignored entirely.
     for (const MCWriteProcResEntry &PE :
          make_range(SchedModel->getWriteProcResBegin(SC),
                     SchedModel->getWriteProcResEnd(SC)))
       if (ResourceGroupSubUnitMasks[PIdx][PE.ProcResourceIdx])
-        return std::make_pair(0u, StartIndex);
+        return std::make_pair(
+            getNextResourceCycleByInstance(StartIndex, Cycles, StartAtCycle),
+            StartIndex);
 
     auto SubUnits = SchedModel->getProcResource(PIdx)->SubUnitsIdxBegin;
     for (unsigned I = 0, End = NumberOfInstances; I < End; ++I) {
@@ -2712,7 +2716,7 @@ void SchedBoundary::bumpNode(SUnit *SU) {
 
             unsigned ReservedUntil, InstanceIdx;
             std::tie(ReservedUntil, InstanceIdx) =
-                getNextResourceCycle(SC, PIdx, 0, PI->StartAtCycle);
+                getNextResourceCycle(SC, PIdx, PI->Cycles, PI->StartAtCycle);
             if (isTop()) {
               ReservedCycles[InstanceIdx] =
                   std::max(ReservedUntil, NextCycle + PI->Cycles);

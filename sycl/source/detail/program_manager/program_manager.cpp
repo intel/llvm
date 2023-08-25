@@ -1061,12 +1061,55 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
     return *Img;
   }
 
-  if (m_UniversalKernelSet.size())
+  if (!m_UniversalKernelSet.empty())
     return getDeviceImage(m_UniversalKernelSet, Context, Device,
                           JITCompilationIsRequired);
   else
     throw runtime_error("No kernel named " + KernelName + " was found",
                         PI_ERROR_INVALID_KERNEL_NAME);
+}
+
+// TODO: remove this function when m_UniversalKernelSet is removed
+RTDeviceBinaryImage &ProgramManager::getDeviceImage(
+    const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
+    const context &Context, const device &Device,
+    bool JITCompilationIsRequired) {
+  assert(ImagesToVerify.size() > 0);
+
+  if (DbgProgMgr > 0) {
+    std::cerr << ">>> ProgramManager::getDeviceImage(Universal kernel set "
+              << getRawSyclObjImpl(Context) << ", " << getRawSyclObjImpl(Device)
+              << ", " << JITCompilationIsRequired << ")\n";
+
+    std::cerr << "available device images:\n";
+    debugPrintBinaryImages();
+  }
+
+  std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
+  std::vector<pi_device_binary> RawImgs(ImagesToVerify.size());
+  auto ImageIterator = ImagesToVerify.begin();
+  for (size_t i = 0; i < ImagesToVerify.size(); i++, ImageIterator++)
+    RawImgs[i] = const_cast<pi_device_binary>(&(*ImageIterator)->getRawData());
+  pi_uint32 ImgInd = 0;
+  // Ask the native runtime under the given context to choose the device image
+  // it prefers.
+  getSyclObjImpl(Context)
+      ->getPlugin()
+      ->call<PiApiKind::piextDeviceSelectBinary>(
+          getSyclObjImpl(Device)->getHandleRef(), RawImgs.data(),
+          (pi_uint32)RawImgs.size(), &ImgInd);
+
+  ImageIterator = ImagesToVerify.begin();
+  std::advance(ImageIterator, ImgInd);
+
+  CheckJITCompilationForImage(*ImageIterator, JITCompilationIsRequired);
+
+  if (DbgProgMgr > 0) {
+    std::cerr << "selected device image: " << &(*ImageIterator)->getRawData()
+              << "\n";
+    (*ImageIterator)->print();
+  }
+  return **ImageIterator;
 }
 
 RTDeviceBinaryImage &ProgramManager::getDeviceImage(
@@ -1437,7 +1480,7 @@ void ProgramManager::addImages(pi_device_binaries DeviceBinary) {
 
       if (DumpImages)
         dumpImage(*Img);
-      m_UniversalKernelSet.insert(Img.get());
+      m_UniversalKernelSet.push_back(Img.get());
     }
     m_DeviceImages.insert(std::move(Img));
   }
@@ -1779,6 +1822,9 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     std::lock_guard<std::mutex> KernelIDsGuard(m_KernelIDsMutex);
     for (auto &ImageUPtr : m_BinImg2KernelIDs) {
       BinImages.insert(ImageUPtr.first);
+    }
+    for (auto &ImageUPtr : m_UniversalKernelSet) {
+      BinImages.insert(ImageUPtr);
     }
   }
 

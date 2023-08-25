@@ -3,9 +3,9 @@
 
 // Error should be emitted when using -fsycl-host-compiler without -fsycl
 
-// RUN:   %clang -### -fsycl-host-compiler=g++  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-host-compiler=g++  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
-// RUN:   %clang_cl -### -fsycl-host-compiler=g++  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-host-compiler=g++  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL %s
 // CHK-NO-FSYCL: error: '-fsycl-host-compiler' must be used in conjunction with '-fsycl' to enable offloading
 

@@ -73,7 +73,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   const auto &WaitList = (*Event)->WaitList;
 
   urPrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -124,7 +124,7 @@ ur_result_t enqueueMemCopyRectHelper(
   const auto &WaitList = (*Event)->WaitList;
 
   urPrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -238,7 +238,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
               WaitList.Length, WaitList.ZeEventList));
 
   urPrint("calling zeCommandListAppendMemoryFill() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<uint64_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -1621,7 +1621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
   try {
-    auto UrImage = new _ur_image(Context, ZeImage);
+    auto UrImage = new _ur_image(Context, ZeImage, true /*OwnZeMemHandle*/);
     *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
 
 #ifndef NDEBUG
