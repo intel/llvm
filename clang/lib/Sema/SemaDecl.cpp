@@ -8106,8 +8106,14 @@ NamedDecl *Sema::ActOnVariableDeclarator(
       case SC_Register:
         // Local Named register
         if (!Context.getTargetInfo().isValidGCCRegisterName(Label) &&
-            DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl()))
-          Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
+            DeclAttrsMatchCUDAMode(getLangOpts(), getCurFunctionDecl())) {
+          if (getLangOpts().SYCLIsDevice)
+            SYCLDiagIfDeviceCode(E->getExprLoc(),
+                                 diag::err_asm_unknown_register_name)
+                << Label;
+          else
+            Diag(E->getExprLoc(), diag::err_asm_unknown_register_name) << Label;
+        }
         break;
       case SC_Static:
       case SC_Extern:
