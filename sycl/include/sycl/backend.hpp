@@ -243,10 +243,11 @@ inline backend_return_t<backend::ext_oneapi_cuda, context> interop_handle::
       getNativeContext());
 #else
   return 0;
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 }
 
-#endif
+#endif // SYCL_EXT_ONEAPI_BACKEND_CUDA
+
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
 
 template <>
@@ -278,10 +279,10 @@ inline backend_return_t<backend::ext_oneapi_hip, context> interop_handle::
       getNativeContext());
 #else
   return 0;
-#endif
+#endif // __SYCL_DEVICE_ONLY__
 }
 
-#endif
+#endif // SYCL_EXT_ONEAPI_BACKEND_HIP
 
 template <backend BackendName, typename DataT, int Dimensions,
           access::mode AccessMode, access::target AccessTarget,
