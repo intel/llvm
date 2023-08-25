@@ -2210,9 +2210,6 @@ public:
     size_t NOldWorkItems = NumWorkItems.size();
     auto NWorkGroups = (std::numeric_limits<uint32_t>::max)() / WGSize;
     auto NNewWorkItems = NWorkGroups * WGSize;
-    auto NNewWorkItemsPerOldWorkItems = NOldWorkItems / NNewWorkItems;
-    if (NOldWorkItems % NNewWorkItems != 0)
-      ++NNewWorkItemsPerOldWorkItems;
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
     constexpr bool hasKernelHandlerArg =
