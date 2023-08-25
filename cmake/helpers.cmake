@@ -78,7 +78,7 @@ function(add_ur_target_compile_options name)
         endif()
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
-            /MP
+            $<$<CXX_COMPILER_ID:MSVC>:/MP>  # clang-cl.exe does not support /MP
             /W3
             /MD$<$<CONFIG:Debug>:d>
             /GS
