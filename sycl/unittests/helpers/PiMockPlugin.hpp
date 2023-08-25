@@ -1279,11 +1279,13 @@ mock_piextCommandBufferCreate(pi_context context, pi_device device,
 
 inline pi_result
 mock_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  retainDummyHandle(command_buffer);
   return PI_SUCCESS;
 }
 
 inline pi_result
 mock_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  releaseDummyHandle(command_buffer);
   return PI_SUCCESS;
 }
 
