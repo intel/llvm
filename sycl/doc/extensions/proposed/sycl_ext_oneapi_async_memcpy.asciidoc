@@ -56,9 +56,10 @@ not rely on APIs defined in this specification.*
 == Overview
 
 This extension defines
-`sycl::ext::oneapi::experimental::async_memcpy` free function to
+`sycl::ext::oneapi::experimental::async_memcpy` and
+`sycl::ext::oneapi::experimental::async_memcpy` free functions to
 generalize and replace the current `sycl::async_work_group_copy`
-function. 
+function.
 
 == Specification
 
@@ -83,15 +84,13 @@ supports.
 |===
 
 
-=== `async_memcpy` function
+=== `async_memcpy` and `async_copy` Functions
 `sycl::ext::oneapi::experimental::async_memcpy` is a free function
 that  asynchronously copies a number of elements specified by
 `num_elements` of data of type `T` from the source pointer `src` to
 destination pointer `dest`. It also takes a barrier object of type
-`syclex::barrier` as an argument that can be used to wait on the
-completion of the memory copy.
-
-Permitted types for `T` are all scalar and vector types.
+`sycl::ext::oneapi::experimental::barrier` as an argument that can be
+used to wait on the completion of the memory copy.
 
 This extension provides two versions of `async_memcpy`: with and
 without `Group` template parameter and argument. In the case of the
@@ -104,36 +103,49 @@ of the SYCL specification. In the case of the work-item variant,
 ----
 namespace sycl::ext::oneapi::experimental {
 
-  template <typename T,  access::address_space DestSpace,
-  access::decorated DestIsDecorated, access::address_space SrcSpace,
-  access::decorated SrcIsDecorated, sycl::memory_scope Scope>
-  void async_memcpy(multi_ptr<T, DestSpace, DestIsDecorated> dest,
-  multi_ptr<T, SrcSpace, SrcIsDecorated> src, size_t numElements,
-  syclex::barrier<Scope> bar);
+  template <sycl::memory_scope Scope, class CompletionFunction>
+  void async_memcpy(void* dest, const void* src, size_t numBytes,
+  barrier<Scope, CompletionFunction> &bar);
 
-  template <typename Group, typename T,  access::address_space Space,
-  access::decorated IsDecorated, sycl::memory_scope Scope>
-  void group_async_memcpy(Group g, multi_ptr<T, Space, IsDecorated>
-  dest, multi_ptr<T, Space, IsDecorated> src, size_t numElements,
-  syclex::barrier<Scope> bar);
+  template <typename T, sycl::memory_scope Scope, class
+  CompletionFunction>
+  void async_copy(T* dest, const T *src, size_t count,
+  barrier<Scope, CompletionFunction> &bar);
+
+  template <typename Group, sycl::memory_scope Scope, class
+  CompletionFunction>
+  void group_async_memcpy(Group g, void* dest, const void* src, size_t
+  numBytes, barrier<Scope, CompletionFunction> &bar);
+
+  template <typename Group, typename T, sycl::memory_scope Scope,
+  class CompletionFunction>
+  void group_async_copy(Group g, T* dest, const T *src, size_t count,
+  barrier<Scope, CompletionFunction> &bar);
 
 } // namespace sycl::ext::oneapi::experimental
 ----
+
+**Preconditions**: `T` must be a trivially copyable type.
+In the group variant APIs, the parameters `dest`, `src`, `count` or
+`numBytes`, and `bar` must be the same across all the work-items in
+`Group`.
 
 === `async_memcpy` Example
 
 [source,c++]
 ----
-using wg_barrier = syclex::barrier<sycl::memory_scope::work_group>;
-auto psrc = multi_ptr<T, sycl::access::address_space::global_space>(src);
-auto pdest = multi_ptr<T, sycl::access::address_space::local_space>(dest);
+using wg_barrier = barrier<sycl::memory_scope::work_group>;
+T *psrc = malloc_shared<T>(N, q);
+T *pdest = malloc_shared<T>(N, q);
 
 q.parallel_for(..., [=](sycl::nd_item it) {
 
   // Allocate memory for and construct the barrier
-  auto* bar = sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(), nthreads);
+  auto* bar =
+  sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(),
+  nthreads);
 
-  async_memcpy(pdest, psrc, N, bar);
+  async_copy(pdest, psrc, N, bar);
   // Use the barrier
   bar->arrive_and_wait();
 
@@ -144,16 +156,18 @@ q.parallel_for(..., [=](sycl::nd_item it) {
 
 [source,c++]
 ----
-using wg_barrier = syclex::barrier<sycl::memory_scope::work_group>;
-auto psrc = multi_ptr<T, sycl::access::address_space::global_space>(src);
-auto pdest = multi_ptr<T, sycl::access::address_space::local_space>(dest);
+using wg_barrier = barrier<sycl::memory_scope::work_group>;
+T *psrc = malloc_shared<T>(N, q);
+T *pdest = malloc_shared<T>(N, q);
 
 q.parallel_for(..., [=](sycl::nd_item it) {
 
   // Allocate memory for and construct the barrier
-  auto* bar = sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(), nthreads);
+  auto* bar =
+  sycl::ext::oneapi::group_local_memory<wg_barrier>(it.get_group(),
+  nthreads);
 
-  group_async_memcpy(it.get_group(), pdest, psrc, N, bar);
+  group_async_copy(it.get_group(), pdest, psrc, N, bar);
   // Use the group barrier wait
   group_arrive_and_wait(it.get_group(), bar);
 
