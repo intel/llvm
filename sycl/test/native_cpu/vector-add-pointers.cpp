@@ -45,17 +45,17 @@ int main() {
   deviceQueue.submit([&](handler &cgh) {
     auto kern = [=]() {
       for (int i = 0; i < N; i++) {
-          (*OUT_acc)[i] = (*A_acc)[i] + (*B_acc)[i];
+        (*OUT_acc)[i] = (*A_acc)[i] + (*B_acc)[i];
       }
     };
     cgh.single_task<class vec_add>(kern);
   });
 
   deviceQueue.wait();
-  
+
   for (int i = 0; i < N; i++) {
-  	if ((*OUT_acc)[i]!=(*A_acc)[i] + (*B_acc)[i])
-  		return 1;
+    if ((*OUT_acc)[i] != (*A_acc)[i] + (*B_acc)[i])
+      return 1;
   }
 
   sycl::free(OUT_acc, deviceQueue);
