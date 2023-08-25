@@ -36,6 +36,8 @@ from templates import helper as th
         ${x}_params::serializePtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
         ${x}_params::serializePtr(os, ${caller.body()});
+    %elif iname and iname.startswith("pfn"):
+        os << reinterpret_cast<void*>(${caller.body()});
     %else:
         os << ${caller.body()};
     %endif
