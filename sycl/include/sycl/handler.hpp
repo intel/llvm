@@ -1054,19 +1054,29 @@ private:
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    if (!range_size_fits_in_size_t(NumWorkItems))
+      throw sycl::exception(make_error_code(errc::runtime),
+                            "The total number of work-items in "
+                            "a range must fit within size_t");
 
-    // Aside from the OpenCL CPU backend, the other backends cannot
-    // handle kernel launches when one or more of the dimensions of
-    // the global range exceeds the 32-bit max (*). However, in sycl,
-    // the global range size is specified by a size_t, which can be up
-    // to 64 bits. So, when we get such a global range, we wrap the
-    // old kernel in a new kernel that has each work item peform
-    // multiple invocations the old kernel in a 32-bit global range.
+      // In SYCL, each dimension of a global range size is specified by
+      // a size_t, which can be up to 64 bits.  All backends should be
+      // able to accept a kernel launch with a 32-bit global range size
+      // (i.e. do not throw an error).  The OpenCL CPU backend will
+      // accept every 64-bit global range, but the GPU backends will not
+      // generally accept every 64-bit global range.  So, when we get a
+      // non-32-bit global range, we wrap the old kernel in a new kernel
+      // that has each work item peform multiple invocations the old
+      // kernel in a 32-bit global range.
 #ifdef __SYCL_ENABLE_LARGE_RANGE_WRAPPING__
+    bool HasLargeRange = false;
     for (int i = 0; i < Dims; ++i)
       if (NumWorkItems[i] > (std::numeric_limits<uint32_t>::max)())
-        return parallel_for_large_range<KernelName>(NumWorkItems, Props,
-                                                    KernelFunc);
+        HasLargeRange = true;
+
+    if (HasLargeRange)
+      return parallel_for_large_range<KernelName>(NumWorkItems, Props,
+                                                  KernelFunc);
 #endif
 
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
@@ -2197,11 +2207,6 @@ public:
                                 KernelType KernelFunc) {
     auto Dev = detail::getDeviceFromHandler(*this);
     size_t WGSize = Dev.get_info<info::device::max_work_group_size>();
-    if (!range_size_fits_in_size_t(NumWorkItems))
-      throw sycl::exception(make_error_code(errc::runtime),
-                            "The total number of work-items in "
-                            "a range must fit within size_t");
-
     size_t NOldWorkItems = NumWorkItems.size();
     auto NWorkGroups = (std::numeric_limits<uint32_t>::max)() / WGSize;
     auto NNewWorkItems = NWorkGroups * WGSize;
@@ -2215,24 +2220,19 @@ public:
                                                  LambdaArgType>::value;
 
     auto wrapper = [=](nd_item<1> it, auto... rest) {
-      auto id = it.get_global_linear_id();
-      for (size_t i = 0; i < NNewWorkItemsPerOldWorkItems; ++i) {
-        auto offset = i * NNewWorkItems;
-        auto ip = id + offset;
-        if (ip < NOldWorkItems)
-          KernelFunc(detail::Builder::createItem<Dims, false>(
-                         NumWorkItems, getDelinearizedId(NumWorkItems, ip)),
-                     rest...);
-      }
+      for (auto id = it.get_global_linear_id(); id < NOldWorkItems;
+           id += NNewWorkItems)
+        KernelFunc(detail::Builder::createItem<Dims, false>(
+                       NumWorkItems, getDelinearizedId(NumWorkItems, id)),
+                   rest...);
     };
 
-    if constexpr (hasKernelHandlerArg) {
-      auto with = [=](nd_item<1> it, kernel_handler kh) { wrapper(it, kh); };
-      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props, with);
-    } else {
-      auto without = [=](nd_item<1> it) { wrapper(it); };
-      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props, without);
-    }
+    if constexpr (hasKernelHandlerArg)
+      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props,
+                   [=](nd_item<1> it, kernel_handler kh) { wrapper(it, kh); });
+    else
+      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props,
+                   [=](nd_item<1> it) { wrapper(it); });
   }
 
   /// Reductions @{
