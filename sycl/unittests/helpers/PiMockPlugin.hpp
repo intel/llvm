@@ -1272,7 +1272,7 @@ inline pi_result
 mock_piextCommandBufferCreate(pi_context context, pi_device device,
                               const pi_ext_command_buffer_desc *desc,
                               pi_ext_command_buffer *ret_command_buffer) {
-
+  *ret_command_buffer = createDummyHandle<pi_ext_command_buffer>();
   return PI_SUCCESS;
 }
 
