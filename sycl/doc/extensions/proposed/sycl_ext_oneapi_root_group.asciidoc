@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2022-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2022-2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -46,6 +46,8 @@ This extension also depends on the following other SYCL extensions:
   sycl_ext_oneapi_properties]
 * link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
+* link:../proposed/sycl_ext_oneapi_launch_queries.asciidoc[
+  sycl_ext_oneapi_launch_queries]
 
 
 == Status
@@ -143,72 +145,6 @@ supports.
  feature-test macro always has this value.
 |===
 
-=== Queries
-
-A `sycl::kernel` can be queried for queue-specific information using
-the `ext_oneapi_get_info` function and descriptors from the
-`info::kernel_queue_specific` namespace.
-
-[source,c++]
-----
-namespace sycl {
-
-class kernel {
- public:
-  template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
-};
-
-namespace ext {
-namespace oneapi {
-namespace experimental {
-namespace info {
-namespace kernel_queue_specific {
-
-struct max_num_work_group_sync;
-
-} // namespace kernel_queue_specific
-} // namespace info
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
-} // namespace sycl
-----
-
-NOTE: These queries are queue- and not device-specific because it is
-anticipated that implementations will introduce finer-grained queue
-controls that impact the scheduling of kernels using the root-group.
-
-[source,c++]
-----
-template <typename Param>
-typename Param::return_type ext_oneapi_get_info(const queue &q) const;
-----
-_Preconditions_: `Param` must be one of the `info::kernel_queue_specific`
-descriptors defined in this extension, and the type alias `Param::return_type`
-must be defined in accordance with the table below.
-
-_Returns_: Information about the kernel that applies when the kernel is
-submitted to the queue specified by _q_.
-
-[%header,cols="1,5,5"]
-|===
-|Kernel Descriptor
-|Return Type
-|Description
-
-|`kernel_queue_specific::max_num_work_group_sync`
-|`size_t`
-|Return the maximum number of work-groups that can be synchronized by passing
-a `root_group` to group functions and algorithms. Must be at least 1.
-|===
-
-NOTE: Requiring all devices to return a value of at least 1 ensures that code
-written to use this extension remains portable. However, the performance of
-kernels using only one work-group may be limited on some (highly parallel)
-devices. If root-group synchronization is being used as part of a performance
-optimization, developers should check that the value returned by this query
-is not 1.
 
 === Kernel properties
 
@@ -237,9 +173,9 @@ inline constexpr use_root_sync_key::value_t use_root_sync;
 |The `use_root_sync` property adds the requirement that the kernel must be
  launched in a manner that is compatible with using a root-group in group
  functions and algorithms. If the `sycl::nd_range` parameter used to launch the
- kernel does not meet the requirements described in the Queries section of this
- extension, an implementation must throw a synchronous exception with the
- `errc::nd_range` error code.
+ kernel is incompatible with the results of the launch queries described in the
+ sycl_ext_oneapi_launch_queries extension, an implementation must throw a
+ synchronous exception with the `errc::nd_range` error code.
 |===
 
 
