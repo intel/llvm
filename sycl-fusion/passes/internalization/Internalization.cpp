@@ -227,9 +227,10 @@ Error SYCLInternalizerImpl::canPromoteCall(CallBase *C, const Value *Val,
         "It is not safe to promote a called function which returns a pointer.");
   }
   if (InAggregate) {
-    return createStringError(inconvertibleErrorCode(),
-                             "It is not safe to promote a pointer into an "
-                             "aggregate object to a called function.");
+    return createStringError(
+        inconvertibleErrorCode(),
+        "Promotion of a pointer into an aggregate object to a called function "
+        "is currently not supported.");
   }
 
   SmallVector<size_t> InternInfo = getUsagesInternalization(C, Val, LocalSize);
