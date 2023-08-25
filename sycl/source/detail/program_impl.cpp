@@ -146,9 +146,20 @@ program_impl::program_impl(ContextImplPtr Context,
                                             sizeof(sycl::detail::pi::PiDevice) *
                                                 NumDevices,
                                             PiDevices.data(), nullptr);
-  // Note that a platform_impl::devices() contains only devices that are created
-  // for the program.
-  MDevices = MContext->getPlatformImpl()->get_devices();
+
+  std::vector<device> PlatformDevices = MContext->getPlatformImpl()->get_devices();
+  // Keep only the subset of the devices (associated with context) that
+  // were actually used to create the program.
+  // This is possible when clCreateProgramWithBinary is used.
+  auto NewEnd = std::remove_if(
+      PlatformDevices.begin(), PlatformDevices.end(),
+      [&PiDevices](const sycl::device &Dev) {
+        return PiDevices.end() ==
+               std::find(PiDevices.begin(), PiDevices.end(),
+                         detail::getSyclObjImpl(Dev)->getHandleRef());
+      });
+  PlatformDevices.erase(NewEnd, PlatformDevices.end());
+  MDevices = PlatformDevices;
   assert(!MDevices.empty() && "No device found for this program");
   sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
