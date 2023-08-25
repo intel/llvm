@@ -43,8 +43,8 @@ SYCL specification refer to that revision.
 
 This extension also depends on the following other SYCL extensions:
 
-* link:../supported/sycl_ext_oneapi_accessor_properties.asciidoc[
-  sycl_ext_oneapi_accessor_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[
+  sycl_ext_oneapi_properties.asciidoc] as described in the <<Properties for fpga memory>> section below
 
 Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
 
