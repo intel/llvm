@@ -199,7 +199,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        if(IsNVPTX)
+        if (IsNVPTX)
           LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
