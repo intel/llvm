@@ -482,6 +482,125 @@ template <typename T> void test_fill_async_q() {
   free(h_A);
 }
 
+void constant_memcpy_async() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr size_t size = 2000;
+  constexpr size_t offset = 1000;
+
+  syclcompat::constant_memory<float, 1> d_A(size * sizeof(float));
+  syclcompat::constant_memory<float, 1> d_B(size * sizeof(float));
+
+  float h_A[size];
+  float h_B[size];
+  float h_C[size];
+  float h_D[size];
+
+  for (int i = 0; i < size; i++) {
+    h_A[i] = 1.0f;
+    h_B[i] = 2.0f;
+  }
+
+  for (int i = 0; i < size; i++) {
+    h_A[i] = 1.0f;
+    h_B[i] = 2.0f;
+  }
+
+  // hostA[0..999] -> deviceA[0..999]
+  // hostB[0..1999] -> deviceA[1000..1999]
+  // deviceA[0..1999] -> hostC[0..1999]
+  // deviceA[0..999] -> deviceB[0..999]
+  // deviceA[1000..1999] -> deviceB[1000..1999]
+  // deviceB[0..1999] -> hostD[0..1999]
+
+  syclcompat::memcpy_async((void *)d_A.get_ptr(), (void *)&h_A[0],
+                           offset * sizeof(float));
+  syclcompat::memcpy_async((char *)d_A.get_ptr() + offset * sizeof(float),
+                           (void *)h_B, (size - offset) * sizeof(float));
+  syclcompat::memcpy_async((void *)h_C, (void *)d_A.get_ptr(),
+                           size * sizeof(float));
+  syclcompat::memcpy_async((void *)d_B.get_ptr(), (void *)d_A.get_ptr(),
+                           offset * sizeof(float));
+  syclcompat::memcpy_async(
+      (char *)d_B.get_ptr() + offset * sizeof(float),
+      (void *)((size_t)d_A.get_ptr() + offset * sizeof(float)),
+      (size - offset) * sizeof(float));
+  syclcompat::memcpy_async((void *)h_D, (void *)d_B.get_ptr(),
+                           size * sizeof(float));
+  syclcompat::get_default_queue().wait_and_throw();
+
+  // verify hostD
+  for (int i = 0; i < offset; i++) {
+    assert(fabs(h_A[i] - h_D[i]) <= 1e-5);
+  }
+
+  for (int i = offset; i < size; i++) {
+    assert(fabs(h_B[i] - h_D[i]) <= 1e-5);
+  }
+}
+
+void constant_memcpy_async_q() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  sycl::queue q{{sycl::property::queue::in_order()}};
+
+  constexpr size_t size = 2000;
+  constexpr size_t offset = 1000;
+  syclcompat::constant_memory<float, 1> d_A(size * sizeof(float), q);
+  syclcompat::constant_memory<float, 1> d_B(size * sizeof(float), q);
+
+  float h_A[size];
+  float h_B[size];
+  float h_C[size];
+  float h_D[size];
+
+  for (int i = 0; i < size; i++) {
+    h_A[i] = 1.0f;
+    h_B[i] = 2.0f;
+  }
+
+  for (int i = 0; i < size; i++) {
+    h_A[i] = 1.0f;
+    h_B[i] = 2.0f;
+  }
+
+  // hostA[0..999] -> deviceA[0..999]
+  // hostB[0..999] -> deviceA[1000..1999]
+  // deviceA[0..1999] -> hostC[0..1999]
+  // deviceA[0..999] -> deviceB[0..999]
+  // deviceA[1000..1999] -> deviceB[1000..1999]
+  // deviceB[0..1999] -> hostD[0..1999]
+
+  syclcompat::memcpy_async((void *)d_A.get_ptr(), (void *)&h_A[0],
+                           offset * sizeof(float), q);
+
+  syclcompat::memcpy_async((char *)d_A.get_ptr() + offset * sizeof(float),
+                           (void *)h_B, (size - offset) * sizeof(float), q);
+  syclcompat::memcpy_async((void *)h_C, (void *)d_A.get_ptr(),
+                           size * sizeof(float), q);
+
+  syclcompat::memcpy_async((void *)d_B.get_ptr(), (void *)d_A.get_ptr(),
+                           offset * sizeof(float), q);
+
+  syclcompat::memcpy_async(
+      (char *)d_B.get_ptr() + offset * sizeof(float),
+      (void *)((size_t)d_A.get_ptr() + offset * sizeof(float)),
+      (size - offset) * sizeof(float), q);
+
+  syclcompat::memcpy_async((void *)h_D, (void *)d_B.get_ptr(),
+                           size * sizeof(float), q);
+  q.wait_and_throw();
+
+  // verify hostD
+  for (int i = 0; i < offset; i++) {
+    assert(fabs(h_A[i] - h_D[i]) <= 1e-5);
+  }
+
+  for (int i = offset; i < size; i++) {
+    assert(fabs(h_B[i] - h_D[i]) <= 1e-5);
+  }
+}
+
 int main() {
   test_free_memory();
   test_free_memory_q();

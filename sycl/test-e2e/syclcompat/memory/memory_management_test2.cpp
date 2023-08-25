@@ -39,6 +39,9 @@
 
 #include "memory_common.hpp"
 
+constexpr size_t DataW = 100;
+constexpr size_t DataH = 100;
+
 void test_memcpy_pitched() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -151,9 +154,6 @@ void test_memcpy_kernel() {
   free(h_C);
 }
 
-#define DataW 100
-#define DataH 100
-
 syclcompat::global_memory<float, 2> g_A(DataW, DataH);
 syclcompat::global_memory<float, 2> g_B(DataW, DataH);
 syclcompat::global_memory<float, 2> g_C(DataW, DataH);
@@ -256,6 +256,61 @@ void test_shared_memory() {
   }
 }
 
+syclcompat::constant_memory<float, 2> c_A(DataW, DataH);
+syclcompat::constant_memory<float, 2> c_B(DataW, DataH);
+syclcompat::constant_memory<float, 2> c_C(DataW, DataH);
+
+void test_constant_memory() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  float h_A[DataW][DataH];
+  float h_B[DataW][DataH];
+  float h_C[DataW][DataH];
+
+  for (int i = 0; i < DataW; i++) {
+    for (int j = 0; j < DataH; j++) {
+      h_A[i][j] = 1.0f;
+      h_B[i][j] = 2.0f;
+    }
+  }
+
+  c_A.init();
+  c_B.init();
+  c_C.init();
+  syclcompat::memcpy((void *)c_A.get_ptr(), (void *)&h_A[0][0],
+                     DataW * DataH * sizeof(float));
+  syclcompat::memcpy((void *)c_B.get_ptr(), (void *)&h_B[0][0],
+                     DataW * DataH * sizeof(float));
+
+  {
+    syclcompat::get_default_queue().submit([&](sycl::handler &cgh) {
+      auto c_A_acc = c_A.get_access(cgh);
+      auto c_B_acc = c_B.get_access(cgh);
+      auto c_C_acc = c_C.get_access(cgh);
+      cgh.parallel_for(sycl::range<2>(DataW, DataH), [=](sycl::id<2> id) {
+        syclcompat::accessor<float, syclcompat::memory_region::constant, 2> A(
+            c_A_acc);
+        syclcompat::accessor<float, syclcompat::memory_region::constant, 2> B(
+            c_B_acc);
+        syclcompat::accessor<float, syclcompat::memory_region::constant, 2> C(
+            c_C_acc);
+        int i = id[0], j = id[1];
+        C[i][j] = A[i][j] + B[i][j];
+      });
+    });
+    syclcompat::get_default_queue().wait_and_throw();
+  }
+  syclcompat::memcpy((void *)&h_C[0][0], (void *)c_C.get_ptr(),
+                     DataW * DataH * sizeof(float));
+
+  // verify hostD
+  for (int i = 0; i < DataW; i++) {
+    for (int j = 0; j < DataH; j++) {
+      assert(fabs(h_C[i][j] - h_A[i][j] - h_B[i][j]) <= 1e-5);
+    }
+  }
+}
+
 void test_memcpy_pitched_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -312,6 +367,6 @@ int main() {
 
   test_global_memory();
   test_shared_memory();
-
+  test_constant_memory();
   return 0;
 }
