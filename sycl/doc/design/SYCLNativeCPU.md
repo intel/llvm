@@ -27,7 +27,7 @@ clang++ <device-ir> -o <device-o>
 #link
 clang++ -L<sycl-lib-path> -lsycl <device-o> <host-o> -o <output>
 ```
-In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. The plugin needs to be enabled when configuring DPC++ (e.g. `python buildbot/configure.py --enable-plugin native_cpu`) and needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
+In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. The plugin needs to be enabled when configuring DPC++ (e.g. `python buildbot/configure.py --native_cpu`) and needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
 # Supported features and current limitations
 
