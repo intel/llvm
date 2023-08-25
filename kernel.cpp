@@ -186,11 +186,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
 
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    if (pArgValue) {
-      hKernel->setKernelArg(argIndex, argSize, pArgValue);
-    } else {
-      hKernel->setKernelLocalArg(argIndex, argSize);
-    }
+    hKernel->setKernelArg(argIndex, argSize, pArgValue);
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  std::ignore = pProperties;
+  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
+
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  try {
+    hKernel->setKernelLocalArg(argIndex, argSize);
   } catch (ur_result_t Err) {
     Result = Err;
   }
