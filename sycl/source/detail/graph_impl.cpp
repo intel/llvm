@@ -133,13 +133,8 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
     *NewNodesIt = NodeCopy;
     NodesMap.insert({Node, NodeCopy});
     for (auto &NextNode : Node->MSuccessors) {
-      if (NodesMap.find(NextNode) != NodesMap.end()) {
-        auto Successor = NodesMap[NextNode];
-        NodeCopy->registerSuccessor(Successor, NodeCopy);
-      } else {
-        assert(false &&
-               "Node duplication failed. A duplicated node is missing.");
-      }
+      auto Successor = NodesMap.at(NextNode);
+      NodeCopy->registerSuccessor(Successor, NodeCopy);
     }
   }
 
