@@ -312,7 +312,7 @@ public:
 
     if (SyclDevice.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
-        info::graph_support_level::unsupported) {
+        graph_support_level::unsupported) {
       std::stringstream Stream;
       Stream << SyclDevice.get_backend();
       std::string BackendString = Stream.str();

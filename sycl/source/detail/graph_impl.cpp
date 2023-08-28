@@ -834,7 +834,7 @@ void executable_command_graph::finalizeImpl() {
     bool CmdBufSupport =
         Device.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
-        info::graph_support_level::native;
+        graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
     // Above query should still succeed in emulation mode, but ignore the
