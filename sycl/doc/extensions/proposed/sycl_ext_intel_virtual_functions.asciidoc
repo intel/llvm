@@ -72,6 +72,9 @@ The main purpose of this extension is to reduce amount of SYCL language
 restrictions for device code by allowing to call virtual member functions
 from device functions.
 
+NOTE: this extension **does not** cover (i.e. enables) things like
+`dynamic_cast`, `typeid` or calls through function pointers.
+
 == Specification
 
 === Feature test macro
@@ -97,7 +100,7 @@ supports.
 === New language restrictions for device functions
 
 The following restriction, listed in section 5.4 of the core SYCL specification
-does not apply if this extension is supported by the implementation:
+does not apply if this extension is supported by an implementation:
 
 > The odr-use of polymorphic classes and classes with virtual inheritance is
 > allowed. *However, no virtual member functions are allowed to be called in a
@@ -133,15 +136,18 @@ namespace sycl::ext::oneapi::experimental {
   };
 
   struct calls_indirectly_key {
-    template <typename Set>
-    using value_t = property_value<calls_indirectly_key, Set>;
+    template <typename... Sets>
+    using value_t =
+        std::conditional_t<sizeof...(Sets) == 0,
+                           property_value<calls_indirectly_key, void>,
+                           property_value<calls_indirectly_key, Sets...>>;
   };
 
   template <typename Set = void>
   inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable;
 
-  template <typename Set = void>
-  inline constexpr calls_indirectly_key::value_t<Set> calls_indirectly;
+  template <typename... Sets>
+  inline constexpr calls_indirectly_key::value_t<Sets...> calls_indirectly;
 
   template <>
   struct is_property_key<indirectly_callable_key> : std::true_type {};
@@ -160,17 +166,18 @@ functions. Should only be applied to virtual member functions and to do so,
 Parameter `Set` specifies a group of kernels, which can call this virtual member
 function, it must be a C++ typename. Calling a virtual member function from a
 kernel without `calls_indirectly` property, or with a `calls_indirectly`
-property with a different value of `Set` parameter is an undefined behavior.
+property with a value which does not include the same `Set` as specified by
+`indirectly_callable` in its parameter is an undefined behavior.
 
 |`calls_indirectly`
 |The `calls_indirectly` property marks a SYCL kernel function as performing
 calls through virtual member functions.
 
-Parameter `Set` specifies a group of virtual member functions which can be
+Parameter `Sets` specifies groups of virtual member functions which can be
 called from this kernel, it must be a C++ typename. Calling a virtual member
 function without `indirectly_callable` property, or with an
-`indirectly_callable` property with a different value of `Set` parameter is an
-undefined behavior.
+`indirectly_callable` property with a value of `Set` parameter which is not part
+of `Sets` is an undefined behavior.
 |===
 
 If a virtual member function is called from device code, both definition and
@@ -198,31 +205,62 @@ decorated with the attribute.
 using syclext = sycl::ext::oneapi::experimental;
 
 struct set_A;
+struct set_B;
 
 class Foo {
 public:
   // properties to functions should be applied using the macro:
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) void foo() {}
+      syclext::indirectly_callable<set_A>) void foo() {}
 
   // both declaration and definition should be annotated:
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) void bar();
+      syclext::indirectly_callable<set_A>) void bar();
 
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<set_A>) void baz() {}
+      syclext::indirectly_callable<set_B>) void baz() {}
 };
 
 void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) Foo::bar() {}
+      syclext::indirectly_callable<set_A>) Foo::bar() {}
 
 // kernel calling virtual function should also be annotated:
-/* */.single_task(syclext::properties{syclext::calls_indirectly}, [=] {
+/* */.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
   Foo *ptr = /* ... */;
   ptr->bar()
 
   // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
   // 'Foo::baz', because the latter is declared within a different "set".
+});
+----
+
+Reasons about why it may be necessary to put different virtual functions into
+different "sets" are explained in further sections, but for simplicity purposes
+both properties cane be used without explicitly specifying a "set", thus using
+a default "set":
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct set_A;
+
+class Foo {
+public:
+  // properties to functions should be applied using the macro:
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable<>) void foo() {}
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable<set_A>) void bar() {}
+};
+
+/* */.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
+  Foo *ptr = /* ... */;
+  ptr->bar()
+
+  // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because the
+  // latter is declared within a different (non-default) "set".
 });
 ----
 
@@ -263,17 +301,17 @@ using syclext = sycl::ext::oneapi::experimental;
 struct Foo {
   // properties to functions should be applied using the macro:
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) void foo() {
+      syclext::indirectly_callable<>) void foo() {
     double d = 3.14;
   }
 
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) void bar() {}
+      syclext::indirectly_callable<>) void bar() {}
 };
 
 sycl::queue q;
 
-q.single_task(syclext::properties{syclext::calls_indirectly},
+q.single_task(syclext::properties{syclext::calls_indirectly<>},
     [=] [[sycl::device_has()]] {
   Foo *ptr = /* ... */;
   // No diagnostic about kernel using 'fp64' aspect not listed in `device_has`
@@ -294,18 +332,18 @@ using syclext = sycl::ext::oneapi::experimental;
 struct Foo {
 // properties to functions should be applied using the macro:
 virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable) void foo() {
+    syclext::indirectly_callable<>) void foo() {
   double d = 3.14;
 }
 
 virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-    syclext::indirectly_callable) void bar() {}
+    syclext::indirectly_callable<>) void bar() {}
 };
 
 sycl::queue q(/* device selector choosing a device *without* fp64 support */);
 assert(!q.get_device().has(sycl::aspect::fp64));
 
-q.single_task(syclext::properties{syclext::calls_indirectly}, [=] {
+q.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
   Foo *ptr = /* ... */;
   // 'Foo::bar' doesn't use any optional features and this call is legal.
   // No compilation issues or runtime exceptions should be reported due to
@@ -335,7 +373,7 @@ using syclext = sycl::ext::oneapi::experimental;
 
 struct Base {
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) void foo() {}
+      syclext::indirectly_callable<>) void foo() {}
 };
 
 class Constructor;
@@ -357,7 +395,7 @@ int main() {
 
   Q.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(bundleA);
-    CGH.single_task<Constructor>(syclext::properties{syclext::calls_indirectly},
+    CGH.single_task<Constructor>(syclext::properties{syclext::calls_indirectly<>},
         [=] {
       // Only placement new can be used within device functions.
       new (Obj) Derived;
@@ -366,7 +404,7 @@ int main() {
 
   Q.submit([&](sycl::handler &CGH) {
     CGH.use_kernel_bundle(bundleB);
-    CGH.single_task<Use>(syclext::properties{syclext::calls_indirectly}, [=] {
+    CGH.single_task<Use>(syclext::properties{syclext::calls_indirectly<>}, [=] {
       // Call to 'Base::foo' is an undefined behavior here, because 'Obj' was
       // constructed within kernel bundle `bundleA`
       Obj->foo();
@@ -389,7 +427,7 @@ using syclext = sycl::ext::oneapi::experimental;
 class Base {
 public:
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable) int get_random_number() {
+      syclext::indirectly_callable<>) int get_random_number() {
     return 4; // Chosen by fair dice roll. Guaranteed to be random
   }
 
@@ -401,7 +439,7 @@ public:
 
 class Derived : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(syclext::indirectly_callable<>)
   int get_random_number() override {
     return 221;
   }
@@ -418,7 +456,7 @@ int main() {
     new (Obj) Derived;
   });
 
-  auto props = syclext::properties{syclext::calls_indirectly};
+  auto props = syclext::properties{syclext::calls_indirectly<>};
   Q.single_task(props, [=] {
     Base B;
     Result[0] = B.get_random_number();
