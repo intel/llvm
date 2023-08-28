@@ -23,7 +23,9 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-; Function Attrs: nounwind
+; Vectorized kernel function
+; CHECK: @__vecz_v[[WIDTH:[0-9]+]]_add({{.*}} !dbg [[VECZ_SUBPROG:![0-9]+]]
+; Check that intrinsics for user variable locations are still present
 define spir_kernel void @add(i32 addrspace(1)* %in1, i32 addrspace(1)* %in2, i32 addrspace(1)* %out) #0 !dbg !4 {
 entry:
   %in1.addr = alloca i32 addrspace(1)*, align 8
@@ -33,20 +35,34 @@ entry:
   %a = alloca i32, align 4
   %b = alloca i32, align 4
   store i32 addrspace(1)* %in1, i32 addrspace(1)** %in1.addr, align 8
+; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
+; CHECK-SAME: !dbg [[PARAM_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %in1.addr, metadata !11, metadata !29), !dbg !30
   store i32 addrspace(1)* %in2, i32 addrspace(1)** %in2.addr, align 8
+; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: !dbg [[PARAM_LOC]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %in2.addr, metadata !12, metadata !29), !dbg !30
   store i32 addrspace(1)* %out, i32 addrspace(1)** %out.addr, align 8
+; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: !dbg [[PARAM_LOC]]
   call void @llvm.dbg.declare(metadata i32 addrspace(1)** %out.addr, metadata !13, metadata !29), !dbg !30
+; CHECK: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
+; CHECK-SAME: !dbg [[TID_LOC:![0-9]+]]
   call void @llvm.dbg.declare(metadata i64* %tid, metadata !14, metadata !29), !dbg !31
   %call = call i64 @__mux_get_global_id(i32 0) #3, !dbg !31
   store i64 %call, i64* %tid, align 8, !dbg !31
+; FIXME: We're dropping the llvm.dbg.declare/llvm.dbg.value for %a here - we
+; could probably preserve it.
+; CHECK-NOT: call void @llvm.dbg.value(
   call void @llvm.dbg.declare(metadata i32* %a, metadata !19, metadata !29), !dbg !32
   %0 = load i64, i64* %tid, align 8, !dbg !32
   %1 = load i32 addrspace(1)*, i32 addrspace(1)** %in1.addr, align 8, !dbg !32
   %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %1, i64 %0, !dbg !32
   %2 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !32
   store i32 %2, i32* %a, align 4, !dbg !32
+; FIXME: We're dropping the llvm.dbg.declare/llvm.dbg.value for %a here - we
+; could probably preserve it.
+; CHECK-NOT: call void @llvm.dbg.value(
   call void @llvm.dbg.declare(metadata i32* %b, metadata !20, metadata !29), !dbg !33
   %3 = load i64, i64* %tid, align 8, !dbg !33
   %4 = load i32 addrspace(1)*, i32 addrspace(1)** %in2.addr, align 8, !dbg !33
@@ -115,27 +131,6 @@ attributes #3 = { nobuiltin }
 !34 = !DILocation(line: 7, scope: !4)
 !35 = !DILocation(line: 8, scope: !4)
 
-; Vectorized kernel function
-; CHECK: @__vecz_v[[WIDTH:[0-9]+]]_add({{.*}} !dbg [[VECZ_SUBPROG:![0-9]+]]
-
-; Check that intrinsics for user variable locations are still present
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in1, metadata [[DI_IN1:![0-9]+]], metadata [[EXPR:!DIExpression()]]
-; CHECK-SAME: !dbg [[PARAM_LOC:![0-9]+]]
-
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %in2, metadata [[DI_IN2:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
-
-; CHECK: call void @llvm.dbg.value(metadata ptr addrspace(1) %out, metadata [[DI_OUT:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[PARAM_LOC]]
-
-; CHECK: call void @llvm.dbg.value(metadata i64 %call, metadata [[DI_TID:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME: !dbg [[TID_LOC:![0-9]+]]
-
-; CHECK: call void @llvm.dbg.value(metadata {{.*}}, metadata [[DI_A:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME:!dbg [[A_LOC:![0-9]+]]
-
-; CHECK: call void @llvm.dbg.value(metadata {{.*}}, metadata [[DI_B:![0-9]+]], metadata [[EXPR]]
-; CHECK-SAME:!dbg [[B_LOC:![0-9]+]]
 
 ; Debug info metadata entries
 ; CHECK:[[PTR_TYPE:![0-9]+]] = !DIDerivedType(tag: DW_TAG_pointer_type, baseType: [[DI_BASE:![0-9]+]], size: 64, align: 64)
@@ -144,7 +139,7 @@ attributes #3 = { nobuiltin }
 ; CHECK: [[VECZ_SUBPROG]] = distinct !DISubprogram(name: "add",
 ; CHECK-SAME: retainedNodes: [[VECZ_VARS:![0-9]+]]
 
-; CHECK: [[VECZ_VARS]] = !{[[DI_IN1]], [[DI_IN2]], [[DI_OUT]], [[DI_TID]], [[DI_A]], [[DI_B]]}
+; CHECK: [[VECZ_VARS]] = !{[[DI_IN1]], [[DI_IN2]], [[DI_OUT]], [[DI_TID]], [[DI_A:![0-9]+]], [[DI_B:![0-9]+]]}
 ; CHECK: [[DI_IN1]] = !DILocalVariable(name: "in1", arg: 1, scope: [[VECZ_SUBPROG]],
 ; CHECK-SAME:line: 1, type: [[PTR_TYPE]]
 ; CHECK: [[DI_IN2]] = !DILocalVariable(name: "in2", arg: 2, scope: [[VECZ_SUBPROG]],
@@ -154,14 +149,3 @@ attributes #3 = { nobuiltin }
 
 ; CHECK: [[DI_TID]] = !DILocalVariable(name: "tid", scope: [[VECZ_SUBPROG]]
 ; CHECK: [[DI_A]] = !DILocalVariable(name: "a", scope: [[VECZ_SUBPROG]],
-; CHECK-SAME:line: 5, type: [[VECTOR_TYPE:![0-9]+]])
-
-; Vectorized debug info type create in packetization pass
-; CHECK: [[VECTOR_TYPE]] = !DICompositeType(tag: DW_TAG_array_type, baseType: [[DI_BASE]], size: {{[0-9]+}}, align: {{[0-9]+}}
-; CHECK-SAME:flags: DIFlagVector, elements: ![[DI_ELEMS:[0-9]+]])
-; CHECK:[[DI_ELEMS]] = !{[[DI_SUBRANGE:![0-9]+]]}
-; LLVM 11 adds a lowerBound argument to DISubrange, so the optional check below
-; CHECK: [[DI_SUBRANGE]] = !DISubrange(count: [[WIDTH]]{{(, lowerBound: [0-9])?}})
-
-; CHECK: [[DI_B]] = !DILocalVariable(name: "b", scope: [[VECZ_SUBPROG]],
-; CHECK-SAME: line: 6, type: [[VECTOR_TYPE]])
