@@ -286,51 +286,111 @@ Due to dynamic nature of virtual member functions, compiler is not able to
 perform static analysis of a call graph in order to understand which exact
 virtual functions are called from which kernels, in general case.
 
-Therefore, compiler is not required to issue a diagnostic if a virtual member
-function called from a kernel or a device function uses optional kernel features
-which are not listed in `device_has` attribute attached to the kernel or the
-device function.
-
-Calling a virtual function which uses optional kernel features not compatible
-with a current device is an undefined behavior.
+Instead, information from the new properties is used by an implementation to
+issue such diagnostic. When determining a set of aspects which are used by a
+SYCL kernel function, implementation also takes into account all aspects which
+are used by all virtual member functions included into all "sets" listed in
+`calls_indirectly` property.
 
 [source,dpcpp]
 ----
 using syclext = sycl::ext::oneapi::experimental;
 
+struct set_A;
+struct set_B;
+
 struct Foo {
-  // properties to functions should be applied using the macro:
+  // This function uses 'fp64' aspect
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<>) void foo() {
+      syclext::indirectly_callable<set_A>) void foo() {
     double d = 3.14;
   }
 
+  // This function uses 'fp16' aspect
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
-      syclext::indirectly_callable<>) void bar() {}
+      syclext::indirectly_callable<set_B>) void bar() {
+    sycl::half h = 2.71;
+  }
 };
 
 sycl::queue q;
 
+q.single_task(syclext::properties{syclext::calls_indirectly<set_B>},
+    [=] [[sycl::device_has(sycl::aspect::fp64)]] {
+  // Diagnostic is required for this kernel, because it is declared as only
+  // using 'fp64' aspect, but it also uses virtual member functions from
+  // "set_B", which includes 'Foo:bar' that uses 'fp16' aspect.
+});
+
+q.single_task(syclext::properties{syclext::calls_indirectly<set_A>},
+    [=] [[sycl::device_has()]] {
+  // Diagnostic is required for this kernel, because it is declared as not
+  // using any optional features, but it also uses virtual member functions from
+  // "set_A", which includes 'Foo::foo' that uses 'fp64' aspect.
+});
+
+q.single_task(syclext::properties{syclext::calls_indirectly<set_A>},
+    [=] [[sycl::device_has(sycl::aspect::fp64)]] {
+  // No diagnostic is required for this kernel, because list of declared aspects
+  // matches list of used aspects. That includes viratul member functions from
+  // "set_A", which includes 'Foo::foo' that uses 'fp64' aspect
+});
+
 q.single_task(syclext::properties{syclext::calls_indirectly<>},
     [=] [[sycl::device_has()]] {
-  Foo *ptr = /* ... */;
-  // No diagnostic about kernel using 'fp64' aspect not listed in `device_has`
-  // attribute is not guaranteed to be emitted here.
-  ptr->foo()
+  // No diagnostic is required for this kernel, because list of declared aspects
+  // matches list of used aspects. There are no virtual member functions defined
+  // in a default "set", which means that no extra optional kernel features
+  // requirements were attached to the kernel.
+});
+----
+
+Submitting a kernel with `calls_indirectly` property, which includes virtual
+member functions that use optional kernel features to a device which doesn't
+support them, should result in an exception at runtime, similar to how it is
+defined by the core SYCL specification.
+
+[source,dpcpp]
+----
+using syclext = sycl::ext::oneapi::experimental;
+
+struct set_A;
+struct set_B;
+
+struct Foo {
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable<set_A>) void foo() {
+    double d = 3.14;
+  }
+
+  virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+      syclext::indirectly_callable<set_B>) void bar() {}
+};
+
+sycl::queue q(/* device selector returns a device *without* fp64 support */);
+assert(!q.get_device().has(sycl::aspect::fp64));
+
+q.single_task(syclext::properties{syclext::calls_indirectly<set_A>}, [=] {
+  // Exception is expected to be thrown, because target device doesn't support
+  // fp64 aspect and it is required by 'Foo::foo' which is included into 'set_A'
+});
+
+q.single_task(syclext::properties{syclext::calls_indirectly<set_B>}, [=] {
+  // No exceptions are expected, because 'set_B' doesn't bring any requirements
+  // for optional kernel features.
 });
 ----
 
 An implementation may not raise a compile time diagnostic or a run time
 exception merely due to speculative compilation of a virtual member function for
-a device when the application does not actually call that member function on
-that device.
+a device when the application does not specify a use of virtual member functions
+through the correponding properties.
 
 [source,dpcpp]
 ----
 using syclext = sycl::ext::oneapi::experimental;
 
 struct Foo {
-// properties to functions should be applied using the macro:
 virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     syclext::indirectly_callable<>) void foo() {
   double d = 3.14;
@@ -343,12 +403,16 @@ virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 sycl::queue q(/* device selector choosing a device *without* fp64 support */);
 assert(!q.get_device().has(sycl::aspect::fp64));
 
-q.single_task(syclext::properties{syclext::calls_indirectly<>}, [=] {
-  Foo *ptr = /* ... */;
-  // 'Foo::bar' doesn't use any optional features and this call is legal.
-  // No compilation issues or runtime exceptions should be reported due to
-  // 'Foo::foo' using unsupported fp64 aspect, because it is not called.
-  ptr->bar()
+auto *Storage = sycl::malloc_device<Foo>(1, q);
+
+q.single_task([=] {
+  // The kernel is not submitted with 'calls_indirectly' property and therefore
+  // it is not considered to be using any of virtual member functions of 'Foo'.
+  // This means that the object of 'Foo' can be successfully created by this
+  // kernel, regardless of whether a target device supports 'fp64' aspect which
+  // is used by 'Foo::foo'.
+  // No exceptions are expected to be thrown.
+  new (Storage) Foo;
 });
 ----
 
@@ -361,11 +425,6 @@ kernel which used to construct an object.
 
 Performing calls to virtual member functions of an object constructed in a
 kernel from a different kernel bundle is an undefined behavior.
-
-If an object of a polymorphic class is constructed in a kernel `A`, stored to a
-memory and retrieved in a kernel `B` to perform a call through virtual member
-function, then both kernels `A` and `B` must be present in the same device
-image or otherwise behavior is undefined.
 
 [source,dpcpp]
 ----
@@ -382,7 +441,7 @@ class Use;
 int main() {
   sycl::queue Q;
 
-  Base *Obj = sycl::malloc_device<Derived>(1, Q);
+  Base *Obj = sycl::malloc_device<Base>(1, Q);
   int *Result = sycl::malloc_shared<int>(2, Q);
 
   auto bundleA
@@ -414,6 +473,11 @@ int main() {
   return 0;
 }
 ----
+
+As a side effect, the restriction above also means that if an object of a
+polymorphic class was constructed by a kernel within a kernel bundle associcated
+only with a device `DA`, then performing calls to virtual member functions of
+that object in any kernels submitted to a device is an undefined behavior.
 
 
 == Example usage
