@@ -25,8 +25,8 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q, unsigned int vnniFactor) {
 
   q.submit([&](handler &cgh) {
      cgh.parallel_for(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}), [=
-     ](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
+         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
