@@ -14,7 +14,7 @@ function(add_fuzz_test name label)
         ${PROJECT_NAME}::common
         -fsanitize=fuzzer)
     add_test(NAME ${TEST_TARGET_NAME}
-        COMMAND ${TEST_TARGET_NAME} ${ARGN}
+        COMMAND ${TEST_TARGET_NAME} ${ARGN} -verbosity=1
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(${TEST_TARGET_NAME} PROPERTIES
         LABELS ${label}
@@ -30,8 +30,7 @@ function(add_fuzz_test name label)
 endfunction()
 
 # Add long test
-add_fuzz_test(base fuzz-long
-    -max_total_time=600 -seed=1 -verbosity=1)
+add_fuzz_test(base fuzz-long -max_total_time=600 -seed=1)
 
 # Add short tests
 set(CORPUS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/corpus)
@@ -39,5 +38,5 @@ file(GLOB files "${CORPUS_DIR}/*")
 
 foreach(file ${files})
     get_filename_component(filename ${file} NAME)
-    add_fuzz_test(${filename} fuzz-short ${file} -verbosity=1)
+    add_fuzz_test(${filename} fuzz-short ${file})
 endforeach()
