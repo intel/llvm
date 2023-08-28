@@ -87,9 +87,8 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramRetain(ur_program_handle_t hProgram) {
-  std::ignore = hProgram;
-
-  DIE_NO_IMPLEMENTATION
+  hProgram->incrementReferenceCount();
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
