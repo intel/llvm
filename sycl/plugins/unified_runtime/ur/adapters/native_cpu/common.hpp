@@ -1,4 +1,4 @@
-//===----------- common.cpp - Native CPU Adapter ---------------------===//
+//===----------- common.hpp - Native CPU Adapter ---------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -53,3 +53,16 @@ namespace ur {
 [[noreturn]] void die(const char *pMessage);
 } // namespace ur
 } // namespace detail
+
+// Base class to store common data
+struct _ur_object {
+  ur_shared_mutex Mutex;
+};
+
+struct RefCounted {
+  std::atomic_uint32_t _refCount;
+  void incrementReferenceCount() { _refCount++; }
+  void decrementReferenceCount() { _refCount--; }
+  RefCounted() : _refCount{1} {}
+  uint32_t getReferenceCount() const { return _refCount; }
+};
