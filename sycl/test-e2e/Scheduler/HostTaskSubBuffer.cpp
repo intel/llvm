@@ -1,5 +1,10 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1  %{run} %t.out
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 env SYCL_PI_TRACE=2  %{run} %t.out | FileCheck %s
+
+// CHECK: piEnqueueMemBufferMap
+// CHECK: piEnqueueMemBufferMap
+// CHECK: piEnqueueMemUnmap
+// CHECK: piEnqueueMemUnmap
 
 /*
 
