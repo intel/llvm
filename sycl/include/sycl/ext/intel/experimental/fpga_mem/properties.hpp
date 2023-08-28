@@ -17,9 +17,14 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+namespace ext {
+namespace intel {
+namespace experimental {
 
-template <typename T, typename PropertyListT> class fpga_mem;
+// Make sure that we are using the right namespace
+template <typename PropertyT, typename... Ts>
+using property_value =
+    sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
 // Property definitions
 // Artem: make sure we can create a "any" resource
@@ -82,6 +87,28 @@ struct num_replicates_key {
       property_value<num_replicates_key, std::integral_constant<size_t, n>>;
 };
 
+} // namespace experimental
+} // namespace intel
+
+namespace oneapi {
+namespace experimental {
+
+// Forward declare a class that these properties can be applied to
+template <typename T, typename PropertyListT> class fpga_mem;
+
+// shortcuts for proper namespaces
+using resource_key = intel::experimental::resource_key;
+using num_banks_key = intel::experimental::num_banks_key;
+using stride_size_key = intel::experimental::stride_size_key;
+using word_size_key = intel::experimental::word_size_key;
+using bi_directional_ports_key = intel::experimental::bi_directional_ports_key;
+using clock_2x_key = intel::experimental::clock_2x_key;
+using ram_stitching_key = intel::experimental::ram_stitching_key;
+using max_private_copies_key = intel::experimental::max_private_copies_key;
+using num_replicates_key = intel::experimental::num_replicates_key;
+using resource_enum = intel::experimental::resource_enum;
+using ram_stitching_enum = intel::experimental::ram_stitching_enum;
+
 // Convenience aliases
 template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
 inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
@@ -118,6 +145,16 @@ inline constexpr max_private_copies_key::value_t<n> max_private_copies;
 
 template <size_t n>
 inline constexpr num_replicates_key::value_t<n> num_replicates;
+
+template <> struct is_property_key<resource_key> : std::true_type {};
+template <> struct is_property_key<num_banks_key> : std::true_type {};
+template <> struct is_property_key<stride_size_key> : std::true_type {};
+template <> struct is_property_key<word_size_key> : std::true_type {};
+template <> struct is_property_key<bi_directional_ports_key> : std::true_type {};
+template <> struct is_property_key<clock_2x_key> : std::true_type {};
+template <> struct is_property_key<ram_stitching_key> : std::true_type {};
+template <> struct is_property_key<max_private_copies_key> : std::true_type {};
+template <> struct is_property_key<num_replicates_key> : std::true_type {};
 
 // Associate properties with fpga_mem
 template <typename T, typename PropertyListT>
@@ -237,7 +274,8 @@ struct PropertyMetaInfo<num_replicates_key::value_t<Value>> {
 };
 
 } // namespace detail
-
-} // namespace ext::oneapi::experimental
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
 } // namespace _V1
 } // namespace sycl
