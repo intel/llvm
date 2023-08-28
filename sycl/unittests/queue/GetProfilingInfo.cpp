@@ -457,7 +457,7 @@ TEST(GetProfilingInfo, fallback_profiling_memcpy_profiling) {
   });
   event2.wait();
 
-  auto event3 = Queue.submit([&](sycl::handler& cgh) {
+  auto event3 = Queue.submit([&](sycl::handler &cgh) {
     cgh.memcpy(&host_array[0], device_array, N * sizeof(int));
   });
   event3.wait();
