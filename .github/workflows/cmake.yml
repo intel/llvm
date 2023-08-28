@@ -143,7 +143,7 @@ jobs:
 
     - name: Fuzz test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz$"
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-short"
 
   adapter-build:
     name: Build - Adapters on Ubuntu
