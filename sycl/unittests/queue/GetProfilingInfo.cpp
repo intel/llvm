@@ -9,6 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <array>
+#include <algorithm>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -21,6 +23,13 @@
 #include <helpers/TestKernel.hpp>
 
 #include <detail/context_impl.hpp>
+
+#include <iterator>
+#include <numeric>
+#include <type_traits>
+#include <vector>
+
+#include <iostream>
 
 class InfoTestKernel;
 
@@ -413,7 +422,84 @@ TEST(GetProfilingInfo, fallback_profiling_PiGetDeviceAndHostTimer_unsupported) {
   EXPECT_LT(submit_time, end_time);
 }
 
-TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
+TEST(GetProfilingInfo, fallback_profiling_memcpy_profiling) {
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID});
+
+  const int N = 42;
+  std::array<int, N> host_array;
+  int* device_array = sycl::malloc_device<int>(N, Queue);
+  for (int i = 0; i < N; i++) host_array[i] = N;
+
+  auto event1 = Queue.submit([&](sycl::handler& cgh) {
+    cgh.memcpy(device_array, &host_array[0], N * sizeof(int));
+  });
+  event1.wait(); 
+
+  auto event2 = Queue.submit([&](sycl::handler &cgh) {
+    cgh.parallel_for<InfoTestKernel>(N, [=](sycl::id<1> idx) {});
+  });
+  event2.wait();
+
+  auto event3 = Queue.submit([&](sycl::handler& cgh) {
+    cgh.memcpy(&host_array[0], device_array, N * sizeof(int));
+  });
+  event3.wait();
+
+  auto submit_time1 =
+      event1.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time1 =
+      event1.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time1 =
+      event1.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((submit_time1 && start_time1 && end_time1) &&
+         "Profiling information failed.");
+  EXPECT_LT(submit_time1, start_time1);
+  EXPECT_LT(submit_time1, end_time1);
+
+  auto submit_time2 =
+      event2.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time2 =
+      event2.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time2 =
+      event2.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((submit_time2 && start_time2 && end_time2) &&
+         "Profiling information failed.");
+  EXPECT_LT(submit_time2, start_time2);
+  EXPECT_LT(submit_time2, end_time2);
+
+  auto submit_time3 =
+      event3.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time3 =
+      event3.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time3 =
+      event3.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((submit_time3 && start_time3 && end_time3) &&
+         "Profiling information failed.");
+  EXPECT_LT(submit_time3, start_time3);
+  EXPECT_LT(submit_time3, end_time3);
+
+  free(device_array, Queue);
+}
+
+
+TEST(GetProfilingInfo, fallback_profiling_vector_add_profiling) {
+  using namespace sycl;
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
@@ -433,10 +519,29 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
       Ctx, {Dev}, {KernelID});
 
   const int globalWIs{512};
-  DeviceTimerCalled = true;
-  auto event = Queue.submit([&](sycl::handler &cgh) {
-    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](sycl::id<1> idx) {});
-  });
+  std::vector<int> a(globalWIs), b(globalWIs), c(globalWIs);
+  std::fill(a.begin(), a.end(), 1);
+  std::fill(b.begin(), b.end(), 2);
+  std::fill(c.begin(), c.end(), 0);
+
+  // Create buffers associated with inputs and output
+  buffer<int, 1> a_buf{a}, b_buf{b}, c_buf{c};
+
+  // Submit the kernel to the queue
+  auto event = Queue.submit([&](handler& cgh) {
+    accessor a{a_buf, cgh};
+    accessor b{b_buf, cgh};
+    accessor c{c_buf, cgh};
+
+// BEGIN CODE SNIP
+    cgh.parallel_for<InfoTestKernel>(globalWIs, [=](id<1> idx) {
+        //c[idx] = a[idx] + b[idx];
+      });
+    });
+
+  // bool passed = std::all_of(c.begin(), c.end(),
+  //                           [](int i) { return (i == 3); });
+
   event.wait();
   auto submit_time =
       event.get_profiling_info<sycl::info::event_profiling::command_submit>();
@@ -449,3 +554,71 @@ TEST(GetProfilingInfo, fallback_profiling_mock_piEnqueueKernelLaunch) {
   EXPECT_LT(submit_time, start_time);
   EXPECT_LT(submit_time, end_time);
 }
+
+TEST(GetProfilingInfo, fallback_profiling_matrix_mul_profiling) {
+  using namespace sycl;
+  sycl::unittest::PiMock Mock;
+  sycl::platform Plt = Mock.getPlatform();
+  Mock.redefineBefore<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
+      redefinedPiEventGetProfilingInfo);
+  Mock.redefine<sycl::detail::PiApiKind::piGetDeviceAndHostTimer>(
+      redefinedFailedPiGetDeviceAndHostTimer);
+  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
+      redefinedDeviceGetInfoAcc);
+  const sycl::device Dev = Plt.get_devices()[0];
+  sycl::context Ctx{Dev};
+  static sycl::unittest::PiImage DevImage = generateTestImage<InfoTestKernel>();
+  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage};
+  auto KernelID = sycl::get_kernel_id<InfoTestKernel>();
+  sycl::queue Queue{
+      Ctx, Dev, sycl::property_list{sycl::property::queue::enable_profiling{}}};
+  auto KernelBundle = sycl::get_kernel_bundle<sycl::bundle_state::input>(
+      Ctx, {Dev}, {KernelID});
+
+  const int matrixSize = 128;
+
+  const int M = matrixSize;
+  const int N = matrixSize;
+  const int K = matrixSize;
+
+  std::vector<int> vecA(matrixSize*matrixSize), vecB(matrixSize*matrixSize), vecC(matrixSize*matrixSize);
+  std::fill(vecA.begin(), vecA.end(), 1);
+
+  buffer<int, 2> bufA{vecA.data(), range<2>{M, K}};
+  buffer<int, 2> bufB{vecB.data(), range<2>{K, N}};
+  buffer<int, 2> bufC{vecC.data(), range<2>{M, N}};
+
+    // Submit the kernel to the queue
+    auto event = Queue.submit([&](handler& cgh) {
+      accessor matrixA{bufA, cgh};
+      accessor matrixB{bufB, cgh};
+      accessor matrixC{bufC, cgh};
+
+      // BEGIN CODE SNIP
+      cgh.parallel_for<InfoTestKernel>(range{M, N}, [=](id<2> idx) {
+        // int m = id[0];
+        // int n = id[1];
+
+        // T sum = 0;
+        // for (int k = 0; k < K; k++) {
+        //   sum += matrixA[m][k] * matrixB[k][n];
+        // }
+        // matrixC[m][n] = sum;
+      });
+      // END CODE SNIP
+    });
+
+  event.wait();  // needed for now (we learn a better way later)
+
+  auto submit_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+  auto start_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_start>();
+  auto end_time =
+      event.get_profiling_info<sycl::info::event_profiling::command_end>();
+  assert((submit_time && start_time && end_time) &&
+         "Profiling information failed.");
+  EXPECT_LT(submit_time, start_time);
+  EXPECT_LT(submit_time, end_time);
+}
+
