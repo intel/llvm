@@ -49,11 +49,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   ur_mem_handle_t_ *retMem;
 
   if (useHostPtr) {
-    retMem = new ur_mem_handle_t_(pProperties->pHost);
+    retMem = new _ur_buffer(hContext, pProperties->pHost);
   } else if (copyHostPtr) {
-    retMem = new ur_mem_handle_t_(pProperties->pHost, size);
+    retMem = new _ur_buffer(hContext, pProperties->pHost, size);
   } else {
-    retMem = new ur_mem_handle_t_(size);
+    retMem = new _ur_buffer(hContext, size);
   }
 
   *phBuffer = retMem;
@@ -82,13 +82,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
     ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
     ur_buffer_create_type_t bufferCreateType, const ur_buffer_region_t *pRegion,
     ur_mem_handle_t *phMem) {
-  std::ignore = hBuffer;
-  std::ignore = flags;
-  std::ignore = bufferCreateType;
-  std::ignore = pRegion;
-  std::ignore = phMem;
 
-  DIE_NO_IMPLEMENTATION
+  std::ignore = bufferCreateType;
+  UR_ASSERT(hBuffer && !hBuffer->isImage() &&
+                !(static_cast<_ur_buffer *>(hBuffer))->isSubBuffer(),
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  std::shared_lock<ur_shared_mutex> Guard(hBuffer->Mutex);
+
+  if (flags != UR_MEM_FLAG_READ_WRITE) {
+    die("urMemBufferPartition: NativeCPU implements only read-write buffer,"
+        "no read-only or write-only yet.");
+  }
+
+  try {
+    auto partitionedBuffer = new _ur_buffer(static_cast<_ur_buffer *>(hBuffer),
+                                            pRegion->origin, pRegion->size);
+    *phMem = reinterpret_cast<ur_mem_handle_t>(partitionedBuffer);
+  } catch (const std::bad_alloc &) {
+    return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+  } catch (...) {
+    return UR_RESULT_ERROR_UNKNOWN;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
