@@ -103,7 +103,7 @@ bool polygeist::isTailCall(CallOpInterface call) {
 
   Operation *nextOp = call->getNextNode();
   return (nextOp->hasTrait<OpTrait::IsTerminator>() ||
-          isRegionReturnLike(nextOp));
+          isa<RegionBranchTerminatorOpInterface>(nextOp));
 }
 
 unsigned polygeist::getGridDimension(FunctionOpInterface func) {
