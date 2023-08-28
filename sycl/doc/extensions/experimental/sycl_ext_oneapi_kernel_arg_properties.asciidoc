@@ -116,8 +116,6 @@ struct is_property_key_of<
   restrict_key, annotated_arg<T, PropertyListT>> : std::true_type {};
 } // namespace sycl::ext::oneapi::experimental
 ```
---
-
 === `alignment` property
 
 The `alignment` property defined here is only meaningful on the kernel arguments
@@ -139,7 +137,11 @@ template<> struct is_property_key<
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
-  restrict_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+  alignment_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
+
+template<typename T, typename PropertyListT>
+struct is_property_key_of<
+  alignment_key, annotated_arg<T, PropertyListT>> : std::true_type {};
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
