@@ -595,27 +595,27 @@ TEST(GetProfilingInfo, fallback_profiling_matrix_mul_profiling) {
     accessor matrixB{bufB, cgh};
     accessor matrixC{bufC, cgh};
     // BEGIN CODE SNIP
-    cgh.parallel_for<InfoTestKernel>(range{M, N}, [=](id<2> idx) {
-      // int m = id[0];
-      // int n = id[1];
-      // T sum = 0;
-      // for (int k = 0; k < K; k++) {
-      //   sum += matrixA[m][k] * matrixB[k][n];
-      // }
-      // matrixC[m][n] = sum;
+    cgh.parallel_for<InfoTestKernel>(sycl::range{M, N}, [=](sycl::id<2> idx) {
+      //   int m = id[0];
+      //   int n = id[1];
+      //   T sum = 0;
+      //   for (int k = 0; k < K; k++) {
+      //     sum += matrixA[m][k] * matrixB[k][n];
+      //   }
+      //   matrixC[m][n] = sum;
+      // });
+      // END CODE SNIP
     });
-    // END CODE SNIP
-  });
 
-  event.wait(); // needed for now (we learn a better way later)
-  auto submit_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto start_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto end_time =
-      event.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((submit_time && start_time && end_time) &&
-         "Profiling information failed.");
-  EXPECT_LT(submit_time, start_time);
-  EXPECT_LT(submit_time, end_time);
+    event.wait(); // needed for now (we learn a better way later)
+    auto submit_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_submit>();
+    auto start_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_start>();
+    auto end_time =
+        event.get_profiling_info<sycl::info::event_profiling::command_end>();
+    assert((submit_time && start_time && end_time) &&
+           "Profiling information failed.");
+    EXPECT_LT(submit_time, start_time);
+    EXPECT_LT(submit_time, end_time);
 }
