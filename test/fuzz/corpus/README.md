@@ -1,6 +1,10 @@
-# Corpra for fuzz tests with fixed API calls scenarios
-These corpra contain UR API calls in a predefined order described below.
+# Corpora for fuzz tests with fixed API calls scenarios
+These corpora contain UR API calls in a predefined order described below.
 All scenarios begin with single calls to urInit() and urAdapterGet().
+
+<!--- TODO: extend this doc -->
+More details on seed corpora for fuzzer can be found
+[here](https://github.com/google/fuzzing/blob/master/tutorial/libFuzzerTutorial.md#seed-corpus).
 
 ## create-release
 Test device/context/pool create and release
