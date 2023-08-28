@@ -1545,7 +1545,7 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
 
     if (!MemRefABI ||
         isa<LLVM::LLVMArrayType, LLVM::LLVMStructType, LLVM::LLVMPointerType,
-            LLVM::LLVMFunctionType>(SubType)) {
+            LLVM::LLVMFunctionType, LLVM::LLVMTargetExtType>(SubType)) {
       // JLE_QUEL::THOUGHTS
       // When generating the sycl_halide_kernel, If a struct type contains
       // SYCL types, that means that this is the functor, and we can't create

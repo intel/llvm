@@ -173,6 +173,11 @@ MLIRScanner::VisitImplicitValueInitExpr(clang::ImplicitValueInitExpr *Decl) {
     return ValueCategory(Builder.create<mlir::LLVM::NullOp>(Loc, PT), false,
                          Builder.getI8Type());
 
+  if (auto PT = dyn_cast<mlir::LLVM::LLVMTargetExtType>(MLIRTy))
+    return ValueCategory(Builder.create<mlir::LLVM::ConstantOp>(
+                             Loc, PT, Builder.getI64IntegerAttr(0)),
+                         false, Builder.getI8Type());
+
   for (auto *Child : Decl->children())
     Child->dump();
 
