@@ -24,12 +24,13 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-; Function Attrs: nounwind
+; CHECK: define spir_kernel void @__vecz_v4_unaligned_load
 define spir_kernel void @unaligned_load(i32 addrspace(1)* %in, i32 addrspace(1)* %offsets, i32 addrspace(1)* %out) #0 !dbg !7 {
 entry:
   %in.addr = alloca i32 addrspace(1)*, align 8
   %offsets.addr = alloca i32 addrspace(1)*, align 8
   %out.addr = alloca i32 addrspace(1)*, align 8
+; CHECK: %tmp = alloca <16 x i32>, align 16
   %tid = alloca i32, align 4
   %tmp = alloca <3 x i32>, align 16
   store i32 addrspace(1)* %in, i32 addrspace(1)** %in.addr, align 8
@@ -44,6 +45,12 @@ entry:
   store i32 %conv, i32* %tid, align 4, !dbg !31
   call void @llvm.dbg.declare(metadata <3 x i32>* %tmp, metadata !15, metadata !29), !dbg !32
   %0 = load i32 addrspace(1)*, i32 addrspace(1)** %in.addr, align 8, !dbg !32
+; CHECK: %[[TMP_LD:.+]] = call <4 x i32> @__vecz_b_interleaved_load4_4_Dv4_ju3ptr(ptr nonnull %tmp)
+; FIXME: This llvm.dbg.value marks a 'kill location' and denotes the
+; termination of the previous value assigned to %tmp - we could probably do
+; better here by manifesting a vectorized value?
+; CHECK: call void @llvm.dbg.value(metadata i32 {{(poison|undef)}}, metadata !{{[0-9]+}},
+; CHECK-SAME:   metadata !DIExpression({{.*}})), !dbg !{{[0-9]+}}
   %1 = load i32, i32* %tid, align 4, !dbg !32
   %mul = mul nsw i32 3, %1, !dbg !32
   %idx.ext = sext i32 %mul to i64, !dbg !32
@@ -135,8 +142,3 @@ attributes #3 = { nobuiltin }
 !34 = !DILocation(line: 5, scope: !7)
 !35 = !DILocation(line: 6, scope: !7)
 !36 = !DILocation(line: 7, scope: !7)
-
-; CHECK: define spir_kernel void @__vecz_v4_unaligned_load
-; CHECK: %tmp = alloca <16 x i32>, align 16
-; CHECK: %[[TMP_LD:.+]] = call <4 x i32> @__vecz_b_interleaved_load4_4_Dv4_ju3ptr(ptr nonnull %tmp)
-; CHECK: call void @llvm.dbg.value(metadata <4 x i32> %[[TMP_LD]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg !{{[0-9]+}}

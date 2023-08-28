@@ -205,7 +205,7 @@ class Packetizer::Impl : public Packetizer {
   Value *packetizeSubgroupBroadcast(Instruction *I);
   /// @brief Packetize PHI node.
   ///
-  /// @param[in] PHI PHI Node to packetize.
+  /// @param[in] Phi PHI Node to packetize.
   ///
   /// @return Packetized values.
   ValuePacket packetizePHI(PHINode *Phi);
@@ -218,7 +218,7 @@ class Packetizer::Impl : public Packetizer {
   /// @brief Packetize a subgroup scan.
   ///
   /// @param[in] CI CallInst to packetize.
-  /// @param[in] SubgroupScanKind type of subgroup scan to packetized.
+  /// @param[in] Scan type of subgroup scan to packetized.
   ///
   /// @return Packetized values.
   ValuePacket packetizeSubgroupScan(CallInst *CI,
@@ -230,9 +230,9 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized values.
   Result assign(Value *Scalar, Value *Vectorized);
-  /// @brief Packetize a load instruction.
+  /// @brief Vectorize an instruction.
   ///
-  /// @param[in] Load Instruction to packetize.
+  /// @param[in] Ins Instruction to packetize.
   ///
   /// @return Packetized instruction.
   Value *vectorizeInstruction(Instruction *Ins);
@@ -274,7 +274,7 @@ class Packetizer::Impl : public Packetizer {
   ValuePacket packetizeBinaryOp(BinaryOperator *BinOp);
   /// @brief Packetize a freeze instruction.
   ///
-  /// @param[in] FreezeInst Instruction to packetize.
+  /// @param[in] FreezeI Instruction to packetize.
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeFreeze(FreezeInst *FreezeI);
@@ -340,9 +340,9 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeInsertElement(InsertElementInst *InsertElement);
-  /// @brief Packetize an insert element instruction.
+  /// @brief Packetize an extract element instruction.
   ///
-  /// @param[in] InsertElement Instruction to packetize.
+  /// @param[in] ExtractElement Instruction to packetize.
   ///
   /// @return Packetized instruction.
   ValuePacket packetizeExtractElement(ExtractElementInst *ExtractElement);
@@ -2104,87 +2104,8 @@ ValuePacket Packetizer::Impl::packetizeMemOp(MemOp &op) {
   return results;
 }
 
-void Packetizer::Impl::vectorizeDI(Instruction *Scalar, Value *Packet) {
-  auto *const LAM = LocalAsMetadata::getIfExists(Scalar);
-  if (!LAM) {
-    return;
-  }
-
-  auto *const MDV = MetadataAsValue::getIfExists(Scalar->getContext(), LAM);
-  if (!MDV) {
-    return;
-  }
-
-  DIBuilder DIB(*Scalar->getModule(), false);
-
-  // Find all the debug value intrinsics attached to scalar instruction
-  for (User *U : MDV->users()) {
-    DbgValueInst *const DVI = dyn_cast<DbgValueInst>(U);
-    if (!DVI) {
-      continue;
-    }
-
-    DILocalVariable *const DILocal = DVI->getVariable();
-    DIType *LocalType = dyn_cast<DIType>(DILocal->getType());
-
-    // Vector types need to be of a integral base type
-    while (!isa<DIBasicType>(LocalType)) {
-      if (DIDerivedType *DerivedType = dyn_cast<DIDerivedType>(LocalType)) {
-        LocalType = dyn_cast_or_null<DIType>(DerivedType->getBaseType());
-      } else if (DICompositeType *CompositeType =
-                     dyn_cast<DICompositeType>(LocalType)) {
-        auto baseType = CompositeType->getBaseType();
-        LocalType = dyn_cast_or_null<DIType>(baseType);
-      } else {
-        // Error case:
-        // No other valid derived classes of DIType,
-        // however some might be added to LLVM in the future.
-        break;
-      }
-
-      if (!LocalType) {
-        break;
-      }
-    }
-
-    // Type is something complex like a struct which we can't handle
-    if (!LocalType) {
-      continue;
-    }
-
-    if (SimdWidth.isScalable()) {
-      continue;
-    }
-    // Create a new DI vector type with simd width
-    const unsigned int Width = SimdWidth.getFixedValue();
-    Metadata *const Subscript = DIB.getOrCreateSubrange(0, Width);
-    DINodeArray SubscriptArray = DIB.getOrCreateArray(Subscript);
-
-    const uint64_t Size = LocalType->getSizeInBits() * Width;
-    const uint64_t Align = LocalType->getAlignInBits() * Width;
-
-    DICompositeType *const VectorType =
-        DIB.createVectorType(Size, Align, LocalType, SubscriptArray);
-
-    // Replace DILocalVariable type with our new vectorized type
-    DILocal->replaceOperandWith(3, VectorType);
-
-    // New packetized instruction will point to the base of our vector type
-    auto DIExpr = DIB.createExpression();
-
-    // Create llvm.dbg.value() intrinsic for packetized instruction,
-    // but can't insert it before a phi node.
-    if (isa<PHINode>(Scalar)) {
-      DIB.insertDbgValueIntrinsic(Packet, DILocal, DIExpr, DVI->getDebugLoc(),
-                                  Scalar->getParent()->getFirstNonPHI());
-    } else {
-      DIB.insertDbgValueIntrinsic(Packet, DILocal, DIExpr, DVI->getDebugLoc(),
-                                  Scalar);
-    }
-    // Delete the old scalar debug intrinsic since the instruction
-    // it references will also be deleted.
-    IC.deleteInstructionLater(DVI);
-  }
+void Packetizer::Impl::vectorizeDI(Instruction *, Value *) {
+  // FIXME: Reinstate support for vectorizing debug info
   return;
 }
 

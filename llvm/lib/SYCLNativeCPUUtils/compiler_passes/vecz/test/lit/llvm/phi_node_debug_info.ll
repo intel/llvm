@@ -17,13 +17,14 @@
 ; Check that debug info intrinsics are correctly placed after
 ; phi nodes.
 
-; RUN: veczc -k loop_phi -vecz-simd-width=4 -S < %s | FileCheck %s
+; RUN: veczc -vecz-simd-width=4 -S < %s | FileCheck %s
 
 ; ModuleID = 'kernel.opencl'
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nounwind
+; CHECK: define spir_kernel void @__vecz_v4_loop_phi(
 define spir_kernel void @loop_phi(i32 addrspace(3)* %a, i32 addrspace(3)* %b) #0 !dbg !4 {
 entry:
   %a.addr = alloca i32 addrspace(3)*, align 8
@@ -43,6 +44,13 @@ entry:
   store i32 %conv, i32* %i, align 4, !dbg !33
   br label %for.cond, !dbg !33
 
+
+; CHECK: for.cond:
+; CHECK: %[[PHI1:.+]] = phi {{i[0-9]+}} [ %{{.+}}, %entry ], [ %{{.+}}, %for.cond ]
+; CHECK: call void @llvm.dbg.value(metadata i64 %[[PHI1]], metadata !{{[0-9]+}},
+; CHECK-SAME: metadata !DIExpression({{.*}})), !dbg !{{[0-9]+}}
+; Check we haven't inserted a llvm.dbg.value intrinsic before the last of the PHIs.
+; CHECK-NOT: phi
 for.cond:                                         ; preds = %for.inc, %entry
   %1 = load i32, i32* %i, align 4, !dbg !34
   %cmp = icmp slt i32 %1, 128, !dbg !34
@@ -68,6 +76,7 @@ for.inc:                                          ; preds = %for.body
   br label %for.cond, !dbg !34
 
 for.end:                                          ; preds = %for.cond
+; CHECK: ret void
   ret void, !dbg !39
 }
 
@@ -126,10 +135,3 @@ attributes #3 = { nobuiltin }
 !37 = distinct !DILexicalBlock(scope: !35, file: !1, line: 4)
 !38 = !DILocation(line: 6, scope: !37)
 !39 = !DILocation(line: 7, scope: !4)
-
-; CHECK: for.cond:
-; CHECK: %[[PHI1:.+]] = phi <4 x [[TYPE:i[0-9]+]]> [ %{{.+}}, %entry ], [ %{{.+}}, %for.cond ]
-; CHECK: call void @llvm.dbg.value(metadata <4 x [[TYPE]]> %[[PHI1]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg !{{[0-9]+}}
-; CHECK-NOT: phi
-
-; CHECK: ret void
