@@ -30,8 +30,7 @@ int main() {
     exp_ext::command_graph Graph{
         Queue.get_context(),
         Queue.get_device(),
-        {exp_ext::property::graph::assume_buffer_outlives_graph{},
-         exp_ext::property::graph::assume_data_outlives_buffer{}}};
+        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
     {
       // Create some temporary buffers only for adding nodes

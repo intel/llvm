@@ -305,9 +305,6 @@ public:
     if (PropList.has_property<property::graph::no_cycle_check>()) {
       MSkipCycleChecks = true;
     }
-    if (PropList.has_property<property::graph::assume_data_outlives_buffer>()) {
-      MAllowBuffersHostPointers = true;
-    }
     if (PropList
             .has_property<property::graph::assume_buffer_outlives_graph>()) {
       MAllowBuffers = true;
@@ -614,11 +611,6 @@ private:
   bool MSkipCycleChecks = false;
   /// Unique set of SYCL Memory Objects which are currently in use in the graph.
   std::set<sycl::detail::SYCLMemObjT *> MMemObjs;
-
-  /// Controls whether we allow buffers that are created with host pointers to
-  /// be used in the graph. Set by the presence of the
-  /// assume_data_outlives_buffer property.
-  bool MAllowBuffersHostPointers = false;
 
   /// Controls whether we allow buffers to be used in the graph. Set by the
   /// presence of the assume_buffer_outlives_graph property.

@@ -271,13 +271,6 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   for (auto &Req : Requirements) {
     // Track and mark the memory objects being used by the graph.
     auto MemObj = static_cast<sycl::detail::SYCLMemObjT *>(Req->MSYCLMemObj);
-    if (MemObj->getUserPtr() && !MAllowBuffersHostPointers) {
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "Cannot use a buffer which was created with a host pointer in a "
-          "graph without passing the assume_data_outlives_buffer property on "
-          "Graph construction.");
-    }
     bool WasInserted = MMemObjs.insert(MemObj).second;
     if (WasInserted) {
       MemObj->markBeingUsedInGraph();

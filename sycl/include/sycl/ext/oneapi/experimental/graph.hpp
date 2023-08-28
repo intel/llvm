@@ -117,19 +117,6 @@ class assume_buffer_outlives_graph
 public:
   assume_buffer_outlives_graph() = default;
 };
-
-/// Property passed to command_graph constructor to allow buffers created with
-/// host pointers. Passing this property represents a promise from the user that
-/// the host data will outlive the buffer and by extension any graph that it is
-/// used in.
-///
-class assume_data_outlives_buffer
-    : public ::sycl::detail::DataLessProperty<
-          ::sycl::detail::GraphAssumeDataOutlivesBuffer> {
-public:
-  assume_data_outlives_buffer() = default;
-};
-
 } // namespace graph
 
 namespace node {
