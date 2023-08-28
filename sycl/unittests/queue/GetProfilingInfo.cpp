@@ -9,8 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <sycl/sycl.hpp>
@@ -497,7 +497,6 @@ TEST(GetProfilingInfo, fallback_profiling_memcpy_profiling) {
   free(device_array, Queue);
 }
 
-
 TEST(GetProfilingInfo, fallback_profiling_vector_add_profiling) {
   using namespace sycl;
   sycl::unittest::PiMock Mock;
@@ -528,16 +527,16 @@ TEST(GetProfilingInfo, fallback_profiling_vector_add_profiling) {
   buffer<int, 1> a_buf{a}, b_buf{b}, c_buf{c};
 
   // Submit the kernel to the queue
-  auto event = Queue.submit([&](handler& cgh) {
+  auto event = Queue.submit([&](handler &cgh) {
     accessor a{a_buf, cgh};
     accessor b{b_buf, cgh};
     accessor c{c_buf, cgh};
 
-// BEGIN CODE SNIP
+    // BEGIN CODE SNIP
     cgh.parallel_for<InfoTestKernel>(globalWIs, [=](id<1> idx) {
-        //c[idx] = a[idx] + b[idx];
-      });
+      // c[idx] = a[idx] + b[idx];
     });
+  });
 
   // bool passed = std::all_of(c.begin(), c.end(),
   //                           [](int i) { return (i == 3); });
@@ -581,35 +580,33 @@ TEST(GetProfilingInfo, fallback_profiling_matrix_mul_profiling) {
   const int N = matrixSize;
   const int K = matrixSize;
 
-  std::vector<int> vecA(matrixSize*matrixSize), vecB(matrixSize*matrixSize), vecC(matrixSize*matrixSize);
+  std::vector<int> vecA(matrixSize * matrixSize), vecB(matrixSize * matrixSize),
+      vecC(matrixSize * matrixSize);
   std::fill(vecA.begin(), vecA.end(), 1);
 
   buffer<int, 2> bufA{vecA.data(), range<2>{M, K}};
   buffer<int, 2> bufB{vecB.data(), range<2>{K, N}};
   buffer<int, 2> bufC{vecC.data(), range<2>{M, N}};
 
-    // Submit the kernel to the queue
-    auto event = Queue.submit([&](handler& cgh) {
-      accessor matrixA{bufA, cgh};
-      accessor matrixB{bufB, cgh};
-      accessor matrixC{bufC, cgh};
-
-      // BEGIN CODE SNIP
-      cgh.parallel_for<InfoTestKernel>(range{M, N}, [=](id<2> idx) {
-        // int m = id[0];
-        // int n = id[1];
-
-        // T sum = 0;
-        // for (int k = 0; k < K; k++) {
-        //   sum += matrixA[m][k] * matrixB[k][n];
-        // }
-        // matrixC[m][n] = sum;
-      });
-      // END CODE SNIP
+  // Submit the kernel to the queue
+  auto event = Queue.submit([&](handler &cgh) {
+    accessor matrixA{bufA, cgh};
+    accessor matrixB{bufB, cgh};
+    accessor matrixC{bufC, cgh};
+    // BEGIN CODE SNIP
+    cgh.parallel_for<InfoTestKernel>(range{M, N}, [=](id<2> idx) {
+      // int m = id[0];
+      // int n = id[1];
+      // T sum = 0;
+      // for (int k = 0; k < K; k++) {
+      //   sum += matrixA[m][k] * matrixB[k][n];
+      // }
+      // matrixC[m][n] = sum;
     });
+    // END CODE SNIP
+  });
 
-  event.wait();  // needed for now (we learn a better way later)
-
+  event.wait(); // needed for now (we learn a better way later)
   auto submit_time =
       event.get_profiling_info<sycl::info::event_profiling::command_submit>();
   auto start_time =
@@ -621,4 +618,3 @@ TEST(GetProfilingInfo, fallback_profiling_matrix_mul_profiling) {
   EXPECT_LT(submit_time, start_time);
   EXPECT_LT(submit_time, end_time);
 }
-
