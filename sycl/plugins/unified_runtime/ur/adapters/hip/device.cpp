@@ -6,8 +6,8 @@
 //
 //===-----------------------------------------------------------------===//
 
-#include "context.hpp"
 #include "device.hpp"
+#include "context.hpp"
 #include "event.hpp"
 
 #include <sstream>
