@@ -80,3 +80,54 @@ public:
     assert(result_val == expected_result);
   }
 };
+
+template <auto F, typename T> class AtomicClassLauncher {
+protected:
+  syclcompat::dim3 grid_;
+  syclcompat::dim3 threads_;
+  size_t data_len_;
+  T *atom_arr_device_;
+  T *atom_arr_host_;
+
+public:
+  AtomicClassLauncher(const syclcompat::dim3 &grid,
+                      const syclcompat::dim3 &threads, const size_t data_len)
+      : grid_{grid}, threads_{threads}, data_len_{data_len} {
+    atom_arr_device_ = syclcompat::malloc_shared<T>(data_len_);
+    atom_arr_host_ = syclcompat::malloc_shared<T>(data_len_);
+
+    for (size_t i = 0; i < data_len_; i++) {
+      atom_arr_device_[i] = 0;
+      atom_arr_host_[i] = 0;
+    }
+  };
+  virtual ~AtomicClassLauncher() {
+    syclcompat::free(atom_arr_device_);
+    syclcompat::free(atom_arr_host_);
+  }
+
+  template <typename... Args> void launch_test() {
+    if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
+        (std::is_same_v<T, double> || std::is_same_v<T, double *>))
+      return; // skip
+    syclcompat::launch<F>(grid_, threads_, atom_arr_device_);
+    F(atom_arr_host_);
+    syclcompat::wait();
+
+    verify();
+  }
+
+  void verify() {
+    bool result = true;
+    for (int i = 0; i < data_len_; ++i) {
+      std::cout << "device result:" << atom_arr_device_[i];
+      std::cout << " host result:" << atom_arr_host_[i] << std::endl;
+
+      if (atom_arr_device_[i] != atom_arr_host_[i]) {
+        std::cout << "-- Failure at " << i << std::endl << std::flush;
+        result = false;
+      }
+    }
+    assert(result);
+  }
+};
