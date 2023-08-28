@@ -126,8 +126,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_QUEUE_CREATE_WITH_NATIVE_HANDLE = 96,                          ///< Enumerator for ::urQueueCreateWithNativeHandle
     UR_FUNCTION_QUEUE_FINISH = 97,                                             ///< Enumerator for ::urQueueFinish
     UR_FUNCTION_QUEUE_FLUSH = 98,                                              ///< Enumerator for ::urQueueFlush
-    UR_FUNCTION_INIT = 99,                                                     ///< Enumerator for ::urInit
-    UR_FUNCTION_TEAR_DOWN = 100,                                               ///< Enumerator for ::urTearDown
     UR_FUNCTION_SAMPLER_CREATE = 101,                                          ///< Enumerator for ::urSamplerCreate
     UR_FUNCTION_SAMPLER_RETAIN = 102,                                          ///< Enumerator for ::urSamplerRetain
     UR_FUNCTION_SAMPLER_RELEASE = 103,                                         ///< Enumerator for ::urSamplerRelease
@@ -205,6 +203,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_ADAPTER_RETAIN = 179,                                          ///< Enumerator for ::urAdapterRetain
     UR_FUNCTION_ADAPTER_GET_LAST_ERROR = 180,                                  ///< Enumerator for ::urAdapterGetLastError
     UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
+    UR_FUNCTION_LOADER_INIT = 182,                                             ///< Enumerator for ::urLoaderInit
+    UR_FUNCTION_LOADER_TEAR_DOWN = 183,                                        ///< Enumerator for ::urLoaderTearDown
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -515,9 +515,9 @@ typedef struct ur_rect_region_t {
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
-// Intel 'oneAPI' Unified Runtime APIs for Runtime
+// Intel 'oneAPI' Unified Runtime APIs for Loader
 #if !defined(__GNUC__)
-#pragma region runtime
+#pragma region loader
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported device initialization flags
@@ -668,21 +668,21 @@ urLoaderConfigEnableLayer(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Initialize the 'oneAPI' adapter(s)
+/// @brief Initialize the 'oneAPI' loader
 ///
 /// @details
 ///     - The application must call this function before calling any other
 ///       function.
 ///     - If this function is not called then all other functions will return
 ///       ::UR_RESULT_ERROR_UNINITIALIZED.
-///     - Only one instance of each adapter will be initialized per process.
+///     - Only one instance of the loader will be initialized per process.
 ///     - The application may call this function multiple times with different
 ///       flags or environment variables enabled.
 ///     - The application must call this function after forking new processes.
 ///       Each forked process must call this function.
 ///     - The application may call this function from simultaneous threads.
 ///     - The implementation of this function must be thread-safe for scenarios
-///       where multiple libraries may initialize the adapter(s) simultaneously.
+///       where multiple libraries may initialize the loader simultaneously.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -693,28 +693,32 @@ urLoaderConfigEnableLayer(
 ///         + `::UR_DEVICE_INIT_FLAGS_MASK & device_flags`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
-urInit(
+urLoaderInit(
     ur_device_init_flags_t device_flags,    ///< [in] device initialization flags.
                                             ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
     ur_loader_config_handle_t hLoaderConfig ///< [in][optional] Handle of loader config handle.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Tear down the 'oneAPI' instance and release all its resources
+/// @brief Tear down the 'oneAPI' loader and release all its resources
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
-///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pParams`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 UR_APIEXPORT ur_result_t UR_APICALL
-urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-);
+urLoaderTearDown(
+    void);
 
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
+// Intel 'oneAPI' Unified Runtime APIs for Adapter
+#if !defined(__GNUC__)
+#pragma region adapter
+#endif
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Retrieves all available adapters
 ///
@@ -753,7 +757,9 @@ urAdapterGet(
 ///
 /// @details
 ///     - When the reference count of the adapter reaches zero, the adapter may
-///       perform adapter-specififc resource teardown
+///       perform adapter-specififc resource teardown. Resources must be left in
+///       a state where it safe for the adapter to be subsequently reinitialized
+///       with ::urAdapterGet
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8996,6 +9002,54 @@ typedef struct ur_physical_mem_release_params_t {
 } ur_physical_mem_release_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGet
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_params_t {
+    uint32_t *pNumEntries;
+    ur_adapter_handle_t **pphAdapters;
+    uint32_t **ppNumAdapters;
+} ur_adapter_get_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRelease
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_release_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_release_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterRetain
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_retain_params_t {
+    ur_adapter_handle_t *phAdapter;
+} ur_adapter_retain_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetLastError
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_last_error_params_t {
+    ur_adapter_handle_t *phAdapter;
+    const char ***pppMessage;
+    int32_t **ppError;
+} ur_adapter_get_last_error_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urAdapterGetInfo
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_adapter_get_info_params_t {
+    ur_adapter_handle_t *phAdapter;
+    ur_adapter_info_t *ppropName;
+    size_t *ppropSize;
+    void **ppPropValue;
+    size_t **ppPropSizeRet;
+} ur_adapter_get_info_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urEnqueueKernelLaunch
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -10027,69 +10081,13 @@ typedef struct ur_usm_p2p_peer_access_get_info_exp_params_t {
 } ur_usm_p2p_peer_access_get_info_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urInit
+/// @brief Function parameters for urLoaderInit
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_init_params_t {
+typedef struct ur_loader_init_params_t {
     ur_device_init_flags_t *pdevice_flags;
     ur_loader_config_handle_t *phLoaderConfig;
-} ur_init_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urTearDown
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_tear_down_params_t {
-    void **ppParams;
-} ur_tear_down_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGet
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_params_t {
-    uint32_t *pNumEntries;
-    ur_adapter_handle_t **pphAdapters;
-    uint32_t **ppNumAdapters;
-} ur_adapter_get_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterRelease
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_release_params_t {
-    ur_adapter_handle_t *phAdapter;
-} ur_adapter_release_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterRetain
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_retain_params_t {
-    ur_adapter_handle_t *phAdapter;
-} ur_adapter_retain_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGetLastError
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_last_error_params_t {
-    ur_adapter_handle_t *phAdapter;
-    const char ***pppMessage;
-    int32_t **ppError;
-} ur_adapter_get_last_error_params_t;
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urAdapterGetInfo
-/// @details Each entry is a pointer to the parameter passed to the function;
-///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_adapter_get_info_params_t {
-    ur_adapter_handle_t *phAdapter;
-    ur_adapter_info_t *ppropName;
-    size_t *ppropSize;
-    void **ppPropValue;
-    size_t **ppPropSizeRet;
-} ur_adapter_get_info_params_t;
+} ur_loader_init_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urVirtualMemGranularityGetInfo

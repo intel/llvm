@@ -34,15 +34,23 @@ constexpr uint16_t TRACE_FN_END =
 constexpr std::string_view UR_STREAM_NAME = "ur";
 
 /**
- * @brief Formats the function parameters and arguments for urInit
+ * @brief Formats the function parameters and arguments for urAdapterGet
  */
 std::ostream &operator<<(std::ostream &os,
-                         const struct ur_init_params_t *params) {
-    os << ".device_flags = ";
-    if (*params->pdevice_flags & UR_DEVICE_INIT_FLAG_GPU) {
-        os << "UR_DEVICE_INIT_FLAG_GPU";
-    } else {
-        os << "0";
+                         const struct ur_adapter_get_params_t *params) {
+    os << ".NumEntries = ";
+    os << *params->pNumEntries;
+    os << ", ";
+    os << ".phAdapters = ";
+    os << *params->pphAdapters;
+    if (*params->pphAdapters) {
+        os << " (" << **params->pphAdapters << ")";
+    }
+    os << ", ";
+    os << ".pNumAdapters = ";
+    os << *params->ppNumAdapters;
+    if (*params->ppNumAdapters) {
+        os << " (" << **params->ppNumAdapters << ")";
     }
     os << "";
     return os;
@@ -50,16 +58,17 @@ std::ostream &operator<<(std::ostream &os,
 
 /**
  * A map of functions that format the parameters and arguments for each UR function.
- * This example only implements a handler for one function, `urInit`, but it's
+ * This example only implements a handler for one function, `urAdapterGet`, but it's
  * trivial to expand it to support more.
  */
 static std::unordered_map<
     std::string_view,
     std::function<void(const xpti::function_with_args_t *, std::ostream &)>>
-    handlers = {{"urInit", [](const xpti::function_with_args_t *fn_args,
-                              std::ostream &os) {
-                     auto params = static_cast<const struct ur_init_params_t *>(
-                         fn_args->args_data);
+    handlers = {{"urAdapterGet", [](const xpti::function_with_args_t *fn_args,
+                                    std::ostream &os) {
+                     auto params =
+                         static_cast<const struct ur_adapter_get_params_t *>(
+                             fn_args->args_data);
                      os << params;
                  }}};
 

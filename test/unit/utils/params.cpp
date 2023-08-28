@@ -17,30 +17,30 @@ template <typename T> class ParamsTest : public testing::Test {
     T params;
 };
 
-struct UrInitParams {
-    ur_init_params_t params;
+struct UrLoaderInitParams {
+    ur_loader_init_params_t params;
     ur_device_init_flags_t flags;
     ur_loader_config_handle_t config;
-    UrInitParams(ur_device_init_flags_t _flags)
+    UrLoaderInitParams(ur_device_init_flags_t _flags)
         : flags(_flags), config(nullptr) {
         params.pdevice_flags = &flags;
         params.phLoaderConfig = &config;
     }
 
-    ur_init_params_t *get_struct() { return &params; }
+    ur_loader_init_params_t *get_struct() { return &params; }
 };
 
-struct UrInitParamsNoFlags : UrInitParams {
-    UrInitParamsNoFlags() : UrInitParams(0) {}
+struct UrLoaderInitParamsNoFlags : UrLoaderInitParams {
+    UrLoaderInitParamsNoFlags() : UrLoaderInitParams(0) {}
     const char *get_expected() {
         return ".device_flags = 0, .hLoaderConfig = nullptr";
     };
 };
 
-struct UrInitParamsInvalidFlags : UrInitParams {
-    UrInitParamsInvalidFlags()
-        : UrInitParams(UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_MCA |
-                       UR_BIT(25) | UR_BIT(30) | UR_BIT(31)) {}
+struct UrLoaderInitParamsInvalidFlags : UrLoaderInitParams {
+    UrLoaderInitParamsInvalidFlags()
+        : UrLoaderInitParams(UR_DEVICE_INIT_FLAG_GPU | UR_DEVICE_INIT_FLAG_MCA |
+                             UR_BIT(25) | UR_BIT(30) | UR_BIT(31)) {}
     const char *get_expected() {
         return ".device_flags = UR_DEVICE_INIT_FLAG_GPU \\| "
                "UR_DEVICE_INIT_FLAG_MCA \\| unknown bit flags "
@@ -368,14 +368,15 @@ struct UrDevicePartitionPropertyTest {
 };
 
 using testing::Types;
-typedef Types<
-    UrInitParamsNoFlags, UrInitParamsInvalidFlags, UrUsmHostAllocParamsEmpty,
-    UrPlatformGetEmptyArray, UrPlatformGetTwoPlatforms,
-    UrUsmHostAllocParamsUsmDesc, UrUsmHostAllocParamsHostDesc,
-    UrDeviceGetInfoParamsEmpty, UrDeviceGetInfoParamsName,
-    UrDeviceGetInfoParamsQueueFlag, UrDeviceGetInfoParamsPartitionArray,
-    UrContextGetInfoParamsDevicesArray, UrDeviceGetInfoParamsInvalidSize,
-    UrProgramMetadataTest, UrDevicePartitionPropertyTest>
+typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
+              UrUsmHostAllocParamsEmpty, UrPlatformGetEmptyArray,
+              UrPlatformGetTwoPlatforms, UrUsmHostAllocParamsUsmDesc,
+              UrUsmHostAllocParamsHostDesc, UrDeviceGetInfoParamsEmpty,
+              UrDeviceGetInfoParamsName, UrDeviceGetInfoParamsQueueFlag,
+              UrDeviceGetInfoParamsPartitionArray,
+              UrContextGetInfoParamsDevicesArray,
+              UrDeviceGetInfoParamsInvalidSize, UrProgramMetadataTest,
+              UrDevicePartitionPropertyTest>
     Implementations;
 
 using ::testing::MatchesRegex;

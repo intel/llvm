@@ -13,49 +13,6 @@
 
 namespace driver {
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urInit
-__urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
-    ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-    ur_loader_config_handle_t
-        hLoaderConfig ///< [in][optional] Handle of loader config handle.
-    ) try {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnInit = d_context.urDdiTable.Global.pfnInit;
-    if (nullptr != pfnInit) {
-        result = pfnInit(device_flags, hLoaderConfig);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urTearDown
-__urdlllocal ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-    ) try {
-    ur_result_t result = UR_RESULT_SUCCESS;
-
-    // if the driver has created a custom function, then call it instead of using the generic path
-    auto pfnTearDown = d_context.urDdiTable.Global.pfnTearDown;
-    if (nullptr != pfnTearDown) {
-        result = pfnTearDown(pParams);
-    } else {
-        // generic implementation
-    }
-
-    return result;
-} catch (...) {
-    return exceptionToResult(std::current_exception());
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t
@@ -5051,10 +5008,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
-
-    pDdiTable->pfnInit = driver::urInit;
-
-    pDdiTable->pfnTearDown = driver::urTearDown;
 
     pDdiTable->pfnAdapterGet = driver::urAdapterGet;
 

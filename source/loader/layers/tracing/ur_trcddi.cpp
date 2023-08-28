@@ -16,54 +16,6 @@
 
 namespace ur_tracing_layer {
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urInit
-__urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
-    ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-    ur_loader_config_handle_t
-        hLoaderConfig ///< [in][optional] Handle of loader config handle.
-) {
-    auto pfnInit = context.urDdiTable.Global.pfnInit;
-
-    if (nullptr == pfnInit) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    ur_init_params_t params = {&device_flags, &hLoaderConfig};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_INIT, "urInit", &params);
-
-    ur_result_t result = pfnInit(device_flags, hLoaderConfig);
-
-    context.notify_end(UR_FUNCTION_INIT, "urInit", &params, &result, instance);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urTearDown
-__urdlllocal ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-) {
-    auto pfnTearDown = context.urDdiTable.Global.pfnTearDown;
-
-    if (nullptr == pfnTearDown) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
-
-    ur_tear_down_params_t params = {&pParams};
-    uint64_t instance =
-        context.notify_begin(UR_FUNCTION_TEAR_DOWN, "urTearDown", &params);
-
-    ur_result_t result = pfnTearDown(pParams);
-
-    context.notify_end(UR_FUNCTION_TEAR_DOWN, "urTearDown", &params, &result,
-                       instance);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t
@@ -5827,12 +5779,6 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
     }
 
     ur_result_t result = UR_RESULT_SUCCESS;
-
-    dditable.pfnInit = pDdiTable->pfnInit;
-    pDdiTable->pfnInit = ur_tracing_layer::urInit;
-
-    dditable.pfnTearDown = pDdiTable->pfnTearDown;
-    pDdiTable->pfnTearDown = ur_tracing_layer::urTearDown;
 
     dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
     pDdiTable->pfnAdapterGet = ur_tracing_layer::urAdapterGet;
