@@ -15,6 +15,7 @@ The operations discussed in this document are defined in
 `mlir-sycl/include/mlir/Dialect/SYCL/IR/SYCLHostOps.td`. Build the target
 `mlir-sycl-doc` in a build directory named `build` to enable the links to the
 operations' rendered Markdown documentation.
+> TODO: Find a more stable location for the dialect docs to link to.
 
 ## Prerequisites / known limitations
 
