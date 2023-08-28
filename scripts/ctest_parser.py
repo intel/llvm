@@ -25,12 +25,14 @@ def summarize_results(results):
     total_passed = len(results['Passed'])
     total_skipped = len(results['Skipped'])
     total_failed = len(results['Failed'])
+    total_crashed = total - (total_passed + total_skipped + total_failed)
 
     pass_rate_incl_skipped = percent(total_passed, total)
     pass_rate_excl_skipped = percent(total_passed, total - total_skipped)
 
     skipped_rate = percent(total_skipped, total)
     failed_rate = percent(total_failed, total)
+    crash_rate = percent(total_crashed, total)
 
     ljust_param = len(str(total))
     
@@ -40,18 +42,20 @@ f"""[CTest Parser] Results:
     Passed   [{str(total_passed).ljust(ljust_param)}]    ({pass_rate_incl_skipped}%) - ({pass_rate_excl_skipped}% with skipped tests excluded)
     Skipped  [{str(total_skipped).ljust(ljust_param)}]    ({skipped_rate}%)
     Failed   [{str(total_failed).ljust(ljust_param)}]    ({failed_rate}%)
+    Crashed  [{str(total_crashed).ljust(ljust_param)}]    ({crash_rate}%)
 """
     )
 
 def parse_results(results):
-    parsed_results = {"Passed": {}, "Skipped":{}, "Failed": {}, 'Total':0, 'Success':True}
+    parsed_results = {"Passed": {}, "Skipped":{}, "Failed": {}, 'Crashed': {}, 'Total':0, 'Success':True}
     for _, result in results.items():
-        if result is None:
+        if result['actual'] is None:
             parsed_results['Success'] = False
+            parsed_results['Total'] += result['expected']['tests']
             continue
 
-        parsed_results['Total'] += result['tests']
-        for testsuite in result.get('testsuites'):
+        parsed_results['Total'] += result['actual']['tests']
+        for testsuite in result['actual'].get('testsuites'):
             for test in testsuite.get('testsuite'):
                 test_name = f"{testsuite['name']}.{test['name']}"
                 test_time = test['time']
@@ -63,13 +67,28 @@ def parse_results(results):
                     parsed_results['Passed'][test_name] = {'time': test_time}
     return parsed_results
 
-
 def run(args):
     results = {}
 
     tmp_results_file = f"{args.ctest_path}/{TMP_RESULTS_FILE}"
     env = os.environ.copy()
     env['GTEST_OUTPUT'] = f"json:{tmp_results_file}"
+
+    ## try and list all the available tests
+    for suite in CTS_TEST_SUITES:
+        results[suite] = {}
+        test_executable = f"{args.ctest_path}/bin/test-{suite}"
+        process = Popen([test_executable, "--gtest_list_tests"], env=env,
+                        stdout=DEVNULL if args.quiet else None, 
+                        stderr=DEVNULL if args.quiet else None)
+        process.wait()
+        try:
+            with open(tmp_results_file,'r') as test_list:
+                all_tests = json.load(test_list)
+                results[suite]['expected'] = all_tests
+            os.remove(tmp_results_file)
+        except FileNotFoundError:
+            print(f"Could not discover tests for {suite}")
 
     for suite in CTS_TEST_SUITES:
         ctest_path = f"{args.ctest_path}/test/conformance/{suite}"
@@ -81,10 +100,10 @@ def run(args):
         try:
             with open(tmp_results_file, 'r') as results_file:
                 json_data = json.load(results_file)
-                results[suite] = json_data
+                results[suite]['actual'] = json_data
             os.remove(tmp_results_file)
         except FileNotFoundError:
-            results[suite] = None
+            results[suite]['actual'] = None
             print('\033[91m' + f"Conformance test suite '{suite}' : likely crashed!" + '\033[0m')
     
     return results
