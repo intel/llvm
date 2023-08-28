@@ -128,6 +128,13 @@ Removed Compiler Flags
 Attribute Changes in Clang
 --------------------------
 
+- When a non-variadic function is decorated with the ``format`` attribute,
+  Clang now checks that the format string would match the function's parameters'
+  types after default argument promotion. As a result, it's no longer an
+  automatic diagnostic to use parameters of types that the format style
+  supports but that are never the result of default argument promotion, such as
+  ``float``. (`#59824: <https://github.com/llvm/llvm-project/issues/59824>`_)
+
 Improvements to Clang's diagnostics
 -----------------------------------
 - Clang constexpr evaluator now prints template arguments when displaying
@@ -143,6 +150,11 @@ Improvements to Clang's diagnostics
 - Clang constexpr evaluator now diagnoses compound assignment operators against
   uninitialized variables as a read of uninitialized object.
   (`#51536 <https://github.com/llvm/llvm-project/issues/51536>_`)
+- Clang's ``-Wfortify-source`` now diagnoses ``snprintf`` call that is known to
+  result in string truncation.
+  (`#64871: <https://github.com/llvm/llvm-project/issues/64871>`_).
+  Also clang no longer emits false positive warnings about the output length of
+  ``%g`` format specifier.
 
 Bug Fixes in This Version
 -------------------------
@@ -172,6 +184,9 @@ Bug Fixes in This Version
 - Clang now prints unnamed members in diagnostic messages instead of giving an
   empty ''. Fixes
   (`#63759 <https://github.com/llvm/llvm-project/issues/63759>`_)
+- Fix crash in __builtin_strncmp and related builtins when the size value
+  exceeded the maximum value representable by int64_t. Fixes
+  (`#64876 <https://github.com/llvm/llvm-project/issues/64876>`_)
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -206,7 +221,7 @@ Bug Fixes to C++ Support
 
 - Expressions producing ``nullptr`` are correctly evaluated
   by the constant interpreter when appearing as the operand
-  of a binary comparision.
+  of a binary comparison.
   (`#64923 <https://github.com/llvm/llvm-project/issues/64923>_``)
 
 - Fix a crash when an immediate invocation is not a constant expression

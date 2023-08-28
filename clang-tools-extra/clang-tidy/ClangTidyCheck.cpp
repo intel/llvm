@@ -22,14 +22,15 @@ ClangTidyCheck::ClangTidyCheck(StringRef CheckName, ClangTidyContext *Context)
   assert(!CheckName.empty());
 }
 
-DiagnosticBuilder ClangTidyCheck::diag(SourceLocation Loc, StringRef Message,
+DiagnosticBuilder ClangTidyCheck::diag(SourceLocation Loc,
+                                       StringRef Description,
                                        DiagnosticIDs::Level Level) {
-  return Context->diag(CheckName, Loc, Message, Level);
+  return Context->diag(CheckName, Loc, Description, Level);
 }
 
-DiagnosticBuilder ClangTidyCheck::diag(StringRef Message,
+DiagnosticBuilder ClangTidyCheck::diag(StringRef Description,
                                        DiagnosticIDs::Level Level) {
-  return Context->diag(CheckName, Message, Level);
+  return Context->diag(CheckName, Description, Level);
 }
 
 DiagnosticBuilder
@@ -93,7 +94,7 @@ static std::optional<bool> getAsBool(StringRef Value,
                                      const llvm::Twine &LookupName) {
 
   if (std::optional<bool> Parsed = llvm::yaml::parseBool(Value))
-    return *Parsed;
+    return Parsed;
   // To maintain backwards compatability, we support parsing numbers as
   // booleans, even though its not supported in YAML.
   long long Number;

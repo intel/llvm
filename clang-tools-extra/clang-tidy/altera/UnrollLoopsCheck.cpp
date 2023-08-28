@@ -13,7 +13,7 @@
 #include "clang/AST/OperationKinds.h"
 #include "clang/AST/ParentMapContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include <math.h>
+#include <cmath>
 
 using namespace clang::ast_matchers;
 
@@ -246,7 +246,7 @@ bool UnrollLoopsCheck::extractValue(int &Value, const BinaryOperator *Op,
 }
 
 bool UnrollLoopsCheck::exprHasLargeNumIterations(const Expr *Expression,
-                                                 const ASTContext *Context) {
+                                                 const ASTContext *Context) const {
   Expr::EvalResult Result;
   if (Expression->EvaluateAsRValue(Result, *Context)) {
     if (!Result.Val.isInt())
