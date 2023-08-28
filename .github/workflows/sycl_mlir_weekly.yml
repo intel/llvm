@@ -1,9 +1,13 @@
-name: SYCL Nightly
+name: SYCL MLIR Weekly
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 3 * * *'
+  # UNCOMMENT BEFORE MERGE
+  # schedule:
+  #  - cron: '0 22 * * 4'
+  # DROP BEFORE MERGE
+  pull_request:
+    branches:
+    - sycl-mlir
 
 jobs:
   ubuntu2204_build:
@@ -13,7 +17,6 @@ jobs:
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
       retention-days: 90
 
@@ -28,12 +31,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: AMD/HIP
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
-            target_devices: ext_oneapi_hip:gpu
-
           - name: Intel L0 GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
@@ -54,11 +51,6 @@ jobs:
             image_options: -u 1001
             target_devices: opencl:cpu
 
-          - name: Self-hosted CUDA
-            runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
     uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
       name: ${{ matrix.name }}
@@ -73,28 +65,15 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
-  windows_default:
-    name: Windows
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    with:
-      retention-days: 90
-      # We upload both Linux/Windows build via Github's "Releases"
-      # functionality, make sure Linux/Windows names follow the same pattern.
-      artifact_archive_name: sycl_windows.tar.gz
-
-  nightly_build_upload:
-    name: Nightly Build Upload
-    if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build, windows_default]
+  weekly_build_upload:
+    name: Weekly Build Upload
+    if: ${{ github.ref_name == 'sycl-mlir' }}
+    needs: [ubuntu2204_build]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
       with:
-        name: sycl_linux_default
-    - uses: actions/download-artifact@v3
-      with:
-        name: sycl_windows_default
+        name: sycl_mlir_linux_default
     - name: Compute tag
       id: tag
       run: |
@@ -109,11 +88,10 @@ jobs:
       with:
         files: |
           sycl_linux.tar.gz
-          sycl_windows.tar.gz
-        tag_name: nightly-${{ steps.tag.outputs.TAG }}
-        name: DPC++ daily ${{ steps.tag.outputs.TAG }}
+        tag_name: weekly-${{ steps.tag.outputs.TAG }}
+        name: DPC++ weekly ${{ steps.tag.outputs.TAG }}
         prerelease: true
-        body: "Daily build ${{ steps.tag.outputs.TAG }}"
+        body: "Weekly build ${{ steps.tag.outputs.TAG }}"
         target_commitish: ${{ github.sha }}
 
   ubuntu2204_docker_build_push:
@@ -137,8 +115,8 @@ jobs:
           base_image=ghcr.io/intel/llvm/ubuntu2204_intel_drivers
           base_tag=latest
         tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:latest
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:latest
     - name: Build and Push Container (no drivers)
       uses: ./devops/actions/build_container
       with:
@@ -150,8 +128,8 @@ jobs:
           base_image=ghcr.io/intel/llvm/ubuntu2204_base
           base_tag=latest
         tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:no-drivers
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:no-drivers-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:no-drivers
     - name: Build and Push Container (Build image)
       uses: ./devops/actions/build_container
       with:
@@ -163,5 +141,5 @@ jobs:
           base_image=ghcr.io/intel/llvm/ubuntu2204_build
           base_tag=latest
         tags: |
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build-${{ github.sha }}
-          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_nightly:build
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:build-${{ github.sha }}
+          ghcr.io/${{ github.repository }}/sycl_ubuntu2204_weekly:build
