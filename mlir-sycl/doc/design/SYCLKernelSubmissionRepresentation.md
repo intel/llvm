@@ -284,7 +284,7 @@ MKernelName = KI::getName(); // raised to `sycl.host.handler.set_kernel`
 ...
 ```
 In the IR, we expect to find the resulting annotation in the predecessor of the
-block containing the `set_kernel` op (due to the inbetween `llvm.invoke` of
+block containing the `set_kernel` op (due to the in between `llvm.invoke` of
 `extractArgsAndReqsFromLambda`).
 
 #### What to do when raising fails
