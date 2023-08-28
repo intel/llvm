@@ -443,13 +443,14 @@ TEST(GetProfilingInfo, fallback_profiling_memcpy_profiling) {
 
   const int N = 42;
   std::array<int, N> host_array;
-  int* device_array = sycl::malloc_device<int>(N, Queue);
-  for (int i = 0; i < N; i++) host_array[i] = N;
+  int *device_array = sycl::malloc_device<int>(N, Queue);
+  for (int i = 0; i < N; i++)
+    host_array[i] = N;
 
-  auto event1 = Queue.submit([&](sycl::handler& cgh) {
+  auto event1 = Queue.submit([&](sycl::handler &cgh) {
     cgh.memcpy(device_array, &host_array[0], N * sizeof(int));
   });
-  event1.wait(); 
+  event1.wait();
 
   auto event2 = Queue.submit([&](sycl::handler &cgh) {
     cgh.parallel_for<InfoTestKernel>(N, [=](sycl::id<1> idx) {});
