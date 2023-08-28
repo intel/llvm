@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: nounwind uwtable
 define void @k_controlflow_loop_if(float* nocapture %out, float* nocapture readonly %in1, i32* nocapture readnone %in2) #0 {
 entry:
-  %call = tail call i64 @get_global_id(i32 0) #2
+  %call = tail call i64 @__mux_get_global_id(i32 0) #2
   %sext = shl i64 %call, 32
   %idxprom = ashr exact i64 %sext, 32
   %arrayidx = getelementptr inbounds float, float* %in1, i64 %idxprom
@@ -35,7 +35,7 @@ entry:
   ret void
 }
 
-declare i64 @get_global_id(i32) #1
+declare i64 @__mux_get_global_id(i32) #1
 
 attributes #0 = { nounwind uwtable "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -59,8 +59,8 @@ attributes #2 = { nobuiltin nounwind }
 ; The vectorized function
 ; CHECK: define void @__vecz_v[[WIDTH:[0-9]+]]_k_controlflow_loop_if(
 
-; The unmangled get_global_id call
-; CHECK: tail call i64 @get_global_id(i32 0)
+; The unmangled __mux_get_global_id call
+; CHECK: tail call i64 @__mux_get_global_id(i32 0)
 
 ; The vectorized loads and stores
 ; CHECK: load <4 x i32>, ptr %arrayidx, align 4
