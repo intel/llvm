@@ -211,7 +211,12 @@ urProgramRelease(ur_program_handle_t hProgram) {
     try {
       ScopedContext Active(hProgram->getContext()->getDevice());
       auto HIPModule = hProgram->get();
-      Result = UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+      if (HIPModule) {
+        Result = UR_CHECK_ERROR(hipModuleUnload(HIPModule));
+      } else {
+        // no module to unload
+        Result = UR_RESULT_SUCCESS;
+      }
     } catch (...) {
       Result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
