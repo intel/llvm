@@ -70,15 +70,4 @@ struct _ur_buffer final : ur_mem_handle_t_ {
     _ur_buffer *const Parent;
     size_t Origin; // only valid if Parent != nullptr
   } SubBuffer;
-
-  /*_ur_buffer(ur_context_handle_t Context, ur_device_handle_t UrDevice,
-             size_t Size);
-
-  _ur_buffer(ur_context_handle_t Context, size_t Size, char *HostPtr,
-             bool ImportedHostPtr);
-
-  // Sub-buffer constructor
-  _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
-      : ur_mem_handle_t_(Parent->UrContext), Size(Size),
-        SubBuffer{Parent, Origin} {}*/
 };
