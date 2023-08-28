@@ -165,14 +165,10 @@ int init_and_multiply() {
       if constexpr (std::is_same_v<Ta, bfloat16> && std::is_same_v<Tc, float>) {
         if (fabs(C[i][j] - D[i][j]) > BF16_EPSILON) {
           res = false;
-          std::cout << "Failed bfloat16: C is " << C[i][j] << ", D is "
-                    << D[i][j] << std::endl;
         }
       } else if (std::is_same_v<Ta, int8_t> && std::is_same_v<Tc, int32_t>) {
         if (C[i][j] != D[i][j]) {
           res = false;
-          std::cout << "Failed int8_t: C is " << C[i][j] << ", D is " << D[i][j]
-                    << std::endl;
         }
       }
     }
@@ -183,23 +179,23 @@ int init_and_multiply() {
 
 int main() {
   int errors = 0;
-  errors += init_and_multiply<bfloat16, float, 2, 1, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 2, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 3, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 4, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 5, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 6, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 7, SG_SZ, 16>();
-  errors += init_and_multiply<bfloat16, float, 2, 8, SG_SZ, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 1, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 2, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 3, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 4, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 5, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 6, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 7, SN, 16>();
+  errors += init_and_multiply<bfloat16, float, 2, 8, SN, 16>();
 
-  errors += init_and_multiply<int8_t, int32_t, 4, 1, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 2, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 3, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 4, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 5, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 6, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 7, SG_SZ, 32>();
-  errors += init_and_multiply<int8_t, int32_t, 4, 8, SG_SZ, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 1, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 2, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 3, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 4, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 5, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 6, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 7, SN, 32>();
+  errors += init_and_multiply<int8_t, int32_t, 4, 8, SN, 32>();
 
   return errors;
 }
