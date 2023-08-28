@@ -208,6 +208,7 @@ install(FILES
   COMPONENT sycl-headers)
 
 include(AddBoostMp11Headers)
+include(FetchBoostUnorderedHeaders)
 
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
@@ -256,7 +257,7 @@ install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONE
 install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
-install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR}/syclcompat COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 
 if (WIN32)

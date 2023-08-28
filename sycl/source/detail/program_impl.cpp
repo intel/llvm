@@ -165,7 +165,7 @@ program_impl::program_impl(ContextImplPtr Context,
   sycl::detail::pi::PiDevice Device =
       getSyclObjImpl(MDevices[0])->getHandleRef();
   // TODO check build for each device instead
-  cl_program_binary_type BinaryType;
+  cl_program_binary_type BinaryType = PI_PROGRAM_BINARY_TYPE_NONE;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
@@ -184,20 +184,21 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case PI_PROGRAM_BINARY_TYPE_NONE:
-    assert(false);
-    break;
   case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
-    break;
+    return;
   case PI_PROGRAM_BINARY_TYPE_LIBRARY:
   case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
+    return;
   }
+  // TODO: uncomment the assert when UR_PROGRAM_BINARY_TYPE_EXECUTABLE
+  // value matches to PI_PROGRAM_BINARY_TYPE_EXECUTABLE value
+  // assert(false && "BinaryType is invalid.");
 }
 
 program_impl::program_impl(ContextImplPtr Context,

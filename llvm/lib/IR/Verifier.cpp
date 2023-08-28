@@ -2018,6 +2018,8 @@ void Verifier::verifyParameterAttrs(AttributeSet Attrs, Type *Ty,
       }
     }
   }
+#else
+  }
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
   if (Attrs.hasAttribute(Attribute::NoFPClass)) {
     uint64_t Val = Attrs.getAttribute(Attribute::NoFPClass).getValueAsInt();

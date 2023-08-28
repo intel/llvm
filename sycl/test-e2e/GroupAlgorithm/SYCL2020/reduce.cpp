@@ -4,10 +4,6 @@
 // https://github.com/intel/llvm/issues/7585 to fix the failure:
 // XFAIL: level_zero
 
-// disabling hip because some of the binary_ops tested are not supported
-// getting undefined symbols for a handful of __spirv__ * functions.
-// XFAIL: hip
-
 #include "support.h"
 #include <algorithm>
 #include <cassert>
