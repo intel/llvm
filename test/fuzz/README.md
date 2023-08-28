@@ -1,5 +1,5 @@
 # Corpora for fuzz tests with fixed API calls scenarios
-These corpora contain UR API calls in a predefined order described below.
+Corpora in 'corpus' directory contain UR API calls in a predefined order described below.
 All scenarios begin with single calls to urInit() and urAdapterGet().
 
 <!--- TODO: extend this doc -->
