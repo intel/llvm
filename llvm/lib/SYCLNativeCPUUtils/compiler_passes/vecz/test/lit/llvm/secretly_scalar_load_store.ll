@@ -14,23 +14,23 @@
 ;
 ; SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-; RUN: veczc -k test -w 4 -S < %s | FileCheck %s
+; RUN: veczc -w 4 -S < %s | FileCheck %s
 
 target datalayout = "e-p:32:32:32-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-v48:64:64-v64:64:64-v96:128:128-v128:128:128-v192:256:256-v256:256:256-v512:512:512-v1024:1024:1024"
 target triple = "spir-unknown-unknown"
 
-declare spir_func i32 @get_global_id(i32);
+declare i32 @__mux_get_global_id(i32);
 
 define spir_kernel void @test(i32 addrspace(1)* %in) {
 entry:
-  %gid = call i32 @get_global_id(i32 0)
+  %gid = call i32 @__mux_get_global_id(i32 0)
   %and = and i32 %gid, 1
   %cmp = icmp eq i32 %and, 0
   br i1 %cmp, label %if, label %early_ret
 
 early_ret:
 ; just to prevent ROSCC from sticking its oar in
-  %gid1 = call i32 @get_global_id(i32 1)
+  %gid1 = call i32 @__mux_get_global_id(i32 1)
   ret void
 
 if:
