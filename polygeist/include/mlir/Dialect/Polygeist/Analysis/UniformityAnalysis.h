@@ -116,16 +116,17 @@ public:
 /// determine whether values are uniform or not w.r.t. threads. A uniform value
 /// is a value for which all threads agree on its content.
 class UniformityAnalysis
-    : public dataflow::SparseDataFlowAnalysis<UniformityLattice>,
+    : public dataflow::SparseForwardDataFlowAnalysis<UniformityLattice>,
       public RequiredDataFlowAnalyses<UniformityAnalysis> {
   friend class RequiredDataFlowAnalyses;
   friend raw_ostream &operator<<(raw_ostream &, const UniformityAnalysis &);
 
 public:
-  using SparseDataFlowAnalysis::SparseDataFlowAnalysis;
+  using SparseForwardDataFlowAnalysis::SparseForwardDataFlowAnalysis;
 
   UniformityAnalysis(DataFlowSolver &solver)
-      : SparseDataFlowAnalysis<UniformityLattice>(solver), solver(solver) {}
+      : SparseForwardDataFlowAnalysis<UniformityLattice>(solver),
+        solver(solver) {}
 
   /// Set the initial state at an entry point. If the entry point is a kernel
   /// its argument are uniform. Otherwise the arguments have unknown uniformity.

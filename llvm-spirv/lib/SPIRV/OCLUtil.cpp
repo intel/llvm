@@ -783,7 +783,7 @@ unsigned getOCLVersion(Module *M, bool AllowMulti) {
   // If the module was linked with another module, there may be multiple
   // operands.
   auto GetVer = [=](unsigned I) {
-    auto MD = NamedMD->getOperand(I);
+    auto *MD = NamedMD->getOperand(I);
     return std::make_pair(getMDOperandAsInt(MD, 0), getMDOperandAsInt(MD, 1));
   };
   auto Ver = GetVer(0);
@@ -891,6 +891,7 @@ SPIRAddressSpace getOCLOpaqueTypeAddrSpace(Op OpCode) {
     return SPIRV_SAMPLER_T_ADDR_SPACE;
   case internal::OpTypeJointMatrixINTEL:
   case internal::OpTypeJointMatrixINTELv2:
+  case OpTypeCooperativeMatrixKHR:
     return SPIRAS_Global;
   default:
     if (isSubgroupAvcINTELTypeOpCode(OpCode))
@@ -1319,32 +1320,6 @@ public:
 
 std::unique_ptr<SPIRV::BuiltinFuncMangleInfo> makeMangler(Function &F) {
   return std::make_unique<OCLBuiltinFuncMangleInfo>(&F);
-}
-
-static StringRef getStructName(Type *Ty) {
-  if (auto *STy = dyn_cast<StructType>(Ty))
-    return STy->isLiteral() ? "" : Ty->getStructName();
-  return "";
-}
-
-Value *unwrapSpecialTypeInitializer(Value *V) {
-  if (auto *BC = dyn_cast<BitCastOperator>(V)) {
-    Type *DestTy = BC->getDestTy();
-    Type *SrcTy = BC->getSrcTy();
-    if (SrcTy->isPointerTy() && !SrcTy->isOpaquePointerTy()) {
-      StringRef SrcName =
-          getStructName(SrcTy->getNonOpaquePointerElementType());
-      StringRef DestName =
-          getStructName(DestTy->getNonOpaquePointerElementType());
-      if (DestName == getSPIRVTypeName(kSPIRVTypeName::PipeStorage) &&
-          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantPipeStorage))
-        return BC->getOperand(0);
-      if (DestName == getSPIRVTypeName(kSPIRVTypeName::Sampler) &&
-          SrcName == getSPIRVTypeName(kSPIRVTypeName::ConstantSampler))
-        return BC->getOperand(0);
-    }
-  }
-  return nullptr;
 }
 
 bool isSamplerTy(Type *Ty) {

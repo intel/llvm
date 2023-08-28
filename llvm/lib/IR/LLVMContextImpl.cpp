@@ -33,15 +33,11 @@
 
 using namespace llvm;
 
-#if ENABLE_OPAQUE_POINTERS
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 static cl::opt<bool> OpaquePointersCL("opaque-pointers",
                                       cl::desc("Use opaque pointers"),
                                       cl::init(true));
-#else
-static cl::opt<bool> OpaquePointersCL("opaque-pointers",
-                                      cl::desc("Use opaque pointers"),
-                                      cl::init(false));
-#endif
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
     : DiagHandler(std::make_unique<DiagnosticHandler>()),
@@ -53,9 +49,11 @@ LLVMContextImpl::LLVMContextImpl(LLVMContext &C)
       PPC_FP128Ty(C, Type::PPC_FP128TyID), X86_MMXTy(C, Type::X86_MMXTyID),
       X86_AMXTy(C, Type::X86_AMXTyID), Int1Ty(C, 1), Int8Ty(C, 8),
       Int16Ty(C, 16), Int32Ty(C, 32), Int64Ty(C, 64), Int128Ty(C, 128) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (OpaquePointersCL.getNumOccurrences()) {
     OpaquePointers = OpaquePointersCL;
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 LLVMContextImpl::~LLVMContextImpl() {
@@ -256,7 +254,7 @@ OptPassGate &LLVMContextImpl::getOptPassGate() const {
 void LLVMContextImpl::setOptPassGate(OptPassGate& OPG) {
   this->OPG = &OPG;
 }
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 bool LLVMContextImpl::hasOpaquePointersValue() {
   return OpaquePointers.has_value();
 }
@@ -272,3 +270,4 @@ void LLVMContextImpl::setOpaquePointers(bool OP) {
          "Cannot change opaque pointers mode once set");
   OpaquePointers = OP;
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY

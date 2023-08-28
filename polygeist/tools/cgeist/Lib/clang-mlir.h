@@ -390,6 +390,10 @@ private:
                                    mlir::VectorType VType);
   ValueCategory EmitVectorSubscript(clang::ArraySubscriptExpr *Expr);
   ValueCategory EmitArraySubscriptExpr(clang::ArraySubscriptExpr *E);
+  ValueCategory EmitConditionalOperator(clang::ConditionalOperator *E,
+                                        bool isReference);
+  ValueCategory EmitConditionalOperatorLValue(clang::ConditionalOperator *E);
+  ValueCategory EvaluateExprAsBool(clang::Expr *E);
 
 public:
   MLIRScanner(MLIRASTConsumer &Glob, mlir::OwningOpRef<mlir::ModuleOp> &Module,

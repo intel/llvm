@@ -33,7 +33,7 @@ using namespace mlir;
 // Constants
 //===----------------------------------------------------------------------===//
 
-static constexpr unsigned defaultAddressSpace = 0;
+constexpr unsigned defaultAddressSpace = 0;
 
 //===----------------------------------------------------------------------===//
 // Utility functions
@@ -55,6 +55,17 @@ static bool isUnsignedIntegerOrVector(Type type) {
   if (auto vecType = dyn_cast<VectorType>(type))
     return vecType.getElementType().isUnsignedInteger();
   return false;
+}
+
+/// Returns the width of an integer or of the element type of an integer vector,
+/// if applicable.
+static std::optional<uint64_t> getIntegerOrVectorElementWidth(Type type) {
+  if (auto intType = dyn_cast<IntegerType>(type))
+    return intType.getWidth();
+  if (auto vecType = dyn_cast<VectorType>(type))
+    if (auto intType = dyn_cast<IntegerType>(vecType.getElementType()))
+      return intType.getWidth();
+  return std::nullopt;
 }
 
 /// Returns the bit width of integer, float or vector of float or integer values
@@ -266,19 +277,14 @@ static std::optional<Type> convertArrayType(spirv::ArrayType type,
   return LLVM::LLVMArrayType::get(llvmElementType, numElements);
 }
 
-#define STORAGE_SPACE_MAP(storage, space)                                      \
-  case spirv::StorageClass::storage:                                           \
-    return space;
-
-#define CLIENT_MAP(client, storage)                                            \
-  case spirv::ClientAPI::client:                                               \
-    return mapTo##client##AddressSpace(storage);
-
 static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
   // Based on
   // https://registry.khronos.org/SPIR-V/specs/unified1/OpenCL.ExtendedInstructionSet.100.html#_binary_form
   // and clang/lib/Basic/Targets/SPIR.h.
   switch (storageClass) {
+#define STORAGE_SPACE_MAP(storage, space)                                      \
+  case spirv::StorageClass::storage:                                           \
+    return space;
     STORAGE_SPACE_MAP(Function, 0)
     STORAGE_SPACE_MAP(CrossWorkgroup, 1)
     STORAGE_SPACE_MAP(Input, 1)
@@ -287,6 +293,7 @@ static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
     STORAGE_SPACE_MAP(Generic, 4)
     STORAGE_SPACE_MAP(DeviceOnlyINTEL, 5)
     STORAGE_SPACE_MAP(HostOnlyINTEL, 6)
+#undef STORAGE_SPACE_MAP
   default:
     return defaultAddressSpace;
   }
@@ -295,7 +302,11 @@ static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
 static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
                                   spirv::StorageClass storageClass) {
   switch (clientAPI) {
+#define CLIENT_MAP(client, storage)                                            \
+  case spirv::ClientAPI::client:                                               \
+    return mapTo##client##AddressSpace(storage);
     CLIENT_MAP(OpenCL, storageClass)
+#undef CLIENT_MAP
   default:
     return defaultAddressSpace;
   }
@@ -303,12 +314,11 @@ static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
 
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
-static std::optional<Type> convertPointerType(spirv::PointerType type,
-                                              LLVMTypeConverter &converter,
-                                              spirv::ClientAPI clientAPI) {
+static Type convertPointerType(spirv::PointerType type,
+                               LLVMTypeConverter &converter,
+                               spirv::ClientAPI clientAPI) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  const auto addressSpace =
-      mapToAddressSpace(clientAPI, type.getStorageClass());
+  unsigned addressSpace = mapToAddressSpace(clientAPI, type.getStorageClass());
   return converter.getPointerType(pointeeType, addressSpace);
 }
 
@@ -586,10 +596,12 @@ public:
   matchAndRewrite(spirv::BranchConditionalOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     // If branch weights exist, map them to 32-bit integer vector.
-    ElementsAttr branchWeights = nullptr;
+    DenseI32ArrayAttr branchWeights = nullptr;
     if (auto weights = op.getBranchWeights()) {
-      VectorType weightType = VectorType::get(2, rewriter.getI32Type());
-      branchWeights = DenseElementsAttr::get(weightType, weights->getValue());
+      SmallVector<int32_t> weightValues;
+      for (auto weight : weights->getAsRange<IntegerAttr>())
+        weightValues.push_back(weight.getInt());
+      branchWeights = DenseI32ArrayAttr::get(getContext(), weightValues);
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
@@ -770,8 +782,6 @@ public:
       : SPIRVToLLVMConversion<spirv::GlobalVariableOp>(
             std::forward<Args>(args)...),
         clientAPI(clientAPI) {}
-
-  using SPIRVToLLVMConversion<spirv::GlobalVariableOp>::SPIRVToLLVMConversion;
 
   LogicalResult
   matchAndRewrite(spirv::GlobalVariableOp op, OpAdaptor adaptor,
@@ -1236,15 +1246,30 @@ public:
       return success();
     }
 
+    std::optional<uint64_t> dstTypeWidth =
+        getIntegerOrVectorElementWidth(dstType);
+    std::optional<uint64_t> op2TypeWidth =
+        getIntegerOrVectorElementWidth(op2Type);
+
+    if (!dstTypeWidth || !op2TypeWidth)
+      return failure();
+
     Location loc = operation.getLoc();
     Value extended;
-    if (isUnsignedIntegerOrVector(op2Type)) {
-      extended = rewriter.template create<LLVM::ZExtOp>(loc, dstType,
-                                                        adaptor.getOperand2());
+    if (op2TypeWidth < dstTypeWidth) {
+      if (isUnsignedIntegerOrVector(op2Type)) {
+        extended = rewriter.template create<LLVM::ZExtOp>(
+            loc, dstType, adaptor.getOperand2());
+      } else {
+        extended = rewriter.template create<LLVM::SExtOp>(
+            loc, dstType, adaptor.getOperand2());
+      }
+    } else if (op2TypeWidth == dstTypeWidth) {
+      extended = adaptor.getOperand2();
     } else {
-      extended = rewriter.template create<LLVM::SExtOp>(loc, dstType,
-                                                        adaptor.getOperand2());
+      return failure();
     }
+
     Value result = rewriter.template create<LLVMOp>(
         loc, dstType, adaptor.getOperand1(), extended);
     rewriter.replaceOp(operation, result);

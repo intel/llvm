@@ -218,6 +218,7 @@ enum ScalarTypeKind : uint8_t {
   UnsignedInteger,
   Float,
   Invalid,
+  Undefined,
 };
 
 // Exponential LMUL
@@ -240,7 +241,7 @@ class RVVType {
   friend class RVVTypeCache;
 
   BasicType BT;
-  ScalarTypeKind ScalarType = Invalid;
+  ScalarTypeKind ScalarType = Undefined;
   LMULType LMUL;
   bool IsPointer = false;
   // IsConstant indices are "int", but have the constant expression.
@@ -397,7 +398,7 @@ public:
                const RVVTypes &Types,
                const std::vector<int64_t> &IntrinsicTypes,
                const std::vector<llvm::StringRef> &RequiredFeatures,
-               unsigned NF, Policy PolicyAttrs);
+               unsigned NF, Policy PolicyAttrs, bool HasFRMRoundModeOp);
   ~RVVIntrinsic() = default;
 
   RVVTypePtr getOutputType() const { return OutputType; }
@@ -467,7 +468,7 @@ public:
   static void updateNamesAndPolicy(bool IsMasked, bool HasPolicy,
                                    std::string &Name, std::string &BuiltinName,
                                    std::string &OverloadedName,
-                                   Policy &PolicyAttrs);
+                                   Policy &PolicyAttrs, bool HasFRMRoundModeOp);
 };
 
 // RVVRequire should be sync'ed with target features, but only
@@ -475,8 +476,7 @@ public:
 enum RVVRequire : uint8_t {
   RVV_REQ_None = 0,
   RVV_REQ_RV64 = 1 << 0,
-  RVV_REQ_FullMultiply = 1 << 1,
-  RVV_REQ_Xsfvcp = 1 << 2,
+  RVV_REQ_Xsfvcp = 1 << 1,
 
   LLVM_MARK_AS_BITMASK_ENUM(RVV_REQ_Xsfvcp)
 };
@@ -526,6 +526,7 @@ struct RVVIntrinsicRecord {
   bool HasMaskedOffOperand : 1;
   bool HasTailPolicy : 1;
   bool HasMaskPolicy : 1;
+  bool HasFRMRoundModeOp : 1;
   bool IsTuple : 1;
   uint8_t UnMaskedPolicyScheme : 2;
   uint8_t MaskedPolicyScheme : 2;

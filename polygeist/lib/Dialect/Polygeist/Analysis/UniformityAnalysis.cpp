@@ -192,7 +192,7 @@ void UniformityAnalysis::visitNonControlFlowArguments(
       return propagateAllIfChanged(*loop.getSingleInductionVar(), *uniformity);
   }
 
-  return SparseDataFlowAnalysis::visitNonControlFlowArguments(
+  return SparseForwardDataFlowAnalysis::visitNonControlFlowArguments(
       op, successor, argLattices, firstIndex);
 }
 

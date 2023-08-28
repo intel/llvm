@@ -63,8 +63,9 @@ void ConvertSPIRVToLLVMPass::runOnOperation() {
 
   if (clientAPI != spirv::ClientAPI::OpenCL &&
       clientAPI != spirv::ClientAPI::Unknown)
-    getOperation()->emitWarning("address space mapping for client ")
-        << spirv::stringifyClientAPI(clientAPI) << " not implemented";
+    getOperation()->emitWarning()
+        << "address space mapping for client '"
+        << spirv::stringifyClientAPI(clientAPI) << "' not implemented";
 
   // Set `ModuleOp` as legal for `spirv.module` conversion.
   target.addLegalOp<ModuleOp>();

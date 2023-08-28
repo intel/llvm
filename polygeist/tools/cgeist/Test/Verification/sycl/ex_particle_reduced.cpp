@@ -1,5 +1,5 @@
-// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -c %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
-// RUN: clang++ -Xcgeist --use-opaque-pointers=1 -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=LLVM
+// RUN: clang++  -fsycl -fsycl-targets=spir64-unknown-unknown-syclmlir -O0 -w -c %s -o %t.O0.out 2>&1 | FileCheck %s --allow-empty --implicit-check-not="{{error|Error}}:"
+// RUN: clang++  -fsycl -fsycl-device-only -O0 -w -S -emit-llvm -fsycl-targets=spir64-unknown-unknown-syclmlir %s -o - | FileCheck %s --check-prefix=LLVM
 
 // Test that the kernel named `kernel_likelihood` is generated with the correct signature.
 // LLVM: define weak_odr spir_kernel void {{.*}}kernel_likelihood(

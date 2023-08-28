@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O0 -w --function=* -S | FileCheck %s
+// RUN: cgeist  %s -O0 -w --function=* -S | FileCheck %s
 
 typedef int int3 __attribute__((ext_vector_type(3)));
 typedef int int4 __attribute__((ext_vector_type(4)));

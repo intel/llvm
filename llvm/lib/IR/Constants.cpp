@@ -2226,7 +2226,7 @@ Constant *ConstantExpr::getAddrSpaceCast(Constant *C, Type *DstTy,
                                          bool OnlyIfReduced) {
   assert(CastInst::castIsValid(Instruction::AddrSpaceCast, C, DstTy) &&
          "Invalid constantexpr addrspacecast!");
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Canonicalize addrspacecasts between different pointer types by first
   // bitcasting the pointer type and then converting the address space.
   PointerType *SrcScalarTy = cast<PointerType>(C->getType()->getScalarType());
@@ -2241,6 +2241,7 @@ Constant *ConstantExpr::getAddrSpaceCast(Constant *C, Type *DstTy,
     }
     C = getBitCast(C, MidTy);
   }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return getFoldedCast(Instruction::AddrSpaceCast, C, DstTy, OnlyIfReduced);
 }
 
@@ -2303,6 +2304,8 @@ bool ConstantExpr::isDesirableBinOp(unsigned Opcode) {
   case Instruction::FMul:
   case Instruction::FDiv:
   case Instruction::FRem:
+  case Instruction::And:
+  case Instruction::Or:
     return false;
   case Instruction::Add:
   case Instruction::Sub:
@@ -2310,8 +2313,6 @@ bool ConstantExpr::isDesirableBinOp(unsigned Opcode) {
   case Instruction::Shl:
   case Instruction::LShr:
   case Instruction::AShr:
-  case Instruction::And:
-  case Instruction::Or:
   case Instruction::Xor:
     return true;
   default:
@@ -2395,24 +2396,40 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
                                          ArrayRef<Value *> Idxs, bool InBounds,
                                          std::optional<unsigned> InRangeIndex,
                                          Type *OnlyIfReducedTy) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   PointerType *OrigPtrTy = cast<PointerType>(C->getType()->getScalarType());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   assert(Ty && "Must specify element type");
   assert(isSupportedGetElementPtr(Ty) && "Element type is unsupported!");
-  assert(OrigPtrTy->isOpaqueOrPointeeTypeMatches(Ty));
 
   if (Constant *FC =
           ConstantFoldGetElementPtr(Ty, C, InBounds, InRangeIndex, Idxs))
     return FC;          // Fold a few common cases.
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  assert(GetElementPtrInst::getIndexedType(Ty, Idxs) &&
+         "GEP indices invalid!");;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+
   // Get the result type of the getelementptr!
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Type *ReqTy = GetElementPtrInst::getGEPReturnType(C, Idxs);
+  if (OnlyIfReducedTy == ReqTy)
+    return nullptr;
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Type *DestTy = GetElementPtrInst::getIndexedType(Ty, Idxs);
   assert(DestTy && "GEP indices invalid!");
   unsigned AS = OrigPtrTy->getAddressSpace();
   Type *ReqTy = OrigPtrTy->isOpaque()
       ? PointerType::get(OrigPtrTy->getContext(), AS)
       : DestTy->getPointerTo(AS);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   auto EltCount = ElementCount::getFixed(0);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (VectorType *VecTy = dyn_cast<VectorType>(ReqTy))
+    EltCount = VecTy->getElementCount();
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   if (VectorType *VecTy = dyn_cast<VectorType>(C->getType()))
     EltCount = VecTy->getElementCount();
   else
@@ -2422,9 +2439,9 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
 
   if (EltCount.isNonZero())
     ReqTy = VectorType::get(ReqTy, EltCount);
-
   if (OnlyIfReducedTy == ReqTy)
     return nullptr;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Look up the constant in the table first to ensure uniqueness
   std::vector<Constant*> ArgVec;

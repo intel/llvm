@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -o - | FileCheck %s
+// RUN: cgeist  %s --function=* -S -o - | FileCheck %s
 
 // CHECK-LABEL:   func.func @_Z3fooRii(
 // CHECK-SAME:                         %[[VAL_0:.*]]: memref<?xi32>,

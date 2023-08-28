@@ -104,7 +104,8 @@ struct AllocaMemrefOpLowering
     auto nullPtr = rewriter.create<LLVM::NullOp>(loc, ptrType);
     auto gepPtr = rewriter.create<LLVM::GEPOp>(
         loc, ptrType, convElemType, nullPtr,
-        createIndexConstant(rewriter, loc, memrefType.getNumElements()));
+        createIndexAttrConstant(rewriter, loc, getIndexType(),
+                                memrefType.getNumElements()));
     auto sizeBytes =
         rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gepPtr);
 
@@ -147,7 +148,7 @@ struct AllocMemrefOpLowering : public ConvertOpToLLVMPattern<memref::AllocOp> {
 
     const auto alignment =
         llvm::transformOptional(allocOp.getAlignment(), [&](auto val) {
-          return createIndexConstant(rewriter, loc, val);
+          return createIndexAttrConstant(rewriter, loc, getIndexType(), val);
         });
     if (alignment) {
       // Adjust the allocation size to consider alignment.
@@ -247,15 +248,17 @@ struct MemAccessLowering : public ConvertToLLVMPattern {
     assert(succeeded(successStrides) && "unexpected non-strided memref");
     (void)successStrides;
 
-    auto index =
-        offset == 0 ? Value{} : createIndexConstant(rewriter, loc, offset);
+    auto index = offset == 0 ? Value{}
+                             : createIndexAttrConstant(rewriter, loc,
+                                                       getIndexType(), offset);
 
     for (const auto &iter : llvm::enumerate(llvm::zip(indices, strides))) {
       auto increment = std::get<0>(iter.value());
       const auto stride = std::get<1>(iter.value());
       if (stride != 1) { // Skip if stride is 1.
         increment = rewriter.create<LLVM::MulOp>(
-            loc, increment, createIndexConstant(rewriter, loc, stride));
+            loc, increment,
+            createIndexAttrConstant(rewriter, loc, getIndexType(), stride));
       }
       index = index ? rewriter.create<LLVM::AddOp>(loc, index, increment)
                     : increment;
@@ -330,7 +333,7 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
                 unsigned idx) const {
     assert(idx < shape.size());
     if (!ShapedType::isDynamic(shape[idx]))
-      return createIndexConstant(rewriter, loc, shape[idx]);
+      return createIndexAttrConstant(rewriter, loc, getIndexType(), shape[idx]);
     // Count the number of dynamic dims in range [0, idx]
     unsigned nDynamic =
         llvm::count_if(shape.take_front(idx), ShapedType::isDynamic);
@@ -346,13 +349,14 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
                   Value runningStride, unsigned idx) const {
     assert(idx < strides.size());
     if (!ShapedType::isDynamic(strides[idx]))
-      return createIndexConstant(rewriter, loc, strides[idx]);
+      return createIndexAttrConstant(rewriter, loc, getIndexType(),
+                                     strides[idx]);
     if (nextSize)
       return runningStride
                  ? rewriter.create<LLVM::MulOp>(loc, runningStride, nextSize)
                  : nextSize;
     assert(!runningStride);
-    return createIndexConstant(rewriter, loc, 1);
+    return createIndexAttrConstant(rewriter, loc, getIndexType(), 1);
   }
 
   LogicalResult
@@ -410,8 +414,9 @@ struct ViewMemRefOpLowering : public ConvertOpToLLVMPattern<memref::ViewOp> {
     // The offset in the resulting type must be 0. This is because of
     // the type change: an offset on srcType* may not be expressible as an
     // offset on dstType*.
-    targetMemRef.setOffset(rewriter, loc,
-                           createIndexConstant(rewriter, loc, offset));
+    targetMemRef.setOffset(
+        rewriter, loc,
+        createIndexAttrConstant(rewriter, loc, getIndexType(), offset));
 
     // Early exit for 0-D corner case.
     if (viewOp.getType().getRank() == 0)
@@ -531,8 +536,8 @@ struct AllocaMemrefOpLoweringOld
     auto nullPtr = rewriter.create<LLVM::NullOp>(loc, ptrType);
     auto gepPtr = rewriter.create<LLVM::GEPOp>(
         loc, ptrType, nullPtr,
-        createIndexConstant(rewriter, loc,
-                            allocaOp.getType().getNumElements()));
+        createIndexAttrConstant(rewriter, loc, getIndexType(),
+                                allocaOp.getType().getNumElements()));
     auto sizeBytes =
         rewriter.create<LLVM::PtrToIntOp>(loc, getIndexType(), gepPtr);
 
@@ -575,7 +580,7 @@ struct AllocMemrefOpLoweringOld
 
     const auto alignment =
         llvm::transformOptional(allocOp.getAlignment(), [&](auto val) {
-          return createIndexConstant(rewriter, loc, val);
+          return createIndexAttrConstant(rewriter, loc, getIndexType(), val);
         });
     if (alignment) {
       // Adjust the allocation size to consider alignment.
@@ -679,15 +684,17 @@ struct MemAccessLoweringOld : public ConvertToLLVMPattern {
     assert(succeeded(successStrides) && "unexpected non-strided memref");
     (void)successStrides;
 
-    auto index =
-        offset == 0 ? Value{} : createIndexConstant(rewriter, loc, offset);
+    auto index = offset == 0 ? Value{}
+                             : createIndexAttrConstant(rewriter, loc,
+                                                       getIndexType(), offset);
 
     for (const auto &iter : llvm::enumerate(llvm::zip(indices, strides))) {
       auto increment = std::get<0>(iter.value());
       const auto stride = std::get<1>(iter.value());
       if (stride != 1) { // Skip if stride is 1.
         increment = rewriter.create<LLVM::MulOp>(
-            loc, increment, createIndexConstant(rewriter, loc, stride));
+            loc, increment,
+            createIndexAttrConstant(rewriter, loc, getIndexType(), stride));
       }
       index = index ? rewriter.create<LLVM::AddOp>(loc, index, increment)
                     : increment;
@@ -759,7 +766,7 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
                 unsigned idx) const {
     assert(idx < shape.size());
     if (!ShapedType::isDynamic(shape[idx]))
-      return createIndexConstant(rewriter, loc, shape[idx]);
+      return createIndexAttrConstant(rewriter, loc, getIndexType(), shape[idx]);
     // Count the number of dynamic dims in range [0, idx]
     unsigned nDynamic =
         llvm::count_if(shape.take_front(idx), ShapedType::isDynamic);
@@ -775,13 +782,14 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
                   Value runningStride, unsigned idx) const {
     assert(idx < strides.size());
     if (!ShapedType::isDynamic(strides[idx]))
-      return createIndexConstant(rewriter, loc, strides[idx]);
+      return createIndexAttrConstant(rewriter, loc, getIndexType(),
+                                     strides[idx]);
     if (nextSize)
       return runningStride
                  ? rewriter.create<LLVM::MulOp>(loc, runningStride, nextSize)
                  : nextSize;
     assert(!runningStride);
-    return createIndexConstant(rewriter, loc, 1);
+    return createIndexAttrConstant(rewriter, loc, getIndexType(), 1);
   }
 
   LogicalResult
@@ -848,8 +856,9 @@ struct ViewMemRefOpLoweringOld : public ConvertOpToLLVMPattern<memref::ViewOp> {
     // The offset in the resulting type must be 0. This is because of
     // the type change: an offset on srcType* may not be expressible as an
     // offset on dstType*.
-    targetMemRef.setOffset(rewriter, loc,
-                           createIndexConstant(rewriter, loc, offset));
+    targetMemRef.setOffset(
+        rewriter, loc,
+        createIndexAttrConstant(rewriter, loc, getIndexType(), offset));
 
     // Early exit for 0-D corner case.
     if (viewOp.getType().getRank() == 0)

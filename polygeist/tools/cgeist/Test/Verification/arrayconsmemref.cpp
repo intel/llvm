@@ -1,4 +1,4 @@
-// RUN: cgeist -O0 -w --use-opaque-pointers %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist -O0 -w  %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 struct AIntDivider {
     AIntDivider() : divisor(3) {}

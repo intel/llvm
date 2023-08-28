@@ -17,7 +17,7 @@
 // CHECK-NEXT:      %3 = llvm.load %2 : !llvm.ptr -> i32
 // CHECK-NEXT:      %4 = llvm.getelementptr inbounds %arg0[0, 0, 0, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !sycl_accessor_1_i32_rw_gb
 // CHECK-NEXT:      %5 = llvm.load %4 : !llvm.ptr -> i32
-// CHECK-NEXT:      %6 = llvm.mul %1, %3  : i32
+// CHECK-NEXT:      %6 = llvm.mul %3, %1  : i32
 // CHECK-NEXT:      %7 = llvm.add %6, %5  : i32
 // CHECK-NEXT:      %8 = llvm.sub %0, %7  : i32
 // CHECK-NEXT:      %9 = llvm.getelementptr inbounds %arg0[0, 1, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::accessor.1", {{.*}}>
