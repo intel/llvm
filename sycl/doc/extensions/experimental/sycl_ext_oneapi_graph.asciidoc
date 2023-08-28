@@ -307,6 +307,12 @@ enum class queue_state {
   recording
 };
 
+enum class graph_support_level {
+  unsupported,
+  native,
+  emulated
+};
+
 namespace property {
 
 namespace graph {
@@ -320,12 +326,6 @@ class assume_buffer_outlives_graph {
   public:
     assume_buffer_outlives_graph() = default;
 };
-
-class assume_data_outlives_buffer {
-  public:
-    assume_data_outlives_buffer() = default;
-};
-
 } // namespace graph
 
 namespace node {
@@ -346,12 +346,6 @@ namespace device {
 struct graphs_support;
 
 } // namespace device
-
-enum class graph_support_level {
-  unsupported,
-  native,
-  emulated
-};
 } // namespace info
 
 class node {};
@@ -426,9 +420,9 @@ public:
 === Device Info Query
 
 Due to the experimental nature of the extension, support is not available across
-all devices. The following device support query is added to report devices which
+all devices. The following device support query is added to the
+`sycl::ext::oneapi::experimental` namespace for reporting devices which are
 are currently supported, and how that support is implemented.
-
 
 Table {counter: tableNumber}. Device Info Queries.
 [%header]
@@ -436,7 +430,7 @@ Table {counter: tableNumber}. Device Info Queries.
 | Device Descriptors | Return Type | Description
 
 |`info::device::graph_support`
-|`info::graph_support_level`
+|`graph_support_level`
 |When passed to `device::get_info<...>()`, the function returns `native`
 if there is an underlying SYCL backend command-buffer construct which is used
 to propagate the graph to the backend. If no backend construct exists, or
@@ -550,17 +544,6 @@ parameter. This property represents a promise from the user that any buffer
 which is used in a graph will be kept alive on the host for the lifetime of the
 graph. Destroying that buffer during the lifetime of a `command_graph`
 constructed with this property results in undefined behavior.
-
-===== Assume-Data-Outlives-Buffer Property [[assume-data-outlives-buffer-property]]
-
-The `property::graph::assume_data_outlives_buffer` property disables
-<<buffer-limitations, restrictions on using buffers>> which have been created
-with a host pointer in a `command_graph`, and can be passed to a `command_graph`
-on construction via the property list parameter. This property represents a
-promise from the user that any host data passed to a buffer's constructor will
-outlive the buffer itself, and by extension any graph in which that buffer is
-used. Deleting or otherwise modifying this host data during the lifetime of the
-buffer or graph results in undefined behavior when using this property.
 
 ==== Graph Member Functions
 
@@ -679,9 +662,10 @@ Exceptions:
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
 
-* Throws synchronously with error code `invalid` if this command uses a buffer
-  which was created with a host data pointer. See the
-  <<assume-data-outlives-buffer-property, Assume-Data-Outlives-Buffer>>
+* Throws synchronously with error code `invalid` if the graph wasn't created with
+  the `property::graph::assume_buffer_outlives_graph` property and this command
+  uses a buffer. See the
+  <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
 
 |
@@ -1115,9 +1099,6 @@ host data pointer in commands recorded to a `command_graph`. Because of the
 delayed execution of a `command_graph`, data may not be copied to the device
 immediately when commands using these buffers are submitted to the graph,
 therefore the host data must also outlive the graph to ensure correct behavior.
-Users can pass the <<assume-data-outlives-buffer-property, Assume-Data-Outlives-Buffer>>
-property to the graph constructor to provide a promise that this will not occur
-and that it is safe to use this buffer in the graph.
 
 Because of the delayed execution of a recorded graph, it is not possible to support
 captured code which relies on the copy-back on destruction behavior of buffers.
@@ -1391,8 +1372,7 @@ submitted in its entirety for execution via
   {
     // New object representing graph of command-groups
     sycl_ext::command_graph graph(q.get_context(), q.get_device(),
-          {sycl_ext::property::graph::assume_buffer_outlives_graph{},
-           sycl_ext::property::graph::assume_data_outlives_buffer{}});
+          {sycl_ext::property::graph::assume_buffer_outlives_graph{}});
 
 
     // `q` will be put in the recording state where commands are recorded to
