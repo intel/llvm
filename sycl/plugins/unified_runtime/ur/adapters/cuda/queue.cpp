@@ -242,7 +242,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
-  (void)pProperties;
   (void)hDevice;
 
   unsigned int CuFlags;
@@ -269,7 +268,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
                                     hContext->getDevice(),
                                     CuFlags,
                                     Flags,
-                                    /*backend_owns*/ false};
+                                    /*backend_owns*/ pProperties->isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
   return Return;
