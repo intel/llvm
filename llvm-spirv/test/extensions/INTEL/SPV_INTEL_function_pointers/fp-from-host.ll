@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_INTEL_function_pointers -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_function_pointers -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.r.bc
+; RUN: llvm-spirv -r %t.spv -o %t.r.bc
 ; RUN: llvm-dis %t.r.bc -o %t.r.ll
 ; RUN: FileCheck < %t.r.ll %s --check-prefix=CHECK-LLVM
 ;
@@ -17,7 +17,7 @@
 ; CHECK-SPIRV: Capability FunctionPointersINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_function_pointers"
 ;
-; CHECK-SPIRV: EntryPoint {{[0-9]+}} [[KERNEL_ID:[0-9]+]] "test"
+; CHECK-SPIRV: EntryPoint [[#]] [[KERNEL_ID:[0-9]+]] "test"
 ; CHECK-SPIRV: TypeInt [[INT32_TYPE_ID:[0-9]+]] 32
 ; CHECK-SPIRV: TypePointer [[INT_PTR:[0-9]+]] 5 [[INT32_TYPE_ID]]
 ; CHECK-SPIRV: TypeFunction [[FOO_TYPE_ID:[0-9]+]] [[INT32_TYPE_ID]] [[INT32_TYPE_ID]]

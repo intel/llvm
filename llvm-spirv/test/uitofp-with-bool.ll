@@ -1,7 +1,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
-; RUN: llvm-spirv -r -emit-opaque-pointers -spirv-target-env="SPV-IR" %t.spv -o %t.bc
+; RUN: llvm-spirv -r -spirv-target-env="SPV-IR" %t.spv -o %t.bc
 ; RUN: llvm-dis %t.bc -o %t.ll
 ; RUN: FileCheck %s --input-file %t.spt -check-prefix=SPV
 ; RUN: FileCheck %s --input-file %t.ll  -check-prefix=LLVM
@@ -181,7 +181,7 @@ attributes #0 = { nofree norecurse nounwind writeonly "correctly-rounded-divide-
 
 !0 = !{i32 1, !"wchar_size", i32 4}
 !1 = !{i32 2, i32 0}
-!2 = !{i32 1, i32 0}
-!3 = !{!"none", !"none"}
-!4 = !{!"float*", !"int"}
-!5 = !{!"", !""}
+!2 = !{i32 1, i32 0, i32 0, i32 0}
+!3 = !{!"none", !"none", !"none", !"none"}
+!4 = !{!"float*", !"int", !"int", !"int"}
+!5 = !{!"", !"", !"", !""}
