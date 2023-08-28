@@ -18,15 +18,11 @@
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::experimental::esimd {
 
 /// @addtogroup sycl_esimd_core
 /// @{
-
-using argument_type
-    __SYCL_DEPRECATED("use sycl::ext::intel::esimd::xmx::dpas_argument_type") =
-        __ESIMD_NS::xmx::dpas_argument_type;
 
 /// The scope that lsc_fence operation should apply to
 /// Supported platforms: DG2, PVC
@@ -301,5 +297,5 @@ enum class split_barrier_action : uint8_t {
 /// @} sycl_esimd_core
 
 } // namespace ext::intel::experimental::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

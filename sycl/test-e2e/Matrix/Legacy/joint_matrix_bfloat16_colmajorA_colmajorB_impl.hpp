@@ -41,7 +41,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
            joint_matrix<bfloat16, TM, TK> sub_a(sg);
            joint_matrix<bfloat16, TK, TN, matrix_layout::packed_b> sub_b(sg);
            joint_matrix<float, TM, TN> sub_c(sg);

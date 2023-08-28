@@ -32,6 +32,7 @@ add_mlir_dialect_library(MLIRGPUDialect
   MLIRGPUOpsAttributesIncGen
   MLIRGPUOpsEnumsGen
   MLIRGPUOpInterfacesIncGen
+  MLIRGPUCompilationAttrInterfacesIncGen
 
   LINK_LIBS PUBLIC
   MLIRArithDialect
@@ -61,6 +62,7 @@ add_mlir_dialect_library(MLIRGPUTransforms
   LINK_COMPONENTS
   Core
   MC
+  Target
   ${NVPTX_LIBS}
   ${AMDGPU_LIBS}
 

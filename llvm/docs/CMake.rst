@@ -375,6 +375,12 @@ enabled sub-projects. Nearly all of these variable names begin with
   will limit code coverage summaries to just the listed directories. If unset,
   coverage reports will include all sources identified by the tooling.
 
+ **LLVM_INDIVIDUAL_TEST_COVERAGE**: BOOL
+  Enable individual test case coverage. When set to ON, code coverage data for
+  each test case will be generated and stored in a separate directory under the
+  config.test_exec_root path. This feature allows code coverage analysis of each
+  individual test case. Defaults to OFF.
+
 **LLVM_BUILD_LLVM_DYLIB**:BOOL
   If enabled, the target for building the libLLVM shared library is added.
   This library contains all of LLVM's components in a single shared library.
@@ -489,6 +495,11 @@ enabled sub-projects. Nearly all of these variable names begin with
 **LLVM_ENABLE_EXPENSIVE_CHECKS**:BOOL
   Enable additional time/memory expensive checking. Defaults to OFF.
 
+**LLVM_ENABLE_HTTPLIB**:BOOL
+  Enables the optional cpp-httplib dependency which is used by llvm-debuginfod
+  to serve debug info over HTTP. `cpp-httplib <https://github.com/yhirose/cpp-httplib>`_
+  must be installed, or `httplib_ROOT` must be set. Defaults to OFF.
+
 **LLVM_ENABLE_FFI**:BOOL
   Indicates whether the LLVM Interpreter will be linked with the Foreign Function
   Interface library (libffi) in order to enable calling external functions.
@@ -508,6 +519,11 @@ enabled sub-projects. Nearly all of these variable names begin with
   If the host compiler and linker supports the stdlib flag, -stdlib=libc++ is
   passed to invocations of both so that the project is built using libc++
   instead of stdlibc++. Defaults to OFF.
+
+**LLVM_ENABLE_LLVM_LIBC**: BOOL
+  If the LLVM libc overlay is installed in a location where the host linker
+  can access it, all built executables will be linked against the LLVM libc
+  overlay before linking against the system libc. Defaults to OFF.
 
 **LLVM_ENABLE_LIBPFM**:BOOL
   Enable building with libpfm to support hardware counter measurements in LLVM
@@ -670,7 +686,7 @@ enabled sub-projects. Nearly all of these variable names begin with
     $ D:\llvm-project> cmake ... -DLLVM_INTEGRATED_CRT_ALLOC=D:\git\rpmalloc
 
   This flag needs to be used along with the static CRT, ie. if building the
-  Release target, add -DLLVM_USE_CRT_RELEASE=MT.
+  Release target, add -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded.
 
 **LLVM_INSTALL_DOXYGEN_HTML_DIR**:STRING
   The path to install Doxygen-generated HTML documentation to. This path can
@@ -758,7 +774,8 @@ enabled sub-projects. Nearly all of these variable names begin with
 **LLVM_USE_CRT_{target}**:STRING
   On Windows, tells which version of the C runtime library (CRT) should be used.
   For example, -DLLVM_USE_CRT_RELEASE=MT would statically link the CRT into the
-  LLVM tools and library.
+  LLVM tools and library. This is deprecated; use ``CMAKE_MSVC_RUNTIME_LIBRARY``
+  instead.
 
 **LLVM_USE_INTEL_JITEVENTS**:BOOL
   Enable building support for Intel JIT Events API. Defaults to OFF.

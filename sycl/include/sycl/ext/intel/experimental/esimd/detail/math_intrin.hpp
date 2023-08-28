@@ -486,17 +486,17 @@ __esimd_dpas_inner(const __ESIMD_DNS::vector_type_t<T0, SZ> *src0,
 
   constexpr bool
       pvcHfDest = isPvc && std::is_same_v<RT, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16,
       pvcHfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::FP16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::FP16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::fp16,
       pvcBfDest = isPvc && std::is_same_v<RT, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16,
       pvcBfSrc0 = isPvc && std::is_same_v<T0, unsigned short> &&
-                  src1_precision == __ESIMD_ENS::argument_type::BF16 &&
-                  src2_precision == __ESIMD_ENS::argument_type::BF16,
+                  src1_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16 &&
+                  src2_precision == __ESIMD_XMX_NS::dpas_argument_type::bf16,
       pvcBfOrHfDest = pvcBfDest || pvcHfDest,
 
       pvcBfDestChecks =

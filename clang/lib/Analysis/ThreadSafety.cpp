@@ -402,7 +402,7 @@ public:
     // The map with which Exp should be interpreted.
     Context Ctx;
 
-    bool isReference() { return !Exp; }
+    bool isReference() const { return !Exp; }
 
   private:
     // Create ordinary variable definition
@@ -502,9 +502,8 @@ public:
     for (Context::iterator I = C.begin(), E = C.end(); I != E; ++I) {
       const NamedDecl *D = I.getKey();
       D->printName(llvm::errs());
-      const unsigned *i = C.lookup(D);
       llvm::errs() << " -> ";
-      dumpVarDefinitionName(*i);
+      dumpVarDefinitionName(I.getData());
       llvm::errs() << "\n";
     }
   }

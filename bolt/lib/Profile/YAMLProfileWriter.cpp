@@ -12,11 +12,16 @@
 #include "bolt/Profile/ProfileReaderBase.h"
 #include "bolt/Profile/ProfileYAMLMapping.h"
 #include "bolt/Rewrite/RewriteInstance.h"
+#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 
 #undef  DEBUG_TYPE
 #define DEBUG_TYPE "bolt-prof"
+
+namespace opts {
+extern llvm::cl::opt<bool> ProfileUseDFS;
+} // namespace opts
 
 namespace llvm {
 namespace bolt {
@@ -29,7 +34,7 @@ void convert(const BinaryFunction &BF,
   const uint16_t LBRProfile = BF.getProfileFlags() & BinaryFunction::PF_LBR;
 
   // Prepare function and block hashes
-  BF.computeHash(/*UseDFS=*/true);
+  BF.computeHash(opts::ProfileUseDFS);
   BF.computeBlockHashes();
 
   YamlBF.Name = BF.getPrintName();
@@ -38,7 +43,11 @@ void convert(const BinaryFunction &BF,
   YamlBF.NumBasicBlocks = BF.size();
   YamlBF.ExecCount = BF.getKnownExecutionCount();
 
-  for (const BinaryBasicBlock *BB : BF.dfs()) {
+  BinaryFunction::BasicBlockOrderType Order;
+  llvm::copy(opts::ProfileUseDFS ? BF.dfs() : BF.getLayout().blocks(),
+             std::back_inserter(Order));
+
+  for (const BinaryBasicBlock *BB : Order) {
     yaml::bolt::BinaryBasicBlockProfile YamlBB;
     YamlBB.Index = BB->getLayoutIndex();
     YamlBB.NumInstructions = BB->getNumNonPseudos();
@@ -57,6 +66,7 @@ void convert(const BinaryFunction &BF,
       if (!BC.MIB->isCall(Instr) && !BC.MIB->isIndirectBranch(Instr))
         continue;
 
+      SmallVector<std::pair<StringRef, yaml::bolt::CallSiteInfo>> CSTargets;
       yaml::bolt::CallSiteInfo CSI;
       std::optional<uint32_t> Offset = BC.MIB->getOffset(Instr);
       if (!Offset || *Offset < BB->getInputOffset())
@@ -69,25 +79,31 @@ void convert(const BinaryFunction &BF,
         if (!ICSP)
           continue;
         for (const IndirectCallProfile &CSP : ICSP.get()) {
+          StringRef TargetName = "";
           CSI.DestId = 0; // designated for unknown functions
           CSI.EntryDiscriminator = 0;
           if (CSP.Symbol) {
             const BinaryFunction *Callee = BC.getFunctionForSymbol(CSP.Symbol);
-            if (Callee)
+            if (Callee) {
               CSI.DestId = Callee->getFunctionNumber();
+              TargetName = Callee->getOneName();
+            }
           }
           CSI.Count = CSP.Count;
           CSI.Mispreds = CSP.Mispreds;
-          YamlBB.CallSites.push_back(CSI);
+          CSTargets.emplace_back(TargetName, CSI);
         }
       } else { // direct call or a tail call
         uint64_t EntryID = 0;
+        CSI.DestId = 0;
+        StringRef TargetName = "";
         const MCSymbol *CalleeSymbol = BC.MIB->getTargetSymbol(Instr);
         const BinaryFunction *const Callee =
             BC.getFunctionForSymbol(CalleeSymbol, &EntryID);
         if (Callee) {
           CSI.DestId = Callee->getFunctionNumber();
           CSI.EntryDiscriminator = EntryID;
+          TargetName = Callee->getOneName();
         }
 
         if (BC.MIB->getConditionalTailCall(Instr)) {
@@ -107,11 +123,17 @@ void convert(const BinaryFunction &BF,
         }
 
         if (CSI.Count)
-          YamlBB.CallSites.emplace_back(CSI);
+          CSTargets.emplace_back(TargetName, CSI);
       }
+      // Sort targets in a similar way to getBranchData, see Location::operator<
+      llvm::sort(CSTargets, [](const auto &RHS, const auto &LHS) {
+        if (RHS.first != LHS.first)
+          return RHS.first < LHS.first;
+        return RHS.second.Offset < LHS.second.Offset;
+      });
+      for (auto &KV : CSTargets)
+        YamlBB.CallSites.push_back(KV.second);
     }
-
-    llvm::sort(YamlBB.CallSites);
 
     // Skip printing if there's no profile data for non-entry basic block.
     // Include landing pads with non-zero execution count.
@@ -166,6 +188,7 @@ std::error_code YAMLProfileWriter::writeProfile(const RewriteInstance &RI) {
   std::optional<StringRef> BuildID = BC.getFileBuildID();
   BP.Header.Id = BuildID ? std::string(*BuildID) : "<unknown>";
   BP.Header.Origin = std::string(RI.getProfileReader()->getReaderName());
+  BP.Header.IsDFSOrder = opts::ProfileUseDFS;
 
   StringSet<> EventNames = RI.getProfileReader()->getEventNames();
   if (!EventNames.empty()) {

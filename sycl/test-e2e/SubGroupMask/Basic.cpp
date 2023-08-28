@@ -1,8 +1,10 @@
 // RUN: %{build} -o %t.out
+
 // REQUIRES: gpu
-// UNSUPPORTED: hip
+
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
+
 // UNSUPPORTED: ze_debug
 
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//

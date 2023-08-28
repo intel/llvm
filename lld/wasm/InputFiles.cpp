@@ -193,6 +193,7 @@ uint64_t ObjFile::calcNewValue(const WasmRelocation &reloc, uint64_t tombstone,
   case R_WASM_TYPE_INDEX_LEB:
     return typeMap[reloc.Index];
   case R_WASM_FUNCTION_INDEX_LEB:
+  case R_WASM_FUNCTION_INDEX_I32:
     return getFunctionSymbol(reloc.Index)->getFunctionIndex();
   case R_WASM_GLOBAL_INDEX_LEB:
   case R_WASM_GLOBAL_INDEX_I32:
@@ -487,7 +488,7 @@ void ObjFile::parse(bool ignoreComdats) {
     // relied on the naming convention.  To maintain compat with such objects
     // we still imply the TLS flag based on the name of the segment.
     if (!seg->isTLS() &&
-        (seg->name.startswith(".tdata") || seg->name.startswith(".tbss")))
+        (seg->name.starts_with(".tdata") || seg->name.starts_with(".tbss")))
       seg->flags |= WASM_SEG_FLAG_TLS;
     segments.emplace_back(seg);
   }
@@ -705,7 +706,7 @@ void StubFile::parse() {
     }
 
     // Lines starting with # are considered comments
-    if (line.startswith("#"))
+    if (line.starts_with("#"))
       continue;
 
     StringRef sym;

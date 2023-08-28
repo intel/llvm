@@ -757,10 +757,31 @@ struct WarpOpTransferRead : public OpRewritePattern<WarpExecuteOnLane0Op> {
           rewriter, read.getLoc(), d0 + scale * d1,
           {indices[indexPos], warpOp.getLaneid()});
     }
-    Value newRead = rewriter.create<vector::TransferReadOp>(
+    auto newRead = rewriter.create<vector::TransferReadOp>(
         read.getLoc(), distributedVal.getType(), read.getSource(), indices,
         read.getPermutationMapAttr(), read.getPadding(), read.getMask(),
         read.getInBoundsAttr());
+
+    // Check that the produced operation is legal.
+    // The transfer op may be reading from values that are defined within
+    // warpOp's body, which is illegal.
+    // We do the check late because incdices may be changed by
+    // makeComposeAffineApply. This rewrite may remove dependencies from
+    // warOp's body.
+    // E.g., warop {
+    //   %idx = affine.apply...[%outsideDef]
+    //   ... = transfer_read ...[%idx]
+    // }
+    // will be rewritten in:
+    // warop {
+    // }
+    //  %new_idx = affine.apply...[%outsideDef]
+    //   ... = transfer_read ...[%new_idx]
+    if (!llvm::all_of(newRead->getOperands(), [&](Value value) {
+          return warpOp.isDefinedOutsideOfRegion(value);
+        }))
+      return failure();
+
     rewriter.replaceAllUsesWith(distributedVal, newRead);
     return success();
   }
@@ -875,10 +896,19 @@ struct WarpOpBroadcast : public OpRewritePattern<WarpExecuteOnLane0Op> {
     Location loc = broadcastOp.getLoc();
     auto destVecType =
         cast<VectorType>(warpOp->getResultTypes()[operandNumber]);
+    Value broadcastSrc = broadcastOp.getSource();
+    Type broadcastSrcType = broadcastSrc.getType();
+
+    // Check that the broadcast actually spans a set of values uniformly across
+    // all threads. In other words, check that each thread can reconstruct
+    // their own broadcast.
+    // For that we simply check that the broadcast we want to build makes sense.
+    if (vector::isBroadcastableTo(broadcastSrcType, destVecType) !=
+        vector::BroadcastableToResult::Success)
+      return failure();
     SmallVector<size_t> newRetIndices;
     WarpExecuteOnLane0Op newWarpOp = moveRegionToNewWarpOpAndAppendReturns(
-        rewriter, warpOp, {broadcastOp.getSource()},
-        {broadcastOp.getSource().getType()}, newRetIndices);
+        rewriter, warpOp, {broadcastSrc}, {broadcastSrcType}, newRetIndices);
     rewriter.setInsertionPointAfter(newWarpOp);
     Value broadcasted = rewriter.create<vector::BroadcastOp>(
         loc, destVecType, newWarpOp->getResult(newRetIndices[0]));
@@ -914,7 +944,7 @@ struct WarpOpExtract : public OpRewritePattern<WarpExecuteOnLane0Op> {
     // Rewrite vector.extract with 1d source to vector.extractelement.
     if (extractSrcType.getRank() == 1) {
       assert(extractOp.getPosition().size() == 1 && "expected 1 index");
-      int64_t pos = cast<IntegerAttr>(extractOp.getPosition()[0]).getInt();
+      int64_t pos = extractOp.getPosition()[0];
       rewriter.setInsertionPoint(extractOp);
       rewriter.replaceOpWithNewOp<vector::ExtractElementOp>(
           extractOp, extractOp.getVector(),
@@ -1171,7 +1201,7 @@ struct WarpOpInsert : public OpRewritePattern<WarpExecuteOnLane0Op> {
     // Rewrite vector.insert with 1d dest to vector.insertelement.
     if (insertOp.getDestVectorType().getRank() == 1) {
       assert(insertOp.getPosition().size() == 1 && "expected 1 index");
-      int64_t pos = cast<IntegerAttr>(insertOp.getPosition()[0]).getInt();
+      int64_t pos = insertOp.getPosition()[0];
       rewriter.setInsertionPoint(insertOp);
       rewriter.replaceOpWithNewOp<vector::InsertElementOp>(
           insertOp, insertOp.getSource(), insertOp.getDest(),
@@ -1246,10 +1276,7 @@ struct WarpOpInsert : public OpRewritePattern<WarpExecuteOnLane0Op> {
     } else {
       // One lane inserts the entire source vector.
       int64_t elementsPerLane = distrDestType.getDimSize(distrDestDim);
-      SmallVector<int64_t> newPos = llvm::to_vector(
-          llvm::map_range(insertOp.getPosition(), [](Attribute attr) {
-            return cast<IntegerAttr>(attr).getInt();
-          }));
+      SmallVector<int64_t> newPos(insertOp.getPosition());
       // tid of inserting lane: pos / elementsPerLane
       Value insertingLane = rewriter.create<arith::ConstantIndexOp>(
           loc, newPos[distrDestDim] / elementsPerLane);

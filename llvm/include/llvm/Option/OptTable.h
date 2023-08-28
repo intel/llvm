@@ -62,6 +62,7 @@ private:
   ArrayRef<Info> OptionInfos;
   bool IgnoreCase;
   bool GroupedShortOptions = false;
+  bool DashDashParsing = false;
   const char *EnvVar = nullptr;
 
   unsigned InputOptionID = 0;
@@ -138,6 +139,10 @@ public:
 
   /// Support grouped short options. e.g. -ab represents -a -b.
   void setGroupedShortOptions(bool Value) { GroupedShortOptions = Value; }
+
+  /// Set whether "--" stops option parsing and treats all subsequent arguments
+  /// as positional. E.g. -- -a -b gives two positional inputs.
+  void setDashDashParsing(bool Value) { DashDashParsing = Value; }
 
   /// Find possible value for given flags. This is used for shell
   /// autocompletion.
@@ -292,5 +297,32 @@ protected:
 } // end namespace opt
 
 } // end namespace llvm
+
+#define LLVM_MAKE_OPT_ID_WITH_ID_PREFIX(ID_PREFIX, PREFIX, NAME, ID, KIND,     \
+                                        GROUP, ALIAS, ALIASARGS, FLAGS, PARAM, \
+                                        HELPTEXT, METAVAR, VALUES)             \
+  ID_PREFIX##ID
+
+#define LLVM_MAKE_OPT_ID(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS,      \
+                         FLAGS, PARAM, HELPTEXT, METAVAR, VALUES)              \
+  LLVM_MAKE_OPT_ID_WITH_ID_PREFIX(OPT_, PREFIX, NAME, ID, KIND, GROUP, ALIAS,  \
+                                  ALIASARGS, FLAGS, PARAM, HELPTEXT, METAVAR,  \
+                                  VALUE)
+
+#define LLVM_CONSTRUCT_OPT_INFO_WITH_ID_PREFIX(                                \
+    ID_PREFIX, PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
+    HELPTEXT, METAVAR, VALUES)                                                 \
+  llvm::opt::OptTable::Info {                                                  \
+    PREFIX, NAME, HELPTEXT, METAVAR, ID_PREFIX##ID,                            \
+        llvm::opt::Option::KIND##Class, PARAM, FLAGS, ID_PREFIX##GROUP,        \
+        ID_PREFIX##ALIAS, ALIASARGS, VALUES                                    \
+  }
+
+#define LLVM_CONSTRUCT_OPT_INFO(PREFIX, NAME, ID, KIND, GROUP, ALIAS,          \
+                                ALIASARGS, FLAGS, PARAM, HELPTEXT, METAVAR,    \
+                                VALUES)                                        \
+  LLVM_CONSTRUCT_OPT_INFO_WITH_ID_PREFIX(OPT_, PREFIX, NAME, ID, KIND, GROUP,  \
+                                         ALIAS, ALIASARGS, FLAGS, PARAM,       \
+                                         HELPTEXT, METAVAR, VALUES)
 
 #endif // LLVM_OPTION_OPTTABLE_H

@@ -244,10 +244,18 @@ let Definition = "process" in {
     DefaultTrue,
     Desc<"If true, stop when the inferior exec's.">;
   def UtilityExpressionTimeout: Property<"utility-expression-timeout", "UInt64">,
+#ifdef LLDB_SANITIZED
+    DefaultUnsignedValue<60>,
+#else
     DefaultUnsignedValue<15>,
+#endif
     Desc<"The time in seconds to wait for LLDB-internal utility expressions.">;
   def InterruptTimeout: Property<"interrupt-timeout", "UInt64">,
+#ifdef LLDB_SANITIZED
+    DefaultUnsignedValue<60>,
+#else
     DefaultUnsignedValue<20>,
+#endif
     Desc<"The time in seconds to wait for an interrupt succeed in stopping the target.">;
   def SteppingRunsAllThreads: Property<"run-all-threads", "Boolean">,
     DefaultFalse,
@@ -255,6 +263,9 @@ let Definition = "process" in {
   def VirtualAddressableBits: Property<"virtual-addressable-bits", "UInt64">,
     DefaultUnsignedValue<0>,
     Desc<"The number of bits used for addressing. If the value is 39, then bits 0..38 are used for addressing. The default value of 0 means unspecified.">;
+  def HighmemVirtualAddressableBits: Property<"highmem-virtual-addressable-bits", "UInt64">,
+    DefaultUnsignedValue<0>,
+    Desc<"The number of bits used for addressing high memory, when it differs from low memory in the same Process. When this is non-zero, target.process.virtual-addressable-bits will be the value for low memory (0x000... addresses) and this setting will be the value for high memory (0xfff... addresses). When this is zero, target.process.virtual-addressable-bits applies to all addresses. It is very uncommon to use this setting.">;
   def FollowForkMode: Property<"follow-fork-mode", "Enum">,
     DefaultEnumValue<"eFollowParent">,
     EnumValues<"OptionEnumValues(g_follow_fork_mode_values)">,

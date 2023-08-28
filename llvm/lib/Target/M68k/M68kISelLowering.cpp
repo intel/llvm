@@ -73,16 +73,16 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
   setTruncStoreAction(MVT::i32, MVT::i8, Expand);
   setTruncStoreAction(MVT::i16, MVT::i8, Expand);
 
-  setOperationAction(ISD::MUL, MVT::i8, Promote);
-  setOperationAction(ISD::MUL, MVT::i16, Legal);
+  setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i8, Promote);
+  setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i16, Legal);
   if (Subtarget.atLeastM68020())
-    setOperationAction(ISD::MUL, MVT::i32, Legal);
+    setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i32, Legal);
   else
-    setOperationAction(ISD::MUL, MVT::i32, LibCall);
+    setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i32, LibCall);
   setOperationAction(ISD::MUL, MVT::i64, LibCall);
 
   for (auto OP :
-       {ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM, ISD::UDIVREM, ISD::SDIVREM,
+       {ISD::SREM, ISD::UREM, ISD::UDIVREM, ISD::SDIVREM,
         ISD::MULHS, ISD::MULHU, ISD::UMUL_LOHI, ISD::SMUL_LOHI}) {
     setOperationAction(OP, MVT::i8, Promote);
     setOperationAction(OP, MVT::i16, Legal);
@@ -1420,7 +1420,106 @@ SDValue M68kTargetLowering::LowerOperation(SDValue Op,
     return LowerShiftRightParts(Op, DAG, false);
   case ISD::ATOMIC_FENCE:
     return LowerATOMICFENCE(Op, DAG);
+  case ISD::GlobalTLSAddress:
+    return LowerGlobalTLSAddress(Op, DAG);
   }
+}
+
+SDValue M68kTargetLowering::LowerExternalSymbolCall(SelectionDAG &DAG,
+                                                    SDLoc Loc,
+                                                    llvm::StringRef SymbolName,
+                                                    ArgListTy &&ArgList) const {
+  PointerType *PtrTy = PointerType::get(*DAG.getContext(), 0);
+  CallLoweringInfo CLI(DAG);
+  CLI.setDebugLoc(Loc)
+      .setChain(DAG.getEntryNode())
+      .setLibCallee(CallingConv::C, PtrTy,
+                    DAG.getExternalSymbol(SymbolName.data(),
+                                          getPointerMemTy(DAG.getDataLayout())),
+                    std::move(ArgList));
+  return LowerCallTo(CLI).first;
+}
+
+SDValue M68kTargetLowering::getTLSGetAddr(GlobalAddressSDNode *GA,
+                                          SelectionDAG &DAG,
+                                          unsigned TargetFlags) const {
+  SDValue GOT = DAG.getGLOBAL_OFFSET_TABLE(MVT::i32);
+  SDValue TGA = DAG.getTargetGlobalAddress(
+      GA->getGlobal(), GA, GA->getValueType(0), GA->getOffset(), TargetFlags);
+  SDValue Arg = DAG.getNode(ISD::ADD, SDLoc(GA), MVT::i32, GOT, TGA);
+
+  PointerType *PtrTy = PointerType::get(*DAG.getContext(), 0);
+
+  ArgListTy Args;
+  ArgListEntry Entry;
+  Entry.Node = Arg;
+  Entry.Ty = PtrTy;
+  Args.push_back(Entry);
+  return LowerExternalSymbolCall(DAG, SDLoc(GA), "__tls_get_addr",
+                                 std::move(Args));
+}
+
+SDValue M68kTargetLowering::getM68kReadTp(SDLoc Loc, SelectionDAG &DAG) const {
+  return LowerExternalSymbolCall(DAG, Loc, "__m68k_read_tp", ArgListTy());
+}
+
+SDValue M68kTargetLowering::LowerTLSGeneralDynamic(GlobalAddressSDNode *GA,
+                                                   SelectionDAG &DAG) const {
+  return getTLSGetAddr(GA, DAG, M68kII::MO_TLSGD);
+}
+
+SDValue M68kTargetLowering::LowerTLSLocalDynamic(GlobalAddressSDNode *GA,
+                                                 SelectionDAG &DAG) const {
+  SDValue Addr = getTLSGetAddr(GA, DAG, M68kII::MO_TLSLDM);
+  SDValue TGA =
+      DAG.getTargetGlobalAddress(GA->getGlobal(), GA, GA->getValueType(0),
+                                 GA->getOffset(), M68kII::MO_TLSLD);
+  return DAG.getNode(ISD::ADD, SDLoc(GA), MVT::i32, TGA, Addr);
+}
+
+SDValue M68kTargetLowering::LowerTLSInitialExec(GlobalAddressSDNode *GA,
+                                                SelectionDAG &DAG) const {
+  SDValue GOT = DAG.getGLOBAL_OFFSET_TABLE(MVT::i32);
+  SDValue Tp = getM68kReadTp(SDLoc(GA), DAG);
+  SDValue TGA =
+      DAG.getTargetGlobalAddress(GA->getGlobal(), GA, GA->getValueType(0),
+                                 GA->getOffset(), M68kII::MO_TLSIE);
+  SDValue Addr = DAG.getNode(ISD::ADD, SDLoc(GA), MVT::i32, TGA, GOT);
+  SDValue Offset =
+      DAG.getLoad(MVT::i32, SDLoc(GA), DAG.getEntryNode(), Addr,
+                  MachinePointerInfo::getGOT(DAG.getMachineFunction()));
+
+  return DAG.getNode(ISD::ADD, SDLoc(GA), MVT::i32, Offset, Tp);
+}
+
+SDValue M68kTargetLowering::LowerTLSLocalExec(GlobalAddressSDNode *GA,
+                                              SelectionDAG &DAG) const {
+  SDValue Tp = getM68kReadTp(SDLoc(GA), DAG);
+  SDValue TGA =
+      DAG.getTargetGlobalAddress(GA->getGlobal(), GA, GA->getValueType(0),
+                                 GA->getOffset(), M68kII::MO_TLSLE);
+  return DAG.getNode(ISD::ADD, SDLoc(GA), MVT::i32, TGA, Tp);
+}
+
+SDValue M68kTargetLowering::LowerGlobalTLSAddress(SDValue Op,
+                                                  SelectionDAG &DAG) const {
+  assert(Subtarget.isTargetELF());
+
+  auto *GA = cast<GlobalAddressSDNode>(Op);
+  TLSModel::Model AccessModel = DAG.getTarget().getTLSModel(GA->getGlobal());
+
+  switch (AccessModel) {
+  case TLSModel::GeneralDynamic:
+    return LowerTLSGeneralDynamic(GA, DAG);
+  case TLSModel::LocalDynamic:
+    return LowerTLSLocalDynamic(GA, DAG);
+  case TLSModel::InitialExec:
+    return LowerTLSInitialExec(GA, DAG);
+  case TLSModel::LocalExec:
+    return LowerTLSLocalExec(GA, DAG);
+  }
+
+  llvm_unreachable("Unexpected TLS access model type");
 }
 
 bool M68kTargetLowering::decomposeMulByConstant(LLVMContext &Context, EVT VT,
@@ -3104,6 +3203,11 @@ M68kTargetLowering::EmitLoweredSelect(MachineInstr &MI,
   MachineBasicBlock *SinkMBB = F->CreateMachineBasicBlock(BB);
   F->insert(It, Copy0MBB);
   F->insert(It, SinkMBB);
+
+  // Set the call frame size on entry to the new basic blocks.
+  unsigned CallFrameSize = TII->getCallFrameSizeAt(MI);
+  Copy0MBB->setCallFrameSize(CallFrameSize);
+  SinkMBB->setCallFrameSize(CallFrameSize);
 
   // If the CCR register isn't dead in the terminator, then claim that it's
   // live into the sink and copy blocks.

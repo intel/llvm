@@ -297,12 +297,6 @@ static SmallVector<int64_t> getReducedShape(ArrayRef<int64_t> shape) {
   return reducedShape;
 }
 
-/// Returns true if all values are `arith.constant 0 : index`
-static bool isZero(Value v) {
-  auto cst = v.getDefiningOp<arith::ConstantIndexOp>();
-  return cst && cst.value() == 0;
-}
-
 namespace {
 
 /// Rewrites `vector.transfer_read` ops where the source has unit dims, by
@@ -338,8 +332,9 @@ class TransferReadDropUnitDimsPattern
     int vectorReducedRank = getReducedRank(vectorType.getShape());
     if (reducedRank != vectorReducedRank)
       return failure();
-    if (llvm::any_of(transferReadOp.getIndices(),
-                     [](Value v) { return !isZero(v); }))
+    if (llvm::any_of(transferReadOp.getIndices(), [](Value v) {
+          return getConstantIntValue(v) != static_cast<int64_t>(0);
+        }))
       return failure();
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
@@ -392,8 +387,9 @@ class TransferWriteDropUnitDimsPattern
     int vectorReducedRank = getReducedRank(vectorType.getShape());
     if (reducedRank != vectorReducedRank)
       return failure();
-    if (llvm::any_of(transferWriteOp.getIndices(),
-                     [](Value v) { return !isZero(v); }))
+    if (llvm::any_of(transferWriteOp.getIndices(), [](Value v) {
+          return getConstantIntValue(v) != static_cast<int64_t>(0);
+        }))
       return failure();
     Value reducedShapeSource =
         rankReducingSubviewDroppingUnitDims(rewriter, loc, source);
@@ -463,8 +459,7 @@ checkAndCollapseInnerZeroIndices(ValueRange indices, int64_t firstDimToCollapse,
   if (firstDimToCollapse >= rank)
     return failure();
   for (int64_t i = firstDimToCollapse; i < rank; ++i) {
-    arith::ConstantIndexOp cst =
-        indices[i].getDefiningOp<arith::ConstantIndexOp>();
+    std::optional<int64_t> cst = getConstantIntValue(indices[i]);
     if (!cst || cst.value() != 0)
       return failure();
   }
@@ -617,6 +612,9 @@ public:
         extractOp.getVector().template getDefiningOp<vector::TransferReadOp>();
     if (!xferOp)
       return failure();
+    // Check that we are extracting a scalar and not a sub-vector.
+    if (isa<VectorType>(extractOp.getResult().getType()))
+      return failure();
     // If multiple uses are not allowed, check if xfer has a single use.
     if (!allowMultipleUses && !xferOp.getResult().hasOneUse())
       return failure();
@@ -658,6 +656,7 @@ class RewriteScalarExtractElementOfTransferRead
   void rewrite(vector::ExtractElementOp extractOp,
                PatternRewriter &rewriter) const override {
     // Construct scalar load.
+    auto loc = extractOp.getLoc();
     auto xferOp = extractOp.getVector().getDefiningOp<vector::TransferReadOp>();
     SmallVector<Value> newIndices(xferOp.getIndices().begin(),
                                   xferOp.getIndices().end());
@@ -665,13 +664,13 @@ class RewriteScalarExtractElementOfTransferRead
       AffineExpr sym0, sym1;
       bindSymbols(extractOp.getContext(), sym0, sym1);
       OpFoldResult ofr = affine::makeComposedFoldedAffineApply(
-          rewriter, extractOp.getLoc(), sym0 + sym1,
+          rewriter, loc, sym0 + sym1,
           {newIndices[newIndices.size() - 1], extractOp.getPosition()});
       if (ofr.is<Value>()) {
         newIndices[newIndices.size() - 1] = ofr.get<Value>();
       } else {
         newIndices[newIndices.size() - 1] =
-            rewriter.create<arith::ConstantIndexOp>(extractOp.getLoc(),
+            rewriter.create<arith::ConstantIndexOp>(loc,
                                                     *getConstantIntValue(ofr));
       }
     }
@@ -705,7 +704,7 @@ class RewriteScalarExtractOfTransferRead
     SmallVector<Value> newIndices(xferOp.getIndices().begin(),
                                   xferOp.getIndices().end());
     for (const auto &it : llvm::enumerate(extractOp.getPosition())) {
-      int64_t offset = cast<IntegerAttr>(it.value()).getInt();
+      int64_t offset = it.value();
       int64_t idx =
           newIndices.size() - extractOp.getPosition().size() + it.index();
       OpFoldResult ofr = affine::makeComposedFoldedAffineApply(

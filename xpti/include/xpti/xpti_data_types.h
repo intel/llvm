@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -380,26 +381,26 @@ enum class trace_point_type_t : uint16_t {
   /// Used to notify that a new memory allocation is about to start.
   mem_alloc_begin = XPTI_TRACE_POINT_BEGIN(16),
   /// Used to notify that a memory allocation took place.
-  mem_alloc_end = XPTI_TRACE_POINT_END(17),
+  mem_alloc_end = XPTI_TRACE_POINT_END(16),
   /// Used to notify that memory chunk will be released.
-  mem_release_begin = XPTI_TRACE_POINT_BEGIN(18),
+  mem_release_begin = XPTI_TRACE_POINT_BEGIN(17),
   /// Used to notify that memory has been released.
-  mem_release_end = XPTI_TRACE_POINT_END(19),
-  /// Used to notify that offload buffer will be created
-  offload_alloc_construct = XPTI_TRACE_POINT_BEGIN(20),
+  mem_release_end = XPTI_TRACE_POINT_END(17),
+  /// Used to notify that offload memory object will be created
+  offload_alloc_memory_object_construct = XPTI_TRACE_POINT_BEGIN(18),
+  /// Used to notify that offload memory object will be destructed
+  offload_alloc_memory_object_destruct = XPTI_TRACE_POINT_END(18),
   /// Used to notify about association between user and internal
-  /// handle of the offload buffer
-  offload_alloc_associate = XPTI_TRACE_POINT_BEGIN(21),
-  /// Used to notify that offload buffer will be destructed
-  offload_alloc_destruct = XPTI_TRACE_POINT_BEGIN(22),
-  /// Used to notify about releasing internal handle for offload buffer
-  offload_alloc_release = XPTI_TRACE_POINT_BEGIN(23),
-  /// Used to notify about creation accessor for offload buffer
-  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(24),
+  /// handle of the offload memory object
+  offload_alloc_memory_object_associate = XPTI_TRACE_POINT_BEGIN(19),
+  /// Used to notify about releasing internal handle for offload memory object
+  offload_alloc_memory_object_release = XPTI_TRACE_POINT_END(19),
+  /// Used to notify about creation accessor for offload memory object
+  offload_alloc_accessor = XPTI_TRACE_POINT_BEGIN(20),
   /// User to notify when a queue has been created
-  queue_create = XPTI_TRACE_POINT_BEGIN(25),
+  queue_create = XPTI_TRACE_POINT_BEGIN(21),
   /// User to notify when a queue has been destroyed
-  queue_destroy = XPTI_TRACE_POINT_END(25),
+  queue_destroy = XPTI_TRACE_POINT_END(21),
   /// Used to notify error/informational messages and no action to take
   diagnostics = XPTI_TRACE_POINT_BEGIN(63),
   /// Indicates that the trace point is user defined and only the tool defined
@@ -464,8 +465,8 @@ enum class trace_event_type_t : uint16_t {
   offload_read = XPTI_EVENT(7),
   /// Indicates that the current event is an offload write request
   offload_write = XPTI_EVENT(8),
-  /// Indicates that the current event is an offload buffer related
-  offload_buffer = XPTI_EVENT(9),
+  /// Indicates that the current event is an offload memory object related
+  offload_memory_object = XPTI_EVENT(9),
   /// Indicates that the current event is an offload accessor related
   offload_accessor = XPTI_EVENT(10),
   /// User defined event for extensibility and will have to be registered by
@@ -555,6 +556,27 @@ struct offload_buffer_data_t {
   size_t range[3] = {0, 0, 0};
 };
 
+/// Describes offload sampled image
+struct offload_image_data_t {
+  /// A pointer to user level memory offload object.
+  uintptr_t user_object_handle = 0;
+  /// A pointer to host memory offload object.
+  uintptr_t host_object_handle = 0;
+  /// Buffer dimensions number.
+  uint32_t dim = 0;
+  /// Buffer size for each dimension.
+  size_t range[3] = {0, 0, 0};
+  /// Image format.
+  uint32_t format = 0;
+  /// Addressing mode of the associated sampler if the image is sampled.
+  std::optional<uint32_t> addressing = std::nullopt;
+  /// Coordinate normalization mode of the associated sampler if the image is
+  /// sampled.
+  std::optional<uint32_t> coordinate_normalization = std::nullopt;
+  /// Filtering mode of the associated sampler if the image is sampled.
+  std::optional<uint32_t> filtering = std::nullopt;
+};
+
 /// Describes offload accessor
 struct offload_accessor_data_t {
   /// A pointer to user level buffer offload object.
@@ -567,9 +589,25 @@ struct offload_accessor_data_t {
   uint32_t mode = 0;
 };
 
+/// Describes offload sampled image accessor
+struct offload_image_accessor_data_t {
+  /// A pointer to user level image offload object.
+  uintptr_t image_handle = 0;
+  /// A pointer to user level accessor offload object.
+  uintptr_t accessor_handle = 0;
+  /// Access target. Only present on non-host accessors.
+  std::optional<uint32_t> target = std::nullopt;
+  /// Access mode. Only present on unsampled image accessors.
+  std::optional<uint32_t> mode = std::nullopt;
+  /// A string representing the type of element.
+  const char *element_type = nullptr;
+  /// Element size in bytes
+  uint32_t element_size = 0;
+};
+
 /// Describes association between user level and platform specific
-/// offload buffer object
-struct offload_buffer_association_data_t {
+/// offload memory object
+struct offload_association_data_t {
   /// A pointer to user level memory offload object.
   uintptr_t user_object_handle = 0;
   /// A pointer to platform specific handler for the offload object
@@ -707,14 +745,18 @@ constexpr uint16_t trace_function_with_args_begin =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
 constexpr uint16_t trace_function_with_args_end =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end);
-constexpr uint16_t trace_offload_alloc_construct =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_construct);
-constexpr uint16_t trace_offload_alloc_associate =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_associate);
-constexpr uint16_t trace_offload_alloc_destruct =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_destruct);
-constexpr uint16_t trace_offload_alloc_release =
-    static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_release);
+constexpr uint16_t trace_offload_alloc_memory_object_construct =
+    static_cast<uint16_t>(
+        xpti::trace_point_type_t::offload_alloc_memory_object_construct);
+constexpr uint16_t trace_offload_alloc_memory_object_associate =
+    static_cast<uint16_t>(
+        xpti::trace_point_type_t::offload_alloc_memory_object_associate);
+constexpr uint16_t trace_offload_alloc_memory_object_destruct =
+    static_cast<uint16_t>(
+        xpti::trace_point_type_t::offload_alloc_memory_object_destruct);
+constexpr uint16_t trace_offload_alloc_memory_object_release =
+    static_cast<uint16_t>(
+        xpti::trace_point_type_t::offload_alloc_memory_object_release);
 constexpr uint16_t trace_offload_alloc_accessor =
     static_cast<uint16_t>(xpti::trace_point_type_t::offload_alloc_accessor);
 
@@ -722,8 +764,8 @@ constexpr uint16_t trace_graph_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::graph);
 constexpr uint16_t trace_algorithm_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::algorithm);
-constexpr uint16_t trace_offload_buffer_event =
-    static_cast<uint16_t>(xpti::trace_event_type_t::offload_buffer);
+constexpr uint16_t trace_offload_memory_object_event =
+    static_cast<uint16_t>(xpti::trace_event_type_t::offload_memory_object);
 constexpr uint16_t trace_offload_accessor_event =
     static_cast<uint16_t>(xpti::trace_event_type_t::offload_accessor);
 

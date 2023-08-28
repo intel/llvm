@@ -133,16 +133,18 @@ void test(queue &q) {
 
       cgh.parallel_for<KernelName<T1, T2, M, K, N>>(
           nd_range<2>(GlobalRange, LocalRange), [=](nd_item<2> item) {
-            sub_group sg = item.get_sub_group();
+            sycl::sub_group sg = item.get_sub_group();
             // row id of current submatrix of BIG C matrix
             const auto m = item.get_group().get_group_id()[0];
             // column id of current submatrix of BIG C matrix
             const auto n = item.get_group().get_group_id()[1];
 
-            joint_matrix<sub_group, T3, use::a, M, K, layout::row_major> sub_a;
-            joint_matrix<sub_group, T3, use::b, K, N, layout::row_major> sub_b;
-            joint_matrix<sub_group, std::remove_const_t<T2>, use::accumulator,
-                         M, N>
+            joint_matrix<sycl::sub_group, T3, use::a, M, K, layout::row_major>
+                sub_a;
+            joint_matrix<sycl::sub_group, T3, use::b, K, N, layout::row_major>
+                sub_b;
+            joint_matrix<sycl::sub_group, std::remove_const_t<T2>,
+                         use::accumulator, M, N>
                 sub_c;
 
             joint_matrix_load(

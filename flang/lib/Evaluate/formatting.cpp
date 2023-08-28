@@ -19,23 +19,35 @@
 
 namespace Fortran::evaluate {
 
-static void ShapeAsFortran(
-    llvm::raw_ostream &o, const ConstantSubscripts &shape) {
-  if (GetRank(shape) > 1) {
+static void ShapeAsFortran(llvm::raw_ostream &o,
+    const ConstantSubscripts &shape, const ConstantSubscripts &lbounds,
+    bool hasNonDefaultLowerBound) {
+  if (GetRank(shape) > 1 || hasNonDefaultLowerBound) {
     o << ",shape=";
     char ch{'['};
     for (auto dim : shape) {
       o << ch << dim;
       ch = ',';
     }
-    o << "])";
+    o << ']';
+    if (hasNonDefaultLowerBound) {
+      o << ",%lbound=";
+      ch = '[';
+      for (auto lb : lbounds) {
+        o << ch << lb;
+        ch = ',';
+      }
+      o << ']';
+    }
+    o << ')';
   }
 }
 
 template <typename RESULT, typename VALUE>
 llvm::raw_ostream &ConstantBase<RESULT, VALUE>::AsFortran(
     llvm::raw_ostream &o) const {
-  if (Rank() > 1) {
+  bool hasNonDefaultLowerBound{HasNonDefaultLowerBound()};
+  if (Rank() > 1 || hasNonDefaultLowerBound) {
     o << "reshape(";
   }
   if (Rank() > 0) {
@@ -71,14 +83,15 @@ llvm::raw_ostream &ConstantBase<RESULT, VALUE>::AsFortran(
   if (Rank() > 0) {
     o << ']';
   }
-  ShapeAsFortran(o, shape());
+  ShapeAsFortran(o, shape(), lbounds(), hasNonDefaultLowerBound);
   return o;
 }
 
 template <int KIND>
 llvm::raw_ostream &Constant<Type<TypeCategory::Character, KIND>>::AsFortran(
     llvm::raw_ostream &o) const {
-  if (Rank() > 1) {
+  bool hasNonDefaultLowerBound{HasNonDefaultLowerBound()};
+  if (Rank() > 1 || hasNonDefaultLowerBound) {
     o << "reshape(";
   }
   if (Rank() > 0) {
@@ -98,7 +111,7 @@ llvm::raw_ostream &Constant<Type<TypeCategory::Character, KIND>>::AsFortran(
   if (Rank() > 0) {
     o << ']';
   }
-  ShapeAsFortran(o, shape());
+  ShapeAsFortran(o, shape(), lbounds(), hasNonDefaultLowerBound);
   return o;
 }
 
@@ -135,6 +148,18 @@ llvm::raw_ostream &ProcedureRef::AsFortran(llvm::raw_ostream &o) const {
     }
   }
   proc_.AsFortran(o);
+  if (!chevrons_.empty()) {
+    bool first{true};
+    for (const auto &expr : chevrons_) {
+      if (first) {
+        expr.AsFortran(o << "<<<");
+        first = false;
+      } else {
+        expr.AsFortran(o << ",");
+      }
+    }
+    o << ">>>";
+  }
   char separator{'('};
   for (const auto &arg : arguments_) {
     if (arg && !arg->isPassedObject()) {

@@ -1,5 +1,5 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %s -fsyntax-only -D__NO_EXT_VECTOR_TYPE_ON_HOST__
+
 //==--------------- types.cpp - SYCL types test ----------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -21,14 +21,17 @@ template <typename T, int N> inline void checkVectorSizeAndAlignment() {
   using VectorT = s::vec<T, N>;
   constexpr auto RealLength = (N != 3 ? N : 4);
   static_assert(sizeof(VectorT) == (sizeof(T) * RealLength), "");
-#if defined(_WIN32) && (_MSC_VER) &&                                           \
-    defined(__NO_EXT_VECTOR_TYPE_ON_HOST__) && !defined(__SYCL_DEVICE_ONLY__)
-  // See comments around __SYCL_ALIGNED_VAR macro definition in types.hpp
-  // We can't enforce proper alignment of "huge" vectors (>64 bytes) on Windows
-  // and the test exposes this limitation.
-  if constexpr (alignof(T) * RealLength < 64)
-#endif
+
+  // SYCL 2020 spec says that alignment is supposed to be same as size,
+  // but MSVC won't allow an alignment of anything larger than 64 for
+  // a direct parameter. The math built-ins use direct param calls.
+  // It has been decided to change the spec to have a max alignment of
+  // 64.
+  if constexpr (alignof(T) * RealLength <= 64)
     static_assert(alignof(VectorT) == (alignof(T) * RealLength), "");
+  else
+    static_assert(alignof(VectorT) == 64,
+                  "huge vectors should have a maximum alignment of 64");
 }
 
 template <typename T> inline void checkVectorsWithN() {
@@ -98,6 +101,67 @@ template <> inline void checkSizeForFloatingPoint<s::half, sizeof(int16_t)>() {
   static_assert(sizeof(s::half) == sizeof(int16_t), "");
 }
 
+template <typename vecType, int numOfElems>
+std::string vec2string(const sycl::vec<vecType, numOfElems> &vec) {
+  std::string str = "";
+  for (size_t i = 0; i < numOfElems - 1; ++i) {
+    str += std::to_string(vec[i]) + ",";
+  }
+  str = "{" + str + std::to_string(vec[numOfElems - 1]) + "}";
+  return str;
+}
+
+// the math built-in testing ensures that the vec binary ops get tested,
+// but the unary ops are only tested by the CTS tests. Here we do some
+// basic testing of the unary ops, ensuring they compile correctly.
+template <typename T> void checkVecUnaryOps(T &v) {
+
+  std::cout << vec2string(v) << std::endl;
+
+  T d = +v;
+  std::cout << vec2string(d) << std::endl;
+
+  T e = -v;
+  std::cout << vec2string(e) << std::endl;
+
+  // ~ only supported by integral types.
+  if constexpr (std::is_integral_v<T>) {
+    T g = ~v;
+    std::cout << vec2string(g) << std::endl;
+  }
+
+  T f = !v;
+  std::cout << vec2string(f) << std::endl;
+}
+
+void checkVariousVecUnaryOps() {
+  sycl::vec<int, 1> vi1{1};
+  checkVecUnaryOps(vi1);
+  sycl::vec<int, 16> vi{1, 2, 0, -4, 1, 2, 0, -4, 1, 2, 0, -4, 1, 2, 0, -4};
+  checkVecUnaryOps(vi);
+
+  sycl::vec<long, 1> vl1{1};
+  checkVecUnaryOps(vl1);
+  sycl::vec<long, 16> vl{2, 3, 0, -5, 2, 3, 0, -5, 2, 3, 0, -5, 2, 3, 0, -5};
+  checkVecUnaryOps(vl);
+
+  sycl::vec<long long, 1> vll1{1};
+  checkVecUnaryOps(vll1);
+  sycl::vec<long long, 16> vll{0, 3, 4, -6, 0, 3, 4, -6,
+                               0, 3, 4, -6, 0, 3, 4, -6};
+  checkVecUnaryOps(vll);
+
+  sycl::vec<float, 1> vf1{1};
+  checkVecUnaryOps(vf1);
+  sycl::vec<float, 16> vf{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vf);
+
+  sycl::vec<double, 1> vd1{1};
+  checkVecUnaryOps(vd1);
+  sycl::vec<double, 16> vd{0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9, 0, 4, 5, -9};
+  checkVecUnaryOps(vd);
+}
+
 int main() {
   // Test for creating constexpr expressions
   constexpr sycl::specialization_id<sycl::vec<sycl::half, 2>> id(1.0);
@@ -122,6 +186,8 @@ int main() {
   checkSizeForFloatingPoint<s::opencl::cl_half, sizeof(int16_t)>();
   checkSizeForFloatingPoint<s::opencl::cl_float, sizeof(int32_t)>();
   checkSizeForFloatingPoint<s::opencl::cl_double, sizeof(int64_t)>();
+
+  checkVariousVecUnaryOps();
 
   return 0;
 }

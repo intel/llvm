@@ -1,10 +1,8 @@
 // REQUIRES: aspect-fp16
 // REQUIRES: gpu
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_GroupFAdd, __spirv_GroupFMin, __spirv_GroupFMax on AMD
-// XFAIL: hip_amd
 
 // This test verifies the correct work of the sub-group algorithm reduce().
 

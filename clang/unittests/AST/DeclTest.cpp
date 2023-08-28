@@ -12,9 +12,11 @@
 
 #include "clang/AST/Decl.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Mangle.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Lex/Lexer.h"
@@ -140,6 +142,21 @@ TEST(Decl, MangleDependentSizedArray) {
   ASSERT_TRUE(0 == MangleB.compare("_ZTSAT0__T_"));
 }
 
+TEST(Decl, ConceptDecl) {
+  llvm::StringRef Code(R"(
+    template<class T>
+    concept integral = __is_integral(T);
+  )");
+
+  auto AST = tooling::buildASTFromCodeWithArgs(Code, {"-std=c++20"});
+  ASTContext &Ctx = AST->getASTContext();
+
+  const auto *Decl =
+      selectFirst<ConceptDecl>("decl", match(conceptDecl().bind("decl"), Ctx));
+  ASSERT_TRUE(Decl != nullptr);
+  EXPECT_EQ(Decl->getName(), "integral");
+}
+
 TEST(Decl, EnumDeclRange) {
   llvm::Annotations Code(R"(
     typedef int Foo;
@@ -237,23 +254,6 @@ TEST(Decl, ModuleAndInternalLinkage) {
       selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), Ctx));
   const auto *g = selectFirst<FunctionDecl>(
       "g", match(functionDecl(hasName("g")).bind("g"), Ctx));
-
-  EXPECT_EQ(b->getFormalLinkage(), ModuleLinkage);
-  EXPECT_EQ(g->getFormalLinkage(), ModuleLinkage);
-
-  AST = tooling::buildASTFromCodeWithArgs(
-      Code.code(), /*Args=*/{"-std=c++20"});
-  ASTContext &CtxTS = AST->getASTContext();
-  a = selectFirst<VarDecl>("a", match(varDecl(hasName("a")).bind("a"), CtxTS));
-  f = selectFirst<FunctionDecl>(
-      "f", match(functionDecl(hasName("f")).bind("f"), CtxTS));
-
-  EXPECT_EQ(a->getFormalLinkage(), InternalLinkage);
-  EXPECT_EQ(f->getFormalLinkage(), InternalLinkage);
-
-  b = selectFirst<VarDecl>("b", match(varDecl(hasName("b")).bind("b"), CtxTS));
-  g = selectFirst<FunctionDecl>(
-      "g", match(functionDecl(hasName("g")).bind("g"), CtxTS));
 
   EXPECT_EQ(b->getFormalLinkage(), ModuleLinkage);
   EXPECT_EQ(g->getFormalLinkage(), ModuleLinkage);

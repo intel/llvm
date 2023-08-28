@@ -88,7 +88,8 @@ def parse_readobj_output(output):
   ignore_symbols += ["?Plugin@?1???$getPlugin@$01@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                      "?Plugin@?1???$getPlugin@$00@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
                      "?Plugin@?1???$getPlugin@$04@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
-                     "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
+                     "?Plugin@?1???$getPlugin@$02@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB",
+                     "?Plugin@?1???$getPlugin@$05@pi@detail@_V1@sycl@@YAAEBVplugin@234@XZ@4PEBV5234@EB"]
   # Case 2:
   # half_type.hpp:
   #   class __SYCL_EXPORT half {

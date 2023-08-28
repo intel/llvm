@@ -18,10 +18,10 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/MC/MCTargetOptionsCommandFlags.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/TargetParser/Host.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include <optional>
 
@@ -81,6 +81,7 @@ CGOPT(bool, StackSymbolOrdering)
 CGOPT(bool, StackRealign)
 CGOPT(std::string, TrapFuncName)
 CGOPT(bool, UseCtors)
+CGOPT(bool, DisableIntegratedAS)
 CGOPT(bool, RelaxELFRelocations)
 CGOPT_EXP(bool, DataSections)
 CGOPT_EXP(bool, FunctionSections)
@@ -99,7 +100,7 @@ CGOPT(bool, EmitCallSiteInfo)
 CGOPT(bool, EnableMachineFunctionSplitter)
 CGOPT(bool, EnableDebugEntryValues)
 CGOPT(bool, ForceDwarfFrameSection)
-CGOPT(bool, XRayOmitFunctionIndex)
+CGOPT(bool, XRayFunctionIndex)
 CGOPT(bool, DebugStrictDwarf)
 CGOPT(unsigned, AlignLoops)
 CGOPT(bool, JMCInstrument)
@@ -461,10 +462,10 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
       cl::desc("Always emit a debug frame section."), cl::init(false));
   CGBINDOPT(ForceDwarfFrameSection);
 
-  static cl::opt<bool> XRayOmitFunctionIndex(
-      "no-xray-index", cl::desc("Don't emit xray_fn_idx section"),
-      cl::init(false));
-  CGBINDOPT(XRayOmitFunctionIndex);
+  static cl::opt<bool> XRayFunctionIndex("xray-function-index",
+                                         cl::desc("Emit xray_fn_idx section"),
+                                         cl::init(true));
+  CGBINDOPT(XRayFunctionIndex);
 
   static cl::opt<bool> DebugStrictDwarf(
       "strict-dwarf", cl::desc("use strict dwarf"), cl::init(false));
@@ -486,6 +487,11 @@ codegen::RegisterCodeGenFlags::RegisterCodeGenFlags() {
                "values are put into the RO data section."),
       cl::init(false));
   CGBINDOPT(XCOFFReadOnlyPointers);
+
+  static cl::opt<bool> DisableIntegratedAS(
+      "no-integrated-as", cl::desc("Disable integrated assembler"),
+      cl::init(false));
+  CGBINDOPT(DisableIntegratedAS);
 
 #undef CGBINDOPT
 
@@ -540,6 +546,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.GuaranteedTailCallOpt = getEnableGuaranteedTailCallOpt();
   Options.StackSymbolOrdering = getStackSymbolOrdering();
   Options.UseInitArray = !getUseCtors();
+  Options.DisableIntegratedAS = getDisableIntegratedAS();
   Options.RelaxELFRelocations = getRelaxELFRelocations();
   Options.DataSections =
       getExplicitDataSections().value_or(TheTriple.hasDefaultDataSections());
@@ -559,7 +566,7 @@ codegen::InitTargetOptionsFromCodeGenFlags(const Triple &TheTriple) {
   Options.EmitCallSiteInfo = getEmitCallSiteInfo();
   Options.EnableDebugEntryValues = getEnableDebugEntryValues();
   Options.ForceDwarfFrameSection = getForceDwarfFrameSection();
-  Options.XRayOmitFunctionIndex = getXRayOmitFunctionIndex();
+  Options.XRayFunctionIndex = getXRayFunctionIndex();
   Options.DebugStrictDwarf = getDebugStrictDwarf();
   Options.LoopAlignment = getAlignLoops();
   Options.JMCInstrument = getJMCInstrument();

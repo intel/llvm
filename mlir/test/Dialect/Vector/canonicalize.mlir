@@ -650,11 +650,22 @@ func.func @fold_extract_shapecast(%arg0 : vector<5x1x3x2xf32>,
 //       CHECK:   %[[V:.*]] = vector.shape_cast %{{.*}} : vector<16xf32> to vector<2x4x2xf32>
 //       CHECK:   %[[R:.*]] = vector.extract %[[V]][1] : vector<2x4x2xf32>
 //       CHECK:   return %[[R]] : vector<4x2xf32>
-func.func @fold_extract_shapecast_negative(%arg0 : vector<16xf32>,
-                             %arg1 : vector<8x4x2xf32>) -> vector<4x2xf32> {
+func.func @fold_extract_shapecast_negative(%arg0 : vector<16xf32>) -> vector<4x2xf32> {
   %0 = vector.shape_cast %arg0 : vector<16xf32> to vector<2x4x2xf32>
   %r = vector.extract %0[1] : vector<2x4x2xf32>
   return %r : vector<4x2xf32>
+}
+
+// -----
+
+// CHECK-LABEL: dont_fold_0d_extract_shapecast
+//       CHECK:   %[[V:.*]] = vector.shape_cast %{{.*}} : vector<f32> to vector<1xf32>
+//       CHECK:   %[[R:.*]] = vector.extract %[[V]][0] : vector<1xf32>
+//       CHECK:   return %[[R]] : f32
+func.func @dont_fold_0d_extract_shapecast(%arg0 : vector<f32>) -> f32 {
+  %0 = vector.shape_cast %arg0 : vector<f32> to vector<1xf32>
+  %r = vector.extract %0[0] : vector<1xf32>
+  return %r : f32
 }
 
 // -----
@@ -2093,6 +2104,15 @@ func.func @extract_from_broadcast(%src: vector<1x1x1xf32>) -> vector<1xf32> {
   return %1: vector<1xf32>
 }
 
+// CHECK-LABEL: func.func @extract_from_stretch_broadcast
+func.func @extract_from_stretch_broadcast(%src: vector<3x1x2xf32>) -> f32 {
+  //  CHECK-NEXT:  %0 = vector.extract {{.*}}[0, 0, 0] : vector<3x1x2xf32>
+  //  CHECK-NEXT:  return %0 : f32
+  %0 = vector.broadcast %src : vector<3x1x2xf32> to vector<3x4x2xf32>
+  %1 = vector.extract %0[0, 2, 0] : vector<3x4x2xf32>
+  return %1: f32
+}
+
 // -----
 // CHECK-LABEL: func.func @extract_strided_slice_of_constant_mask
 func.func @extract_strided_slice_of_constant_mask() -> vector<5x7xi1>{
@@ -2159,4 +2179,3 @@ func.func @all_true_vector_mask(%a : vector<3x4xf32>) -> vector<3x4xf32> {
   %0 = vector.mask %all_true { arith.addf %a, %a : vector<3x4xf32> } : vector<3x4xi1> -> vector<3x4xf32>
   return %0 : vector<3x4xf32>
 }
-

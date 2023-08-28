@@ -145,7 +145,7 @@ private:
 } // namespace
 
 static StringRef unquote(StringRef s) {
-  if (s.startswith("\""))
+  if (s.starts_with("\""))
     return s.substr(1, s.size() - 2);
   return s;
 }
@@ -175,6 +175,12 @@ static ExprValue bitAnd(ExprValue a, ExprValue b) {
   moveAbsRight(a, b);
   return {a.sec, a.forceAbsolute,
           (a.getValue() & b.getValue()) - a.getSecAddr(), a.loc};
+}
+
+static ExprValue bitXor(ExprValue a, ExprValue b) {
+  moveAbsRight(a, b);
+  return {a.sec, a.forceAbsolute,
+          (a.getValue() ^ b.getValue()) - a.getSecAddr(), a.loc};
 }
 
 static ExprValue bitOr(ExprValue a, ExprValue b) {
@@ -290,7 +296,7 @@ void ScriptParser::readDefsym(StringRef name) {
 }
 
 void ScriptParser::addFile(StringRef s) {
-  if (isUnderSysroot && s.startswith("/")) {
+  if (isUnderSysroot && s.starts_with("/")) {
     SmallString<128> pathData;
     StringRef path = (config->sysroot + s).toStringRef(pathData);
     if (sys::fs::exists(path))
@@ -300,17 +306,17 @@ void ScriptParser::addFile(StringRef s) {
     return;
   }
 
-  if (s.startswith("/")) {
+  if (s.starts_with("/")) {
     // Case 1: s is an absolute path. Just open it.
     ctx.driver.addFile(s, /*withLOption=*/false);
-  } else if (s.startswith("=")) {
+  } else if (s.starts_with("=")) {
     // Case 2: relative to the sysroot.
     if (config->sysroot.empty())
       ctx.driver.addFile(s.substr(1), /*withLOption=*/false);
     else
       ctx.driver.addFile(saver().save(config->sysroot + "/" + s.substr(1)),
                          /*withLOption=*/false);
-  } else if (s.startswith("-l")) {
+  } else if (s.starts_with("-l")) {
     // Case 3: search in the list of library paths.
     ctx.driver.addLibrary(s.substr(2));
   } else {
@@ -439,6 +445,8 @@ static std::pair<ELFKind, uint16_t> parseBfdName(StringRef s) {
       .Case("elf64-littleriscv", {ELF64LEKind, EM_RISCV})
       .Case("elf64-sparc", {ELF64BEKind, EM_SPARCV9})
       .Case("elf32-msp430", {ELF32LEKind, EM_MSP430})
+      .Case("elf32-loongarch", {ELF32LEKind, EM_LOONGARCH})
+      .Case("elf64-loongarch", {ELF64LEKind, EM_LOONGARCH})
       .Default({ELFNoneKind, EM_NONE});
 }
 
@@ -628,7 +636,7 @@ void ScriptParser::readTarget() {
   StringRef tok = unquote(next());
   expect(")");
 
-  if (tok.startswith("elf"))
+  if (tok.starts_with("elf"))
     config->formatBinary = false;
   else if (tok == "binary")
     config->formatBinary = true;
@@ -638,12 +646,13 @@ void ScriptParser::readTarget() {
 
 static int precedence(StringRef op) {
   return StringSwitch<int>(op)
-      .Cases("*", "/", "%", 10)
-      .Cases("+", "-", 9)
-      .Cases("<<", ">>", 8)
-      .Cases("<", "<=", ">", ">=", 7)
-      .Cases("==", "!=", 6)
-      .Case("&", 5)
+      .Cases("*", "/", "%", 11)
+      .Cases("+", "-", 10)
+      .Cases("<<", ">>", 9)
+      .Cases("<", "<=", ">", ">=", 8)
+      .Cases("==", "!=", 7)
+      .Case("&", 6)
+      .Case("^", 5)
       .Case("|", 4)
       .Case("&&", 3)
       .Case("||", 2)
@@ -836,7 +845,7 @@ bool ScriptParser::readSectionDirective(OutputSection *cmd, StringRef tok1, Stri
       // The value is a recognized literal SHT_*.
       cmd->type = it->second;
       skip();
-    } else if (value.startswith("SHT_")) {
+    } else if (value.starts_with("SHT_")) {
       setError("unknown section type " + value);
     } else {
       // Otherwise, read an expression.
@@ -983,7 +992,7 @@ OutputDesc *ScriptParser::readOutputSectionDescription(StringRef outSec) {
 
   osec->phdrs = readOutputSectionPhdrs();
 
-  if (peek() == "=" || peek().startswith("=")) {
+  if (peek() == "=" || peek().starts_with("=")) {
     inExpr = true;
     consume("=");
     osec->filler = readFill();
@@ -1043,11 +1052,11 @@ SymbolAssignment *ScriptParser::readAssignment(StringRef tok) {
   size_t oldPos = pos;
   SymbolAssignment *cmd = nullptr;
   const StringRef op = peek();
-  if (op.startswith("=")) {
+  if (op.starts_with("=")) {
     // Support = followed by an expression without whitespace.
     SaveAndRestore saved(inExpr, true);
     cmd = readSymbolAssignment(tok);
-  } else if ((op.size() == 2 && op[1] == '=' && strchr("*/+-&|", op[0])) ||
+  } else if ((op.size() == 2 && op[1] == '=' && strchr("*/+-&^|", op[0])) ||
              op == "<<=" || op == ">>=") {
     cmd = readSymbolAssignment(tok);
   } else if (tok == "PROVIDE") {
@@ -1074,7 +1083,7 @@ SymbolAssignment *ScriptParser::readSymbolAssignment(StringRef name) {
   name = unquote(name);
   StringRef op = next();
   assert(op == "=" || op == "*=" || op == "/=" || op == "+=" || op == "-=" ||
-         op == "&=" || op == "|=" || op == "<<=" || op == ">>=");
+         op == "&=" || op == "^=" || op == "|=" || op == "<<=" || op == ">>=");
   // Note: GNU ld does not support %= or ^=.
   Expr e = readExpr();
   if (op != "=") {
@@ -1094,11 +1103,13 @@ SymbolAssignment *ScriptParser::readSymbolAssignment(StringRef name) {
       case '-':
         return sub(lhs, e());
       case '<':
-        return lhs.getValue() << e().getValue();
+        return lhs.getValue() << e().getValue() % 64;
       case '>':
-        return lhs.getValue() >> e().getValue();
+        return lhs.getValue() >> e().getValue() % 64;
       case '&':
         return lhs.getValue() & e().getValue();
+      case '^':
+        return lhs.getValue() ^ e().getValue();
       case '|':
         return lhs.getValue() | e().getValue();
       default:
@@ -1147,9 +1158,9 @@ Expr ScriptParser::combine(StringRef op, Expr l, Expr r) {
     };
   }
   if (op == "<<")
-    return [=] { return l().getValue() << r().getValue(); };
+    return [=] { return l().getValue() << r().getValue() % 64; };
   if (op == ">>")
-    return [=] { return l().getValue() >> r().getValue(); };
+    return [=] { return l().getValue() >> r().getValue() % 64; };
   if (op == "<")
     return [=] { return l().getValue() < r().getValue(); };
   if (op == ">")
@@ -1168,6 +1179,8 @@ Expr ScriptParser::combine(StringRef op, Expr l, Expr r) {
     return [=] { return l().getValue() && r().getValue(); };
   if (op == "&")
     return [=] { return bitAnd(l(), r()); };
+  if (op == "^")
+    return [=] { return bitXor(l(), r()); };
   if (op == "|")
     return [=] { return bitOr(l(), r()); };
   llvm_unreachable("invalid operator");
@@ -1383,7 +1396,7 @@ Expr ScriptParser::readPrimary() {
     };
   }
   if (tok == "ADDR") {
-    StringRef name = readParenLiteral();
+    StringRef name = unquote(readParenLiteral());
     OutputSection *osec = &script->getOrCreateOutputSection(name)->osec;
     osec->usedInExpression = true;
     return [=]() -> ExprValue {
@@ -1408,7 +1421,7 @@ Expr ScriptParser::readPrimary() {
     };
   }
   if (tok == "ALIGNOF") {
-    StringRef name = readParenLiteral();
+    StringRef name = unquote(readParenLiteral());
     OutputSection *osec = &script->getOrCreateOutputSection(name)->osec;
     return [=] {
       checkIfExists(*osec, location);
@@ -1466,7 +1479,7 @@ Expr ScriptParser::readPrimary() {
     return script->memoryRegions[name]->length;
   }
   if (tok == "LOADADDR") {
-    StringRef name = readParenLiteral();
+    StringRef name = unquote(readParenLiteral());
     OutputSection *osec = &script->getOrCreateOutputSection(name)->osec;
     osec->usedInExpression = true;
     return [=] {
@@ -1510,7 +1523,7 @@ Expr ScriptParser::readPrimary() {
     return [=] { return e(); };
   }
   if (tok == "SIZEOF") {
-    StringRef name = readParenLiteral();
+    StringRef name = unquote(readParenLiteral());
     OutputSection *cmd = &script->getOrCreateOutputSection(name)->osec;
     // Linker script does not create an output section if its content is empty.
     // We want to allow SIZEOF(.foo) where .foo is a section which happened to
@@ -1529,7 +1542,7 @@ Expr ScriptParser::readPrimary() {
     return [=] { return *val; };
 
   // Tok is a symbol name.
-  if (tok.startswith("\""))
+  if (tok.starts_with("\""))
     tok = unquote(tok);
   else if (!isValidSymbolName(tok))
     setError("malformed number: " + tok);
@@ -1553,7 +1566,7 @@ Expr ScriptParser::readParenExpr() {
 
 SmallVector<StringRef, 0> ScriptParser::readOutputSectionPhdrs() {
   SmallVector<StringRef, 0> phdrs;
-  while (!errorCount() && peek().startswith(":")) {
+  while (!errorCount() && peek().starts_with(":")) {
     StringRef tok = next();
     phdrs.push_back((tok.size() == 1) ? next() : tok.substr(1));
   }
@@ -1680,7 +1693,7 @@ SmallVector<SymbolVersion, 0> ScriptParser::readVersionExtern() {
   while (!errorCount() && peek() != "}") {
     StringRef tok = next();
     ret.push_back(
-        {unquote(tok), isCXX, !tok.startswith("\"") && hasWildcard(tok)});
+        {unquote(tok), isCXX, !tok.starts_with("\"") && hasWildcard(tok)});
     if (consume("}"))
       return ret;
     expect(";");

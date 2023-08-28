@@ -14,6 +14,7 @@
 #include <__atomic/atomic.h>
 #include <__config>
 #include <__functional/operations.h>
+#include <__iterator/concepts.h>
 #include <__iterator/iterator_traits.h>
 #include <__type_traits/is_execution_policy.h>
 #include <__utility/pair.h>
@@ -52,8 +53,6 @@ __parallel_find(_Index __first, _Index __last, _Brick __f, _Compare __comp, bool
   });
   return __extremum != __initial_dist ? __first + __extremum : __last;
 }
-
-const std::size_t __lane_size = 64;
 
 template <class _Index, class _DifferenceType, class _Compare>
 _LIBCPP_HIDE_FROM_ABI _Index
@@ -95,7 +94,7 @@ template <class _ExecutionPolicy, class _ForwardIterator, class _Predicate>
 _LIBCPP_HIDE_FROM_ABI _ForwardIterator
 __pstl_find_if(__cpu_backend_tag, _ForwardIterator __first, _ForwardIterator __last, _Predicate __pred) {
   if constexpr (__is_parallel_execution_policy_v<_ExecutionPolicy> &&
-                __has_random_access_iterator_category<_ForwardIterator>::value) {
+                __has_random_access_iterator_category_or_concept<_ForwardIterator>::value) {
     return std::__terminate_on_exception([&] {
       return std::__parallel_find(
           __first,
@@ -108,7 +107,7 @@ __pstl_find_if(__cpu_backend_tag, _ForwardIterator __first, _ForwardIterator __l
           true);
     });
   } else if constexpr (__is_unsequenced_execution_policy_v<_ExecutionPolicy> &&
-                       __has_random_access_iterator_category<_ForwardIterator>::value) {
+                       __has_random_access_iterator_category_or_concept<_ForwardIterator>::value) {
     using __diff_t = __iter_diff_t<_ForwardIterator>;
     return std::__simd_first(__first, __diff_t(0), __last - __first, [&__pred](_ForwardIterator __iter, __diff_t __i) {
       return __pred(__iter[__i]);

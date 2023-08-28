@@ -155,13 +155,19 @@ opportunities(Function &F,
 
       // After all candidates have been added, it doesn't need to be a set
       // anymore.
-      std::vector<Value *> Candidates = ReferencedVals.takeVector();
+      auto Candidates = ReferencedVals.takeVector();
 
       // Remove ineligible candidates.
       llvm::erase_if(Candidates, [&, OpVal](Value *V) {
         // Candidate value must have the same type.
         if (OpVal->getType() != V->getType())
           return true;
+
+        // Do not introduce address captures of intrinsics.
+        if (Function *F = dyn_cast<Function>(V)) {
+          if (F->isIntrinsic())
+            return true;
+        }
 
         // Only consider candidates that are "more reduced" than the original
         // value. This explicitly also rules out candidates with the same

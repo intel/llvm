@@ -19,10 +19,13 @@ namespace Fortran::semantics {
 void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
   for (const parser::AllocateObject &allocateObject :
       std::get<std::list<parser::AllocateObject>>(deallocateStmt.t)) {
+    parser::CharBlock source;
+    const Symbol *symbol{nullptr};
     common::visit(
         common::visitors{
             [&](const parser::Name &name) {
-              auto const *symbol{name.symbol};
+              source = name.source;
+              symbol = name.symbol;
               if (context_.HasError(symbol)) {
                 // already reported an error
               } else if (!IsVariableName(*symbol)) {
@@ -58,9 +61,10 @@ void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
             [&](const parser::StructureComponent &structureComponent) {
               // Only perform structureComponent checks if it was successfully
               // analyzed by expression analysis.
+              source = structureComponent.component.source;
+              symbol = structureComponent.component.symbol;
               if (const auto *expr{GetExpr(context_, allocateObject)}) {
-                if (const Symbol *symbol{structureComponent.component.symbol}) {
-                  auto source{structureComponent.component.source};
+                if (symbol) {
                   if (!IsAllocatableOrPointer(*symbol)) { // C932
                     context_.Say(source,
                         "Component in DEALLOCATE statement must have the ALLOCATABLE or POINTER attribute"_err_en_US);
@@ -99,7 +103,10 @@ void DeallocateChecker::Leave(const parser::DeallocateStmt &deallocateStmt) {
               }
               gotStat = true;
             },
-            [&](const parser::MsgVariable &) {
+            [&](const parser::MsgVariable &var) {
+              WarnOnDeferredLengthCharacterScalar(context_,
+                  GetExpr(context_, var), var.v.thing.thing.GetSource(),
+                  "ERRMSG=");
               if (gotMsg) {
                 context_.Say(
                     "ERRMSG may not be duplicated in a DEALLOCATE statement"_err_en_US);

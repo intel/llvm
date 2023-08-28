@@ -32,7 +32,7 @@ def SDT_PPCcv_fp_to_int  : SDTypeProfile<1, 1, [
   SDTCisFP<0>, SDTCisFP<1>
   ]>;
 def SDT_PPCstore_scal_int_from_vsr : SDTypeProfile<0, 3, [
-  SDTCisVT<0, f64>, SDTCisPtrTy<1>, SDTCisPtrTy<2>
+  SDTCisFP<0>, SDTCisPtrTy<1>, SDTCisPtrTy<2>
 ]>;
 def SDT_PPCVexts  : SDTypeProfile<1, 2, [
   SDTCisVT<0, f64>, SDTCisVT<1, f64>, SDTCisPtrTy<2>
@@ -164,10 +164,6 @@ def PPCany_fcfidus : PatFrags<(ops node:$op),
                               [(PPCfcfidus node:$op),
                                (PPCstrict_fcfidus node:$op)]>;
 
-def PPCcv_fp_to_uint_in_vsr:
-    SDNode<"PPCISD::FP_TO_UINT_IN_VSR", SDT_PPCcv_fp_to_int, []>;
-def PPCcv_fp_to_sint_in_vsr:
-    SDNode<"PPCISD::FP_TO_SINT_IN_VSR", SDT_PPCcv_fp_to_int, []>;
 def PPCstore_scal_int_from_vsr:
    SDNode<"PPCISD::ST_VSR_SCAL_INT", SDT_PPCstore_scal_int_from_vsr,
            [SDNPHasChain, SDNPMayStore]>;
@@ -217,6 +213,7 @@ def PPCaddTls     : SDNode<"PPCISD::ADD_TLS", SDTIntBinOp, []>;
 def PPCaddisTlsgdHA : SDNode<"PPCISD::ADDIS_TLSGD_HA", SDTIntBinOp>;
 def PPCaddiTlsgdL   : SDNode<"PPCISD::ADDI_TLSGD_L", SDTIntBinOp>;
 def PPCgetTlsAddr   : SDNode<"PPCISD::GET_TLS_ADDR", SDTIntBinOp>;
+def PPCgetTpointer : SDNode<"PPCISD::GET_TPOINTER", SDTIntLeaf, []>;
 def PPCaddiTlsgdLAddr : SDNode<"PPCISD::ADDI_TLSGD_L_ADDR",
                                SDTypeProfile<1, 3, [
                                  SDTCisSameAs<0, 1>, SDTCisSameAs<0, 2>,
@@ -733,6 +730,18 @@ def IsNotISAFuture : Predicate<"!Subtarget->isISAFuture()">;
 
 //===----------------------------------------------------------------------===//
 // PowerPC Multiclass Definitions.
+multiclass XForm_base_r3xo_r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_base_r3xo<opcode, xo, OOL, IOL,
+                                !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                NoItinerary, pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_base_r3xo<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               NoItinerary, []>, isRecordForm, RecFormRel;
+  }
+}
 
 multiclass XForm_6r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
                     string asmbase, string asmstr, InstrItinClass itin,
@@ -1046,6 +1055,32 @@ multiclass XForm_28r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
   }
 }
 
+multiclass XForm_SP2_FRTB5r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                        string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_SP2_FRTB5<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(" ", asmstr)),
+                               pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_SP2_FRTB5<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               [], NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass XForm_S1_FRTB5r<bits<6> opcode, bits<10> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : XForm_S1_FRTB5<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(" ", asmstr)),
+                              pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : XForm_S1_FRTB5<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(". ", asmstr)), [],
+                              NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
 multiclass AForm_1r<bits<6> opcode, bits<5> xo, dag OOL, dag IOL,
                     string asmbase, string asmstr, InstrItinClass itin,
                     list<dag> pattern> {
@@ -1087,6 +1122,66 @@ multiclass AForm_3r<bits<6> opcode, bits<5> xo, dag OOL, dag IOL,
                        []>, isRecordForm, RecFormRel;
   }
 }
+
+multiclass
+    Z23Form_TE5_FRTB5_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                            string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME
+        : Z23Form_TE5_FRTB5_RMC2<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                 pattern>, RecFormRel;
+    let Defs = [CR0] in
+    def _rec : Z23Form_TE5_FRTB5_RMC2<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(". ", asmstr)),
+                                 []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass
+    Z23Form_FRTAB5_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                         string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z23Form_FRTAB5_RMC2<opcode, xo, OOL, IOL,
+                                   !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                   pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z23Form_FRTAB5_RMC2<opcode, xo, OOL, IOL,
+                              !strconcat(asmbase, !strconcat(". ", asmstr)),
+                              []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass
+    Z23Form_FRTB5_R1_RMC2r<bits<6> opcode, bits<8> xo, dag OOL, dag IOL,
+                           string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z23Form_FRTB5_R1_RMC2<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(" ", asmstr)),
+                               pattern>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z23Form_FRTB5_R1_RMC2<opcode, xo, OOL, IOL,
+                               !strconcat(asmbase, !strconcat(". ", asmstr)),
+                               []>, isRecordForm, RecFormRel;
+  }
+}
+
+multiclass Z22Form_FRTA5_SH6r<bits<6> opcode, bits<9> xo, dag OOL, dag IOL,
+                      string asmbase, string asmstr, list<dag> pattern> {
+  let BaseName = asmbase in {
+    def NAME : Z22Form_FRTA5_SH6<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(" ", asmstr)),
+                                 pattern, NoItinerary>, RecFormRel;
+    let Defs = [CR1] in
+    def _rec : Z22Form_FRTA5_SH6<opcode, xo, OOL, IOL,
+                                 !strconcat(asmbase, !strconcat(". ", asmstr)),
+                                 [], NoItinerary>, isRecordForm, RecFormRel;
+  }
+}
+
+//===----------------------------------------------------------------------===//
+// END OF MULTICLASS DEFINITIONS
+//===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
 // PowerPC Instruction Definitions.
@@ -3146,6 +3241,24 @@ def GETtlsADDR32AIX : PPCEmitTimePseudo<(outs gprc:$rD), (ins gprc:$offset, gprc
                           "GETtlsADDR32AIX",
                           [(set i32:$rD,
                             (PPCgetTlsAddr i32:$offset, i32:$handle))]>;
+
+// For local-exec accesses on 32-bit AIX, a call to .__get_tpointer is
+// generated to retrieve the thread pointer. GETtlsTpointer32AIX clobbers both
+// R3 and the LR (link register).
+let hasExtraSrcRegAllocReq = 1, hasExtraDefRegAllocReq = 1,
+    Defs = [R3,LR] in
+def GETtlsTpointer32AIX : PPCEmitTimePseudo<(outs gprc:$rD), (ins),
+                          "GETtlsTpointer32AIX",
+                          [(set i32:$rD, (PPCgetTpointer))]>;
+
+// The following pattern matches local-exec TLS accesses on 32-bit AIX.
+// PPCaddTls is used in local-exec accesses in order to:
+//   - Get the address of a variable (add the variable offset to the thread
+//     pointer, retrieved by calling .__get_tpointer).
+//   - Create an opportunity to optimize the user of the loaded address.
+def : Pat<(PPCaddTls i32:$in, i32:$addr),
+          (ADD4TLS $in, $addr)>;
+
 // Combined op for ADDItlsgdL32 and GETtlsADDR32, late expanded.  R3 and LR
 // are true defines while the rest of the Defs are clobbers.
 let hasExtraSrcRegAllocReq = 1, hasExtraDefRegAllocReq = 1,
@@ -4204,6 +4317,9 @@ def TLBSX : XForm_tlb<914, (outs), (ins gprc:$RA, gprc:$RB), "tlbsx $RA, $RB",
 def TLBIVAX : XForm_tlb<786, (outs), (ins gprc:$RA, gprc:$RB), "tlbivax $RA, $RB",
                 IIC_LdStLoad>, Requires<[IsBookE]>;
 
+def TLBILX : XForm_tlbilx<18, (outs), (ins u2imm:$T, gprc:$RA, gprc:$RB),
+    "tlbilx $T, $RA, $RB", IIC_LdStLoad>, Requires<[IsBookE]>;
+
 def TLBRE : XForm_24_eieio<31, 946, (outs), (ins),
                            "tlbre", IIC_LdStLoad, []>, Requires<[IsBookE]>;
 
@@ -4566,6 +4682,12 @@ def : InstAlias<"tlbwehi $RS, $A", (TLBWE2 gprc:$RS, gprc:$A, 0)>,
                 Requires<[IsPPC4xx]>;
 def : InstAlias<"tlbwelo $RS, $A", (TLBWE2 gprc:$RS, gprc:$A, 1)>,
                 Requires<[IsPPC4xx]>;
+
+def : InstAlias<"tlbilxlpid", (TLBILX 0, R0, R0)>, Requires<[IsBookE]>;
+def : InstAlias<"tlbilxpid", (TLBILX 1, R0, R0)>, Requires<[IsBookE]>;
+def : InstAlias<"tlbilxva $RA, $RB", (TLBILX 3, gprc:$RA, gprc:$RB)>,
+                Requires<[IsBookE]>;
+def : InstAlias<"tlbilxva $RB", (TLBILX 3, R0, gprc:$RB)>, Requires<[IsBookE]>;
 
 def LAx : PPCAsmPseudo<"la $rA, $addr", (ins gprc:$rA, memri:$addr)>;
 

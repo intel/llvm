@@ -1382,6 +1382,13 @@ public:
   }
 };
 
+/// Only used by CXXDeductionGuideDecl.
+enum class DeductionCandidate : unsigned char {
+  Normal,
+  Copy,
+  Aggregate,
+};
+
 /// DeclContext - This is used only as base class of specific decl types that
 /// can act as declaration contexts. These decls are (only the top classes
 /// that directly derive from DeclContext are mentioned, not their subclasses):
@@ -1620,10 +1627,10 @@ class DeclContext {
   /// Stores the bits used by FunctionDecl.
   /// If modified NumFunctionDeclBits and the accessor
   /// methods in FunctionDecl and CXXDeductionGuideDecl
-  /// (for IsCopyDeductionCandidate) should be updated appropriately.
+  /// (for DeductionCandidateKind) should be updated appropriately.
   class FunctionDeclBitfields {
     friend class FunctionDecl;
-    /// For IsCopyDeductionCandidate
+    /// For DeductionCandidateKind
     friend class CXXDeductionGuideDecl;
     /// For the bits in DeclContextBitfields.
     uint64_t : NumDeclContextBits;
@@ -1659,6 +1666,8 @@ class DeclContext {
 
     /// Kind of contexpr specifier as defined by ConstexprSpecKind.
     uint64_t ConstexprKind : 2;
+    uint64_t BodyContainsImmediateEscalatingExpression : 1;
+
     uint64_t InstantiationIsPending : 1;
 
     /// Indicates if the function uses __try.
@@ -1676,10 +1685,10 @@ class DeclContext {
     /// function using attribute 'target'.
     uint64_t IsMultiVersion : 1;
 
-    /// [C++17] Only used by CXXDeductionGuideDecl. Indicates that
-    /// the Deduction Guide is the implicitly generated 'copy
-    /// deduction candidate' (is used during overload resolution).
-    uint64_t IsCopyDeductionCandidate : 1;
+    /// Only used by CXXDeductionGuideDecl. Indicates the kind
+    /// of the Deduction Guide that is implicitly generated
+    /// (used during overload resolution).
+    uint64_t DeductionCandidateKind : 2;
 
     /// Store the ODRHash after first calculation.
     uint64_t HasODRHash : 1;
@@ -1693,7 +1702,7 @@ class DeclContext {
   };
 
   /// Number of non-inherited bits in FunctionDeclBitfields.
-  enum { NumFunctionDeclBits = 29 };
+  enum { NumFunctionDeclBits = 30 };
 
   /// Stores the bits used by CXXConstructorDecl. If modified
   /// NumCXXConstructorDeclBits and the accessor
@@ -1705,12 +1714,12 @@ class DeclContext {
     /// For the bits in FunctionDeclBitfields.
     uint64_t : NumFunctionDeclBits;
 
-    /// 22 bits to fit in the remaining available space.
+    /// 21 bits to fit in the remaining available space.
     /// Note that this makes CXXConstructorDeclBitfields take
     /// exactly 64 bits and thus the width of NumCtorInitializers
     /// will need to be shrunk if some bit is added to NumDeclContextBitfields,
     /// NumFunctionDeclBitfields or CXXConstructorDeclBitfields.
-    uint64_t NumCtorInitializers : 19;
+    uint64_t NumCtorInitializers : 18;
     uint64_t IsInheritingConstructor : 1;
 
     /// Whether this constructor has a trail-allocated explicit specifier.
@@ -2601,14 +2610,6 @@ private:
 
   void reconcileExternalVisibleStorage() const;
   bool LoadLexicalDeclsFromExternalStorage() const;
-
-  /// Makes a declaration visible within this context, but
-  /// suppresses searches for external declarations with the same
-  /// name.
-  ///
-  /// Analogous to makeDeclVisibleInContext, but for the exclusive
-  /// use of addDeclInternal().
-  void makeDeclVisibleInContextInternal(NamedDecl *D);
 
   StoredDeclsMap *CreateStoredDeclsMap(ASTContext &C) const;
 

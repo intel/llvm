@@ -58,14 +58,14 @@ public:
 
   virtual uint64_t getVA() const { return 0; }
 
-  virtual bool isWeakDef() const { llvm_unreachable("cannot be weak def"); }
+  virtual bool isWeakDef() const { return false; }
 
   // Only undefined or dylib symbols can be weak references. A weak reference
   // need not be satisfied at runtime, e.g. due to the symbol not being
   // available on a given target platform.
   virtual bool isWeakRef() const { return false; }
 
-  virtual bool isTlv() const { llvm_unreachable("cannot be TLV"); }
+  virtual bool isTlv() const { return false; }
 
   // Whether this symbol is in the GOT or TLVPointer sections.
   bool isInGot() const { return gotIndex != UINT32_MAX; }
@@ -386,7 +386,7 @@ inline bool needsBinding(const Symbol *sym) {
 // Symbols with `l` or `L` as a prefix are linker-private and never appear in
 // the output.
 inline bool isPrivateLabel(StringRef name) {
-  return name.startswith("l") || name.startswith("L");
+  return name.starts_with("l") || name.starts_with("L");
 }
 } // namespace macho
 

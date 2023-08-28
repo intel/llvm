@@ -140,6 +140,10 @@ public:
     ClearInsertionPoint();
   }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+    Value *getCastedInt8PtrValue(Value *Ptr);
+#endif
+
   /// Insert and return the specified instruction.
   template<typename InstTy>
   InstTy *Insert(InstTy *I, const Twine &Name = "") const {
@@ -558,7 +562,11 @@ public:
 
   /// Fetch the type representing a pointer to an 8-bit integer value.
   PointerType *getInt8PtrTy(unsigned AddrSpace = 0) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return getPtrTy(AddrSpace);
+#else
     return Type::getInt8PtrTy(Context, AddrSpace);
+#endif
   }
 
   /// Fetch the type of an integer with size at least as big as that of a
@@ -661,9 +669,13 @@ public:
 
   CallInst *
   CreateMemCpyInline(Value *Dst, MaybeAlign DstAlign, Value *Src,
-                     MaybeAlign SrcAlign, Value *Size, bool IsVolatile = false,
+                     MaybeAlign SrcAlign, Value *Size, bool isVolatile = false,
                      MDNode *TBAATag = nullptr, MDNode *TBAAStructTag = nullptr,
-                     MDNode *ScopeTag = nullptr, MDNode *NoAliasTag = nullptr);
+                     MDNode *ScopeTag = nullptr, MDNode *NoAliasTag = nullptr) {
+    return CreateMemTransferInst(Intrinsic::memcpy_inline, Dst, DstAlign, Src,
+                                 SrcAlign, Size, isVolatile, TBAATag,
+                                 TBAAStructTag, ScopeTag, NoAliasTag);
+  }
 
   /// Create and insert an element unordered-atomic memcpy between the
   /// specified pointers.
@@ -692,7 +704,12 @@ public:
                           MaybeAlign SrcAlign, Value *Size,
                           bool isVolatile = false, MDNode *TBAATag = nullptr,
                           MDNode *ScopeTag = nullptr,
-                          MDNode *NoAliasTag = nullptr);
+                          MDNode *NoAliasTag = nullptr) {
+    return CreateMemTransferInst(Intrinsic::memmove, Dst, DstAlign, Src,
+                                 SrcAlign, Size, isVolatile, TBAATag,
+                                 /*TBAAStructTag=*/nullptr, ScopeTag,
+                                 NoAliasTag);
+  }
 
   /// \brief Create and insert an element unordered-atomic memmove between the
   /// specified pointers.
@@ -756,6 +773,16 @@ public:
   /// vector.
   CallInst *CreateFPMinReduce(Value *Src);
 
+  /// Create a vector float maximum reduction intrinsic of the source
+  /// vector. This variant follows the NaN and signed zero semantic of
+  /// llvm.maximum intrinsic.
+  CallInst *CreateFPMaximumReduce(Value *Src);
+
+  /// Create a vector float minimum reduction intrinsic of the source
+  /// vector. This variant follows the NaN and signed zero semantic of
+  /// llvm.minimum intrinsic.
+  CallInst *CreateFPMinimumReduce(Value *Src);
+
   /// Create a lifetime.start intrinsic.
   ///
   /// If the pointer isn't i8* it will be converted.
@@ -799,6 +826,12 @@ public:
   /// Create a call to Masked Compress Store intrinsic
   CallInst *CreateMaskedCompressStore(Value *Val, Value *Ptr,
                                       Value *Mask = nullptr);
+
+  /// Return an all true boolean vector (mask) with \p NumElts lanes.
+  Value *getAllOnesMask(ElementCount NumElts) {
+    VectorType *VTy = VectorType::get(Type::getInt1Ty(Context), NumElts);
+    return Constant::getAllOnesValue(VTy);
+  }
 
   /// Create an assume intrinsic call that allows the optimizer to
   /// assume that the provided condition will be true.
@@ -940,11 +973,21 @@ public:
 
   /// Create call to the minnum intrinsic.
   CallInst *CreateMinNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+    if (IsFPConstrained) {
+      return CreateConstrainedFPUnroundedBinOp(
+          Intrinsic::experimental_constrained_minnum, LHS, RHS, nullptr, Name);
+    }
+
     return CreateBinaryIntrinsic(Intrinsic::minnum, LHS, RHS, nullptr, Name);
   }
 
   /// Create call to the maxnum intrinsic.
   CallInst *CreateMaxNum(Value *LHS, Value *RHS, const Twine &Name = "") {
+    if (IsFPConstrained) {
+      return CreateConstrainedFPUnroundedBinOp(
+          Intrinsic::experimental_constrained_maxnum, LHS, RHS, nullptr, Name);
+    }
+
     return CreateBinaryIntrinsic(Intrinsic::maxnum, LHS, RHS, nullptr, Name);
   }
 
@@ -994,8 +1037,6 @@ private:
   CallInst *CreateMaskedIntrinsic(Intrinsic::ID Id, ArrayRef<Value *> Ops,
                                   ArrayRef<Type *> OverloadedTypes,
                                   const Twine &Name = "");
-
-  Value *getCastedInt8PtrValue(Value *Ptr);
 
   //===--------------------------------------------------------------------===//
   // Instruction creation methods: Terminators
@@ -1640,6 +1681,11 @@ public:
       Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource = nullptr,
       const Twine &Name = "", MDNode *FPMathTag = nullptr,
       std::optional<RoundingMode> Rounding = std::nullopt,
+      std::optional<fp::ExceptionBehavior> Except = std::nullopt);
+
+  CallInst *CreateConstrainedFPUnroundedBinOp(
+      Intrinsic::ID ID, Value *L, Value *R, Instruction *FMFSource = nullptr,
+      const Twine &Name = "", MDNode *FPMathTag = nullptr,
       std::optional<fp::ExceptionBehavior> Except = std::nullopt);
 
   Value *CreateNeg(Value *V, const Twine &Name = "", bool HasNUW = false,
@@ -2496,11 +2542,6 @@ public:
   /// EC elements.
   Value *CreateVectorSplat(ElementCount EC, Value *V, const Twine &Name = "");
 
-  /// Return a value that has been extracted from a larger integer type.
-  Value *CreateExtractInteger(const DataLayout &DL, Value *From,
-                              IntegerType *ExtractedTy, uint64_t Offset,
-                              const Twine &Name);
-
   Value *CreatePreserveArrayAccessIndex(Type *ElTy, Value *Base,
                                         unsigned Dimension, unsigned LastIndex,
                                         MDNode *DbgInfo);
@@ -2511,6 +2552,8 @@ public:
   Value *CreatePreserveStructAccessIndex(Type *ElTy, Value *Base,
                                          unsigned Index, unsigned FieldIndex,
                                          MDNode *DbgInfo);
+
+  Value *createIsFPClass(Value *FPNum, unsigned Test);
 
 private:
   /// Helper function that creates an assume intrinsic call that

@@ -457,6 +457,17 @@ xptiQueryMetadata(xpti::trace_event_data_t *e);
 /// @return bool that indicates whether it is enabled or not
 XPTI_EXPORT_API bool xptiTraceEnabled();
 
+/// @brief Check if tracing is enabled for a stream or stream and trace type
+/// @details If the tracing is enabled by the XPTI_TRACE_ENABLE=1
+/// environment variable, a valid dispatcher is available for dispatching
+/// calls to the framework and if there exists one or more valid subscribers
+/// subscribing to a stream or a stream and trace type in that stream, then
+/// this method will return TRUE
+/// @param stream Stream ID
+/// @param ttype The trace type within the stream
+/// @return bool that indicates whether it is enabled or not
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype = 0);
+
 /// @brief Resets internal state
 /// @details This method is currently ONLY used by the tests and is NOT
 /// recommended for use in the instrumentation of applications or runtimes.
@@ -511,5 +522,6 @@ typedef xpti::result_t (*xpti_add_metadata_t)(xpti::trace_event_data_t *,
                                               const char *, xpti::object_id_t);
 typedef xpti::metadata_t *(*xpti_query_metadata_t)(xpti::trace_event_data_t *);
 typedef bool (*xpti_trace_enabled_t)();
+typedef bool (*xpti_check_trace_enabled_t)(uint16_t stream, uint16_t ttype);
 typedef void (*xpti_force_set_trace_enabled_t)(bool);
 }

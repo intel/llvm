@@ -798,12 +798,11 @@ VarDecl *Sema::createLambdaInitCaptureVarDecl(
   return NewVD;
 }
 
-void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var,
-                          bool isReferenceType) {
+void Sema::addInitCapture(LambdaScopeInfo *LSI, VarDecl *Var, bool ByRef) {
   assert(Var->isInitCapture() && "init capture flag should be set");
-  LSI->addCapture(Var, /*isBlock*/ false, isReferenceType,
-                  /*isNested*/ false, Var->getLocation(), SourceLocation(),
-                  Var->getType(), /*Invalid*/ false);
+  LSI->addCapture(Var, /*isBlock=*/false, ByRef,
+                  /*isNested=*/false, Var->getLocation(), SourceLocation(),
+                  Var->getType(), /*Invalid=*/false);
 }
 
 // Unlike getCurLambda, getCurrentLambdaScopeUnsafe doesn't
@@ -1169,11 +1168,15 @@ void Sema::ActOnLambdaExpressionAfterIntroducer(LambdaIntroducer &Intro,
             << C->Id << It->second->getBeginLoc()
             << FixItHint::CreateRemoval(
                    SourceRange(getLocForEndOfToken(PrevCaptureLoc), C->Loc));
-      } else
+        Var->setInvalidDecl();
+      } else if (Var && Var->isPlaceholderVar(getLangOpts())) {
+        DiagPlaceholderVariableDefinition(C->Loc);
+      } else {
         // Previous capture captured something different (one or both was
         // an init-capture): no fixit.
         Diag(C->Loc, diag::err_capture_more_than_once) << C->Id;
-      continue;
+        continue;
+      }
     }
 
     // Ignore invalid decls; they'll just confuse the code later.
@@ -1422,6 +1425,10 @@ void Sema::ActOnStartOfLambdaDefinition(LambdaIntroducer &Intro,
       LSI->CallOperator->isConsteval()
           ? ExpressionEvaluationContext::ImmediateFunctionContext
           : ExpressionEvaluationContext::PotentiallyEvaluated);
+  ExprEvalContexts.back().InImmediateFunctionContext =
+      LSI->CallOperator->isConsteval();
+  ExprEvalContexts.back().InImmediateEscalatingFunctionContext =
+      getLangOpts().CPlusPlus20 && LSI->CallOperator->isImmediateEscalating();
 }
 
 void Sema::ActOnLambdaError(SourceLocation StartLoc, Scope *CurScope,
@@ -1629,6 +1636,11 @@ static void addFunctionPointerConversion(Sema &S, SourceRange IntroducerRange,
       CallOperator->getBody()->getEndLoc());
   Conversion->setAccess(AS_public);
   Conversion->setImplicit(true);
+
+  // A non-generic lambda may still be a templated entity. We need to preserve
+  // constraints when converting the lambda to a function pointer. See GH63181.
+  if (Expr *Requires = CallOperator->getTrailingRequiresClause())
+    Conversion->setTrailingRequiresClause(Requires);
 
   if (Class->isGenericLambda()) {
     // Create a template version of the conversion operator, using the template
@@ -1865,6 +1877,12 @@ bool Sema::DiagnoseUnusedLambdaCapture(SourceRange CaptureRange,
     return false;
 
   if (From.isVLATypeCapture())
+    return false;
+
+  // FIXME: maybe we should warn on these if we can find a sensible diagnostic
+  // message
+  if (From.isInitCapture() &&
+      From.getVariable()->isPlaceholderVar(getLangOpts()))
     return false;
 
   auto diag = Diag(From.getLocation(), diag::warn_unused_lambda_capture);

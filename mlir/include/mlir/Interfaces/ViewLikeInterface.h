@@ -18,6 +18,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/IR/PatternMatch.h"
 
 namespace mlir {
 
@@ -31,6 +32,11 @@ bool sameOffsetsSizesAndStrides(
     OffsetSizeAndStrideOpInterface a, OffsetSizeAndStrideOpInterface b,
     llvm::function_ref<bool(OpFoldResult, OpFoldResult)> cmp);
 
+/// Helper method to compute the number of dynamic entries of `staticVals`,
+/// up to `idx`.
+unsigned getNumDynamicEntriesUpToIdx(ArrayRef<int64_t> staticVals,
+                                     unsigned idx);
+
 } // namespace detail
 } // namespace mlir
 
@@ -38,6 +44,47 @@ bool sameOffsetsSizesAndStrides(
 #include "mlir/Interfaces/ViewLikeInterface.h.inc"
 
 namespace mlir {
+
+/// Pattern to rewrite dynamic offsets/sizes/strides of view/slice-like ops as
+/// constant arguments. This pattern assumes that the op has a suitable builder
+/// that takes a result type, a "source" operand and mixed offsets, sizes and
+/// strides.
+///
+/// `OpType` is the type of op to which this pattern is applied. `ResultTypeFn`
+/// returns the new result type of the op, based on the new offsets, sizes and
+/// strides. `CastOpFunc` is used to generate a cast op if the result type of
+/// the op has changed.
+template <typename OpType, typename ResultTypeFn, typename CastOpFunc>
+class OpWithOffsetSizesAndStridesConstantArgumentFolder final
+    : public OpRewritePattern<OpType> {
+public:
+  using OpRewritePattern<OpType>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(OpType op,
+                                PatternRewriter &rewriter) const override {
+    SmallVector<OpFoldResult> mixedOffsets(op.getMixedOffsets());
+    SmallVector<OpFoldResult> mixedSizes(op.getMixedSizes());
+    SmallVector<OpFoldResult> mixedStrides(op.getMixedStrides());
+
+    // No constant operands were folded, just return;
+    if (failed(foldDynamicIndexList(mixedOffsets)) &&
+        failed(foldDynamicIndexList(mixedSizes)) &&
+        failed(foldDynamicIndexList(mixedStrides)))
+      return failure();
+
+    // Create the new op in canonical form.
+    auto resultType =
+        ResultTypeFn()(op, mixedOffsets, mixedSizes, mixedStrides);
+    if (!resultType)
+      return failure();
+    auto newOp =
+        rewriter.create<OpType>(op.getLoc(), resultType, op.getSource(),
+                                mixedOffsets, mixedSizes, mixedStrides);
+    CastOpFunc()(rewriter, op, newOp);
+
+    return success();
+  }
+};
 
 /// Printer hook for custom directive in assemblyFormat.
 ///
@@ -51,9 +98,16 @@ namespace mlir {
 /// indicating their types. This allows idiomatic printing of mixed value and
 /// integer attributes in a list. E.g.
 /// `[%arg0 : index, 7, 42, %arg42 : i32]`.
+///
+/// Indices can be scalable. For example, "4" in "[2, [4], 8]" is scalable.
+/// This notation is similar to how scalable dims are marked when defining
+/// Vectors. For each value in `integers`, the corresponding `bool` in
+/// `scalables` encodes whether it's a scalable index. If `scalableVals` is
+/// empty then assume that all indices are non-scalable.
 void printDynamicIndexList(
     OpAsmPrinter &printer, Operation *op, OperandRange values,
     ArrayRef<int64_t> integers, TypeRange valueTypes = TypeRange(),
+    ArrayRef<bool> scalables = {},
     AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
 
 /// Parser hook for custom directive in assemblyFormat.
@@ -72,18 +126,44 @@ void printDynamicIndexList(
 ///   1. `result` is filled with the i64 ArrayAttr "[`kDynamic`, 7, 42,
 ///   `kDynamic`]"
 ///   2. `ssa` is filled with "[%arg0, %arg1]".
+///
+/// Indices can be scalable. For example, "4" in "[2, [4], 8]" is scalable.
+/// This notation is similar to how scalable dims are marked when defining
+/// Vectors. For each value in `integers`, the corresponding `bool` in
+/// `scalableVals` encodes whether it's a scalable index.
 ParseResult parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
-    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> *valueTypes = nullptr,
+    DenseI64ArrayAttr &integers, DenseBoolArrayAttr &scalableVals,
+    SmallVectorImpl<Type> *valueTypes = nullptr,
     AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square);
+inline ParseResult parseDynamicIndexList(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
+    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> *valueTypes = nullptr,
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
+  DenseBoolArrayAttr scalableVals = {};
+  return parseDynamicIndexList(parser, values, integers, scalableVals,
+                               valueTypes, delimiter);
+}
 inline ParseResult parseDynamicIndexList(
     OpAsmParser &parser,
     SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
     DenseI64ArrayAttr &integers, SmallVectorImpl<Type> &valueTypes,
     AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
-  return parseDynamicIndexList(parser, values, integers, &valueTypes,
-                               delimiter);
+  DenseBoolArrayAttr scalableVals = {};
+  return parseDynamicIndexList(parser, values, integers, scalableVals,
+                               &valueTypes, delimiter);
+}
+inline ParseResult parseDynamicIndexList(
+    OpAsmParser &parser,
+    SmallVectorImpl<OpAsmParser::UnresolvedOperand> &values,
+    DenseI64ArrayAttr &integers, SmallVectorImpl<Type> &valueTypes,
+    DenseBoolArrayAttr &scalableVals,
+    AsmParser::Delimiter delimiter = AsmParser::Delimiter::Square) {
+
+  return parseDynamicIndexList(parser, values, integers, scalableVals,
+                               &valueTypes, delimiter);
 }
 
 /// Verify that a the `values` has as many elements as the number of entries in

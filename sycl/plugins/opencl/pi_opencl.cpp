@@ -99,8 +99,6 @@ pi_result piPluginGetLastError(char **message) {
 }
 
 // Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
 pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
                                    const char **backend_option) {
   using namespace std::literals;
@@ -110,6 +108,7 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
     *backend_option = "";
     return PI_SUCCESS;
   }
+  // Return '-cl-opt-disable' for frontend_option = -O0 and '' for others.
   if (!strcmp(frontend_option, "-O0")) {
     *backend_option = "-cl-opt-disable";
     return PI_SUCCESS;
@@ -117,6 +116,10 @@ pi_result piPluginGetBackendOption(pi_platform, const char *frontend_option,
   if (frontend_option == "-O1"sv || frontend_option == "-O2"sv ||
       frontend_option == "-O3"sv) {
     *backend_option = "";
+    return PI_SUCCESS;
+  }
+  if (frontend_option == "-ftarget-compile-fast"sv) {
+    *backend_option = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return PI_SUCCESS;
   }
   return PI_ERROR_INVALID_VALUE;
@@ -918,7 +921,9 @@ pi_result piQueueCreate(pi_context context, pi_device device,
            ~(PI_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
              PI_QUEUE_FLAG_PROFILING_ENABLE | PI_QUEUE_FLAG_ON_DEVICE |
              PI_QUEUE_FLAG_ON_DEVICE_DEFAULT |
-             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS)));
+             PI_EXT_ONEAPI_QUEUE_FLAG_DISCARD_EVENTS |
+             PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_LOW |
+             PI_EXT_ONEAPI_QUEUE_FLAG_PRIORITY_HIGH)));
 
   // Properties supported by OpenCL backend.
   cl_command_queue_properties SupportByOpenCL =
@@ -1113,7 +1118,9 @@ pi_result piSamplerCreate(pi_context context,
 }
 
 pi_result piextKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
+                                  const pi_mem_obj_property *arg_properties,
                                   const pi_mem *arg_value) {
+  std::ignore = arg_properties;
   return cast<pi_result>(
       clSetKernelArg(cast<cl_kernel>(kernel), cast<cl_uint>(arg_index),
                      sizeof(arg_value), cast<const cl_mem *>(arg_value)));
@@ -1357,18 +1364,6 @@ pi_result piextMemImageCreateWithNativeHandle(
   assert(Img != nullptr);
   *Img = reinterpret_cast<pi_mem>(nativeHandle);
   return PI_SUCCESS;
-}
-
-pi_result piclProgramCreateWithSource(pi_context context, pi_uint32 count,
-                                      const char **strings,
-                                      const size_t *lengths,
-                                      pi_program *ret_program) {
-
-  pi_result ret_err = PI_ERROR_INVALID_OPERATION;
-  *ret_program = cast<pi_program>(
-      clCreateProgramWithSource(cast<cl_context>(context), cast<cl_uint>(count),
-                                strings, lengths, cast<cl_int *>(&ret_err)));
-  return ret_err;
 }
 
 pi_result piProgramCreateWithBinary(
@@ -2046,6 +2041,19 @@ pi_result piextUSMGetMemAllocInfo(pi_context context, const void *ptr,
   return RetVal;
 }
 
+pi_result piextUSMImport(const void *ptr, size_t size, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = size;
+  std::ignore = context;
+  return PI_SUCCESS;
+}
+
+pi_result piextUSMRelease(const void *ptr, pi_context context) {
+  std::ignore = ptr;
+  std::ignore = context;
+  return PI_SUCCESS;
+}
+
 /// API for writing data from host to a device global variable.
 ///
 /// \param queue is the queue
@@ -2277,6 +2285,227 @@ pi_result piextKernelGetNativeHandle(pi_kernel kernel,
   return piextGetNativeHandle(kernel, nativeHandle);
 }
 
+// command-buffer extension
+pi_result piextCommandBufferCreate(pi_context context, pi_device device,
+                                   const pi_ext_command_buffer_desc *desc,
+                                   pi_ext_command_buffer *ret_command_buffer) {
+  (void)context;
+  (void)device;
+  (void)desc;
+  (void)ret_command_buffer;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferFinalize(pi_ext_command_buffer command_buffer) {
+  (void)command_buffer;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferNDRangeKernel(
+    pi_ext_command_buffer command_buffer, pi_kernel kernel, pi_uint32 work_dim,
+    const size_t *global_work_offset, const size_t *global_work_size,
+    const size_t *local_work_size, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)kernel;
+  (void)work_dim;
+  (void)global_work_offset;
+  (void)global_work_size;
+  (void)local_work_size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result
+piextCommandBufferMemcpyUSM(pi_ext_command_buffer command_buffer, void *dst_ptr,
+                            const void *src_ptr, size_t size,
+                            pi_uint32 num_sync_points_in_wait_list,
+                            const pi_ext_sync_point *sync_point_wait_list,
+                            pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)dst_ptr;
+  (void)src_ptr;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferCopy(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    size_t src_offset, size_t dst_offset, size_t size,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_offset;
+  (void)dst_offset;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferCopyRect(
+    pi_ext_command_buffer command_buffer, pi_mem src_buffer, pi_mem dst_buffer,
+    pi_buff_rect_offset src_origin, pi_buff_rect_offset dst_origin,
+    pi_buff_rect_region region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
+    pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)src_buffer;
+  (void)dst_buffer;
+  (void)src_origin;
+  (void)dst_origin;
+  (void)region;
+  (void)src_row_pitch;
+  (void)src_slice_pitch;
+  (void)dst_row_pitch;
+  (void)dst_slice_pitch;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferRead(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, void *dst, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)dst;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferReadRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferWrite(
+    pi_ext_command_buffer command_buffer, pi_mem buffer, size_t offset,
+    size_t size, const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)offset;
+  (void)size;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextCommandBufferMemBufferWriteRect(
+    pi_ext_command_buffer command_buffer, pi_mem buffer,
+    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
+    pi_buff_rect_region region, size_t buffer_row_pitch,
+    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
+    const void *ptr, pi_uint32 num_sync_points_in_wait_list,
+    const pi_ext_sync_point *sync_point_wait_list,
+    pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)buffer_offset;
+  (void)host_offset;
+  (void)region;
+  (void)buffer_row_pitch;
+  (void)buffer_slice_pitch;
+  (void)host_row_pitch;
+  (void)host_slice_pitch;
+  (void)ptr;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                    pi_queue queue,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
+  (void)command_buffer;
+  (void)queue;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
 // This API is called by Sycl RT to notify the end of the plugin lifetime.
 // Windows: dynamically loaded plugins might have been unloaded already
 // when this is called. Sycl RT holds onto the PI plugin so it can be
@@ -2329,6 +2558,24 @@ pi_result piGetDeviceAndHostTimer(pi_device Device, uint64_t *DeviceTime,
   }
 
   return PI_SUCCESS;
+}
+
+pi_result piEventGetInfo(pi_event event, pi_event_info param_name,
+                         size_t param_value_size, void *param_value,
+                         size_t *param_value_size_ret) {
+  cl_int result =
+      clGetEventInfo(reinterpret_cast<cl_event>(event), param_name,
+                     param_value_size, param_value, param_value_size_ret);
+  if (result == CL_SUCCESS && param_name == CL_EVENT_COMMAND_EXECUTION_STATUS) {
+    // If the CL_EVENT_COMMAND_EXECUTION_STATUS info value is CL_QUEUED, change
+    // it to CL_SUBMITTED. This change is needed since
+    // sycl::info::event::event_command_status has no equivalent to CL_QUEUED.
+    const auto param_value_int = static_cast<cl_int *>(param_value);
+    if (*param_value_int == CL_QUEUED) {
+      *param_value_int = CL_SUBMITTED;
+    }
+  }
+  return static_cast<pi_result>(result);
 }
 
 const char SupportedVersion[] = _PI_OPENCL_PLUGIN_VERSION_STRING;
@@ -2391,7 +2638,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextMemCreateWithNativeHandle, piextMemCreateWithNativeHandle)
   // Program
   _PI_CL(piProgramCreate, piProgramCreate)
-  _PI_CL(piclProgramCreateWithSource, piclProgramCreateWithSource)
   _PI_CL(piProgramCreateWithBinary, piProgramCreateWithBinary)
   _PI_CL(piProgramGetInfo, clGetProgramInfo)
   _PI_CL(piProgramCompile, clCompileProgram)
@@ -2418,7 +2664,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextKernelGetNativeHandle, piextKernelGetNativeHandle)
   // Event
   _PI_CL(piEventCreate, piEventCreate)
-  _PI_CL(piEventGetInfo, clGetEventInfo)
+  _PI_CL(piEventGetInfo, piEventGetInfo)
   _PI_CL(piEventGetProfilingInfo, clGetEventProfilingInfo)
   _PI_CL(piEventsWait, clWaitForEvents)
   _PI_CL(piEventSetCallback, clSetEventCallback)
@@ -2434,7 +2680,6 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piSamplerRelease, clReleaseSampler)
   // Queue commands
   _PI_CL(piEnqueueKernelLaunch, clEnqueueNDRangeKernel)
-  _PI_CL(piEnqueueNativeKernel, clEnqueueNativeKernel)
   _PI_CL(piEnqueueEventsWait, clEnqueueMarkerWithWaitList)
   _PI_CL(piEnqueueEventsWaitWithBarrier, clEnqueueBarrierWithWaitList)
   _PI_CL(piEnqueueMemBufferRead, clEnqueueReadBuffer)
@@ -2463,6 +2708,8 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_CL(piextUSMEnqueueMemset2D, piextUSMEnqueueMemset2D)
   _PI_CL(piextUSMEnqueueMemcpy2D, piextUSMEnqueueMemcpy2D)
   _PI_CL(piextUSMGetMemAllocInfo, piextUSMGetMemAllocInfo)
+  _PI_CL(piextUSMImport, piextUSMImport)
+  _PI_CL(piextUSMRelease, piextUSMRelease)
   // Device global variable
   _PI_CL(piextEnqueueDeviceGlobalVariableWrite,
          piextEnqueueDeviceGlobalVariableWrite)
@@ -2471,6 +2718,23 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
   // Host Pipe
   _PI_CL(piextEnqueueReadHostPipe, piextEnqueueReadHostPipe)
   _PI_CL(piextEnqueueWriteHostPipe, piextEnqueueWriteHostPipe)
+
+  // command-buffer
+  _PI_CL(piextCommandBufferCreate, piextCommandBufferCreate)
+  _PI_CL(piextCommandBufferRetain, piextCommandBufferRetain)
+  _PI_CL(piextCommandBufferRelease, piextCommandBufferRelease)
+  _PI_CL(piextCommandBufferNDRangeKernel, piextCommandBufferNDRangeKernel)
+  _PI_CL(piextCommandBufferMemcpyUSM, piextCommandBufferMemcpyUSM)
+  _PI_CL(piextCommandBufferMemBufferCopy, piextCommandBufferMemBufferCopy)
+  _PI_CL(piextCommandBufferMemBufferCopyRect,
+         piextCommandBufferMemBufferCopyRect)
+  _PI_CL(piextCommandBufferMemBufferRead, piextCommandBufferMemBufferRead)
+  _PI_CL(piextCommandBufferMemBufferReadRect,
+         piextCommandBufferMemBufferReadRect)
+  _PI_CL(piextCommandBufferMemBufferWrite, piextCommandBufferMemBufferWrite)
+  _PI_CL(piextCommandBufferMemBufferWriteRect,
+         piextCommandBufferMemBufferWriteRect)
+  _PI_CL(piextEnqueueCommandBuffer, piextEnqueueCommandBuffer)
 
   _PI_CL(piextKernelSetArgMemObj, piextKernelSetArgMemObj)
   _PI_CL(piextKernelSetArgSampler, piextKernelSetArgSampler)

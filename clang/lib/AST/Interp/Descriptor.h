@@ -41,7 +41,7 @@ using BlockDtorFn = void (*)(Block *Storage, char *FieldPtr,
 /// blocks are persisted: the move function copies all inline descriptors and
 /// non-trivial fields, as existing pointers might need to reference those
 /// descriptors. Data is not copied since it cannot be legally read.
-using BlockMoveFn = void (*)(Block *Storage, char *SrcFieldPtr,
+using BlockMoveFn = void (*)(Block *Storage, const char *SrcFieldPtr,
                              char *DstFieldPtr, const Descriptor *FieldDesc);
 
 /// Inline descriptor embedded in structures and arrays.
@@ -174,6 +174,8 @@ public:
 
   /// Checks if the descriptor is of an array of primitives.
   bool isPrimitiveArray() const { return IsArray && !ElemDesc; }
+  /// Checks if the descriptor is of an array of composites.
+  bool isCompositeArray() const { return IsArray && ElemDesc; }
   /// Checks if the descriptor is of an array of zero size.
   bool isZeroSizeArray() const { return Size == 0; }
   /// Checks if the descriptor is of an array of unknown size.

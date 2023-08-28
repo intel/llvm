@@ -6,7 +6,7 @@ define i1 @test_second_and_condition_implied_by_first(i8 %x) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
 ; CHECK-NEXT:    [[T_1:%.*]] = icmp ugt i8 [[X]], 5
-; CHECK-NEXT:    [[AND:%.*]] = and i1 [[C_1]], [[T_1]]
+; CHECK-NEXT:    [[AND:%.*]] = and i1 [[C_1]], true
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    ret i1 false
@@ -31,7 +31,7 @@ define i1 @test_second_and_condition_implied_by_first_select_form(i8 %x) {
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
 ; CHECK-NEXT:    [[T_1:%.*]] = icmp ugt i8 [[X]], 5
-; CHECK-NEXT:    [[AND:%.*]] = select i1 [[C_1]], i1 [[T_1]], i1 false
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[C_1]], i1 true, i1 false
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    ret i1 false
@@ -55,7 +55,7 @@ define i1 @test_same_cond_for_and(i8 %x) {
 ; CHECK-LABEL: @test_same_cond_for_and(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
-; CHECK-NEXT:    [[AND:%.*]] = and i1 [[C_1]], [[C_1]]
+; CHECK-NEXT:    [[AND:%.*]] = and i1 [[C_1]], true
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    ret i1 false
@@ -78,7 +78,7 @@ define i1 @test_same_cond_for_and_select_form(i8 %x) {
 ; CHECK-LABEL: @test_same_cond_for_and_select_form(
 ; CHECK-NEXT:  entry:
 ; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
-; CHECK-NEXT:    [[AND:%.*]] = select i1 [[C_1]], i1 [[C_1]], i1 false
+; CHECK-NEXT:    [[AND:%.*]] = select i1 [[C_1]], i1 true, i1 false
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    ret i1 false
@@ -203,7 +203,7 @@ define i1 @and_select_not_used_for_branch(i32 %x, i32 %y,i32 %z) {
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[EXIT:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[C_4:%.*]] = icmp eq i32 [[Z:%.*]], 0
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C_4]], i1 [[C_1]], i1 false
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C_4]], i1 true, i1 false
 ; CHECK-NEXT:    br label [[EXIT]]
 ; CHECK:       exit:
 ; CHECK-NEXT:    [[RES:%.*]] = phi i1 [ [[C_1]], [[ENTRY:%.*]] ], [ [[SEL]], [[THEN]] ]
@@ -236,10 +236,10 @@ define i1 @and_select_scope_limited(i32 %x, i32 %y, i32 %z) {
 ; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[EXIT:%.*]]
 ; CHECK:       then:
 ; CHECK-NEXT:    [[C_4:%.*]] = icmp eq i32 [[Z:%.*]], 0
-; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C_4]], i1 [[C_1]], i1 false
+; CHECK-NEXT:    [[SEL:%.*]] = select i1 [[C_4]], i1 true, i1 false
 ; CHECK-NEXT:    br i1 [[SEL]], label [[T_1:%.*]], label [[EXIT]]
 ; CHECK:       t.1:
-; CHECK-NEXT:    ret i1 [[C_1]]
+; CHECK-NEXT:    ret i1 true
 ; CHECK:       exit:
 ; CHECK-NEXT:    [[RES:%.*]] = phi i1 [ [[C_1]], [[ENTRY:%.*]] ], [ [[SEL]], [[THEN]] ]
 ; CHECK-NEXT:    ret i1 [[RES]]
@@ -262,4 +262,138 @@ t.1:
 exit:
   %res = phi i1 [ %c.1, %entry ], [ %sel, %then ]
   ret i1 %res
+}
+
+declare void @use(ptr)
+
+define void @test_monotonic_ptr_iv_inc_1_eq_to_uge(ptr %start, i16 %len) {
+; CHECK-LABEL: @test_monotonic_ptr_iv_inc_1_eq_to_uge(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[UPPER:%.*]] = getelementptr inbounds i32, ptr [[START:%.*]], i16 [[LEN:%.*]]
+; CHECK-NEXT:    br label [[LOOP_PH:%.*]]
+; CHECK:       loop.ph:
+; CHECK-NEXT:    br label [[LOOP_HEADER:%.*]]
+; CHECK:       loop.header:
+; CHECK-NEXT:    [[PTR_IV:%.*]] = phi ptr [ [[START]], [[LOOP_PH]] ], [ [[PTR_IV_NEXT:%.*]], [[LOOP_LATCH:%.*]] ]
+; CHECK-NEXT:    [[LEN_NEG:%.*]] = icmp sgt i16 [[LEN]], 0
+; CHECK-NEXT:    [[C:%.*]] = icmp ne ptr [[PTR_IV]], [[UPPER]]
+; CHECK-NEXT:    [[AND_0:%.*]] = and i1 [[LEN_NEG]], [[C]]
+; CHECK-NEXT:    br i1 [[AND_0]], label [[FOR_BODY:%.*]], label [[EXIT:%.*]]
+; CHECK:       for.body:
+; CHECK-NEXT:    [[T_1:%.*]] = icmp uge ptr [[PTR_IV]], [[START]]
+; CHECK-NEXT:    [[T_2:%.*]] = icmp ult ptr [[PTR_IV]], [[UPPER]]
+; CHECK-NEXT:    [[AND:%.*]] = and i1 [[T_1]], [[T_2]]
+; CHECK-NEXT:    br i1 [[AND]], label [[LOOP_LATCH]], label [[EXIT]]
+; CHECK:       loop.latch:
+; CHECK-NEXT:    call void @use(ptr [[PTR_IV]])
+; CHECK-NEXT:    [[PTR_IV_NEXT]] = getelementptr inbounds i32, ptr [[PTR_IV]], i16 1
+; CHECK-NEXT:    br label [[LOOP_HEADER]]
+; CHECK:       exit:
+; CHECK-NEXT:    ret void
+;
+entry:
+  %upper = getelementptr inbounds i32, ptr %start, i16 %len
+  br label %loop.ph
+
+loop.ph:
+  br label %loop.header
+
+loop.header:
+  %ptr.iv = phi ptr [ %start, %loop.ph ], [ %ptr.iv.next, %loop.latch ]
+  %len.neg = icmp sgt i16 %len, 0
+  %c = icmp ne ptr %ptr.iv, %upper
+  %and.0 = and i1 %len.neg, %c
+  br i1 %and.0, label %for.body, label %exit
+
+for.body:
+  %t.1 = icmp uge ptr %ptr.iv, %start
+  %t.2 = icmp ult ptr %ptr.iv, %upper
+  %and = and i1 %t.1, %t.2
+  br i1 %and, label %loop.latch, label %exit
+
+loop.latch:
+  call void @use(ptr %ptr.iv)
+  %ptr.iv.next = getelementptr inbounds i32, ptr %ptr.iv, i16 1
+  br label %loop.header
+
+exit:
+  ret void
+}
+
+define i1 @test_and_used_in_false_branch(i8 %x) {
+; CHECK-LABEL: @test_and_used_in_false_branch(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
+; CHECK-NEXT:    [[T_1:%.*]] = icmp ugt i8 [[X]], 5
+; CHECK-NEXT:    [[AND:%.*]] = and i1 [[C_1]], true
+; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    ret i1 true
+; CHECK:       else:
+; CHECK-NEXT:    ret i1 [[T_1]]
+;
+
+entry:
+  %c.1 = icmp ugt i8 %x, 10
+  %t.1 = icmp ugt i8 %x, 5
+  %and = and i1 %c.1, %t.1
+  br i1 %and, label %then, label %else
+
+then:
+  ret i1 %t.1
+
+else:
+  ret i1 %t.1
+}
+
+define i1 @test_or_used_in_false_branch(i8 %x) {
+; CHECK-LABEL: @test_or_used_in_false_branch(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ule i8 [[X:%.*]], 10
+; CHECK-NEXT:    [[T_1:%.*]] = icmp ule i8 [[X]], 5
+; CHECK-NEXT:    [[AND:%.*]] = or i1 [[C_1]], [[T_1]]
+; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    ret i1 [[T_1]]
+; CHECK:       else:
+; CHECK-NEXT:    ret i1 false
+;
+
+entry:
+  %c.1 = icmp ule i8 %x, 10
+  %t.1 = icmp ule i8 %x, 5
+  %and = or i1 %c.1, %t.1
+  br i1 %and, label %then, label %else
+
+then:
+  ret i1 %t.1
+
+else:
+  ret i1 %t.1
+}
+
+define i1 @test_or_used_in_false_branch2(i8 %x) {
+; CHECK-LABEL: @test_or_used_in_false_branch2(
+; CHECK-NEXT:  entry:
+; CHECK-NEXT:    [[C_1:%.*]] = icmp ugt i8 [[X:%.*]], 10
+; CHECK-NEXT:    [[T_1:%.*]] = icmp ugt i8 [[X]], 5
+; CHECK-NEXT:    [[AND:%.*]] = or i1 [[C_1]], [[T_1]]
+; CHECK-NEXT:    br i1 [[AND]], label [[THEN:%.*]], label [[ELSE:%.*]]
+; CHECK:       then:
+; CHECK-NEXT:    ret i1 [[T_1]]
+; CHECK:       else:
+; CHECK-NEXT:    ret i1 false
+;
+
+entry:
+  %c.1 = icmp ugt i8 %x, 10
+  %t.1 = icmp ugt i8 %x, 5
+  %and = or i1 %c.1, %t.1
+  br i1 %and, label %then, label %else
+
+then:
+  ret i1 %t.1
+
+else:
+  ret i1 %t.1
 }

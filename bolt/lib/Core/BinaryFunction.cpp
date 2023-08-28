@@ -1250,7 +1250,7 @@ bool BinaryFunction::disassemble() {
         const bool IsCondBranch = MIB->isConditionalBranch(Instruction);
         MCSymbol *TargetSymbol = nullptr;
 
-        if (BC.MIB->isUnsupportedBranch(Instruction.getOpcode())) {
+        if (BC.MIB->isUnsupportedBranch(Instruction)) {
           setIgnored();
           if (BinaryFunction *TargetFunc =
                   BC.getBinaryFunctionContainingAddress(TargetAddress))
@@ -1323,7 +1323,7 @@ bool BinaryFunction::disassemble() {
         if (BC.isAArch64())
           handleAArch64IndirectCall(Instruction, Offset);
       }
-    } else if (BC.isAArch64()) {
+    } else if (BC.isAArch64() || BC.isRISCV()) {
       // Check if there's a relocation associated with this instruction.
       bool UsedReloc = false;
       for (auto Itr = Relocations.lower_bound(Offset),
@@ -1343,7 +1343,7 @@ bool BinaryFunction::disassemble() {
         UsedReloc = true;
       }
 
-      if (MIB->hasPCRelOperand(Instruction) && !UsedReloc)
+      if (!BC.isRISCV() && MIB->hasPCRelOperand(Instruction) && !UsedReloc)
         handlePCRelOperand(Instruction, AbsoluteInstrAddr, Size);
     }
 
@@ -1412,6 +1412,11 @@ bool BinaryFunction::scanExternalRefs() {
   assert(FunctionData.size() == getMaxSize() &&
          "function size does not match raw data size");
 
+  BC.SymbolicDisAsm->setSymbolizer(
+      BC.MIB->createTargetSymbolizer(*this, /*CreateSymbols*/ false));
+
+  // Disassemble contents of the function. Detect code entry points and create
+  // relocations for references to code that will be moved.
   uint64_t Size = 0; // instruction size
   for (uint64_t Offset = 0; Offset < getSize(); Offset += Size) {
     // Check for data inside code and ignore it
@@ -1422,9 +1427,9 @@ bool BinaryFunction::scanExternalRefs() {
 
     const uint64_t AbsoluteInstrAddr = getAddress() + Offset;
     MCInst Instruction;
-    if (!BC.DisAsm->getInstruction(Instruction, Size,
-                                   FunctionData.slice(Offset),
-                                   AbsoluteInstrAddr, nulls())) {
+    if (!BC.SymbolicDisAsm->getInstruction(Instruction, Size,
+                                           FunctionData.slice(Offset),
+                                           AbsoluteInstrAddr, nulls())) {
       if (opts::Verbosity >= 1 && !isZeroPaddingAt(Offset)) {
         errs() << "BOLT-WARNING: unable to disassemble instruction at offset 0x"
                << Twine::utohexstr(Offset) << " (address 0x"
@@ -1465,74 +1470,41 @@ bool BinaryFunction::scanExternalRefs() {
       return ignoreFunctionRef(*TargetFunction);
     };
 
-    // Detect if the instruction references an address.
-    // Without relocations, we can only trust PC-relative address modes.
-    uint64_t TargetAddress = 0;
-    bool IsPCRel = false;
-    bool IsBranch = false;
-    if (BC.MIB->hasPCRelOperand(Instruction)) {
-      IsPCRel = BC.MIB->evaluateMemOperandTarget(Instruction, TargetAddress,
-                                                 AbsoluteInstrAddr, Size);
-    } else if (BC.MIB->isCall(Instruction) || BC.MIB->isBranch(Instruction)) {
-      IsBranch = BC.MIB->evaluateBranch(Instruction, AbsoluteInstrAddr, Size,
-                                        TargetAddress);
-    }
+    // Handle calls and branches separately as symbolization doesn't work for
+    // them yet.
+    MCSymbol *BranchTargetSymbol = nullptr;
+    if (BC.MIB->isCall(Instruction) || BC.MIB->isBranch(Instruction)) {
+      uint64_t TargetAddress = 0;
+      BC.MIB->evaluateBranch(Instruction, AbsoluteInstrAddr, Size,
+                             TargetAddress);
 
-    MCSymbol *TargetSymbol = nullptr;
+      // Create an entry point at reference address if needed.
+      BinaryFunction *TargetFunction =
+          BC.getBinaryFunctionContainingAddress(TargetAddress);
 
-    // Create an entry point at reference address if needed.
-    BinaryFunction *TargetFunction =
-        BC.getBinaryFunctionContainingAddress(TargetAddress);
-    if (TargetFunction && !ignoreFunctionRef(*TargetFunction)) {
+      if (!TargetFunction || ignoreFunctionRef(*TargetFunction))
+        continue;
+
       const uint64_t FunctionOffset =
           TargetAddress - TargetFunction->getAddress();
-      TargetSymbol = FunctionOffset
-                         ? TargetFunction->addEntryPointAtOffset(FunctionOffset)
+      BranchTargetSymbol =
+          FunctionOffset ? TargetFunction->addEntryPointAtOffset(FunctionOffset)
                          : TargetFunction->getSymbol();
     }
 
-    // Can't find more references and not creating relocations.
+    // Can't find more references. Not creating relocations since we are not
+    // moving code.
     if (!BC.HasRelocations)
       continue;
 
-    // Create a relocation against the TargetSymbol as the symbol might get
-    // moved.
-    if (TargetSymbol) {
-      if (IsBranch) {
-        BC.MIB->replaceBranchTarget(Instruction, TargetSymbol,
-                                    Emitter.LocalCtx.get());
-      } else if (IsPCRel) {
-        const MCExpr *Expr = MCSymbolRefExpr::create(
-            TargetSymbol, MCSymbolRefExpr::VK_None, *Emitter.LocalCtx.get());
-        BC.MIB->replaceMemOperandDisp(
-            Instruction, MCOperand::createExpr(BC.MIB->getTargetExprFor(
-                             Instruction, Expr, *Emitter.LocalCtx.get(), 0)));
-      }
-    }
-
-    // Create more relocations based on input file relocations.
-    bool HasRel = false;
-    for (auto Itr = Relocations.lower_bound(Offset),
-              ItrE = Relocations.lower_bound(Offset + Size);
-         Itr != ItrE; ++Itr) {
-      Relocation &Relocation = Itr->second;
-      if (Relocation.isPCRelative() && BC.isX86())
-        continue;
-      if (ignoreReference(Relocation.Symbol))
-        continue;
-
-      int64_t Value = Relocation.Value;
-      const bool Result = BC.MIB->replaceImmWithSymbolRef(
-          Instruction, Relocation.Symbol, Relocation.Addend,
-          Emitter.LocalCtx.get(), Value, Relocation.Type);
-      (void)Result;
-      assert(Result && "cannot replace immediate with relocation");
-
-      HasRel = true;
-    }
-
-    if (!TargetSymbol && !HasRel)
+    if (BranchTargetSymbol) {
+      BC.MIB->replaceBranchTarget(Instruction, BranchTargetSymbol,
+                                  Emitter.LocalCtx.get());
+    } else if (!llvm::any_of(Instruction,
+                             [](const MCOperand &Op) { return Op.isExpr(); })) {
+      // Skip assembly if the instruction may not have any symbolic operands.
       continue;
+    }
 
     // Emit the instruction using temp emitter and generate relocations.
     SmallString<256> Code;
@@ -1546,6 +1518,9 @@ bool BinaryFunction::scanExternalRefs() {
         Success = false;
         continue;
       }
+
+      if (ignoreReference(Rel->Symbol))
+        continue;
 
       if (Relocation::getSizeForType(Rel->Type) < 4) {
         // If the instruction uses a short form, then we might not be able
@@ -1561,6 +1536,9 @@ bool BinaryFunction::scanExternalRefs() {
     if (!Success)
       break;
   }
+
+  // Reset symbolizer for the disassembler.
+  BC.SymbolicDisAsm->setSymbolizer(nullptr);
 
   // Add relocations unless disassembly failed for this function.
   if (!DisassemblyFailed)
@@ -1637,39 +1615,6 @@ void BinaryFunction::postProcessJumpTables() {
                 "detected in function "
              << *this << '\n';
     }
-    if (JT.Entries.empty()) {
-      bool HasOneParent = (JT.Parents.size() == 1);
-      for (unsigned I = 0; I < JT.EntriesAsAddress.size(); ++I) {
-        uint64_t EntryAddress = JT.EntriesAsAddress[I];
-        // builtin_unreachable does not belong to any function
-        // Need to handle separately
-        bool IsBuiltIn = false;
-        for (BinaryFunction *Parent : JT.Parents) {
-          if (EntryAddress == Parent->getAddress() + Parent->getSize()) {
-            IsBuiltIn = true;
-            // Specify second parameter as true to accept builtin_unreachable
-            MCSymbol *Label = getOrCreateLocalLabel(EntryAddress, true);
-            JT.Entries.push_back(Label);
-            break;
-          }
-        }
-        if (IsBuiltIn)
-          continue;
-        // Create local label for targets cannot be reached by other fragments
-        // Otherwise, secondary entry point to target function
-        BinaryFunction *TargetBF =
-            BC.getBinaryFunctionContainingAddress(EntryAddress);
-        if (TargetBF->getAddress() != EntryAddress) {
-          MCSymbol *Label =
-              (HasOneParent && TargetBF == this)
-                  ? getOrCreateLocalLabel(JT.EntriesAsAddress[I], true)
-                  : TargetBF->addEntryPointAtOffset(EntryAddress -
-                                                    TargetBF->getAddress());
-          JT.Entries.push_back(Label);
-        }
-      }
-    }
-
     const uint64_t BDSize =
         BC.getBinaryDataAtAddress(JT.getAddress())->getSize();
     if (!BDSize) {
@@ -1677,6 +1622,37 @@ void BinaryFunction::postProcessJumpTables() {
     } else {
       assert(BDSize >= JT.getSize() &&
              "jump table cannot be larger than the containing object");
+    }
+    if (!JT.Entries.empty())
+      continue;
+
+    bool HasOneParent = (JT.Parents.size() == 1);
+    for (uint64_t EntryAddress : JT.EntriesAsAddress) {
+      // builtin_unreachable does not belong to any function
+      // Need to handle separately
+      bool IsBuiltinUnreachable =
+          llvm::any_of(JT.Parents, [&](const BinaryFunction *Parent) {
+            return EntryAddress == Parent->getAddress() + Parent->getSize();
+          });
+      if (IsBuiltinUnreachable) {
+        MCSymbol *Label = getOrCreateLocalLabel(EntryAddress, true);
+        JT.Entries.push_back(Label);
+        continue;
+      }
+      // Create a local label for targets that cannot be reached by other
+      // fragments. Otherwise, create a secondary entry point in the target
+      // function.
+      BinaryFunction *TargetBF =
+          BC.getBinaryFunctionContainingAddress(EntryAddress);
+      MCSymbol *Label;
+      if (HasOneParent && TargetBF == this) {
+        Label = getOrCreateLocalLabel(EntryAddress, true);
+      } else {
+        const uint64_t Offset = EntryAddress - TargetBF->getAddress();
+        Label = Offset ? TargetBF->addEntryPointAtOffset(Offset)
+                       : TargetBF->getSymbol();
+      }
+      JT.Entries.push_back(Label);
     }
   }
 
@@ -2016,19 +1992,13 @@ bool BinaryFunction::buildCFG(MCPlusBuilder::AllocatorIdTy AllocatorId) {
         updateOffset(LastInstrOffset);
     }
 
-    const uint64_t InstrInputAddr = I->first + Address;
-    bool IsSDTMarker =
-        MIB->isNoop(Instr) && BC.SDTMarkers.count(InstrInputAddr);
-    bool IsLKMarker = BC.LKMarkers.count(InstrInputAddr);
     // Mark all nops with Offset for profile tracking purposes.
-    if (MIB->isNoop(Instr) || IsLKMarker) {
-      if (!MIB->getOffset(Instr))
-        MIB->setOffset(Instr, static_cast<uint32_t>(Offset), AllocatorId);
-      if (IsSDTMarker || IsLKMarker)
-        HasSDTMarker = true;
-      else
-        // Annotate ordinary nops, so we can safely delete them if required.
-        MIB->addAnnotation(Instr, "NOP", static_cast<uint32_t>(1), AllocatorId);
+    if (MIB->isNoop(Instr) && !MIB->getOffset(Instr)) {
+      // If "Offset" annotation is not present, set it and mark the nop for
+      // deletion.
+      MIB->setOffset(Instr, static_cast<uint32_t>(Offset), AllocatorId);
+      // Annotate ordinary nops, so we can safely delete them if required.
+      MIB->addAnnotation(Instr, "NOP", static_cast<uint32_t>(1), AllocatorId);
     }
 
     if (!InsertBB) {
@@ -2251,8 +2221,8 @@ void BinaryFunction::calculateMacroOpFusionStats() {
                       << Twine::utohexstr(getAddress() + Offset)
                       << " in function " << *this << "; executed "
                       << BB.getKnownExecutionCount() << " times.\n");
-    ++BC.MissedMacroFusionPairs;
-    BC.MissedMacroFusionExecCount += BB.getKnownExecutionCount();
+    ++BC.Stats.MissedMacroFusionPairs;
+    BC.Stats.MissedMacroFusionExecCount += BB.getKnownExecutionCount();
   }
 }
 
@@ -2335,6 +2305,12 @@ void BinaryFunction::removeConditionalTailCalls() {
 
     // This branch is no longer a conditional tail call.
     BC.MIB->unsetConditionalTailCall(*CTCInstr);
+
+    // Move offset from CTCInstr to TailCallInstr.
+    if (std::optional<uint32_t> Offset = BC.MIB->getOffset(*CTCInstr)) {
+      BC.MIB->setOffset(TailCallInstr, *Offset);
+      BC.MIB->clearOffset(*CTCInstr);
+    }
   }
 
   insertBasicBlocks(std::prev(end()), std::move(NewBlocks),
@@ -3284,8 +3260,7 @@ void BinaryFunction::fixBranches() {
       const BinaryBasicBlock *TSuccessor = BB->getConditionalSuccessor(true);
       const BinaryBasicBlock *FSuccessor = BB->getConditionalSuccessor(false);
       // Check whether we support reversing this branch direction
-      const bool IsSupported =
-          !MIB->isUnsupportedBranch(CondBranch->getOpcode());
+      const bool IsSupported = !MIB->isUnsupportedBranch(*CondBranch);
       if (NextBB && NextBB == TSuccessor && IsSupported) {
         std::swap(TSuccessor, FSuccessor);
         {
@@ -3609,14 +3584,6 @@ size_t BinaryFunction::computeHash(bool UseDFS,
     HashString.append(hashBlock(BC, *BB, OperandHashFunc));
 
   return Hash = std::hash<std::string>{}(HashString);
-}
-
-void BinaryFunction::computeBlockHashes() const {
-  for (const BinaryBasicBlock *BB : BasicBlocks) {
-    std::string Hash =
-        hashBlock(BC, *BB, [](const MCOperand &Op) { return std::string(); });
-    BB->setHash(std::hash<std::string>{}(Hash));
-  }
 }
 
 void BinaryFunction::insertBasicBlocks(
@@ -4509,7 +4476,7 @@ void BinaryFunction::addRelocation(uint64_t Address, MCSymbol *Symbol,
          "address is outside of the function");
   uint64_t Offset = Address - getAddress();
   LLVM_DEBUG(dbgs() << "BOLT-DEBUG: addRelocation in "
-                    << formatv("{0}@{1:x} against {2}\n", this, Offset,
+                    << formatv("{0}@{1:x} against {2}\n", *this, Offset,
                                Symbol->getName()));
   bool IsCI = BC.isAArch64() && isInConstantIsland(Address);
   std::map<uint64_t, Relocation> &Rels =

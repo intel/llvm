@@ -400,7 +400,9 @@ void StmtPrinter::VisitForStmt(ForStmt *Node) {
     PrintInitStmt(Node->getInit(), 5);
   else
     OS << (Node->getCond() ? "; " : ";");
-  if (Node->getCond())
+  if (const DeclStmt *DS = Node->getConditionVariableDeclStmt())
+    PrintRawDeclStmt(DS);
+  else if (Node->getCond())
     PrintExpr(Node->getCond());
   OS << ";";
   if (Node->getInc()) {
@@ -1464,8 +1466,12 @@ void StmtPrinter::VisitUnaryExprOrTypeTraitExpr(
 
 void StmtPrinter::VisitGenericSelectionExpr(GenericSelectionExpr *Node) {
   OS << "_Generic(";
-  PrintExpr(Node->getControllingExpr());
-  for (const GenericSelectionExpr::Association Assoc : Node->associations()) {
+  if (Node->isExprPredicate())
+    PrintExpr(Node->getControllingExpr());
+  else
+    Node->getControllingType()->getType().print(OS, Policy);
+
+  for (const GenericSelectionExpr::Association &Assoc : Node->associations()) {
     OS << ", ";
     QualType T = Assoc.getType();
     if (T.isNull())

@@ -15,6 +15,8 @@
 #include "lldb/Utility/StreamString.h"
 #include "lldb/lldb-enumerations.h"
 
+#include "llvm/ADT/StringExtras.h"
+
 #include <algorithm>
 
 #include <cctype>
@@ -58,13 +60,13 @@ void Event::Dump(Stream *s) const {
       s->Printf("%p Event: broadcaster = %p (%s), type = 0x%8.8x (%s), data = ",
                 static_cast<const void *>(this),
                 static_cast<void *>(broadcaster),
-                broadcaster->GetBroadcasterName().GetCString(), m_type,
+                broadcaster->GetBroadcasterName().c_str(), m_type,
                 event_name.GetData());
     else
       s->Printf("%p Event: broadcaster = %p (%s), type = 0x%8.8x, data = ",
                 static_cast<const void *>(this),
                 static_cast<void *>(broadcaster),
-                broadcaster->GetBroadcasterName().GetCString(), m_type);
+                broadcaster->GetBroadcasterName().c_str(), m_type);
   } else
     s->Printf("%p Event: broadcaster = NULL, type = 0x%8.8x, data = ",
               static_cast<const void *>(this), m_type);

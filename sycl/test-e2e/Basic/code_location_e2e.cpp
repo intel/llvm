@@ -1,4 +1,4 @@
-// UNSUPPORTED: hip || cuda
+// UNSUPPORTED: cuda
 
 // RUN: %{build} -DNDEBUG -o %t.out
 // RUN: %{run} %t.out | FileCheck %s

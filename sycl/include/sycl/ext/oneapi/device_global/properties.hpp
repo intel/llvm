@@ -8,11 +8,15 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+
+#include <cstdint>     // for uint16_t
+#include <iosfwd>      // for nullptr_t
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <typename T, typename PropertyListT> class device_global;
@@ -130,5 +134,5 @@ struct PropertyMetaInfo<implement_in_csr_key::value_t<Enable>> {
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -15,6 +15,18 @@ include "mlir/Dialect/Transform/IR/TransformTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
 
+def ApplyForLoopCanonicalizationPatternsOp : Op<Transform_Dialect,
+    "apply_patterns.scf.for_loop_canonicalization",
+    [DeclareOpInterfaceMethods<PatternDescriptorOpInterface>]> {
+  let description = [{
+    Collects patterns for canonicalizing operations inside SCF loop bodies.
+    At the moment, only affine.min/max computations with iteration variables,
+    loop bounds and loop steps are canonicalized.
+  }];
+
+  let assemblyFormat = "attr-dict";
+}
+
 def Transform_ScfForOp : Transform_ConcreteOpType<"scf.for">;
 
 def GetParentForOp : Op<Transform_Dialect, "loop.get_parent_for",
@@ -114,6 +126,7 @@ def LoopPeelOp : Op<Transform_Dialect, "loop.peel",
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::scf::ForOp target,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
@@ -156,7 +169,38 @@ def LoopPipelineOp : Op<Transform_Dialect, "loop.pipeline",
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::scf::ForOp target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
+def LoopPromoteIfOneIterationOp : Op<Transform_Dialect,
+    "loop.promote_if_one_iteration", [
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+        TransformOpInterface, TransformEachOpTrait]> {
+  let summary = "Promote loop if it has one iteration";
+  let description = [{
+    Promotes the given target loop op if it has a single iteration. I.e., the
+    loop op is removed and only the body remains.
+
+    #### Return modes
+
+    This transform fails if the target is mapped to ops that are loops. Ops are
+    considered loops if they implement the `LoopLikeOpInterface`. Otherwise,
+    this transform always succeeds. The transform consumes the target handle and
+    modifies the payload.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs);
+  let assemblyFormat = "$target attr-dict `:` type($target)";
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
+        ::mlir::LoopLikeOpInterface target,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
   }];
@@ -189,6 +233,7 @@ def LoopUnrollOp : Op<Transform_Dialect, "loop.unroll",
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::Operation *target,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
@@ -216,6 +261,7 @@ def LoopCoalesceOp : Op<Transform_Dialect, "loop.coalesce", [
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::Operation *target,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
@@ -257,6 +303,7 @@ def TakeAssumedBranchOp : Op<Transform_Dialect, "scf.take_assumed_branch", [
 
   let extraClassDeclaration = [{
     ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
         ::mlir::scf::IfOp ifOp,
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);

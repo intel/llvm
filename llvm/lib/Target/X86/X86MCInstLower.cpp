@@ -23,6 +23,7 @@
 #include "X86ShuffleDecodeConstantPool.h"
 #include "X86Subtarget.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -1555,7 +1556,8 @@ static void printConstant(const Constant *COp, unsigned BitWidth,
 
 void X86AsmPrinter::EmitSEHInstruction(const MachineInstr *MI) {
   assert(MF->hasWinCFI() && "SEH_ instruction in function without WinCFI?");
-  assert(getSubtarget().isOSWindows() && "SEH_ instruction Windows only");
+  assert((getSubtarget().isOSWindows() || TM.getTargetTriple().isUEFI()) &&
+         "SEH_ instruction Windows and UEFI only");
 
   // Use the .cv_fpo directives if we're emitting CodeView on 32-bit x86.
   if (EmitFPOData) {

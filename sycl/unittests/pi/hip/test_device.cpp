@@ -21,7 +21,7 @@ using namespace sycl;
 struct HipDeviceTests : public ::testing::Test {
 
 protected:
-  std::optional<detail::plugin> plugin =
+  std::optional<detail::PluginPtr> &plugin =
       pi::initializeAndGet(backend::ext_oneapi_hip);
 
   pi_platform platform_;

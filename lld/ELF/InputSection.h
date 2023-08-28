@@ -15,6 +15,7 @@
 #include "lld/Common/Memory.h"
 #include "llvm/ADT/CachedHashString.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/Object/ELF.h"
 #include "llvm/Support/Compiler.h"
@@ -426,7 +427,7 @@ public:
 
 inline bool isDebugSection(const InputSectionBase &sec) {
   return (sec.flags & llvm::ELF::SHF_ALLOC) == 0 &&
-         sec.name.startswith(".debug");
+         sec.name.starts_with(".debug");
 }
 
 // The set of TOC entries (.toc + addend) for which we should not apply

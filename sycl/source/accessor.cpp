@@ -10,12 +10,13 @@
 #include <sycl/accessor.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
   return CommandGroupHandlerRef.MQueue->get_device();
 }
 
+// TODO: the following function to be removed during next ABI break window
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
                                    access::mode AccessMode, void *SYCLMemObject,
@@ -28,6 +29,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                            false, OffsetInBytes, IsSubBuffer, PropertyList));
 }
 
+// TODO: the following function to be removed during next ABI break window
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
                                    access::mode AccessMode, void *SYCLMemObject,
@@ -40,10 +42,34 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                            IsPlaceH, OffsetInBytes, IsSubBuffer, PropertyList));
 }
 
+AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
+                                   range<3> MemoryRange,
+                                   access::mode AccessMode, void *SYCLMemObject,
+                                   int Dims, int ElemSize, size_t OffsetInBytes,
+                                   bool IsSubBuffer,
+                                   const property_list &PropertyList) {
+  impl = std::shared_ptr<AccessorImplHost>(
+      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
+                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
+                           false, OffsetInBytes, IsSubBuffer, PropertyList));
+}
+
+AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
+                                   range<3> MemoryRange,
+                                   access::mode AccessMode, void *SYCLMemObject,
+                                   int Dims, int ElemSize, bool IsPlaceH,
+                                   size_t OffsetInBytes, bool IsSubBuffer,
+                                   const property_list &PropertyList) {
+  impl = std::shared_ptr<AccessorImplHost>(
+      new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
+                           (detail::SYCLMemObjI *)SYCLMemObject, Dims, ElemSize,
+                           IsPlaceH, OffsetInBytes, IsSubBuffer, PropertyList));
+}
+
 id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
 range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
 range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
-void *AccessorBaseHost::getPtr() { return impl->MData; }
+void *AccessorBaseHost::getPtr() noexcept { return impl->MData; }
 
 detail::AccHostDataT &AccessorBaseHost::getAccData() { return impl->MAccData; }
 
@@ -60,7 +86,7 @@ const range<3> &AccessorBaseHost::getAccessRange() const {
 const range<3> &AccessorBaseHost::getMemoryRange() const {
   return impl->MMemoryRange;
 }
-void *AccessorBaseHost::getPtr() const {
+void *AccessorBaseHost::getPtr() const noexcept {
   return const_cast<void *>(impl->MData);
 }
 
@@ -177,5 +203,5 @@ image_sampler SampledImageAccessorBaseHost::getSampler() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

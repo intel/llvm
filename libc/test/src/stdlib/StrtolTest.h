@@ -8,6 +8,7 @@
 
 #include "src/__support/CPP/limits.h"
 #include "src/__support/CPP/type_traits.h"
+#include "src/__support/macros/properties/architectures.h"
 #include "src/errno/libc_errno.h"
 #include "test/UnitTest/Test.h"
 
@@ -198,6 +199,12 @@ struct StrtoTest : public __llvm_libc::testing::Test {
   }
 
   void DecodeInOtherBases(FunctionT func) {
+    // This test is excessively slow on the GPU, so we limit the innermost loop.
+#if defined(LIBC_TARGET_ARCH_IS_GPU)
+    constexpr int limit = 0;
+#else
+    constexpr int limit = 36;
+#endif
     char small_string[4] = {'\0', '\0', '\0', '\0'};
     for (int base = 2; base <= 36; ++base) {
       for (int first_digit = 0; first_digit <= 36; ++first_digit) {
@@ -245,7 +252,7 @@ struct StrtoTest : public __llvm_libc::testing::Test {
         small_string[0] = int_to_b36_char(first_digit);
         for (int second_digit = 0; second_digit <= 36; ++second_digit) {
           small_string[1] = int_to_b36_char(second_digit);
-          for (int third_digit = 0; third_digit <= 36; ++third_digit) {
+          for (int third_digit = 0; third_digit <= limit; ++third_digit) {
             small_string[2] = int_to_b36_char(third_digit);
 
             if (first_digit < base && second_digit < base &&
@@ -325,7 +332,8 @@ struct StrtoTest : public __llvm_libc::testing::Test {
               ((is_signed_v<ReturnT> && sizeof(ReturnT) == 4)
                    ? T_MAX
                    : ReturnT(0xFFFFFFFF)));
-    ASSERT_EQ(libc_errno, 0);
+    ASSERT_EQ(libc_errno,
+              is_signed_v<ReturnT> && sizeof(ReturnT) == 4 ? ERANGE : 0);
     EXPECT_EQ(str_end - max_32_bit_value, ptrdiff_t(10));
 
     const char *negative_max_32_bit_value = "-0xFFFFFFFF";
@@ -334,7 +342,8 @@ struct StrtoTest : public __llvm_libc::testing::Test {
               ((is_signed_v<ReturnT> && sizeof(ReturnT) == 4)
                    ? T_MIN
                    : -ReturnT(0xFFFFFFFF)));
-    ASSERT_EQ(libc_errno, 0);
+    ASSERT_EQ(libc_errno,
+              is_signed_v<ReturnT> && sizeof(ReturnT) == 4 ? ERANGE : 0);
     EXPECT_EQ(str_end - negative_max_32_bit_value, ptrdiff_t(11));
 
     // Max size for signed 32 bit numbers
@@ -357,30 +366,41 @@ struct StrtoTest : public __llvm_libc::testing::Test {
     const char *max_64_bit_value = "0xFFFFFFFFFFFFFFFF";
     libc_errno = 0;
     ASSERT_EQ(func(max_64_bit_value, &str_end, 0),
-              (is_signed_v<ReturnT> ? T_MAX : ReturnT(0xFFFFFFFFFFFFFFFF)));
-    ASSERT_EQ(libc_errno, (is_signed_v<ReturnT> ? ERANGE : 0));
+              (is_signed_v<ReturnT> || sizeof(ReturnT) < 8
+                   ? T_MAX
+                   : ReturnT(0xFFFFFFFFFFFFFFFF)));
+    ASSERT_EQ(libc_errno,
+              (is_signed_v<ReturnT> || sizeof(ReturnT) < 8 ? ERANGE : 0));
     EXPECT_EQ(str_end - max_64_bit_value, ptrdiff_t(18));
 
+    // See the end of CleanBase10Decode for an explanation of how this large
+    // negative number can end up as T_MAX.
     const char *negative_max_64_bit_value = "-0xFFFFFFFFFFFFFFFF";
     libc_errno = 0;
-    ASSERT_EQ(func(negative_max_64_bit_value, &str_end, 0),
-              (is_signed_v<ReturnT> ? T_MIN : -ReturnT(0xFFFFFFFFFFFFFFFF)));
-    ASSERT_EQ(libc_errno, (is_signed_v<ReturnT> ? ERANGE : 0));
+    ASSERT_EQ(
+        func(negative_max_64_bit_value, &str_end, 0),
+        (is_signed_v<ReturnT>
+             ? T_MIN
+             : (sizeof(ReturnT) < 8 ? T_MAX : -ReturnT(0xFFFFFFFFFFFFFFFF))));
+    ASSERT_EQ(libc_errno,
+              (is_signed_v<ReturnT> || sizeof(ReturnT) < 8 ? ERANGE : 0));
     EXPECT_EQ(str_end - negative_max_64_bit_value, ptrdiff_t(19));
 
     // Max size for signed 64 bit numbers
 
     const char *max_63_bit_value = "0x7FFFFFFFFFFFFFFF";
     libc_errno = 0;
-    ASSERT_EQ(func(max_63_bit_value, &str_end, 0), ReturnT(0x7FFFFFFFFFFFFFFF));
-    ASSERT_EQ(libc_errno, 0);
+    ASSERT_EQ(func(max_63_bit_value, &str_end, 0),
+              (sizeof(ReturnT) < 8 ? T_MAX : ReturnT(0x7FFFFFFFFFFFFFFF)));
+    ASSERT_EQ(libc_errno, sizeof(ReturnT) < 8 ? ERANGE : 0);
     EXPECT_EQ(str_end - max_63_bit_value, ptrdiff_t(18));
 
     const char *negative_max_63_bit_value = "-0x7FFFFFFFFFFFFFFF";
     libc_errno = 0;
     ASSERT_EQ(func(negative_max_63_bit_value, &str_end, 0),
-              -ReturnT(0x7FFFFFFFFFFFFFFF));
-    ASSERT_EQ(libc_errno, 0);
+              (sizeof(ReturnT) >= 8 ? -ReturnT(0x7FFFFFFFFFFFFFFF)
+                                    : (is_signed_v<ReturnT> ? T_MIN : T_MAX)));
+    ASSERT_EQ(libc_errno, sizeof(ReturnT) < 8 ? ERANGE : 0);
     EXPECT_EQ(str_end - negative_max_63_bit_value, ptrdiff_t(19));
   }
 

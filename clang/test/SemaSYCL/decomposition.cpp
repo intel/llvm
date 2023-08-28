@@ -21,10 +21,6 @@ struct StructWithSampler {
   sycl::sampler sampl;
 };
 
-struct StructWithSpecConst {
-  sycl::ext::oneapi::experimental::spec_constant<int, class f1> SC;
-};
-
 sycl::handler H;
 
 struct StructWithStream {
@@ -134,20 +130,6 @@ int main() {
       h.single_task<class Sampl2>([=]() { return t2.i; });
     });
     // CHECK: FunctionDecl {{.*}}Sampl2{{.*}} 'void (sampler_t, StructNonDecomposed, int)'
-  }
-
-  {
-    StructWithArray<StructWithSpecConst> t1;
-    myQueue.submit([&](sycl::handler &h) {
-      h.single_task<class SpecConst1>([=]() { return t1.i; });
-    });
-    // CHECK: FunctionDecl {{.*}}SpecConst{{.*}} 'void (StructNonDecomposed, int)'
-
-    DerivedStruct<StructWithSpecConst> t2;
-    myQueue.submit([&](sycl::handler &h) {
-      h.single_task<class SpecConst2>([=]() { return t2.i; });
-    });
-    // CHECK: FunctionDecl {{.*}}SpecConst2{{.*}} 'void (StructNonDecomposed, int)'
   }
 
   {

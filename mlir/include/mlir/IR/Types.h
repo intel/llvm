@@ -127,6 +127,7 @@ public:
   bool isFloat8E4M3B11FNUZ() const;
   bool isBF16() const;
   bool isF16() const;
+  bool isTF32() const;
   bool isF32() const;
   bool isF64() const;
   bool isF80() const;
@@ -269,6 +270,14 @@ public:
 private:
   /// Returns the impl interface instance for the given type.
   static typename InterfaceBase::Concept *getInterfaceFor(Type type) {
+#ifndef NDEBUG
+    // Check that the current interface isn't an unresolved promise for the
+    // given type.
+    dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
+        type.getDialect(), ConcreteType::getInterfaceID(),
+        llvm::getTypeName<ConcreteType>());
+#endif
+
     return type.getAbstractType().getInterface<ConcreteType>();
   }
 

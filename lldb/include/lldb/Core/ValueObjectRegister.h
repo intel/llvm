@@ -53,9 +53,9 @@ public:
                                   int32_t synthetic_index) override;
 
   lldb::ValueObjectSP GetChildMemberWithName(llvm::StringRef name,
-                                             bool can_create) override;
+                                             bool can_create = true) override;
 
-  size_t GetIndexOfChildWithName(ConstString name) override;
+  size_t GetIndexOfChildWithName(llvm::StringRef name) override;
 
 protected:
   bool UpdateValue() override;

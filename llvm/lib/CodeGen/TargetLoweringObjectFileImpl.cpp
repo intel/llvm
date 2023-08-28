@@ -614,21 +614,21 @@ static unsigned getEntrySizeForKind(SectionKind Kind) {
 
 /// Return the section prefix name used by options FunctionsSections and
 /// DataSections.
-static StringRef getSectionPrefixForGlobal(SectionKind Kind) {
+static StringRef getSectionPrefixForGlobal(SectionKind Kind, bool IsLarge) {
   if (Kind.isText())
     return ".text";
   if (Kind.isReadOnly())
-    return ".rodata";
+    return IsLarge ? ".lrodata" : ".rodata";
   if (Kind.isBSS())
-    return ".bss";
+    return IsLarge ? ".lbss" : ".bss";
   if (Kind.isThreadData())
     return ".tdata";
   if (Kind.isThreadBSS())
     return ".tbss";
   if (Kind.isData())
-    return ".data";
+    return IsLarge ? ".ldata" : ".data";
   if (Kind.isReadOnlyWithRel())
-    return ".data.rel.ro";
+    return IsLarge ? ".ldata.rel.ro" : ".data.rel.ro";
   llvm_unreachable("Unknown section kind");
 }
 
@@ -650,7 +650,10 @@ getELFSectionNameForGlobal(const GlobalObject *GO, SectionKind Kind,
     Name = ".rodata.cst";
     Name += utostr(EntrySize);
   } else {
-    Name = getSectionPrefixForGlobal(Kind);
+    bool IsLarge = false;
+    if (isa<GlobalVariable>(GO))
+      IsLarge = TM.isLargeData();
+    Name = getSectionPrefixForGlobal(Kind, IsLarge);
   }
 
   bool HasPrefix = false;
@@ -851,6 +854,12 @@ static MCSectionELF *selectELFSectionForGlobal(
     Flags |= ELF::SHF_GROUP;
     Group = C->getName();
     IsComdat = C->getSelectionKind() == Comdat::Any;
+  }
+  if (isa<GlobalVariable>(GO)) {
+    if (TM.isLargeData()) {
+      assert(TM.getTargetTriple().getArch() == Triple::x86_64);
+      Flags |= ELF::SHF_X86_64_LARGE;
+    }
   }
 
   // Get the section entry size based on the kind.
@@ -1409,6 +1418,11 @@ MCSection *TargetLoweringObjectFileMachO::getSectionForConstant(
   if (Kind.isMergeableConst16())
     return SixteenByteConstantSection;
   return ReadOnlySection;  // .const
+}
+
+MCSection *TargetLoweringObjectFileMachO::getSectionForCommandLines() const {
+  return getContext().getMachOSection("__TEXT", "__command_line", 0,
+                                      SectionKind::getReadOnly());
 }
 
 const MCExpr *TargetLoweringObjectFileMachO::getTTypeGlobalReference(
@@ -2165,7 +2179,7 @@ static MCSectionWasm *selectWasmSectionForGlobal(
   }
 
   bool UniqueSectionNames = TM.getUniqueSectionNames();
-  SmallString<128> Name = getSectionPrefixForGlobal(Kind);
+  SmallString<128> Name = getSectionPrefixForGlobal(Kind, /*IsLarge=*/false);
 
   if (const auto *F = dyn_cast<Function>(GO)) {
     const auto &OptionalPrefix = F->getSectionPrefix();
@@ -2412,23 +2426,6 @@ MCSection *TargetLoweringObjectFileXCOFF::SelectSectionForGlobal(
         Name, Kind, XCOFF::CsectProperties(SMC, XCOFF::XTY_CM));
   }
 
-  if (Kind.isMergeableCString()) {
-    Align Alignment = GO->getParent()->getDataLayout().getPreferredAlign(
-        cast<GlobalVariable>(GO));
-
-    unsigned EntrySize = getEntrySizeForKind(Kind);
-    std::string SizeSpec = ".rodata.str" + utostr(EntrySize) + ".";
-    SmallString<128> Name;
-    Name = SizeSpec + utostr(Alignment.value());
-
-    if (TM.getDataSections())
-      getNameWithPrefix(Name, GO, TM);
-
-    return getContext().getXCOFFSection(
-        Name, Kind, XCOFF::CsectProperties(XCOFF::XMC_RO, XCOFF::XTY_SD),
-        /* MultiSymbolsAllowed*/ !TM.getDataSections());
-  }
-
   if (Kind.isText()) {
     if (TM.getFunctionSections()) {
       return cast<MCSymbolXCOFF>(getFunctionEntryPointSymbol(GO, TM))
@@ -2614,12 +2611,12 @@ MCSymbol *TargetLoweringObjectFileXCOFF::getFunctionEntryPointSymbol(
   // function entry point csect instead. And for function delcarations, the
   // undefined symbols gets treated as csect with XTY_ER property.
   if (((TM.getFunctionSections() && !Func->hasSection()) ||
-       Func->isDeclaration()) &&
+       Func->isDeclarationForLinker()) &&
       isa<Function>(Func)) {
     return getContext()
         .getXCOFFSection(
             NameStr, SectionKind::getText(),
-            XCOFF::CsectProperties(XCOFF::XMC_PR, Func->isDeclaration()
+            XCOFF::CsectProperties(XCOFF::XMC_PR, Func->isDeclarationForLinker()
                                                       ? XCOFF::XTY_ER
                                                       : XCOFF::XTY_SD))
         ->getQualNameSymbol();

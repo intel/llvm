@@ -1,12 +1,13 @@
 // REQUIRES: gpu
 // REQUIRES: aspect-fp64, aspect-fp16
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
-//
-// UNSUPPORTED: cuda || hip
+
+// UNSUPPORTED: cuda
 
 #include "imf_utils.hpp"
 

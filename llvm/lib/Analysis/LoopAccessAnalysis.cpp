@@ -232,6 +232,9 @@ void RuntimePointerChecking::insert(Loop *Lp, Value *Ptr, const SCEV *PtrExpr,
       ScEnd = SE->getUMaxExpr(AR->getStart(), ScEnd);
     }
   }
+  assert(SE->isLoopInvariant(ScStart, Lp) && "ScStart needs to be invariant");
+  assert(SE->isLoopInvariant(ScEnd, Lp)&& "ScEnd needs to be invariant");
+
   // Add the size of the pointed element to ScEnd.
   auto &DL = Lp->getHeader()->getModule()->getDataLayout();
   Type *IdxTy = DL.getIndexType(Ptr->getType());
@@ -1470,10 +1473,6 @@ std::optional<int> llvm::getPointersDiff(Type *ElemTyA, Value *PtrA,
                                          ScalarEvolution &SE, bool StrictCheck,
                                          bool CheckType) {
   assert(PtrA && PtrB && "Expected non-nullptr pointers.");
-  assert(cast<PointerType>(PtrA->getType())
-             ->isOpaqueOrPointeeTypeMatches(ElemTyA) && "Wrong PtrA type");
-  assert(cast<PointerType>(PtrB->getType())
-             ->isOpaqueOrPointeeTypeMatches(ElemTyB) && "Wrong PtrB type");
 
   // Make sure that A and B are different pointers.
   if (PtrA == PtrB)
@@ -2193,17 +2192,17 @@ void LoopAccessInfo::analyzeLoop(AAResults *AA, LoopInfo *LI,
       if (HasComplexMemInst)
         continue;
 
+      // Many math library functions read the rounding mode. We will only
+      // vectorize a loop if it contains known function calls that don't set
+      // the flag. Therefore, it is safe to ignore this read from memory.
+      auto *Call = dyn_cast<CallInst>(&I);
+      if (Call && getVectorIntrinsicIDForCall(Call, TLI))
+        continue;
+
       // If this is a load, save it. If this instruction can read from memory
       // but is not a load, then we quit. Notice that we don't handle function
       // calls that read or write.
       if (I.mayReadFromMemory()) {
-        // Many math library functions read the rounding mode. We will only
-        // vectorize a loop if it contains known function calls that don't set
-        // the flag. Therefore, it is safe to ignore this read from memory.
-        auto *Call = dyn_cast<CallInst>(&I);
-        if (Call && getVectorIntrinsicIDForCall(Call, TLI))
-          continue;
-
         // If the function has an explicit vectorized counterpart, we can safely
         // assume that it can be vectorized.
         if (Call && !Call->isNoBuiltin() && Call->getCalledFunction() &&
@@ -2290,7 +2289,7 @@ void LoopAccessInfo::analyzeLoop(AAResults *AA, LoopInfo *LI,
   for (StoreInst *ST : Stores) {
     Value *Ptr = ST->getPointerOperand();
 
-    if (isUniform(Ptr)) {
+    if (isInvariant(Ptr)) {
       // Record store instructions to loop invariant addresses
       StoresToInvariantAddresses.push_back(ST);
       HasDependenceInvolvingLoopInvariantAddress |=
@@ -2532,124 +2531,14 @@ OptimizationRemarkAnalysis &LoopAccessInfo::recordAnalysis(StringRef RemarkName,
   return *Report;
 }
 
-namespace {
-/// A rewriter to build the SCEVs for each of the VF lanes in the expected
-/// vectorized loop, which can then be compared to detect their uniformity. This
-/// is done by replacing the AddRec SCEVs of the original scalar loop (TheLoop)
-/// with new AddRecs where the step is multiplied by StepMultiplier and Offset *
-/// Step is added. Also checks if all sub-expressions are analyzable w.r.t.
-/// uniformity.
-class SCEVAddRecForUniformityRewriter
-    : public SCEVRewriteVisitor<SCEVAddRecForUniformityRewriter> {
-  /// Multiplier to be applied to the step of AddRecs in TheLoop.
-  unsigned StepMultiplier;
-
-  /// Offset to be added to the AddRecs in TheLoop.
-  unsigned Offset;
-
-  /// Loop for which to rewrite AddRecsFor.
-  Loop *TheLoop;
-
-  /// Is any sub-expressions not analyzable w.r.t. uniformity?
-  bool CannotAnalyze = false;
-
-  bool canAnalyze() const { return !CannotAnalyze; }
-
-public:
-  SCEVAddRecForUniformityRewriter(ScalarEvolution &SE, unsigned StepMultiplier,
-                                  unsigned Offset, Loop *TheLoop)
-      : SCEVRewriteVisitor(SE), StepMultiplier(StepMultiplier), Offset(Offset),
-        TheLoop(TheLoop) {}
-
-  const SCEV *visitAddRecExpr(const SCEVAddRecExpr *Expr) {
-    assert(Expr->getLoop() == TheLoop &&
-           "addrec outside of TheLoop must be invariant and should have been "
-           "handled earlier");
-    // Build a new AddRec by multiplying the step by StepMultiplier and
-    // incrementing the start by Offset * step.
-    Type *Ty = Expr->getType();
-    auto *Step = Expr->getStepRecurrence(SE);
-    auto *NewStep = SE.getMulExpr(Step, SE.getConstant(Ty, StepMultiplier));
-    auto *ScaledOffset = SE.getMulExpr(Step, SE.getConstant(Ty, Offset));
-    auto *NewStart = SE.getAddExpr(Expr->getStart(), ScaledOffset);
-    return SE.getAddRecExpr(NewStart, NewStep, TheLoop, SCEV::FlagAnyWrap);
-  }
-
-  const SCEV *visit(const SCEV *S) {
-    if (CannotAnalyze || SE.isLoopInvariant(S, TheLoop))
-      return S;
-    return SCEVRewriteVisitor<SCEVAddRecForUniformityRewriter>::visit(S);
-  }
-
-  const SCEV *visitUnknown(const SCEVUnknown *S) {
-    if (SE.isLoopInvariant(S, TheLoop))
-      return S;
-    // The value could vary across iterations.
-    CannotAnalyze = true;
-    return S;
-  }
-
-  const SCEV *visitCouldNotCompute(const SCEVCouldNotCompute *S) {
-    // Could not analyze the expression.
-    CannotAnalyze = true;
-    return S;
-  }
-
-  static const SCEV *rewrite(const SCEV *S, ScalarEvolution &SE,
-                             unsigned StepMultiplier, unsigned Offset,
-                             Loop *TheLoop) {
-    /// Bail out if the expression does not contain an UDiv expression.
-    /// Uniform values which are not loop invariant require operations to strip
-    /// out the lowest bits. For now just look for UDivs and use it to avoid
-    /// re-writing UDIV-free expressions for other lanes to limit compile time.
-    if (!SCEVExprContains(S,
-                          [](const SCEV *S) { return isa<SCEVUDivExpr>(S); }))
-      return SE.getCouldNotCompute();
-
-    SCEVAddRecForUniformityRewriter Rewriter(SE, StepMultiplier, Offset,
-                                             TheLoop);
-    const SCEV *Result = Rewriter.visit(S);
-
-    if (Rewriter.canAnalyze())
-      return Result;
-    return SE.getCouldNotCompute();
-  }
-};
-
-} // namespace
-
-bool LoopAccessInfo::isUniform(Value *V, std::optional<ElementCount> VF) const {
+bool LoopAccessInfo::isInvariant(Value *V) const {
   auto *SE = PSE->getSE();
-  // Since we rely on SCEV for uniformity, if the type is not SCEVable, it is
-  // never considered uniform.
   // TODO: Is this really what we want? Even without FP SCEV, we may want some
-  // trivially loop-invariant FP values to be considered uniform.
+  // trivially loop-invariant FP values to be considered invariant.
   if (!SE->isSCEVable(V->getType()))
     return false;
   const SCEV *S = SE->getSCEV(V);
-  if (SE->isLoopInvariant(S, TheLoop))
-    return true;
-  if (!VF || VF->isScalable())
-    return false;
-  if (VF->isScalar())
-    return true;
-
-  // Rewrite AddRecs in TheLoop to step by VF and check if the expression for
-  // lane 0 matches the expressions for all other lanes.
-  unsigned FixedVF = VF->getKnownMinValue();
-  const SCEV *FirstLaneExpr =
-      SCEVAddRecForUniformityRewriter::rewrite(S, *SE, FixedVF, 0, TheLoop);
-  if (isa<SCEVCouldNotCompute>(FirstLaneExpr))
-    return false;
-
-  // Make sure the expressions for lanes FixedVF-1..1 match the expression for
-  // lane 0. We check lanes in reverse order for compile-time, as frequently
-  // checking the last lane is sufficient to rule out uniformity.
-  return all_of(reverse(seq<unsigned>(1, FixedVF)), [&](unsigned I) {
-    const SCEV *IthLaneExpr =
-        SCEVAddRecForUniformityRewriter::rewrite(S, *SE, FixedVF, I, TheLoop);
-    return FirstLaneExpr == IthLaneExpr;
-  });
+  return SE->isLoopInvariant(S, TheLoop);
 }
 
 /// Find the operand of the GEP that should be checked for consecutive
@@ -2927,30 +2816,6 @@ const LoopAccessInfo &LoopAccessInfoManager::getInfo(Loop &L) {
   return *I.first->second;
 }
 
-LoopAccessLegacyAnalysis::LoopAccessLegacyAnalysis() : FunctionPass(ID) {
-  initializeLoopAccessLegacyAnalysisPass(*PassRegistry::getPassRegistry());
-}
-
-bool LoopAccessLegacyAnalysis::runOnFunction(Function &F) {
-  auto &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
-  auto *TLIP = getAnalysisIfAvailable<TargetLibraryInfoWrapperPass>();
-  auto *TLI = TLIP ? &TLIP->getTLI(F) : nullptr;
-  auto &AA = getAnalysis<AAResultsWrapperPass>().getAAResults();
-  auto &DT = getAnalysis<DominatorTreeWrapperPass>().getDomTree();
-  auto &LI = getAnalysis<LoopInfoWrapperPass>().getLoopInfo();
-  LAIs = std::make_unique<LoopAccessInfoManager>(SE, AA, DT, LI, TLI);
-  return false;
-}
-
-void LoopAccessLegacyAnalysis::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequiredTransitive<ScalarEvolutionWrapperPass>();
-  AU.addRequiredTransitive<AAResultsWrapperPass>();
-  AU.addRequiredTransitive<DominatorTreeWrapperPass>();
-  AU.addRequiredTransitive<LoopInfoWrapperPass>();
-
-  AU.setPreservesAll();
-}
-
 bool LoopAccessInfoManager::invalidate(
     Function &F, const PreservedAnalyses &PA,
     FunctionAnalysisManager::Invalidator &Inv) {
@@ -2979,23 +2844,4 @@ LoopAccessInfoManager LoopAccessAnalysis::run(Function &F,
   return LoopAccessInfoManager(SE, AA, DT, LI, &TLI);
 }
 
-char LoopAccessLegacyAnalysis::ID = 0;
-static const char laa_name[] = "Loop Access Analysis";
-#define LAA_NAME "loop-accesses"
-
-INITIALIZE_PASS_BEGIN(LoopAccessLegacyAnalysis, LAA_NAME, laa_name, false, true)
-INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(ScalarEvolutionWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(DominatorTreeWrapperPass)
-INITIALIZE_PASS_DEPENDENCY(LoopInfoWrapperPass)
-INITIALIZE_PASS_END(LoopAccessLegacyAnalysis, LAA_NAME, laa_name, false, true)
-
 AnalysisKey LoopAccessAnalysis::Key;
-
-namespace llvm {
-
-  Pass *createLAAPass() {
-    return new LoopAccessLegacyAnalysis();
-  }
-
-} // end namespace llvm

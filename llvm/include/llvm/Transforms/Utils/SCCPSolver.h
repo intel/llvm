@@ -32,20 +32,10 @@ class Function;
 class GlobalVariable;
 class Instruction;
 class LLVMContext;
-class LoopInfo;
-class PostDominatorTree;
 class StructType;
 class TargetLibraryInfo;
 class Value;
 class ValueLatticeElement;
-
-/// Helper struct for bundling up the analysis results per function for IPSCCP.
-struct AnalysisResultsForFn {
-  std::unique_ptr<PredicateInfo> PredInfo;
-  DominatorTree *DT;
-  PostDominatorTree *PDT;
-  LoopInfo *LI;
-};
 
 /// Helper struct shared between Function Specialization and SCCP Solver.
 struct ArgInfo {
@@ -82,7 +72,7 @@ public:
 
   ~SCCPSolver();
 
-  void addAnalysis(Function &F, AnalysisResultsForFn A);
+  void addPredicateInfo(Function &F, DominatorTree &DT, AssumptionCache &AC);
 
   /// markBlockExecutable - This method can be used by clients to mark all of
   /// the blocks that are known to be intrinsically live in the processed unit.
@@ -90,10 +80,6 @@ public:
   bool markBlockExecutable(BasicBlock *BB);
 
   const PredicateBase *getPredicateInfoFor(Instruction *I);
-
-  const LoopInfo &getLoopInfo(Function &F);
-
-  DomTreeUpdater getDTU(Function &F);
 
   /// trackValueOfGlobalVariable - Clients can use this method to
   /// inform the SCCPSolver that it should track loads and stores to the
@@ -172,7 +158,7 @@ public:
 
   /// Helper to return a Constant if \p LV is either a constant or a constant
   /// range with a single element.
-  Constant *getConstant(const ValueLatticeElement &LV) const;
+  Constant *getConstant(const ValueLatticeElement &LV, Type *Ty) const;
 
   /// Return either a Constant or nullptr for a given Value.
   Constant *getConstantOrNull(Value *V) const;

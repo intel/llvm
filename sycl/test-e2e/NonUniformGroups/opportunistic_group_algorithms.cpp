@@ -2,7 +2,7 @@
 // RUN: %{run} %t.out
 //
 // REQUIRES: gpu
-// UNSUPPORTED: cuda || hip
+// UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
 #include <vector>

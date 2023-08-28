@@ -34,8 +34,6 @@
 #    else
 #      define OBJC_DATA_MASK 0x00007ffffffffff8UL
 #    endif
-// https://github.com/apple-oss-distributions/objc4/blob/8701d5672d3fd3cd817aeb84db1077aafe1a1604/runtime/objc-runtime-new.h#L139
-#    define OBJC_FAST_IS_RW 0x8000000000000000UL
 #  endif
 
 namespace __lsan {
@@ -173,13 +171,11 @@ static uptr GetCallerPC(const StackTrace &stack) {
 }
 
 #  if SANITIZER_APPLE
-// Objective-C class data pointers are stored with flags in the low bits, so
-// they need to be transformed back into something that looks like a pointer.
-static inline void *MaybeTransformPointer(void *p) {
+// Several pointers in the Objective-C runtime (method cache and class_rw_t,
+// for example) are tagged with additional bits we need to strip.
+static inline void *TransformPointer(void *p) {
   uptr ptr = reinterpret_cast<uptr>(p);
-  if ((ptr & OBJC_FAST_IS_RW) == OBJC_FAST_IS_RW)
-    ptr &= OBJC_DATA_MASK;
-  return reinterpret_cast<void *>(ptr);
+  return reinterpret_cast<void *>(ptr & OBJC_DATA_MASK);
 }
 #  endif
 
@@ -241,8 +237,6 @@ static LeakSuppressionContext *GetSuppressionContext() {
   return suppression_ctx;
 }
 
-static InternalMmapVectorNoCtor<Region> root_regions;
-
 void InitCommonLsan() {
   if (common_flags()->detect_leaks) {
     // Initialization which can fail or print warnings should only be done if
@@ -266,9 +260,14 @@ static inline bool MaybeUserPointer(uptr p) {
   if (p < kMinAddress)
     return false;
 #  if defined(__x86_64__)
-  // TODO: add logic similar to ARM when Intel LAM is available.
-  // Accept only canonical form user-space addresses.
-  return ((p >> 47) == 0);
+  // TODO: support LAM48 and 5 level page tables.
+  // LAM_U57 mask format
+  //  * top byte: 0x81 because the format is: [0] [6-bit tag] [0]
+  //  * top-1 byte: 0xff because it should be 0
+  //  * top-2 byte: 0x80 because Linux uses 128 TB VMA ending at 0x7fffffffffff
+  constexpr uptr kLAM_U57Mask = 0x81ff80;
+  constexpr uptr kPointerMask = kLAM_U57Mask << 40;
+  return ((p & kPointerMask) == 0);
 #  elif defined(__mips64)
   return ((p >> 40) == 0);
 #  elif defined(__aarch64__)
@@ -303,7 +302,7 @@ void ScanRangeForPointers(uptr begin, uptr end, Frontier *frontier,
   for (; pp + sizeof(void *) <= end; pp += alignment) {
     void *p = *reinterpret_cast<void **>(pp);
 #  if SANITIZER_APPLE
-    p = MaybeTransformPointer(p);
+    p = TransformPointer(p);
 #  endif
     if (!MaybeUserPointer(reinterpret_cast<uptr>(p)))
       continue;
@@ -523,32 +522,39 @@ static void ProcessThreads(SuspendedThreadsList const &suspended_threads,
 
 #  endif  // SANITIZER_FUCHSIA
 
-bool HasRootRegions() { return !root_regions.empty(); }
+// A map that contains [region_begin, region_end) pairs.
+using RootRegions = DenseMap<detail::DenseMapPair<uptr, uptr>, uptr>;
 
-static void ScanRootRegion(Frontier *frontier, const Region &root_region,
-                           uptr region_begin, uptr region_end,
-                           bool is_readable) {
-  uptr intersection_begin = Max(root_region.begin, region_begin);
-  uptr intersection_end = Min(region_end, root_region.end);
-  if (intersection_begin >= intersection_end)
-    return;
-  LOG_POINTERS("Root region %p-%p intersects with mapped region %p-%p (%s)\n",
-               (void *)root_region.begin, (void *)root_region.end,
-               (void *)region_begin, (void *)region_end,
-               is_readable ? "readable" : "unreadable");
-  if (is_readable)
-    ScanRangeForPointers(intersection_begin, intersection_end, frontier, "ROOT",
-                         kReachable);
+static RootRegions &GetRootRegionsLocked() {
+  global_mutex.CheckLocked();
+  static RootRegions *regions = nullptr;
+  alignas(RootRegions) static char placeholder[sizeof(RootRegions)];
+  if (!regions)
+    regions = new (placeholder) RootRegions();
+  return *regions;
 }
+
+bool HasRootRegions() { return !GetRootRegionsLocked().empty(); }
 
 void ScanRootRegions(Frontier *frontier,
                      const InternalMmapVectorNoCtor<Region> &mapped_regions) {
-  if (!flags()->use_root_regions || mapped_regions.empty())
+  if (!flags()->use_root_regions)
     return;
 
-  for (const auto &m : mapped_regions)
-    for (const auto &r : root_regions)
-      ScanRootRegion(frontier, r, m.begin, m.end, true);
+  InternalMmapVector<Region> regions;
+  GetRootRegionsLocked().forEach([&](const auto &kv) {
+    regions.push_back({kv.first.first, kv.first.second});
+    return true;
+  });
+
+  InternalMmapVector<Region> intersection;
+  Intersect(mapped_regions, regions, intersection);
+
+  for (const Region &r : intersection) {
+    LOG_POINTERS("Root region intersects with mapped region at %p-%p\n",
+                 (void *)r.begin, (void *)r.end);
+    ScanRangeForPointers(r.begin, r.end, frontier, "ROOT", kReachable);
+  }
 }
 
 // Scans root regions for heap pointers.
@@ -1022,7 +1028,7 @@ void __lsan_register_root_region(const void *begin, uptr size) {
   CHECK_LT(b, e);
 
   Lock l(&global_mutex);
-  root_regions.push_back({b, e});
+  ++GetRootRegionsLocked()[{b, e}];
 #endif  // CAN_SANITIZE_LEAKS
 }
 
@@ -1032,18 +1038,14 @@ void __lsan_unregister_root_region(const void *begin, uptr size) {
   uptr b = reinterpret_cast<uptr>(begin);
   uptr e = b + size;
   CHECK_LT(b, e);
+  VReport(1, "Unregistered root region at %p of size %zu\n", begin, size);
 
   {
     Lock l(&global_mutex);
-    for (uptr i = 0; i < root_regions.size(); i++) {
-      Region region = root_regions[i];
-      if (region.begin == b && region.end == e) {
-        uptr last_index = root_regions.size() - 1;
-        root_regions[i] = root_regions[last_index];
-        root_regions.pop_back();
-        VReport(1, "Unregistered root region at %p of size %zu\n", begin, size);
-        return;
-      }
+    if (auto *f = GetRootRegionsLocked().find({b, e})) {
+      if (--(f->second) == 0)
+        GetRootRegionsLocked().erase(f);
+      return;
     }
   }
   Report(

@@ -1029,6 +1029,10 @@ macro(add_llvm_executable name)
     target_link_libraries(${name} PRIVATE ${LLVM_PTHREAD_LIB})
   endif()
 
+  if(HAVE_LLVM_LIBC)
+    target_link_libraries(${name} PRIVATE llvmlibc)
+  endif()
+
   llvm_codesign(${name} ENTITLEMENTS ${ARG_ENTITLEMENTS} BUNDLE_PATH ${ARG_BUNDLE_PATH})
 endmacro(add_llvm_executable name)
 
@@ -1606,6 +1610,8 @@ function(add_unittest test_suite test_name)
     endif()
   endif()
 
+  target_link_options(${test_name} PRIVATE "${LLVM_UNITTEST_LINK_FLAGS}")
+
   set(outdir ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR})
   set_output_directory(${test_name} BINARY_DIR ${outdir} LIBRARY_DIR ${outdir})
   # libpthreads overrides some standard library symbols, so main
@@ -1705,10 +1711,15 @@ endfunction()
 # use it and can't be in a lit module. Use with make_paths_relative().
 string(CONCAT LLVM_LIT_PATH_FUNCTION
   "# Allow generated file to be relocatable.\n"
-  "from pathlib import Path\n"
+  "import os\n"
+  "import platform\n"
   "def path(p):\n"
   "    if not p: return ''\n"
-  "    return str((Path(__file__).parent / p).resolve())\n"
+  "    # Follows lit.util.abs_path_preserve_drive, which cannot be imported here.\n"
+  "    if platform.system() == 'Windows':\n"
+  "        return os.path.abspath(os.path.join(os.path.dirname(__file__), p))\n"
+  "    else:\n"
+  "        return os.path.realpath(os.path.join(os.path.dirname(__file__), p))\n"
   )
 
 # This function provides an automatic way to 'configure'-like generate a file
@@ -2121,7 +2132,7 @@ function(llvm_install_symlink project name dest)
   if (NOT LLVM_ENABLE_IDE AND NOT ARG_ALWAYS_GENERATE)
     add_llvm_install_targets(install-${name}
                              DEPENDS ${name} ${dest}
-                             COMPONENT ${name}
+                             COMPONENT ${component}
                              SYMLINK ${dest})
   endif()
 endfunction()
@@ -2463,5 +2474,15 @@ function(setup_host_tool tool_name setting_name exe_var_name target_var_name)
   if(LLVM_USE_HOST_TOOLS AND NOT ${setting_name})
     build_native_tool(${tool_name} exe_name DEPENDS ${tool_name})
     add_custom_target(${target_var_name} DEPENDS ${exe_name})
+  endif()
+endfunction()
+
+# Adds the unittests folder if gtest is available.
+function(llvm_add_unittests tests_added)
+  if (EXISTS ${LLVM_THIRD_PARTY_DIR}/unittest/googletest/include/gtest/gtest.h)
+    add_subdirectory(unittests)
+    set(${tests_added} ON PARENT_SCOPE)
+  else()
+    message(WARNING "gtest not found, unittests will not be available")
   endif()
 endfunction()

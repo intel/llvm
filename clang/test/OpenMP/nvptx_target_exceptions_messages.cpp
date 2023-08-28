@@ -3,7 +3,7 @@
 // RUN:   %s -o %t-ppc-host.bc -fexceptions -fcxx-exceptions
 // RUN: %clang_cc1 -verify -fopenmp -x c++ -triple nvptx64-unknown-unknown \
 // RUN:   -fopenmp-targets=nvptx64-nvidia-cuda -emit-llvm %s \
-// RUN:   -fopenmp-is-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - \
+// RUN:   -fopenmp-is-target-device -fopenmp-host-ir-file-path %t-ppc-host.bc -o - \
 // RUN:   -fexceptions -fcxx-exceptions -ferror-limit 100
 
 #ifndef HEADER
@@ -95,7 +95,7 @@ int (*C)() = &foobar3; // expected-warning {{declaration is not declared in any 
 int (*D)() = C; // expected-note {{used here}}
                 // host-note@-1 {{used here}}
 #pragma omp end declare target
-int foobar3() { throw 1; }
+int foobar3() { throw 1; } // expected-error {{cannot use 'throw' with exceptions disabled}}
 
 // Check no infinite recursion in deferred diagnostic emitter.
 long E = (long)&E;

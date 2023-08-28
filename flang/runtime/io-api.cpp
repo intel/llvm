@@ -379,8 +379,8 @@ Cookie IONAME(BeginOpenUnit)( // OPEN(without NEWUNIT=)
           IostatBadOpOnChildUnit, nullptr /* no unit */, sourceFile,
           sourceLine);
     } else {
-      return &unit->BeginIoStatement<OpenStatementState>(
-          terminator, *unit, wasExtant, sourceFile, sourceLine);
+      return &unit->BeginIoStatement<OpenStatementState>(terminator, *unit,
+          wasExtant, false /*not NEWUNIT=*/, sourceFile, sourceLine);
     }
   } else {
     return NoopUnit(terminator, unitNumber, IostatBadUnitNumber);
@@ -392,8 +392,9 @@ Cookie IONAME(BeginOpenNewUnit)( // OPEN(NEWUNIT=j)
   Terminator terminator{sourceFile, sourceLine};
   ExternalFileUnit &unit{
       ExternalFileUnit::NewUnit(terminator, false /*not child I/O*/)};
-  return &unit.BeginIoStatement<OpenStatementState>(
-      terminator, unit, false /*was an existing file*/, sourceFile, sourceLine);
+  return &unit.BeginIoStatement<OpenStatementState>(terminator, unit,
+      false /*was an existing file*/, true /*NEWUNIT=*/, sourceFile,
+      sourceLine);
 }
 
 Cookie IONAME(BeginWait)(ExternalUnit unitNumber, AsynchronousId id,
@@ -927,24 +928,19 @@ bool IONAME(SetEncoding)(
     io.GetIoErrorHandler().Crash(
         "SetEncoding() called after GetNewUnit() for an OPEN statement");
   }
-  bool isUTF8{false};
+  // Allow the encoding to be changed on an open unit -- it's
+  // useful and safe.
   static const char *keywords[]{"UTF-8", "DEFAULT", nullptr};
   switch (IdentifyValue(keyword, length, keywords)) {
   case 0:
-    isUTF8 = true;
+    open->unit().isUTF8 = true;
     break;
   case 1:
-    isUTF8 = false;
+    open->unit().isUTF8 = false;
     break;
   default:
     open->SignalError(IostatErrorInKeyword, "Invalid ENCODING='%.*s'",
         static_cast<int>(length), keyword);
-  }
-  if (isUTF8 != open->unit().isUTF8) {
-    if (open->wasExtant()) {
-      open->SignalError("ENCODING= may not be changed on an open unit");
-    }
-    open->unit().isUTF8 = isUTF8;
   }
   return true;
 }
@@ -1451,15 +1447,14 @@ bool IONAME(InquirePendingId)(Cookie cookie, std::int64_t id, bool &result) {
 bool IONAME(InquireInteger64)(
     Cookie cookie, InquiryKeywordHash inquiry, std::int64_t &result, int kind) {
   IoStatementState &io{*cookie};
-  std::int64_t n;
+  std::int64_t n{0}; // safe "undefined" value
   if (io.Inquire(inquiry, n)) {
     if (SetInteger(result, kind, n)) {
       return true;
     }
     io.GetIoErrorHandler().SignalError(
         "InquireInteger64(): bad INTEGER kind(%d) or out-of-range "
-        "value(%jd) "
-        "for result",
+        "value(%jd) for result",
         kind, static_cast<std::intmax_t>(n));
   }
   return false;

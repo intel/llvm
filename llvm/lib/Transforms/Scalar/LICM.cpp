@@ -108,6 +108,8 @@ STATISTIC(NumGEPsHoisted,
           "Number of geps reassociated and hoisted out of the loop");
 STATISTIC(NumAddSubHoisted, "Number of add/subtract expressions reassociated "
                             "and hoisted out of the loop");
+STATISTIC(NumFPAssociationsHoisted, "Number of invariant FP expressions "
+                                    "reassociated and hoisted out of the loop");
 
 /// Memory promotion is enabled by default.
 static cl::opt<bool>
@@ -126,6 +128,12 @@ static cl::opt<uint32_t> MaxNumUsesTraversed(
     "licm-max-num-uses-traversed", cl::Hidden, cl::init(8),
     cl::desc("Max num uses visited for identifying load "
              "invariance in loop using invariant start (default = 8)"));
+
+cl::opt<unsigned> FPAssociationUpperLimit(
+    "licm-max-num-fp-reassociations", cl::init(5U), cl::Hidden,
+    cl::desc(
+        "Set upper limit for the number of transformations performed "
+        "during a single round of hoisting the reassociated expressions."));
 
 // Experimental option to allow imprecision in LICM in pathological cases, in
 // exchange for faster compile. This is to be removed if MemorySSA starts to
@@ -360,12 +368,6 @@ INITIALIZE_PASS_END(LegacyLICMPass, "licm", "Loop Invariant Code Motion", false,
                     false)
 
 Pass *llvm::createLICMPass() { return new LegacyLICMPass(); }
-Pass *llvm::createLICMPass(unsigned LicmMssaOptCap,
-                           unsigned LicmMssaNoAccForPromotionCap,
-                           bool LicmAllowSpeculation) {
-  return new LegacyLICMPass(LicmMssaOptCap, LicmMssaNoAccForPromotionCap,
-                            LicmAllowSpeculation);
-}
 
 llvm::SinkAndHoistLICMFlags::SinkAndHoistLICMFlags(bool IsSink, Loop &L,
                                                    MemorySSA &MSSA)
@@ -513,7 +515,7 @@ bool LoopInvariantCodeMotion::runOnLoop(Loop *L, AAResults *AA, LoopInfo *LI,
       // SSAUpdater strategy during promotion that was LCSSA aware and reformed
       // it as it went.
       if (Promoted)
-        formLCSSARecursively(*L, *DT, LI);
+        formLCSSARecursively(*L, *DT, LI, SE);
 
       Changed |= Promoted;
     }
@@ -1053,14 +1055,30 @@ static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
   if (LocSizeInBits.isScalable())
     return false;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // if the type is ptr addrspace(x), we know this is the type of
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   // if the type is i8 addrspace(x)*, we know this is the type of
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   // llvm.invariant.start operand
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  auto *PtrASXTy = PointerType::get(LI->getContext(),
+                                    LI->getPointerAddressSpace());
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   auto *PtrInt8Ty = PointerType::get(Type::getInt8Ty(LI->getContext()),
                                      LI->getPointerAddressSpace());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   unsigned BitcastsVisited = 0;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Look through bitcasts until we reach the PtrASXTy type (this is
+  // invariant.start operand type).
+  // FIXME: We shouldn't really find such bitcasts with opaque pointers.
+  while (Addr->getType() != PtrASXTy) {
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   // Look through bitcasts until we reach the i8* type (this is invariant.start
   // operand type).
   while (Addr->getType() != PtrInt8Ty) {
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     auto *BC = dyn_cast<BitCastInst>(Addr);
     // Avoid traversing high number of bitcast uses.
     if (++BitcastsVisited > MaxNumUsesTraversed || !BC)
@@ -1226,6 +1244,15 @@ bool llvm::canSinkOrHoistInst(Instruction &I, AAResults *AA, DominatorTree *DT,
 
     // Handle simple cases by querying alias analysis.
     MemoryEffects Behavior = AA->getMemoryEffects(CI);
+
+    // FIXME: we don't handle the semantics of thread local well. So that the
+    // address of thread locals are fake constants in coroutines. So We forbid
+    // to treat onlyReadsMemory call in coroutines as constants now. Note that
+    // it is possible to hide a thread local access in a onlyReadsMemory call.
+    // Remove this check after we handle the semantics of thread locals well.
+    if (Behavior.onlyReadsMemory() && CI->getFunction()->isPresplitCoroutine())
+      return false;
+
     if (Behavior.doesNotAccessMemory())
       return true;
     if (Behavior.onlyReadsMemory()) {
@@ -1709,6 +1736,8 @@ static bool sink(Instruction &I, LoopInfo *LI, DominatorTree *DT,
     // The PHI must be trivially replaceable.
     Instruction *New = sinkThroughTriviallyReplaceablePHI(
         PN, &I, LI, SunkCopies, SafetyInfo, CurLoop, MSSAU);
+    // As we sink the instruction out of the BB, drop its debug location.
+    New->dropLocation();
     PN->replaceAllUsesWith(New);
     eraseInstruction(*PN, *SafetyInfo, MSSAU);
     Changed = true;
@@ -2669,6 +2698,72 @@ static bool hoistAddSub(Instruction &I, Loop &L, ICFLoopSafetyInfo &SafetyInfo,
   return false;
 }
 
+/// Try to reassociate expressions like ((A1 * B1) + (A2 * B2) + ...) * C where
+/// A1, A2, ... and C are loop invariants into expressions like
+/// ((A1 * C * B1) + (A2 * C * B2) + ...) and hoist the (A1 * C), (A2 * C), ...
+/// invariant expressions. This functions returns true only if any hoisting has
+/// actually occured.
+static bool hoistFPAssociation(Instruction &I, Loop &L,
+                               ICFLoopSafetyInfo &SafetyInfo,
+                               MemorySSAUpdater &MSSAU, AssumptionCache *AC,
+                               DominatorTree *DT) {
+  using namespace PatternMatch;
+  Value *VariantOp = nullptr, *InvariantOp = nullptr;
+
+  if (!match(&I, m_FMul(m_Value(VariantOp), m_Value(InvariantOp))) ||
+      !I.hasAllowReassoc())
+    return false;
+  if (L.isLoopInvariant(VariantOp))
+    std::swap(VariantOp, InvariantOp);
+  if (L.isLoopInvariant(VariantOp) || !L.isLoopInvariant(InvariantOp))
+    return false;
+  Value *Factor = InvariantOp;
+
+  // First, we need to make sure we should do the transformation.
+  SmallVector<Use *> Changes;
+  SmallVector<BinaryOperator *> Worklist;
+  if (BinaryOperator *VariantBinOp = dyn_cast<BinaryOperator>(VariantOp))
+    Worklist.push_back(VariantBinOp);
+  while (!Worklist.empty()) {
+    BinaryOperator *BO = Worklist.pop_back_val();
+    if (!BO->hasOneUse() || !BO->hasAllowReassoc())
+      return false;
+    BinaryOperator *Op0, *Op1;
+    if (match(BO, m_FAdd(m_BinOp(Op0), m_BinOp(Op1)))) {
+      Worklist.push_back(Op0);
+      Worklist.push_back(Op1);
+      continue;
+    }
+    if (BO->getOpcode() != Instruction::FMul || L.isLoopInvariant(BO))
+      return false;
+    Use &U0 = BO->getOperandUse(0);
+    Use &U1 = BO->getOperandUse(1);
+    if (L.isLoopInvariant(U0))
+      Changes.push_back(&U0);
+    else if (L.isLoopInvariant(U1))
+      Changes.push_back(&U1);
+    else
+      return false;
+    if (Changes.size() > FPAssociationUpperLimit)
+      return false;
+  }
+  if (Changes.empty())
+    return false;
+
+  // We know we should do it so let's do the transformation.
+  auto *Preheader = L.getLoopPreheader();
+  assert(Preheader && "Loop is not in simplify form?");
+  IRBuilder<> Builder(Preheader->getTerminator());
+  for (auto *U : Changes) {
+    assert(L.isLoopInvariant(U->get()));
+    Instruction *Ins = cast<Instruction>(U->getUser());
+    U->set(Builder.CreateFMulFMF(U->get(), Factor, Ins, "factor.op.fmul"));
+  }
+  I.replaceAllUsesWith(VariantOp);
+  eraseInstruction(I, SafetyInfo, MSSAU);
+  return true;
+}
+
 static bool hoistArithmetics(Instruction &I, Loop &L,
                              ICFLoopSafetyInfo &SafetyInfo,
                              MemorySSAUpdater &MSSAU, AssumptionCache *AC,
@@ -2693,6 +2788,12 @@ static bool hoistArithmetics(Instruction &I, Loop &L,
   if (hoistAddSub(I, L, SafetyInfo, MSSAU, AC, DT)) {
     ++NumHoisted;
     ++NumAddSubHoisted;
+    return true;
+  }
+
+  if (hoistFPAssociation(I, L, SafetyInfo, MSSAU, AC, DT)) {
+    ++NumHoisted;
+    ++NumFPAssociationsHoisted;
     return true;
   }
 

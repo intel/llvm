@@ -205,6 +205,7 @@ public:
     NetBSD,
     OpenBSD,
     Solaris,
+    UEFI,
     Win32,
     ZOS,
     Haiku,
@@ -586,6 +587,11 @@ public:
     return getOS() == Triple::Haiku;
   }
 
+  /// Tests whether the OS is UEFI.
+  bool isUEFI() const {
+    return getOS() == Triple::UEFI;
+  }
+
   /// Tests whether the OS is Windows.
   bool isOSWindows() const {
     return getOS() == Triple::Win32;
@@ -863,10 +869,14 @@ public:
                : PointerWidth == 64;
   }
 
+  /// Tests whether the target is 32-bit LoongArch.
+  bool isLoongArch32() const { return getArch() == Triple::loongarch32; }
+
+  /// Tests whether the target is 64-bit LoongArch.
+  bool isLoongArch64() const { return getArch() == Triple::loongarch64; }
+
   /// Tests whether the target is LoongArch (32- and 64-bit).
-  bool isLoongArch() const {
-    return getArch() == Triple::loongarch32 || getArch() == Triple::loongarch64;
-  }
+  bool isLoongArch() const { return isLoongArch32() || isLoongArch64(); }
 
   /// Tests whether the target is MIPS 32-bit (little and big endian).
   bool isMIPS32() const {

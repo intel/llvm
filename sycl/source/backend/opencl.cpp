@@ -17,7 +17,7 @@
 #include <string_view>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace opencl {
 using namespace detail;
 
@@ -61,7 +61,7 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
 
   std::shared_ptr<sycl::detail::platform_impl> PlatformImpl =
       getSyclObjImpl(SyclPlatform);
-  detail::RT::PiPlatform PluginPlatform = PlatformImpl->getHandleRef();
+  sycl::detail::pi::PiPlatform PluginPlatform = PlatformImpl->getHandleRef();
   const PluginPtr &Plugin = PlatformImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated
@@ -92,7 +92,7 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
 
   std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
       getSyclObjImpl(SyclDevice);
-  detail::RT::PiDevice PluginDevice = DeviceImpl->getHandleRef();
+  sycl::detail::pi::PiDevice PluginDevice = DeviceImpl->getHandleRef();
   const PluginPtr &Plugin = DeviceImpl->getPlugin();
 
   // Manual invocation of plugin API to avoid using deprecated
@@ -113,5 +113,5 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
   return ExtensionsString.find(Extension) != std::string::npos;
 }
 } // namespace opencl
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

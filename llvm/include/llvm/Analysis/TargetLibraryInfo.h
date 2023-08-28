@@ -110,7 +110,8 @@ public:
     LIBMVEC_X86,      // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
-    SLEEFGNUABI       // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    ArmPL        // Arm Performance Libraries.
   };
 
   /// List of known alternate math libraries.
@@ -421,6 +422,7 @@ public:
     case LibFunc_trunc:        case LibFunc_truncf:     case LibFunc_truncl:
     case LibFunc_log2:         case LibFunc_log2f:      case LibFunc_log2l:
     case LibFunc_exp2:         case LibFunc_exp2f:      case LibFunc_exp2l:
+    case LibFunc_ldexp:        case LibFunc_ldexpf:     case LibFunc_ldexpl:
     case LibFunc_memcpy:       case LibFunc_memset:     case LibFunc_memmove:
     case LibFunc_memcmp:       case LibFunc_bcmp:       case LibFunc_strcmp:
     case LibFunc_strcpy:       case LibFunc_stpcpy:     case LibFunc_strlen:
@@ -455,14 +457,14 @@ public:
       ShouldExtI32Param = true;
       ShouldExtI32Return = true;
     }
-    // Mips and riscv64, on the other hand, needs signext on i32 parameters
-    // corresponding to both signed and unsigned ints.
-    if (T.isMIPS() || T.isRISCV64()) {
+    // LoongArch, Mips, and riscv64, on the other hand, need signext on i32
+    // parameters corresponding to both signed and unsigned ints.
+    if (T.isLoongArch() || T.isMIPS() || T.isRISCV64()) {
       ShouldSignExtI32Param = true;
     }
-    // riscv64 needs signext on i32 returns corresponding to both signed and
-    // unsigned ints.
-    if (T.isRISCV64()) {
+    // LoongArch and riscv64 need signext on i32 returns corresponding to both
+    // signed and unsigned ints.
+    if (T.isLoongArch() || T.isRISCV64()) {
       ShouldSignExtI32Return = true;
     }
   }

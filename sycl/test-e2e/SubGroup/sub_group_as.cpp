@@ -4,12 +4,6 @@
 // RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 //
-// Missing __spirv_GenericCastToPtrExplicit_ToLocal,
-// __spirv_SubgroupInvocationId, __spirv_GenericCastToPtrExplicit_ToGlobal,
-// __spirv_SubgroupBlockReadINTEL, __assert_fail,
-// __spirv_SubgroupBlockWriteINTEL on AMD
-// error message `Barrier is not supported on the host device yet.` on Nvidia.
-// XFAIL: hip_amd || hip_nvidia
 // UNSUPPORTED: ze_debug
 
 #include <cassert>
@@ -46,7 +40,7 @@ int main(int argc, char *argv[]) {
 
       cgh.parallel_for<class test>(
           sycl::nd_range<1>(N, 32), [=](sycl::nd_item<1> it) {
-            sycl::ext::oneapi::sub_group sg = it.get_sub_group();
+            sycl::sub_group sg = it.get_sub_group();
             if (!it.get_local_id(0)) {
               int end = it.get_global_id(0) + it.get_local_range()[0];
               for (int i = it.get_global_id(0); i < end; i++) {
@@ -55,8 +49,8 @@ int main(int argc, char *argv[]) {
             }
             it.barrier();
 
-            int i = (it.get_global_id(0) / sg.get_max_local_range()[0]) *
-                    sg.get_max_local_range()[0];
+            int i = (it.get_global_id(0) / sg.get_local_range()[0]) *
+                    sg.get_local_range()[0];
             // Global address space
             auto x = sg.load(&global[i]);
             auto x_cv = sg.load<const volatile int>(&global[i]);

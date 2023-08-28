@@ -344,7 +344,7 @@ bool SPIRVTypeScavenger::unifyType(Type *T1, Type *T2) {
         return false;
       if (!unifyType(FT1->getReturnType(), FT2->getReturnType()))
         return false;
-      for (auto [PT1, PT2] : zip(FT1->params(), FT2->params()))
+      for (const auto &[PT1, PT2] : zip(FT1->params(), FT2->params()))
         if (!unifyType(PT1, PT2))
           return false;
       return true;
@@ -376,10 +376,6 @@ bool SPIRVTypeScavenger::unifyType(Type *T1, Type *T2) {
 }
 
 void SPIRVTypeScavenger::typeModule(Module &M) {
-  // If typed pointers are in effect, we need to do nothing here.
-  if (M.getContext().supportsTypedPointers())
-    return;
-
   // Generate corrected function types for all functions in the module.
   for (auto &F : M.functions()) {
     deduceFunctionType(F);
@@ -414,7 +410,7 @@ void SPIRVTypeScavenger::typeModule(Module &M) {
   // If there are any type variables we couldn't resolve, fallback to assigning
   // them as an i8* type.
   Type *Int8Ty = Type::getInt8Ty(M.getContext());
-  for (auto [TypeVarNum, TypeVar] : enumerate(TypeVariables)) {
+  for (const auto &[TypeVarNum, TypeVar] : enumerate(TypeVariables)) {
     unsigned PrimaryVar = UnifiedTypeVars.join(TypeVarNum, TypeVarNum);
     Type *LeaderTy = TypeVariables[PrimaryVar];
     if (TypeVar)
@@ -605,7 +601,8 @@ bool SPIRVTypeScavenger::typeIntrinsicCall(
 void SPIRVTypeScavenger::typeFunctionParams(
     CallBase &CB, FunctionType *FT, unsigned ArgStart, bool IncludeRet,
     SmallVectorImpl<TypeRule> &TypeRules) {
-  for (auto [U, ArgTy] : zip(drop_begin(CB.args(), ArgStart), FT->params())) {
+  for (const auto &[U, ArgTy] :
+       zip(drop_begin(CB.args(), ArgStart), FT->params())) {
     if (hasPointerType(U->getType())) {
       TypeRules.push_back(TypeRule::is(U, ArgTy));
     }
@@ -1048,11 +1045,6 @@ FunctionType *SPIRVTypeScavenger::getFunctionType(Function *F) {
 
 Type *SPIRVTypeScavenger::getScavengedType(Value *V) {
   Type *Ty = V->getType();
-  // If we're called in a typed pointer context, the real type is always the
-  // correct type.
-  if (Ty->getContext().supportsTypedPointers())
-    return Ty;
-
   if (!hasPointerType(Ty))
     return Ty;
 

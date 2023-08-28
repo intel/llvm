@@ -1,0 +1,36 @@
+name: Start/Stop AWS instance
+
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: "Mode of operation: start or stop"
+        type: string
+        required: true
+
+      runs-on-list:
+        # See devops/actions/aws-ec2/action.yml for more details.
+        description: "JSON string with array of objects with aws-type, runs-on, aws-ami, aws-spot, aws-disk, aws-timebomb, one-job properties"
+        type: string
+        required: true
+
+jobs:
+  aws:
+    runs-on: ubuntu-20.04
+    environment: aws
+    steps:
+      - name: Setup script
+        run: |
+          mkdir -p ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
+          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
+          npm install ./aws-ec2
+      - name: Start AWS EC2 runners
+        uses: ./aws-ec2
+        with:
+          mode: ${{ inputs.mode }}
+          runs-on-list: ${{ inputs.runs-on-list }}
+          GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          AWS_ACCESS_KEY: ${{ secrets.AWS_ACCESS_KEY }}
+          AWS_SECRET_KEY: ${{ secrets.AWS_SECRET_KEY }}

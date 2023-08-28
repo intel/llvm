@@ -331,7 +331,7 @@ template <class ELFT> void OutputSection::maybeCompress() {
 
   // Compress only DWARF debug sections.
   if (config->compressDebugSections == DebugCompressionType::None ||
-      (flags & SHF_ALLOC) || !name.startswith(".debug_") || size == 0)
+      (flags & SHF_ALLOC) || !name.starts_with(".debug_") || size == 0)
     return;
 
   llvm::TimeTraceScope timeScope("Compress debug sections");
@@ -495,6 +495,12 @@ void OutputSection::writeTo(uint8_t *buf, parallel::TaskGroup &tg) {
         s->writeTo(buf + isec->outSecOff);
       else
         isec->writeTo<ELFT>(buf + isec->outSecOff);
+
+      // When in Arm BE8 mode, the linker has to convert the big-endian
+      // instructions to little-endian, leaving the data big-endian.
+      if (config->emachine == EM_ARM && !config->isLE && config->armBe8 &&
+          (flags & SHF_EXECINSTR))
+        convertArmInstructionstoBE8(isec, buf + isec->outSecOff);
 
       // Fill gaps between sections.
       if (nonZeroFiller) {
@@ -669,7 +675,7 @@ int elf::getPriority(StringRef s) {
     return 65536;
   int v = 65536;
   if (to_integer(s.substr(pos + 1), v, 10) &&
-      (pos == 6 && (s.startswith(".ctors") || s.startswith(".dtors"))))
+      (pos == 6 && (s.starts_with(".ctors") || s.starts_with(".dtors"))))
     v = 65535 - v;
   return v;
 }

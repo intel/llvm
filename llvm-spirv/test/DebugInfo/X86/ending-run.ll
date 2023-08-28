@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj %t.ll -o %t
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj %t.ll -o %t
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-apple-darwin -filetype=obj %t.ll -o %t
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
@@ -20,9 +20,9 @@ target triple = "spir64-unknown-unknown"
 ; Check that the line table starts at 7, not 4, but that the first
 ; statement isn't until line 8.
 
-; CHECK-NOT: 0x0000000000000000      7      0      1   0  0  is_stmt
+; CHECK-NOT: 0x0000000000000000      7      0      1   0  0       0  is_stmt
 ; CHECK: 0x0000000000000000      7      0      1   0
-; CHECK: 0x0000000000000004      8     18      1   0  0  is_stmt prologue_end
+; CHECK: 0x0000000000000004      8     18      1   0  0       0  is_stmt prologue_end
 
 define i32 @callee(i32 %x) nounwind uwtable ssp !dbg !5 {
 entry:

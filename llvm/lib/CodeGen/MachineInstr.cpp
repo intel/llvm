@@ -96,7 +96,8 @@ void MachineInstr::addImplicitDefUseOperands(MachineFunction &MF) {
 /// the MCInstrDesc.
 MachineInstr::MachineInstr(MachineFunction &MF, const MCInstrDesc &TID,
                            DebugLoc DL, bool NoImp)
-    : MCID(&TID), DbgLoc(std::move(DL)), DebugInstrNum(0) {
+    : MCID(&TID), NumOperands(0), Flags(0), AsmPrinterFlags(0),
+      DbgLoc(std::move(DL)), DebugInstrNum(0) {
   assert(DbgLoc.hasTrivialDestructor() && "Expected trivial destructor");
 
   // Reserve space for the expected number of operands.
@@ -114,8 +115,8 @@ MachineInstr::MachineInstr(MachineFunction &MF, const MCInstrDesc &TID,
 /// Does not copy the number from debug instruction numbering, to preserve
 /// uniqueness.
 MachineInstr::MachineInstr(MachineFunction &MF, const MachineInstr &MI)
-    : MCID(&MI.getDesc()), Info(MI.Info), DbgLoc(MI.getDebugLoc()),
-      DebugInstrNum(0) {
+    : MCID(&MI.getDesc()), NumOperands(0), Flags(0), AsmPrinterFlags(0),
+      Info(MI.Info), DbgLoc(MI.getDebugLoc()), DebugInstrNum(0) {
   assert(DbgLoc.hasTrivialDestructor() && "Expected trivial destructor");
 
   CapOperands = OperandCapacity::get(MI.getNumOperands());
@@ -192,7 +193,8 @@ static void moveOperands(MachineOperand *Dst, MachineOperand *Src,
 /// an explicit operand it is added at the end of the explicit operand list
 /// (before the first implicit operand).
 void MachineInstr::addOperand(MachineFunction &MF, const MachineOperand &Op) {
-  assert(NumOperands < USHRT_MAX && "Cannot add more operands.");
+  assert(isUInt<LLVM_MI_NUMOPERANDS_BITS>(NumOperands + 1) &&
+         "Cannot add more operands.");
   assert(MCID && "Cannot add operands before providing an instr descriptor");
 
   // Check if we're adding one of our existing operands.
@@ -534,14 +536,14 @@ void MachineInstr::cloneInstrSymbols(MachineFunction &MF,
   setPCSections(MF, MI.getPCSections());
 }
 
-uint16_t MachineInstr::mergeFlagsWith(const MachineInstr &Other) const {
+uint32_t MachineInstr::mergeFlagsWith(const MachineInstr &Other) const {
   // For now, the just return the union of the flags. If the flags get more
   // complicated over time, we might need more logic here.
   return getFlags() | Other.getFlags();
 }
 
-uint16_t MachineInstr::copyFlagsFromInstruction(const Instruction &I) {
-  uint16_t MIFlags = 0;
+uint32_t MachineInstr::copyFlagsFromInstruction(const Instruction &I) {
+  uint32_t MIFlags = 0;
   // Copy the wrapping flags.
   if (const OverflowingBinaryOperator *OB =
           dyn_cast<OverflowingBinaryOperator>(&I)) {
@@ -574,6 +576,9 @@ uint16_t MachineInstr::copyFlagsFromInstruction(const Instruction &I) {
     if (Flags.allowReassoc())
       MIFlags |= MachineInstr::MIFlag::FmReassoc;
   }
+
+  if (I.getMetadata(LLVMContext::MD_unpredictable))
+    MIFlags |= MachineInstr::MIFlag::Unpredictable;
 
   return MIFlags;
 }
@@ -1878,16 +1883,20 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     DL.print(OS);
   }
 
-  // Print extra comments for DEBUG_VALUE.
-  if (isDebugValueLike() && getDebugVariableOp().isMetadata()) {
-    if (!HaveSemi) {
-      OS << ";";
-      HaveSemi = true;
+  // Print extra comments for DEBUG_VALUE and friends if they are well-formed.
+  if ((isNonListDebugValue() && getNumOperands() >= 4) ||
+      (isDebugValueList() && getNumOperands() >= 2) ||
+      (isDebugRef() && getNumOperands() >= 3)) {
+    if (getDebugVariableOp().isMetadata()) {
+      if (!HaveSemi) {
+        OS << ";";
+        HaveSemi = true;
+      }
+      auto *DV = getDebugVariable();
+      OS << " line no:" << DV->getLine();
+      if (isIndirectDebugValue())
+        OS << " indirect";
     }
-    auto *DV = getDebugVariable();
-    OS << " line no:" <<  DV->getLine();
-    if (isIndirectDebugValue())
-      OS << " indirect";
   }
   // TODO: DBG_LABEL
 

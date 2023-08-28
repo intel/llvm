@@ -30,6 +30,7 @@ namespace {
 
 class RISCVExpandPseudo : public MachineFunctionPass {
 public:
+  const RISCVSubtarget *STI;
   const RISCVInstrInfo *TII;
   static char ID;
 
@@ -68,7 +69,8 @@ private:
 char RISCVExpandPseudo::ID = 0;
 
 bool RISCVExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
-  TII = static_cast<const RISCVInstrInfo *>(MF.getSubtarget().getInstrInfo());
+  STI = &MF.getSubtarget<RISCVSubtarget>();
+  TII = STI->getInstrInfo();
 
 #ifndef NDEBUG
   const unsigned OldSize = getInstSizeInBytes(MF);
@@ -264,9 +266,8 @@ bool RISCVExpandPseudo::expandVMSET_VMCLR(MachineBasicBlock &MBB,
 // sequence for RV32.
 bool RISCVExpandPseudo::expandRV32ZdinxStore(MachineBasicBlock &MBB,
                                              MachineBasicBlock::iterator MBBI) {
-  MachineFunction *MF = MBB.getParent();
   DebugLoc DL = MBBI->getDebugLoc();
-  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+  const TargetRegisterInfo *TRI = STI->getRegisterInfo();
   Register Lo = TRI->getSubReg(MBBI->getOperand(0).getReg(), RISCV::sub_32);
   Register Hi = TRI->getSubReg(MBBI->getOperand(0).getReg(), RISCV::sub_32_hi);
   BuildMI(MBB, MBBI, DL, TII->get(RISCV::SW))
@@ -275,7 +276,7 @@ bool RISCVExpandPseudo::expandRV32ZdinxStore(MachineBasicBlock &MBB,
       .add(MBBI->getOperand(2));
   if (MBBI->getOperand(2).isGlobal() || MBBI->getOperand(2).isCPI()) {
     // FIXME: Zdinx RV32 can not work on unaligned scalar memory.
-    assert(!MF->getSubtarget<RISCVSubtarget>().enableUnalignedScalarMem());
+    assert(!STI->enableUnalignedScalarMem());
 
     assert(MBBI->getOperand(2).getOffset() % 8 == 0);
     MBBI->getOperand(2).setOffset(MBBI->getOperand(2).getOffset() + 4);
@@ -299,9 +300,8 @@ bool RISCVExpandPseudo::expandRV32ZdinxStore(MachineBasicBlock &MBB,
 // RV32.
 bool RISCVExpandPseudo::expandRV32ZdinxLoad(MachineBasicBlock &MBB,
                                             MachineBasicBlock::iterator MBBI) {
-  MachineFunction *MF = MBB.getParent();
   DebugLoc DL = MBBI->getDebugLoc();
-  const TargetRegisterInfo *TRI = MF->getSubtarget().getRegisterInfo();
+  const TargetRegisterInfo *TRI = STI->getRegisterInfo();
   Register Lo = TRI->getSubReg(MBBI->getOperand(0).getReg(), RISCV::sub_32);
   Register Hi = TRI->getSubReg(MBBI->getOperand(0).getReg(), RISCV::sub_32_hi);
 
@@ -343,6 +343,7 @@ bool RISCVExpandPseudo::expandRV32ZdinxLoad(MachineBasicBlock &MBB,
 
 class RISCVPreRAExpandPseudo : public MachineFunctionPass {
 public:
+  const RISCVSubtarget *STI;
   const RISCVInstrInfo *TII;
   static char ID;
 
@@ -371,9 +372,9 @@ private:
   bool expandLoadLocalAddress(MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator MBBI,
                               MachineBasicBlock::iterator &NextMBBI);
-  bool expandLoadAddress(MachineBasicBlock &MBB,
-                         MachineBasicBlock::iterator MBBI,
-                         MachineBasicBlock::iterator &NextMBBI);
+  bool expandLoadGlobalAddress(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator MBBI,
+                               MachineBasicBlock::iterator &NextMBBI);
   bool expandLoadTLSIEAddress(MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator MBBI,
                               MachineBasicBlock::iterator &NextMBBI);
@@ -394,7 +395,8 @@ private:
 char RISCVPreRAExpandPseudo::ID = 0;
 
 bool RISCVPreRAExpandPseudo::runOnMachineFunction(MachineFunction &MF) {
-  TII = static_cast<const RISCVInstrInfo *>(MF.getSubtarget().getInstrInfo());
+  STI = &MF.getSubtarget<RISCVSubtarget>();
+  TII = STI->getInstrInfo();
 
 #ifndef NDEBUG
   const unsigned OldSize = getInstSizeInBytes(MF);
@@ -431,8 +433,8 @@ bool RISCVPreRAExpandPseudo::expandMI(MachineBasicBlock &MBB,
   switch (MBBI->getOpcode()) {
   case RISCV::PseudoLLA:
     return expandLoadLocalAddress(MBB, MBBI, NextMBBI);
-  case RISCV::PseudoLA:
-    return expandLoadAddress(MBB, MBBI, NextMBBI);
+  case RISCV::PseudoLGA:
+    return expandLoadGlobalAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoLA_TLS_IE:
     return expandLoadTLSIEAddress(MBB, MBBI, NextMBBI);
   case RISCV::PseudoLA_TLS_GD:
@@ -480,18 +482,10 @@ bool RISCVPreRAExpandPseudo::expandLoadLocalAddress(
                              RISCV::ADDI);
 }
 
-bool RISCVPreRAExpandPseudo::expandLoadAddress(
+bool RISCVPreRAExpandPseudo::expandLoadGlobalAddress(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
     MachineBasicBlock::iterator &NextMBBI) {
-  MachineFunction *MF = MBB.getParent();
-
-  const auto &STI = MF->getSubtarget<RISCVSubtarget>();
-  // When HWASAN is used and tagging of global variables is enabled
-  // they should be accessed via the GOT, since the tagged address of a global
-  // is incompatible with existing code models. This also applies to non-pic
-  // mode.
-  assert(MF->getTarget().isPositionIndependent() || STI.allowTaggedGlobals());
-  unsigned SecondOpcode = STI.is64Bit() ? RISCV::LD : RISCV::LW;
+  unsigned SecondOpcode = STI->is64Bit() ? RISCV::LD : RISCV::LW;
   return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_GOT_HI,
                              SecondOpcode);
 }
@@ -499,10 +493,7 @@ bool RISCVPreRAExpandPseudo::expandLoadAddress(
 bool RISCVPreRAExpandPseudo::expandLoadTLSIEAddress(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MBBI,
     MachineBasicBlock::iterator &NextMBBI) {
-  MachineFunction *MF = MBB.getParent();
-
-  const auto &STI = MF->getSubtarget<RISCVSubtarget>();
-  unsigned SecondOpcode = STI.is64Bit() ? RISCV::LD : RISCV::LW;
+  unsigned SecondOpcode = STI->is64Bit() ? RISCV::LD : RISCV::LW;
   return expandAuipcInstPair(MBB, MBBI, NextMBBI, RISCVII::MO_TLS_GOT_HI,
                              SecondOpcode);
 }

@@ -9,13 +9,14 @@
 #include <clcmacro.h>
 #include <core/clc_core.h>
 #include <spirv/spirv.h>
+#include "../../include/libdevice.h"
 
 _CLC_OVERLOAD _CLC_DEF int __spirv_ocl_s_mul24(int x, int y) {
-  return __nvvm_mul24_i(x, y);
+  return __nv_mul24(x, y);
 }
 
 _CLC_OVERLOAD _CLC_DEF uint __spirv_ocl_u_mul24(uint x, uint y) {
-  return __nvvm_mul24_ui(x, y);
+  return __nv_umul24(x, y);
 }
 
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, int, __spirv_ocl_s_mul24, int,

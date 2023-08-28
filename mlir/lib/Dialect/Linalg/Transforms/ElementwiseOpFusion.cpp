@@ -422,11 +422,20 @@ public:
       if (!controlFn(&opOperand))
         continue;
 
+      // Find the producer of the operand.
       FailureOr<ElementwiseOpFusionResult> fusionResult =
           fuseElementwiseOps(rewriter, &opOperand);
       if (failed(fusionResult))
         return rewriter.notifyMatchFailure(genericOp, "fusion failed");
       Operation *producer = opOperand.get().getDefiningOp();
+
+      // Do not fuse a sparse-in/dense-out operation, as the
+      // result is too often not sparsifiable anymore.
+      if (sparse_tensor::hasAnySparseOperand(producer) &&
+          !sparse_tensor::hasAnySparseResult(producer))
+        return failure();
+
+      // Perform the fusion.
       for (auto [origVal, replacement] : fusionResult->replacements) {
         rewriter.replaceUsesWithIf(origVal, replacement, [&](OpOperand &use) {
           // Only replace consumer uses.
@@ -1770,16 +1779,10 @@ struct RemoveOutsDependency : public OpRewritePattern<GenericOp> {
         if (definingOp)
           continue;
         modifiedOutput = true;
-        SmallVector<Value> dynamicDims;
-        for (const auto &dim : llvm::enumerate(operandType.getShape())) {
-          if (dim.value() != ShapedType::kDynamic)
-            continue;
-          dynamicDims.push_back(rewriter.createOrFold<tensor::DimOp>(
-              loc, operandVal, dim.index()));
-        }
+        SmallVector<OpFoldResult> mixedSizes =
+            tensor::getMixedSizes(rewriter, loc, operandVal);
         Value emptyTensor = rewriter.create<tensor::EmptyOp>(
-            loc, operandType.getShape(), operandType.getElementType(),
-            dynamicDims);
+            loc, mixedSizes, operandType.getElementType());
         op->setOperand(opOperand->getOperandNumber(), emptyTensor);
       }
     }

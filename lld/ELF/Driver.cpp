@@ -107,10 +107,19 @@ void Ctx::reset() {
   needsTlsLd.store(false, std::memory_order_relaxed);
 }
 
-bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
-               llvm::raw_ostream &stderrOS, bool exitEarly,
-               bool disableOutput) {
-  // This driver-specific context will be freed later by lldMain().
+llvm::raw_fd_ostream Ctx::openAuxiliaryFile(llvm::StringRef filename,
+                                            std::error_code &ec) {
+  using namespace llvm::sys::fs;
+  OpenFlags flags =
+      auxiliaryFiles.insert(filename).second ? OF_None : OF_Append;
+  return {filename, ec, flags};
+}
+
+namespace lld {
+namespace elf {
+bool link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
+          llvm::raw_ostream &stderrOS, bool exitEarly, bool disableOutput) {
+  // This driver-specific context will be freed later by unsafeLldMain().
   auto *ctx = new CommonLinkerContext;
 
   ctx->e.initialize(stdoutOS, stderrOS, exitEarly, disableOutput);
@@ -147,12 +156,14 @@ bool elf::link(ArrayRef<const char *> args, llvm::raw_ostream &stdoutOS,
 
   return errorCount() == 0;
 }
+} // namespace elf
+} // namespace lld
 
 // Parses a linker -m option.
 static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
   uint8_t osabi = 0;
   StringRef s = emul;
-  if (s.endswith("_fbsd")) {
+  if (s.ends_with("_fbsd")) {
     s = s.drop_back(5);
     osabi = ELFOSABI_FREEBSD;
   }
@@ -169,6 +180,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf32lriscv", {ELF32LEKind, EM_RISCV})
           .Cases("elf32ppc", "elf32ppclinux", {ELF32BEKind, EM_PPC})
           .Cases("elf32lppc", "elf32lppclinux", {ELF32LEKind, EM_PPC})
+          .Case("elf32loongarch", {ELF32LEKind, EM_LOONGARCH})
           .Case("elf64btsmip", {ELF64BEKind, EM_MIPS})
           .Case("elf64ltsmip", {ELF64LEKind, EM_MIPS})
           .Case("elf64lriscv", {ELF64LEKind, EM_RISCV})
@@ -180,6 +192,7 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(StringRef emul) {
           .Case("elf64_sparc", {ELF64BEKind, EM_SPARCV9})
           .Case("msp430elf", {ELF32LEKind, EM_MSP430})
           .Case("elf64_amdgpu", {ELF64LEKind, EM_AMDGPU})
+          .Case("elf64loongarch", {ELF64LEKind, EM_LOONGARCH})
           .Default({ELFNoneKind, EM_NONE});
 
   if (ret.first == ELFNoneKind)
@@ -348,9 +361,12 @@ static void checkOptions() {
   if (config->fixCortexA8 && config->emachine != EM_ARM)
     error("--fix-cortex-a8 is only supported on ARM targets");
 
+  if (config->armBe8 && config->emachine != EM_ARM)
+    error("--be8 is only supported on ARM targets");
+
   if (config->fixCortexA8 && !config->isLE)
     error("--fix-cortex-a8 is not supported on big endian targets");
-  
+
   if (config->tocOptimize && config->emachine != EM_PPC64)
     error("--toc-optimize is only supported on PowerPC64 targets");
 
@@ -529,11 +545,11 @@ constexpr const char *knownZFlags[] = {
 
 static bool isKnownZFlag(StringRef s) {
   return llvm::is_contained(knownZFlags, s) ||
-         s.startswith("common-page-size=") || s.startswith("bti-report=") ||
-         s.startswith("cet-report=") ||
-         s.startswith("dead-reloc-in-nonalloc=") ||
-         s.startswith("max-page-size=") || s.startswith("stack-size=") ||
-         s.startswith("start-stop-visibility=");
+         s.starts_with("common-page-size=") || s.starts_with("bti-report=") ||
+         s.starts_with("cet-report=") ||
+         s.starts_with("dead-reloc-in-nonalloc=") ||
+         s.starts_with("max-page-size=") || s.starts_with("stack-size=") ||
+         s.starts_with("start-stop-visibility=");
 }
 
 // Report a warning for an unknown -z option.
@@ -713,7 +729,7 @@ static bool isOutputFormatBinary(opt::InputArgList &args) {
   StringRef s = args.getLastArgValue(OPT_oformat, "elf");
   if (s == "binary")
     return true;
-  if (!s.startswith("elf"))
+  if (!s.starts_with("elf"))
     error("unknown --oformat value: " + s);
   return false;
 }
@@ -754,13 +770,6 @@ static int getMemtagMode(opt::InputArgList &args) {
     return ELF::NT_MEMTAG_LEVEL_NONE;
   }
 
-  if (!config->androidMemtagHeap && !config->androidMemtagStack) {
-    error("when using --android-memtag-mode, at least one of "
-          "--android-memtag-heap or "
-          "--android-memtag-stack is required");
-    return ELF::NT_MEMTAG_LEVEL_NONE;
-  }
-
   if (memtagModeArg == "sync")
     return ELF::NT_MEMTAG_LEVEL_SYNC;
   if (memtagModeArg == "async")
@@ -797,7 +806,7 @@ static StripPolicy getStrip(opt::InputArgList &args) {
 static uint64_t parseSectionAddress(StringRef s, opt::InputArgList &args,
                                     const opt::Arg &arg) {
   uint64_t va = 0;
-  if (s.startswith("0x"))
+  if (s.starts_with("0x"))
     s = s.drop_front(2);
   if (!to_integer(s, va, 16))
     error("invalid argument: " + arg.getAsString(args));
@@ -862,7 +871,7 @@ getBuildId(opt::InputArgList &args) {
     return {BuildIdKind::Sha1, {}};
   if (s == "uuid")
     return {BuildIdKind::Uuid, {}};
-  if (s.startswith("0x"))
+  if (s.starts_with("0x"))
     return {BuildIdKind::Hexstring, parseHex(s.substr(2))};
 
   if (s != "none")
@@ -991,21 +1000,19 @@ template <class ELFT> static void readCallGraphsFromObjectFiles() {
   }
 }
 
-static DebugCompressionType getCompressDebugSections(opt::InputArgList &args) {
-  StringRef s = args.getLastArgValue(OPT_compress_debug_sections, "none");
-  if (s == "zlib") {
-    if (!compression::zlib::isAvailable())
-      error("--compress-debug-sections: zlib is not available");
-    return DebugCompressionType::Zlib;
+static DebugCompressionType getCompressionType(StringRef s, StringRef option) {
+  DebugCompressionType type = StringSwitch<DebugCompressionType>(s)
+                                  .Case("zlib", DebugCompressionType::Zlib)
+                                  .Case("zstd", DebugCompressionType::Zstd)
+                                  .Default(DebugCompressionType::None);
+  if (type == DebugCompressionType::None) {
+    if (s != "none")
+      error("unknown " + option + " value: " + s);
+  } else if (const char *reason = compression::getReasonIfUnsupported(
+                 compression::formatFor(type))) {
+    error(option + ": " + reason);
   }
-  if (s == "zstd") {
-    if (!compression::zstd::isAvailable())
-      error("--compress-debug-sections: zstd is not available");
-    return DebugCompressionType::Zstd;
-  }
-  if (s != "none")
-    error("unknown --compress-debug-sections value: " + s);
-  return DebugCompressionType::None;
+  return type;
 }
 
 static StringRef getAliasSpelling(opt::Arg *arg) {
@@ -1057,8 +1064,9 @@ static bool getIsRela(opt::InputArgList &args) {
 
   // Otherwise use the psABI defined relocation entry format.
   uint16_t m = config->emachine;
-  return m == EM_AARCH64 || m == EM_AMDGPU || m == EM_HEXAGON || m == EM_PPC ||
-         m == EM_PPC64 || m == EM_RISCV || m == EM_X86_64;
+  return m == EM_AARCH64 || m == EM_AMDGPU || m == EM_HEXAGON ||
+         m == EM_LOONGARCH || m == EM_PPC || m == EM_PPC64 || m == EM_RISCV ||
+         m == EM_X86_64;
 }
 
 static void parseClangOption(StringRef opt, const Twine &msg) {
@@ -1112,6 +1120,7 @@ static void readConfigs(opt::InputArgList &args) {
                                             OPT_no_android_memtag_stack, false);
   config->androidMemtagMode = getMemtagMode(args);
   config->auxiliaryList = args::getStrings(args, OPT_auxiliary);
+  config->armBe8 = args.hasArg(OPT_be8);
   if (opt::Arg *arg =
           args.getLastArg(OPT_Bno_symbolic, OPT_Bsymbolic_non_weak_functions,
                           OPT_Bsymbolic_functions, OPT_Bsymbolic)) {
@@ -1125,7 +1134,9 @@ static void readConfigs(opt::InputArgList &args) {
   config->checkSections =
       args.hasFlag(OPT_check_sections, OPT_no_check_sections, true);
   config->chroot = args.getLastArgValue(OPT_chroot);
-  config->compressDebugSections = getCompressDebugSections(args);
+  config->compressDebugSections = getCompressionType(
+      args.getLastArgValue(OPT_compress_debug_sections, "none"),
+      "--compress-debug-sections");
   config->cref = args.hasArg(OPT_cref);
   config->optimizeBBJumps =
       args.hasFlag(OPT_optimize_bb_jumps, OPT_no_optimize_bb_jumps, false);
@@ -1444,7 +1455,7 @@ static void readConfigs(opt::InputArgList &args) {
   // unsupported LLVMgold.so option and error.
   for (opt::Arg *arg : args.filtered(OPT_plugin_opt_eq)) {
     StringRef v(arg->getValue());
-    if (!v.endswith("lto-wrapper") && !v.endswith("lto-wrapper.exe"))
+    if (!v.ends_with("lto-wrapper") && !v.ends_with("lto-wrapper.exe"))
       error(arg->getSpelling() + ": unknown plugin option '" + arg->getValue() +
             "'");
   }
@@ -1455,6 +1466,19 @@ static void readConfigs(opt::InputArgList &args) {
   for (const auto *arg : args.filtered(OPT_mllvm)) {
     parseClangOption(arg->getValue(), arg->getSpelling());
     config->mllvmOpts.emplace_back(arg->getValue());
+  }
+
+  config->ltoKind = LtoKind::Default;
+  if (auto *arg = args.getLastArg(OPT_lto)) {
+    StringRef s = arg->getValue();
+    if (s == "thin")
+      config->ltoKind = LtoKind::UnifiedThin;
+    else if (s == "full")
+      config->ltoKind = LtoKind::UnifiedRegular;
+    else if (s == "default")
+      config->ltoKind = LtoKind::Default;
+    else
+      error("unknown LTO mode: " + s);
   }
 
   // --threads= takes a positive integer and provides the default value for
@@ -1499,7 +1523,7 @@ static void readConfigs(opt::InputArgList &args) {
     std::tie(config->ekind, config->emachine, config->osabi) =
         parseEmulation(s);
     config->mipsN32Abi =
-        (s.startswith("elf32btsmipn32") || s.startswith("elf32ltsmipn32"));
+        (s.starts_with("elf32btsmipn32") || s.starts_with("elf32ltsmipn32"));
     config->emulation = s;
   }
 
@@ -1648,8 +1672,9 @@ static void setConfigs(opt::InputArgList &args) {
   // have support for reading Elf_Rel addends, so we only enable for a subset.
 #ifndef NDEBUG
   bool checkDynamicRelocsDefault = m == EM_AARCH64 || m == EM_ARM ||
-                                   m == EM_386 || m == EM_MIPS ||
-                                   m == EM_X86_64 || m == EM_RISCV;
+                                   m == EM_386 || m == EM_LOONGARCH ||
+                                   m == EM_MIPS || m == EM_RISCV ||
+                                   m == EM_X86_64;
 #else
   bool checkDynamicRelocsDefault = false;
 #endif
@@ -1952,7 +1977,7 @@ static void writeArchiveStats() {
     return;
 
   std::error_code ec;
-  raw_fd_ostream os(config->printArchiveStats, ec, sys::fs::OF_None);
+  raw_fd_ostream os = ctx.openAuxiliaryFile(config->printArchiveStats, ec);
   if (ec) {
     error("--print-archive-stats=: cannot open " + config->printArchiveStats +
           ": " + ec.message());
@@ -1982,7 +2007,7 @@ static void writeWhyExtract() {
     return;
 
   std::error_code ec;
-  raw_fd_ostream os(config->whyExtract, ec, sys::fs::OF_None);
+  raw_fd_ostream os = ctx.openAuxiliaryFile(config->whyExtract, ec);
   if (ec) {
     error("cannot open --why-extract= file " + config->whyExtract + ": " +
           ec.message());
@@ -2041,7 +2066,7 @@ static void reportBackrefs() {
 // easily.
 static void writeDependencyFile() {
   std::error_code ec;
-  raw_fd_ostream os(config->dependencyFile, ec, sys::fs::OF_None);
+  raw_fd_ostream os = ctx.openAuxiliaryFile(config->dependencyFile, ec);
   if (ec) {
     error("cannot open " + config->dependencyFile + ": " + ec.message());
     return;
@@ -2879,6 +2904,12 @@ void LinkerDriver::link(opt::InputArgList &args) {
   // Make copies of any input sections that need to be copied into each
   // partition.
   copySectionsIntoPartitions();
+
+  if (config->emachine == EM_AARCH64 &&
+      config->androidMemtagMode != ELF::NT_MEMTAG_LEVEL_NONE) {
+    llvm::TimeTraceScope timeScope("Process memory tagged symbols");
+    createTaggedSymbols(ctx.objectFiles);
+  }
 
   // Create synthesized sections such as .got and .plt. This is called before
   // processSectionCommands() so that they can be placed by SECTIONS commands.

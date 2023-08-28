@@ -854,6 +854,9 @@ public:
   void __set(size_t __index, _Tp __val) noexcept {
     __storage_[__index] = __val;
   }
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const _StorageType& data() const noexcept { return __storage_; }
+#endif
 };
 
 #endif // _LIBCPP_HAS_NO_VECTOR_EXTENSION
@@ -1586,7 +1589,7 @@ struct __abi_storage_kind : public std::false_type {};
 
 template <_StorageKind _K, int _Np>
 struct __abi_storage_kind<__simd_abi<_K, _Np>> : public std::true_type {
-  static inline constexpr _StorageKind value = _K;
+  static constexpr _StorageKind value = _K;
 };
 
 template <typename _Tp, class _Abi> struct __mask_element {
@@ -1665,6 +1668,10 @@ public:
 #else
   static constexpr size_t size() noexcept;
 #endif // ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+
+#ifdef ENABLE_SYCL_EXT_ONEAPI_INVOKE_SIMD
+  const auto& data() const noexcept { return __s_.data(); }
+#endif
 
   simd_mask() = default;
 

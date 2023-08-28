@@ -776,6 +776,8 @@ bool DWARFContext::verify(raw_ostream &OS, DIDumpOptions DumpOpts) {
     Success &= verifier.handleDebugInfo();
   if (DumpOpts.DumpType & DIDT_DebugLine)
     Success &= verifier.handleDebugLine();
+  if (DumpOpts.DumpType & DIDT_DebugStrOffsets)
+    Success &= verifier.handleDebugStrOffsets();
   Success &= verifier.handleAccelTables();
   return Success;
 }
@@ -936,9 +938,7 @@ const DWARFDebugAbbrev *DWARFContext::getDebugAbbrev() {
     return Abbrev.get();
 
   DataExtractor abbrData(DObj->getAbbrevSection(), isLittleEndian(), 0);
-
-  Abbrev.reset(new DWARFDebugAbbrev());
-  Abbrev->extract(abbrData);
+  Abbrev = std::make_unique<DWARFDebugAbbrev>(abbrData);
   return Abbrev.get();
 }
 
@@ -947,8 +947,7 @@ const DWARFDebugAbbrev *DWARFContext::getDebugAbbrevDWO() {
     return AbbrevDWO.get();
 
   DataExtractor abbrData(DObj->getAbbrevDWOSection(), isLittleEndian(), 0);
-  AbbrevDWO.reset(new DWARFDebugAbbrev());
-  AbbrevDWO->extract(abbrData);
+  AbbrevDWO = std::make_unique<DWARFDebugAbbrev>(abbrData);
   return AbbrevDWO.get();
 }
 
@@ -1857,13 +1856,9 @@ public:
         continue;
       }
 
-      // Compressed sections names in GNU style starts from ".z",
-      // at this point section is decompressed and we drop compression prefix.
-      Name = Name.substr(
-          Name.find_first_not_of("._z")); // Skip ".", "z" and "_" prefixes.
-
       // Map platform specific debug section names to DWARF standard section
       // names.
+      Name = Name.substr(Name.find_first_not_of("._"));
       Name = Obj.mapDebugSectionName(Name);
 
       if (StringRef *SectionData = mapSectionToMember(Name)) {
@@ -1887,10 +1882,6 @@ public:
         DWARFSectionMap &S = (*Sections)[Section];
         S.Data = Data;
       }
-
-      if (RelocatedSection != Obj.section_end() && Name.contains(".dwo"))
-        HandleWarning(
-            createError("Unexpected relocations for dwo section " + Name));
 
       if (RelocatedSection == Obj.section_end() ||
           (RelocAction == DWARFContext::ProcessDebugRelocations::Ignore))
@@ -1917,11 +1908,15 @@ public:
       if (!L && isa<MachOObjectFile>(&Obj))
         continue;
 
-      RelSecName = RelSecName.substr(
-          RelSecName.find_first_not_of("._z")); // Skip . and _ prefixes.
+      if (!Section.relocations().empty() && Name.ends_with(".dwo") &&
+          RelSecName.startswith(".debug")) {
+        HandleWarning(createError("unexpected relocations for dwo section '" +
+                                  RelSecName + "'"));
+      }
 
       // TODO: Add support for relocations in other sections as needed.
       // Record relocations for the debug_info and debug_line sections.
+      RelSecName = RelSecName.substr(RelSecName.find_first_not_of("._"));
       DWARFSectionMap *Sec = mapNameToDWARFSection(RelSecName);
       RelocAddrMap *Map = Sec ? &Sec->Relocs : nullptr;
       if (!Map) {

@@ -209,6 +209,18 @@ void TargetLoweringBase::InitLibcalls(const Triple &TT) {
   if (TT.isOSOpenBSD()) {
     setLibcallName(RTLIB::STACKPROTECTOR_CHECK_FAIL, nullptr);
   }
+
+  if (TT.isOSWindows() && !TT.isOSCygMing()) {
+    setLibcallName(RTLIB::LDEXP_F32, nullptr);
+    setLibcallName(RTLIB::LDEXP_F80, nullptr);
+    setLibcallName(RTLIB::LDEXP_F128, nullptr);
+    setLibcallName(RTLIB::LDEXP_PPCF128, nullptr);
+
+    setLibcallName(RTLIB::FREXP_F32, nullptr);
+    setLibcallName(RTLIB::FREXP_F80, nullptr);
+    setLibcallName(RTLIB::FREXP_F128, nullptr);
+    setLibcallName(RTLIB::FREXP_PPCF128, nullptr);
+  }
 }
 
 /// GetFPLibCall - Helper to return the right libcall for the given floating
@@ -496,6 +508,16 @@ RTLIB::Libcall RTLIB::getUINTTOFP(EVT OpVT, EVT RetVT) {
 RTLIB::Libcall RTLIB::getPOWI(EVT RetVT) {
   return getFPLibCall(RetVT, POWI_F32, POWI_F64, POWI_F80, POWI_F128,
                       POWI_PPCF128);
+}
+
+RTLIB::Libcall RTLIB::getLDEXP(EVT RetVT) {
+  return getFPLibCall(RetVT, LDEXP_F32, LDEXP_F64, LDEXP_F80, LDEXP_F128,
+                      LDEXP_PPCF128);
+}
+
+RTLIB::Libcall RTLIB::getFREXP(EVT RetVT) {
+  return getFPLibCall(RetVT, FREXP_F32, FREXP_F64, FREXP_F80, FREXP_F128,
+                      FREXP_PPCF128);
 }
 
 RTLIB::Libcall RTLIB::getOUTLINE_ATOMIC(unsigned Opc, AtomicOrdering Order,
@@ -845,7 +867,9 @@ void TargetLoweringBase::initActions() {
     setOperationAction({ISD::BITREVERSE, ISD::PARITY}, VT, Expand);
 
     // These library functions default to expand.
-    setOperationAction({ISD::FROUND, ISD::FROUNDEVEN, ISD::FPOWI}, VT, Expand);
+    setOperationAction(
+        {ISD::FROUND, ISD::FROUNDEVEN, ISD::FPOWI, ISD::FLDEXP, ISD::FFREXP},
+        VT, Expand);
 
     // These operations default to expand for vector types.
     if (VT.isVector())
@@ -869,7 +893,8 @@ void TargetLoweringBase::initActions() {
          ISD::VECREDUCE_MUL, ISD::VECREDUCE_AND, ISD::VECREDUCE_OR,
          ISD::VECREDUCE_XOR, ISD::VECREDUCE_SMAX, ISD::VECREDUCE_SMIN,
          ISD::VECREDUCE_UMAX, ISD::VECREDUCE_UMIN, ISD::VECREDUCE_FMAX,
-         ISD::VECREDUCE_FMIN, ISD::VECREDUCE_SEQ_FADD, ISD::VECREDUCE_SEQ_FMUL},
+         ISD::VECREDUCE_FMIN, ISD::VECREDUCE_FMAXIMUM, ISD::VECREDUCE_FMINIMUM,
+         ISD::VECREDUCE_SEQ_FADD, ISD::VECREDUCE_SEQ_FMUL},
         VT, Expand);
 
     // Named vector shuffles default to expand.
@@ -879,6 +904,11 @@ void TargetLoweringBase::initActions() {
 #define BEGIN_REGISTER_VP_SDNODE(SDOPC, ...)                                   \
     setOperationAction(ISD::SDOPC, VT, Expand);
 #include "llvm/IR/VPIntrinsics.def"
+
+    // FP environment operations default to expand.
+    setOperationAction(ISD::GET_FPENV, VT, Expand);
+    setOperationAction(ISD::SET_FPENV, VT, Expand);
+    setOperationAction(ISD::RESET_FPENV, VT, Expand);
   }
 
   // Most targets ignore the @llvm.prefetch intrinsic.
@@ -891,7 +921,7 @@ void TargetLoweringBase::initActions() {
   // Legal, in which case all fp constants are legal, or use isFPImmLegal()
   // to optimize expansions for certain constants.
   setOperationAction(ISD::ConstantFP,
-                     {MVT::f16, MVT::f32, MVT::f64, MVT::f80, MVT::f128},
+                     {MVT::bf16, MVT::f16, MVT::f32, MVT::f64, MVT::f80, MVT::f128},
                      Expand);
 
   // These library functions default to expand.
@@ -909,6 +939,9 @@ void TargetLoweringBase::initActions() {
   setOperationAction(ISD::DEBUGTRAP, MVT::Other, Expand);
 
   setOperationAction(ISD::UBSANTRAP, MVT::Other, Expand);
+
+  setOperationAction(ISD::GET_FPENV_MEM, MVT::Other, Expand);
+  setOperationAction(ISD::SET_FPENV_MEM, MVT::Other, Expand);
 }
 
 MVT TargetLoweringBase::getScalarShiftAmountTy(const DataLayout &DL,
@@ -1979,7 +2012,8 @@ void TargetLoweringBase::insertSSPDeclarations(Module &M) const {
     // FreeBSD has "__stack_chk_guard" defined externally on libc.so
     if (M.getDirectAccessExternalData() &&
         !TM.getTargetTriple().isWindowsGNUEnvironment() &&
-        !TM.getTargetTriple().isOSFreeBSD())
+        !TM.getTargetTriple().isOSFreeBSD() &&
+        !TM.getTargetTriple().isOSDarwin())
       GV->setDSOLocal(true);
   }
 }

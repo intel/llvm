@@ -32,6 +32,20 @@ bool arm::isARMMProfile(const llvm::Triple &Triple) {
   return llvm::ARM::parseArchProfile(Arch) == llvm::ARM::ProfileKind::M;
 }
 
+// On Arm the endianness of the output file is determined by the target and
+// can be overridden by the pseudo-target flags '-mlittle-endian'/'-EL' and
+// '-mbig-endian'/'-EB'. Unlike other targets the flag does not result in a
+// normalized triple so we must handle the flag here.
+bool arm::isARMBigEndian(const llvm::Triple &Triple, const ArgList &Args) {
+  if (Arg *A = Args.getLastArg(options::OPT_mlittle_endian,
+                               options::OPT_mbig_endian)) {
+    return !A->getOption().matches(options::OPT_mlittle_endian);
+  }
+
+  return Triple.getArch() == llvm::Triple::armeb ||
+         Triple.getArch() == llvm::Triple::thumbeb;
+}
+
 // True if A-profile.
 bool arm::isARMAProfile(const llvm::Triple &Triple) {
   llvm::StringRef Arch = Triple.getArchName();
@@ -144,6 +158,22 @@ static void checkARMCPUName(const Driver &D, const Arg *A, const ArgList &Args,
         << A->getSpelling() << A->getValue();
 }
 
+// If -mfloat-abi=hard or -mhard-float are specified explicitly then check that
+// floating point registers are available on the target CPU.
+static void checkARMFloatABI(const Driver &D, const ArgList &Args,
+                             bool HasFPRegs) {
+  if (HasFPRegs)
+    return;
+  const Arg *A =
+      Args.getLastArg(options::OPT_msoft_float, options::OPT_mhard_float,
+                      options::OPT_mfloat_abi_EQ);
+  if (A && (A->getOption().matches(options::OPT_mhard_float) ||
+            (A->getOption().matches(options::OPT_mfloat_abi_EQ) &&
+             A->getValue() == StringRef("hard"))))
+    D.Diag(clang::diag::warn_drv_no_floating_point_registers)
+        << A->getAsString(Args);
+}
+
 bool arm::useAAPCSForMachO(const llvm::Triple &T) {
   // The backend is hardwired to assume AAPCS for M-class processors, ensure
   // the frontend matches that.
@@ -168,11 +198,16 @@ arm::ReadTPMode arm::getReadTPMode(const Driver &D, const ArgList &Args,
   if (Arg *A = Args.getLastArg(options::OPT_mtp_mode_EQ)) {
     arm::ReadTPMode ThreadPointer =
         llvm::StringSwitch<arm::ReadTPMode>(A->getValue())
-            .Case("cp15", ReadTPMode::Cp15)
+            .Case("cp15", ReadTPMode::TPIDRURO)
+            .Case("tpidrurw", ReadTPMode::TPIDRURW)
+            .Case("tpidruro", ReadTPMode::TPIDRURO)
+            .Case("tpidrprw", ReadTPMode::TPIDRPRW)
             .Case("soft", ReadTPMode::Soft)
             .Default(ReadTPMode::Invalid);
-    if (ThreadPointer == ReadTPMode::Cp15 && !isHardTPSupported(Triple) &&
-        !ForAS) {
+    if ((ThreadPointer == ReadTPMode::TPIDRURW ||
+         ThreadPointer == ReadTPMode::TPIDRURO ||
+         ThreadPointer == ReadTPMode::TPIDRPRW) &&
+        !isHardTPSupported(Triple) && !ForAS) {
       D.Diag(diag::err_target_unsupported_tp_hard) << Triple.getArchName();
       return ReadTPMode::Invalid;
     }
@@ -447,9 +482,11 @@ static bool hasIntegerMVE(const std::vector<StringRef> &F) {
          (NoMVE == F.rend() || std::distance(MVE, NoMVE) > 0);
 }
 
-void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
-                               const ArgList &Args,
-                               std::vector<StringRef> &Features, bool ForAS) {
+llvm::ARM::FPUKind arm::getARMTargetFeatures(const Driver &D,
+                                             const llvm::Triple &Triple,
+                                             const ArgList &Args,
+                                             std::vector<StringRef> &Features,
+                                             bool ForAS, bool ForMultilib) {
   bool KernelOrKext =
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   arm::FloatABI ABI = arm::getARMFloatABI(D, Triple, Args);
@@ -501,10 +538,20 @@ void arm::getARMTargetFeatures(const Driver &D, const llvm::Triple &Triple,
         }
       }
     }
+
+    // The integrated assembler doesn't implement e_flags setting behavior for
+    // -meabi=gnu (gcc -mabi={apcs-gnu,atpcs} passes -meabi=gnu to gas). For
+    // compatibility we accept but warn.
+    if (Arg *A = Args.getLastArgNoClaim(options::OPT_mabi_EQ))
+      A->ignoreTargetSpecific();
   }
 
-  if (getReadTPMode(D, Args, Triple, ForAS) == ReadTPMode::Cp15)
-    Features.push_back("+read-tp-hard");
+  if (getReadTPMode(D, Args, Triple, ForAS) == ReadTPMode::TPIDRURW)
+    Features.push_back("+read-tp-tpidrurw");
+  if (getReadTPMode(D, Args, Triple, ForAS) == ReadTPMode::TPIDRURO)
+    Features.push_back("+read-tp-tpidruro");
+  if (getReadTPMode(D, Args, Triple, ForAS) == ReadTPMode::TPIDRPRW)
+    Features.push_back("+read-tp-tpidrprw");
 
   const Arg *ArchArg = Args.getLastArg(options::OPT_march_EQ);
   const Arg *CPUArg = Args.getLastArg(options::OPT_mcpu_EQ);
@@ -636,13 +683,16 @@ fp16_fml_fallthrough:
   // -march/-mcpu effectively disables the FPU (GCC ignores the -mfpu options in
   // this case). Note that the ABI can also be set implicitly by the target
   // selected.
+  bool HasFPRegs = true;
   if (ABI == arm::FloatABI::Soft) {
     llvm::ARM::getFPUFeatures(llvm::ARM::FK_NONE, Features);
 
     // Disable all features relating to hardware FP, not already disabled by the
     // above call.
-    Features.insert(Features.end(), {"-dotprod", "-fp16fml", "-bf16", "-mve",
-                                     "-mve.fp", "-fpregs"});
+    Features.insert(Features.end(),
+                    {"-dotprod", "-fp16fml", "-bf16", "-mve", "-mve.fp"});
+    HasFPRegs = false;
+    FPUKind = llvm::ARM::FK_NONE;
   } else if (FPUKind == llvm::ARM::FK_NONE ||
              ArchArgFPUKind == llvm::ARM::FK_NONE ||
              CPUArgFPUKind == llvm::ARM::FK_NONE) {
@@ -652,9 +702,11 @@ fp16_fml_fallthrough:
     // latter, is still supported.
     Features.insert(Features.end(),
                     {"-dotprod", "-fp16fml", "-bf16", "-mve.fp"});
-    if (!hasIntegerMVE(Features))
-      Features.emplace_back("-fpregs");
+    HasFPRegs = hasIntegerMVE(Features);
+    FPUKind = llvm::ARM::FK_NONE;
   }
+  if (!HasFPRegs)
+    Features.emplace_back("-fpregs");
 
   // En/disable crc code generation.
   if (Arg *A = Args.getLastArg(options::OPT_mcrc, options::OPT_mnocrc)) {
@@ -784,7 +836,9 @@ fp16_fml_fallthrough:
 
   // Generate execute-only output (no data access to code sections).
   // This only makes sense for the compiler, not for the assembler.
-  if (!ForAS) {
+  // It's not needed for multilib selection and may hide an unused
+  // argument diagnostic if the code is always run.
+  if (!ForAS && !ForMultilib) {
     // Supported only on ARMv6T2 and ARMv7 and above.
     // Cannot be combined with -mno-movt.
     if (Arg *A = Args.getLastArg(options::OPT_mexecute_only, options::OPT_mno_execute_only)) {
@@ -910,6 +964,10 @@ fp16_fml_fallthrough:
 
   if (Args.getLastArg(options::OPT_mno_bti_at_return_twice))
     Features.push_back("+no-bti-at-return-twice");
+
+  checkARMFloatABI(D, Args, HasFPRegs);
+
+  return FPUKind;
 }
 
 std::string arm::getARMArch(StringRef Arch, const llvm::Triple &Triple) {

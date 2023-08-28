@@ -147,6 +147,13 @@ getCC1Arguments(DiagnosticsEngine *Diagnostics,
     if (IsCC1Command(Job) && llvm::all_of(Job.getInputInfos(), IsSrcFile))
       CC1Jobs.push_back(&Job);
 
+  // If there are no jobs for source files, try checking again for a single job
+  // with any file type. This accepts a preprocessed file as input.
+  if (CC1Jobs.empty())
+    for (const driver::Command &Job : Jobs)
+      if (IsCC1Command(Job))
+        CC1Jobs.push_back(&Job);
+
   if (CC1Jobs.empty() ||
       (CC1Jobs.size() > 1 && !ignoreExtraCC1Commands(Compilation))) {
     SmallString<256> error_msg;
@@ -542,13 +549,11 @@ int ClangTool::run(ToolAction *Action) {
 
   // Remember the working directory in case we need to restore it.
   std::string InitialWorkingDir;
-  if (RestoreCWD) {
-    if (auto CWD = OverlayFileSystem->getCurrentWorkingDirectory()) {
-      InitialWorkingDir = std::move(*CWD);
-    } else {
-      llvm::errs() << "Could not get working directory: "
-                   << CWD.getError().message() << "\n";
-    }
+  if (auto CWD = OverlayFileSystem->getCurrentWorkingDirectory()) {
+    InitialWorkingDir = std::move(*CWD);
+  } else {
+    llvm::errs() << "Could not get working directory: "
+                 << CWD.getError().message() << "\n";
   }
 
   for (llvm::StringRef File : AbsolutePaths) {
@@ -660,10 +665,6 @@ public:
 int ClangTool::buildASTs(std::vector<std::unique_ptr<ASTUnit>> &ASTs) {
   ASTBuilderAction Action(ASTs);
   return run(&Action);
-}
-
-void ClangTool::setRestoreWorkingDir(bool RestoreCWD) {
-  this->RestoreCWD = RestoreCWD;
 }
 
 void ClangTool::setPrintErrorMessage(bool PrintErrorMessage) {

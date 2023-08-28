@@ -277,6 +277,9 @@ class HeaderSearch {
 
   /// Keeps track of each lookup performed by LookupFile.
   struct LookupFileCacheInfo {
+    // The requesting module for the lookup we cached.
+    const Module *RequestingModule = nullptr;
+
     /// Starting search directory iterator that the cached search was performed
     /// from. If there is a hit and this value doesn't match the current query,
     /// the cache has to be ignored.
@@ -292,7 +295,9 @@ class HeaderSearch {
     /// Default constructor -- Initialize all members with zero.
     LookupFileCacheInfo() = default;
 
-    void reset(ConstSearchDirIterator NewStartIt) {
+    void reset(const Module *NewRequestingModule,
+               ConstSearchDirIterator NewStartIt) {
+      RequestingModule = NewRequestingModule;
       StartIt = NewStartIt;
       MappedName = nullptr;
     }
@@ -553,10 +558,10 @@ public:
   /// macro.
   ///
   /// This routine does not consider the effect of \#import
-  bool isFileMultipleIncludeGuarded(const FileEntry *File);
+  bool isFileMultipleIncludeGuarded(const FileEntry *File) const;
 
   /// Determine whether the given file is known to have ever been \#imported.
-  bool hasFileBeenImported(const FileEntry *File) {
+  bool hasFileBeenImported(const FileEntry *File) const {
     const HeaderFileInfo *FI = getExistingFileInfo(File);
     return FI && FI->isImport;
   }
@@ -638,7 +643,7 @@ public:
 
   /// Try to find a module map file in the given directory, returning
   /// \c nullopt if none is found.
-  OptionalFileEntryRef lookupModuleMapFile(const DirectoryEntry *Dir,
+  OptionalFileEntryRef lookupModuleMapFile(DirectoryEntryRef Dir,
                                            bool IsFramework);
 
   /// Determine whether there is a module map that may map the header
@@ -659,7 +664,7 @@ public:
   ///
   /// \param File The header that we wish to map to a module.
   /// \param AllowTextual Whether we want to find textual headers too.
-  ModuleMap::KnownHeader findModuleForHeader(const FileEntry *File,
+  ModuleMap::KnownHeader findModuleForHeader(FileEntryRef File,
                                              bool AllowTextual = false,
                                              bool AllowExcluded = false) const;
 
@@ -670,8 +675,12 @@ public:
   ///
   /// \ref findModuleForHeader should typically be used instead of this.
   ArrayRef<ModuleMap::KnownHeader>
-  findAllModulesForHeader(const FileEntry *File,
-                          bool AllowCreation = true) const;
+  findAllModulesForHeader(FileEntryRef File) const;
+
+  /// Like \ref findAllModulesForHeader, but do not attempt to infer module
+  /// ownership from umbrella headers if we've not already done so.
+  ArrayRef<ModuleMap::KnownHeader>
+  findResolvedModulesForHeader(const FileEntry *File) const;
 
   /// Read the contents of the given module map file.
   ///
@@ -756,8 +765,7 @@ private:
   ///
   /// \return \c true if the file can be used, \c false if we are not permitted to
   ///         find this file due to requirements from \p RequestingModule.
-  bool findUsableModuleForHeader(const FileEntry *File,
-                                 const DirectoryEntry *Root,
+  bool findUsableModuleForHeader(FileEntryRef File, const DirectoryEntry *Root,
                                  Module *RequestingModule,
                                  ModuleMap::KnownHeader *SuggestedModule,
                                  bool IsSystemHeaderDir);
@@ -768,7 +776,7 @@ private:
   /// \return \c true if the file can be used, \c false if we are not permitted to
   ///         find this file due to requirements from \p RequestingModule.
   bool findUsableModuleForFrameworkHeader(
-      const FileEntry *File, StringRef FrameworkName, Module *RequestingModule,
+      FileEntryRef File, StringRef FrameworkName, Module *RequestingModule,
       ModuleMap::KnownHeader *SuggestedModule, bool IsSystemFramework);
 
   /// Look up the file with the specified name and determine its owning
@@ -867,7 +875,7 @@ public:
   ///        path is relative to a system header directory.
   std::string suggestPathToFileForDiagnostics(const FileEntry *File,
                                               llvm::StringRef MainFile,
-                                              bool *IsSystem = nullptr);
+                                              bool *IsSystem = nullptr) const;
 
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
@@ -881,7 +889,7 @@ public:
   std::string suggestPathToFileForDiagnostics(llvm::StringRef File,
                                               llvm::StringRef WorkingDir,
                                               llvm::StringRef MainFile,
-                                              bool *IsSystem = nullptr);
+                                              bool *IsSystem = nullptr) const;
 
   void PrintStats();
 

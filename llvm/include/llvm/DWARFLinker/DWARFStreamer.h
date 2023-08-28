@@ -23,11 +23,6 @@
 namespace llvm {
 template <typename DataT> class AccelTable;
 
-enum class OutputFileType {
-  Object,
-  Assembly,
-};
-
 ///   User of DwarfStreamer should call initialization code
 ///   for AsmPrinter:
 ///
@@ -45,18 +40,19 @@ class DWARFDebugMacro;
 /// information binary representation are handled in this class.
 class DwarfStreamer : public DwarfEmitter {
 public:
-  DwarfStreamer(OutputFileType OutFileType, raw_pwrite_stream &OutFile,
+  DwarfStreamer(DWARFLinker::OutputFileType OutFileType,
+                raw_pwrite_stream &OutFile,
                 std::function<StringRef(StringRef Input)> Translator,
-                messageHandler Error, messageHandler Warning)
+                DWARFLinker::messageHandler Warning)
       : OutFile(OutFile), OutFileType(OutFileType), Translator(Translator),
-        ErrorHandler(Error), WarningHandler(Warning) {}
+        WarningHandler(Warning) {}
 
-  bool init(Triple TheTriple, StringRef Swift5ReflectionSegmentName);
+  Error init(Triple TheTriple, StringRef Swift5ReflectionSegmentName);
 
   /// Dump the file to the disk.
-  void finish();
+  void finish() override;
 
-  AsmPrinter &getAsmPrinter() const { return *Asm; }
+  AsmPrinter &getAsmPrinter() const override { return *Asm; }
 
   /// Set the current output section to debug_info and change
   /// the MC Dwarf version to \p DwarfVersion.
@@ -89,12 +85,12 @@ public:
   void emitLineStrings(const NonRelocatableStringpool &Pool) override;
 
   /// Emit the swift_ast section stored in \p Buffer.
-  void emitSwiftAST(StringRef Buffer);
+  void emitSwiftAST(StringRef Buffer) override;
 
   /// Emit the swift reflection section stored in \p Buffer.
   void emitSwiftReflectionSection(
       llvm::binaryformat::Swift5ReflectionSectionKind ReflSectionKind,
-      StringRef Buffer, uint32_t Alignment, uint32_t Size);
+      StringRef Buffer, uint32_t Alignment, uint32_t Size) override;
 
   /// Emit debug ranges(.debug_ranges, .debug_rnglists) header.
   MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) override;
@@ -102,7 +98,8 @@ public:
   /// Emit debug ranges(.debug_ranges, .debug_rnglists) fragment.
   void emitDwarfDebugRangeListFragment(const CompileUnit &Unit,
                                        const AddressRanges &LinkedRanges,
-                                       PatchLocation Patch) override;
+                                       PatchLocation Patch,
+                                       DebugAddrPool &AddrPool) override;
 
   /// Emit debug ranges(.debug_ranges, .debug_rnglists) footer.
   void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
@@ -111,11 +108,22 @@ public:
   /// Emit debug locations(.debug_loc, .debug_loclists) header.
   MCSymbol *emitDwarfDebugLocListHeader(const CompileUnit &Unit) override;
 
+  /// Emit .debug_addr header.
+  MCSymbol *emitDwarfDebugAddrsHeader(const CompileUnit &Unit) override;
+
+  /// Emit the addresses described by \p Addrs into .debug_addr table.
+  void emitDwarfDebugAddrs(const SmallVector<uint64_t> &Addrs,
+                           uint8_t AddrSize) override;
+
+  /// Emit .debug_addr footer.
+  void emitDwarfDebugAddrsFooter(const CompileUnit &Unit,
+                                 MCSymbol *EndLabel) override;
+
   /// Emit debug ranges(.debug_loc, .debug_loclists) fragment.
   void emitDwarfDebugLocListFragment(
       const CompileUnit &Unit,
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
-      PatchLocation Patch) override;
+      PatchLocation Patch, DebugAddrPool &AddrPool) override;
 
   /// Emit debug ranges(.debug_loc, .debug_loclists) footer.
   void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
@@ -189,16 +197,13 @@ public:
     return LocListsSectionSize;
   }
 
+  uint64_t getDebugAddrSectionSize() const override { return AddrSectionSize; }
+
   void emitMacroTables(DWARFContext *Context,
                        const Offset2UnitMap &UnitMacroMap,
                        OffsetsStringPool &StringPool) override;
 
 private:
-  inline void error(const Twine &Error, StringRef Context = "") {
-    if (ErrorHandler)
-      ErrorHandler(Error, Context, nullptr);
-  }
-
   inline void warn(const Twine &Warning, StringRef Context = "") {
     if (WarningHandler)
       WarningHandler(Warning, Context, nullptr);
@@ -216,7 +221,8 @@ private:
   /// Emit piece of .debug_rnglists for \p LinkedRanges.
   void emitDwarfDebugRngListsTableFragment(const CompileUnit &Unit,
                                            const AddressRanges &LinkedRanges,
-                                           PatchLocation Patch);
+                                           PatchLocation Patch,
+                                           DebugAddrPool &AddrPool);
 
   /// Emit piece of .debug_loc for \p LinkedRanges.
   void emitDwarfDebugLocTableFragment(
@@ -228,7 +234,7 @@ private:
   void emitDwarfDebugLocListsTableFragment(
       const CompileUnit &Unit,
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
-      PatchLocation Patch);
+      PatchLocation Patch, DebugAddrPool &AddrPool);
 
   /// \defgroup Line table emission
   /// @{
@@ -274,7 +280,7 @@ private:
 
   /// The output file we stream the linked Dwarf to.
   raw_pwrite_stream &OutFile;
-  OutputFileType OutFileType = OutputFileType::Object;
+  DWARFLinker::OutputFileType OutFileType = DWARFLinker::OutputFileType::Object;
   std::function<StringRef(StringRef Input)> Translator;
 
   uint64_t RangesSectionSize = 0;
@@ -286,6 +292,7 @@ private:
   uint64_t DebugInfoSectionSize = 0;
   uint64_t MacInfoSectionSize = 0;
   uint64_t MacroSectionSize = 0;
+  uint64_t AddrSectionSize = 0;
 
   /// Keep track of emitted CUs and their Unique ID.
   struct EmittedUnit {
@@ -300,8 +307,7 @@ private:
                              const CompileUnit &Unit,
                              const std::vector<CompileUnit::AccelInfo> &Names);
 
-  messageHandler ErrorHandler = nullptr;
-  messageHandler WarningHandler = nullptr;
+  DWARFLinker::messageHandler WarningHandler = nullptr;
 };
 
 } // end namespace llvm

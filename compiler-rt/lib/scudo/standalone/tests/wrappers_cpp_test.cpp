@@ -17,6 +17,13 @@
 #include <thread>
 #include <vector>
 
+// Android does not support checking for new/delete mismatches.
+#if SCUDO_ANDROID
+#define SKIP_MISMATCH_TESTS 1
+#else
+#define SKIP_MISMATCH_TESTS 0
+#endif
+
 void operator delete(void *, size_t) noexcept;
 void operator delete[](void *, size_t) noexcept;
 
@@ -69,7 +76,7 @@ public:
 };
 
 TEST(ScudoWrappersCppDeathTest, New) {
-  if (getenv("SKIP_TYPE_MISMATCH")) {
+  if (getenv("SKIP_TYPE_MISMATCH") || SKIP_MISMATCH_TESTS) {
     printf("Skipped type mismatch tests.\n");
     return;
   }
@@ -96,7 +103,7 @@ static void stressNew() {
       Cv.wait(Lock);
   }
   for (size_t I = 0; I < 256U; I++) {
-    const size_t N = std::rand() % 128U;
+    const size_t N = static_cast<size_t>(std::rand()) % 128U;
     uintptr_t *P = new uintptr_t[N];
     if (P) {
       memset(P, 0x42, sizeof(uintptr_t) * N);

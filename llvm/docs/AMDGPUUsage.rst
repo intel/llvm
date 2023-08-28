@@ -490,6 +490,20 @@ Every processor supports every OS ABI (see :ref:`amdgpu-os`) with the following 
                                                                         work-item                       Add product
                                                                         IDs                             names.
 
+     ``gfx1150``                 ``amdgcn``   APU   - cumode          - Architected                   *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
+
+     ``gfx1151``                 ``amdgcn``   APU   - cumode          - Architected                   *TBA*
+                                                    - wavefrontsize64   flat
+                                                                        scratch                       .. TODO::
+                                                                      - Packed
+                                                                        work-item                       Add product
+                                                                        IDs                             names.
+
      =========== =============== ============ ===== ================= =============== =============== ======================
 
 .. _amdgpu-target-features:
@@ -787,6 +801,12 @@ supported for the ``amdgcn`` target.
   access is not supported except by flat and scratch instructions in
   GFX9-GFX11.
 
+  Code that manipulates the stack values in other lanes of a wavefront,
+  such as by ``addrspacecast``-ing stack pointers to generic ones and taking offsets
+  that reach other lanes or by explicitly constructing the scratch buffer descriptor,
+  triggers undefined behavior when it modifies the scratch values of other lanes.
+  The compiler may assume that such modifications do not occur.
+
 **Constant 32-bit**
   *TODO*
 
@@ -806,9 +826,10 @@ supported for the ``amdgcn`` target.
   it or not).
 
 **Buffer Resource**
-  The buffer resource is an experimental address space that is currently unsupported
-  in the backend. It exposes a non-integral pointer that will represent a 128-bit
-  buffer descriptor resource.
+  The buffer resource pointer, in address space 8, is the newer form
+  for representing buffer descriptors in AMDGPU IR, replacing their
+  previous representation as `<4 x i32>`. It is a non-integral pointer
+  that represents a 128-bit buffer descriptor resource (`V#`).
 
   Since, in general, a buffer resource supports complex addressing modes that cannot
   be easily represented in LLVM (such as implicit swizzled access to structured
@@ -818,6 +839,14 @@ supported for the ``amdgcn`` target.
 
   Casting a buffer resource to a buffer fat pointer is permitted and adds an offset
   of 0.
+
+  Buffer resources can be created from 64-bit pointers (which should be either
+  generic or global) using the `llvm.amdgcn.make.buffer.rsrc` intrinsic, which
+  takes the pointer, which becomes the base of the resource,
+  the 16-bit stride (and swzizzle control) field stored in bits `63:48` of a `V#`,
+  the 32-bit NumRecords/extent field (bits `95:64`), and the 32-bit flags field
+  (bits `127:96`). The specific interpretation of these fields varies by the
+  target architecture and is detailed in the ISA descriptions.
 
 **Streamout Registers**
   Dedicated registers used by the GS NGG Streamout Instructions. The register
@@ -930,6 +959,67 @@ The AMDGPU backend implements the following LLVM IR intrinsics.
 
 *This section is WIP.*
 
+.. table:: AMDGPU LLVM IR Intrinsics
+  :name: amdgpu-llvm-ir-intrinsics-table
+
+  =========================================  ==========================================================
+  LLVM Intrinsic                             Description
+  =========================================  ==========================================================
+  llvm.amdgcn.sqrt                           Provides direct access to v_sqrt_f64, v_sqrt_f32 and v_sqrt_f16
+                                             (on targets with half support). Peforms sqrt function.
+
+  llvm.amdgcn.log                            Provides direct access to v_log_f32 and v_log_f16
+                                             (on targets with half support). Peforms log2 function.
+
+  llvm.amdgcn.exp2                           Provides direct access to v_exp_f32 and v_exp_f16
+                                             (on targets with half support). Performs exp2 function.
+
+  :ref:`llvm.frexp <int_frexp>`              Implemented for half, float and double.
+
+  :ref:`llvm.log2 <int_log2>`                Implemented for float and half (and vectors of float or
+                                             half). Not implemented for double. Hardware provides
+                                             1ULP accuracy for float, and 0.51ULP for half. Float
+                                             instruction does not natively support denormal
+                                             inputs. Backend will optimize out denormal scaling if
+                                             marked with the :ref:`afn <fastmath_afn>` flag.
+
+  :ref:`llvm.sqrt <int_sqrt>`                Implemented for double, float and half (and vectors).
+
+  :ref:`llvm.log <int_log>`                  Implemented for float and half (and vectors).
+
+  :ref:`llvm.exp <int_exp>`                  Implemented for float and half (and vectors).
+
+  :ref:`llvm.log10 <int_log10>`              Implemented for float and half (and vectors).
+
+  :ref:`llvm.exp2 <int_exp2>`                Implemented for float and half (and vectors of float or
+                                             half). Not implemented for double. Hardware provides
+                                             1ULP accuracy for float, and 0.51ULP for half. Float
+                                             instruction does not natively support denormal
+                                             inputs. Backend will optimize out denormal scaling if
+                                             marked with the :ref:`afn <fastmath_afn>` flag.
+
+  llvm.amdgcn.wave.reduce.umin               Performs an arithmetic unsigned min reduction on the unsigned values
+                                             provided by each lane in the wavefront.
+                                             Intrinsic takes a hint for reduction strategy using second operand
+                                             0: Target default preference,
+                                             1: `Iterative strategy`, and
+                                             2: `DPP`.
+                                             If target does not support the DPP operations (e.g. gfx6/7),
+                                             reduction will be performed using default iterative strategy.
+                                             Intrinsic is currently only implemented for i32.
+
+  llvm.amdgcn.wave.reduce.umax               Performs an arithmetic unsigned max reduction on the unsigned values
+                                             provided by each lane in the wavefront.
+                                             Intrinsic takes a hint for reduction strategy using second operand
+                                             0: Target default preference,
+                                             1: `Iterative strategy`, and
+                                             2: `DPP`.
+                                             If target does not support the DPP operations (e.g. gfx6/7),
+                                             reduction will be performed using default iterative strategy.
+                                             Intrinsic is currently only implemented for i32.
+
+  =========================================  ==========================================================
+
 .. TODO::
 
    List AMDGPU intrinsics.
@@ -948,7 +1038,12 @@ The AMDGPU backend supports the following LLVM IR attributes.
      "amdgpu-flat-work-group-size"="min,max" Specify the minimum and maximum flat work group sizes that
                                              will be specified when the kernel is dispatched. Generated
                                              by the ``amdgpu_flat_work_group_size`` CLANG attribute [CLANG-ATTR]_.
-                                             The implied default value is 1,1024.
+                                             The IR implied default value is 1,1024. Clang may emit this attribute
+                                             with more restrictive bounds depending on language defaults.
+                                             If the actual block or workgroup size exceeds the limit at any point during
+                                             the execution, the behavior is undefined. For example, even if there is
+                                             only one active thread but the thread local id exceeds the limit, the
+                                             behavior is undefined.
 
      "amdgpu-implicitarg-num-bytes"="n"      Number of kernel argument bytes to add to the kernel
                                              argument block size for the implicit arguments. This
@@ -1034,7 +1129,110 @@ The AMDGPU backend supports the following LLVM IR attributes.
                                              kernel argument that holds the completion action pointer. If this
                                              attribute is absent, then the amdgpu-no-implicitarg-ptr is also removed.
 
+     "amdgpu-lds-size"="min[,max]"           Min is the minimum number of bytes that will be allocated in the Local
+                                             Data Store at address zero. Variables are allocated within this frame
+                                             using absolute symbol metadata, primarily by the AMDGPULowerModuleLDS
+                                             pass. Optional max is the maximum number of bytes that will be allocated.
+                                             Note that min==max indicates that no further variables can be added to
+                                             the frame. This is an internal detail of how LDS variables are lowered,
+                                             language front ends should not set this attribute.
+
      ======================================= ==========================================================
+
+Calling Conventions
+-------------------
+
+The AMDGPU backend supports the following calling conventions:
+
+  .. table:: AMDGPU Calling Conventions
+     :name: amdgpu-cc
+
+     =============================== ==========================================================
+     Calling Convention              Description
+     =============================== ==========================================================
+     ``ccc``                         The C calling convention. Used by default.
+                                     See :ref:`amdgpu-amdhsa-function-call-convention-non-kernel-functions`
+                                     for more details.
+
+     ``fastcc``                      The fast calling convention. Mostly the same as the ``ccc``.
+
+     ``coldcc``                      The cold calling convention. Mostly the same as the ``ccc``.
+
+     ``amdgpu_cs``                   Used for Mesa/AMDPAL compute shaders.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_cs_chain``             Similar to ``amdgpu_cs``, with differences described below.
+
+                                     Functions with this calling convention cannot be called directly. They must
+                                     instead be launched via the ``llvm.amdgcn.cs.chain`` intrinsic.
+
+                                     Arguments are passed in SGPRs, starting at s0, if they have the ``inreg``
+                                     attribute, and in VGPRs otherwise, starting at v8. Using more SGPRs or VGPRs
+                                     than available in the subtarget is not allowed.  On subtargets that use
+                                     a scratch buffer descriptor (as opposed to ``scratch_{load,store}_*`` instructions),
+                                     the scratch buffer descriptor is passed in s[48:51]. This limits the
+                                     SGPR / ``inreg`` arguments to the equivalent of 48 dwords; using more
+                                     than that is not allowed.
+
+                                     The return type must be void.
+                                     Varargs, sret, byval, byref, inalloca, preallocated are not supported.
+
+                                     Values in scalar registers as well as v0-v7 are not preserved. Values in
+                                     VGPRs starting at v8 are not preserved for the active lanes, but must be
+                                     saved by the callee for inactive lanes when using WWM.
+
+                                     Wave scratch is "empty" at function boundaries. There is no stack pointer input
+                                     or output value, but functions are free to use scratch starting from an initial
+                                     stack pointer. Calls to ``amdgpu_gfx`` functions are allowed and behave like they
+                                     do in ``amdgpu_cs`` functions.
+
+                                     All counters (``lgkmcnt``, ``vmcnt``, ``storecnt``, etc.) are presumed in an
+                                     unknown state at function entry.
+
+                                     A function may have multiple exits (e.g. one chain exit and one plain ``ret void``
+                                     for when the wave ends), but all ``llvm.amdgcn.cs.chain`` exits must be in
+                                     uniform control flow.
+
+     ``amdgpu_cs_chain_preserve``    Same as ``amdgpu_cs_chain``, but active lanes for VGPRs starting at v8 are preserved.
+
+     ``amdgpu_es``                   Used for AMDPAL shader stage before geometry shader if geometry is in
+                                     use. So either the domain (= tessellation evaluation) shader if
+                                     tessellation is in use, or otherwise the vertex shader.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_gfx``                  Used for AMD graphics targets. Functions with this calling convention
+                                     cannot be used as entry points.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_gs``                   Used for Mesa/AMDPAL geometry shaders.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_hs``                   Used for Mesa/AMDPAL hull shaders (= tessellation control shaders).
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_kernel``               See :ref:`amdgpu-amdhsa-function-call-convention-kernel-functions`
+
+     ``amdgpu_ls``                   Used for AMDPAL vertex shader if tessellation is in use.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_ps``                   Used for Mesa/AMDPAL pixel shaders.
+                                     ..TODO::
+                                     Describe.
+
+     ``amdgpu_vs``                   Used for Mesa/AMDPAL last shader stage before rasterization (vertex
+                                     shader if tessellation and geometry are not in use, or otherwise
+                                     copy shader if one is needed).
+                                     ..TODO::
+                                     Describe.
+
+     =============================== ==========================================================
+
 
 .. _amdgpu-elf-code-object:
 
@@ -1330,14 +1528,14 @@ The AMDGPU backend uses the following ELF header:
      ``EF_AMDGPU_MACH_AMDGCN_GFX940``     0x040      ``gfx940``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1100``    0x041      ``gfx1100``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1013``    0x042      ``gfx1013``
-     *reserved*                           0x043      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1150``    0x043      ``gfx1150``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1103``    0x044      ``gfx1103``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1036``    0x045      ``gfx1036``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1101``    0x046      ``gfx1101``
      ``EF_AMDGPU_MACH_AMDGCN_GFX1102``    0x047      ``gfx1102``
      *reserved*                           0x048      Reserved.
      *reserved*                           0x049      Reserved.
-     *reserved*                           0x04a      Reserved.
+     ``EF_AMDGPU_MACH_AMDGCN_GFX1151``    0x04a      ``gfx1151``
      ``EF_AMDGPU_MACH_AMDGCN_GFX941``     0x04b      ``gfx941``
      ``EF_AMDGPU_MACH_AMDGCN_GFX942``     0x04c      ``gfx942``
      ==================================== ========== =============================
@@ -14594,6 +14792,7 @@ force specific encoding, one can add a suffix to the opcode of the instruction:
 * _e32 for 32-bit VOP1/VOP2/VOPC
 * _e64 for 64-bit VOP3
 * _dpp for VOP_DPP
+* _e64_dpp for VOP3 with DPP
 * _sdwa for VOP_SDWA
 
 VOP1/VOP2/VOP3/VOPC examples:
@@ -14625,6 +14824,15 @@ VOP_DPP examples:
   v_mov_b32 v0, v0 quad_perm:[1,3,0,1] row_mask:0xa bank_mask:0x1 bound_ctrl:0
   v_add_f32 v0, v0, |v0| row_shl:1 row_mask:0xa bank_mask:0x1 bound_ctrl:0
   v_max_f16 v1, v2, v3 row_shl:1 row_mask:0xa bank_mask:0x1 bound_ctrl:0
+
+
+VOP3_DPP examples (Available on GFX11+):
+
+.. code-block:: nasm
+
+  v_add_f32_e64_dpp v0, v1, v2 dpp8:[0,1,2,3,4,5,6,7]
+  v_sqrt_f32_e64_dpp v0, v1 row_shl:1 row_mask:0xa bank_mask:0x1 bound_ctrl:0
+  v_ldexp_f32 v0, v1, v2 dpp8:[0,1,2,3,4,5,6,7]
 
 VOP_SDWA examples:
 

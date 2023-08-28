@@ -14,17 +14,17 @@
 #include <sycl/kernel.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 kernel::kernel(cl_kernel ClKernel, const context &SyclContext)
     : impl(std::make_shared<detail::kernel_impl>(
-          detail::pi::cast<detail::RT::PiKernel>(ClKernel),
+          detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel),
           detail::getSyclObjImpl(SyclContext), nullptr, nullptr)) {
   // This is a special interop constructor for OpenCL, so the kernel must be
   // retained.
   if (get_backend() == backend::opencl) {
     impl->getPlugin()->call<detail::PiApiKind::piKernelRetain>(
-        detail::pi::cast<detail::RT::PiKernel>(ClKernel));
+        detail::pi::cast<sycl::detail::pi::PiKernel>(ClKernel));
   }
 }
 
@@ -96,5 +96,5 @@ pi_native_handle kernel::getNative() const { return impl->getNative(); }
 
 pi_native_handle kernel::getNativeImpl() const { return impl->getNative(); }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

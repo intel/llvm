@@ -106,8 +106,10 @@ private:
   SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV64(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFFREXP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerTrig(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFSQRTF64(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
@@ -141,6 +143,7 @@ private:
   /// Custom lowering for ISD::FP_ROUND for MVT::f16.
   SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFLDEXP(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXMULO(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXMUL_LOHI(SDValue Op, SelectionDAG &DAG) const;
 
@@ -252,6 +255,17 @@ private:
   void setBufferOffsets(SDValue CombinedOffset, SelectionDAG &DAG,
                         SDValue *Offsets, Align Alignment = Align(4)) const;
 
+  // Convert the i128 that an addrspace(8) pointer is natively represented as
+  // into the v4i32 that all the buffer intrinsics expect to receive. We can't
+  // add register classes for i128 on pain of the promotion logic going haywire,
+  // so this slightly ugly hack is what we've got. If passed a non-pointer
+  // argument (as would be seen in older buffer intrinsics), does nothing.
+  SDValue bufferRsrcPtrToVector(SDValue MaybePointer, SelectionDAG &DAG) const;
+
+  // Wrap a 64-bit pointer into a v4i32 (which is how all SelectionDAG code
+  // represents ptr addrspace(8)) using the flags specified in the intrinsic.
+  SDValue lowerPointerAsRsrcIntrin(SDNode *Op, SelectionDAG &DAG) const;
+
   // Handle 8 bit and 16 bit buffer loads
   SDValue handleByteShortBufferLoads(SelectionDAG &DAG, EVT LoadVT, SDLoc DL,
                                      ArrayRef<SDValue> Ops, MemSDNode *M) const;
@@ -338,6 +352,12 @@ public:
   bool isTypeDesirableForOp(unsigned Op, EVT VT) const override;
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+
+  unsigned combineRepeatedFPDivisors() const override {
+    // Combine multiple FDIVs with the same divisor into multiple FMULs by the
+    // reciprocal.
+    return 2;
+  }
 
   bool supportSplitCSR(MachineFunction *MF) const override;
   void initializeSplitCSR(MachineBasicBlock *Entry) const override;
@@ -482,6 +502,9 @@ public:
 
   bool isReassocProfitable(SelectionDAG &DAG, SDValue N0,
                            SDValue N1) const override;
+
+  bool isReassocProfitable(MachineRegisterInfo &MRI, Register N0,
+                           Register N1) const override;
 
   bool isCanonicalized(SelectionDAG &DAG, SDValue Op,
                        unsigned MaxDepth = 5) const;

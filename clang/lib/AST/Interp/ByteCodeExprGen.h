@@ -91,8 +91,15 @@ public:
   bool VisitPointerCompoundAssignOperator(const CompoundAssignOperator *E);
   bool VisitExprWithCleanups(const ExprWithCleanups *E);
   bool VisitMaterializeTemporaryExpr(const MaterializeTemporaryExpr *E);
+  bool VisitCXXBindTemporaryExpr(const CXXBindTemporaryExpr *E);
+  bool VisitCXXTemporaryObjectExpr(const CXXTemporaryObjectExpr *E);
   bool VisitCompoundLiteralExpr(const CompoundLiteralExpr *E);
   bool VisitTypeTraitExpr(const TypeTraitExpr *E);
+  bool VisitLambdaExpr(const LambdaExpr *E);
+  bool VisitPredefinedExpr(const PredefinedExpr *E);
+  bool VisitCXXThrowExpr(const CXXThrowExpr *E);
+  bool VisitCXXReinterpretCastExpr(const CXXReinterpretCastExpr *E);
+  bool VisitCXXNoexceptExpr(const CXXNoexceptExpr *E);
 
 protected:
   bool visitExpr(const Expr *E) override;
@@ -164,7 +171,8 @@ protected:
     if (!visitInitializer(Init))
       return false;
 
-    if (Init->getType()->isRecordType() && !this->emitCheckGlobalCtor(Init))
+    if ((Init->getType()->isArrayType() || Init->getType()->isRecordType()) &&
+        !this->emitCheckGlobalCtor(Init))
       return false;
 
     return this->emitPopPtr(Init);
@@ -242,15 +250,6 @@ private:
     if (const auto *RD = T->getPointeeCXXRecordDecl())
       return RD;
     return T->getAsCXXRecordDecl();
-  }
-
-  /// Returns whether we should create a global variable for the
-  /// given ValueDecl.
-  bool shouldBeGloballyIndexed(const ValueDecl *VD) const {
-    if (const auto *V = dyn_cast<VarDecl>(VD))
-      return V->hasGlobalStorage() || V->isConstexpr();
-
-    return false;
   }
 
   llvm::RoundingMode getRoundingMode(const Expr *E) const {

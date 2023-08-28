@@ -63,7 +63,7 @@ static void getXferIndices(RewriterBase &rewriter, TransferOpType xferOp,
   for (auto expr : xferOp.getPermutationMap().getResults()) {
     if (auto dim = expr.template dyn_cast<AffineDimExpr>()) {
       Value prevIdx = indices[dim.getPosition()];
-      SmallVector<Value, 3> dims(dimValues.begin(), dimValues.end());
+      SmallVector<OpFoldResult, 3> dims(dimValues.begin(), dimValues.end());
       dims.push_back(prevIdx);
       AffineExpr d0 = rewriter.getAffineDimExpr(offsetMap.getNumDims());
       indices[dim.getPosition()] = affine::makeComposedAffineApply(
@@ -214,6 +214,8 @@ static bool integerExtendSupportsMMAMatrixType(ExtOpTy extOp) {
   });
 }
 
+static bool fpExtendSupportsMMAMatrixType(arith::ExtFOp extOp) { return true; }
+
 /// Return the MMA elementwise enum associated with `op` if it is supported.
 /// Return `std::nullopt` otherwise.
 static std::optional<gpu::MMAElementwiseOp>
@@ -242,6 +244,8 @@ convertElementwiseOpToMMA(Operation *op) {
     return gpu::MMAElementwiseOp::DIVU;
   if (isa<arith::NegFOp>(op))
     return gpu::MMAElementwiseOp::NEGATEF;
+  if (isa<arith::ExtFOp>(op))
+    return gpu::MMAElementwiseOp::EXTF;
   return std::nullopt;
 }
 
@@ -297,15 +301,17 @@ static bool supportsMMaMatrixType(Operation *op, bool useNvGpu) {
     return integerExtendSupportsMMAMatrixType<arith::ExtSIOp>(signedExtend);
   if (auto unsignedExtend = dyn_cast<arith::ExtUIOp>(op))
     return integerExtendSupportsMMAMatrixType<arith::ExtUIOp>(unsignedExtend);
+  if (auto fpExtend = dyn_cast<arith::ExtFOp>(op))
+    return fpExtendSupportsMMAMatrixType(fpExtend);
   return elementwiseSupportsMMAMatrixType(op);
 }
 
 /// Return an unsorted slice handling scf.for region differently than
 /// `getSlice`. In scf.for we only want to include as part of the slice elements
 /// that are part of the use/def chain.
-static SetVector<Operation *> getSliceContract(Operation *op,
-                                               TransitiveFilter backwardFilter,
-                                               TransitiveFilter forwardFilter) {
+static SetVector<Operation *>
+getSliceContract(Operation *op, BackwardSliceOptions backwardSliceOptions,
+                 ForwardSliceOptions forwardSliceOptions) {
   SetVector<Operation *> slice;
   slice.insert(op);
   unsigned currentIndex = 0;
@@ -315,7 +321,7 @@ static SetVector<Operation *> getSliceContract(Operation *op,
     auto *currentOp = (slice)[currentIndex];
     // Compute and insert the backwardSlice starting from currentOp.
     backwardSlice.clear();
-    getBackwardSlice(currentOp, &backwardSlice, backwardFilter);
+    getBackwardSlice(currentOp, &backwardSlice, backwardSliceOptions);
     slice.insert(backwardSlice.begin(), backwardSlice.end());
 
     // Compute and insert the forwardSlice starting from currentOp.
@@ -326,11 +332,11 @@ static SetVector<Operation *> getSliceContract(Operation *op,
     // converted to matrix type.
     if (auto forOp = dyn_cast<scf::ForOp>(currentOp)) {
       for (Value forOpResult : forOp.getResults())
-        getForwardSlice(forOpResult, &forwardSlice, forwardFilter);
+        getForwardSlice(forOpResult, &forwardSlice, forwardSliceOptions);
       for (BlockArgument &arg : forOp.getRegionIterArgs())
-        getForwardSlice(arg, &forwardSlice, forwardFilter);
+        getForwardSlice(arg, &forwardSlice, forwardSliceOptions);
     } else {
-      getForwardSlice(currentOp, &forwardSlice, forwardFilter);
+      getForwardSlice(currentOp, &forwardSlice, forwardSliceOptions);
     }
     slice.insert(forwardSlice.begin(), forwardSlice.end());
     ++currentIndex;
@@ -346,16 +352,22 @@ static SetVector<Operation *> getOpToConvert(mlir::Operation *op,
     return llvm::any_of(op->getResultTypes(),
                         [](Type t) { return isa<VectorType>(t); });
   };
+  BackwardSliceOptions backwardSliceOptions;
+  backwardSliceOptions.filter = hasVectorDest;
+
   auto hasVectorSrc = [](Operation *op) {
     return llvm::any_of(op->getOperandTypes(),
                         [](Type t) { return isa<VectorType>(t); });
   };
+  ForwardSliceOptions forwardSliceOptions;
+  forwardSliceOptions.filter = hasVectorSrc;
+
   SetVector<Operation *> opToConvert;
   op->walk([&](vector::ContractionOp contract) {
     if (opToConvert.contains(contract.getOperation()))
       return;
     SetVector<Operation *> dependentOps =
-        getSliceContract(contract, hasVectorDest, hasVectorSrc);
+        getSliceContract(contract, backwardSliceOptions, forwardSliceOptions);
     // If any instruction cannot use MMA matrix type drop the whole
     // chain. MMA matrix are stored in an opaque type so they cannot be used
     // by all operations.
@@ -801,8 +813,7 @@ createNonLdMatrixLoads(RewriterBase &rewriter, vector::TransferReadOp op,
 
       Value el = rewriter.create<vector::LoadOp>(loc, loadedElType,
                                                  op.getSource(), newIndices);
-      result = rewriter.create<vector::InsertOp>(loc, el, result,
-                                                 rewriter.getI64ArrayAttr(i));
+      result = rewriter.create<vector::InsertOp>(loc, el, result, i);
     }
   } else {
     if (auto vecType = dyn_cast<VectorType>(loadedElType)) {
@@ -826,7 +837,7 @@ createNonLdMatrixLoads(RewriterBase &rewriter, vector::TransferReadOp op,
         Value el = rewriter.create<memref::LoadOp>(op.getLoc(), loadedElType,
                                                    op.getSource(), newIndices);
         result = rewriter.create<vector::InsertOp>(
-            op.getLoc(), el, result, rewriter.getI64ArrayAttr({i, innerIdx}));
+            op.getLoc(), el, result, ArrayRef<int64_t>{i, innerIdx});
       }
     }
   }
@@ -1198,8 +1209,17 @@ convertElementwiseOp(RewriterBase &rewriter, Operation *op,
       return rewriter.notifyMatchFailure(op, "no mapping");
     matrixOperands.push_back(it->second);
   }
+  auto resultType = matrixOperands[0].getType().cast<gpu::MMAMatrixType>();
+  if (opType == gpu::MMAElementwiseOp::EXTF) {
+    // The floating point extension case has a different result type.
+    auto vectorType = op->getResultTypes()[0].cast<VectorType>();
+    resultType = gpu::MMAMatrixType::get(resultType.getShape(),
+                                         vectorType.getElementType(),
+                                         resultType.getOperand());
+  }
+
   Value newOp = rewriter.create<gpu::SubgroupMmaElementwiseOp>(
-      op->getLoc(), matrixOperands[0].getType(), matrixOperands, opType);
+      op->getLoc(), resultType, matrixOperands, opType);
   valueMapping[op->getResult(0)] = newOp;
   return success();
 }

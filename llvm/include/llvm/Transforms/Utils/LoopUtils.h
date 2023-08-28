@@ -81,7 +81,8 @@ bool formDedicatedExitBlocks(Loop *L, DominatorTree *DT, LoopInfo *LI,
 /// vector.
 bool formLCSSAForInstructions(
     SmallVectorImpl<Instruction *> &Worklist, const DominatorTree &DT,
-    const LoopInfo &LI, SmallVectorImpl<PHINode *> *PHIsToRemove = nullptr,
+    const LoopInfo &LI, ScalarEvolution *SE,
+    SmallVectorImpl<PHINode *> *PHIsToRemove = nullptr,
     SmallVectorImpl<PHINode *> *InsertedPHIs = nullptr);
 
 /// Put loop into LCSSA form.
@@ -91,21 +92,25 @@ bool formLCSSAForInstructions(
 /// the loop are rewritten to use this node. Sub-loops must be in LCSSA form
 /// already.
 ///
-/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
-/// preserved.
+/// LoopInfo and DominatorTree are required and preserved.
+///
+/// If ScalarEvolution is passed in, it will be preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
+bool formLCSSA(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
+               ScalarEvolution *SE);
 
 /// Put a loop nest into LCSSA form.
 ///
 /// This recursively forms LCSSA for a loop nest.
 ///
-/// LoopInfo and DominatorTree are required and preserved. ScalarEvolution is
-/// preserved.
+/// LoopInfo and DominatorTree are required and preserved.
+///
+/// If ScalarEvolution is passed in, it will be preserved.
 ///
 /// Returns true if any modifications are made to the loop.
-bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI);
+bool formLCSSARecursively(Loop &L, const DominatorTree &DT, const LoopInfo *LI,
+                          ScalarEvolution *SE);
 
 /// Flags controlling how much is checked when sinking or hoisting
 /// instructions.  The number of memory access in the loop (and whether there
@@ -358,14 +363,14 @@ Intrinsic::ID getMinMaxReductionIntrinsicOp(RecurKind RK);
 /// Returns the comparison predicate used when expanding a min/max reduction.
 CmpInst::Predicate getMinMaxReductionPredicate(RecurKind RK);
 
-/// See RecurrenceDescriptor::isSelectCmpPattern for a description of the
-/// pattern we are trying to match. In this pattern we are only ever selecting
-/// between two values: 1) an initial PHI start value, and 2) a loop invariant
-/// value. This function uses \p LoopExitInst to determine 2), which we then use
-/// to select between \p Left and \p Right. Any lane value in \p Left that
-/// matches 2) will be merged into \p Right.
-Value *createSelectCmpOp(IRBuilderBase &Builder, Value *StartVal, RecurKind RK,
-                         Value *Left, Value *Right);
+/// See RecurrenceDescriptor::isAnyOfPattern for a description of the pattern we
+/// are trying to match. In this pattern, we are only ever selecting between two
+/// values: 1) an initial start value \p StartVal of the reduction PHI, and 2) a
+/// loop invariant value. If any of lane value in \p Left, \p Right is not equal
+/// to \p StartVal, select the loop invariant value. This is done by selecting
+/// \p Right iff \p Left is equal to \p StartVal.
+Value *createAnyOfOp(IRBuilderBase &Builder, Value *StartVal, RecurKind RK,
+                     Value *Left, Value *Right);
 
 /// Returns a Min/Max operation corresponding to MinMaxRecurrenceKind.
 /// The Builder's fast-math-flags must be set to propagate the expected values.
@@ -392,13 +397,12 @@ Value *createSimpleTargetReduction(IRBuilderBase &B,
                                    RecurKind RdxKind);
 
 /// Create a target reduction of the given vector \p Src for a reduction of the
-/// kind RecurKind::SelectICmp or RecurKind::SelectFCmp. The reduction operation
-/// is described by \p Desc.
-Value *createSelectCmpTargetReduction(IRBuilderBase &B,
-                                      const TargetTransformInfo *TTI,
-                                      Value *Src,
-                                      const RecurrenceDescriptor &Desc,
-                                      PHINode *OrigPhi);
+/// kind RecurKind::IAnyOf or RecurKind::FAnyOf. The reduction operation is
+/// described by \p Desc.
+Value *createAnyOfTargetReduction(IRBuilderBase &B,
+                                  const TargetTransformInfo *TTI, Value *Src,
+                                  const RecurrenceDescriptor &Desc,
+                                  PHINode *OrigPhi);
 
 /// Create a generic target reduction using a recurrence descriptor \p Desc
 /// The target is queried to determine if intrinsics or shuffle sequences are

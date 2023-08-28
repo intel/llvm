@@ -1,4 +1,3 @@
-
 //==---------------- opencl.hpp - SYCL OpenCL backend ----------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -9,12 +8,21 @@
 
 #pragma once
 
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>             // for backend
+#include <sycl/context.hpp>                   // for context
+#include <sycl/detail/backend_traits.hpp>     // for interop
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/device.hpp>                    // for device
+#include <sycl/platform.hpp>                  // for platform
+#include <sycl/queue.hpp>                     // for queue
 
-#include <string>
+#include <string>      // for string
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace opencl {
 // Implementation of various "make" functions resides in SYCL RT because
 // creating SYCL objects requires knowing details not accessible here.
@@ -65,5 +73,5 @@ T make(const context &Context,
   return make_queue(Context, detail::pi::cast<pi_native_handle>(Interop));
 }
 } // namespace opencl
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

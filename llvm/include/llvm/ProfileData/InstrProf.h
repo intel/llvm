@@ -23,6 +23,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/ProfileSummary.h"
 #include "llvm/ProfileData/InstrProfData.inc"
+#include "llvm/Support/BalancedPartitioning.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/Endian.h"
@@ -183,6 +184,15 @@ std::string getPGOFuncName(StringRef RawFuncName,
                            StringRef FileName,
                            uint64_t Version = INSTR_PROF_INDEX_VERSION);
 
+/// \return the modified name for function \c F suitable to be
+/// used as the key for IRPGO profile lookup. \c InLTO indicates if this is
+/// called from LTO optimization passes.
+std::string getIRPGOFuncName(const Function &F, bool InLTO = false);
+
+/// \return the filename and the function name parsed from the output of
+/// \c getIRPGOFuncName()
+std::pair<StringRef, StringRef> getParsedIRPGOFuncName(StringRef IRPGOFuncName);
+
 /// Return the name of the global variable used to store a function
 /// name in PGO instrumentation. \c FuncName is the name of the function
 /// returned by the \c getPGOFuncName call.
@@ -337,8 +347,17 @@ enum class instrprof_error {
 /// An ordered list of functions identified by their NameRef found in
 /// INSTR_PROF_DATA
 struct TemporalProfTraceTy {
-  uint64_t Weight = 1;
   std::vector<uint64_t> FunctionNameRefs;
+  uint64_t Weight;
+  TemporalProfTraceTy(std::initializer_list<uint64_t> Trace = {},
+                      uint64_t Weight = 1)
+      : FunctionNameRefs(Trace), Weight(Weight) {}
+
+  /// Use a set of temporal profile traces to create a list of balanced
+  /// partitioning function nodes used by BalancedPartitioning to generate a
+  /// function order that reduces page faults during startup
+  static std::vector<BPFunctionNode>
+  createBPFunctionNodes(ArrayRef<TemporalProfTraceTy> Traces);
 };
 
 inline std::error_code make_error_code(instrprof_error E) {
@@ -384,61 +403,6 @@ private:
   std::string Msg;
 };
 
-class SoftInstrProfErrors {
-  /// Count the number of soft instrprof_errors encountered and keep track of
-  /// the first such error for reporting purposes.
-
-  /// The first soft error encountered.
-  instrprof_error FirstError = instrprof_error::success;
-
-  /// The number of hash mismatches.
-  unsigned NumHashMismatches = 0;
-
-  /// The number of count mismatches.
-  unsigned NumCountMismatches = 0;
-
-  /// The number of counter overflows.
-  unsigned NumCounterOverflows = 0;
-
-  /// The number of value site count mismatches.
-  unsigned NumValueSiteCountMismatches = 0;
-
-public:
-  SoftInstrProfErrors() = default;
-
-  ~SoftInstrProfErrors() {
-    assert(FirstError == instrprof_error::success &&
-           "Unchecked soft error encountered");
-  }
-
-  /// Track a soft error (\p IE) and increment its associated counter.
-  void addError(instrprof_error IE);
-
-  /// Get the number of hash mismatches.
-  unsigned getNumHashMismatches() const { return NumHashMismatches; }
-
-  /// Get the number of count mismatches.
-  unsigned getNumCountMismatches() const { return NumCountMismatches; }
-
-  /// Get the number of counter overflows.
-  unsigned getNumCounterOverflows() const { return NumCounterOverflows; }
-
-  /// Get the number of value site count mismatches.
-  unsigned getNumValueSiteCountMismatches() const {
-    return NumValueSiteCountMismatches;
-  }
-
-  /// Return the first encountered error and reset FirstError to a success
-  /// value.
-  Error takeError() {
-    if (FirstError == instrprof_error::success)
-      return Error::success();
-    auto E = make_error<InstrProfError>(FirstError);
-    FirstError = instrprof_error::success;
-    return E;
-  }
-};
-
 namespace object {
 
 class SectionRef;
@@ -478,6 +442,8 @@ private:
   static StringRef getExternalSymbol() {
     return "** External Symbol **";
   }
+
+  Error addFuncWithName(Function &F, StringRef PGOFuncName);
 
   // If the symtab is created by a series of calls to \c addFuncName, \c
   // finalizeSymtab needs to be called before looking up function names.
@@ -561,19 +527,11 @@ public:
   /// Return function from the name's md5 hash. Return nullptr if not found.
   inline Function *getFunction(uint64_t FuncMD5Hash);
 
-  /// Return the function's original assembly name by stripping off
-  /// the prefix attached (to symbols with priviate linkage). For
-  /// global functions, it returns the same string as getFuncName.
-  inline StringRef getOrigFuncName(uint64_t FuncMD5Hash);
-
   /// Return the name section data.
   inline StringRef getNameData() const { return Data; }
 
   /// Dump the symbols in this table.
-  void dumpNames(raw_ostream &OS) const {
-    for (StringRef S : NameTab.keys())
-      OS << S << "\n";
-  }
+  void dumpNames(raw_ostream &OS) const;
 };
 
 Error InstrProfSymtab::create(StringRef D, uint64_t BaseAddr) {
@@ -632,16 +590,6 @@ Function* InstrProfSymtab::getFunction(uint64_t FuncMD5Hash) {
   if (Result != MD5FuncMap.end() && Result->first == FuncMD5Hash)
     return Result->second;
   return nullptr;
-}
-
-// See also getPGOFuncName implementation. These two need to be
-// matched.
-StringRef InstrProfSymtab::getOrigFuncName(uint64_t FuncMD5Hash) {
-  StringRef PGOName = getFuncName(FuncMD5Hash);
-  size_t S = PGOName.find_first_of(':');
-  if (S == StringRef::npos)
-    return PGOName;
-  return PGOName.drop_front(S + 1);
 }
 
 // To store the sums of profile count values, or the percentage of
@@ -1236,10 +1184,6 @@ struct Header {
 };
 
 } // end namespace RawInstrProf
-
-// Parse MemOP Size range option.
-void getMemOPSizeRangeFromOption(StringRef Str, int64_t &RangeStart,
-                                 int64_t &RangeLast);
 
 // Create the variable for the profile file name.
 void createProfileFileNameVar(Module &M, StringRef InstrProfileOutput);

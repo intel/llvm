@@ -8,11 +8,14 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind
+#include <sycl/properties/property_traits.hpp> // for is_property_of
+
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 #define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
   namespace NS_QUALIFIER {                                                     \
   class PROP_NAME                                                              \
@@ -54,5 +57,5 @@ class queue;
 
 #include <sycl/properties/queue_properties.def>
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

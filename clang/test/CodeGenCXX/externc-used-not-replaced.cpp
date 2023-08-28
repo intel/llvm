@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -triple x86_64-windows -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-windows -emit-llvm -o - %s | FileCheck %s
 
 extern "C" {
   const char a __attribute__((used)){};

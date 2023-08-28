@@ -110,12 +110,12 @@ let GIIgnoreCopies = 1 in
 class AMDGPUPatIgnoreCopies<dag pattern, dag result> : AMDGPUPat<pattern, result>;
 
 let RecomputePerFunction = 1 in {
-def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def FP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP32Denormals()">;
-def FP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def NoFP16Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
-def NoFP32Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP32Denormals()">;
-def NoFP64Denormals : Predicate<"!MF->getInfo<SIMachineFunctionInfo>()->getMode().allFP64FP16Denormals()">;
+def FP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals != DenormalMode::getPreserveSign()">;
+def FP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP32Denormals != DenormalMode::getPreserveSign()">;
+def FP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals != DenormalMode::getPreserveSign()">;
+def NoFP16Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals == DenormalMode::getPreserveSign()">;
+def NoFP32Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP32Denormals == DenormalMode::getPreserveSign()">;
+def NoFP64Denormals : Predicate<"MF->getInfo<SIMachineFunctionInfo>()->getMode().FP64FP16Denormals == DenormalMode::getPreserveSign()">;
 def UnsafeFPMath : Predicate<"TM.Options.UnsafeFPMath">;
 }
 
@@ -123,20 +123,41 @@ def FMA : Predicate<"Subtarget->hasFMA()">;
 
 def InstFlag : OperandWithDefaultOps <i32, (ops (i32 0))>;
 
-class ImmOperandClass<string name, bit optional> : AsmOperandClass {
+def i1imm_0 : OperandWithDefaultOps<i1, (ops (i1 0))>;
+
+class CustomOperandClass<string name, bit optional, string parserMethod,
+                         string defaultMethod>
+    : AsmOperandClass {
   let Name = name;
   let PredicateMethod = "is"#name;
-  let ParserMethod = "";
+  let ParserMethod = parserMethod;
   let RenderMethod = "addImmOperands";
   let IsOptional = optional;
-  let DefaultMethod = "default"#name;
+  let DefaultMethod = defaultMethod;
 }
 
-class ImmOperand<ValueType type, string name, bit optional = 0,
-                 string printer = "print"#name> : Operand<type> {
-  let ParserMatchClass = ImmOperandClass<name, optional>;
+class CustomOperandProps<bit optional = 0, string name = NAME> {
+  string ImmTy = "ImmTy"#name;
+  string ParserMethod = "parse"#name;
+  string DefaultValue = "0";
+  string DefaultMethod = "[this]() { return "#
+    "AMDGPUOperand::CreateImm(this, "#DefaultValue#", SMLoc(), "#
+    "AMDGPUOperand::"#ImmTy#"); }";
+  string PrintMethod = "print"#name;
+  AsmOperandClass ParserMatchClass =
+    CustomOperandClass<name, optional, ParserMethod, DefaultMethod>;
+  string OperandType = "OPERAND_IMMEDIATE";
+}
+
+class CustomOperand<ValueType type, bit optional = 0, string name = NAME>
+  : Operand<type>, CustomOperandProps<optional, name>;
+
+class ImmOperand<ValueType type, string name = NAME, bit optional = 0,
+                 string printer = "print"#name>
+    : CustomOperand<type, optional, name> {
+  let ImmTy = "ImmTyNone";
+  let ParserMethod = "";
   let PrintMethod = printer;
-  let OperandType = "OPERAND_IMMEDIATE";
 }
 
 def s16imm : ImmOperand<i16, "S16Imm", 0, "printU16ImmOperand">;
@@ -200,6 +221,12 @@ class is_canonicalized<SDPatternOperator op> : PatFrag<
   }];
 }
 
+class FoldTernaryOpPat<SDPatternOperator op1, SDPatternOperator op2> : PatFrag<
+  (ops node:$src0, node:$src1, node:$src2),
+  (op2 (op1 node:$src0, node:$src1), node:$src2)
+>;
+
+def imad : FoldTernaryOpPat<mul, add>;
 
 let Properties = [SDNPCommutative, SDNPAssociative] in {
 def smax_oneuse : HasOneUseBinOp<smax>;

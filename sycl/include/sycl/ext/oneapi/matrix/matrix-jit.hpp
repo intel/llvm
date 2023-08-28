@@ -15,7 +15,7 @@
 #include <sycl/feature_test.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental::matrix {
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
@@ -69,6 +69,24 @@ public:
   get_wi_data() {
     return wi_data<T, NumRows, NumCols, Layout, Group>(*this);
   }
+
+#ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__)
+  // Generate a non-trivial assignment operator and copy c'tor that prevents
+  // memcpy from being generated.
+  // TODO: to remove, when either IGC can handle alloca JointMatrix or
+  // combination of InstCombine + SROA + mem2reg can remove it
+  joint_matrix(const joint_matrix &other) {
+    spvm = other.spvm;
+    return *this;
+  }
+
+  joint_matrix &operator=(const joint_matrix &rhs) {
+    spvm = rhs.spvm;
+    return *this;
+  }
+#endif // defined(__SPIR__)
+#endif
 };
 
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
@@ -625,5 +643,5 @@ public:
 #undef SPV_MATRIX_LAYOUT_TRAITS
 
 } // namespace ext::oneapi::experimental::matrix
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

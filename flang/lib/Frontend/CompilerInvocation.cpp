@@ -12,6 +12,8 @@
 
 #include "flang/Frontend/CompilerInvocation.h"
 #include "flang/Common/Fortran-features.h"
+#include "flang/Common/OpenMP-features.h"
+#include "flang/Common/Version.h"
 #include "flang/Frontend/CodeGenOptions.h"
 #include "flang/Frontend/PreprocessorOptions.h"
 #include "flang/Frontend/TargetOptions.h"
@@ -36,6 +38,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/Triple.h"
+#include <cstdlib>
 #include <memory>
 #include <optional>
 
@@ -160,13 +163,12 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
     opts.DebugPassManager = 1;
 
   if (args.hasFlag(clang::driver::options::OPT_fstack_arrays,
-                   clang::driver::options::OPT_fno_stack_arrays, false)) {
+                   clang::driver::options::OPT_fno_stack_arrays, false))
     opts.StackArrays = 1;
-  }
+
   if (args.hasFlag(clang::driver::options::OPT_floop_versioning,
-                   clang::driver::options::OPT_fno_loop_versioning, false)) {
+                   clang::driver::options::OPT_fno_loop_versioning, false))
     opts.LoopVersioning = 1;
-  }
 
   for (auto *a : args.filtered(clang::driver::options::OPT_fpass_plugin_EQ))
     opts.LLVMPassPlugins.push_back(a->getValue());
@@ -186,6 +188,19 @@ static void parseCodeGenArgs(Fortran::frontend::CodeGenOptions &opts,
     else
       opts.PrepareForThinLTO = true;
   }
+
+  // -f[no-]save-optimization-record[=<format>]
+  if (const llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_opt_record_file))
+    opts.OptRecordFile = a->getValue();
+
+  if (const llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_opt_record_format))
+    opts.OptRecordFormat = a->getValue();
+
+  if (const llvm::opt::Arg *a =
+          args.getLastArg(clang::driver::options::OPT_opt_record_passes))
+    opts.OptRecordPasses = a->getValue();
 
   if (auto *a = args.getLastArg(clang::driver::options::OPT_save_temps_EQ))
     opts.SaveTempsDir = a->getValue();
@@ -304,8 +319,11 @@ static bool parseFrontendArgs(FrontendOptions &opts, llvm::opt::ArgList &args,
     case clang::driver::options::OPT_fsyntax_only:
       opts.programAction = ParseSyntaxOnly;
       break;
-    case clang::driver::options::OPT_emit_mlir:
-      opts.programAction = EmitMLIR;
+    case clang::driver::options::OPT_emit_fir:
+      opts.programAction = EmitFIR;
+      break;
+    case clang::driver::options::OPT_emit_hlfir:
+      opts.programAction = EmitHLFIR;
       break;
     case clang::driver::options::OPT_emit_llvm:
       opts.programAction = EmitLLVM;
@@ -698,6 +716,7 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
     res.getDefaultKinds().set_defaultIntegerKind(8);
     res.getDefaultKinds().set_subscriptIntegerKind(8);
     res.getDefaultKinds().set_sizeIntegerKind(8);
+    res.getDefaultKinds().set_defaultLogicalKind(8);
   }
   if (args.hasArg(clang::driver::options::OPT_fdefault_double_8)) {
     if (!args.hasArg(clang::driver::options::OPT_fdefault_real_8)) {
@@ -729,8 +748,8 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
             res.getLangOpts().OpenMPVersion, diags)) {
       res.getLangOpts().OpenMPVersion = Version;
     }
-    if (args.hasArg(clang::driver::options::OPT_fopenmp_is_device)) {
-      res.getLangOpts().OpenMPIsDevice = 1;
+    if (args.hasArg(clang::driver::options::OPT_fopenmp_is_target_device)) {
+      res.getLangOpts().OpenMPIsTargetDevice = 1;
 
       // Get OpenMP host file path if any and report if a non existent file is
       // found
@@ -774,6 +793,23 @@ static bool parseDialectArgs(CompilerInvocation &res, llvm::opt::ArgList &args,
             args.hasArg(clang::driver::options::OPT_fopenmp_target_debug))
           res.getLangOpts().OpenMPTargetDebug = 1;
       }
+    }
+
+    switch (llvm::Triple(res.getTargetOpts().triple).getArch()) {
+    case llvm::Triple::nvptx:
+    case llvm::Triple::nvptx64:
+    case llvm::Triple::amdgcn:
+      if (!res.getLangOpts().OpenMPIsTargetDevice) {
+        const unsigned diagID = diags.getCustomDiagID(
+            clang::DiagnosticsEngine::Error,
+            "OpenMP AMDGPU/NVPTX is only prepared to deal with device code.");
+        diags.Report(diagID);
+      }
+      res.getLangOpts().OpenMPIsGPU = 1;
+      break;
+    default:
+      res.getLangOpts().OpenMPIsGPU = 0;
+      break;
     }
   }
 
@@ -869,7 +905,7 @@ static bool parseFloatingPointArgs(CompilerInvocation &invoc,
 
 bool CompilerInvocation::createFromArgs(
     CompilerInvocation &res, llvm::ArrayRef<const char *> commandLineArgs,
-    clang::DiagnosticsEngine &diags) {
+    clang::DiagnosticsEngine &diags, const char *argv0) {
 
   bool success = true;
 
@@ -909,8 +945,18 @@ bool CompilerInvocation::createFromArgs(
   }
 
   // -flang-experimental-hlfir
-  if (args.hasArg(clang::driver::options::OPT_flang_experimental_hlfir)) {
+  if (args.hasArg(clang::driver::options::OPT_flang_experimental_hlfir) ||
+      args.hasArg(clang::driver::options::OPT_emit_hlfir)) {
     res.loweringOpts.setLowerToHighLevelFIR(true);
+  }
+
+  if (args.hasArg(clang::driver::options::OPT_flang_experimental_polymorphism)) {
+    res.loweringOpts.setPolymorphicTypeImpl(true);
+  }
+
+  // -fno-ppc-native-vector-element-order
+  if (args.hasArg(clang::driver::options::OPT_fno_ppc_native_vec_elem_order)) {
+    res.loweringOpts.setNoPPCNativeVecElemOrder(true);
   }
 
   success &= parseFrontendArgs(res.getFrontendOpts(), args, diags);
@@ -921,13 +967,35 @@ bool CompilerInvocation::createFromArgs(
   success &= parseSemaArgs(res, args, diags);
   success &= parseDialectArgs(res, args, diags);
   success &= parseDiagArgs(res, args, diags);
+
+  // Collect LLVM (-mllvm) and MLIR (-mmlir) options.
+  // NOTE: Try to avoid adding any options directly to `llvmArgs` or
+  // `mlirArgs`. Instead, you can use
+  //    * `-mllvm <your-llvm-option>`, or
+  //    * `-mmlir <your-mlir-option>`.
   res.frontendOpts.llvmArgs =
       args.getAllArgValues(clang::driver::options::OPT_mllvm);
-
   res.frontendOpts.mlirArgs =
       args.getAllArgValues(clang::driver::options::OPT_mmlir);
 
   success &= parseFloatingPointArgs(res, args, diags);
+
+  // Set the string to be used as the return value of the COMPILER_OPTIONS
+  // intrinsic of iso_fortran_env. This is either passed in from the parent
+  // compiler driver invocation with an environment variable, or failing that
+  // set to the command line arguments of the frontend driver invocation.
+  res.allCompilerInvocOpts = std::string();
+  llvm::raw_string_ostream os(res.allCompilerInvocOpts);
+  char *compilerOptsEnv = std::getenv("FLANG_COMPILER_OPTIONS_STRING");
+  if (compilerOptsEnv != nullptr) {
+    os << compilerOptsEnv;
+  } else {
+    os << argv0 << ' ';
+    for (auto it = commandLineArgs.begin(), e = commandLineArgs.end(); it != e;
+         ++it) {
+      os << ' ' << *it;
+    }
+  }
 
   return success;
 }
@@ -982,7 +1050,6 @@ void CompilerInvocation::setDefaultFortranOpts() {
 void CompilerInvocation::setDefaultPredefinitions() {
   auto &fortranOptions = getFortranOpts();
   const auto &frontendOptions = getFrontendOpts();
-
   // Populate the macro list with version numbers and other predefinitions.
   fortranOptions.predefinitions.emplace_back("__flang__", "1");
   fortranOptions.predefinitions.emplace_back("__flang_major__",
@@ -995,11 +1062,12 @@ void CompilerInvocation::setDefaultPredefinitions() {
   // Add predefinitions based on extensions enabled
   if (frontendOptions.features.IsEnabled(
           Fortran::common::LanguageFeature::OpenACC)) {
-    fortranOptions.predefinitions.emplace_back("_OPENACC", "202011");
+    fortranOptions.predefinitions.emplace_back("_OPENACC", "202211");
   }
   if (frontendOptions.features.IsEnabled(
           Fortran::common::LanguageFeature::OpenMP)) {
-    fortranOptions.predefinitions.emplace_back("_OPENMP", "201511");
+    Fortran::common::setOpenMPMacro(getLangOpts().OpenMPVersion,
+                                    fortranOptions.predefinitions);
   }
   llvm::Triple targetTriple{llvm::Triple(this->targetOpts.triple)};
   if (targetTriple.getArch() == llvm::Triple::ArchType::x86_64) {
@@ -1078,6 +1146,14 @@ void CompilerInvocation::setSemanticsOpts(
     semanticsContext->targetCharacteristics().DisableType(
         Fortran::common::TypeCategory::Real, /*kind=*/10);
   }
+
+  std::string version = Fortran::common::getFlangFullVersion();
+  semanticsContext->targetCharacteristics()
+      .set_compilerOptionsString(allCompilerInvocOpts)
+      .set_compilerVersionString(version);
+
+  if (targetTriple.isPPC())
+    semanticsContext->targetCharacteristics().set_isPPC(true);
 }
 
 /// Set \p loweringOptions controlling lowering behavior based

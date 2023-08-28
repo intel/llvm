@@ -2,42 +2,49 @@
 
 ; RUN: sycl-post-link -split=source -symbols -split-esimd -lower-esimd -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table
-; RUN: FileCheck %s -input-file=%t_esimd_0.ll --check-prefixes CHECK-ESIMD-LargeGRF-IR
-; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
-; RUN: FileCheck %s -input-file=%t_0.ll --check-prefixes CHECK-SYCL-LargeGRF-IR
-; RUN: FileCheck %s -input-file=%t_0.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
-; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-SYCL-LargeGRF-SYM
-; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-SYCL-PROP
-; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYCL-SYM
-; RUN: FileCheck %s -input-file=%t_esimd_1.prop --check-prefixes CHECK-ESIMD-PROP
-; RUN: FileCheck %s -input-file=%t_esimd_0.sym --check-prefixes CHECK-ESIMD-LargeGRF-SYM
 
 ; CHECK: [Code|Properties|Symbols]
-; CHECK: {{.*}}_0.ll|{{.*}}_0.prop|{{.*}}_0.sym
-; CHECK: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
-; CHECK: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
-; CHECK: {{.*}}_esimd_1.ll|{{.*}}_esimd_1.prop|{{.*}}_esimd_1.sym
+; CHECK-NEXT: {{.*}}_esimd_0.ll|{{.*}}_esimd_0.prop|{{.*}}_esimd_0.sym
+; CHECK-NEXT: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
+; CHECK-NEXT: {{.*}}_esimd_2.ll|{{.*}}_esimd_2.prop|{{.*}}_esimd_2.sym
+; CHECK-NEXT: {{.*}}_3.ll|{{.*}}_3.prop|{{.*}}_3.sym
+
+; RUN: FileCheck %s -input-file=%t_esimd_0.ll   --check-prefixes CHECK-ESIMD-LargeGRF-IR
+; RUN: FileCheck %s -input-file=%t_esimd_0.prop --check-prefixes CHECK-ESIMD-LargeGRF-PROP
+; RUN: FileCheck %s -input-file=%t_esimd_0.sym  --check-prefixes CHECK-ESIMD-LargeGRF-SYM
+
+; CHECK-ESIMD-LargeGRF-SYM: __ESIMD_large_grf_kernel
+; CHECK-ESIMD-LargeGRF-SYM-EMPTY:
 
 ; CHECK-ESIMD-LargeGRF-PROP: isEsimdImage=1|1
 ; CHECK-ESIMD-LargeGRF-PROP: sycl-register-alloc-mode=1|2
 
-; CHECK-SYCL-LargeGRF-PROP: sycl-register-alloc-mode=1|2
-
-; CHECK-SYCL-PROP-NOT: sycl-register-alloc-mode
-
-; CHECK-SYCL-SYM: __SYCL_kernel
-; CHECK-SYCL-SYM-EMPTY:
+; RUN: FileCheck %s -input-file=%t_1.ll   --check-prefixes CHECK-SYCL-LargeGRF-IR
+; RUN: FileCheck %s -input-file=%t_1.prop --check-prefixes CHECK-SYCL-LargeGRF-PROP
+; RUN: FileCheck %s -input-file=%t_1.sym  --check-prefixes CHECK-SYCL-LargeGRF-SYM
 
 ; CHECK-SYCL-LargeGRF-SYM: __SYCL_kernel_large_grf
 ; CHECK-SYCL-LargeGRF-SYM-EMPTY:
+
+; CHECK-SYCL-LargeGRF-PROP: sycl-register-alloc-mode=1|2
+
+; RUN: FileCheck %s -input-file=%t_esimd_2.prop --check-prefixes CHECK-ESIMD-PROP 
+; RUN: FileCheck %s -input-file=%t_esimd_2.sym  --check-prefixes CHECK-ESIMD-SYM 
 
 ; CHECK-ESIMD-SYM: __ESIMD_kernel
 ; CHECK-ESIMD-SYM-EMPTY:
 
 ; CHECK-ESIMD-PROP-NOT: sycl-register-alloc-mode
 
-; CHECK-ESIMD-LargeGRF-SYM: __ESIMD_large_grf_kernel
-; CHECK-ESIMD-LargeGRF-SYM-EMPTY:
+; RUN: FileCheck %s -input-file=%t_3.prop --check-prefixes CHECK-SYCL-PROP
+; RUN: FileCheck %s -input-file=%t_3.sym  --check-prefixes CHECK-SYCL-SYM
+
+; CHECK-SYCL-SYM: __SYCL_kernel
+; CHECK-SYCL-SYM-EMPTY:
+
+; CHECK-SYCL-PROP-NOT: sycl-register-alloc-mode
+
+
 
 ; ModuleID = 'large_grf.bc'
 source_filename = "llvm-link"

@@ -267,6 +267,11 @@ struct EmptyOpInterface
 
   LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
                           const BufferizationOptions &options) const {
+    if (op->getUses().empty()) {
+      rewriter.eraseOp(op);
+      return success();
+    }
+
     // tensor.empty ops are used to indicate the shape of a tensor. They have
     // no defined contents and cannot be bufferized. However, they can be
     // converted to bufferization.alloc_tensor ops, which then bufferize to an
@@ -992,12 +997,27 @@ struct ReshapeOpInterface
         getBuffer(rewriter, reshapeOp.getShape(), options);
     if (failed(srcBuffer) || failed(shapeBuffer))
       return failure();
-    auto resultMemRefType = getMemRefTypeWithStaticIdentityLayout(
-        reshapeOp.getResult().getType(),
-        cast<BaseMemRefType>(srcBuffer->getType()).getMemorySpace());
+    auto maybeResultMemRefType =
+        bufferization::getBufferType(reshapeOp.getResult(), options);
+    if (failed(maybeResultMemRefType))
+      return failure();
     replaceOpWithNewBufferizedOp<memref::ReshapeOp>(
-        rewriter, op, resultMemRefType, *srcBuffer, *shapeBuffer);
+        rewriter, op, maybeResultMemRefType.value(), *srcBuffer, *shapeBuffer);
     return success();
+  }
+
+  FailureOr<BaseMemRefType>
+  getBufferType(Operation *op, Value value, const BufferizationOptions &options,
+                const DenseMap<Value, BaseMemRefType> &fixedTypes) const {
+    auto reshapeOp = cast<tensor::ReshapeOp>(op);
+    assert(value == reshapeOp.getResult() && "unexpected value provided");
+    auto maybeSourceBufferType = bufferization::getBufferType(
+        reshapeOp.getSource(), options, fixedTypes);
+    if (failed(maybeSourceBufferType))
+      return failure();
+    return getMemRefTypeWithStaticIdentityLayout(
+        reshapeOp.getResult().getType(),
+        cast<BaseMemRefType>(maybeSourceBufferType.value()).getMemorySpace());
   }
 };
 

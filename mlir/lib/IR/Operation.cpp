@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
@@ -360,7 +361,8 @@ Operation::setPropertiesFromAttribute(Attribute attr,
     *getPropertiesStorage().as<Attribute *>() = attr;
     return success();
   }
-  return info->setOpPropertiesFromAttribute(this, attr, diagnostic);
+  return info->setOpPropertiesFromAttribute(
+      this->getName(), this->getPropertiesStorage(), attr, diagnostic);
 }
 
 void Operation::copyProperties(OpaqueProperties rhs) {
@@ -627,6 +629,15 @@ LogicalResult Operation::fold(ArrayRef<Attribute> operands,
   return interface->fold(this, operands, results);
 }
 
+LogicalResult Operation::fold(SmallVectorImpl<OpFoldResult> &results) {
+  // Check if any operands are constants.
+  SmallVector<Attribute> constants;
+  constants.assign(getNumOperands(), Attribute());
+  for (unsigned i = 0, e = getNumOperands(); i != e; ++i)
+    matchPattern(getOperand(i), m_Constant(&constants[i]));
+  return fold(constants, results);
+}
+
 /// Emit an error with the op name prefixed, like "'dim' op " which is
 /// convenient for verifiers.
 InFlightDiagnostic Operation::emitOpError(const Twine &message) {
@@ -789,6 +800,24 @@ InFlightDiagnostic OpState::emitRemark(const Twine &message) {
 //===----------------------------------------------------------------------===//
 // Op Trait implementations
 //===----------------------------------------------------------------------===//
+
+LogicalResult
+OpTrait::impl::foldCommutative(Operation *op, ArrayRef<Attribute> operands,
+                               SmallVectorImpl<OpFoldResult> &results) {
+  // Nothing to fold if there are not at least 2 operands.
+  if (op->getNumOperands() < 2)
+    return failure();
+  // Move all constant operands to the end.
+  OpOperand *operandsBegin = op->getOpOperands().begin();
+  auto isNonConstant = [&](OpOperand &o) {
+    return !static_cast<bool>(operands[std::distance(operandsBegin, &o)]);
+  };
+  auto *firstConstantIt = llvm::find_if_not(op->getOpOperands(), isNonConstant);
+  auto *newConstantIt = std::stable_partition(
+      firstConstantIt, op->getOpOperands().end(), isNonConstant);
+  // Return success if the op was modified.
+  return success(firstConstantIt != newConstantIt);
+}
 
 OpFoldResult OpTrait::impl::foldIdempotent(Operation *op) {
   if (op->getNumOperands() == 1) {
@@ -1273,52 +1302,6 @@ LogicalResult OpTrait::impl::verifyIsIsolatedFromAbove(Operation *isolatedOp) {
 bool OpTrait::hasElementwiseMappableTraits(Operation *op) {
   return op->hasTrait<Elementwise>() && op->hasTrait<Scalarizable>() &&
          op->hasTrait<Vectorizable>() && op->hasTrait<Tensorizable>();
-}
-
-//===----------------------------------------------------------------------===//
-// CastOpInterface
-//===----------------------------------------------------------------------===//
-
-/// Attempt to fold the given cast operation.
-LogicalResult
-impl::foldCastInterfaceOp(Operation *op, ArrayRef<Attribute> attrOperands,
-                          SmallVectorImpl<OpFoldResult> &foldResults) {
-  OperandRange operands = op->getOperands();
-  if (operands.empty())
-    return failure();
-  ResultRange results = op->getResults();
-
-  // Check for the case where the input and output types match 1-1.
-  if (operands.getTypes() == results.getTypes()) {
-    foldResults.append(operands.begin(), operands.end());
-    return success();
-  }
-
-  return failure();
-}
-
-/// Attempt to verify the given cast operation.
-LogicalResult impl::verifyCastInterfaceOp(
-    Operation *op, function_ref<bool(TypeRange, TypeRange)> areCastCompatible) {
-  auto resultTypes = op->getResultTypes();
-  if (resultTypes.empty())
-    return op->emitOpError()
-           << "expected at least one result for cast operation";
-
-  auto operandTypes = op->getOperandTypes();
-  if (!areCastCompatible(operandTypes, resultTypes)) {
-    InFlightDiagnostic diag = op->emitOpError("operand type");
-    if (operandTypes.empty())
-      diag << "s []";
-    else if (llvm::size(operandTypes) == 1)
-      diag << " " << *operandTypes.begin();
-    else
-      diag << "s " << operandTypes;
-    return diag << " and result type" << (resultTypes.size() == 1 ? " " : "s ")
-                << resultTypes << " are cast incompatible";
-  }
-
-  return success();
 }
 
 //===----------------------------------------------------------------------===//

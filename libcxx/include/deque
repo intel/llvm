@@ -189,6 +189,7 @@ template <class T, class Allocator, class Predicate>
 #include <__algorithm/remove_if.h>
 #include <__algorithm/unwrap_iter.h>
 #include <__assert> // all public C++ headers provide the assertion handler
+#include <__availability>
 #include <__config>
 #include <__format/enable_insertable.h>
 #include <__iterator/distance.h>
@@ -457,9 +458,6 @@ const _DiffType __deque_iterator<_ValueType, _Pointer, _Reference, _MapPointer,
 template <class _Tp, class _Allocator /*= allocator<_Tp>*/>
 class _LIBCPP_TEMPLATE_VIS deque
 {
-private:
-  using __default_allocator_type = allocator<_Tp>;
-
 public:
     // types:
 
@@ -970,7 +968,12 @@ public:
    };
 
 // The following functions are no-ops outside of AddressSanitizer mode.
-// We call annotations only for the default Allocator.
+// We call annotations for every allocator, unless explicitly disabled.
+//
+// To disable annotations for a particular allocator, change value of
+// __asan_annotate_container_with_allocator to false.
+// For more details, see the "Using libc++" documentation page or
+// the documentation for __sanitizer_annotate_contiguous_container.
 #if !defined(_LIBCPP_HAS_NO_ASAN) && _LIBCPP_CLANG_VER >= 1600
     // TODO LLVM18: Remove the special-casing
     _LIBCPP_HIDE_FROM_ABI void __annotate_double_ended_contiguous_container(
@@ -980,7 +983,7 @@ public:
         const void* __old_con_end,
         const void* __new_con_beg,
         const void* __new_con_end) const {
-        if (__beg && is_same<allocator_type, __default_allocator_type>::value)
+        if (__beg != nullptr && __asan_annotate_container_with_allocator<_Allocator>::value)
             __sanitizer_annotate_double_ended_contiguous_container(
                 __beg, __end, __old_con_beg, __old_con_end, __new_con_beg, __new_con_end);
     }
@@ -1095,8 +1098,11 @@ public:
 
     _LIBCPP_HIDE_FROM_ABI
     void __annotate_delete() const _NOEXCEPT {
-        if (empty())
-            __annotate_from_to(0, __map_.size() * __block_size, __asan_unposion, __asan_back_moved);
+        if (empty()) {
+            for(size_t __i = 0; __i < __map_.size(); ++__i) {
+                __annotate_whole_block(__i, __asan_unposion);
+            }
+        }
         else {
             __annotate_from_to(0, __start_, __asan_unposion, __asan_front_moved);
             __annotate_from_to(__start_ + size(), __map_.size() * __block_size, __asan_unposion, __asan_back_moved);
@@ -1124,15 +1130,23 @@ public:
     }
 
     _LIBCPP_HIDE_FROM_ABI
-    void __annotate_whole_block(size_t __block_index, __asan_annotation_type __annotation_type, __asan_annotation_place __place) {
-        __annotate_from_to(__block_index * __block_size, (__block_index + 1) * __block_size, __annotation_type, __place);
-    }
-
-    _LIBCPP_HIDE_FROM_ABI
-    void __annotate_poison_block(void *__beginning, void *__end) {
+    void __annotate_poison_block(const void *__beginning, const void *__end) const _NOEXCEPT {
         __annotate_double_ended_contiguous_container(__beginning, __end, __beginning, __end, __end, __end);
     }
 
+    _LIBCPP_HIDE_FROM_ABI
+    void __annotate_whole_block(size_t __block_index, __asan_annotation_type __annotation_type) const _NOEXCEPT {
+        __map_const_iterator __block_it = __map_.begin() + __block_index;
+        const void* __block_start = std::__to_address(*__block_it);
+        const void* __block_end = std::__to_address(*__block_it + __block_size);
+
+        if(__annotation_type == __asan_poison)
+            __annotate_poison_block(__block_start, __block_end);
+        else {
+            __annotate_double_ended_contiguous_container(
+                __block_start, __block_end, __block_start, __block_start, __block_start, __block_end);
+        }
+    }
 #if !defined(_LIBCPP_HAS_NO_ASAN)
 
   public:
@@ -1158,8 +1172,8 @@ public:
 
         // Pointers to first and after last elements
         // Those can be in different deque blocks
-        void* __p_beg = std::__to_address(*__first_mp + (__start_ % __block_size));
-        void* __p_end =
+        const void* __p_beg = std::__to_address(*__first_mp + (__start_ % __block_size));
+        const void* __p_end =
             std::__to_address(*__last_mp + ((__end % __block_size == 0) ? __block_size : __end % __block_size));
 
         for (__map_const_iterator __it = __map_.begin(); __it != __map_.end(); ++__it) {
@@ -1180,9 +1194,9 @@ public:
                         std::__to_address(*__it + __block_size)))
                   return false;
             } else {
-                void* __containers_buffer_beg = (__it == __first_mp) ? __p_beg : (void*)std::__to_address(*__it);
-                void* __containers_buffer_end =
-                    (__it == __last_mp) ? __p_end : (void*)std::__to_address(*__it + __block_size);
+                const void* __containers_buffer_beg = (__it == __first_mp) ? __p_beg : (const void*)std::__to_address(*__it);
+                const void* __containers_buffer_end =
+                    (__it == __last_mp) ? __p_end : (const void*)std::__to_address(*__it + __block_size);
                 if (!__sanitizer_verify_double_ended_contiguous_container(
                         std::__to_address(*__it),
                         __containers_buffer_beg,
@@ -1200,7 +1214,7 @@ public:
     _LIBCPP_HIDE_FROM_ABI
     bool __maybe_remove_front_spare(bool __keep_one = true) {
       if (__front_spare_blocks() >= 2 || (!__keep_one && __front_spare_blocks())) {
-        __annotate_whole_block(0, __asan_unposion, __asan_back_moved);
+        __annotate_whole_block(0, __asan_unposion);
         __alloc_traits::deallocate(__alloc(), __map_.front(),
                                    __block_size);
         __map_.pop_front();
@@ -1213,7 +1227,7 @@ public:
     _LIBCPP_HIDE_FROM_ABI
     bool __maybe_remove_back_spare(bool __keep_one = true) {
       if (__back_spare_blocks() >= 2 || (!__keep_one && __back_spare_blocks())) {
-        __annotate_whole_block(__map_.size() - 1, __asan_unposion, __asan_back_moved);
+        __annotate_whole_block(__map_.size() - 1, __asan_unposion);
         __alloc_traits::deallocate(__alloc(), __map_.back(),
                                    __block_size);
         __map_.pop_back();
@@ -2319,7 +2333,7 @@ deque<_Tp, _Allocator>::__add_front_capacity()
                                __block_size / 2 :
                                __start_ + __block_size;
     }
-    __annotate_whole_block(0, __asan_poison, __asan_front_moved);
+    __annotate_whole_block(0, __asan_poison);
 }
 
 // Create front capacity for __n elements.
@@ -2355,7 +2369,7 @@ deque<_Tp, _Allocator>::__add_front_capacity(size_type __n)
             if (__map_.__front_spare() == 0)
                 break;
             __map_.push_front(__alloc_traits::allocate(__a, __block_size));
-            __annotate_whole_block(0, __asan_poison, __asan_front_moved);
+            __annotate_whole_block(0, __asan_poison);
         }
         for (; __nb > 0; --__nb, ++__back_capacity)
             __map_.push_back(__alloc_traits::allocate(__a, __block_size));
@@ -2366,7 +2380,7 @@ deque<_Tp, _Allocator>::__add_front_capacity(size_type __n)
             pointer __pt = __map_.back();
             __map_.pop_back();
             __map_.push_front(__pt);
-            __annotate_whole_block(0, __asan_poison, __asan_front_moved);
+            __annotate_whole_block(0, __asan_poison);
         }
     }
     // Else need to allocate __nb buffers, *and* we need to reallocate __map_.
@@ -2444,7 +2458,7 @@ deque<_Tp, _Allocator>::__add_back_capacity()
             __map_.pop_front();
             __map_.push_back(__pt);
         }
-        __annotate_whole_block(__map_.size() - 1, __asan_poison, __asan_back_moved);
+        __annotate_whole_block(__map_.size() - 1, __asan_poison);
     }
     // Else need to allocate 1 buffer, *and* we need to reallocate __map_.
     else
@@ -2468,7 +2482,7 @@ deque<_Tp, _Allocator>::__add_back_capacity()
         _VSTD::swap(__map_.__begin_, __buf.__begin_);
         _VSTD::swap(__map_.__end_, __buf.__end_);
         _VSTD::swap(__map_.__end_cap(), __buf.__end_cap());
-        __annotate_whole_block(__map_.size() - 1, __asan_poison, __asan_back_moved);
+        __annotate_whole_block(__map_.size() - 1, __asan_poison);
     }
 }
 
@@ -2505,12 +2519,12 @@ deque<_Tp, _Allocator>::__add_back_capacity(size_type __n)
             if (__map_.__back_spare() == 0)
                 break;
             __map_.push_back(__alloc_traits::allocate(__a, __block_size));
-            __annotate_whole_block(__map_.size() - 1, __asan_poison, __asan_back_moved);
+            __annotate_whole_block(__map_.size() - 1, __asan_poison);
         }
         for (; __nb > 0; --__nb, ++__front_capacity, __start_ +=
                                  __block_size - (__map_.size() == 1)) {
             __map_.push_front(__alloc_traits::allocate(__a, __block_size));
-            __annotate_whole_block(0, __asan_poison, __asan_back_moved);
+            __annotate_whole_block(0, __asan_poison);
         }
         // Done allocating, reorder capacity
         __start_ -= __block_size * __front_capacity;
@@ -2588,7 +2602,7 @@ template <class _Tp, class _Allocator>
 void
 deque<_Tp, _Allocator>::pop_back()
 {
-    _LIBCPP_ASSERT(!empty(), "deque::pop_back called on an empty deque");
+    _LIBCPP_ASSERT_VALID_ELEMENT_ACCESS(!empty(), "deque::pop_back called on an empty deque");
     size_type __old_sz    = size();
     size_type __old_start = __start_;
     allocator_type& __a = __alloc();
@@ -2970,7 +2984,7 @@ _LIBCPP_END_NAMESPACE_STD
 _LIBCPP_BEGIN_NAMESPACE_STD
 namespace pmr {
 template <class _ValueT>
-using deque = std::deque<_ValueT, polymorphic_allocator<_ValueT>>;
+using deque _LIBCPP_AVAILABILITY_PMR = std::deque<_ValueT, polymorphic_allocator<_ValueT>>;
 } // namespace pmr
 _LIBCPP_END_NAMESPACE_STD
 #endif

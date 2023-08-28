@@ -124,8 +124,7 @@ public:
     return hasStdExtZfhOrZfhmin() || hasStdExtZhinxOrZhinxmin();
   }
   bool hasHalfFPLoadStoreMove() const {
-    return HasStdExtZfh || HasStdExtZfhmin || HasStdExtZfbfmin ||
-           HasStdExtZvfbfwma;
+    return hasStdExtZfhOrZfhmin() || HasStdExtZfbfmin;
   }
   bool is64Bit() const { return IsRV64; }
   MVT getXLenVT() const { return XLenVT; }
@@ -168,15 +167,22 @@ public:
   bool hasVInstructions() const { return HasStdExtZve32x; }
   bool hasVInstructionsI64() const { return HasStdExtZve64x; }
   bool hasVInstructionsF16() const { return HasStdExtZvfh; }
-  // FIXME: Consider Zfinx in the future
-  bool hasVInstructionsF32() const { return HasStdExtZve32f && HasStdExtF; }
-  // FIXME: Consider Zdinx in the future
-  bool hasVInstructionsF64() const { return HasStdExtZve64d && HasStdExtD; }
+  bool hasVInstructionsBF16() const { return HasStdExtZvfbfmin; }
+  bool hasVInstructionsF32() const { return HasStdExtZve32f; }
+  bool hasVInstructionsF64() const { return HasStdExtZve64d; }
   // F16 and F64 both require F32.
   bool hasVInstructionsAnyF() const { return hasVInstructionsF32(); }
   bool hasVInstructionsFullMultiply() const { return HasStdExtV; }
   unsigned getMaxInterleaveFactor() const {
     return hasVInstructions() ? MaxInterleaveFactor : 1;
+  }
+
+  // Returns VLEN divided by DLEN. Where DLEN is the datapath width of the
+  // vector hardware implementation which may be less than VLEN.
+  unsigned getDLenFactor() const {
+    if (DLenFactor2)
+      return 2;
+    return 1;
   }
 
 protected:

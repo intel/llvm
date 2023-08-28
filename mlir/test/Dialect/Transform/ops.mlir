@@ -97,3 +97,26 @@ transform.sequence failures(propagate) {
   transform.print %arg0 {name = "test"} : !transform.any_op
   transform.print {name = "test"}
 }
+
+// CHECK: transform.sequence
+// CHECK: transform.structured.tile %0[4, 4, [4]]
+transform.sequence failures(propagate) {
+^bb0(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.structured.tile %0 [4, 4, [4]] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+}
+
+// CHECK: transform.sequence
+// CHECK: transform.structured.tile %0{{\[}}[2], 4, 8]
+transform.sequence failures(propagate) {
+^bb0(%arg1: !transform.any_op):
+  %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
+  transform.structured.tile %0 [[2], 4, 8] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
+}
+
+// CHECK: transform.sequence
+// CHECK: transform.param.constant "example_string
+transform.sequence failures(propagate) {
+^bb0(%arg1: !transform.any_op):
+  transform.param.constant "example_string" -> !transform.any_param
+}

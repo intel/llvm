@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/AccelTable.h"
 #include "llvm/CodeGen/NonRelocatableStringpool.h"
 #include "llvm/DWARFLinker/DWARFLinkerCompileUnit.h"
+#include "llvm/DebugInfo/DWARF/DWARFContext.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugLine.h"
 #include "llvm/DebugInfo/DWARF/DWARFDebugRangeList.h"
 #include "llvm/DebugInfo/DWARF/DWARFDie.h"
@@ -21,7 +22,6 @@
 #include <map>
 
 namespace llvm {
-class DWARFContext;
 class DWARFExpression;
 class DWARFUnit;
 class DataExtractor;
@@ -29,13 +29,6 @@ class DeclContextTree;
 template <typename T> class SmallVectorImpl;
 
 enum class DwarfLinkerClient { Dsymutil, LLD, General };
-
-/// The kind of accelerator tables we should emit.
-enum class DwarfLinkerAccelTableKind : uint8_t {
-  Apple,     ///< .apple_names, .apple_namespaces, .apple_types, .apple_objc.
-  Pub,       ///< .debug_pubnames, .debug_pubtypes
-  DebugNames ///< .debug_names.
-};
 
 /// AddressesMap represents information about valid addresses used
 /// by debug information. Valid addresses are those which points to
@@ -76,15 +69,30 @@ public:
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
 
-  /// Returns all valid functions address ranges(i.e., those ranges
-  /// which points to sections with code).
-  virtual RangesTy &getValidAddressRanges() = 0;
-
   /// Erases all data.
   virtual void clear() = 0;
 };
 
 using Offset2UnitMap = DenseMap<uint64_t, CompileUnit *>;
+
+struct DebugAddrPool {
+  DenseMap<uint64_t, uint64_t> AddrIndexMap;
+  SmallVector<uint64_t> Addrs;
+
+  uint64_t getAddrIndex(uint64_t Addr) {
+    DenseMap<uint64_t, uint64_t>::iterator It = AddrIndexMap.find(Addr);
+    if (It == AddrIndexMap.end()) {
+      It = AddrIndexMap.insert(std::make_pair(Addr, Addrs.size())).first;
+      Addrs.push_back(Addr);
+    }
+    return It->second;
+  }
+
+  void clear() {
+    AddrIndexMap.clear();
+    Addrs.clear();
+  }
+};
 
 /// DwarfEmitter presents interface to generate all debug info tables.
 class DwarfEmitter {
@@ -132,10 +140,9 @@ public:
   virtual MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) fragment.
-  virtual void
-  emitDwarfDebugRangeListFragment(const CompileUnit &Unit,
-                                  const AddressRanges &LinkedRanges,
-                                  PatchLocation Patch) = 0;
+  virtual void emitDwarfDebugRangeListFragment(
+      const CompileUnit &Unit, const AddressRanges &LinkedRanges,
+      PatchLocation Patch, DebugAddrPool &AddrPool) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) footer.
   virtual void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
@@ -148,11 +155,22 @@ public:
   virtual void emitDwarfDebugLocListFragment(
       const CompileUnit &Unit,
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
-      PatchLocation Patch) = 0;
+      PatchLocation Patch, DebugAddrPool &AddrPool) = 0;
 
   /// Emit debug locations (.debug_loc, .debug_loclists) footer.
   virtual void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
                                            MCSymbol *EndLabel) = 0;
+
+  /// Emit .debug_addr header.
+  virtual MCSymbol *emitDwarfDebugAddrsHeader(const CompileUnit &Unit) = 0;
+
+  /// Emit the addresses described by \p Addrs into the .debug_addr section.
+  virtual void emitDwarfDebugAddrs(const SmallVector<uint64_t> &Addrs,
+                                   uint8_t AddrSize) = 0;
+
+  /// Emit .debug_addr footer.
+  virtual void emitDwarfDebugAddrsFooter(const CompileUnit &Unit,
+                                         MCSymbol *EndLabel) = 0;
 
   /// Emit .debug_aranges entries for \p Unit
   virtual void
@@ -221,39 +239,51 @@ public:
 
   /// Returns size of generated .debug_loclists section.
   virtual uint64_t getLocListsSectionSize() const = 0;
+
+  /// Returns size of generated .debug_addr section.
+  virtual uint64_t getDebugAddrSectionSize() const = 0;
+
+  /// Dump the file to the disk.
+  virtual void finish() = 0;
+
+  /// Emit the swift_ast section stored in \p Buffer.
+  virtual void emitSwiftAST(StringRef Buffer) = 0;
+
+  /// Emit the swift reflection section stored in \p Buffer.
+  virtual void emitSwiftReflectionSection(
+      llvm::binaryformat::Swift5ReflectionSectionKind ReflSectionKind,
+      StringRef Buffer, uint32_t Alignment, uint32_t Size) = 0;
+
+  /// Returns underlying AsmPrinter.
+  virtual AsmPrinter &getAsmPrinter() const = 0;
 };
 
+class DwarfStreamer;
 using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 
 /// This class represents DWARF information for source file
 /// and its address map.
 class DWARFFile {
 public:
-  DWARFFile(StringRef Name, DWARFContext *Dwarf, AddressesMap *Addresses,
+  DWARFFile(StringRef Name, std::unique_ptr<DWARFContext> Dwarf,
+            std::unique_ptr<AddressesMap> Addresses,
             const std::vector<std::string> &Warnings)
-      : FileName(Name), Dwarf(Dwarf), Addresses(Addresses), Warnings(Warnings) {
-  }
+      : FileName(Name), Dwarf(std::move(Dwarf)),
+        Addresses(std::move(Addresses)), Warnings(Warnings) {}
 
   /// The object file name.
   StringRef FileName;
 
   /// The source DWARF information.
-  DWARFContext *Dwarf = nullptr;
+  std::unique_ptr<DWARFContext> Dwarf;
 
   /// Helpful address information(list of valid address ranges, relocations).
-  AddressesMap *Addresses = nullptr;
+  std::unique_ptr<AddressesMap> Addresses;
 
   /// Warnings for this object file.
   const std::vector<std::string> &Warnings;
 };
 
-typedef std::function<void(const Twine &Warning, StringRef Context,
-                           const DWARFDie *DIE)>
-    messageHandler;
-typedef std::function<void(const DWARFFile &File)> inputVerificationHandler;
-typedef std::function<ErrorOr<DWARFFile &>(StringRef ContainerName,
-                                           StringRef Path)>
-    objFileLoader;
 typedef std::map<std::string, std::string> swiftInterfacesMap;
 typedef std::map<std::string, std::string> objectPrefixMap;
 
@@ -275,9 +305,43 @@ typedef function_ref<void(const DWARFUnit &Unit)> CompileUnitHandler;
 /// processing a object file.
 class DWARFLinker {
 public:
-  DWARFLinker(DwarfEmitter *Emitter,
-              DwarfLinkerClient ClientID = DwarfLinkerClient::General)
-      : TheDwarfEmitter(Emitter), DwarfLinkerClientID(ClientID) {}
+  typedef std::function<void(const Twine &Warning, StringRef Context,
+                             const DWARFDie *DIE)>
+      messageHandler;
+  DWARFLinker(messageHandler ErrorHandler, messageHandler WarningHandler,
+              std::function<StringRef(StringRef)> StringsTranslator)
+      : DwarfLinkerClientID(DwarfLinkerClient::Dsymutil),
+        StringsTranslator(StringsTranslator), ErrorHandler(ErrorHandler),
+        WarningHandler(WarningHandler) {}
+
+  static std::unique_ptr<DWARFLinker> createLinker(
+      messageHandler ErrorHandler, messageHandler WarningHandler,
+      std::function<StringRef(StringRef)> StringsTranslator = nullptr) {
+    return std::make_unique<DWARFLinker>(ErrorHandler, WarningHandler,
+                                         StringsTranslator);
+  }
+
+  /// Type of output file.
+  enum class OutputFileType {
+    Object,
+    Assembly,
+  };
+
+  /// The kind of accelerator tables we should emit.
+  enum class AccelTableKind : uint8_t {
+    Apple,     ///< .apple_names, .apple_namespaces, .apple_types, .apple_objc.
+    Pub,       ///< .debug_pubnames, .debug_pubtypes
+    DebugNames ///< .debug_names.
+  };
+  typedef std::function<void(const DWARFFile &File)> inputVerificationHandler;
+  typedef std::function<ErrorOr<DWARFFile &>(StringRef ContainerName,
+                                             StringRef Path)>
+      objFileLoader;
+
+  Error createEmitter(const Triple &TheTriple, OutputFileType FileType,
+                      raw_pwrite_stream &OutFile);
+
+  DwarfEmitter *getEmitter();
 
   /// Add object file to be linked. Pre-load compile unit die. Call
   /// \p OnCUDieLoaded for each compile unit die. If specified \p File
@@ -289,8 +353,7 @@ public:
       DWARFFile &File, objFileLoader Loader = nullptr,
       CompileUnitHandler OnCUDieLoaded = [](const DWARFUnit &) {});
 
-  /// Link debug info for added objFiles. Object
-  /// files are linked all together.
+  /// Link debug info for added objFiles. Object files are linked all together.
   Error link();
 
   /// A number of methods setting various linking options:
@@ -304,14 +367,15 @@ public:
   /// Verify the input DWARF.
   void setVerifyInputDWARF(bool Verify) { Options.VerifyInputDWARF = Verify; }
 
-  /// Do not emit linked dwarf info.
-  void setNoOutput(bool NoOut) { Options.NoOutput = NoOut; }
-
   /// Do not unique types according to ODR.
   void setNoODR(bool NoODR) { Options.NoODR = NoODR; }
 
-  /// update existing DWARF info(for the linked binary).
-  void setUpdate(bool Update) { Options.Update = Update; }
+  /// Update index tables only(do not modify rest of DWARF).
+  void setUpdateIndexTablesOnly(bool Update) { Options.Update = Update; }
+
+  /// Allow generating valid, but non-deterministic output.
+  void setAllowNonDeterministicOutput(bool) { /* Nothing to do. */
+  }
 
   /// Set whether to keep the enclosing function for a static variable.
   void setKeepFunctionForStatic(bool KeepFunctionForStatic) {
@@ -322,34 +386,17 @@ public:
   void setNumThreads(unsigned NumThreads) { Options.Threads = NumThreads; }
 
   /// Add kind of accelerator tables to be generated.
-  void addAccelTableKind(DwarfLinkerAccelTableKind Kind) {
-    assert(std::find(Options.AccelTables.begin(), Options.AccelTables.end(),
-                     Kind) == Options.AccelTables.end());
+  void addAccelTableKind(AccelTableKind Kind) {
+    assert(!llvm::is_contained(Options.AccelTables, Kind));
     Options.AccelTables.emplace_back(Kind);
   }
 
   /// Set prepend path for clang modules.
   void setPrependPath(const std::string &Ppath) { Options.PrependPath = Ppath; }
 
-  /// Set translator which would be used for strings.
-  void
-  setStringsTranslator(std::function<StringRef(StringRef)> StringsTranslator) {
-    this->StringsTranslator = StringsTranslator;
-  }
-
   /// Set estimated objects files amount, for preliminary data allocation.
   void setEstimatedObjfilesAmount(unsigned ObjFilesNum) {
     ObjectContexts.reserve(ObjFilesNum);
-  }
-
-  /// Set warning handler which would be used to report warnings.
-  void setWarningHandler(messageHandler Handler) {
-    Options.WarningHandler = Handler;
-  }
-
-  /// Set error handler which would be used to report errors.
-  void setErrorHandler(messageHandler Handler) {
-    Options.ErrorHandler = Handler;
   }
 
   /// Set verification handler which would be used to report verification
@@ -370,7 +417,7 @@ public:
 
   /// Set target DWARF version.
   Error setTargetDWARFVersion(uint16_t TargetDWARFVersion) {
-    if (TargetDWARFVersion < 1 || TargetDWARFVersion > 5)
+    if ((TargetDWARFVersion < 1) || (TargetDWARFVersion > 5))
       return createStringError(std::errc::invalid_argument,
                                "unsupported DWARF version: %d",
                                TargetDWARFVersion);
@@ -444,14 +491,14 @@ private:
 
   void reportWarning(const Twine &Warning, const DWARFFile &File,
                      const DWARFDie *DIE = nullptr) const {
-    if (Options.WarningHandler != nullptr)
-      Options.WarningHandler(Warning, File.FileName, DIE);
+    if (WarningHandler != nullptr)
+      WarningHandler(Warning, File.FileName, DIE);
   }
 
   void reportError(const Twine &Warning, const DWARFFile &File,
                    const DWARFDie *DIE = nullptr) const {
-    if (Options.ErrorHandler != nullptr)
-      Options.ErrorHandler(Warning, File.FileName, DIE);
+    if (ErrorHandler != nullptr)
+      ErrorHandler(Warning, File.FileName, DIE);
   }
 
   /// Emit warnings as Dwarf compile units to leave a trail after linking.
@@ -524,10 +571,9 @@ private:
   /// keep. Store that information in \p CU's DIEInfo.
   ///
   /// The return value indicates whether the DIE is incomplete.
-  void lookForDIEsToKeep(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const UnitListTy &Units, const DWARFDie &DIE,
-                         const DWARFFile &File, CompileUnit &CU,
-                         unsigned Flags);
+  void lookForDIEsToKeep(AddressesMap &RelocMgr, const UnitListTy &Units,
+                         const DWARFDie &DIE, const DWARFFile &File,
+                         CompileUnit &CU, unsigned Flags);
 
   /// Check whether specified \p CUDie is a Clang module reference.
   /// if \p Quiet is false then display error messages.
@@ -563,32 +609,26 @@ private:
                         OffsetsStringPool &DebugLineStrPool,
                         unsigned Indent = 0);
 
-  /// Mark the passed DIE as well as all the ones it depends on as kept.
-  void keepDIEAndDependencies(AddressesMap &RelocMgr, RangesTy &Ranges,
-                              const UnitListTy &Units, const DWARFDie &DIE,
-                              CompileUnit::DIEInfo &MyInfo,
-                              const DWARFFile &File, CompileUnit &CU,
-                              bool UseODR);
-
-  unsigned shouldKeepDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const DWARFDie &DIE, const DWARFFile &File,
-                         CompileUnit &Unit, CompileUnit::DIEInfo &MyInfo,
-                         unsigned Flags);
+  unsigned shouldKeepDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                         const DWARFFile &File, CompileUnit &Unit,
+                         CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
   /// This function checks whether variable has DWARF expression containing
   /// operation referencing live address(f.e. DW_OP_addr, DW_OP_addrx...).
-  /// \returns relocation adjustment value if live address is referenced.
-  std::optional<int64_t> getVariableRelocAdjustment(AddressesMap &RelocMgr,
-                                                    const DWARFDie &DIE);
+  /// \returns first is true if the expression has an operation referencing an
+  /// address.
+  ///          second is the relocation adjustment value if the live address is
+  ///          referenced.
+  std::pair<bool, std::optional<int64_t>>
+  getVariableRelocAdjustment(AddressesMap &RelocMgr, const DWARFDie &DIE);
 
   /// Check if a variable describing DIE should be kept.
   /// \returns updated TraversalFlags.
   unsigned shouldKeepVariableDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
                                  CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
-  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                                   const DWARFDie &DIE, const DWARFFile &File,
-                                   CompileUnit &Unit,
+  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                                   const DWARFFile &File, CompileUnit &Unit,
                                    CompileUnit::DIEInfo &MyInfo,
                                    unsigned Flags);
 
@@ -614,6 +654,7 @@ private:
     DWARFFile &ObjFile;
     OffsetsStringPool &DebugStrPool;
     OffsetsStringPool &DebugLineStrPool;
+    DebugAddrPool AddrPool;
 
     /// Allocator used for all the DIEValue objects.
     BumpPtrAllocator &DIEAlloc;
@@ -656,6 +697,19 @@ private:
     /// nothing to clone/emit.
     uint64_t cloneAllCompileUnits(DWARFContext &DwarfContext,
                                   const DWARFFile &File, bool IsLittleEndian);
+
+    /// Emit the .debug_addr section for the \p Unit.
+    void emitDebugAddrSection(CompileUnit &Unit,
+                              const uint16_t DwarfVersion) const;
+
+    using ExpressionHandlerRef = function_ref<void(
+        SmallVectorImpl<uint8_t> &, SmallVectorImpl<uint8_t> &,
+        int64_t AddrRelocAdjustment)>;
+
+    /// Compute and emit debug locations (.debug_loc, .debug_loclists)
+    /// for \p Unit, patch the attributes referencing it.
+    void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
+                               ExpressionHandlerRef ExprHandler);
 
   private:
     using AttributeSpec = DWARFAbbreviationDeclaration::AttributeSpec;
@@ -770,23 +824,14 @@ private:
 
   /// Compute and emit debug ranges(.debug_aranges, .debug_ranges,
   /// .debug_rnglists) for \p Unit, patch the attributes referencing it.
-  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File) const;
-
-  using ExpressionHandlerRef =
-      function_ref<void(SmallVectorImpl<uint8_t> &, SmallVectorImpl<uint8_t> &,
-                        int64_t AddrRelocAdjustment)>;
-
-  /// Compute and emit debug locations (.debug_loc, .debug_loclists)
-  /// for \p Unit, patch the attributes referencing it.
-  void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
-                             ExpressionHandlerRef ExprHandler) const;
+  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File,
+                          DebugAddrPool &AddrPool) const;
 
   /// Emit the accelerator entries for \p Unit.
   void emitAcceleratorEntriesForUnit(CompileUnit &Unit);
 
   /// Patch the frame info for an object file and emit it.
-  void patchFrameInfoForObject(const DWARFFile &, RangesTy &Ranges,
-                               DWARFContext &, unsigned AddressSize);
+  void patchFrameInfoForObject(LinkContext &Context);
 
   /// FoldingSet that uniques the abbreviations.
   FoldingSet<DIEAbbrev> AbbreviationsSet;
@@ -806,7 +851,7 @@ private:
   BumpPtrAllocator DIEAlloc;
   /// @}
 
-  DwarfEmitter *TheDwarfEmitter;
+  std::unique_ptr<DwarfStreamer> TheDwarfEmitter;
   std::vector<LinkContext> ObjectContexts;
 
   /// The CIEs that have been emitted in the output section. The actual CIE
@@ -835,6 +880,12 @@ private:
   /// A unique ID that identifies each compile unit.
   unsigned UniqueUnitID = 0;
 
+  // error handler
+  messageHandler ErrorHandler = nullptr;
+
+  // warning handler
+  messageHandler WarningHandler = nullptr;
+
   /// linking options
   struct DWARFLinkerOptions {
     /// DWARF version for the output.
@@ -848,9 +899,6 @@ private:
 
     /// Verify the input DWARF.
     bool VerifyInputDWARF = false;
-
-    /// Skip emitting output
-    bool NoOutput = false;
 
     /// Do not unique types according to ODR
     bool NoODR = false;
@@ -866,16 +914,10 @@ private:
     unsigned Threads = 1;
 
     /// The accelerator table kinds
-    SmallVector<DwarfLinkerAccelTableKind, 1> AccelTables;
+    SmallVector<AccelTableKind, 1> AccelTables;
 
     /// Prepend path for the clang modules.
     std::string PrependPath;
-
-    // warning handler
-    messageHandler WarningHandler = nullptr;
-
-    // error handler
-    messageHandler ErrorHandler = nullptr;
 
     // input verification handler
     inputVerificationHandler InputVerificationHandler = nullptr;

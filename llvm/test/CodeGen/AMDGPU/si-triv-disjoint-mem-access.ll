@@ -2,7 +2,7 @@
 ; RUN: llc -amdgpu-scalarize-global-loads=false  -march=amdgcn -mcpu=gfx900 -enable-amdgpu-aa=0 -verify-machineinstrs -enable-misched -enable-aa-sched-mi < %s | FileCheck -enable-var-scope -check-prefixes=GCN,GFX9 %s
 
 %struct.lds = type { [64 x ptr], [16 x i8] }
-@stored_lds_struct = addrspace(3) global %struct.lds addrspace(3) *undef, align 16
+@stored_lds_struct = addrspace(3) global %struct.lds undef, align 16
 @stored_lds_ptr = addrspace(3) global ptr addrspace(3) undef, align 4
 @stored_constant_ptr = addrspace(3) global ptr addrspace(4) undef, align 8
 @stored_global_ptr = addrspace(3) global ptr addrspace(1) undef, align 8
@@ -318,7 +318,7 @@ define amdgpu_vs void @reorder_local_load_tbuffer_store_local_load(ptr addrspace
 
   %vdata = insertelement <4 x i32> undef, i32 %a1, i32 0
   %vaddr.add = add i32 %vaddr, 32
-  call void @llvm.amdgcn.struct.tbuffer.store.v4i32(<4 x i32> %vdata, <4 x i32> undef, i32 %vaddr.add, i32 0, i32 0, i32 228, i32 3)
+  call void @llvm.amdgcn.struct.ptr.tbuffer.store.v4i32(<4 x i32> %vdata, ptr addrspace(8) undef, i32 %vaddr.add, i32 0, i32 0, i32 228, i32 3)
 
   %tmp2 = load i32, ptr addrspace(3) %ptr2, align 4
 
@@ -330,7 +330,7 @@ define amdgpu_vs void @reorder_local_load_tbuffer_store_local_load(ptr addrspace
 declare void @llvm.memcpy.p3.p0(ptr addrspace(3), ptr, i64, i1)
 declare void @llvm.amdgcn.s.barrier() #1
 declare i32 @llvm.amdgcn.workitem.id.x() #2
-declare void @llvm.amdgcn.struct.tbuffer.store.v4i32(<4 x i32>, <4 x i32>, i32, i32, i32, i32 immarg, i32 immarg) #3
+declare void @llvm.amdgcn.struct.ptr.tbuffer.store.v4i32(<4 x i32>, ptr addrspace(8), i32, i32, i32, i32 immarg, i32 immarg) #3
 
 attributes #0 = { nounwind }
 attributes #1 = { convergent nounwind willreturn }
