@@ -33,7 +33,7 @@
 // REQUIRES: linux
 
 // RUN: %clangxx -fPIC -shared -fsycl -fsycl-targets=%{sycl_triple} %S/Inputs/kernel_module_lin.cpp -o %t.so
-// RUN: %clangxx -D__TEST_SHARED_LIB='"%t.so"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.so %s -o %t.out
+// RUN: %clangxx -DTEST_SHARED_LIB='"%t.so"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.so %s -o %t.out
 // RUN: %{run} %t.out
 
 #include <dlfcn.h>
@@ -77,11 +77,10 @@ void kernel_functor_ptr() {
   void *M;
   syclcompat::kernel_functor F;
 
-  // TODO: change library path to a compile defined macro
-  M = dlopen(__TEST_SHARED_LIB, RTLD_LAZY);
+  M = dlopen(TEST_SHARED_LIB, RTLD_LAZY);
   if (M == NULL) {
     std::cout << "Could not load the library" << std::endl;
-    std::cout << "  " << __TEST_SHARED_LIB << std::endl << std::flush;
+    std::cout << "  " << TEST_SHARED_LIB << std::endl << std::flush;
     assert(false); // FAIL
   }
 
