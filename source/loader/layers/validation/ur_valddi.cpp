@@ -15,58 +15,6 @@
 namespace ur_validation_layer {
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urInit
-__urdlllocal ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t device_flags, ///< [in] device initialization flags.
-    ///< must be 0 (default) or a combination of ::ur_device_init_flag_t.
-    ur_loader_config_handle_t
-        hLoaderConfig ///< [in][optional] Handle of loader config handle.
-) {
-    auto pfnInit = context.urDdiTable.Global.pfnInit;
-
-    if (nullptr == pfnInit) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    if (context.enableParameterValidation) {
-        if (UR_DEVICE_INIT_FLAGS_MASK & device_flags) {
-            return UR_RESULT_ERROR_INVALID_ENUMERATION;
-        }
-    }
-
-    ur_result_t result = pfnInit(device_flags, hLoaderConfig);
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urTearDown
-__urdlllocal ur_result_t UR_APICALL urTearDown(
-    void *pParams ///< [in] pointer to tear down parameters
-) {
-    auto pfnTearDown = context.urDdiTable.Global.pfnTearDown;
-
-    if (nullptr == pfnTearDown) {
-        return UR_RESULT_ERROR_UNINITIALIZED;
-    }
-
-    if (context.enableParameterValidation) {
-        if (NULL == pParams) {
-            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
-        }
-    }
-
-    ur_result_t result = pfnTearDown(pParams);
-
-    if (context.enableLeakChecking) {
-        refCountContext.logInvalidReferences();
-        refCountContext.clear();
-    }
-
-    return result;
-}
-
-///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urAdapterGet
 __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     uint32_t
@@ -92,6 +40,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
 
     ur_result_t result = pfnAdapterGet(NumEntries, phAdapters, pNumAdapters);
 
+    if (context.enableLeakChecking && phAdapters &&
+        result == UR_RESULT_SUCCESS) {
+        refCountContext.createOrIncrementRefCount(*phAdapters, true);
+    }
+
     return result;
 }
 
@@ -115,7 +68,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
     ur_result_t result = pfnAdapterRelease(hAdapter);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.decrementRefCount(hAdapter);
+        refCountContext.decrementRefCount(hAdapter, true);
     }
 
     return result;
@@ -141,7 +94,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
     if (context.enableLeakChecking && result == UR_RESULT_SUCCESS) {
-        refCountContext.incrementRefCount(hAdapter);
+        refCountContext.decrementRefCount(hAdapter, true);
     }
 
     return result;
@@ -7183,12 +7136,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    dditable.pfnInit = pDdiTable->pfnInit;
-    pDdiTable->pfnInit = ur_validation_layer::urInit;
-
-    dditable.pfnTearDown = pDdiTable->pfnTearDown;
-    pDdiTable->pfnTearDown = ur_validation_layer::urTearDown;
-
     dditable.pfnAdapterGet = pDdiTable->pfnAdapterGet;
     pDdiTable->pfnAdapterGet = ur_validation_layer::urAdapterGet;
 
@@ -8406,6 +8353,16 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
             UR_API_VERSION_CURRENT, &dditable->Device);
     }
 
+    return result;
+}
+
+ur_result_t context_t::tearDown() {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    if (enableLeakChecking) {
+        refCountContext.logInvalidReferences();
+        refCountContext.clear();
+    }
     return result;
 }
 

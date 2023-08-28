@@ -137,8 +137,8 @@ defined within them, with the following exceptions:
     enumerations, and structure type enumerations.
 *   `scripts/core/enqueue.yml`_ defines commands which can be enqueued on a
     queue object.
-*   `scripts/core/runtime.yml`_ defines global symbols pertaining to
-    initialization and tear down of the entire runtime.
+*   `scripts/core/loader.yml`_ defines global symbols pertaining to
+    initialization and tear down of the loader.
 *   `scripts/core/registry.yml`_ contains an enumeration of all entry-points,
     past and present, for use in the XPTI tracing framework. It is
     automatically updated so shouldn't require manual editing.
@@ -148,8 +148,8 @@ defined within them, with the following exceptions:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/common.yml
 .. _scripts/core/enqueue.yml:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/enqueue.yml
-.. _scripts/core/runtime.yml:
-   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/runtime.yml
+.. _scripts/core/loader.yml:
+   https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/loader.yml
 .. _scripts/core/registry.yml:
    https://github.com/oneapi-src/unified-runtime/blob/main/scripts/core/registry.yml
 

@@ -292,12 +292,6 @@ etors:
 - name: QUEUE_FLUSH
   desc: Enumerator for $xQueueFlush
   value: '98'
-- name: INIT
-  desc: Enumerator for $xInit
-  value: '99'
-- name: TEAR_DOWN
-  desc: Enumerator for $xTearDown
-  value: '100'
 - name: SAMPLER_CREATE
   desc: Enumerator for $xSamplerCreate
   value: '101'
@@ -529,6 +523,12 @@ etors:
 - name: ADAPTER_GET_INFO
   desc: Enumerator for $xAdapterGetInfo
   value: '181'
+- name: LOADER_INIT
+  desc: Enumerator for $xLoaderInit
+  value: '182'
+- name: LOADER_TEAR_DOWN
+  desc: Enumerator for $xLoaderTearDown
+  value: '183'
 ---
 type: enum
 desc: Defines structure types

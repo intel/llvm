@@ -825,14 +825,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         os << "UR_FUNCTION_QUEUE_FLUSH";
         break;
 
-    case UR_FUNCTION_INIT:
-        os << "UR_FUNCTION_INIT";
-        break;
-
-    case UR_FUNCTION_TEAR_DOWN:
-        os << "UR_FUNCTION_TEAR_DOWN";
-        break;
-
     case UR_FUNCTION_SAMPLER_CREATE:
         os << "UR_FUNCTION_SAMPLER_CREATE";
         break;
@@ -1140,6 +1132,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
 
     case UR_FUNCTION_ADAPTER_GET_INFO:
         os << "UR_FUNCTION_ADAPTER_GET_INFO";
+        break;
+
+    case UR_FUNCTION_LOADER_INIT:
+        os << "UR_FUNCTION_LOADER_INIT";
+        break;
+
+    case UR_FUNCTION_LOADER_TEAR_DOWN:
+        os << "UR_FUNCTION_LOADER_TEAR_DOWN";
         break;
     default:
         os << "unknown enumerator";
@@ -9962,32 +9962,6 @@ inline void serializeTagged(std::ostream &os, const void *ptr,
 } // namespace ur_params
 
 inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_init_params_t *params) {
-
-    os << ".device_flags = ";
-
-    ur_params::serializeFlag<ur_device_init_flag_t>(os,
-                                                    *(params->pdevice_flags));
-
-    os << ", ";
-    os << ".hLoaderConfig = ";
-
-    ur_params::serializePtr(os, *(params->phLoaderConfig));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_tear_down_params_t *params) {
-
-    os << ".pParams = ";
-
-    ur_params::serializePtr(os, *(params->ppParams));
-
-    return os;
-}
-
-inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_adapter_get_params_t *params) {
 
     os << ".NumEntries = ";
@@ -13382,6 +13356,29 @@ inline std::ostream &operator<<(
     return os;
 }
 
+inline std::ostream &operator<<(std::ostream &os,
+                                const struct ur_loader_init_params_t *params) {
+
+    os << ".device_flags = ";
+
+    ur_params::serializeFlag<ur_device_init_flag_t>(os,
+                                                    *(params->pdevice_flags));
+
+    os << ", ";
+    os << ".hLoaderConfig = ";
+
+    ur_params::serializePtr(os, *(params->phLoaderConfig));
+
+    return os;
+}
+
+inline std::ostream &
+operator<<(std::ostream &os,
+           const struct ur_loader_tear_down_params_t *params) {
+
+    return os;
+}
+
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_loader_config_create_params_t *params) {
@@ -15334,12 +15331,6 @@ template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
 inline int serializeFunctionParams(std::ostream &os, uint32_t function,
                                    const void *params) {
     switch ((enum ur_function_t)function) {
-    case UR_FUNCTION_INIT: {
-        os << (const struct ur_init_params_t *)params;
-    } break;
-    case UR_FUNCTION_TEAR_DOWN: {
-        os << (const struct ur_tear_down_params_t *)params;
-    } break;
     case UR_FUNCTION_ADAPTER_GET: {
         os << (const struct ur_adapter_get_params_t *)params;
     } break;
@@ -15647,6 +15638,12 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
         os << (const struct ur_kernel_set_specialization_constants_params_t *)
                 params;
+    } break;
+    case UR_FUNCTION_LOADER_INIT: {
+        os << (const struct ur_loader_init_params_t *)params;
+    } break;
+    case UR_FUNCTION_LOADER_TEAR_DOWN: {
+        os << (const struct ur_loader_tear_down_params_t *)params;
     } break;
     case UR_FUNCTION_LOADER_CONFIG_CREATE: {
         os << (const struct ur_loader_config_create_params_t *)params;
