@@ -1,3 +1,4 @@
+Annotated_arg_ptr/annotated_ptr.cpp
 Assert/assert_in_simultaneously_multiple_tus.cpp
 AtomicRef/accessor.cpp
 AtomicRef/add.cpp
@@ -111,6 +112,7 @@ Basic/stream/release_resources_test.cpp
 Basic/stream/stream.cpp
 Basic/stream/stream_copies_buffer_sync.cpp
 Basic/stream/stream_max_stmt_exceed.cpp
+Basic/stream/zero_buffer_size.cpp
 Basic/sub_group_size_prop.cpp
 Basic/vec_bool.cpp
 Basic/vector_operators.cpp
@@ -256,6 +258,7 @@ ESIMD/dword_atomic_smoke_scalar_off.cpp
 ESIMD/esimd_check_vc_codegen.cpp
 ESIMD/ext_math.cpp
 ESIMD/ext_math_fast.cpp
+ESIMD/ext_math_saturate.cpp
 ESIMD/fp_args_size/fp_args_char_int_size_192.cpp
 ESIMD/fp_args_size/fp_args_char_int_size_256.cpp
 ESIMD/fp_args_size/fp_args_char_int_size_512.cpp

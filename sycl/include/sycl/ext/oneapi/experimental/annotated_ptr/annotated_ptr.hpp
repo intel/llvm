@@ -65,10 +65,7 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 namespace {
 #define PROPAGATE_OP(op)                                                       \
-  annotated_ref operator op(const T &rhs) {                                    \
-    (*m_Ptr) op rhs;                                                           \
-    return *this;                                                              \
-  }
+  T operator op##=(const T &rhs) const { return *this = *this op rhs; }
 
 // compare strings on compile time
 constexpr bool compareStrs(const char *Str1, const char *Str2) {
@@ -96,7 +93,7 @@ struct PropertiesFilter {
       PropertiesAreAllowed<Props, AllowedPropTuple>::allowed, std::tuple<Props>,
       std::tuple<>>::type...>;
 };
-
+} // namespace
 template <typename T, typename PropertyListT = detail::empty_properties_t>
 class annotated_ref {
   // This should always fail when instantiating the unspecialized version.
@@ -107,14 +104,13 @@ class annotated_ref {
 template <typename T, typename... Props>
 class annotated_ref<T, detail::properties_t<Props...>> {
   using property_list_t = detail::properties_t<Props...>;
-  using this_t = annotated_ref<T, detail::properties_t<Props...>>;
 
 private:
   T *m_Ptr;
+  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
 
 public:
-  annotated_ref(T *Ptr) : m_Ptr(Ptr) {}
-  annotated_ref(const annotated_ref &) = default;
+  annotated_ref(const annotated_ref &) = delete;
 
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -126,7 +122,7 @@ public:
 #endif
   }
 
-  this_t &operator=(const T &Obj) {
+  T operator=(const T &Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
     *__builtin_intel_sycl_ptr_annotation(
         m_Ptr, detail::PropertyMetaInfo<Props>::name...,
@@ -134,35 +130,42 @@ public:
 #else
     *m_Ptr = Obj;
 #endif
-    return *this;
+    return Obj;
   }
 
-  this_t &operator=(const this_t &Obj) {
-    const T &t = Obj;
-    this->operator=(t);
-    return *this;
+  T operator=(const annotated_ref &Ref) const { return *this = T(Ref); }
+
+  PROPAGATE_OP(+)
+  PROPAGATE_OP(-)
+  PROPAGATE_OP(*)
+  PROPAGATE_OP(/)
+  PROPAGATE_OP(%)
+  PROPAGATE_OP(^)
+  PROPAGATE_OP(&)
+  PROPAGATE_OP(|)
+  PROPAGATE_OP(<<)
+  PROPAGATE_OP(>>)
+
+  T operator++() { return *this += 1; }
+
+  T operator++(int) {
+    const T t = *this;
+    *this = (t + 1);
+    return t;
   }
 
-  template <typename... OtherProperties>
-  this_t &operator=(
-      const annotated_ref<T, detail::properties_t<OtherProperties...>> &Obj) {
-    const T &t = Obj;
-    this->operator=(t);
-    return *this;
+  T operator--() { return *this -= 1; }
+
+  T operator--(int) {
+    const T t = *this;
+    *this = (t - 1);
+    return t;
   }
 
-  PROPAGATE_OP(+=)
-  PROPAGATE_OP(-=)
-  PROPAGATE_OP(*=)
-  PROPAGATE_OP(/=)
-  PROPAGATE_OP(%=)
-  PROPAGATE_OP(^=)
-  PROPAGATE_OP(&=)
-  PROPAGATE_OP(|=)
+  template <class T2, class P2> friend class annotated_ptr;
 };
 
 #undef PROPAGATE_OP
-} // namespace
 
 #ifdef __cpp_deduction_guides
 template <typename T, typename... Args>
@@ -235,7 +238,7 @@ public:
 
   annotated_ptr() noexcept = default;
   annotated_ptr(const annotated_ptr &) = default;
-  annotated_ptr &operator=(annotated_ptr &) = default;
+  annotated_ptr &operator=(const annotated_ptr &) = default;
 
   annotated_ptr(T *Ptr, const property_list_t & = properties{}) noexcept
       : m_Ptr(global_pointer_t(Ptr)) {}
@@ -314,14 +317,9 @@ public:
 
   explicit operator bool() const noexcept { return m_Ptr != nullptr; }
 
-  operator T *() noexcept = delete;
-  operator T *() const = delete;
+  operator T *() const noexcept = delete;
 
   T *get() const noexcept { return m_Ptr; }
-
-  annotated_ptr &operator=(T *) noexcept {
-    return annotated_ptr<T, property_list_t>(m_Ptr);
-  }
 
   annotated_ptr &operator++() noexcept {
     m_Ptr += 1;
