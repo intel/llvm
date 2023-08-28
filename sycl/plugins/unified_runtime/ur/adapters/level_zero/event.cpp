@@ -152,9 +152,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       [&Queue](ur_command_list_ptr_t CmdList,
                const _ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal) {
-        // For in-order queue and empty wait-list just use the last command
-        // event as the barrier event.
-        if (Queue->isInOrderQueue() && !EventWaitList.Length &&
+        auto EmptyOrAllEventsFromSameQueue =
+            [](const _ur_ze_event_list_t &EventWaitList) {
+              if (!EventWaitList.Length)
+                return true;
+
+              auto Queue = EventWaitList.UrEventList[0]->UrQueue;
+              for (uint32_t I = 1; I < EventWaitList.Length; ++I)
+                if (Queue != EventWaitList.UrEventList[I]->UrQueue)
+                  return false;
+
+              return true;
+            };
+        // For in-order queue and wait-list which is empty or has events from
+        // the same queue just use the last command event as the barrier event.
+        if (Queue->isInOrderQueue() &&
+            EmptyOrAllEventsFromSameQueue(EventWaitList) &&
             Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
           UR_CALL(urEventRetain(Queue->LastCommandEvent));
           Event = Queue->LastCommandEvent;
