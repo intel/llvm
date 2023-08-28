@@ -42,6 +42,8 @@
 #include <string>
 #include <variant>
 
+#include <boost/container_hash/hash.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -533,6 +535,19 @@ static void applyOptionsFromEnvironment(std::string &CompileOpts,
   applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
+static inline void applyOptionsFromEnvironmentHash(size_t &CompileOptsHash,
+                                                   size_t &LinkOptsHash) {
+  static const char *CompileOptsEnv =
+      SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+
+  static size_t CompileOptsEnvHash = std::hash<std::string>{}(CompileOptsEnv ? CompileOptsEnv : "");
+  static size_t LinkOptsEnvHash = std::hash<std::string>{}(LinkOptsEnv ? LinkOptsEnv : "");
+
+  CompileOptsHash = CompileOptsEnvHash;
+  LinkOptsHash = LinkOptsEnvHash;
+}
+
 std::pair<sycl::detail::pi::PiProgram, bool>
 ProgramManager::getOrCreatePIProgram(const RTDeviceBinaryImage &Img,
                                      const context &Context,
@@ -690,6 +705,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
                                   const DeviceImplPtr &DeviceImpl,
                                   const std::string &KernelName,
                                   const program_impl *Prg) {
+  auto begin = std::chrono::steady_clock::now();
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::getOrCreateKernel(" << ContextImpl.get()
               << ", " << DeviceImpl.get() << ", " << KernelName << ")\n";
@@ -705,15 +721,38 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     CompileOpts = Prg->get_build_options();
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
-  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  size_t CompileOptsHash, LinkOptsHash;
+  applyOptionsFromEnvironmentHash(CompileOptsHash, LinkOptsHash);
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
+  auto SpecConstsHash = ::boost::hash<SerializedObj>{}(SpecConsts);
+  auto PiDeviceHash = std::hash<sycl::detail::pi::PiDevice>{}(PiDevice);
+
+  // It'd be great if this could be computed once and saved somewhere
+  // It's probably the most expensive part left.
+  std::hash<std::string> StringHasher;
+  auto KernelNameHash = StringHasher(KernelName);
+
+  size_t Seed = 0;
+  ::boost::hash_combine(Seed, SpecConstsHash);
+  ::boost::hash_combine(Seed, PiDeviceHash);
+  ::boost::hash_combine(Seed, CompileOptsHash);
+  ::boost::hash_combine(Seed, LinkOptsHash);
+  ::boost::hash_combine(Seed, KernelNameHash);
+
+  size_t key = Seed;
+  /*
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
                              CompileOpts + LinkOpts, KernelName);
+  */
   auto ret_tuple = Cache.tryToGetKernelFast(key);
+  auto end = std::chrono::steady_clock::now();
+  // Timing instrumentation just to see if this part got faster.
+  // Obviously don't keep in production.
+  std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() << "ns\n";
   if (std::get<0>(ret_tuple))
     return ret_tuple;
-
+  
   sycl::detail::pi::PiProgram Program =
       getBuiltPIProgram(ContextImpl, DeviceImpl, KernelName, Prg);
 

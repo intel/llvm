@@ -91,13 +91,18 @@ public:
   using KernelByNameT = std::map<std::string, BuildResult<KernelArgMaskPairT>>;
   using KernelCacheT = std::map<sycl::detail::pi::PiProgram, KernelByNameT>;
 
+  using KernelFastCacheKeyT = size_t;
+  /*
+  // Original Cache KeyT
   using KernelFastCacheKeyT =
       std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
                  std::string>;
+  */
   using KernelFastCacheValT =
       std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
                  const KernelArgMask *, sycl::detail::pi::PiProgram>;
-  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
+  // Changed to unordered_map. Should be an unordered_multimap to handle collisions
+  using KernelFastCacheT = std::unordered_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   ~KernelProgramCache();
 
