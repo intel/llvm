@@ -34,7 +34,7 @@ class fpga_mem_base {
 protected:
   T val
 #ifdef __SYCL_DEVICE_ONLY__
-      // Doesn't work for some reason
+      // Artem: Doesn't work for some reason
       [[__sycl_detail__::add_ir_annotations_member(
           ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
           ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
@@ -42,24 +42,26 @@ protected:
       ;
 
   T *get_ptr() noexcept {
-// #ifdef __SYCL_DEVICE_ONLY__
-//     return __builtin_intel_sycl_ptr_annotation(
-//         &val, detail::PropertyMetaInfo<Props>::name...,
-//         detail::PropertyMetaInfo<Props>::value...);
-// #else
-//     return &val;
-// #endif     
-    return &val; 
+// Artem: Shouldn't be needed
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_intel_sycl_ptr_annotation(
+        &val, ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...);
+#else
+    return &val;
+#endif     
+    // return &val; 
   }
   const T *get_ptr() const noexcept { 
-// #ifdef __SYCL_DEVICE_ONLY__
-//     return __builtin_intel_sycl_ptr_annotation(
-//         &val, detail::PropertyMetaInfo<Props>::name...,
-//         detail::PropertyMetaInfo<Props>::value...);
-// #else
-//     return &val;
-// #endif 
+// Artem: Shouldn't be needed
+#ifdef __SYCL_DEVICE_ONLY__
+    return __builtin_intel_sycl_ptr_annotation(
+        &val, ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
+        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...);
+#else
     return &val;
+#endif 
+    // return &val;
   }
 
 public:
