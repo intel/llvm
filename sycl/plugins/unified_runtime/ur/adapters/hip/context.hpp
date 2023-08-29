@@ -1,11 +1,13 @@
-//===--------- context.hpp - HIP Adapter ----------------------------===//
+//===--------- context.hpp - HIP Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
+
+#include <unordered_map>
 
 #include "common.hpp"
 #include "device.hpp"
@@ -93,9 +95,61 @@ struct ur_context_handle_t_ {
 
   uint32_t getReferenceCount() const noexcept { return RefCount; }
 
+  /// We need to keep track of USM mappings in AMD HIP, as certain extra
+  /// synchronization *is* actually required for correctness.
+  /// During kernel enqueue we must dispatch a prefetch for each kernel argument
+  /// that points to a USM mapping to ensure the mapping is correctly
+  /// populated on the device (https://github.com/intel/llvm/issues/7252). Thus,
+  /// we keep track of mappings in the context, and then check against them just
+  /// before the kernel is launched. The stream against which the kernel is
+  /// launched is not known until enqueue time, but the USM mappings can happen
+  /// at any time. Thus, they are tracked on the context used for the urUSM*
+  /// mapping.
+  ///
+  /// The three utility function are simple wrappers around a mapping from a
+  /// pointer to a size.
+  void addUSMMapping(void *Ptr, size_t Size) {
+    std::lock_guard<std::mutex> Guard(Mutex);
+    assert(USMMappings.find(Ptr) == USMMappings.end() &&
+           "mapping already exists");
+    USMMappings[Ptr] = Size;
+  }
+
+  void removeUSMMapping(const void *Ptr) {
+    std::lock_guard<std::mutex> guard(Mutex);
+    auto It = USMMappings.find(Ptr);
+    if (It != USMMappings.end())
+      USMMappings.erase(It);
+  }
+
+  std::pair<const void *, size_t> getUSMMapping(const void *Ptr) {
+    std::lock_guard<std::mutex> Guard(Mutex);
+    auto It = USMMappings.find(Ptr);
+    // The simple case is the fast case...
+    if (It != USMMappings.end())
+      return *It;
+
+    // ... but in the failure case we have to fall back to a full scan to search
+    // for "offset" pointers in case the user passes in the middle of an
+    // allocation. We have to do some not-so-ordained-by-the-standard ordered
+    // comparisons of pointers here, but it'll work on all platforms we support.
+    uintptr_t PtrVal = (uintptr_t)Ptr;
+    for (std::pair<const void *, size_t> Pair : USMMappings) {
+      uintptr_t BaseAddr = (uintptr_t)Pair.first;
+      uintptr_t EndAddr = BaseAddr + Pair.second;
+      if (PtrVal > BaseAddr && PtrVal < EndAddr) {
+        // If we've found something now, offset *must* be nonzero
+        assert(Pair.second);
+        return Pair;
+      }
+    }
+    return {nullptr, 0};
+  }
+
 private:
   std::mutex Mutex;
   std::vector<deleter_data> ExtendedDeleters;
+  std::unordered_map<const void *, size_t> USMMappings;
 };
 
 namespace {
