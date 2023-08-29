@@ -68,7 +68,8 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_sub_group_broadcast(
 ; CHECK: [[LD:%.*]] = load <vscale x 4 x i32>, ptr addrspace(1) {{%.*}}, align 4
 ; CHECK: [[EXT:%.*]] = extractelement <vscale x 4 x i32> [[LD]], {{(i32|i64)}} 0
-; CHECK: [[INS:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[EXT]], {{(i32|i64)}} 0
+; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 0)
+; CHECK: [[INS:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[BDCAST]], {{(i32|i64)}} 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[INS]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
 ; CHECK: store <vscale x 4 x i32> [[SPLAT]], ptr addrspace(1)
 }
