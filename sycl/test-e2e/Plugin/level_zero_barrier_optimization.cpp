@@ -102,7 +102,8 @@ int main() {
   assert(Event8.get_info<sycl::info::event::command_execution_status>() ==
          sycl::info::event_command_status::complete);
 
-  // Test case 5 - events in the barrier's waitlist are from the same queue Q2, but submission to the different queue Q1 which is synced.
+  // Test case 5 - events in the barrier's waitlist are from the same queue Q2,
+  // but submission to the different queue Q1 which is synced.
   std::cout << "Test5" << std::endl;
   Q1.wait();
   auto Event10 = Q2.submit(
