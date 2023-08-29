@@ -109,16 +109,6 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   Value *DstPtr = Args[0];
   Type *Int8Ty = B.getInt8Ty();
 
-#if LLVM_VERSION_LESS(17, 0)
-  auto *DstPtrTy = cast<PointerType>(DstPtr->getType());
-  // FIXME: We implicitly assume pointers to i8 by doing byte-wise stores,
-  // below. See CA-4331.
-  if (!DstPtrTy->isOpaque() &&
-      multi_llvm::getPtrElementType(DstPtrTy) != Int8Ty) {
-    return nullptr;
-  }
-#endif
-
   Value *StoredValue = Args[1];
   bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
   llvm::StoreInst *MS = nullptr;
@@ -213,19 +203,6 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
   Value *DstPtr = Args[0];
   Value *SrcPtr = Args[1];
   Type *Int8Ty = B.getInt8Ty();
-
-#if LLVM_VERSION_LESS(17, 0)
-  auto *DstPtrTy = cast<PointerType>(DstPtr->getType());
-  auto *SrcPtrTy = cast<PointerType>(DstPtr->getType());
-  // FIXME: We implicitly assume pointers to i8 by doing byte-wise loads and
-  // stores, below. See CA-4331.
-  if ((!DstPtrTy->isOpaque() &&
-       multi_llvm::getPtrElementType(DstPtrTy) != Int8Ty) ||
-      ((!SrcPtrTy->isOpaque() &&
-        multi_llvm::getPtrElementType(SrcPtrTy) != Int8Ty))) {
-    return nullptr;
-  }
-#endif
 
   bool IsVolatile = (Args.back() == ConstantInt::getTrue(Context));
   llvm::StoreInst *MC = nullptr;
