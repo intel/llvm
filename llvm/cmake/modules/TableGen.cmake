@@ -4,8 +4,6 @@
 # Adds the name of the generated file to TABLEGEN_OUTPUT.
 include(LLVMDistributionSupport)
 
-list(APPEND LLVM_TABLEGEN_FLAGS "-DINTEL_SYCL_OPAQUEPOINTER_READY")
-
 function(tablegen project ofn)
   cmake_parse_arguments(ARG "" "" "DEPENDS;EXTRA_INCLUDES" ${ARGN})
 
@@ -99,6 +97,10 @@ function(tablegen project ofn)
 
   set(tablegen_exe ${${project}_TABLEGEN_EXE})
   set(tablegen_depends ${${project}_TABLEGEN_TARGET} ${tablegen_exe})
+
+  if(NOT "${tablegen_exe}" STREQUAL "mlir-pdll")
+    list(APPEND LLVM_TABLEGEN_FLAGS "-DINTEL_SYCL_OPAQUEPOINTER_READY")
+  endif()
 
   add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${ofn}
     COMMAND ${tablegen_exe} ${ARG_UNPARSED_ARGUMENTS} -I ${CMAKE_CURRENT_SOURCE_DIR}
