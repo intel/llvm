@@ -63,7 +63,7 @@ void memcpy_async1() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
-  sycl::event memcpy_ev = syclcompat::memcpy_async(atest.d_A, atest.d_C,
+  sycl::event memcpy_ev = syclcompat::memcpy_async(atest.d_A_, atest.d_C_,
                                                    sizeof(float) * atest.size_);
   sycl::event host_ev = atest.launch_host_task({memcpy_ev});
 
@@ -75,7 +75,7 @@ void memcpy_async2() {
   AsyncTest atest;
 
   sycl::event memcpy_ev =
-      syclcompat::memcpy_async(atest.d_A, 32, atest.d_C, 32, 32, 4);
+      syclcompat::memcpy_async(atest.d_A_, 32, atest.d_C_, 32, 32, 4);
   sycl::event host_ev = atest.launch_host_task({memcpy_ev});
 
   atest.check_events(memcpy_ev, host_ev);
@@ -90,9 +90,9 @@ void memcpy_async3() {
   size_t depth = 4;
   assert(width * height * depth <= atest.size_);
 
-  syclcompat::pitched_data d_A_pitched{atest.d_A, sizeof(float) * width, width,
+  syclcompat::pitched_data d_A_pitched{atest.d_A_, sizeof(float) * width, width,
                                        height};
-  syclcompat::pitched_data d_B_pitched{atest.d_B, sizeof(float) * width, width,
+  syclcompat::pitched_data d_B_pitched{atest.d_B_, sizeof(float) * width, width,
                                        height};
   sycl::id<3> pos_A(0, 0, 0);
   sycl::id<3> pos_B(0, 0, 0);
@@ -108,7 +108,7 @@ void memset_async1() {
   AsyncTest atest;
 
   sycl::event memset_ev =
-      syclcompat::memset_async(atest.d_C, 1, sizeof(int) * atest.size_);
+      syclcompat::memset_async(atest.d_C_, 1, sizeof(int) * atest.size_);
   sycl::event host_ev = atest.launch_host_task({memset_ev});
 
   atest.check_events(memset_ev, host_ev);
@@ -119,7 +119,7 @@ void memset_async2() {
   AsyncTest atest;
 
   sycl::event memset_ev =
-      syclcompat::memset_async(atest.d_C, 32, 1, sizeof(int) * 32, 4);
+      syclcompat::memset_async(atest.d_C_, 32, 1, sizeof(int) * 32, 4);
   sycl::event host_ev = atest.launch_host_task({memset_ev});
 
   atest.check_events(memset_ev, host_ev);
@@ -134,7 +134,7 @@ void memset_async3() {
   size_t depth = 4;
   assert(width * height * depth <= atest.size_);
 
-  syclcompat::pitched_data d_A_pitched{atest.d_A, sizeof(int) * width, width,
+  syclcompat::pitched_data d_A_pitched{atest.d_A_, sizeof(int) * width, width,
                                        height};
   sycl::event memset_ev =
       syclcompat::memset_async(d_A_pitched, 1, {sizeof(int) * 2, 2, 2});
@@ -147,7 +147,7 @@ void fill_event() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
-  sycl::event fill_ev = syclcompat::fill_async(atest.d_A, 1.0f, atest.size_);
+  sycl::event fill_ev = syclcompat::fill_async(atest.d_A_, 1.0f, atest.size_);
   sycl::event host_ev = atest.launch_host_task({fill_ev});
 
   atest.check_events(fill_ev, host_ev);

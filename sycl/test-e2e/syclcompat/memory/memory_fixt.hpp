@@ -36,20 +36,20 @@ public:
   AsyncTest()
       : q_{syclcompat::get_default_queue()}, grid_{NUM_WG}, thread_{WG_SIZE},
         size_{WG_SIZE * NUM_WG} {
-    d_A = sycl::malloc_device<float>(size_, q_);
-    d_B = sycl::malloc_device<float>(size_, q_);
-    d_C = sycl::malloc_device<float>(size_, q_);
+    d_A_ = sycl::malloc_device<float>(size_, q_);
+    d_B_ = sycl::malloc_device<float>(size_, q_);
+    d_C_ = sycl::malloc_device<float>(size_, q_);
   }
 
   ~AsyncTest() {
-    sycl::free(d_A, q_);
-    sycl::free(d_B, q_);
-    sycl::free(d_C, q_);
+    sycl::free(d_A_, q_);
+    sycl::free(d_B_, q_);
+    sycl::free(d_C_, q_);
   }
   sycl::event launch_kernel() {
-    auto &dd_A = d_A;
-    auto &dd_B = d_B;
-    auto &dd_C = d_C;
+    auto &dd_A = d_A_;
+    auto &dd_B = d_B_;
+    auto &dd_C = d_C_;
     return q_.submit([&](sycl::handler &cgh) {
       cgh.parallel_for(size_, [=](sycl::id<1> id) {
         dd_A[id] = static_cast<float>(id) + 1.0f;
@@ -81,9 +81,8 @@ public:
       assert(e2_status == event_command_status::submitted);
     }
 
-    // Once event 2 is running, check event 1 has finished
-    while (e2_status != event_command_status::running &&
-           e2_status != event_command_status::complete) {
+    // Once event 2 is finished, check event 1 has finished
+    while (e2_status != event_command_status::complete) {
       e2_status = e2.get_info<event::command_execution_status>();
     }
     assert(e1.get_info<event::command_execution_status>() ==
@@ -93,22 +92,20 @@ public:
   sycl::queue q_;
   syclcompat::dim3 const grid_;
   syclcompat::dim3 const thread_;
-  float *d_A;
-  float *d_B;
-  float *d_C;
+  float *d_A_;
+  float *d_B_;
+  float *d_C_;
   size_t size_;
 };
 
-template <typename T> bool set_up() {
+template <typename T> bool should_skip(const sycl::device &dev) {
   bool skip = false;
-  if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
-      std::is_same_v<T, double>) {
+  if (!dev.has(sycl::aspect::fp64) && std::is_same_v<T, double>) {
     std::cout << "  sycl::aspect::fp64 not supported by the SYCL device."
               << std::endl;
     skip = true;
   }
-  if (!syclcompat::get_current_device().has(sycl::aspect::fp16) &&
-      std::is_same_v<T, sycl::half>) {
+  if (!dev.has(sycl::aspect::fp16) && std::is_same_v<T, sycl::half>) {
     std::cout << "  sycl::aspect::fp16 not supported by the SYCL device."
               << std::endl;
     skip = true;
@@ -118,11 +115,11 @@ template <typename T> bool set_up() {
 
 // USM Tests Helpers
 // Fixture to set up & launch testing kernel
-template <typename T> class USMTest {
-public:
+template <typename T> struct USMTest {
   USMTest()
       : q_{syclcompat::get_default_queue()}, grid_{NUM_WG}, thread_{WG_SIZE},
-        size_{WG_SIZE * NUM_WG}, skip{set_up<T>()} {}
+        size_{WG_SIZE * NUM_WG}, skip{should_skip<T>(
+                                     syclcompat::get_current_device())} {}
 
   void launch_kernel() {
     auto &dd_A = d_A;

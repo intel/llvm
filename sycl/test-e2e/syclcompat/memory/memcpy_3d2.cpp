@@ -38,7 +38,7 @@
 
 #include <syclcompat/memory.hpp>
 
-#include "memory_check.hpp"
+#include "memory_common.hpp"
 
 void memcpy3D_async_pitchedAPI() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -122,7 +122,7 @@ void memcpy3D_async_pitchedAPI() {
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
   syclcompat::get_default_queue().wait_and_throw();
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
   // memset device data.
   // test_feature:memset_async
   syclcompat::memset_async(d_data, 0x1, extent);
@@ -139,7 +139,7 @@ void memcpy3D_async_pitchedAPI() {
   syclcompat::get_default_queue().wait_and_throw();
   // memset reference data.
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
 
   free(h_data);
   free(h_ref);
@@ -196,7 +196,7 @@ void memcpy3D_async_pitchedAPI_q() {
 
   q.wait_and_throw();
 
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
   // memset device data.
   // test_feature:memset_async
   syclcompat::memset_async(d_data, 0x1, extent, q);
@@ -214,7 +214,7 @@ void memcpy3D_async_pitchedAPI_q() {
   q.wait_and_throw();
   // memset reference data.
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
 
   free(h_data);
   free(h_ref);
@@ -311,7 +311,7 @@ void memcpy3D_async_offset() {
                            cpyParm_size_ct1);
   syclcompat::get_default_queue().wait_and_throw();
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
@@ -406,7 +406,7 @@ void memcpy3D_async_offset_q() {
                            cpyParm_size_ct1, q);
   q.wait_and_throw();
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
@@ -501,7 +501,7 @@ void memcpy3D_async_offsetZ() {
                            cpyParm_size_ct1);
   syclcompat::get_default_queue().wait_and_throw();
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
@@ -596,7 +596,7 @@ void memcpy3D_async_offsetZ_q() {
                            cpyParm_size_ct1, q);
   q.wait_and_throw();
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   syclcompat::free(d_data.get_data_ptr(), q);
 }

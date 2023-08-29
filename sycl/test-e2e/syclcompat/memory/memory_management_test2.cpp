@@ -37,7 +37,7 @@
 
 #include <syclcompat/memory.hpp>
 
-#include "memory_check.hpp"
+#include "memory_common.hpp"
 
 void memcpy_pitched() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -68,7 +68,7 @@ void memcpy_pitched() {
   syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width,
                      height);
 
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   // memset device data.
   syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height);
@@ -79,7 +79,7 @@ void memcpy_pitched() {
 
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   free(h_data);
   free(h_ref);
@@ -287,7 +287,7 @@ void memcpy_pitched_q() {
   syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width,
                      height, q);
 
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   // memset device data.
   syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height, q);
@@ -298,7 +298,7 @@ void memcpy_pitched_q() {
 
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   free(h_data);
   free(h_ref);

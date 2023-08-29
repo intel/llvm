@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  memory_check.hpp
+ *  memory_common.hpp
  *
  *  Description:
  *    Memory content helper for the Memory functionality tests
@@ -24,11 +24,17 @@
 
 #include <cassert>
 #include <cmath>
+#include <tuple>
 
-inline void check(float *h_data, float *h_ref, size_t width, size_t height,
-                  size_t depth) {
-  for (size_t i = 0; i < width * height * depth; i++) {
+#include <sycl/sycl.hpp>
+
+inline void check(float *h_data, float *h_ref, size_t size) {
+  for (size_t i = 0; i < size; i++) {
     float diff = fabs(h_data[i] - h_ref[i]);
     assert(diff <= 1.e-6);
   }
 }
+
+using value_type_list =
+    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
+               long long, unsigned long long, float, double, sycl::half>;

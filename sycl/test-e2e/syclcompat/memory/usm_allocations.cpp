@@ -31,9 +31,10 @@
 #include <syclcompat/memory.hpp>
 
 #include "../common.hpp"
+#include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
-template <typename T> void malloc() {
+template <typename T> void test_malloc() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<T> usm_fixture;
   if (usm_fixture.skip)
@@ -178,10 +179,7 @@ void deduce() {
 }
 
 int main() {
-  using value_type_list =
-      std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-                 long long, unsigned long long, float, double, sycl::half>;
-  INSTANTIATE_ALL_TYPES(value_type_list, malloc);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_malloc);
   INSTANTIATE_ALL_TYPES(value_type_list, host);
   INSTANTIATE_ALL_TYPES(value_type_list, shared);
 

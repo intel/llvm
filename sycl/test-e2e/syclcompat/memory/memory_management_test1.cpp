@@ -38,6 +38,7 @@
 #include <syclcompat/memory.hpp>
 
 #include "../common.hpp"
+#include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
 void memcpy() {
@@ -289,7 +290,7 @@ template <typename T> void memcpy_t_q() {
 
 template <typename T> void fill() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = set_up<T>();
+  bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
     return;
 
@@ -329,7 +330,7 @@ template <typename T> void fill() {
 
 template <typename T> void fill_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = set_up<T>();
+  bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
     return;
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -372,10 +373,6 @@ int main() {
   memcpy_q();
   memset();
   memset_q();
-
-  using value_type_list =
-      std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-                 long long, unsigned long long, float, double, sycl::half>;
 
   INSTANTIATE_ALL_TYPES(value_type_list, memcpy_t);
   INSTANTIATE_ALL_TYPES(value_type_list, memcpy_t_q);

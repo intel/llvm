@@ -38,7 +38,7 @@
 #include <syclcompat/memory.hpp>
 
 #include "../common.hpp"
-#include "memory_check.hpp"
+#include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
 void free_memory() {
@@ -177,7 +177,7 @@ void memcpy_async_pitched() {
                            sizeof(float) * width, height);
 
   syclcompat::get_default_queue().wait_and_throw();
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   // memset device data.
   syclcompat::memset_async(d_data, d_pitch, 0x1, sizeof(float) * width, height);
@@ -188,7 +188,7 @@ void memcpy_async_pitched() {
   syclcompat::get_default_queue().wait_and_throw();
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   free(h_data);
   free(h_ref);
@@ -225,7 +225,7 @@ void memcpy_async_pitched_q() {
   syclcompat::memcpy_async(h_data, h_pitch, d_data, d_pitch,
                            sizeof(float) * width, height, q);
   q.wait_and_throw();
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   // memset device data.
   syclcompat::memset_async(d_data, d_pitch, 0x1, sizeof(float) * width, height,
@@ -237,7 +237,7 @@ void memcpy_async_pitched_q() {
   q.wait_and_throw();
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
-  check(h_data, h_ref, width, height, 1);
+  check(h_data, h_ref, width * height);
 
   free(h_data);
   free(h_ref);
@@ -399,7 +399,7 @@ template <typename T> void memcpy_async_t() {
 
 template <typename T> void fill_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = set_up<T>();
+  bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
     return;
 
@@ -441,7 +441,7 @@ template <typename T> void fill_async() {
 
 template <typename T> void fill_async_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  bool skip = set_up<T>();
+  bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
     return;
 
@@ -491,10 +491,6 @@ int main() {
   memcpy_async_pitched_q();
   memset_async();
   memset_async_q();
-
-  using value_type_list =
-      std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-                 long long, unsigned long long, float, double, sycl::half>;
 
   INSTANTIATE_ALL_TYPES(value_type_list, memcpy_async_t);
   INSTANTIATE_ALL_TYPES(value_type_list, memcpy_async_t_q);

@@ -39,7 +39,7 @@
 
 #include <syclcompat/memory.hpp>
 
-#include "memory_check.hpp"
+#include "memory_common.hpp"
 
 void memcpy3D_memset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -85,7 +85,7 @@ void memcpy3D_memset() {
                      cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                      cpyParm_size_ct1);
 
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
   // memset device data.
   syclcompat::memset(d_data, 0x1, extent);
 
@@ -99,7 +99,7 @@ void memcpy3D_memset() {
                      cpyParm_size_ct1);
   // memset reference data.
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
 
   free(h_data);
   free(h_ref);
@@ -151,7 +151,7 @@ void memcpy3D_memset_q() {
                      cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                      cpyParm_size_ct1, q);
 
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
   // memset device data.
   syclcompat::memset(d_data, 0x1, extent, q);
 
@@ -165,7 +165,7 @@ void memcpy3D_memset_q() {
                      cpyParm_size_ct1, q);
   // memset reference data.
   memset(h_ref, 0x1, width * height * depth * sizeof(float));
-  check(h_data, h_ref, width, height, depth);
+  check(h_data, h_ref, width * height * depth);
 
   free(h_data);
   free(h_ref);
@@ -259,7 +259,7 @@ void memcpy3D_offset() {
                      cpyParm_size_ct1);
 
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
@@ -352,7 +352,7 @@ void memcpy3D_offset_q() {
                      cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                      cpyParm_size_ct1, q);
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
@@ -444,7 +444,7 @@ void memcpy3D_offsetZ() {
                      cpyParm_size_ct1);
 
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
@@ -537,7 +537,7 @@ void memcpy3D_offsetZ_q() {
                      cpyParm_size_ct1, q);
 
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   syclcompat::free(d_data.get_data_ptr(), q);
 }
@@ -634,7 +634,7 @@ void memcpy3D_plane() {
                      cpyParm_size_ct1);
 
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
@@ -725,7 +725,7 @@ void memcpy3D_row() {
                      cpyParm_size_ct1);
 
   // Copy back to host data.
-  check(h_data, Ref, out_width, out_height, out_depth);
+  check(h_data, Ref, out_width * out_height * out_depth);
   free(h_data);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
