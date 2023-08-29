@@ -3,7 +3,7 @@
 
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/index-const-prop.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -save-temps \
 ; RUN:  -r=%t2.bc,foo,pl \
 ; RUN:  -r=%t2.bc,bar,pl \
 ; RUN:  -r=%t2.bc,baz,pl \

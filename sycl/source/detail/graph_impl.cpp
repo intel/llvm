@@ -71,6 +71,17 @@ bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
   }
   return SuccessorAddedDep;
 }
+
+void duplicateNode(const std::shared_ptr<node_impl> Node,
+                   std::shared_ptr<node_impl> &NodeCopy) {
+  if (Node->MCGType == sycl::detail::CG::None) {
+    NodeCopy = std::make_shared<node_impl>();
+    NodeCopy->MCGType = sycl::detail::CG::None;
+  } else {
+    NodeCopy = std::make_shared<node_impl>(Node->MCGType, Node->getCGCopy());
+  }
+}
+
 } // anonymous namespace
 
 void exec_graph_impl::schedule() {
@@ -81,7 +92,7 @@ void exec_graph_impl::schedule() {
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
+std::shared_ptr<node_impl> graph_impl::addNodesToExits(
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -102,6 +113,32 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
   }
 
   return this->add(Outputs);
+}
+
+std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
+    const std::shared_ptr<exec_graph_impl> &SubGraphExec) {
+  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
+
+  std::list<std::shared_ptr<node_impl>> NodesList = SubGraphExec->getSchedule();
+  std::list<std::shared_ptr<node_impl>> NewNodesList{NodesList.size()};
+
+  // Duplication of nodes
+  for (auto NodeIt = NodesList.end(), NewNodesIt = NewNodesList.end();
+       NodeIt != NodesList.begin();) {
+    --NodeIt;
+    --NewNodesIt;
+    auto Node = *NodeIt;
+    std::shared_ptr<node_impl> NodeCopy;
+    duplicateNode(Node, NodeCopy);
+    *NewNodesIt = NodeCopy;
+    NodesMap.insert({Node, NodeCopy});
+    for (auto &NextNode : Node->MSuccessors) {
+      auto Successor = NodesMap.at(NextNode);
+      NodeCopy->registerSuccessor(Successor, NodeCopy);
+    }
+  }
+
+  return addNodesToExits(NewNodesList);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -155,7 +192,7 @@ graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
   std::vector<std::shared_ptr<node_impl>> Deps;
 
   // Add any nodes specified by event dependencies into the dependency list
-  for (auto Dep : Events) {
+  for (const auto &Dep : Events) {
     if (auto NodeImpl = MEventsMap.find(Dep); NodeImpl != MEventsMap.end()) {
       Deps.push_back(NodeImpl->second);
     } else {
@@ -312,7 +349,12 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
   MPiCommandBuffers[Device] = OutCommandBuffer;
 
   // TODO extract kernel bundle logic from enqueueImpKernel
-  for (auto Node : MSchedule) {
+  for (const auto &Node : MSchedule) {
+    // Empty nodes are not processed as other nodes, but only their
+    // dependencies are propagated in findRealDeps
+    if (Node->isEmpty())
+      continue;
+
     sycl::detail::CG::CGTYPE type = Node->MCGType;
     // If the node is a kernel with no special requirements we can enqueue it
     // directly.
@@ -359,7 +401,7 @@ exec_graph_impl::~exec_graph_impl() {
     Event->wait(Event);
   }
 
-  for (auto Iter : MPiCommandBuffers) {
+  for (const auto &Iter : MPiCommandBuffers) {
     if (auto CmdBuf = Iter.second; CmdBuf) {
       pi_result Res = Plugin->call_nocheck<
           sycl::detail::PiApiKind::piextCommandBufferRelease>(CmdBuf);
@@ -453,8 +495,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               "Error during emulated graph command group submission.");
         }
         ScheduledEvents.push_back(NewEvent);
-      } else {
-
+      } else if (!NodeImpl->isEmpty()) {
+        // Empty nodes are node processed as other nodes, but only their
+        // dependencies are propagated in findRealDeps
         sycl::detail::EventImplPtr EventImpl =
             sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
                                                          Queue);
@@ -624,7 +667,7 @@ void executable_command_graph::finalizeImpl() {
   impl->schedule();
 
   auto Context = impl->getContext();
-  for (auto Device : Context.get_devices()) {
+  for (const auto &Device : Context.get_devices()) {
     bool CmdBufSupport =
         Device.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==

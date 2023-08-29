@@ -13,8 +13,6 @@ on:
     workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
-    branches-ignore:
-      - sycl-mlir
 
 jobs:
   create-check:

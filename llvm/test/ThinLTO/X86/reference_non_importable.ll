@@ -1,8 +1,7 @@
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/reference_non_importable.ll -o %t2.bc
 
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t.o -save-temps \
-; RUN:     -opaque-pointers \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t.o -save-temps \
 ; RUN:     -r=%t1.bc,_foo,pxl \
 ; RUN:     -r=%t1.bc,_b,pxl \
 ; RUN:     -r=%t2.bc,_main,pxl \
