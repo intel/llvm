@@ -1348,7 +1348,7 @@ Recorded commands are not counted as submitted for the purposes of its operation
 ==== sycl_ext_oneapi_device_global
 
 The new handler methods, and queue shortcuts, defined by
-link:../proposed/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
 cannot be used in graph nodes. A synchronous exception will be thrown with error
 code `invalid` if a user tries to add them to a graph.
 

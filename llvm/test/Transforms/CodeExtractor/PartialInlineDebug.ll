@@ -1,6 +1,4 @@
-; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
-; by default
-; RUN: opt -opaque-pointers < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
+; RUN: opt < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 ; CHECK-LABEL: @callee
 ; CHECK: %mul = mul nsw i32 %v, 10, !dbg ![[DBG1:[0-9]+]]

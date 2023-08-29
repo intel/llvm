@@ -151,7 +151,7 @@ EventImplPtr Scheduler::addCG(
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
-    for (auto StreamImplPtr : Streams) {
+    for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
 
