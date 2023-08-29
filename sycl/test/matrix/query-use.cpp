@@ -1,162 +1,146 @@
-// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o query-use %s
+// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o compile-time-query %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-void query_amx() {
+void query_amx_spr() {
 
   // generates combination assert
-  // using myparams = tpu_params<tpu::amx, int, int, int, 2, 8, 32>;
+  // using myparams = matrix_params<architecture::intel_cpu_spr, int, int, int,
+  // 2, 8, 32>;
 
   // generates types assert
-  // using myparams2 = tpu_params<tpu::amx, int, int, int>;
+  // using myparams2 = matrix_params<architecture::intel_cpu_spr, int, int,
+  // int>;
 
   // tells whether a combination is valid or not, if valid, those will be set as
   // default
-  using myparams = tpu_params<tpu::amx, int8_t, int8_t, int, 2, 8, 32>;
+  using myparams = matrix_params<architecture::intel_cpu_spr, int8_t, int8_t,
+                                 int, int, 2, 8, 32>;
 
   size_t dmsize = myparams::M;
   size_t dnsize = myparams::N;
   size_t dksize = myparams::K;
-  std::cout << "sizes of AMX tpu_params chosen by the user are: M " << dmsize
+  std::cout << "sizes of AMX matrix_params chosen by the user are: M " << dmsize
             << " N " << dnsize << " K " << dksize << std::endl;
 
   // Sizes-only query: types are given, generate default sizes
-  using myparams2 = tpu_params<tpu::amx, int8_t, int8_t, int>;
+  using myparams2 =
+      matrix_params<architecture::intel_cpu_spr, int8_t, int8_t, int>;
   myparams2 p;
   dmsize = myparams2::M;
   dnsize = myparams2::N;
   dksize = myparams2::K;
-  std::cout << "default AMX sizes tpu_params  are: M " << dmsize << " N "
-            << dnsize << " K " << dksize << "\n AMX int8 num combinations is "
-            << p.num_combinations << std::endl;
-
-  // general query: types are not given
-  tpu_params<tpu::amx> myparams3;
-
-  if (myparams3.num_scopes > 0)
-    if (myparams3.scopes[0] == scope_t::sub_group)
-      std::cout << "There are " << myparams3.num_scopes
-                << " Scopes that are supported by AMX implementation and "
-                   "subgroup is one of them "
-                << std::endl;
-
-  std::cout << "AMX query num combinations: " << myparams3.num_combinations
-            << std::endl;
-
-  if (myparams3.combinations[0].msize != 0) // this is a max params hardware
-    return;
-  constexpr int msize = myparams3.combinations[0].max_msize;
-  constexpr int nsize = myparams3.combinations[0].max_nsize;
-  constexpr int ksize = myparams3.combinations[0].max_ksize;
-  std::cout << "AMX query sizes are: M " << msize << " N " << nsize << " K "
-            << ksize << std::endl;
-
-  size_t NDRangeM = 1024 / msize;
-  size_t NDRangeN = 1024 / nsize;
-  queue q;
-  q.submit([&](handler &cgh) {
-    cgh.parallel_for<class imatrix>(
-        nd_range<2>({NDRangeM, NDRangeN}, {1, 1}),
-        [msize, ksize, nsize](nd_item<2> spmd_item) {
-          sub_group sg = spmd_item.get_sub_group();
-          myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
-          myparams2::joint_matrix_b<
-              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
-              sub_b1;
-          myparams2::joint_matrix_accumulator<sub_group> sub_c1;
-
-          joint_matrix<sub_group, unsigned short, use::a, msize, ksize> sub_a;
-          joint_matrix<sub_group, unsigned short, use::b, ksize, nsize> sub_b;
-          joint_matrix<sub_group, float, use::accumulator, msize, nsize> sub_c;
-        });
-  });
+  std::cout << "default AMX sizes matrix_params  are: M " << dmsize << " N "
+            << dnsize << " K " << dksize << std::endl;
+  return;
 }
 
-void query_xmx8() {
+void query_xmx_dg() {
 
   // generates combination assert
-  // using myparams = tpu_params<tpu::xmx8, int, int, int, 2, 8, 32>;
+  // using myparams = matrix_params<architecture::intel_gpu_dg1, int, int, int,
+  // 2, 8, 32>;
 
   // generate combination of type assert
-  // using myparams = tpu_params<tpu::xmx8, int, int, int>;
+  // using myparams = matrix_params<architecture::intel_gpu_dg1, int, int, int>;
 
   // tells whether a combination is valid or not, if valid, those will be set as
   // default
-  using myparams = tpu_params<tpu::xmx8, int8_t, int8_t, int, 2, 8, 32>;
+  using myparams = matrix_params<architecture::intel_gpu_dg1, int8_t, int8_t,
+                                 int, int, 2, 8, 32>;
 
   size_t dmsize = myparams::M;
   size_t dnsize = myparams::N;
   size_t dksize = myparams::K;
-  std::cout << "sizes of XMX8 tpu_params chosen by the user are: M " << dmsize
-            << " N " << dnsize << " K " << dksize << std::endl;
+  std::cout << "sizes of Intel XMX of architecture::intel_gpu_dg1 "
+               "matrix_params chosen by the user are: M "
+            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
 
   // sizes-only query: types are given, generate default sizes
-  using myparams2 = tpu_params<tpu::xmx8, int8_t, int8_t, int>;
-  myparams2 p;
+  using myparams2 =
+      matrix_params<architecture::intel_gpu_dg1, int8_t, int8_t, int>;
   dmsize = myparams2::M;
   dnsize = myparams2::N;
   dksize = myparams2::K;
-  std::cout << "Default XMX8 sizes  are: M " << dmsize << " N " << dnsize
-            << " K " << dksize << "\n XMX8 int8 num combinations is "
-            << p.num_combinations << std::endl;
+  std::cout << "Default Intel XMX of architecture::intel_gpu_dg1 sizes  are: M "
+            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+  return;
+}
 
-  dmsize = myparams2::combinations[0].msize;
-  dnsize = myparams2::combinations[0].nsize;
-  dksize = myparams2::combinations[0].ksize;
-  std::cout << "one of XMX8 combination sizes  is: M " << dmsize << " N "
-            << dnsize << " K " << dksize << std::endl;
+void query_xmx_ats() {
 
-  // general query: types are not given
-  tpu_params<tpu::xmx8> myparams3;
+  // generates combination assert
+  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int,
+  // int, // 2, 8, 32>;
 
-  if (myparams3.num_scopes > 0)
-    if (myparams3.scopes[0] == scope_t::sub_group)
-      std::cout << "There are " << myparams3.num_scopes
-                << " Scopes that are supported by XMX8 implementation and "
-                   "subgroup is one of them "
-                << std::endl;
+  // generate combination of type assert
+  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int,
+  // int>;
 
-  std::cout << "XMX8 query num combinations: " << myparams3.num_combinations
-            << std::endl;
+  // tells whether a combination is valid or not, if valid, those will be set as
+  // default
+  using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int8_t,
+                                 int8_t, int, int, 2, 8, 32>;
 
-  if (myparams3.combinations[0].msize == 0) // this is not a max params hardware
-    return;
-  constexpr int msize = myparams3.combinations[0].msize;
-  constexpr int nsize = myparams3.combinations[0].nsize;
-  constexpr int ksize = myparams3.combinations[0].ksize;
-  std::cout << "XMX8 query sizes are: M " << msize << " N " << nsize << " K "
-            << ksize << std::endl;
-  std::cout << "XMX8 query max sizes are: M "
-            << myparams3.combinations[0].max_msize << " N "
-            << myparams3.combinations[0].max_nsize << " K "
-            << myparams3.combinations[0].max_ksize << std::endl;
+  size_t dmsize = myparams::M;
+  size_t dnsize = myparams::N;
+  size_t dksize = myparams::K;
+  std::cout << "sizes of Intel XMX of architecture::intel_gpu_dg2_g10 "
+               "matrix_params chosen by the user are: M "
+            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
 
-  size_t NDRangeM = 1024 / msize;
-  size_t NDRangeN = 1024 / nsize;
-  queue q;
-  q.submit([&](handler &cgh) {
-    cgh.parallel_for<class dmatrix>(
-        nd_range<2>({NDRangeM, NDRangeN}, {1, 1}),
-        [msize, ksize, nsize](nd_item<2> spmd_item) {
-          sub_group sg = spmd_item.get_sub_group();
-          myparams2::joint_matrix_a<sub_group, layout::row_major> sub_a1;
-          myparams2::joint_matrix_b<
-              sub_group, sycl::ext::intel::experimental::matrix::layout::packed>
-              sub_b1;
-          myparams2::joint_matrix_accumulator<sub_group> sub_c1;
+  // sizes-only query: types are given, generate default sizes
+  using myparams2 =
+      matrix_params<architecture::intel_gpu_dg2_g10, int8_t, int8_t, int>;
+  dmsize = myparams2::M;
+  dnsize = myparams2::N;
+  dksize = myparams2::K;
+  std::cout
+      << "Default Intel XMX of architecture::intel_gpu_dg2_g10 sizes  are: M "
+      << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+  return;
+}
 
-          joint_matrix<sub_group, unsigned short, use::a, msize, ksize> sub_a;
-          joint_matrix<sub_group, unsigned short, use::b, ksize, nsize> sub_b;
-          joint_matrix<sub_group, float, use::accumulator, msize, nsize> sub_c;
-        });
-  });
+void query_xmx_pvc() {
+
+  // generates combination assert
+  // using myparams = matrix_params<architecture::intel_gpu_pvc, int, int, int,
+  // 2, 8, 32>;
+
+  // generate combination of type assert
+  // using myparams = matrix_params<architecture::intel_gpu_pvc, int, int, int>;
+
+  // tells whether a combination is valid or not, if valid, those will be set as
+  // default
+  using myparams = matrix_params<architecture::intel_gpu_pvc, int8_t, int8_t,
+                                 int, int, 2, 16, 32>;
+
+  size_t dmsize = myparams::M;
+  size_t dnsize = myparams::N;
+  size_t dksize = myparams::K;
+  std::cout << "sizes of architecture::intel_gpu_pvc matrix_params chosen by "
+               "the user are: M "
+            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+
+  // sizes-only query: types are given, generate default sizes
+  using myparams2 =
+      matrix_params<architecture::intel_gpu_pvc, int8_t, int8_t, int>;
+  dmsize = myparams2::M;
+  dnsize = myparams2::N;
+  dksize = myparams2::K;
+  std::cout << "Default Intel XMX of architecture::intel_gpu_pvc sizes  are: M "
+            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+  return;
 }
 
 int main() {
-  query_amx();
-  query_xmx8();
+  query_amx_spr();
+  query_xmx_dg();
+  query_xmx_ats();
+  query_xmx_pvc();
   return 0;
 }
