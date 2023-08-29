@@ -2221,12 +2221,20 @@ llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
   llvm::Type *StdTypeInfoPtrTy =
     ConvertType(E->getType())->getPointerTo();
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
+  LangAS GlobAS = CGM.GetGlobalVarAddressSpace(nullptr);
+
+  auto MaybeASCast = [=](auto &&TypeInfo) {
+    if (GlobAS == LangAS::Default)
+      return TypeInfo;
+    return getTargetHooks().performAddrSpaceCast(CGM,TypeInfo, GlobAS,
+                                                 LangAS::Default, PtrTy);
+  };
 
   if (E->isTypeOperand()) {
     llvm::Constant *TypeInfo =
         CGM.GetAddrOfRTTIDescriptor(E->getTypeOperand(getContext()));
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-    return TypeInfo;
+    return MaybeASCast(TypeInfo);
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
     return Builder.CreateBitCast(TypeInfo, StdTypeInfoPtrTy);
 #endif // INTEL_SYCL_OPAQUEPOINTER_READY
@@ -2248,7 +2256,7 @@ llvm::Value *CodeGenFunction::EmitCXXTypeidExpr(const CXXTypeidExpr *E) {
 
   QualType OperandTy = E->getExprOperand()->getType();
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  return CGM.GetAddrOfRTTIDescriptor(OperandTy);
+  return MaybeASCast(CGM.GetAddrOfRTTIDescriptor(OperandTy));
 #else // INTEL_SYCL_OPAQUEPOINTER_READY
   return Builder.CreateBitCast(CGM.GetAddrOfRTTIDescriptor(OperandTy),
                                StdTypeInfoPtrTy);
