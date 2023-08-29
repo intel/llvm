@@ -367,15 +367,6 @@ etors:
 - name: COMMAND_BUFFER_ENQUEUE_EXP
   desc: Enumerator for $xCommandBufferEnqueueExp
   value: '128'
-- name: COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP
-  desc: Enumerator for $xCommandBufferAppendMemcpyUSMExp
-  value: '129'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferCopyExp
-  value: '130'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferCopyRectExp
-  value: '131'
 - name: USM_PITCHED_ALLOC_EXP
   desc: Enumerator for $xUSMPitchedAllocExp
   value: '132'
@@ -481,18 +472,6 @@ etors:
 - name: USM_P2P_PEER_ACCESS_GET_INFO_EXP
   desc: Enumerator for $xUsmP2PPeerAccessGetInfoExp
   value: '167'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferWriteExp
-  value: '168'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferReadExp
-  value: '169'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferWriteRectExp
-  value: '170'
-- name: COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP
-  desc: Enumerator for $xCommandBufferAppendMembufferReadRectExp
-  value: '171'
 - name: LOADER_CONFIG_CREATE
   desc: Enumerator for $xLoaderConfigCreate
   value: '172'
@@ -529,6 +508,33 @@ etors:
 - name: LOADER_TEAR_DOWN
   desc: Enumerator for $xLoaderTearDown
   value: '183'
+- name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
+  value: '184'
+- name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendUSMFillExp
+  value: '185'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyExp
+  value: '186'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteExp
+  value: '187'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadExp
+  value: '188'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferCopyRectExp
+  value: '189'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferWriteRectExp
+  value: '190'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferReadRectExp
+  value: '191'
+- name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
+  desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
+  value: '192'
 ---
 type: enum
 desc: Defines structure types

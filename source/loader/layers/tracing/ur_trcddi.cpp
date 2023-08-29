@@ -5184,8 +5184,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMemcpyUSMExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+/// @brief Intercept function for urCommandBufferAppendUSMMemcpyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer, ///< [in] handle of the command-buffer object.
     void *pDst,         ///< [in] Location the data will be copied to.
@@ -5198,34 +5198,77 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMemcpyUSMExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMemcpyUSMExp;
+    auto pfnAppendUSMMemcpyExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendUSMMemcpyExp;
 
-    if (nullptr == pfnAppendMemcpyUSMExp) {
+    if (nullptr == pfnAppendUSMMemcpyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_memcpy_usm_exp_params_t params = {
+    ur_command_buffer_append_usm_memcpy_exp_params_t params = {
         &hCommandBuffer,     &pDst,      &pSrc, &size, &numSyncPointsInWaitList,
         &pSyncPointWaitList, &pSyncPoint};
     uint64_t instance =
-        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP,
-                             "urCommandBufferAppendMemcpyUSMExp", &params);
+        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
+                             "urCommandBufferAppendUSMMemcpyExp", &params);
 
-    ur_result_t result = pfnAppendMemcpyUSMExp(hCommandBuffer, pDst, pSrc, size,
+    ur_result_t result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
                                                numSyncPointsInWaitList,
                                                pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP,
-                       "urCommandBufferAppendMemcpyUSMExp", &params, &result,
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP,
+                       "urCommandBufferAppendUSMMemcpyExp", &params, &result,
                        instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+/// @brief Intercept function for urCommandBufferAppendUSMFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,   ///< [in] handle of the command-buffer object.
+    void *pMemory,        ///< [in] pointer to USM allocated memory to fill.
+    const void *pPattern, ///< [in] pointer to the fill pattern.
+    size_t patternSize,   ///< [in] size in bytes of the pattern.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    auto pfnAppendUSMFillExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendUSMFillExp;
+
+    if (nullptr == pfnAppendUSMFillExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_usm_fill_exp_params_t params = {
+        &hCommandBuffer,     &pMemory,   &pPattern,
+        &patternSize,        &size,      &numSyncPointsInWaitList,
+        &pSyncPointWaitList, &pSyncPoint};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
+                             "urCommandBufferAppendUSMFillExp", &params);
+
+    ur_result_t result = pfnAppendUSMFillExp(
+        hCommandBuffer, pMemory, pPattern, patternSize, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP,
+                       "urCommandBufferAppendUSMFillExp", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -5240,14 +5283,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferCopyExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyExp;
+    auto pfnAppendMemBufferCopyExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyExp;
 
-    if (nullptr == pfnAppendMembufferCopyExp) {
+    if (nullptr == pfnAppendMemBufferCopyExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_copy_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_copy_exp_params_t params = {
         &hCommandBuffer,
         &hSrcMem,
         &hDstMem,
@@ -5258,23 +5301,23 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP,
-        "urCommandBufferAppendMembufferCopyExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
+        "urCommandBufferAppendMemBufferCopyExp", &params);
 
-    ur_result_t result = pfnAppendMembufferCopyExp(
+    ur_result_t result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP,
-                       "urCommandBufferAppendMembufferCopyExp", &params,
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP,
+                       "urCommandBufferAppendMemBufferCopyExp", &params,
                        &result, instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -5289,14 +5332,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferWriteExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteExp;
+    auto pfnAppendMemBufferWriteExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteExp;
 
-    if (nullptr == pfnAppendMembufferWriteExp) {
+    if (nullptr == pfnAppendMemBufferWriteExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_write_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_write_exp_params_t params = {
         &hCommandBuffer,
         &hBuffer,
         &offset,
@@ -5306,23 +5349,23 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP,
-        "urCommandBufferAppendMembufferWriteExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
+        "urCommandBufferAppendMemBufferWriteExp", &params);
 
-    ur_result_t result = pfnAppendMembufferWriteExp(
+    ur_result_t result = pfnAppendMemBufferWriteExp(
         hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP,
-                       "urCommandBufferAppendMembufferWriteExp", &params,
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP,
+                       "urCommandBufferAppendMemBufferWriteExp", &params,
                        &result, instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -5336,14 +5379,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferReadExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadExp;
+    auto pfnAppendMemBufferReadExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadExp;
 
-    if (nullptr == pfnAppendMembufferReadExp) {
+    if (nullptr == pfnAppendMemBufferReadExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_read_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_read_exp_params_t params = {
         &hCommandBuffer,
         &hBuffer,
         &offset,
@@ -5353,23 +5396,23 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP,
-        "urCommandBufferAppendMembufferReadExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
+        "urCommandBufferAppendMemBufferReadExp", &params);
 
-    ur_result_t result = pfnAppendMembufferReadExp(
+    ur_result_t result = pfnAppendMemBufferReadExp(
         hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
         pSyncPointWaitList, pSyncPoint);
 
-    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP,
-                       "urCommandBufferAppendMembufferReadExp", &params,
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP,
+                       "urCommandBufferAppendMemBufferReadExp", &params,
                        &result, instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferCopyRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferCopyRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem, ///< [in] The data to be copied.
@@ -5391,14 +5434,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferCopyRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferCopyRectExp;
+    auto pfnAppendMemBufferCopyRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferCopyRectExp;
 
-    if (nullptr == pfnAppendMembufferCopyRectExp) {
+    if (nullptr == pfnAppendMemBufferCopyRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_copy_rect_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t params = {
         &hCommandBuffer,
         &hSrcMem,
         &hDstMem,
@@ -5413,25 +5456,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP,
-        "urCommandBufferAppendMembufferCopyRectExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
+        "urCommandBufferAppendMemBufferCopyRectExp", &params);
 
-    ur_result_t result = pfnAppendMembufferCopyRectExp(
+    ur_result_t result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     context.notify_end(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP,
-        "urCommandBufferAppendMembufferCopyRectExp", &params, &result,
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP,
+        "urCommandBufferAppendMemBufferCopyRectExp", &params, &result,
         instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferWriteRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferWriteRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -5459,14 +5502,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferWriteRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferWriteRectExp;
+    auto pfnAppendMemBufferWriteRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferWriteRectExp;
 
-    if (nullptr == pfnAppendMembufferWriteRectExp) {
+    if (nullptr == pfnAppendMemBufferWriteRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_write_rect_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_write_rect_exp_params_t params = {
         &hCommandBuffer,
         &hBuffer,
         &bufferOffset,
@@ -5481,25 +5524,25 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP,
-        "urCommandBufferAppendMembufferWriteRectExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
+        "urCommandBufferAppendMemBufferWriteRectExp", &params);
 
-    ur_result_t result = pfnAppendMembufferWriteRectExp(
+    ur_result_t result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     context.notify_end(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP,
-        "urCommandBufferAppendMembufferWriteRectExp", &params, &result,
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP,
+        "urCommandBufferAppendMemBufferWriteRectExp", &params, &result,
         instance);
 
     return result;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Intercept function for urCommandBufferAppendMembufferReadRectExp
-__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+/// @brief Intercept function for urCommandBufferAppendMemBufferReadRectExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t
         hCommandBuffer,      ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
@@ -5525,14 +5568,14 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
     ur_exp_command_buffer_sync_point_t
         *pSyncPoint ///< [out][optional] sync point associated with this command
 ) {
-    auto pfnAppendMembufferReadRectExp =
-        context.urDdiTable.CommandBufferExp.pfnAppendMembufferReadRectExp;
+    auto pfnAppendMemBufferReadRectExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferReadRectExp;
 
-    if (nullptr == pfnAppendMembufferReadRectExp) {
+    if (nullptr == pfnAppendMemBufferReadRectExp) {
         return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
 
-    ur_command_buffer_append_membuffer_read_rect_exp_params_t params = {
+    ur_command_buffer_append_mem_buffer_read_rect_exp_params_t params = {
         &hCommandBuffer,
         &hBuffer,
         &bufferOffset,
@@ -5547,18 +5590,68 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
         &pSyncPointWaitList,
         &pSyncPoint};
     uint64_t instance = context.notify_begin(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP,
-        "urCommandBufferAppendMembufferReadRectExp", &params);
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
+        "urCommandBufferAppendMemBufferReadRectExp", &params);
 
-    ur_result_t result = pfnAppendMembufferReadRectExp(
+    ur_result_t result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
         numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
 
     context.notify_end(
-        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP,
-        "urCommandBufferAppendMembufferReadRectExp", &params, &result,
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP,
+        "urCommandBufferAppendMemBufferReadRectExp", &params, &result,
         instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferAppendMemBufferFillExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t
+        hCommandBuffer,      ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object.
+    const void *pPattern,    ///< [in] pointer to the fill pattern.
+    size_t patternSize,      ///< [in] size in bytes of the pattern.
+    size_t offset,           ///< [in] offset into the buffer.
+    size_t
+        size, ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t
+        numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *
+        pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *
+        pSyncPoint ///< [out][optional] sync point associated with this command.
+) {
+    auto pfnAppendMemBufferFillExp =
+        context.urDdiTable.CommandBufferExp.pfnAppendMemBufferFillExp;
+
+    if (nullptr == pfnAppendMemBufferFillExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_command_buffer_append_mem_buffer_fill_exp_params_t params = {
+        &hCommandBuffer,
+        &hBuffer,
+        &pPattern,
+        &patternSize,
+        &offset,
+        &size,
+        &numSyncPointsInWaitList,
+        &pSyncPointWaitList,
+        &pSyncPoint};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
+        "urCommandBufferAppendMemBufferFillExp", &params);
+
+    ur_result_t result = pfnAppendMemBufferFillExp(
+        hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+
+    context.notify_end(UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP,
+                       "urCommandBufferAppendMemBufferFillExp", &params,
+                       &result, instance);
 
     return result;
 }
@@ -5943,36 +6036,44 @@ __urdlllocal ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
     pDdiTable->pfnAppendKernelLaunchExp =
         ur_tracing_layer::urCommandBufferAppendKernelLaunchExp;
 
-    dditable.pfnAppendMemcpyUSMExp = pDdiTable->pfnAppendMemcpyUSMExp;
-    pDdiTable->pfnAppendMemcpyUSMExp =
-        ur_tracing_layer::urCommandBufferAppendMemcpyUSMExp;
+    dditable.pfnAppendUSMMemcpyExp = pDdiTable->pfnAppendUSMMemcpyExp;
+    pDdiTable->pfnAppendUSMMemcpyExp =
+        ur_tracing_layer::urCommandBufferAppendUSMMemcpyExp;
 
-    dditable.pfnAppendMembufferCopyExp = pDdiTable->pfnAppendMembufferCopyExp;
-    pDdiTable->pfnAppendMembufferCopyExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferCopyExp;
+    dditable.pfnAppendUSMFillExp = pDdiTable->pfnAppendUSMFillExp;
+    pDdiTable->pfnAppendUSMFillExp =
+        ur_tracing_layer::urCommandBufferAppendUSMFillExp;
 
-    dditable.pfnAppendMembufferWriteExp = pDdiTable->pfnAppendMembufferWriteExp;
-    pDdiTable->pfnAppendMembufferWriteExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferWriteExp;
+    dditable.pfnAppendMemBufferCopyExp = pDdiTable->pfnAppendMemBufferCopyExp;
+    pDdiTable->pfnAppendMemBufferCopyExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferCopyExp;
 
-    dditable.pfnAppendMembufferReadExp = pDdiTable->pfnAppendMembufferReadExp;
-    pDdiTable->pfnAppendMembufferReadExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferReadExp;
+    dditable.pfnAppendMemBufferWriteExp = pDdiTable->pfnAppendMemBufferWriteExp;
+    pDdiTable->pfnAppendMemBufferWriteExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferWriteExp;
 
-    dditable.pfnAppendMembufferCopyRectExp =
-        pDdiTable->pfnAppendMembufferCopyRectExp;
-    pDdiTable->pfnAppendMembufferCopyRectExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferCopyRectExp;
+    dditable.pfnAppendMemBufferReadExp = pDdiTable->pfnAppendMemBufferReadExp;
+    pDdiTable->pfnAppendMemBufferReadExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferReadExp;
 
-    dditable.pfnAppendMembufferWriteRectExp =
-        pDdiTable->pfnAppendMembufferWriteRectExp;
-    pDdiTable->pfnAppendMembufferWriteRectExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferWriteRectExp;
+    dditable.pfnAppendMemBufferCopyRectExp =
+        pDdiTable->pfnAppendMemBufferCopyRectExp;
+    pDdiTable->pfnAppendMemBufferCopyRectExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferCopyRectExp;
 
-    dditable.pfnAppendMembufferReadRectExp =
-        pDdiTable->pfnAppendMembufferReadRectExp;
-    pDdiTable->pfnAppendMembufferReadRectExp =
-        ur_tracing_layer::urCommandBufferAppendMembufferReadRectExp;
+    dditable.pfnAppendMemBufferWriteRectExp =
+        pDdiTable->pfnAppendMemBufferWriteRectExp;
+    pDdiTable->pfnAppendMemBufferWriteRectExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferWriteRectExp;
+
+    dditable.pfnAppendMemBufferReadRectExp =
+        pDdiTable->pfnAppendMemBufferReadRectExp;
+    pDdiTable->pfnAppendMemBufferReadRectExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferReadRectExp;
+
+    dditable.pfnAppendMemBufferFillExp = pDdiTable->pfnAppendMemBufferFillExp;
+    pDdiTable->pfnAppendMemBufferFillExp =
+        ur_tracing_layer::urCommandBufferAppendMemBufferFillExp;
 
     dditable.pfnEnqueueExp = pDdiTable->pfnEnqueueExp;
     pDdiTable->pfnEnqueueExp = ur_tracing_layer::urCommandBufferEnqueueExp;
