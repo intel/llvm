@@ -59,7 +59,7 @@ The handling of runtime properties in `properties` departs from that of `sycl::p
 
 [NOTE]
 ====
-Due to type deduction, users should usually not need to specify the template parameters of `properties` directly. In cases the type is needed, `decltype` should be used.
+Due to type deduction, users should usually not need to specify the template parameters of `properties` directly. In cases where the type is needed, `decltype` should be used.
 ====
 
 A property list that has the compile-time constant property `foo` can be created as follows:
@@ -80,9 +80,11 @@ properties P1{bar};
 properties P2{bar, foo{argv[0]}};
 properties P3{bar, baz};
 properties P4{baz, bar};
+
 static_assert(!std::is_same_v<decltype(P1), decltype(P2)>); // P1 and P2 contain different properties
 static_assert(!std::is_same_v<decltype(P1), decltype(P3)>); // P1 and P3 contain different properties
 static_assert(std::is_same_v<decltype(P3), decltype(P4)>); // The order properties are specified doesn't change the type
+
 ```
 
 === Goals
@@ -195,6 +197,7 @@ template<typename... Ts>
 inline constexpr boo_key::value_t<Ts...> boo;
 
 } // namespace experimental::oneapi::ext::sycl
+```
 
 === Property traits
 
@@ -203,7 +206,8 @@ All runtime and compile-time-constant properties must have a specialization of
 `std::true_type`, and they must have a specialization of `is_property_key_of`
 and `is_property_value_of`
 that inherits from `std::true_type` for each SYCL runtime class that the
-property can be applied to. All have a base case which inherits from `std::false_type`.
+property can be applied to. All have a base case which inherits from
+`std::false_type`.
 
 ```c++
 namespace sycl::ext::oneapi::experimental {
@@ -493,18 +497,21 @@ inline constexpr bool is_property_list_v;
 |===
 --
 
-
 === Type of `properties`
 
-The details of the `properties` template argument(s) are unspecified. In particular the sorting order of properties is unspecified.
-The type of the property list can be written with `decltype`.
+The details of the `properties` template argument(s) are unspecified. In
+particular the sorting order of properties is unspecified.
 
-The following example shows how `decltype` is used to create a property list type containing the compile-time constant properties `bar` and `baz`:
+The type of the property list can be written with with `decltype`.
+
+The following example shows how `decltype` is used to create a property list
+type containing the compile-time constant properties `bar` and `baz`:
 
 ```c++
 using P1 = decltype(properties(baz<1>, bar));
 using P2 = decltype(properties(bar, baz<1>));
-static_assert(std::is_same<P1, P2>::value); // Succeeds, since the order of properties does not matter
+// Succeeds, since the order of properties does not matter
+static_assert(std::is_same<P1, P2>::value);
 static_assert(P1::get_property<baz_key>().value == 1);
 ```
 
@@ -514,6 +521,44 @@ An empty property list can be created as follows:
 using empty_property_list = decltype(properties());
 ```
 
+
+=== `properties_t` : Getting type of `properties` with C++20 support
+
+The alias `sycl::ext::oneapi::experimental::properties_t` is supported only when
+C++20 features are enabled. It is defined as follows:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <auto... Props> using properties_t = decltype(properties{Props...});
+
+} // namespace experimental::oneapi::ext::sycl
+
+Use this alias in situations where you need to get the type of a `properties`
+object that consists of 1 or more compile time constant properties.
+
+The following example shows how `properties_t` is used to create a property list
+type containing the compile-time constant properties `bar` and `baz`:
+
+```c++
+using P1 = properties_t<baz<1>, bar>;
+using P2 = properties_t<bar, baz<1>>;
+// Succeeds, since the order of properties does not matter
+static_assert(std::is_same<P1, P2>::value);
+static_assert(P1::get_property<baz_key>().value == 1);
+```
+
+An empty property list can be created as follows:
+
+```c++
+using empty_property_list = properties_t<>;
+```
+
+It is equivalent to using `decltype` directly:
+```c++
+static_assert(std::is_same_v<properties_t<sub_group_size<8>>,
+                             decltype(properties(sub_group_size<8>))>);
+```
 
 === Querying Properties in Device Code
 
@@ -592,7 +637,7 @@ using f = decltype(P8.get_property<foo_types_key>());
 using t1 = f::first_t;
 using t2 = f::second_t;
 using t3 = f::third_t;
-static_assert(std::is_same_v<t1, float);
+static_assert(std::is_same_v<t1, float>);
 static_assert(std::is_same_v<t2, int>);
 static_assert(std::is_same_v<t3, bool>);
 ```
