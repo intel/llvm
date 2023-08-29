@@ -131,3 +131,43 @@ public:
     assert(result);
   }
 };
+
+template <auto F, typename T>
+class AtomicClassPtrTypeLauncher : public AtomicClassLauncher<F, T> {
+protected:
+  using ValType = std::remove_pointer_t<T>;
+
+  T *atom_arr_shared_in_;
+
+public:
+  AtomicClassPtrTypeLauncher(const syclcompat::dim3 &grid,
+                             const syclcompat::dim3 &threads,
+                             const size_t data_len)
+      : AtomicClassLauncher<F, T>(grid, threads, data_len) {
+
+    atom_arr_shared_in_ = syclcompat::malloc_shared<T>(this->data_len_);
+
+    for (size_t i = 0; i < this->data_len_; i++) {
+      atom_arr_shared_in_[i] = syclcompat::malloc_shared<ValType>(1);
+    }
+  };
+
+  virtual ~AtomicClassPtrTypeLauncher() {
+    for (size_t i = 0; i < this->data_len_; i++) {
+      syclcompat::free(atom_arr_shared_in_[i]);
+    }
+    syclcompat::free(atom_arr_shared_in_);
+  }
+
+  template <typename... Args> void launch_test() {
+    if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
+        (std::is_same_v<T, double> || std::is_same_v<T, double *>))
+      return; // skip
+    syclcompat::launch<F>(this->grid_, this->threads_, this->atom_arr_device_,
+                          atom_arr_shared_in_);
+    F(this->atom_arr_host_, atom_arr_shared_in_);
+    syclcompat::wait();
+
+    this->verify();
+  }
+};

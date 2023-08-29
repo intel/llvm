@@ -14,14 +14,14 @@
  *
  *  SYCLcompat API
  *
- *  atomic_minmax.cpp
+ *  atomic_class.cpp
  *
  *  Description:
  *    atomic operations API tests
  **************************************************************************/
 
 // The original source was under the license below:
-// ====------ Atomic.cpp---------- -*- C++ -* ----===////
+// ====------ libcu_atomic.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -38,6 +38,34 @@
 
 #include "../common.hpp"
 #include "atomic_fixt.hpp"
+
+template <typename T>
+void atomic_ref_ptr_kernel(T *atom_arr_out, T *atom_arr_in) {
+  syclcompat::atomic<T> a{nullptr};
+
+  // atomic store
+  a.store(atom_arr_in[0]);
+
+  // atomic load
+  atom_arr_out[0] = a.load();
+
+  // atomic exchange
+  atom_arr_out[1] = a.exchange(atom_arr_in[1]);
+
+  // atomic compare_exchange_weak
+  atom_arr_out[2] = a.load();
+  a.compare_exchange_weak(atom_arr_out[2], atom_arr_in[2]);
+
+  // atomic compare_exchange_strong
+  atom_arr_out[3] = a.load();
+  a.compare_exchange_strong(atom_arr_out[3], atom_arr_in[3]);
+
+  // atomic fetch_add
+  atom_arr_out[4] = a.fetch_add(static_cast<std::ptrdiff_t>(1));
+
+  // atomic fetch_sub
+  atom_arr_out[5] = a.fetch_sub(static_cast<std::ptrdiff_t>(-1));
+}
 
 template <typename T> void atomic_ref_value_kernel(T *atom_arr) {
   syclcompat::atomic<T> a{static_cast<T>(0)};
@@ -80,9 +108,22 @@ template <typename T> void atomic_class_value() {
       .launch_test();
 }
 
+template <typename T> void atomic_class_ptr() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+
+  constexpr size_t numBlocks = 64;
+  constexpr size_t numThreads = 256;
+  constexpr size_t numData = 6;
+
+  AtomicClassPtrTypeLauncher<atomic_ref_ptr_kernel<T>, T>(numBlocks, numThreads,
+                                                          numData)
+      .launch_test();
+}
+
 int main() {
   // default constructor
   syclcompat::atomic<int> default_constructor;
 
   INSTANTIATE_ALL_TYPES(atomic_value_type_list, atomic_class_value);
+  INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, atomic_class_ptr);
 }
