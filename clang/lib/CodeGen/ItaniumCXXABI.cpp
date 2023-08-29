@@ -3874,11 +3874,7 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
     VTable = CGM.getModule().getNamedAlias(VTableName);
 
   if (!VTable)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-    VTable = CGM.getModule().getOrInsertGlobal(VTableName, CGM.Int8PtrTy);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     VTable = CGM.CreateRuntimeVariable(CGM.DefaultInt8PtrTy, VTableName);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
 
@@ -3897,18 +3893,12 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
         llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8Ty, VTable, Eight);
   } else {
     llvm::Constant *Two = llvm::ConstantInt::get(PtrDiffTy, 2);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-    VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.Int8PtrTy,
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     VTable = llvm::ConstantExpr::getInBoundsGetElementPtr(CGM.DefaultInt8PtrTy,
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                                                           VTable, Two);
   }
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.GlobalsInt8PtrTy);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   VTable = llvm::ConstantExpr::getBitCast(VTable, CGM.DefaultInt8PtrTy);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
+#endif
 
   Fields.push_back(VTable);
 }
