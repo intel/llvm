@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -21,11 +19,14 @@ enum class architecture {
   intel_gpu_kbl,
   intel_gpu_cfl,
   intel_gpu_apl,
+  intel_gpu_bxt = intel_gpu_apl,
   intel_gpu_glk,
   intel_gpu_whl,
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
+  intel_gpu_ehl,
+  intel_gpu_jsl = intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
@@ -34,8 +35,11 @@ enum class architecture {
   intel_gpu_adl_n,
   intel_gpu_dg1,
   intel_gpu_acm_g10,
+  intel_gpu_dg2_g10 = intel_gpu_acm_g10,
   intel_gpu_acm_g11,
+  intel_gpu_dg2_g11 = intel_gpu_acm_g11,
   intel_gpu_acm_g12,
+  intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
   // NVIDIA architectures
   nvidia_gpu_sm_50,
@@ -130,6 +134,9 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #ifndef __SYCL_TARGET_INTEL_GPU_ICLLP__
 #define __SYCL_TARGET_INTEL_GPU_ICLLP__ 0
 #endif
+#ifndef __SYCL_TARGET_INTEL_GPU_EHL__
+#define __SYCL_TARGET_INTEL_GPU_EHL__ 0
+#endif
 #ifndef __SYCL_TARGET_INTEL_GPU_TGLLP__
 #define __SYCL_TARGET_INTEL_GPU_TGLLP__ 0
 #endif
@@ -138,9 +145,6 @@ static constexpr ext::oneapi::experimental::architecture max_architecture =
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ADL_S__
 #define __SYCL_TARGET_INTEL_GPU_ADL_S__ 0
-#endif
-#ifndef __SYCL_TARGET_INTEL_GPU_RPL_S__
-#define __SYCL_TARGET_INTEL_GPU_RPL_S__ 0
 #endif
 #ifndef __SYCL_TARGET_INTEL_GPU_ADL_P__
 #define __SYCL_TARGET_INTEL_GPU_ADL_P__ 0
@@ -289,10 +293,10 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_INTEL_GPU_AML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_CML__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ICLLP__ == 1) ||
+    (__SYCL_TARGET_INTEL_GPU_EHL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_TGLLP__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_RKL__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_S__ == 1) ||
-    (__SYCL_TARGET_INTEL_GPU_RPL_S__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_P__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_ADL_N__ == 1) ||
     (__SYCL_TARGET_INTEL_GPU_DG1__ == 1) ||
@@ -366,14 +370,14 @@ struct IsAOTForArchitectureClass {
         __SYCL_TARGET_INTEL_GPU_CML__ == 1;
     arr[static_cast<int>(arch::intel_gpu_icllp)] =
         __SYCL_TARGET_INTEL_GPU_ICLLP__ == 1;
+    arr[static_cast<int>(arch::intel_gpu_ehl)] =
+        __SYCL_TARGET_INTEL_GPU_EHL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_tgllp)] =
         __SYCL_TARGET_INTEL_GPU_TGLLP__ == 1;
     arr[static_cast<int>(arch::intel_gpu_rkl)] =
         __SYCL_TARGET_INTEL_GPU_RKL__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_s)] =
         __SYCL_TARGET_INTEL_GPU_ADL_S__ == 1;
-    arr[static_cast<int>(arch::intel_gpu_rpl_s)] =
-        __SYCL_TARGET_INTEL_GPU_RPL_S__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_p)] =
         __SYCL_TARGET_INTEL_GPU_ADL_P__ == 1;
     arr[static_cast<int>(arch::intel_gpu_adl_n)] =

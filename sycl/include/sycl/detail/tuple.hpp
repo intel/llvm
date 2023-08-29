@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cassert>
-#include <iterator>
-#include <tuple>
-#include <type_traits>
+#include <array>   // for tuple_element
+#include <cstddef> // for size_t
+#include <tuple>   // for tuple
+#include <utility> // for make_index_sequence, index_sequence
+#include <variant> // for tuple
 
 namespace sycl {
 inline namespace _V1 {
