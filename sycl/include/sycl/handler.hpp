@@ -282,41 +282,56 @@ checkValueRange(const T &V) {
 #endif
 }
 
+template <typename KernelType, int Dims>
+auto item_helper(range<Dims> NumWorkItems, size_t id) {
+  if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
+                std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
+    return detail::Builder::createItem<Dims, true>(
+        NumWorkItems, getDelinearizedId(NumWorkItems, id), {});
+  else {
+    static_assert(
+        std::is_invocable_v<KernelType, item<Dims, false>> ||
+            std::is_invocable_v<KernelType, item<Dims, false>, kernel_handler>,
+        "Kernel must be invocable with an item!");
+    return detail::Builder::createItem<Dims, false>(
+        NumWorkItems, getDelinearizedId(NumWorkItems, id));
+  }
+}
+
+// The frontend has special handling with __pf_kernel_wrapper-named kernels
+// which copies attributes of a wrapped kernel to its direct parent; therefore
+// we use a macro to avoid nesting the call of the KernelFunc another
+// function deep.
+#define __SYCL_ROUNDED_RANGE_KERNEL_BODY__(BODY)                               \
+  auto NOldWorkItems = NumWorkItems.size();                                    \
+  for (auto id = it.get_linear_id(); id < NOldWorkItems; id += NNewWorkItems)  \
+  BODY
+
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
 public:
-  RoundedRangeKernel(range<Dims> NumWorkItems, KernelType KernelFunc)
-      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
-
-  void operator()(TransformedArgType Arg) const {
-    if (Arg[0] >= NumWorkItems[0])
-      return;
-    Arg.set_allowed_range(NumWorkItems);
-    KernelFunc(Arg);
-  }
-
-private:
   range<Dims> NumWorkItems;
+  size_t NNewWorkItems;
   KernelType KernelFunc;
+  void operator()(item<1> it) const {
+    __SYCL_ROUNDED_RANGE_KERNEL_BODY__(
+        { KernelFunc(item_helper<KernelType>(NumWorkItems, id)); });
+  }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH {
 public:
-  RoundedRangeKernelWithKH(range<Dims> NumWorkItems, KernelType KernelFunc)
-      : NumWorkItems(NumWorkItems), KernelFunc(KernelFunc) {}
-
-  void operator()(TransformedArgType Arg, kernel_handler KH) const {
-    if (Arg[0] >= NumWorkItems[0])
-      return;
-    Arg.set_allowed_range(NumWorkItems);
-    KernelFunc(Arg, KH);
-  }
-
-private:
   range<Dims> NumWorkItems;
+  size_t NNewWorkItems;
   KernelType KernelFunc;
+  void operator()(item<1> it, kernel_handler KH) const {
+    __SYCL_ROUNDED_RANGE_KERNEL_BODY__(
+        { KernelFunc(item_helper<KernelType>(NumWorkItems, id), KH); });
+  }
 };
+
+#undef __SYCL_ROUNDED_RANGE_KERNEL_BODY__
 
 using std::enable_if_t;
 using sycl::detail::queue_impl;
@@ -1143,23 +1158,24 @@ private:
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
+      range<Dims> AdjustedRange = NumWorkItems;
+      AdjustedRange.set_range_dim0(NewValX);
+      size_t NNewWorkItems = AdjustedRange.size();
+
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
-              KernelFunc, NumWorkItems);
+              KernelFunc, NumWorkItems, NNewWorkItems);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      range<Dims> AdjustedRange = NumWorkItems;
-      AdjustedRange.set_range_dim0(NewValX);
-      kernel_parallel_for_wrapper<KName, TransformedArgType, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, item<1>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
       detail::checkValueRange<Dims>(AdjustedRange);
-      MNDRDesc.set(std::move(AdjustedRange));
-      StoreLambda<KName, decltype(Wrapper), Dims, TransformedArgType>(
-          std::move(Wrapper));
+      MNDRDesc.set(range(NNewWorkItems));
+      StoreLambda<KName, decltype(Wrapper), 1, item<1>>(std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif
     } else
@@ -3280,10 +3296,11 @@ private:
             std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
+                                   range<Dims> NumWorkItems,
+                                   size_t NNewWorkItems) {
     return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>(NumWorkItems,
-                                                        KernelFunc);
+                                            KernelType>{
+        NumWorkItems, NNewWorkItems, KernelFunc};
   }
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
@@ -3291,9 +3308,10 @@ private:
             std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems) {
-    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>(
-        NumWorkItems, KernelFunc);
+                                   range<Dims> NumWorkItems,
+                                   size_t NNewWorkItems) {
+    return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
+        NumWorkItems, NNewWorkItems, KernelFunc};
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
