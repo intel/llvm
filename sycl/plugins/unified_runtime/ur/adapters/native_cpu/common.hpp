@@ -41,6 +41,19 @@ extern thread_local char ErrorMessage[MaxMessageSize];
     }                                                                          \
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
+/// ------ Error handling, matching OpenCL plugin semantics.
+/// Taken from other adapter
+namespace detail {
+namespace ur {
+
+// Report error and no return (keeps compiler from printing warnings).
+// TODO: Probably change that to throw a catchable exception,
+//       but for now it is useful to see every failure.
+//
+[[noreturn]] void die(const char *pMessage);
+} // namespace ur
+} // namespace detail
+
 // Base class to store common data
 struct _ur_object {
   ur_shared_mutex Mutex;
