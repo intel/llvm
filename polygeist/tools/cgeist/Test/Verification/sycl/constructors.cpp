@@ -103,7 +103,7 @@ extern "C" SYCL_EXTERNAL void cons_0(sycl::id<1> i, sycl::range<1> r) {
 // CHECK-NEXT: %alloca = memref.alloca() : memref<1x!sycl_id_2_>
 // CHECK-NEXT: %cast = memref.cast %alloca : memref<1x!sycl_id_2_> to memref<?x!sycl_id_2_>
 // CHECK-NEXT: %0 = "polygeist.memref2pointer"(%alloca) : (memref<1x!sycl_id_2_>) -> !llvm.ptr
-// CHECK-NEXT: %1 = "polygeist.typeSize"() {source = !sycl_id_2_} : () -> index
+// CHECK-NEXT: %1 = "polygeist.typeSize"() <{source = !sycl_id_2_}> : () -> index
 // CHECK-NEXT: %2 = arith.index_cast %1 : index to i64
 // CHECK-NEXT: "llvm.intr.memset"(%0, %c0_i8, %2) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 // CHECK-NEXT: %memspacecast = memref.memory_space_cast %cast : memref<?x!sycl_id_2_> to memref<?x!sycl_id_2_, 4>
@@ -268,7 +268,7 @@ extern "C" SYCL_EXTERNAL void cons_10(const sycl::long8 &A,
 // CHECK-DAG:     %[[C0_I8:.*]] = arith.constant 0 : i8
 // CHECK-NEXT:    %[[ALLOCA:.*]] = memref.alloca() : memref<1x!sycl_vec_i32_4_>
 // CHECK-NEXT:    %[[VAL0:.*]] = "polygeist.memref2pointer"(%[[ALLOCA]]) : (memref<1x!sycl_vec_i32_4_>) -> !llvm.ptr
-// CHECK-NEXT:    %[[VAL1:.*]] = "polygeist.typeSize"() {source = !sycl_vec_i32_4_} : () -> index
+// CHECK-NEXT:    %[[VAL1:.*]] = "polygeist.typeSize"() <{source = !sycl_vec_i32_4_}> : () -> index
 // CHECK-NEXT:    %[[VAL2:.*]] = arith.index_cast %[[VAL1]] : index to i64
 // CHECK-NEXT:    "llvm.intr.memset"(%[[VAL0]], %[[C0_I8]], %[[VAL2]]) <{isVolatile = false}> : (!llvm.ptr, i8, i64) -> ()
 

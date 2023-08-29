@@ -15,6 +15,7 @@ def Polygeist_Dialect : Dialect {
   let name = "polygeist";
   let cppNamespace = "::mlir::polygeist";
   let useDefaultTypePrinterParser = 1;
+  let usePropertiesForAttributes = 1;
 }
 
 #endif // POLYGEIST_BASE

@@ -14,7 +14,7 @@ unsigned create2() {
 }
 
 // CHECK:   func @_Z6createv() -> i32 attributes {llvm.linkage = #llvm.linkage<external>} {
-// CHECK-NEXT:     %0 = "polygeist.typeAlign"() {source = !llvm.struct<(memref<?xf32>, i8)>} : () -> index
+// CHECK-NEXT:     %0 = "polygeist.typeAlign"() <{source = !llvm.struct<(memref<?xf32>, i8)>}> : () -> index
 // CHECK-NEXT:     %1 = arith.index_cast %0 : index to i64
 // CHECK-NEXT:     %2 = arith.trunci %1 : i64 to i32
 // CHECK-NEXT:     return %2 : i32
