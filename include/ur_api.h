@@ -151,9 +151,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                             ///< Enumerator for ::urCommandBufferFinalizeExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,                 ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
     UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                              ///< Enumerator for ::urCommandBufferEnqueueExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMCPY_USM_EXP = 129,                    ///< Enumerator for ::urCommandBufferAppendMemcpyUSMExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_EXP = 130,                ///< Enumerator for ::urCommandBufferAppendMembufferCopyExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_COPY_RECT_EXP = 131,           ///< Enumerator for ::urCommandBufferAppendMembufferCopyRectExp
     UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                                   ///< Enumerator for ::urUSMPitchedAllocExp
     UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133,      ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
     UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,        ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
@@ -189,10 +186,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_USM_P2P_ENABLE_PEER_ACCESS_EXP = 165,                          ///< Enumerator for ::urUsmP2PEnablePeerAccessExp
     UR_FUNCTION_USM_P2P_DISABLE_PEER_ACCESS_EXP = 166,                         ///< Enumerator for ::urUsmP2PDisablePeerAccessExp
     UR_FUNCTION_USM_P2P_PEER_ACCESS_GET_INFO_EXP = 167,                        ///< Enumerator for ::urUsmP2PPeerAccessGetInfoExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_EXP = 168,               ///< Enumerator for ::urCommandBufferAppendMembufferWriteExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_EXP = 169,                ///< Enumerator for ::urCommandBufferAppendMembufferReadExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_WRITE_RECT_EXP = 170,          ///< Enumerator for ::urCommandBufferAppendMembufferWriteRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEMBUFFER_READ_RECT_EXP = 171,           ///< Enumerator for ::urCommandBufferAppendMembufferReadRectExp
     UR_FUNCTION_LOADER_CONFIG_CREATE = 172,                                    ///< Enumerator for ::urLoaderConfigCreate
     UR_FUNCTION_LOADER_CONFIG_RELEASE = 173,                                   ///< Enumerator for ::urLoaderConfigRelease
     UR_FUNCTION_LOADER_CONFIG_RETAIN = 174,                                    ///< Enumerator for ::urLoaderConfigRetain
@@ -205,6 +198,15 @@ typedef enum ur_function_t {
     UR_FUNCTION_ADAPTER_GET_INFO = 181,                                        ///< Enumerator for ::urAdapterGetInfo
     UR_FUNCTION_LOADER_INIT = 182,                                             ///< Enumerator for ::urLoaderInit
     UR_FUNCTION_LOADER_TEAR_DOWN = 183,                                        ///< Enumerator for ::urLoaderTearDown
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 184,                    ///< Enumerator for ::urCommandBufferAppendUSMMemcpyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 185,                      ///< Enumerator for ::urCommandBufferAppendUSMFillExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 186,               ///< Enumerator for ::urCommandBufferAppendMemBufferCopyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 187,              ///< Enumerator for ::urCommandBufferAppendMemBufferWriteExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 188,               ///< Enumerator for ::urCommandBufferAppendMemBufferReadExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 189,          ///< Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 190,         ///< Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 191,          ///< Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 192,               ///< Enumerator for ::urCommandBufferAppendMemBufferFillExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7777,7 +7779,7 @@ urCommandBufferAppendKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMemcpyUSMExp(
+urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     void *pDst,                                                   ///< [in] Location the data will be copied to.
     const void *pSrc,                                             ///< [in] The data to be copied.
@@ -7785,6 +7787,45 @@ urCommandBufferAppendMemcpyUSMExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a USM fill command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pMemory`
+///         + `NULL == pPattern`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `patternSize == 0 || size == 0`
+///         + `patternSize > size`
+///         + `(patternSize & (patternSize - 1)) != 0`
+///         + `size % patternSize != 0`
+///         + If `size` is higher than the allocation size of `ptr`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    void *pMemory,                                                ///< [in] pointer to USM allocated memory to fill.
+    const void *pPattern,                                         ///< [in] pointer to the fill pattern.
+    size_t patternSize,                                           ///< [in] size in bytes of the pattern.
+    size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7808,7 +7849,7 @@ urCommandBufferAppendMemcpyUSMExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferCopyExp(
+urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
@@ -7842,7 +7883,7 @@ urCommandBufferAppendMembufferCopyExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferWriteExp(
+urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
     size_t offset,                                                ///< [in] offset in bytes in the buffer object.
@@ -7875,7 +7916,7 @@ urCommandBufferAppendMembufferWriteExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferReadExp(
+urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
     size_t offset,                                                ///< [in] offset in bytes in the buffer object.
@@ -7907,7 +7948,7 @@ urCommandBufferAppendMembufferReadExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferCopyRectExp(
+urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hSrcMem,                                      ///< [in] The data to be copied.
     ur_mem_handle_t hDstMem,                                      ///< [in] The location the data will be copied to.
@@ -7945,7 +7986,7 @@ urCommandBufferAppendMembufferCopyRectExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferWriteRectExp(
+urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
     ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
@@ -7986,7 +8027,7 @@ urCommandBufferAppendMembufferWriteRectExp(
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
-urCommandBufferAppendMembufferReadRectExp(
+urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
     ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
     ur_rect_offset_t bufferOffset,                                ///< [in] 3D offset in the buffer.
@@ -8002,6 +8043,42 @@ urCommandBufferAppendMembufferReadRectExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
     ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Append a memory fill command to a command-buffer object
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommandBuffer`
+///         + `NULL == hBuffer`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pPattern`
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
+///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
+///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + If `offset + size` results in an out-of-bounds access.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] handle of the command-buffer object.
+    ur_mem_handle_t hBuffer,                                      ///< [in] handle of the buffer object.
+    const void *pPattern,                                         ///< [in] pointer to the fill pattern.
+    size_t patternSize,                                           ///< [in] size in bytes of the pattern.
+    size_t offset,                                                ///< [in] offset into the buffer.
+    size_t size,                                                  ///< [in] fill size in bytes, must be a multiple of patternSize.
+    uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9918,10 +9995,10 @@ typedef struct ur_command_buffer_append_kernel_launch_exp_params_t {
 } ur_command_buffer_append_kernel_launch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMemcpyUSMExp
+/// @brief Function parameters for urCommandBufferAppendUSMMemcpyExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_memcpy_usm_exp_params_t {
+typedef struct ur_command_buffer_append_usm_memcpy_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     void **ppDst;
     const void **ppSrc;
@@ -9929,13 +10006,28 @@ typedef struct ur_command_buffer_append_memcpy_usm_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_memcpy_usm_exp_params_t;
+} ur_command_buffer_append_usm_memcpy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferCopyExp
+/// @brief Function parameters for urCommandBufferAppendUSMFillExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_copy_exp_params_t {
+typedef struct ur_command_buffer_append_usm_fill_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    void **ppMemory;
+    const void **ppPattern;
+    size_t *ppatternSize;
+    size_t *psize;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_usm_fill_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMemBufferCopyExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_mem_buffer_copy_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phSrcMem;
     ur_mem_handle_t *phDstMem;
@@ -9945,13 +10037,13 @@ typedef struct ur_command_buffer_append_membuffer_copy_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_copy_exp_params_t;
+} ur_command_buffer_append_mem_buffer_copy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferWriteExp
+/// @brief Function parameters for urCommandBufferAppendMemBufferWriteExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_write_exp_params_t {
+typedef struct ur_command_buffer_append_mem_buffer_write_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phBuffer;
     size_t *poffset;
@@ -9960,13 +10052,13 @@ typedef struct ur_command_buffer_append_membuffer_write_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_write_exp_params_t;
+} ur_command_buffer_append_mem_buffer_write_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferReadExp
+/// @brief Function parameters for urCommandBufferAppendMemBufferReadExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_read_exp_params_t {
+typedef struct ur_command_buffer_append_mem_buffer_read_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phBuffer;
     size_t *poffset;
@@ -9975,13 +10067,13 @@ typedef struct ur_command_buffer_append_membuffer_read_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_read_exp_params_t;
+} ur_command_buffer_append_mem_buffer_read_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferCopyRectExp
+/// @brief Function parameters for urCommandBufferAppendMemBufferCopyRectExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t {
+typedef struct ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phSrcMem;
     ur_mem_handle_t *phDstMem;
@@ -9995,13 +10087,13 @@ typedef struct ur_command_buffer_append_membuffer_copy_rect_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_copy_rect_exp_params_t;
+} ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferWriteRectExp
+/// @brief Function parameters for urCommandBufferAppendMemBufferWriteRectExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_write_rect_exp_params_t {
+typedef struct ur_command_buffer_append_mem_buffer_write_rect_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phBuffer;
     ur_rect_offset_t *pbufferOffset;
@@ -10015,13 +10107,13 @@ typedef struct ur_command_buffer_append_membuffer_write_rect_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_write_rect_exp_params_t;
+} ur_command_buffer_append_mem_buffer_write_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Function parameters for urCommandBufferAppendMembufferReadRectExp
+/// @brief Function parameters for urCommandBufferAppendMemBufferReadRectExp
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
-typedef struct ur_command_buffer_append_membuffer_read_rect_exp_params_t {
+typedef struct ur_command_buffer_append_mem_buffer_read_rect_exp_params_t {
     ur_exp_command_buffer_handle_t *phCommandBuffer;
     ur_mem_handle_t *phBuffer;
     ur_rect_offset_t *pbufferOffset;
@@ -10035,7 +10127,23 @@ typedef struct ur_command_buffer_append_membuffer_read_rect_exp_params_t {
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
-} ur_command_buffer_append_membuffer_read_rect_exp_params_t;
+} ur_command_buffer_append_mem_buffer_read_rect_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferAppendMemBufferFillExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_append_mem_buffer_fill_exp_params_t {
+    ur_exp_command_buffer_handle_t *phCommandBuffer;
+    ur_mem_handle_t *phBuffer;
+    const void **ppPattern;
+    size_t *ppatternSize;
+    size_t *poffset;
+    size_t *psize;
+    uint32_t *pnumSyncPointsInWaitList;
+    const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+} ur_command_buffer_append_mem_buffer_fill_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferEnqueueExp
