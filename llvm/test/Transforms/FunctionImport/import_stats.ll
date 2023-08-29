@@ -5,13 +5,13 @@
 
 ; REQUIRES: x86-registered-target
 
-; RUN: opt -opaque-pointers -module-summary %s -o %t.bc
-; RUN: opt -opaque-pointers -module-summary %p/Inputs/import_stats.ll -o %t2.bc
+; RUN: opt -module-summary %s -o %t.bc
+; RUN: opt -module-summary %p/Inputs/import_stats.ll -o %t2.bc
 
 ; Test thin link stats with both new and old LTO
-; RUN: llvm-lto -opaque-pointers -thinlto-action=run -stats %t.bc %t2.bc \
+; RUN: llvm-lto -thinlto-action=run -stats %t.bc %t2.bc \
 ; RUN:		2>&1 | FileCheck %s --check-prefix=THINLINKSTATS
-; RUN: llvm-lto2 run -opaque-pointers -stats -o %t3 %t.bc %t2.bc \
+; RUN: llvm-lto2 run -stats -o %t3 %t.bc %t2.bc \
 ; RUN:          -r %t.bc,hot_function,plx \
 ; RUN:          -r %t.bc,hot, \
 ; RUN:          -r %t.bc,critical, \

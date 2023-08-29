@@ -1,10 +1,10 @@
-//===---------------- pi2ur.hpp - PI API to UR API  --------------------==//
+//===---------------- pi2ur.hpp - PI API to UR API  ------------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include "ur_api.h"
@@ -2190,8 +2190,12 @@ inline pi_result piKernelSetArg(pi_kernel Kernel, pi_uint32 ArgIndex,
 
   ur_kernel_handle_t UrKernel = reinterpret_cast<ur_kernel_handle_t>(Kernel);
 
-  HANDLE_ERRORS(
-      urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
+  if (ArgValue) {
+    HANDLE_ERRORS(
+        urKernelSetArgValue(UrKernel, ArgIndex, ArgSize, nullptr, ArgValue));
+  } else {
+    HANDLE_ERRORS(urKernelSetArgLocal(UrKernel, ArgIndex, ArgSize, nullptr));
+  }
   return PI_SUCCESS;
 }
 
