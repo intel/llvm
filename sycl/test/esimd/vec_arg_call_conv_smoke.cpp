@@ -18,7 +18,7 @@ ESIMD_PRIVATE simd<float, 3 * 32 * 4> GRF;
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<float, 16> callee__sret__param(simd<float, 16> x) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <16 x float> @_Z19callee__sret__param{{.*}}(<16 x float> %[[PARAM:.+]])
+// CHECK: define dso_local spir_func <16 x float> @_Z19callee__sret__param{{.*}}(ptr noundef %[[PARAM:.+]])
   return x;
 }
 
@@ -28,7 +28,7 @@ __attribute__((noinline))
 SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__arr(simd<float, 16> *x, int i) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func <16 x float> @_Z29test__sret__fall_through__arr{{.*}}(ptr addrspace(4) noundef %[[PARAM0:.+]], i32 noundef %{{.*}})
   return callee__sret__param(x[i]);
-// CHECK: %{{.*}} = call spir_func <16 x float> @_Z19callee__sret__param{{.*}}(<16 x float> %{{.*}})
+// CHECK: %{{.*}} = call spir_func <16 x float> @_Z19callee__sret__param{{.*}}(ptr nonnull %{{.*}})
 }
 
 // * Caller 2 : simd object is read from a global
@@ -36,5 +36,5 @@ SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__arr(simd<float, 16> *x, 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<float, 16> test__sret__fall_through__glob() SYCL_ESIMD_FUNCTION {
   return callee__sret__param(V(GRF, 16, 0));
-// CHECK: %{{.*}} = call spir_func <16 x float> @_Z19callee__sret__param{{.*}}(<16 x float> %{{.*}})
+// CHECK: %{{.*}} = call spir_func <16 x float> @_Z19callee__sret__param{{.*}}(ptr nonnull %{{.*}})
 }

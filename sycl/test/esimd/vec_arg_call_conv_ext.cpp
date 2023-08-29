@@ -16,7 +16,7 @@ using namespace sycl::ext::intel::esimd;
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<int, 8> callee__sret__x_param_x(int i, simd<int, 8> x, int j) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <8 x i32> @_Z23callee__sret__x_param_x{{.*}}(i32 noundef %{{.*}}, <8 x i32> %{{.*}}, i32 noundef %{{.*}})
+// CHECK: define dso_local spir_func <8 x i32> @_Z23callee__sret__x_param_x{{.*}}(i32 noundef %{{.*}}, ptr noundef %{{.*}}, i32 noundef %{{.*}})
   return x + (i + j);
 }
 
@@ -24,7 +24,7 @@ __attribute__((noinline))
 SYCL_EXTERNAL simd<int, 8> test__sret__x_param_x(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__x_param_x{{.*}}(<8 x i32> %{{.*}})
   return callee__sret__x_param_x(2, x, 1);
-// CHECK:  %{{.*}} = call spir_func <8 x i32> @_Z23callee__sret__x_param_x{{.*}}(i32 2, <8 x i32> %{{.*}}, i32 1)
+// CHECK:  %{{.*}} = call spir_func <8 x i32> @_Z23callee__sret__x_param_x{{.*}}(i32 2, ptr nonnull %{{.*}}, i32 1)
 }
 
 //------------------------
@@ -32,22 +32,22 @@ SYCL_EXTERNAL simd<int, 8> test__sret__x_param_x(simd<int, 8> x) SYCL_ESIMD_FUNC
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<double, 32> callee__all_fall_through0(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <32 x double> @_Z25callee__all_fall_through0{{.*}}(<32 x double> %{{.*}})
+// CHECK: define dso_local spir_func <32 x double> @_Z25callee__all_fall_through0{{.*}}(ptr noundef %{{.*}})
   return x;
 }
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<double, 32> callee__all_fall_through1(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func <32 x double> @_Z25callee__all_fall_through1{{.*}}(<32 x double> %{{.*}})
+// CHECK: define dso_local spir_func <32 x double> @_Z25callee__all_fall_through1{{.*}}(ptr noundef %{{.*}})
   return callee__all_fall_through0(x);
-// CHECK:  %{{.*}} = call spir_func <32 x double> @_Z25callee__all_fall_through0{{.*}}(<32 x double> %{{.*}})
+// CHECK:  %{{.*}} = call spir_func <32 x double> @_Z25callee__all_fall_through0{{.*}}(ptr nonnull %{{.*}})
 }
 
 __attribute__((noinline))
 SYCL_EXTERNAL simd<double, 32> test__all_fall_through(simd<double, 32> x) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func <32 x double> @_Z22test__all_fall_through{{.*}}(<32 x double> %{{.*}})
   return callee__all_fall_through1(x);
-// CHECK:  %{{.*}} = call spir_func <32 x double> @_Z25callee__all_fall_through1{{.*}}(<32 x double> %{{.*}})
+// CHECK:  %{{.*}} = call spir_func <32 x double> @_Z25callee__all_fall_through1{{.*}}(ptr nonnull %{{.*}})
 }
 
 //------------------------
@@ -56,7 +56,6 @@ SYCL_EXTERNAL simd<double, 32> test__all_fall_through(simd<double, 32> x) SYCL_E
 
 __attribute__((noinline))
 SYCL_EXTERNAL void callee_void__noopt_opt(simd<int, 8>& x, simd<int, 8> y) SYCL_ESIMD_FUNCTION {
-// CHECK: define dso_local spir_func void @_Z22callee_void__noopt_opt{{.*}}(ptr {{.*}} %{{.*}}, <8 x i32> %{{.*}})
   x = x + y;
 }
 
@@ -64,7 +63,7 @@ __attribute__((noinline))
 SYCL_EXTERNAL simd<int, 8> test__sret__noopt_opt(simd<int, 8> x) SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func <8 x i32> @_Z21test__sret__noopt_opt{{.*}}(ptr noundef %{{.*}})
   callee_void__noopt_opt(x, x);
-// CHECK:  call spir_func void @_Z22callee_void__noopt_opt{{.*}}(ptr addrspace(4) %{{.*}}, <8 x i32> %{{.*}})
+// CHECK:  call spir_func void @_Z22callee_void__noopt_opt{{.*}}(ptr addrspace(4) noundef {{.*}} %{{.*}}, ptr noundef nonnull %{{.*}})
   return x;
 }
 
