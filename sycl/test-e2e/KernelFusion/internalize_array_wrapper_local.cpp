@@ -1,8 +1,9 @@
 // REQUIRES: fusion
 // RUN: %{build} -fsycl-embed-ir -O2 -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: cuda
 
-// Test internalization of a nested array type.
+// Test local internalization of a nested array type.
 
 #include <array>
 
@@ -39,7 +40,7 @@ template <size_t N, size_t M> struct array_wrapper {
 };
 
 int main() {
-  constexpr size_t dataSize = 2;
+  constexpr size_t dataSize = 16;
   constexpr size_t rows = 2;
   constexpr size_t columns = 2;
 
@@ -79,40 +80,42 @@ int main() {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
       auto accTmp = bTmp.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
-      cgh.parallel_for<class KernelOne>(dataSize, [=](id<1> id) {
-        const auto &accIn1Wrapp = accIn1[id];
-        const auto &accIn2Wrapp = accIn2[id];
-        auto &accTmpWrapp = accTmp[id];
-        for (size_t i = 0; i < rows; ++i) {
-          const auto &in1 = accIn1Wrapp[i];
-          const auto &in2 = accIn2Wrapp[i];
-          auto &tmp = accTmpWrapp[i];
-          for (size_t j = 0; j < columns; ++j) {
-            tmp[j] = in1[j] + in2[j];
-          }
-        }
-      });
+          cgh, sycl::ext::codeplay::experimental::property::promote_local{});
+      cgh.parallel_for<class KernelOne>(
+          nd_range<1>{{dataSize}, {4}}, [=](id<1> id) {
+            const auto &accIn1Wrapp = accIn1[id];
+            const auto &accIn2Wrapp = accIn2[id];
+            auto &accTmpWrapp = accTmp[id];
+            for (size_t i = 0; i < rows; ++i) {
+              const auto &in1 = accIn1Wrapp[i];
+              const auto &in2 = accIn2Wrapp[i];
+              auto &tmp = accTmpWrapp[i];
+              for (size_t j = 0; j < columns; ++j) {
+                tmp[j] = in1[j] + in2[j];
+              }
+            }
+          });
     });
 
     q.submit([&](handler &cgh) {
       auto accTmp = bTmp.get_access(
-          cgh, sycl::ext::codeplay::experimental::property::promote_private{});
+          cgh, sycl::ext::codeplay::experimental::property::promote_local{});
       auto accIn3 = bIn3.get_access(cgh);
       auto accOut = bOut.get_access(cgh);
-      cgh.parallel_for<class KernelTwo>(dataSize, [=](id<1> id) {
-        const auto &tmpWrapp = accTmp[id];
-        const auto &accIn3Wrapp = accIn3[id];
-        auto &accOutWrapp = accOut[id];
-        for (size_t i = 0; i < rows; ++i) {
-          const auto &tmp = tmpWrapp[i];
-          const auto &in3 = accIn3Wrapp[i];
-          auto &out = accOutWrapp[i];
-          for (size_t j = 0; j < columns; ++j) {
-            out[j] = tmp[j] * in3[j];
-          }
-        }
-      });
+      cgh.parallel_for<class KernelTwo>(
+          nd_range<1>{{dataSize}, {4}}, [=](id<1> id) {
+            const auto &tmpWrapp = accTmp[id];
+            const auto &accIn3Wrapp = accIn3[id];
+            auto &accOutWrapp = accOut[id];
+            for (size_t i = 0; i < rows; ++i) {
+              const auto &tmp = tmpWrapp[i];
+              const auto &in3 = accIn3Wrapp[i];
+              auto &out = accOutWrapp[i];
+              for (size_t j = 0; j < columns; ++j) {
+                out[j] = tmp[j] * in3[j];
+              }
+            }
+          });
     });
 
     fw.complete_fusion({ext::codeplay::experimental::property::no_barriers{}});
