@@ -7,15 +7,19 @@
  SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 """
 
-from subprocess import  Popen, DEVNULL
+from subprocess import  Popen, DEVNULL, PIPE
 import argparse
 import os
 import json
 
 TMP_RESULTS_FILE = "tmp-results-file.json"
-CTS_TEST_SUITES = ["context", "device", "enqueue", "event", "kernel", "memory",
-                   "platform", "program", "queue", "runtime", "sampler", "usm",
-                   "virtual_memory"]
+
+def get_cts_test_suite_names(working_directory):
+    process = Popen(["ctest", "--show-only=json-v1"], cwd=working_directory, 
+                    stdout=PIPE, env=os.environ.copy())
+    out,_ = process.communicate()
+    testsuites = json.loads(out)
+    return [test['name']for test in testsuites['tests']]
 
 def percent(amount, total):
     return round((amount / total) * 100, 2)
@@ -74,8 +78,10 @@ def run(args):
     env = os.environ.copy()
     env['GTEST_OUTPUT'] = f"json:{tmp_results_file}"
 
+    test_suite_names = get_cts_test_suite_names(f"{args.ctest_path}/test/conformance/")
+
     ## try and list all the available tests
-    for suite in CTS_TEST_SUITES:
+    for suite in test_suite_names:
         results[suite] = {}
         test_executable = f"{args.ctest_path}/bin/test-{suite}"
         process = Popen([test_executable, "--gtest_list_tests"], env=env,
@@ -90,7 +96,7 @@ def run(args):
         except FileNotFoundError:
             print(f"Could not discover tests for {suite}")
 
-    for suite in CTS_TEST_SUITES:
+    for suite in test_suite_names:
         ctest_path = f"{args.ctest_path}/test/conformance/{suite}"
         process = Popen(['ctest',ctest_path], env=env, cwd=ctest_path, 
                         stdout=DEVNULL if args.quiet else None, 
