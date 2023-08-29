@@ -7,7 +7,7 @@
 #include "graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   auto Device = Queue.get_device();
 
