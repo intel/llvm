@@ -3,15 +3,27 @@
 
 #include <sycl/sycl.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
 
 using namespace sycl::ext::oneapi::experimental; // for property queries
+namespace intel = sycl::ext::intel::experimental; // for fpga_mem
 
-static sycl::ext::intel::experimental::fpga_mem<int, decltype(properties(num_banks<888>))> mem1;
+static intel::fpga_mem<int, decltype(properties(num_banks<888>))> mem_num;
+static intel::fpga_mem<int> mem_empty;
+static intel::fpga_mem<int, decltype(properties(clock_2x_true))> mem_bool;
+static intel::fpga_mem<int, decltype(properties(resource_mlab))> mem_enum;
+static intel::fpga_mem<int, decltype(properties(ram_stitching_min_ram, stride_size<777>, bi_directional_ports_true))> mem_multi;
 
 // Checks is_property_key_of and is_property_value_of for T.
 template <typename T> void checkIsPropertyOf() {
+  static_assert(is_property_key_of<resource_key, T>::value);
   static_assert(is_property_key_of<num_banks_key, T>::value);
+  static_assert(is_property_key_of<stride_size_key, T>::value);
+  static_assert(is_property_key_of<word_size_key, T>::value);
+  static_assert(is_property_key_of<bi_directional_ports_key, T>::value);
+  static_assert(is_property_key_of<clock_2x_key, T>::value);
+  static_assert(is_property_key_of<ram_stitching_key, T>::value);
+  static_assert(is_property_key_of<max_private_copies_key, T>::value);
+  static_assert(is_property_key_of<num_replicates_key, T>::value);
 }
 
 int main() {
@@ -42,14 +54,31 @@ int main() {
   static_assert(is_property_value<decltype(max_private_copies<8>)>::value);
   static_assert(is_property_value<decltype(num_replicates<8>)>::value);
 
+  //Check that only the property that are expected are associated with obj
+  checkIsPropertyOf<decltype(mem_num)>();
+  static_assert(mem_num.has_property<num_banks_key>());
+  // FIX ME // static_assert(mem_num.has_property<resource_key>());
+  static_assert(!mem_num.has_property<word_size_key>());
 
-  checkIsPropertyOf<decltype(mem1)>(); //Fail
-  // static_assert(mem1.has_property<num_banks>());
-  // static_assert(!mem1.has_property<host_access_key>());
-  // static_assert(!mem1.has_property<init_mode_key>());
-  // static_assert(!mem1.has_property<implement_in_csr_key>());
-  // static_assert(mem1.get_property<num_banks>() ==
-  //               num_banks<888>);
+  checkIsPropertyOf<decltype(mem_empty)>();
+  // FIX ME // static_assert(mem_empty.has_property<resource_key>());
+  static_assert(!mem_empty.has_property<word_size_key>());
+
+  checkIsPropertyOf<decltype(mem_bool)>();
+  // FIX ME // static_assert(mem_num.has_property<resource_key>());
+  static_assert(mem_bool.has_property<clock_2x_key>());
+  static_assert(!mem_bool.has_property<word_size_key>());
+
+  checkIsPropertyOf<decltype(mem_enum)>();
+  static_assert(mem_enum.has_property<resource_key>());
+  static_assert(!mem_enum.has_property<word_size_key>());
+
+  checkIsPropertyOf<decltype(mem_multi)>();
+  // FIX ME // static_assert(mem_num.has_property<resource_key>());
+  static_assert(mem_multi.has_property<ram_stitching_key>());
+  static_assert(mem_multi.has_property<stride_size_key>());
+  static_assert(mem_multi.has_property<bi_directional_ports_key>());
+  static_assert(!mem_multi.has_property<word_size_key>());
 
   return 0;
 }
