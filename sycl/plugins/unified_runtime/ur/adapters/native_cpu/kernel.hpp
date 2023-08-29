@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "common.hpp"
 #include <sycl/detail/native_cpu.hpp>
 #include <ur_api.h>
 
@@ -16,7 +17,7 @@ using nativecpu_kernel_t = void(const sycl::detail::NativeCPUArgDesc *,
 using nativecpu_ptr_t = nativecpu_kernel_t *;
 using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 
-struct ur_kernel_handle_t_ {
+struct ur_kernel_handle_t_ : RefCounted {
 
   ur_kernel_handle_t_(const char *name, nativecpu_task_t subhandler)
       : _name{name}, _subhandler{subhandler} {}

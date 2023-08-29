@@ -17,16 +17,16 @@ target triple = "spir64-unknown-unknown"
 %struct.coeff_str_t = type { %"class.std::array.1", i64 }
 
 @__usid_str.1 = private unnamed_addr constant [32 x i8] c"9f47062a80eecfa7____ZL8coeff_id\00", align 1
-@_ZL8coeff_id = internal addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
+@_ZL8coeff_id = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
 
 @__usid_str.2 = private unnamed_addr constant [33 x i8] c"405761736d5a1797____ZL9coeff_id2\00", align 1
-@_ZL9coeff_id2 = internal addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
+@_ZL9coeff_id2 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
 
 @__usid_str.3 = private unnamed_addr constant [33 x i8] c"6da74a122db9f35d____ZL9coeff_id3\00", align 1
-@_ZL9coeff_id3 = internal addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
+@_ZL9coeff_id3 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
 
 ; Function Attrs: convergent mustprogress norecurse
-define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
+define weak_odr spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
   %3 = alloca %"class.cl::sycl::kernel_handler" addrspace(4)*, align 8
   %4 = alloca i8 addrspace(4)*, align 8
   %5 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*
