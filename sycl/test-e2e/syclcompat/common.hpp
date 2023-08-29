@@ -24,14 +24,13 @@
 
 // Typed call helper
 // Iterates over all types and calls Functor f for each of them
-template <typename types, typename Functor>
+template <typename tuple, typename Functor>
 void instantiate_all_types(Functor &&f) {
   auto for_each_type_call =
-      [&]<template <typename...> class T, typename... Rest>(T<Rest...> *) {
-        (f.template operator()<Rest>(), ...);
-      };
-  for_each_type_call(static_cast<types *>(nullptr));
+      [&]<template <typename...> class Container, typename... Ts>(
+          Container<Ts...> *) { (f.template operator()<Ts>(), ...); };
+  for_each_type_call(static_cast<tuple *>(nullptr));
 }
 
-#define INSTANTIATE_ALL_TYPES(types, f)                                        \
-  instantiate_all_types<types>([]<typename T>() { f<T>(); });
+#define INSTANTIATE_ALL_TYPES(tuple, f)                                        \
+  instantiate_all_types<tuple>([]<typename T>() { f<T>(); });
