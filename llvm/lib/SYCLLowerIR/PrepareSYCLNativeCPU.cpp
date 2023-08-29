@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
+#include "llvm/IR/Constant.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -196,14 +197,30 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 }
 
 // Todo: add support for more SPIRV builtins here
-static std::map<std::string, std::string> BuiltinNamesMap{
-    {"__spirv_BuiltInGlobalInvocationId", "__dpcpp_nativecpu_global_id"},
-    {"__spirv_BuiltInGlobalSize", "__dpcpp_nativecpu_global_range"},
-    {"__spirv_BuiltInWorkgroupSize", "__dpcpp_nativecpu_get_wg_size"},
-    {"__spirv_BuiltInWorkgroupId", "__dpcpp_nativecpu_get_wg_id"},
-    {"__spirv_BuiltInLocalInvocationId", "__dpcpp_nativecpu_get_local_id"},
-    {"__spirv_BuiltInNumWorkgroups", "__dpcpp_nativecpu_get_num_groups"},
-    {"__spirv_BuiltInGlobalOffset", "__dpcpp_nativecpu_get_global_offset"}};
+static std::map<std::string, std::pair<std::string, unsigned int>> BuiltinNamesMap{
+{"_Z28__spirv_GlobalInvocationId_xv", {"__dpcpp_nativecpu_global_id", 0}}, 
+{"_Z28__spirv_GlobalInvocationId_yv", {"__dpcpp_nativecpu_global_id", 1}},
+{"_Z28__spirv_GlobalInvocationId_zv", {"__dpcpp_nativecpu_global_id", 2}},
+{"_Z20__spirv_GlobalSize_xv", {"__dpcpp_nativecpu_global_range", 0}},
+{"_Z20__spirv_GlobalSize_yv", {"__dpcpp_nativecpu_global_range", 1}},
+{"_Z20__spirv_GlobalSize_zv", {"__dpcpp_nativecpu_global_range", 2}},
+{"_Z22__spirv_GlobalOffset_xv", {"__dpcpp_nativecpu_get_global_offset", 0}},
+{"_Z22__spirv_GlobalOffset_yv", {"__dpcpp_nativecpu_get_global_offset", 1}},
+{"_Z22__spirv_GlobalOffset_zv", {"__dpcpp_nativecpu_get_global_offset", 2}},
+{"_Z27__spirv_LocalInvocationId_xv", {"__dpcpp_nativecpu_get_local_id", 0}},
+{"_Z27__spirv_LocalInvocationId_yv", {"__dpcpp_nativecpu_get_local_id", 1}},
+{"_Z27__spirv_LocalInvocationId_zv", {"__dpcpp_nativecpu_get_local_id", 2}},
+{"_Z23__spirv_NumWorkgroups_xv", {"__dpcpp_nativecpu_get_num_groups", 0}},
+{"_Z23__spirv_NumWorkgroups_yv", {"__dpcpp_nativecpu_get_num_groups", 1}},
+{"_Z23__spirv_NumWorkgroups_zv", {"__dpcpp_nativecpu_get_num_groups", 2}},
+{"_Z23__spirv_WorkgroupSize_xv", {"__dpcpp_nativecpu_get_wg_size", 0}},
+{"_Z23__spirv_WorkgroupSize_yv", {"__dpcpp_nativecpu_get_wg_size", 1}},
+{"_Z23__spirv_WorkgroupSize_zv", {"__dpcpp_nativecpu_get_wg_size", 2}},
+{"_Z21__spirv_WorkgroupId_xv", {"__dpcpp_nativecpu_get_wg_id", 0}},
+{"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
+{"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
+
+
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
   Function *F = M.getFunction(Name);
@@ -241,6 +258,7 @@ SmallVector<Function *> getFunctionsFromUse(Use &U) {
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
+  llvm::errs() << "[ptrdbg] module pre: " << M << "\n";
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
   for (auto &F : M) {
@@ -276,107 +294,25 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
   for (auto &Entry : BuiltinNamesMap) {
-    // Kernel -> builtin materialization CallInst, this is used to avoid
-    // inserting multiple calls to the same builtin
-    std::map<Function *, CallInst *> BuiltinCallMap;
-    // Map that associates to each User of a builtin, the index of the builtin
-    // in its operand list, and the callinst that will replace the builtin
-    std::map<User *, std::pair<unsigned, CallInst *>> ToReplace;
-    // We need to handle GEPOperator uses in a separate case since they are
-    // constants
-    std::set<GEPOperator *> GEPOps;
-    // spirv builtins are global constants, find it in the module
-    auto *Glob = M.getNamedGlobal(Entry.first);
+    auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
       continue;
-    auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second);
+    auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second.first);
+    SmallVector<Instruction*> ToRemove;
     for (auto &Use : Glob->uses()) {
-      auto Funcs = getFunctionsFromUse(Use);
-      // Here we check that the use comes from a kernel function
-      // Todo: remove this check once this pass supports non-optimized modules
-      for (auto &Func : Funcs) {
-        if (!(Func->getCallingConv() == CallingConv::SPIR_KERNEL))
-          report_fatal_error("SYCL Native CPU currently supports only "
-                             "optimized modules, please enable optimizations "
-                             "and eventually increase the inlining threshold",
-                             false);
-      }
-      if (Funcs.empty()) {
-        // todo: use without a parent function?
-        continue;
-      }
-      for (auto &F : Funcs) {
-        auto NewCallIt = BuiltinCallMap.find(F);
-        CallInst *NewCall;
-        // check if we already inserted a call to our function
-        if (NewCallIt != BuiltinCallMap.end()) {
-          NewCall = NewCallIt->second;
-        } else {
-          auto *StateArg = getStateArg(F);
-          NewCall = llvm::CallInst::Create(
-              ReplaceFunc->getFunctionType(), ReplaceFunc, {StateArg},
-              "ncpu_builtin", F->getEntryBlock().getFirstNonPHI());
-          BuiltinCallMap.insert({F, NewCall});
-        }
-        User *Usr = Use.getUser();
-        if (auto *GEPOp = dyn_cast<GEPOperator>(Usr)) {
-          GEPOps.insert(GEPOp);
-        } else {
-          // Find the index of the builtin in the user's operand list
-          // We are guaranteed to find it since we are already iterating over
-          // the builtin's uses.
-          bool Found = false;
-          unsigned Index = 0;
-          for (unsigned I = 0; I < Usr->getNumOperands() && !Found; I++) {
-            if (Usr->getOperand(I) == Glob) {
-              Found = true;
-              Index = I;
-            }
-          }
-          assert(Found && "Unable to find builtin in operand list");
-          ToReplace.insert({Usr, {Index, NewCall}});
-        }
-      }
+      auto I = dyn_cast<CallInst>(Use.getUser());
+      //todo error check
+      if(I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
+        report_fatal_error("ayyyy\n");
+      auto Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()), Entry.second.second);
+      auto NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc, {Arg, getStateArg(I->getFunction())}, "ncpu_call", I);
+      I->replaceAllUsesWith(NewI);
+      ToRemove.push_back(I);
     }
 
-    // Handle the non-constant builtin uses, simply replace the builtin with the
-    // return value of our function call
-    for (auto &Entry : ToReplace) {
-      unsigned Index = Entry.second.first;
-      CallInst *NewCall = Entry.second.second;
-      User *Usr = Entry.first;
-      Usr->setOperand(Index, NewCall);
-    }
+    for(auto& El : ToRemove)
+      El->eraseFromParent();
 
-    // Handle the constant builtin uses, we insert a non-constant GEP
-    // instruction that uses the return value of our function call, and replaces
-    // the original GEPOperator
-    SmallVector<std::tuple<Operator *, User *, GetElementPtrInst *>>
-        GEPReplaceMap;
-    for (auto &OldOp : GEPOps) {
-      SmallVector<Value *> Indices(OldOp->idx_begin(), OldOp->idx_end());
-      for (auto &OpUse : OldOp->uses()) {
-        User *Usr = OpUse.getUser();
-        Instruction *I = dyn_cast<Instruction>(Usr);
-        if (!I) {
-          continue;
-        }
-        auto *NewCall = BuiltinCallMap[I->getFunction()];
-        auto *ArrayT = ArrayType::get(Type::getInt64Ty(M.getContext()), 3);
-        GetElementPtrInst *NewGEP =
-            GetElementPtrInst::Create(ArrayT, NewCall, Indices, "ncpu_gep", I);
-        GEPReplaceMap.emplace_back(OldOp, Usr, NewGEP);
-      }
-    }
-    for (auto &Entry : GEPReplaceMap) {
-      auto *Op = std::get<0>(Entry);
-      auto *Usr = std::get<1>(Entry);
-      auto *NewGEP = std::get<2>(Entry);
-      Op->replaceUsesWithIf(NewGEP, [&](Use &U) {
-        bool Res = U.getUser() == Usr;
-        return Res;
-      });
-    }
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
@@ -385,5 +321,6 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (auto &F : M) {
     fixCallingConv(&F);
   }
+  llvm::errs() << "[ptrdbg] module post: " << M << "\n";
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
