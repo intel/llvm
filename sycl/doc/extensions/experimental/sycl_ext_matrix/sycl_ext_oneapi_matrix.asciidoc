@@ -109,16 +109,17 @@ template <typename Group, typename T, use Use, size_t Rows, size_t Cols,
                           layout::dynamic : /*unspecified*/ >
 struct joint_matrix {
   joint_matrix();
-  joint_matrix(const joint_matrix &) = delete;
-  joint_matrix &operator=(const joint_matrix &) = delete;
+  joint_matrix(const joint_matrix &);
+  joint_matrix &operator=(const joint_matrix &);
 };
 
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
-The constructor for the `joint_matrix` type is a group function as
-defined in section 4.17.3 of the core SYCL specification. It must be
-encountered in converged control flow by all work-items in the
-`Group`.
+The constructors for the `joint_matrix` type and the assignment
+operator are group functions as defined in section 4.17.3 of the core
+SYCL specification. They must be encountered in converged control flow
+by all work-items in the `Group`. Note that the assignment operator
+and the copy constructor do not copy the entire matrix content.
 
 ==== Group Memory Scope
 Most operations on the joint_matrix are group functions, meaning that
