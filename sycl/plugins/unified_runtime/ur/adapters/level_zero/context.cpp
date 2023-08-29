@@ -106,10 +106,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(uint32_t{Context->RefCount.load()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
-    return ReturnValue(uint32_t{UseMemcpy2DOperations});
+    return ReturnValue(uint8_t{UseMemcpy2DOperations});
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(uint8_t{false});
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
 
     ur_memory_order_capability_flags_t Capabilities =
