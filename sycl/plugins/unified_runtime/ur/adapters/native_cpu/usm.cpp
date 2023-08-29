@@ -122,3 +122,18 @@ urUSMPoolGetInfo(ur_usm_pool_handle_t hPool, ur_usm_pool_info_t propName,
 
   DIE_NO_IMPLEMENTATION;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
+                                                   void *HostPtr, size_t Size) {
+  std::ignore = Context;
+  std::ignore = HostPtr;
+  std::ignore = Size;
+  DIE_NO_IMPLEMENTATION;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMReleaseExp(ur_context_handle_t Context,
+                                                    void *HostPtr) {
+  std::ignore = Context;
+  std::ignore = HostPtr;
+  DIE_NO_IMPLEMENTATION;
+}
