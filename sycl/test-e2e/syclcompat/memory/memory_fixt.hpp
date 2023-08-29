@@ -118,8 +118,8 @@ template <typename T> bool should_skip(const sycl::device &dev) {
 template <typename T> struct USMTest {
   USMTest()
       : q_{syclcompat::get_default_queue()}, grid_{NUM_WG}, thread_{WG_SIZE},
-        size_{WG_SIZE * NUM_WG}, skip{should_skip<T>(
-                                     syclcompat::get_current_device())} {}
+        size_{WG_SIZE * NUM_WG},
+        skip{should_skip<T>(syclcompat::get_current_device())} {}
 
   void launch_kernel() {
     auto &dd_A = d_A;
