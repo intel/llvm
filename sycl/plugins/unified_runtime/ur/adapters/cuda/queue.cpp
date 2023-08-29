@@ -1,10 +1,10 @@
-//===--------- queue.cpp - CUDA Adapter ------------------------------===//
+//===--------- queue.cpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "queue.hpp"
 #include "common.hpp"
@@ -243,10 +243,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
   (void)pProperties;
+  (void)hDevice;
 
   unsigned int CuFlags;
   CUstream CuStream = reinterpret_cast<CUstream>(hNativeQueue);
-  UR_ASSERT(hContext->getDevice() == hDevice, UR_RESULT_ERROR_INVALID_DEVICE);
 
   auto Return = UR_CHECK_ERROR(cuStreamGetFlags(CuStream, &CuFlags));
 
@@ -266,7 +266,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
                                     std::move(TransferCuStreams),
                                     hContext,
-                                    hDevice,
+                                    hContext->getDevice(),
                                     CuFlags,
                                     Flags,
                                     /*backend_owns*/ false};

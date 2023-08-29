@@ -21,8 +21,8 @@ constexpr unsigned int recordThresh = 10;
 #define MATRIX_SIZE 256
 
 #define tM 8
-#define tN SG_SZ
 #define tK 16
+constexpr size_t tN = TN;
 
 #define MCACHE1 32
 #define NCACHE1 (SG_SZ * 4)
@@ -33,14 +33,6 @@ constexpr unsigned int recordThresh = 10;
 #define KCACHE2 32
 
 #define BF16_EPSILON 0.00781250
-
-#if ((MATRIX_SIZE < tM) || (MATRIX_SIZE < tK) || (MATRIX_SIZE < tN))
-#error invalid matrix size
-#endif
-
-#if ((MATRIX_SIZE % tM) || (MATRIX_SIZE % tN) || (MATRIX_SIZE % tK))
-#error invalid matrix size detected: not a multiple of <tM,tN,tK>
-#endif
 
 float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
@@ -73,9 +65,12 @@ double joint_matmul(TOperand *A, TOperand *B, TResult *C, queue &q, int i) {
   assert(colsA % tK == 0);
   assert(colsB % tN == 0);
 
-  auto pA = multi_ptr<TOperand, sycl::access::address_space::global_space>(A);
-  auto pB = multi_ptr<TOperand, sycl::access::address_space::global_space>(B);
-  auto pC = multi_ptr<TResult, sycl::access::address_space::global_space>(C);
+  auto pA = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(A);
+  auto pB = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(B);
+  auto pC = address_space_cast<sycl::access::address_space::global_space,
+                               sycl::access::decorated::no>(C);
 
   // submit main kernel
   std::chrono::high_resolution_clock::time_point start =
@@ -329,6 +324,12 @@ void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
 }
 
 int main(void) {
+  assert(MATRIX_SIZE >= tM && MATRIX_SIZE >= tK && MATRIX_SIZE >= tN &&
+         "invalid matrix size");
+  assert((MATRIX_SIZE % tM) == 0 && (MATRIX_SIZE % tN) == 0 &&
+         (MATRIX_SIZE % tK) == 0 &&
+         "invalid matrix size detected: not a multiple of <tM,tN,tK>");
+
   queue q;
   bfloat16 *A = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);
   bfloat16 *B = malloc_shared<bfloat16>(MATRIX_SIZE * MATRIX_SIZE, q);

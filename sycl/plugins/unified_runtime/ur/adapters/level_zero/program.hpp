@@ -1,10 +1,10 @@
-//===--------- program.hpp - Level Zero Adapter ----------------------===//
+//===--------- program.hpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include "common.hpp"
@@ -31,7 +31,8 @@ struct ur_program_handle_t_ : _ur_object {
     // Zero module.
     Exe,
 
-    // An error occurred during piProgramLink, but we created a _pi_program
+    // An error occurred during urProgramLink, but we created a
+    // ur_program_handle_t
     // object anyways in order to hold the ZeBuildLog.  Note that the ZeModule
     // may or may not be nullptr in this state, depending on the error.
     Invalid
@@ -105,7 +106,7 @@ struct ur_program_handle_t_ : _ur_object {
   const bool OwnZeModule;
 
   // This error message is used only in Invalid state to hold a custom error
-  // message from a call to piProgramLink.
+  // message from a call to urProgramLink.
   const std::string ErrorMessage;
 
   state State;
@@ -122,7 +123,7 @@ struct ur_program_handle_t_ : _ur_object {
   std::unordered_map<uint32_t, const void *> SpecConstants;
 
   // Used only in Object state.  Contains the build flags from the last call to
-  // piProgramCompile().
+  // urProgramCompile().
   std::string BuildFlags;
 
   // The Level Zero module handle.  Used primarily in Exe state.

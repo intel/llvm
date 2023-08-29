@@ -25,13 +25,12 @@
 ;     return 0;
 ; }
 
-
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Check that even when FPGA memory extensions are enabled - yet we have
 ; UserSemantic decoration be generated
@@ -71,8 +70,7 @@
 ; CHECK-LLVM: %[[#PtrAnn3MultiDec:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#PtrAnn2MultiDec]], ptr @[[#Dec3]], ptr undef, i32 undef, ptr undef)
 
 ; CHECK-LLVM: %[[#GepClassAFieldB:]] = getelementptr inbounds %class.A, ptr %[[#ObjClassA]], i32 0, i32 2
-; CHECK-LLVM: %[[#CastClassAFieldB:]] = bitcast ptr %[[#GepClassAFieldB]] to ptr
-; CHECK-LLVM: %[[#PtrAnnClassAFieldB:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#CastClassAFieldB]], ptr @[[#StrAfieldB]], ptr undef, i32 undef, ptr undef)
+; CHECK-LLVM: %[[#PtrAnnClassAFieldB:]] = call ptr @llvm.ptr.annotation.p0.p0(ptr %[[#GepClassAFieldB]], ptr @[[#StrAfieldB]], ptr undef, i32 undef, ptr undef)
 
 ; CHECK-LLVM: %[[#ObjClassB:]] = alloca %class.B, align 4
 ; CHECK-LLVM: %[[#GEPClassB:]] = getelementptr inbounds %class.B, ptr %[[#ObjClassB]], i32 0, i32 0

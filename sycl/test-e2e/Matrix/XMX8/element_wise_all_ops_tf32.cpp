@@ -17,10 +17,9 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../element_wise_all_ops_tf32_impl.hpp"

@@ -5,11 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
+#include <type_traits>
+#endif
 
 namespace sycl {
 inline namespace _V1 {

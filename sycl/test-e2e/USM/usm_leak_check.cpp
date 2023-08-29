@@ -77,16 +77,22 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+// Account for 4 extra allocations made by UMF to query page sizes
+
 // CHECK-USM: GPU will use {{zeMemAllocHost|zeMemAllocDevice}}
-// CHECK-USM: zeMemAllocDevice = 1
-// CHECK-USM:   zeMemAllocHost = 1
-// CHECK-USM: zeMemAllocShared = 1
-// CHECK-USM-SAME:   zeMemFree = 3
+// CHECK-USM: zeMemAllocDevice = 2
+// CHECK-USM:   zeMemAllocHost = 2
+// CHECK-USM: zeMemAllocShared = 3
+// CHECK-USM-SAME:   zeMemFree = 7
 
 // CHECK-SMALL-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-SMALL-BUF:   [[API]] = 1
-// CHECK-SMALL-BUF: zeMemFree = 1
+// CHECK-SMALL-BUF: zeMemAllocDevice = {{1|2}}
+// CHECK-SMALL-BUF: zeMemAllocHost = {{1|2}}
+// CHECK-SMALL-BUF: zeMemAllocShared = 2
+// CHECK-SMALL-BUF-SAME: zeMemFree = 5
 
 // CHECK-LARGE-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-LARGE-BUF:   [[API]] = 3
-// CHECK-LARGE-BUF: zeMemFree = 3
+// CHECK-LARGE-BUF: zeMemAllocDevice = {{1|4}}
+// CHECK-LARGE-BUF: zeMemAllocHost = {{1|4}}
+// CHECK-LARGE-BUF: zeMemAllocShared = 2
+// CHECK-LARGE-BUF-SAME: zeMemFree = 7

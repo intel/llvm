@@ -50,35 +50,63 @@ static bool isRepetitiveRegion(Region *region,
   return false;
 }
 
-Region *bufferization::getEnclosingRepetitiveRegion(
+Region *AnalysisState::getEnclosingRepetitiveRegion(
     Operation *op, const BufferizationOptions &options) {
   if (!op->getBlock())
     return nullptr;
-  return getEnclosingRepetitiveRegion(op->getBlock(), options);
+  if (auto iter = enclosingRepetitiveRegionCache.find_as(op);
+      iter != enclosingRepetitiveRegionCache.end())
+    return iter->second;
+  return enclosingRepetitiveRegionCache[op] =
+             getEnclosingRepetitiveRegion(op->getBlock(), options);
 }
 
-Region *bufferization::getEnclosingRepetitiveRegion(
+Region *AnalysisState::getEnclosingRepetitiveRegion(
     Value value, const BufferizationOptions &options) {
+  if (auto iter = enclosingRepetitiveRegionCache.find_as(value);
+      iter != enclosingRepetitiveRegionCache.end())
+    return iter->second;
+
   Region *region = value.getParentRegion();
+  // Collect all visited regions since we only know the repetitive region we
+  // want to map it to later on
+  SmallVector<Region *> visitedRegions;
   while (region) {
+    visitedRegions.push_back(region);
     if (isRepetitiveRegion(region, options))
-      return region;
+      break;
     region = region->getParentRegion();
   }
-  return nullptr;
+  enclosingRepetitiveRegionCache[value] = region;
+  for (Region *r : visitedRegions)
+    enclosingRepetitiveRegionCache[r] = region;
+  return region;
 }
 
-Region *bufferization::getEnclosingRepetitiveRegion(
+Region *AnalysisState::getEnclosingRepetitiveRegion(
     Block *block, const BufferizationOptions &options) {
+  if (auto iter = enclosingRepetitiveRegionCache.find_as(block);
+      iter != enclosingRepetitiveRegionCache.end())
+    return iter->second;
+
   Region *region = block->getParent();
   Operation *op = nullptr;
+  // Collect all visited regions since we only know the repetitive region we
+  // want to map it to later on
+  SmallVector<Region *> visitedRegions;
   do {
     op = region->getParentOp();
     if (isRepetitiveRegion(region, options))
-      return region;
+      break;
   } while ((region = op->getParentRegion()));
-  return nullptr;
+
+  enclosingRepetitiveRegionCache[block] = region;
+  for (Region *r : visitedRegions)
+    enclosingRepetitiveRegionCache[r] = region;
+  return region;
 }
+
+void AnalysisState::resetCache() { enclosingRepetitiveRegionCache.clear(); }
 
 Region *bufferization::getNextEnclosingRepetitiveRegion(
     Region *region, const BufferizationOptions &options) {
@@ -547,6 +575,16 @@ llvm::SetVector<Value> AnalysisState::findValueInReverseUseDefChain(
       if (config.followInPlaceOnly && !isInPlace(*a.opOperand)) {
         // Stop iterating if `followInPlaceOnly` is set but the alias is
         // out-of-place.
+        if (config.alwaysIncludeLeaves)
+          result.insert(value);
+        continue;
+      }
+
+      if (config.followSameTypeOrCastsOnly &&
+          a.opOperand->get().getType() != value.getType() &&
+          !opResult.getDefiningOp<CastOpInterface>()) {
+        // Stop iterating if `followSameTypeOrCastsOnly` is set but the alias is
+        // has a different type and the op is not a cast.
         if (config.alwaysIncludeLeaves)
           result.insert(value);
         continue;

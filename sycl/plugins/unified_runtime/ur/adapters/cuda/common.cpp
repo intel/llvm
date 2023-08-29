@@ -1,10 +1,10 @@
-//===--------- common.cpp - CUDA Adapter -----------------------------===//
+//===--------- common.cpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 
@@ -133,11 +133,4 @@ void setPluginSpecificMessage(CUresult cu_res) {
 
   setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   free(message);
-}
-
-// Returns plugin specific error and warning messages; common implementation
-// that can be shared between adapters
-ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
-  *ppMessage = &ErrorMessage[0];
-  return ErrorMessageCode;
 }

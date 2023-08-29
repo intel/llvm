@@ -1,10 +1,10 @@
-//===--------- platform.hpp - Level Zero Adapter ---------------------===//
+//===--------- platform.hpp - Level Zero Adapter --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include "common.hpp"
@@ -33,8 +33,8 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool ZeDriverModuleProgramExtensionFound{false};
 
   // Cache UR devices for reuse
-  std::vector<std::unique_ptr<ur_device_handle_t_>> PiDevicesCache;
-  ur_shared_mutex PiDevicesCacheMutex;
+  std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;
+  ur_shared_mutex URDevicesCacheMutex;
   bool DeviceCachePopulated = false;
 
   // Check the device cache and load it if necessary.

@@ -1,10 +1,10 @@
-//===--------- ur.hpp - Unified Runtime  -----------------------------===//
+//===--------- ur.hpp - Unified Runtime  ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <atomic>
@@ -172,9 +172,9 @@ extern bool PrintTrace;
 // deallocate them automatically at the end of the main program.
 // The heap memory allocated for these global variables reclaimed only at
 // explicit tear-down.
-extern std::vector<ur_platform_handle_t> *PiPlatformsCache;
-extern SpinLock *PiPlatformsCacheMutex;
-extern bool PiPlatformCachePopulated;
+extern std::vector<ur_platform_handle_t> *URPlatformsCache;
+extern SpinLock *URPlatformsCacheMutex;
+extern bool URPlatformCachePopulated;
 
 // The getInfo*/ReturnHelper facilities provide shortcut way of
 // writing return bytes for the various getInfo APIs.

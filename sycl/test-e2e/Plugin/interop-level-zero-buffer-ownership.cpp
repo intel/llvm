@@ -18,6 +18,9 @@
 // Keep ownership
 // CHECK: zeMemFree
 
+// Account for zeMemFree used to query page sizes by the UMF
+// CHECK-COUNT-8: zeMemFree
+
 // Transfer ownership
 // CHECK: zeMemFree
 // CHECK: zeMemFree

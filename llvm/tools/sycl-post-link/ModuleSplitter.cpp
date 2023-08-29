@@ -13,6 +13,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -345,7 +346,11 @@ public:
   using ModuleSplitterBase::ModuleSplitterBase; // to inherit base constructors
 
   ModuleDesc nextSplit() override {
-    return ModuleDesc{releaseInputModule(), nextGroup(), Input.Props};
+    ModuleDesc Desc{releaseInputModule(), nextGroup(), Input.Props};
+    // Do some basic optimization like unused symbol removal
+    // even if there was no split.
+    Desc.cleanup();
+    return Desc;
   }
 };
 
@@ -562,6 +567,21 @@ void ModuleDesc::cleanup() {
   MPM.run(*M, MAM);
 }
 
+bool ModuleDesc::isSpecConstantDefault() const {
+  return Props.IsSpecConstantDefault;
+}
+
+void ModuleDesc::setSpecConstantDefault(bool Value) {
+  Props.IsSpecConstantDefault = Value;
+}
+
+ModuleDesc ModuleDesc::clone() const {
+  std::unique_ptr<Module> NewModule = CloneModule(getModule());
+  ModuleDesc NewMD(std::move(NewModule));
+  NewMD.EntryPoints.Props = EntryPoints.Props;
+  return NewMD;
+}
+
 #ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
@@ -627,6 +647,12 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
       Functions.insert(F);
     }
   });
+}
+
+void EntryPointGroup::rebuild(const Module &M) {
+  for (const Function &F : M.functions())
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Functions.insert(const_cast<Function *>(&F));
 }
 
 namespace {
