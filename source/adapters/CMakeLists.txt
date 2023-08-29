@@ -30,31 +30,29 @@ endfunction()
 
 add_subdirectory(null)
 
-if(UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP)
-    # fetch adapter sources from SYCL
-    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-    FetchSource(https://github.com/intel/llvm.git nightly-2023-08-20 "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
-endif()
-
-# Temporarily fetch the opencl adapter from a fork until the PR has been merged.
-if(UR_BUILD_ADAPTER_OPENCL)
-    # fetch adapter sources from SYCL
-    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external")
-    FetchSource(https://github.com/fabiomestre/llvm.git opencl_adapter_unofficial "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
-endif()
+set(INTEL_LLVM_TAG nightly-2023-08-20)
 
 if(UR_BUILD_ADAPTER_L0)
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/level_zero")
+    FetchSource(https://github.com/intel/llvm.git ${INTEL_LLVM_TAG} "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(level_zero)
 endif()
 
 if(UR_BUILD_ADAPTER_CUDA)
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/cuda")
+    FetchSource(https://github.com/intel/llvm.git ${INTEL_LLVM_TAG} "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(cuda)
 endif()
 
 if(UR_BUILD_ADAPTER_HIP)
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/hip")
+    FetchSource(https://github.com/intel/llvm.git ${INTEL_LLVM_TAG} "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(hip)
 endif()
 
 if(UR_BUILD_ADAPTER_OPENCL)
+    # Temporarily fetch the opencl adapter from a fork until the PR has been merged.
+    set(SYCL_ADAPTER_DIR "${CMAKE_CURRENT_BINARY_DIR}/external/opencl")
+    FetchSource(https://github.com/fabiomestre/llvm.git opencl_adapter_unofficial "sycl/plugins/unified_runtime/ur" ${SYCL_ADAPTER_DIR})
     add_subdirectory(opencl)
 endif()
