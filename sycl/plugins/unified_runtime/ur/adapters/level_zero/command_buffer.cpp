@@ -374,6 +374,48 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
   return UR_RESULT_SUCCESS;
 }
 
+// Helper function for enqueuing memory fills
+static ur_result_t enqueueCommandBufferFillHelper(
+    ur_command_t CommandType, ur_exp_command_buffer_handle_t CommandBuffer,
+    void *Ptr, const void *Pattern, size_t PatternSize, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+  // Pattern size must be a power of two.
+  UR_ASSERT((PatternSize > 0) && ((PatternSize & (PatternSize - 1)) == 0),
+            UR_RESULT_ERROR_INVALID_VALUE);
+
+  // Pattern size must fit the compute queue capabilities.
+  UR_ASSERT(
+      PatternSize <=
+          CommandBuffer->Device
+              ->QueueGroup[ur_device_handle_t_::queue_group_info_t::Compute]
+              .ZeProperties.maxMemoryFillPatternSize,
+      UR_RESULT_ERROR_INVALID_VALUE);
+
+  std::vector<ze_event_handle_t> ZeEventList;
+  UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
+                                  SyncPointWaitList, ZeEventList));
+
+  ur_event_handle_t LaunchEvent;
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  LaunchEvent->CommandType = CommandType;
+
+  // Get sync point and register the event with it.
+  *SyncPoint = CommandBuffer->GetNextSyncPoint();
+  CommandBuffer->RegisterSyncPoint(*SyncPoint, LaunchEvent);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryFill,
+             (CommandBuffer->ZeCommandList, Ptr, Pattern, PatternSize, Size,
+              LaunchEvent->ZeEvent, ZeEventList.size(), ZeEventList.data()));
+
+  urPrint("calling zeCommandListAppendMemoryFill() with"
+          "  ZeEvent %#lx\n",
+          ur_cast<std::uintptr_t>(LaunchEvent->ZeEvent));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
                          const ur_exp_command_buffer_desc_t *CommandBufferDesc,
@@ -519,7 +561,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, void *Dst, const void *Src,
     size_t Size, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
@@ -529,7 +571,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
     ur_mem_handle_t DstMem, size_t SrcOffset, size_t DstOffset, size_t Size,
     uint32_t NumSyncPointsInWaitList,
@@ -555,7 +597,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
       SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t SrcMem,
     ur_mem_handle_t DstMem, ur_rect_offset_t SrcOrigin,
     ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
@@ -583,7 +625,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
       DstSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     size_t Offset, size_t Size, const void *Src,
     uint32_t NumSyncPointsInWaitList,
@@ -602,7 +644,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
       Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,
@@ -622,7 +664,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
       BufferSlicePitch, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     size_t Offset, size_t Size, void *Dst, uint32_t NumSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
@@ -637,7 +679,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
       Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t Region, size_t BufferRowPitch, size_t BufferSlicePitch,
@@ -655,6 +697,40 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
       BufferOffset, HostOffset, Region, BufferRowPitch, HostRowPitch,
       BufferSlicePitch, HostSlicePitch, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint);
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, ur_mem_handle_t Buffer,
+    const void *Pattern, size_t PatternSize, size_t Offset, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+
+  std::scoped_lock<ur_shared_mutex> Lock(Buffer->Mutex);
+
+  char *ZeHandleDst = nullptr;
+  _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
+  UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                                CommandBuffer->Device));
+
+  return enqueueCommandBufferFillHelper(
+      UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, ZeHandleDst + Offset,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t CommandBuffer, void *Ptr,
+    const void *Pattern, size_t PatternSize, size_t Size,
+    uint32_t NumSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *SyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *SyncPoint) {
+
+  return enqueueCommandBufferFillHelper(
+      UR_COMMAND_MEM_BUFFER_FILL, CommandBuffer, Ptr,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(

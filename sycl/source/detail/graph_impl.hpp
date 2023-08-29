@@ -129,6 +129,27 @@ public:
           (CopyA->getDst() != CopyB->getDst()))
         return false;
     }
+    if ((MCGType == sycl::detail::CG::CGTYPE::Fill)) {
+      sycl::detail::CGFill *FillA =
+          static_cast<sycl::detail::CGFill *>(MCommandGroup.get());
+      sycl::detail::CGFill *FillB =
+          static_cast<sycl::detail::CGFill *>(Node.MCommandGroup.get());
+      if ((FillA->getReqToFill() != FillB->getReqToFill()) ||
+          (FillA->MPattern != FillB->MPattern)) {
+        return false;
+      }
+    }
+    if ((MCGType == sycl::detail::CG::CGTYPE::FillUSM)) {
+      sycl::detail::CGFillUSM *FillA =
+          static_cast<sycl::detail::CGFillUSM *>(MCommandGroup.get());
+      sycl::detail::CGFillUSM *FillB =
+          static_cast<sycl::detail::CGFillUSM *>(Node.MCommandGroup.get());
+      if ((FillA->getDst() != FillB->getDst()) ||
+          (FillA->getFill() != FillB->getFill()) ||
+          (FillA->getLength() != FillB->getLength())) {
+        return false;
+      }
+    }
     return true;
   }
 
