@@ -202,7 +202,7 @@ class Packetizer::Impl : public Packetizer {
   /// @param[in] I Instruction to packetize.
   ///
   /// @return Packetized instruction.
-  Value *packetizeSubgroupBroadcast(Instruction *I);
+  Value *packetizeGroupBroadcast(Instruction *I);
   /// @brief Packetize PHI node.
   ///
   /// @param[in] Phi PHI Node to packetize.
@@ -886,7 +886,7 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
     return broadcast(reduction);
   }
 
-  if (auto *brdcast = packetizeSubgroupBroadcast(Ins)) {
+  if (auto *brdcast = packetizeGroupBroadcast(Ins)) {
     return broadcast(brdcast);
   }
 
@@ -1159,7 +1159,7 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   return CI;
 }
 
-Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
+Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   auto *const CI = dyn_cast<CallInst>(I);
   if (!CI || !CI->getCalledFunction()) {
     return nullptr;
@@ -1196,17 +1196,15 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
   }
 
   auto *idx = CI->getArgOperand(argIdx + 1);
-  if (isWorkGroup) {
-    // When it's a work group broadcast, we need to sanitize the input index so
-    // that it stays within the range of one subgroup.
-    auto *const minVal =
-        ConstantInt::get(idx->getType(), SimdWidth.getKnownMinValue());
-    Value *idxFactor = minVal;
-    if (SimdWidth.isScalable()) {
-      idxFactor = B.CreateVScale(minVal);
-    }
-    idx = B.CreateURem(idx, idxFactor);
+  // We need to sanitize the input index so that it stays within the range of
+  // one vectorized group.
+  auto *const minVal =
+      ConstantInt::get(idx->getType(), SimdWidth.getKnownMinValue());
+  Value *idxFactor = minVal;
+  if (SimdWidth.isScalable()) {
+    idxFactor = B.CreateVScale(minVal);
   }
+  idx = B.CreateURem(idx, idxFactor);
 
   Value *val = nullptr;
   // Optimize the constant fixed-vector case, where we can choose the exact
@@ -1231,18 +1229,12 @@ Value *Packetizer::Impl::packetizeSubgroupBroadcast(Instruction *I) {
     val = B.CreateExtractElement(op.getAsValue(), idx);
   }
 
-  if (isWorkGroup) {
-    // For a work group operation, we leave the origial broadcast function and
-    // divert the subgroup reduction through it, giving us a work group
-    // reduction over subgroup reductions.
-    CI->setOperand(argIdx, val);
-    val = CI;
-  } else {
-    IC.deleteInstructionLater(CI);
-    CI->replaceAllUsesWith(val);
-  }
+  // We leave the origial broadcast function and divert the vectorized
+  // broadcast through it, giving us a broadcast over the full apparent
+  // sub-group or work-group size (vecz * mux).
+  CI->setOperand(argIdx, val);
 
-  return val;
+  return CI;
 }
 
 Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
