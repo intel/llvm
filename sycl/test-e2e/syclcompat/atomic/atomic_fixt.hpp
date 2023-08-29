@@ -81,7 +81,7 @@ public:
   }
 };
 
-template <auto F, typename T> class AtomicClassLauncher {
+template <typename T> class AtomicClassLauncher {
 protected:
   syclcompat::dim3 grid_;
   syclcompat::dim3 threads_;
@@ -106,12 +106,12 @@ public:
     syclcompat::free(atom_arr_host_);
   }
 
-  template <typename... Args> void launch_test() {
+  template <auto Kernel, auto HostFunc> void launch_test() {
     if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
         (std::is_same_v<T, double> || std::is_same_v<T, double *>))
       return; // skip
-    syclcompat::launch<F>(grid_, threads_, atom_arr_device_);
-    F(atom_arr_host_);
+    syclcompat::launch<Kernel>(grid_, threads_, atom_arr_device_);
+    HostFunc(atom_arr_host_);
     syclcompat::wait();
 
     verify();
@@ -132,8 +132,8 @@ public:
   }
 };
 
-template <auto F, typename T>
-class AtomicClassPtrTypeLauncher : public AtomicClassLauncher<F, T> {
+template <typename T>
+class AtomicClassPtrTypeLauncher : public AtomicClassLauncher<T> {
 protected:
   using ValType = std::remove_pointer_t<T>;
 
@@ -143,7 +143,7 @@ public:
   AtomicClassPtrTypeLauncher(const syclcompat::dim3 &grid,
                              const syclcompat::dim3 &threads,
                              const size_t data_len)
-      : AtomicClassLauncher<F, T>(grid, threads, data_len) {
+      : AtomicClassLauncher<T>(grid, threads, data_len) {
 
     atom_arr_shared_in_ = syclcompat::malloc_shared<T>(this->data_len_);
 
@@ -159,13 +159,13 @@ public:
     syclcompat::free(atom_arr_shared_in_);
   }
 
-  template <typename... Args> void launch_test() {
+  template <auto Kernel, auto HostFunc> void launch_test() {
     if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
         (std::is_same_v<T, double> || std::is_same_v<T, double *>))
       return; // skip
-    syclcompat::launch<F>(this->grid_, this->threads_, this->atom_arr_device_,
-                          atom_arr_shared_in_);
-    F(this->atom_arr_host_, atom_arr_shared_in_);
+    syclcompat::launch<Kernel>(this->grid_, this->threads_,
+                               this->atom_arr_device_, atom_arr_shared_in_);
+    HostFunc(this->atom_arr_host_, atom_arr_shared_in_);
     syclcompat::wait();
 
     this->verify();
