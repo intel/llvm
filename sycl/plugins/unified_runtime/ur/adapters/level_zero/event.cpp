@@ -153,12 +153,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                const _ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal) {
         auto EmptyOrAllEventsFromSameQueue =
-            [](const _ur_ze_event_list_t &EventWaitList) {
+            [&Queue](const _ur_ze_event_list_t &EventWaitList) {
               if (!EventWaitList.Length)
                 return true;
 
-              auto Queue = EventWaitList.UrEventList[0]->UrQueue;
-              for (uint32_t I = 1; I < EventWaitList.Length; ++I)
+              for (uint32_t I = 0; I < EventWaitList.Length; ++I)
                 if (Queue != EventWaitList.UrEventList[I]->UrQueue)
                   return false;
 
