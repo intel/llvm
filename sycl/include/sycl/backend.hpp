@@ -298,10 +298,8 @@ std::enable_if_t<detail::InteropFeatureSupportMap<Backend>::MakeQueue == true,
 make_queue(const typename backend_traits<Backend>::template input_type<queue>
                &BackendObject,
            const context &TargetContext, const async_handler Handler = {}) {
-  auto KeepOwnership = (Backend == backend::ext_oneapi_cuda ||
-                        Backend == backend::ext_oneapi_hip)
-                           ? true
-                           : false;
+  auto KeepOwnership = Backend == backend::ext_oneapi_cuda ||
+                        Backend == backend::ext_oneapi_hip;
   return detail::make_queue(detail::pi::cast<pi_native_handle>(BackendObject),
                             false, TargetContext, nullptr, KeepOwnership, {},
                             Handler, Backend);
