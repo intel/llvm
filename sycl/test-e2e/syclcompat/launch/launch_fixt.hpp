@@ -62,8 +62,8 @@ template <int Dim> struct RangeParams {
 struct LaunchTest {
   LaunchTest()
       : q_{syclcompat::get_default_queue()}, grid_{4, 2, 2}, thread_{32, 2, 2},
-        range_1_{128, 32}, range_2_{{4, 128}, {2, 32}}, range_3_{{2, 4, 64},
-                                                                 {2, 2, 32}} {}
+        range_1_{128, 32}, range_2_{{4, 128}, {2, 32}},
+        range_3_{{2, 4, 64}, {2, 2, 32}} {}
   sycl::queue const q_;
   syclcompat::dim3 const grid_;
   syclcompat::dim3 const thread_;
