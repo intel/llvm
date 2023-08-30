@@ -612,19 +612,22 @@ template <typename CoordT> constexpr size_t coord_size() {
 
 // bit_cast Color to a type the NVPTX backend is known to accept
 template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
-  if constexpr (sizeof(DataT) == 1) {
+  constexpr size_t dataSize = sizeof(DataT);
+  static_assert(
+      dataSize == 1 || dataSize == 2 || dataSize == 4 || dataSize == 8 ||
+          dataSize == 16,
+      "Expected input data type to be of size 1, 2, 4, 8, or 16 bytes.");
+
+  if constexpr (dataSize == 1) {
     return sycl::bit_cast<uint8_t>(Color);
-  } else if constexpr (sizeof(DataT) == 2) {
+  } else if constexpr (dataSize == 2) {
     return sycl::bit_cast<uint16_t>(Color);
-  } else if constexpr (sizeof(DataT) == 4) {
+  } else if constexpr (dataSize == 4) {
     return sycl::bit_cast<uint32_t>(Color);
-  } else if constexpr (sizeof(DataT) == 8) {
+  } else if constexpr (dataSize == 8) {
     return sycl::bit_cast<sycl::vec<uint32_t, 2>>(Color);
-  } else if constexpr (sizeof(DataT) == 16) {
+  } else { // dataSize == 16
     return sycl::bit_cast<sycl::vec<uint32_t, 4>>(Color);
-  } else {
-    assert(false);
-    return Color;
   }
 }
 
@@ -786,11 +789,6 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
   static_assert(coordSize == 1 || coordSize == 2 || coordSize == 4,
                 "Expected input coordinate to be have 1, 2, or 4 components "
                 "for 1D, 2D and 3D images respectively.");
-  constexpr size_t dataSize = sizeof(DataT);
-  static_assert(
-      dataSize == 1 || dataSize == 2 || dataSize == 4 || dataSize == 8 ||
-          dataSize == 16,
-      "Expected input data type to be of size 1, 2, 4, 8, or 16 bytes.");
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
