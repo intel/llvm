@@ -881,11 +881,6 @@ SPIRVFunction *LLVMToSPIRVBase::transFunctionDecl(Function *F) {
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeZext);
   if (Attrs.hasRetAttr(Attribute::SExt))
     BF->addDecorate(DecorationFuncParamAttr, FunctionParameterAttributeSext);
-  if (Attrs.hasFnAttr("referenced-indirectly")) {
-    assert(!isKernel(F) &&
-           "kernel function was marked as referenced-indirectly");
-    BF->addDecorate(DecorationReferencedIndirectlyINTEL);
-  }
 
   if (Attrs.hasFnAttr(kVCMetadata::VCCallable) &&
       BM->isAllowedToUseExtension(ExtensionID::SPV_INTEL_fast_composite)) {
