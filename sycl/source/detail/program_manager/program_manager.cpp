@@ -1770,8 +1770,6 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
     }
   }
 
-  assert(BinImages.size() > 0 && "Expected to find at least one device image");
-
   // Ignore images with incompatible state. Image is considered compatible
   // with a target state if an image is already in the target state or can
   // be brought to target state by compiling/linking/building.
