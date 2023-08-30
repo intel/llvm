@@ -73,37 +73,39 @@ struct __nativecpu_state {
   [[intel::device_indirectly_callable]]
 #define __NCPU_ATTRS extern "C" __SYCL_HC_ATTRS
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(
-    unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
+__NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(unsigned dim,
+                                                __attribute((address_space(0)))
+                                                __nativecpu_state *s) {
   return s->MGlobal_id[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_global_range(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_global_range(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MGlobal_range[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_size(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_size(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MWorkGroup_size[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_id(
-    unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_id(unsigned dim,
+                                                __attribute((address_space(0)))
+                                                __nativecpu_state *s) {
   return s->MWorkGroup_id[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_get_local_id(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_local_id(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MLocal_id[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_get_num_groups(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_num_groups(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MNumGroups[dim];
 }
 
- __NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MGlobalOffset[dim];
 }
