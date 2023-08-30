@@ -1084,6 +1084,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                false) ||
       C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
+  Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
+
+  // Make -fintelfpga flag imply -fsycl.
+  if (SYCLfpga && !HasValidSYCLRuntime)
+    HasValidSYCLRuntime = true;
+
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
   auto getArgRequiringSYCLRuntime = [&](OptSpecifier OptId) -> Arg * {
@@ -1104,11 +1110,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *SYCLAddTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
-  Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
-
-  // Make -fintelfpga flag imply -fsycl.
-  if (SYCLfpga && !HasValidSYCLRuntime)
-    HasValidSYCLRuntime = true;
 
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
