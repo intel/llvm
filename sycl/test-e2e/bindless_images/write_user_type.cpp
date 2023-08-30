@@ -32,11 +32,6 @@ int main() {
 
     syclexp::image_mem imgMemoryOut(descOut, myQueue);
 
-    syclexp::bindless_image_sampler sampler{
-        sycl::addressing_mode::repeat,
-        sycl::coordinate_normalization_mode::normalized,
-        sycl::filtering_mode::nearest};
-
     syclexp::unsampled_image_handle imgOut =
         syclexp::create_image(imgMemoryOut, descOut, myQueue);
 
