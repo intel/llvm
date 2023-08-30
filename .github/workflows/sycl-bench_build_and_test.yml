@@ -80,8 +80,10 @@ jobs:
             -xvf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
             -C toolchain
           rm -f ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }}
-          echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
-          echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+          PATH=$PWD/toolchain/bin/:$PATH
+          LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
+          echo PATH=$PATH >> $GITHUB_ENV
+          echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH >> $GITHUB_ENV
           echo "PATH=$PATH"
           echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
           which clang++ sycl-ls
