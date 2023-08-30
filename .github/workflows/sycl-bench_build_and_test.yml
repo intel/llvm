@@ -117,7 +117,7 @@ jobs:
       - name: Build sycl-bench
         id: build
         run: |
-          cmake --build build --target ${{ build_benchmarks_list }}
+          cmake --build build --target join(' ', ${{ inputs.build_benchmarks_list }})
       - name: Deduce artifact archive params
         id: artifact_info
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
