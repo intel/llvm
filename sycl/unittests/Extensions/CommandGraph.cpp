@@ -1899,18 +1899,21 @@ TEST_F(MultiThreadGraphTest, RecordAddNodesInOrderQueue) {
 TEST_F(MultiThreadGraphTest, Finalize) {
   addKernels(Graph);
 
+  std::mutex MutexMap;
+
   std::map<int,
            experimental::command_graph<experimental::graph_state::executable>>
       GraphsExecMap;
   auto FinalizeGraph = [&](int ThreadNum) {
     SyncPoint.wait();
     auto GraphExec = Graph.finalize();
+    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
 
+    std::lock_guard<std::mutex> Guard(MutexMap);
     GraphsExecMap.insert(
         std::map<int, experimental::command_graph<
                           experimental::graph_state::executable>>::
             value_type(ThreadNum, GraphExec));
-    Queue.submit([&](sycl::handler &CGH) { CGH.ext_oneapi_graph(GraphExec); });
   };
 
   for (unsigned i = 0; i < NumThreads; ++i) {
