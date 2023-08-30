@@ -694,23 +694,38 @@ bool Packetizer::Impl::packetize() {
         continue;
       }
 
-      auto *const Callee = CI->getCalledFunction();
-      if (Callee && Ctx.builtins().analyzeBuiltin(*Callee).ID ==
+      if (auto *const Callee = CI->getCalledFunction();
+          Callee && Ctx.builtins().analyzeBuiltin(*Callee).ID ==
                         compiler::utils::eMuxBuiltinGetSubGroupSize) {
         auto *const replacement = [this](CallInst *CI) -> Value * {
+          // The vectorized sub-group size is the mux sub-group reduction sum
+          // of all of the vectorized sub-group sizes:
+          // |   mux 0     |      mux 1       |
+          // | < a,b,c,d > | < e,f,g > (vl=3) |
+          // The total sub-group size above is 4 + 3 => 7.
+          // Note that this expects that the mux sub-group consists entirely of
+          // equivalently vectorized kernels.
+          Value *VecgroupSize;
+          IRBuilder<> B(CI);
+          auto *const I32Ty = B.getInt32Ty();
           if (VL) {
-            return VL;
-          }
-
-          auto *const I32Ty = Type::getInt32Ty(F.getContext());
-          auto *const VFVal =
-              ConstantInt::get(I32Ty, SimdWidth.getKnownMinValue());
-          if (!SimdWidth.isScalable()) {
-            return VFVal;
+            VecgroupSize = VL;
           } else {
-            IRBuilder<> B(CI);
-            return B.CreateVScale(VFVal);
+            auto *const VFVal = B.getInt32(SimdWidth.getKnownMinValue());
+            if (!SimdWidth.isScalable()) {
+              VecgroupSize = VFVal;
+            } else {
+              VecgroupSize = B.CreateVScale(VFVal);
+            }
           }
+          assert(VecgroupSize && "Could not determine vector group size");
+
+          auto *ReduceFn = Ctx.builtins().getOrDeclareMuxBuiltin(
+              compiler::utils::eMuxBuiltinSubgroupReduceAdd, *F.getParent(),
+              {I32Ty});
+          assert(ReduceFn && "Could not get reduction builtin");
+
+          return B.CreateCall(ReduceFn, VecgroupSize, "subgroup.size");
         }(CI);
         CI->replaceAllUsesWith(replacement);
         IC.deleteInstructionLater(CI);

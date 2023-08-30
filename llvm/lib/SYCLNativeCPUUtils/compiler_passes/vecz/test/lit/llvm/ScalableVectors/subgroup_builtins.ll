@@ -35,7 +35,8 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_size(
 ; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
 ; CHECK: [[W:%.*]] = shl i32 [[VSCALE]], 2
-; CHECK: store i32 [[W]], ptr addrspace(1) {{.*}}
+; CHECK: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 [[W]])
+; CHECK: store i32 [[RED]], ptr addrspace(1) {{.*}}
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
