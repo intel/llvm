@@ -1,11 +1,7 @@
 ;; This test checks that two DICompileUnits resulted in a link of C and C++
 ;; object files are being translated correctly
 
-; ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-; COM: llvm-as < %s -o %t.bc
-; else
-; RUN: llvm-as -opaque-pointers < %s -o %t.bc
-; endif
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv --to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
