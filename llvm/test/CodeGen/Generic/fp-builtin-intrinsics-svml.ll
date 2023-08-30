@@ -1,4 +1,4 @@
-; RUN: opt -alt-math-library=altsvml -fpbuiltin-fn-selection -S < %s | FileCheck %s
+; RUN: opt -alt-math-library=svml -fpbuiltin-fn-selection -S < %s | FileCheck %s
 
 ; This test is to verify if all llvm.fpbuiltin.* intrinsic calls can be
 ; selected to corresponding SVML library calls under different values of
