@@ -1,21 +1,16 @@
 // RUN: clang++  -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s 
 
-// TODO: This test is currently not yet working with opaque pointers, 
-// as the MLIR LLVM dialect is lacking support for the LLVM IR 'TargetExtType'
-// that is used for OpenCL/SPIR-V image types.
-// XFAIL: *
-
-#include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
 static constexpr unsigned N = 8;
-
-// CHECK-LABEL:  func.func @_ZN4sycl3_V18accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initE14ocl_image1d_ro(%arg0: memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: !llvm.ptr<1>)
-// CHECK-NEXT:    %0 = "polygeist.memref2pointer"(%arg0) : (memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4>) -> !llvm.ptr<4>
-// CHECK-NEXT:    sycl.call @imageAccessorInit(%0, %arg1) {MangledFunctionName = @_ZN4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE17imageAccessorInitE14ocl_image1d_ro, TypeName = @image_accessor} : (!llvm.ptr<4>, !llvm.ptr<1>) -> ()
-// CHECK-NEXT:    return
-// CHECK-NEXT:  }
+// CHECK-LABEL:           func.func @_ZN4sycl3_V18accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS4_6targetE2017ELNS4_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEE6__initE14ocl_image1d_ro(
+// CHECK-SAME:                  %[[VAL_183:.*]]: memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}
+// CHECK-SAME:                  %[[VAL_184:.*]]: !llvm.target<"spirv.Image", !llvm.void, 0, 0, 0, 0, 0, 0, 0>)
+// CHECK-NEXT:              %[[VAL_185:.*]] = "polygeist.memref2pointer"(%[[VAL_183]]) : (memref<?x!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i, 4>) -> !llvm.ptr<4>
+// CHECK-NEXT:              sycl.call @imageAccessorInit(%[[VAL_185]], %[[VAL_184]]) {MangledFunctionName = @_ZN4sycl3_V16detail14image_accessorINS0_3vecIfLi4EEELi1ELNS0_6access4modeE1024ELNS5_6targetE2017ELNS5_11placeholderE0EE17imageAccessorInitE14ocl_image1d_ro, TypeName = @image_accessor} : (!llvm.ptr<4>, !llvm.target<"spirv.Image", !llvm.void, 0, 0, 0, 0, 0, 0, 0>) -> ()
+// CHECK-NEXT:              return
+// CHECK-NEXT:            }
 
 // CHECK-LABEL: func.func private @_ZZZ9testImagevENKUlRN4sycl3_V17handlerEE_clES2_ENKUlNS0_4itemILi1ELb1EEEE_clES5_(%arg0: memref<?x!llvm.struct<(!sycl_accessor_1_21sycl2Evec3C5Bf322C_45D2C_28vector3C4xf323E293E_r_i)>, 4> {llvm.align = 8 : i64, llvm.dereferenceable_or_null = 32 : i64, llvm.noundef}, %arg1: memref<?x!sycl_item_1_> {llvm.align = 8 : i64, llvm.byval = !sycl_item_1_, llvm.noundef})
 // CHECK-DAG:     %c0_i32 = arith.constant 0 : i32

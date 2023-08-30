@@ -1,21 +1,16 @@
 // RUN: clang++  -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s
 
-// TODO: This test is currently not yet working with opaque pointers, 
-// as the MLIR LLVM dialect is lacking support for the LLVM IR 'TargetExtType'
-// that is used for OpenCL/SPIR-V image types.
-// XFAIL: *
-
 #include <sycl/sycl.hpp>
 using namespace sycl;
 
 // CHECK-LABEL:     func.func @_Z6callee38__spirv_SampledImage__image1d_array_ro
-// CHECK-SAME:          (%[[VAL_151:.*]]: !llvm.ptr<1>)
+// CHECK-SAME:          (%[[VAL_151:.*]]: !llvm.target<"spirv.SampledImage", !llvm.void, 0, 0, 1, 0, 0, 0, 0>) 
 // CHECK-NEXT:        return
 // CHECK-NEXT:      }
 
 // CHECK-LABEL:     func.func @_Z6caller38__spirv_SampledImage__image1d_array_ro
-// CHECK-SAME:          (%[[VAL_152:.*]]: !llvm.ptr<1>)
-// CHECK-NEXT:        call @_Z6callee38__spirv_SampledImage__image1d_array_ro(%[[VAL_152]]) : (!llvm.ptr<1>) -> ()
+// CHECK-SAME:          (%[[VAL_152:.*]]: !llvm.target<"spirv.SampledImage", !llvm.void, 0, 0, 1, 0, 0, 0, 0>) 
+// CHECK-NEXT:        call @_Z6callee38__spirv_SampledImage__image1d_array_ro(%[[VAL_152]]) : (!llvm.target<"spirv.SampledImage", !llvm.void, 0, 0, 1, 0, 0, 0, 0>) -> ()
 // CHECK-NEXT:        return
 // CHECK-NEXT:      }
 

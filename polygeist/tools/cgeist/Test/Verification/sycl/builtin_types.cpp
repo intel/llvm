@@ -1,10 +1,5 @@
 // RUN: clang++  -fsycl -fsycl-device-only -O0 -w -emit-mlir -o - %s | FileCheck %s
 
-// TODO: This test is currently not yet working with opaque pointers, 
-// as the MLIR LLVM dialect is lacking support for the LLVM IR 'TargetExtType'
-// that is used for OpenCL/SPIR-V image types.
-// XFAIL: *
-
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
@@ -33,34 +28,35 @@ SYCL_EXTERNAL void float128(__float128 var) {}
 // CHECK:         %arg0: i128 {llvm.noundef})
 SYCL_EXTERNAL void int128(__int128 var) {}
 
-// CHECK-LABEL: func.func @_Z19opencl_image1d_ro_t14ocl_image1d_ro(
-// CHECK:         %arg0: !llvm.ptr<1>)
+// CHECK-LABEL: func.func @_Z19opencl_image1d_ro_t14ocl_image1d_ro
+// CHECK:           (%[[VAL_157:.*]]: !llvm.target<"spirv.Image", !llvm.void, 0, 0, 0, 0, 0, 0, 0>) 
 SYCL_EXTERNAL void opencl_image1d_ro_t(detail::opencl_image_type<1, access::mode::read, access::target::image>::type var) {}
 
-// CHECK-LABEL: func.func @_Z19opencl_image1d_wo_t14ocl_image1d_wo(
-// CHECK:         %arg0: !llvm.ptr<1>)
+// CHECK-LABEL: func.func @_Z19opencl_image1d_wo_t14ocl_image1d_wo
+// CHECK:           (%[[VAL_158:.*]]: !llvm.target<"spirv.Image", !llvm.void, 0, 0, 0, 0, 0, 0, 1>) 
 SYCL_EXTERNAL void opencl_image1d_wo_t(detail::opencl_image_type<1, access::mode::write, access::target::image>::type var) {}
 
-// CHECK-LABEL: func.func @_Z25opencl_image1d_array_ro_t20ocl_image1d_array_ro(
-// CHECK:         %arg0: !llvm.ptr<1>)
+// CHECK-LABEL: func.func @_Z25opencl_image1d_array_ro_t20ocl_image1d_array_ro
+// CHECK:           (%[[VAL_159:.*]]: !llvm.target<"spirv.Image", !llvm.void, 0, 0, 1, 0, 0, 0, 0>) 
 SYCL_EXTERNAL void opencl_image1d_array_ro_t(detail::opencl_image_type<1, access::mode::read, access::target::image_array>::type var) {}
 
-// CHECK-LABEL: func.func @_Z25opencl_image1d_array_wo_t20ocl_image1d_array_wo(
-// CHECK:         %arg0: !llvm.ptr<1>)
+// CHECK-LABEL: func.func @_Z25opencl_image1d_array_wo_t20ocl_image1d_array_wo
+// CHECK:           (%[[VAL_160:.*]]: !llvm.target<"spirv.Image", !llvm.void, 0, 0, 1, 0, 0, 0, 1>) 
 SYCL_EXTERNAL void opencl_image1d_array_wo_t(detail::opencl_image_type<1, access::mode::write, access::target::image_array>::type var) {}
 
-// CHECK-LABEL: func.func @_Z16opencl_sampler_t11ocl_sampler(
-// CHECK:         %arg0: !llvm.ptr<2>)
+// CHECK-LABEL: func.func @_Z16opencl_sampler_t11ocl_sampler
+// CHECK:           (%[[VAL_161:.*]]: !llvm.target<"spirv.Sampler">) 
 SYCL_EXTERNAL void opencl_sampler_t(__ocl_sampler_t var) {}
 
-// CHECK-LABEL: func.func @_Z33opencl_sampled_image_array1d_ro_t38__spirv_SampledImage__image1d_array_ro(
-// CHECK:         %arg0: !llvm.ptr<1>)
+// CHECK-LABEL: func.func @_Z33opencl_sampled_image_array1d_ro_t38__spirv_SampledImage__image1d_array_ro
+// CHECK:           (%[[VAL_162:.*]]: !llvm.target<"spirv.SampledImage", !llvm.void, 0, 0, 1, 0, 0, 0, 0>) 
 SYCL_EXTERNAL void opencl_sampled_image_array1d_ro_t(__ocl_sampled_image1d_array_ro_t var) {}
 
-// CHECK-LABEL: func.func @_Z12opencl_vec_tDv4_j(
-// CHECK:         %arg0: vector<4xi32> {llvm.noundef})
+// CHECK-LABEL: func.func @_Z12opencl_vec_tDv4_j
+// CHECK:           (%[[VAL_163:.*]]: vector<4xi32> {llvm.noundef}) 
 SYCL_EXTERNAL void opencl_vec_t(__ocl_vec_t<uint32_t, 4> var) {}
 
-// CHECK-LABEL: func.func @_Z14opencl_event_t9ocl_event(
-// CHECK:         %arg0: !llvm.ptr<4>)
+// CHECK-LABEL: func.func @_Z14opencl_event_t9ocl_event
+// CHECK:           (%[[VAL_164:.*]]: !llvm.target<"spirv.Event">) 
 SYCL_EXTERNAL void opencl_event_t(__ocl_event_t var) {}
+
