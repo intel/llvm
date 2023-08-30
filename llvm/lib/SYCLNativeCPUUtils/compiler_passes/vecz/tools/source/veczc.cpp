@@ -43,6 +43,7 @@
 #include <llvm/Target/TargetLoweringObjectFile.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <multi_llvm/llvm_version.h>
 
 #include <string>
 

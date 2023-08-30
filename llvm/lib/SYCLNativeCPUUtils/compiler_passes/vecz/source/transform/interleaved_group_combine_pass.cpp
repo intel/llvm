@@ -23,6 +23,8 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Transforms/Utils/Local.h>
 
+#include <optional>
+
 #include "analysis/uniform_value_analysis.h"
 #include "analysis/vectorization_unit_analysis.h"
 #include "debugging.h"
@@ -259,7 +261,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
         continue;
       }
 
-      multi_llvm::Optional<MemOp> Op = MemOp::get(CI);
+      std::optional<MemOp> Op = MemOp::get(CI);
       // We can't optimize interleaved memops if we don't know the stride at
       // runtime, since we need to check if the stride and the group size match.
       if (!Op || !Op->isStrideConstantInt()) {
@@ -320,7 +322,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
             Group.Kind == eMaskedInterleavedLoad) {
           Masks.reserve(Group.Data.size());
           for (auto *V : Group.Data) {
-            multi_llvm::Optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
+            std::optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
             assert(Op && "Unanalyzable interleaved access?");
             Masks.push_back(Op->getMaskOperand());
           }
@@ -449,7 +451,7 @@ bool InterleavedGroupCombinePass::findGroup(
           CanMove = canMoveUp(Group.Data, cast<Instruction>(InfoN.Op));
 
           if (InfoN.Kind == eMaskedInterleavedLoad) {
-            multi_llvm::Optional<MemOp> Op = MemOp::get(InfoN.Op);
+            std::optional<MemOp> Op = MemOp::get(InfoN.Op);
             assert(Op && "Unanalyzable load?");
             if (auto *MaskInst = dyn_cast<Instruction>(Op->getMaskOperand())) {
               CanMove &= Group.canDeinterleaveMask(*MaskInst);

@@ -31,7 +31,6 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/optional_helper.h>
 
 #include <queue>
 #include <utility>
@@ -1099,7 +1098,7 @@ bool ControlFlowConversionState::Impl::applyMask(BasicBlock &BB, Value *mask) {
     if (tryApplyMaskToBinOp(I, mask, toDelete, safeDivisors)) {
       continue;
     }
-    multi_llvm::Optional<MemOp> memOp = MemOp::get(&I);
+    std::optional<MemOp> memOp = MemOp::get(&I);
     // Turn loads and stores into masked loads and stores.
     if (memOp && (memOp->isLoad() || memOp->isStore())) {
       if (!tryApplyMaskToMemOp(*memOp, mask, toDelete)) {
