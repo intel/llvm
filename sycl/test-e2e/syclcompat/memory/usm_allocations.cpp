@@ -46,7 +46,7 @@ template <typename T> void test_malloc() {
   syclcompat::free(usm_fixture.d_A);
 }
 
-template <typename T> void host() {
+template <typename T> void test_host() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<T> usm_fixture;
   if (usm_fixture.skip)
@@ -60,7 +60,7 @@ template <typename T> void host() {
   syclcompat::free(usm_fixture.d_A);
 }
 
-template <typename T> void shared() {
+template <typename T> void test_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<T> usm_fixture;
   if (usm_fixture.skip)
@@ -74,7 +74,7 @@ template <typename T> void shared() {
   syclcompat::free(usm_fixture.d_A);
 }
 
-void non_templated_malloc() {
+void test_non_templated_malloc() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
@@ -85,7 +85,7 @@ void non_templated_malloc() {
   syclcompat::free(usm_fixture.d_A);
 }
 
-void non_templated_host() {
+void test_non_templated_host() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
@@ -99,7 +99,7 @@ void non_templated_host() {
   syclcompat::free(usm_fixture.d_A);
 }
 
-void non_templated_shared() {
+void test_non_templated_shared() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   USMTest<int> usm_fixture;
 
@@ -114,7 +114,7 @@ void non_templated_shared() {
 }
 
 // Test deduce direction
-void deduce() {
+void test_deduce() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   using memcpy_direction = syclcompat::detail::memcpy_direction;
@@ -180,16 +180,16 @@ void deduce() {
 
 int main() {
   INSTANTIATE_ALL_TYPES(value_type_list, test_malloc);
-  INSTANTIATE_ALL_TYPES(value_type_list, host);
-  INSTANTIATE_ALL_TYPES(value_type_list, shared);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_host);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_shared);
 
   // Avoid combinatorial explosion by only testing non-templated
   // syclcompat::malloc with int type
-  non_templated_malloc();
-  non_templated_host();
-  non_templated_shared();
+  test_non_templated_malloc();
+  test_non_templated_host();
+  test_non_templated_shared();
 
-  deduce();
+  test_deduce();
 
   return 0;
 }

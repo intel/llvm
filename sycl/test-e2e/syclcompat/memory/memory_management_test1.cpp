@@ -41,7 +41,7 @@
 #include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
-void memcpy() {
+void test_memcpy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr int Num = 5000;
@@ -84,7 +84,7 @@ void memcpy() {
   free(h_C);
 }
 
-void memcpy_q() {
+void test_memcpy_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -128,7 +128,7 @@ void memcpy_q() {
   free(h_C);
 }
 
-void memset() {
+void test_memset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr int Num = 10;
@@ -165,7 +165,7 @@ void memset() {
   free(h_A);
 }
 
-void memset_q() {
+void test_memset_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -203,7 +203,7 @@ void memset_q() {
   free(h_A);
 }
 
-template <typename T> void memcpy_t() {
+template <typename T> void test_memcpy_t() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr int Num = 5000;
@@ -245,7 +245,7 @@ template <typename T> void memcpy_t() {
   free(h_C);
 }
 
-template <typename T> void memcpy_t_q() {
+template <typename T> void test_memcpy_t_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -288,7 +288,7 @@ template <typename T> void memcpy_t_q() {
   free(h_C);
 }
 
-template <typename T> void fill() {
+template <typename T> void test_fill() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
@@ -328,7 +328,7 @@ template <typename T> void fill() {
   free(h_A);
 }
 
-template <typename T> void fill_q() {
+template <typename T> void test_fill_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
@@ -369,15 +369,15 @@ template <typename T> void fill_q() {
 }
 
 int main() {
-  memcpy();
-  memcpy_q();
-  memset();
-  memset_q();
+  test_memcpy();
+  test_memcpy_q();
+  test_memset();
+  test_memset_q();
 
-  INSTANTIATE_ALL_TYPES(value_type_list, memcpy_t);
-  INSTANTIATE_ALL_TYPES(value_type_list, memcpy_t_q);
-  INSTANTIATE_ALL_TYPES(value_type_list, fill);
-  INSTANTIATE_ALL_TYPES(value_type_list, fill_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_t);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_t_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_fill);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_fill_q);
 
   return 0;
 }

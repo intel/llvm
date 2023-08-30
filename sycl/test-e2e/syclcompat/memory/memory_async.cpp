@@ -44,7 +44,7 @@
 #include "memory_fixt.hpp"
 
 // free_async is a host task, so we are really testing the event dependency here
-void free_async() {
+void test_free_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -59,7 +59,7 @@ void free_async() {
 // the sycl::event returned from *Async really corresponds to the task
 // We don't check that the memory operation does what it's supposed to,
 // this is tested elsewhere.
-void memcpy_async1() {
+void test_memcpy_async1() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -70,7 +70,7 @@ void memcpy_async1() {
   atest.check_events(memcpy_ev, host_ev);
 }
 
-void memcpy_async2() {
+void test_memcpy_async2() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -81,7 +81,7 @@ void memcpy_async2() {
   atest.check_events(memcpy_ev, host_ev);
 }
 
-void memcpy_async3() {
+void test_memcpy_async3() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -103,7 +103,7 @@ void memcpy_async3() {
   atest.check_events(memcpy_ev, host_ev);
 }
 
-void memset_async1() {
+void test_memset_async1() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -114,7 +114,7 @@ void memset_async1() {
   atest.check_events(memset_ev, host_ev);
 }
 
-void memset_async2() {
+void test_memset_async2() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -125,7 +125,7 @@ void memset_async2() {
   atest.check_events(memset_ev, host_ev);
 }
 
-void memset_async3() {
+void test_memset_async3() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -143,7 +143,7 @@ void memset_async3() {
   atest.check_events(memset_ev, host_ev);
 }
 
-void fill_event() {
+void test_fill_event() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -153,7 +153,7 @@ void fill_event() {
   atest.check_events(fill_ev, host_ev);
 }
 
-void combine_events() {
+void test_combine_events() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   AsyncTest atest;
 
@@ -190,18 +190,18 @@ void combine_events() {
 }
 
 int main() {
-  free_async();
+  test_free_async();
 
-  memcpy_async1();
-  memcpy_async2();
-  memcpy_async3();
+  test_memcpy_async1();
+  test_memcpy_async2();
+  test_memcpy_async3();
 
-  memset_async1();
-  memset_async2();
-  memset_async3();
+  test_memset_async1();
+  test_memset_async2();
+  test_memset_async3();
 
-  fill_event();
-  combine_events();
+  test_fill_event();
+  test_combine_events();
 
   return 0;
 }

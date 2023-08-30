@@ -40,7 +40,7 @@
 
 #include "memory_common.hpp"
 
-void memcpy3D_async_pitchedAPI() {
+void test_memcpy3D_async_pitchedAPI() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   size_t width = 6;
@@ -145,7 +145,7 @@ void memcpy3D_async_pitchedAPI() {
   free(h_ref);
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
-void memcpy3D_async_pitchedAPI_q() {
+void test_memcpy3D_async_pitchedAPI_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -221,7 +221,7 @@ void memcpy3D_async_pitchedAPI_q() {
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
-void memcpy3D_async_offset() {
+void test_memcpy3D_async_offset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   size_t width = 4;
@@ -316,7 +316,7 @@ void memcpy3D_async_offset() {
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
-void memcpy3D_async_offset_q() {
+void test_memcpy3D_async_offset_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q{{sycl::property::queue::in_order()}};
   size_t width = 4;
@@ -411,7 +411,7 @@ void memcpy3D_async_offset_q() {
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
-void memcpy3D_async_offsetZ() {
+void test_memcpy3D_async_offsetZ() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   size_t width = 4;
@@ -506,7 +506,7 @@ void memcpy3D_async_offsetZ() {
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
-void memcpy3D_async_offsetZ_q() {
+void test_memcpy3D_async_offsetZ_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q{{sycl::property::queue::in_order()}};
   size_t width = 4;
@@ -602,12 +602,12 @@ void memcpy3D_async_offsetZ_q() {
 }
 
 int main() {
-  memcpy3D_async_pitchedAPI();
-  memcpy3D_async_pitchedAPI_q();
-  memcpy3D_async_offset();
-  memcpy3D_async_offset_q();
-  memcpy3D_async_offsetZ();
-  memcpy3D_async_offsetZ_q();
+  test_memcpy3D_async_pitchedAPI();
+  test_memcpy3D_async_pitchedAPI_q();
+  test_memcpy3D_async_offset();
+  test_memcpy3D_async_offset_q();
+  test_memcpy3D_async_offsetZ();
+  test_memcpy3D_async_offsetZ_q();
 
   return 0;
 }

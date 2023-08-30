@@ -39,7 +39,7 @@
 
 #include "memory_common.hpp"
 
-void memcpy_pitched() {
+void test_memcpy_pitched() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   size_t width = 6;
@@ -86,7 +86,7 @@ void memcpy_pitched() {
   syclcompat::free((void *)d_data);
 }
 
-void memcpy_kernel() {
+void test_memcpy_kernel() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -158,7 +158,7 @@ syclcompat::global_memory<float, 2> g_A(DataW, DataH);
 syclcompat::global_memory<float, 2> g_B(DataW, DataH);
 syclcompat::global_memory<float, 2> g_C(DataW, DataH);
 
-void global_memory() {
+void test_global_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[DataW][DataH];
@@ -220,7 +220,7 @@ syclcompat::shared_memory<float, 1> s_A(DataW);
 syclcompat::shared_memory<float, 1> s_B(DataW);
 syclcompat::shared_memory<float, 1> s_C(DataW);
 
-void shared_memory() {
+void test_shared_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   s_A.init();
@@ -256,7 +256,7 @@ void shared_memory() {
   }
 }
 
-void memcpy_pitched_q() {
+void test_memcpy_pitched_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -306,12 +306,12 @@ void memcpy_pitched_q() {
 }
 
 int main() {
-  memcpy_kernel();
-  memcpy_pitched();
-  memcpy_pitched_q();
+  test_memcpy_kernel();
+  test_memcpy_pitched();
+  test_memcpy_pitched_q();
 
-  global_memory();
-  shared_memory();
+  test_global_memory();
+  test_shared_memory();
 
   return 0;
 }

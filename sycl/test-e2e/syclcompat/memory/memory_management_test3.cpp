@@ -41,7 +41,7 @@
 #include "memory_common.hpp"
 #include "memory_fixt.hpp"
 
-void free_memory() {
+void test_free_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float *d_A = (float *)syclcompat::malloc(sizeof(float));
@@ -53,7 +53,7 @@ void free_memory() {
   syclcompat::free(nullptr);
 }
 
-void free_memory_q() {
+void test_free_memory_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -65,7 +65,7 @@ void free_memory_q() {
   syclcompat::free(nullptr, q);
 }
 
-void memcpy_async() {
+void test_memcpy_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -107,7 +107,7 @@ void memcpy_async() {
   free(h_C);
 }
 
-void memcpy_async_q() {
+void test_memcpy_async_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -147,7 +147,7 @@ void memcpy_async_q() {
   free(h_C);
 }
 
-void memcpy_async_pitched() {
+void test_memcpy_async_pitched() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   size_t width = 6;
@@ -195,7 +195,7 @@ void memcpy_async_pitched() {
   syclcompat::free((void *)d_data);
 }
 
-void memcpy_async_pitched_q() {
+void test_memcpy_async_pitched_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -244,7 +244,7 @@ void memcpy_async_pitched_q() {
   syclcompat::free((void *)d_data, q);
 }
 
-void memset_async() {
+void test_memset_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
@@ -281,7 +281,7 @@ void memset_async() {
   free(h_A);
 }
 
-void memset_async_q() {
+void test_memset_async_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -317,7 +317,7 @@ void memset_async_q() {
   free(h_A);
 }
 
-template <typename T> void memcpy_async_t_q() {
+template <typename T> void test_memcpy_async_t_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -357,7 +357,7 @@ template <typename T> void memcpy_async_t_q() {
   free(h_C);
 }
 
-template <typename T> void memcpy_async_t() {
+template <typename T> void test_memcpy_async_t() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -397,7 +397,7 @@ template <typename T> void memcpy_async_t() {
   free(h_C);
 }
 
-template <typename T> void fill_async() {
+template <typename T> void test_fill_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
@@ -439,7 +439,7 @@ template <typename T> void fill_async() {
   free(h_A);
 }
 
-template <typename T> void fill_async_q() {
+template <typename T> void test_fill_async_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   bool skip = should_skip<T>(syclcompat::get_current_device());
   if (skip) // Unsupported aspect
@@ -483,19 +483,19 @@ template <typename T> void fill_async_q() {
 }
 
 int main() {
-  free_memory();
-  free_memory_q();
-  memcpy_async();
-  memcpy_async_q();
-  memcpy_async_pitched();
-  memcpy_async_pitched_q();
-  memset_async();
-  memset_async_q();
+  test_free_memory();
+  test_free_memory_q();
+  test_memcpy_async();
+  test_memcpy_async_q();
+  test_memcpy_async_pitched();
+  test_memcpy_async_pitched_q();
+  test_memset_async();
+  test_memset_async_q();
 
-  INSTANTIATE_ALL_TYPES(value_type_list, memcpy_async_t);
-  INSTANTIATE_ALL_TYPES(value_type_list, memcpy_async_t_q);
-  INSTANTIATE_ALL_TYPES(value_type_list, fill_async);
-  INSTANTIATE_ALL_TYPES(value_type_list, fill_async_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_async_t);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_memcpy_async_t_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_fill_async);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_fill_async_q);
 
   return 0;
 }

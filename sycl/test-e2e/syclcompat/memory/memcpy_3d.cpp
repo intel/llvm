@@ -41,7 +41,7 @@
 
 #include "memory_common.hpp"
 
-void memcpy3D_memset() {
+void test_memcpy3D_memset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
@@ -106,7 +106,7 @@ void memcpy3D_memset() {
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
-void memcpy3D_memset_q() {
+void test_memcpy3D_memset_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q{{sycl::property::queue::in_order()}};
   size_t width = 6;
@@ -172,7 +172,7 @@ void memcpy3D_memset_q() {
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
-void memcpy3D_offset() {
+void test_memcpy3D_offset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 4;
   size_t height = 4;
@@ -264,7 +264,7 @@ void memcpy3D_offset() {
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
-void memcpy3D_offset_q() {
+void test_memcpy3D_offset_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   sycl::queue q{{sycl::property::queue::in_order()}};
@@ -357,7 +357,7 @@ void memcpy3D_offset_q() {
   syclcompat::free(d_data.get_data_ptr(), q);
 }
 
-void memcpy3D_offsetZ() {
+void test_memcpy3D_offsetZ() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 4;
   size_t height = 4;
@@ -449,7 +449,7 @@ void memcpy3D_offsetZ() {
   sycl::free(d_data.get_data_ptr(), syclcompat::get_default_context());
 }
 
-void memcpy3D_offsetZ_q() {
+void test_memcpy3D_offsetZ_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   sycl::queue q{{sycl::property::queue::in_order()}};
   size_t width = 4;
@@ -545,7 +545,7 @@ void memcpy3D_offsetZ_q() {
 // short path1
 // test copy 3D data special case
 // for continuous plane, we can copy it as linear data
-void memcpy3D_plane() {
+void test_memcpy3D_plane() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 4;
   size_t height = 4;
@@ -642,7 +642,7 @@ void memcpy3D_plane() {
 // short path2
 // test copy 3D data special case
 // for continuous row, we can copy it as linear data
-void memcpy3D_row() {
+void test_memcpy3D_row() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 4;
   size_t height = 4;
@@ -731,14 +731,14 @@ void memcpy3D_row() {
 }
 
 int main() {
-  memcpy3D_memset();
-  memcpy3D_memset_q();
-  memcpy3D_offset();
-  memcpy3D_offset_q();
-  memcpy3D_offsetZ();
-  memcpy3D_offsetZ_q();
-  memcpy3D_plane();
-  memcpy3D_row();
+  test_memcpy3D_memset();
+  test_memcpy3D_memset_q();
+  test_memcpy3D_offset();
+  test_memcpy3D_offset_q();
+  test_memcpy3D_offsetZ();
+  test_memcpy3D_offsetZ_q();
+  test_memcpy3D_plane();
+  test_memcpy3D_row();
 
   return 0;
 }
