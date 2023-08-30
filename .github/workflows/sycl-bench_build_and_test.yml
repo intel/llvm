@@ -77,7 +77,7 @@ jobs:
           rm -rf toolchain
           mkdir toolchain
           tar -I '${{ inputs.sycl_toolchain_decompress_command }}' \
-            -xvf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
+            -xf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
             -C toolchain
           rm -f ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }}
           PATH=$PWD/toolchain/bin/:$PATH
