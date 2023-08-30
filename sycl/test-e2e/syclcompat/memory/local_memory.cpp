@@ -43,7 +43,7 @@ template <int BLOCK_SIZE> void local_mem_1d(int *d_A) {
   d_A[syclcompat::global_id::x()] = val;
 }
 
-void local_1d() {
+void test_local_1d() {
   auto checker = [](std::vector<int> input) {
     std::vector<int> expected(input.size());
     std::iota(expected.rbegin(), expected.rend(), 0);
@@ -65,7 +65,7 @@ template <int BLOCK_SIZE> void local_mem_2d(int *d_A) {
       val;
 }
 
-void local_2d() {
+void test_local_2d() {
   constexpr int TILE_SIZE = 16;
   auto checker = [](std::vector<int> input) {
     for (int y = 0; y < TILE_SIZE; ++y) {
@@ -97,7 +97,7 @@ template <int BLOCK_SIZE> void local_mem_3d(int *d_A) {
       val;
 }
 
-void local_3d() {
+void test_local_3d() {
   constexpr int TILE_SIZE = 4;
   auto checker = [](std::vector<int> input) {
     for (int z = 0; z < TILE_SIZE; ++z) {
@@ -118,9 +118,9 @@ void local_3d() {
 }
 
 int main() {
-  local_1d();
-  local_2d();
-  local_3d();
+  test_local_1d();
+  test_local_2d();
+  test_local_3d();
 
   return 0;
 }

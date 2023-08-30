@@ -41,7 +41,7 @@ void global_id_z_query(int *data) {
   data[syclcompat::global_id::z()] = syclcompat::global_id::z();
 }
 
-void global_id_query() {
+void test_global_id_query() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{4};
@@ -76,7 +76,7 @@ void range_x_query(int *data) {
                                      syclcompat::local_range::x();
 }
 
-void ranges_query() {
+void test_ranges_query() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{4};
@@ -99,7 +99,7 @@ void local_id_x_query(int *data) {
   data[syclcompat::global_id::x()] = syclcompat::local_id::x();
 }
 
-void ids_query() {
+void test_ids_query() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{4};
@@ -123,9 +123,9 @@ void ids_query() {
 }
 
 int main() {
-  global_id_query();
-  ranges_query();
-  ids_query();
+  test_global_id_query();
+  test_ranges_query();
+  test_ids_query();
 
   return 0;
 }

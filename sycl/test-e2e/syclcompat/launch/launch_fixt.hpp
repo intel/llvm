@@ -59,8 +59,8 @@ template <int Dim> struct RangeParams {
 
 // Fixture for launch tests - initializes a few different
 // range-like members & a queue.
-struct LaunchTest1 {
-  LaunchTest1()
+struct LaunchTest {
+  LaunchTest()
       : q_{syclcompat::get_default_queue()}, grid_{4, 2, 2}, thread_{32, 2, 2},
         range_1_{128, 32}, range_2_{{4, 128}, {2, 32}}, range_3_{{2, 4, 64},
                                                                  {2, 2, 32}} {}
@@ -73,9 +73,9 @@ struct LaunchTest1 {
 };
 
 // Typed tests
-template <typename T> struct LaunchTest1WithArgs : public LaunchTest1 {
-  LaunchTest1WithArgs()
-      : LaunchTest1(), memsize_{LOCAL_MEM_SIZE},
+template <typename T> struct LaunchTestWithArgs : public LaunchTest {
+  LaunchTestWithArgs()
+      : LaunchTest(), memsize_{LOCAL_MEM_SIZE},
         in_order_q_{{sycl::property::queue::in_order()}}, skip{false} {
     set_up();
   }

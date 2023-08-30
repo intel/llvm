@@ -43,7 +43,7 @@ inline void dynamic_local_mem_basicdt_kernel(T value, char *local_mem){};
 
 template <typename T>
 void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
-  constexpr size_t memsize = LaunchTest1WithArgs<T>::LOCAL_MEM_SIZE;
+  constexpr size_t memsize = LaunchTestWithArgs<T>::LOCAL_MEM_SIZE;
   constexpr size_t num_elements = memsize / sizeof(T);
   T *typed_local_mem = reinterpret_cast<T *>(local_mem);
 
@@ -78,7 +78,7 @@ void compute_nd_range_3d(RangeParams<Dim> range_param, std::string test_name) {
   }
 }
 
-void launch_compute_nd_range_3d() {
+void test_launch_compute_nd_range_3d() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   compute_nd_range_3d(RangeParams<3>{{11, 1, 1}, {2, 1, 1}, {12, 1, 1}, true},
@@ -101,9 +101,9 @@ void launch_compute_nd_range_3d() {
                       "local > global 3");
 }
 
-void no_arg_launch() {
+void test_no_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest1 lt;
+  LaunchTest lt;
 
   syclcompat::launch<empty_kernel>(lt.range_1_);
   syclcompat::launch<empty_kernel>(lt.range_2_);
@@ -116,9 +116,9 @@ void no_arg_launch() {
   syclcompat::launch<empty_kernel>(lt.grid_, lt.thread_, lt.q_);
 }
 
-void one_arg_launch() {
+void test_one_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest1 lt;
+  LaunchTest lt;
 
   int my_int;
 
@@ -133,9 +133,9 @@ void one_arg_launch() {
   syclcompat::launch<int_kernel>(lt.grid_, lt.thread_, lt.q_, my_int);
 }
 
-void ptr_arg_launch() {
+void test_ptr_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest1 lt;
+  LaunchTest lt;
 
   int *int_ptr;
 
@@ -150,9 +150,9 @@ void ptr_arg_launch() {
   syclcompat::launch<int_ptr_kernel>(lt.grid_, lt.thread_, lt.q_, int_ptr);
 }
 
-void dynamic_mem_no_arg_launch() {
+void test_dynamic_mem_no_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest1 lt;
+  LaunchTest lt;
 
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_1_, 1);
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_2_, 1);
@@ -160,9 +160,9 @@ void dynamic_mem_no_arg_launch() {
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_, 1);
 }
 
-void dynamic_mem_no_arg_launch_q() {
+void test_dynamic_mem_no_arg_launch_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  LaunchTest1 lt;
+  LaunchTest lt;
 
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_1_, 1, lt.q_);
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.range_2_, 1, lt.q_);
@@ -171,11 +171,11 @@ void dynamic_mem_no_arg_launch_q() {
                                                      lt.q_);
 }
 
-template <typename T> void basic_dt_launch() {
+template <typename T> void test_basic_dt_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   T d_a = T(1);
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
 
   if (ltt.skip) // Unsupported aspect
     return;
@@ -190,11 +190,11 @@ template <typename T> void basic_dt_launch() {
       ltt.grid_, ltt.thread_, ltt.memsize_, d_a);
 }
 
-template <typename T> void basic_dt_launch_q() {
+template <typename T> void test_basic_dt_launch_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   T d_a = T(1);
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
 
   if (ltt.skip) // Unsupported aspect
     return;
@@ -209,10 +209,10 @@ template <typename T> void basic_dt_launch_q() {
       ltt.grid_, ltt.thread_, ltt.memsize_, ltt.in_order_q_, d_a);
 }
 
-template <typename T> void arg_launch() {
+template <typename T> void test_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
   if (ltt.skip) // Unsupported aspect
     return;
 
@@ -230,10 +230,10 @@ template <typename T> void arg_launch() {
   syclcompat::free((void *)d_a);
 }
 
-template <typename T> void arg_launch_q() {
+template <typename T> void test_arg_launch_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
   if (ltt.skip) // Unsupported aspect
     return;
 
@@ -251,10 +251,10 @@ template <typename T> void arg_launch_q() {
   syclcompat::free((void *)d_a, ltt.in_order_q_);
 }
 
-template <typename T> void local_mem_usage() {
+template <typename T> void test_local_mem_usage() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
   if (ltt.skip) // Unsupported aspect
     return;
 
@@ -276,10 +276,10 @@ template <typename T> void local_mem_usage() {
   syclcompat::free(h_a);
 }
 
-template <typename T> void local_mem_usage_q() {
+template <typename T> void test_local_mem_usage_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1WithArgs<T> ltt;
+  LaunchTestWithArgs<T> ltt;
   if (ltt.skip) // Unsupported aspect
     return;
 
@@ -303,20 +303,20 @@ template <typename T> void local_mem_usage_q() {
   syclcompat::free(h_a);
 }
 
-template <typename T> void memsize_no_arg_launch() {
+template <typename T> void test_memsize_no_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1 lt;
+  LaunchTest lt;
   T memsize = static_cast<T>(8);
 
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_,
                                                      memsize);
 }
 
-template <typename T> void memsize_no_arg_launch_q() {
+template <typename T> void test_memsize_no_arg_launch_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
-  LaunchTest1 lt;
+  LaunchTest lt;
   T memsize = static_cast<T>(8);
 
   syclcompat::launch<dynamic_local_mem_empty_kernel>(lt.grid_, lt.thread_,
@@ -324,30 +324,30 @@ template <typename T> void memsize_no_arg_launch_q() {
 }
 
 int main() {
-  launch_compute_nd_range_3d();
-  no_arg_launch();
-  one_arg_launch();
-  ptr_arg_launch();
+  test_launch_compute_nd_range_3d();
+  test_no_arg_launch();
+  test_one_arg_launch();
+  test_ptr_arg_launch();
 
-  dynamic_mem_no_arg_launch();
-  dynamic_mem_no_arg_launch_q();
+  test_dynamic_mem_no_arg_launch();
+  test_dynamic_mem_no_arg_launch_q();
 
   using value_type_list_t =
       std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
                  long long, unsigned long long, float, double, sycl::half>;
 
-  INSTANTIATE_ALL_TYPES(value_type_list_t, basic_dt_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, basic_dt_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, arg_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, arg_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, local_mem_usage);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, local_mem_usage_q);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_basic_dt_launch);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_basic_dt_launch_q);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_arg_launch);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_arg_launch_q);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_local_mem_usage);
+  INSTANTIATE_ALL_TYPES(value_type_list_t, test_local_mem_usage_q);
 
   using memsize_type_list =
       std::tuple<int, unsigned int, short, unsigned short, long, unsigned long>;
 
-  INSTANTIATE_ALL_TYPES(memsize_type_list, memsize_no_arg_launch);
-  INSTANTIATE_ALL_TYPES(memsize_type_list, memsize_no_arg_launch_q);
+  INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch);
+  INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch_q);
 
   return 0;
 }
