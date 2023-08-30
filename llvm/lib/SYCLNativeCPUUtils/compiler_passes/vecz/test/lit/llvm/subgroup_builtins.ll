@@ -34,7 +34,8 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
   store i32 %call2, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_get_sub_group_size(
-; CHECK: store i32 4, ptr addrspace(1) {{.*}}
+; CHECK: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 4)
+; CHECK: store i32 [[RED]], ptr addrspace(1) {{.*}}
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
