@@ -143,9 +143,6 @@ VectorizationResult &VectorizationContext::getOrCreateBuiltin(
     return result;
   }
 
-  compiler::utils::NameMangler Mangler(&F.getContext());
-  auto const BuiltinName = Mangler.demangleName(F.getName()).str();
-
   result.func = VectorCallee;
 
   // Gather information about the function's arguments.
