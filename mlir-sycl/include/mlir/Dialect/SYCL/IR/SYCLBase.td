@@ -51,6 +51,7 @@ def SYCL_Dialect : Dialect {
     llvm::Optional<llvm::StringRef> findMethod(::mlir::TypeID Type,
                                                llvm::StringRef Name) const;
   }];
+  let usePropertiesForAttributes = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
