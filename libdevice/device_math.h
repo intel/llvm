@@ -56,6 +56,12 @@ DEVICE_EXTERN_C
 float __devicelib_roundf(float x);
 
 DEVICE_EXTERN_C
+double __devicelib_floor(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_floorf(float x);
+
+DEVICE_EXTERN_C
 double __devicelib_log(double x);
 
 DEVICE_EXTERN_C
