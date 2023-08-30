@@ -67,31 +67,10 @@ jobs:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
     steps:
-      - name: Download SYCL toolchain [workflow_call]
-        uses: actions/github-script@v6
+      - name: Download SYCL toolchain
+        uses: actions/download-artifact@v3
         with:
-          script: |
-            const name = '${{ inputs.sycl_toolchain_artifact }}'
-            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
-             owner: context.repo.owner,
-             repo: context.repo.repo,
-             run_id: context.payload.workflow_run.id,
-            });
-            let matchArtifact = allArtifacts.data.artifacts.filter((artifact) => {
-              return artifact.name == name
-            })[0];
-            let download = await github.rest.actions.downloadArtifact({
-               owner: context.repo.owner,
-               repo: context.repo.repo,
-               artifact_id: matchArtifact.id,
-               archive_format: 'zip',
-            });
-            let fs = require('fs');
-            fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/` + name + '.zip', Buffer.from(download.data));
-      - name: Unzip artifact [workflow_call]
-        run: |
-          unzip ${{ inputs.sycl_toolchain_artifact }}.zip
-          rm ${{ inputs.sycl_toolchain_artifact }}.zip
+          name: ${{ inputs.sycl_toolchain_artifact }}
       - name: Extract/Setup SYCL toolchain
         run: |
           mkdir toolchain
