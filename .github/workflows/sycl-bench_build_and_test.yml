@@ -97,7 +97,7 @@ jobs:
       - name: Extract/Setup SYCL toolchain
         run: |
           mkdir toolchain
-          tar -I '${{ inputs.sycl_toolchain_decompress_command }}'
+          tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
           rm -f ${{ inputs.sycl_toolchain_archive }}
           echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
           echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
