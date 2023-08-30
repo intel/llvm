@@ -285,26 +285,29 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   std::vector<ur_event_handle_t> DepEvents(
       phEventWaitList, phEventWaitList + numEventsInWaitList);
   std::vector<ur_lock> MemMigrationLocks;
-  MemMigrationLocks.reserve(hKernel->Args.MemObjArgs.size());
 
   // phEventWaitList only contains events that are handed to UR by the SYCL
   // runtime. However since UR handles memory dependencies within a context
-  // we may need to add more events to our dependent events list
-  for (auto &MemArg : hKernel->Args.MemObjArgs) {
-    if (MemArg.Mem->isBuffer()) {
-      bool PushBack = false;
-      if (auto MemDepEvent =
-              ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
-          MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
-                                   MemDepEvent) == DepEvents.end()) {
-        DepEvents.push_back(MemDepEvent);
-        PushBack = true;
-      }
-      if ((MemArg.AccessFlags &
-           (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) ||
-          PushBack) {
-        MemMigrationLocks.emplace_back(
-            ur_lock{MemArg.Mem->MemoryMigrationMutex});
+  // we may need to add more events to our dependent events list if the UR
+  // context contains multiple devices
+  if (hQueue->getContext()->NumDevices > 1) {
+    MemMigrationLocks.reserve(hKernel->Args.MemObjArgs.size());
+    for (auto &MemArg : hKernel->Args.MemObjArgs) {
+      if (MemArg.Mem->isBuffer()) {
+        bool PushBack = false;
+        if (auto MemDepEvent =
+                ur_cast<ur_buffer_ *>(MemArg.Mem)->LastEventWritingToMemObj;
+            MemDepEvent && std::find(DepEvents.begin(), DepEvents.end(),
+                                     MemDepEvent) == DepEvents.end()) {
+          DepEvents.push_back(MemDepEvent);
+          PushBack = true;
+        }
+        if ((MemArg.AccessFlags &
+             (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) ||
+            PushBack) {
+          MemMigrationLocks.emplace_back(
+              ur_lock{MemArg.Mem->MemoryMigrationMutex});
+        }
       }
     }
   }
@@ -400,9 +403,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     // For memory migration across devices in the same context
-    for (auto &MemArg : hKernel->Args.MemObjArgs) {
-      if (MemArg.Mem->isBuffer()) {
-        MemArg.Mem->migrateMemoryToDeviceIfNeeded(hQueue->getDevice());
+    if (hQueue->getContext()->NumDevices > 1) {
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        if (MemArg.Mem->isBuffer()) {
+          MemArg.Mem->migrateMemoryToDeviceIfNeeded(hQueue->getDevice());
+        }
       }
     }
 
@@ -432,19 +437,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
 
     // Once event has been started we can unlock MemoryMigrationMutex
-    for (auto &MemArg : hKernel->Args.MemObjArgs) {
-      // Telling the ur_mem_handle_t that it will need to wait on this kernel
-      // if it has been written to
-      if (phEvent && MemArg.Mem->isBuffer()) {
-        if (MemArg.AccessFlags &
-            (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
-          ur_cast<ur_buffer_ *>(MemArg.Mem)
-              ->setLastEventWritingToMemObj(RetImplEvent.get());
+    if (hQueue->getContext()->NumDevices > 1) {
+      for (auto &MemArg : hKernel->Args.MemObjArgs) {
+        // Telling the ur_mem_handle_t that it will need to wait on this kernel
+        // if it has been written to
+        if (phEvent && MemArg.Mem->isBuffer()) {
+          if (MemArg.AccessFlags &
+              (UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_WRITE_ONLY)) {
+            ur_cast<ur_buffer_ *>(MemArg.Mem)
+                ->setLastEventWritingToMemObj(RetImplEvent.get());
+          }
         }
       }
+      // We can release the MemoryMigrationMutexes now
+      MemMigrationLocks.clear();
     }
-    // We can release the MemoryMigrationMutexes now
-    MemMigrationLocks.clear();
 
     if (hQueue->getDevice()->maxLocalMemSizeChosen()) {
       // Set up local memory requirements for kernel.
