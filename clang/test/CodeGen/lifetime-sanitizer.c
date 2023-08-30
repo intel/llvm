@@ -1,12 +1,12 @@
 // INTEL RUN: %clang -target x86_64-linux-gnu -S -emit-llvm -o - -O0 \
-// INTEL RUN:     -Xclang -opaque-pointers -disable-llvm-passes %s | FileCheck %s -check-prefix=CHECK-O0
+// INTEL RUN:     -disable-llvm-passes %s | FileCheck %s -check-prefix=CHECK-O0
 // INTEL RUN: %clang -target x86_64-linux-gnu -S -emit-llvm -o - -O0 \
 // INTEL RUN:     -fsanitize=address -fsanitize-address-use-after-scope \
-// INTEL RUN:     -Xclang -opaque-pointers -disable-llvm-passes %s | FileCheck %s -check-prefix=LIFETIME
-// INTEL RUN: %clang -Xclang -opaque-pointers -target x86_64-linux-gnu -S -emit-llvm -o - -O0 \
+// INTEL RUN:     -disable-llvm-passes %s | FileCheck %s -check-prefix=LIFETIME
+// INTEL RUN: %clang -target x86_64-linux-gnu -S -emit-llvm -o - -O0 \
 // INTEL RUN:     -fsanitize=memory -Xclang -disable-llvm-passes %s | \
 // INTEL RUN:     FileCheck %s -check-prefix=LIFETIME
-// INTEL RUN: %clang -Xclang -opaque-pointers -target aarch64-linux-gnu -S -emit-llvm -o - -O0 \
+// INTEL RUN: %clang -target aarch64-linux-gnu -S -emit-llvm -o - -O0 \
 // INTEL RUN:     -fsanitize=hwaddress -Xclang -disable-llvm-passes %s | \
 // INTEL RUN:     FileCheck %s -check-prefix=LIFETIME
 

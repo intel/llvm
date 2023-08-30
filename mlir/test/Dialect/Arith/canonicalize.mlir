@@ -885,6 +885,30 @@ func.func @doubleAddSub2(%arg0: index, %arg1 : index) -> index {
   return %add : index
 }
 
+// CHECK-LABEL: @tripleMulIMulIIndex
+//       CHECK:   %[[cres:.+]] = arith.constant 15 : index
+//       CHECK:   %[[muli:.+]] = arith.muli %arg0, %[[cres]] : index
+//       CHECK:   return %[[muli]]
+func.func @tripleMulIMulIIndex(%arg0: index) -> index {
+  %c3 = arith.constant 3 : index
+  %c5 = arith.constant 5 : index
+  %mul1 = arith.muli %arg0, %c3 : index
+  %mul2 = arith.muli %mul1, %c5 : index
+  return %mul2 : index
+}
+
+// CHECK-LABEL: @tripleMulIMulII32
+//       CHECK:   %[[cres:.+]] = arith.constant -21 : i32
+//       CHECK:   %[[muli:.+]] = arith.muli %arg0, %[[cres]] : i32
+//       CHECK:   return %[[muli]]
+func.func @tripleMulIMulII32(%arg0: i32) -> i32 {
+  %c_n3 = arith.constant -3 : i32
+  %c7 = arith.constant 7 : i32
+  %mul1 = arith.muli %arg0, %c_n3 : i32
+  %mul2 = arith.muli %mul1, %c7 : i32
+  return %mul2 : i32
+}
+
 // CHECK-LABEL: @addiMuliToSubiRhsI32
 //  CHECK-SAME:   (%[[ARG0:.+]]: i32, %[[ARG1:.+]]: i32)
 //       CHECK:   %[[SUB:.+]] = arith.subi %[[ARG0]], %[[ARG1]] : i32
@@ -2542,4 +2566,79 @@ func.func @foldOrXor6(%arg0: index) -> index {
   %1 = arith.xori %arg0, %0 : index
   %2 = arith.ori %arg0, %1 : index
   return %2 : index
+}
+
+// -----
+
+// CHECK-LABEL: @foldIsNanFastmath
+//  CHECK-SAME: (%[[ARG:.+]]: f32)
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldIsNanFastmath(%arg0: f32) -> i1 {
+  %0 = arith.is_nan %arg0 fastmath <nnan> : f32
+  func.return %0 : i1
+}
+
+// CHECK-LABEL: @foldIsNan
+//      CHECK:   %[[TRUE:.+]] = arith.constant true
+//      CHECK:   return %[[TRUE]]
+func.func @foldIsNan() -> i1 {
+  %cNan = arith.constant 0x7FFFFFFF : f32
+  %0 = arith.is_nan %cNan : f32
+  func.return %0 : i1
+}
+
+// CHECK-LABEL: @foldNanIsNotNanWithFastmath
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldNanIsNotNanWithFastmath() -> i1 {
+  %cNan = arith.constant 0x7FFFFFFF : f32
+  %0 = arith.is_nan %cNan fastmath<nnan> : f32
+  func.return %0 : i1
+}
+
+
+// CHECK-LABEL: @foldIsNotNan
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldIsNotNan() -> i1 {
+  %cNan = arith.constant 1.0 : f32
+  %0 = arith.is_nan %cNan : f32
+  func.return %0 : i1
+}
+
+// CHECK-LABEL: @foldIsInfFastmath
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldIsInfFastmath(%arg0: f32) -> i1 {
+  %0 = arith.is_inf %arg0 fastmath <ninf> : f32
+  func.return %0 : i1
+}
+
+// CHECK-LABEL: @foldIsInf
+//      CHECK:   %[[TRUE:.+]] = arith.constant true
+//      CHECK:   return %[[TRUE]]
+func.func @foldIsInf() -> i1 {
+  %cInf = arith.constant 0x7F800000 : f32
+  %0 = arith.is_inf %cInf : f32
+  func.return %0 : i1
+}
+
+// CHECK-LABEL: @foldInfIsNotInfWithFastmath
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldInfIsNotInfWithFastmath() -> i1 {
+  %cInf = arith.constant 0x7F800000 : f32
+  %0 = arith.is_inf %cInf fastmath<ninf> : f32
+  func.return %0 : i1
+}
+
+
+// CHECK-LABEL: @foldIsNotInf
+//      CHECK:   %[[FALSE:.+]] = arith.constant false
+//      CHECK:   return %[[FALSE]]
+func.func @foldIsNotInf() -> i1 {
+  %cInf = arith.constant 1.0 : f32
+  %0 = arith.is_inf %cInf : f32
+  func.return %0 : i1
 }

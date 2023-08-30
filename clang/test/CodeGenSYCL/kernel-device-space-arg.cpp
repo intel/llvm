@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -opaque-pointers -emit-llvm %s -disable-llvm-passes -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -emit-llvm %s -disable-llvm-passes -o - | FileCheck %s
 
 // CHECK: define {{.*}}spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(5) {{.*}} ptr addrspace(6) {{.*}}
 

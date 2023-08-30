@@ -50,6 +50,12 @@ DEVICE_EXTERN_C
 lldiv_t __devicelib_lldiv(long long int x, long long int y);
 
 DEVICE_EXTERN_C
+double __devicelib_round(double x);
+
+DEVICE_EXTERN_C
+float __devicelib_roundf(float x);
+
+DEVICE_EXTERN_C
 double __devicelib_log(double x);
 
 DEVICE_EXTERN_C
