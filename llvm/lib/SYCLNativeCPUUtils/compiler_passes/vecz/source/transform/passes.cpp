@@ -86,7 +86,7 @@ PreservedAnalyses SimplifyMaskedMemOpsPass::run(Function &F,
   TargetInfo &VTI = Ctx.targetInfo();
   std::vector<Instruction *> ToDelete;
   for (Function &Builtin : F.getParent()->functions()) {
-    multi_llvm::Optional<MemOpDesc> BuiltinDesc =
+    std::optional<MemOpDesc> BuiltinDesc =
         MemOpDesc::analyzeMaskedMemOp(Builtin);
     if (!BuiltinDesc) {
       continue;

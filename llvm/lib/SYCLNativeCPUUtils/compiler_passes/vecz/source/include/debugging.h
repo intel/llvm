@@ -29,10 +29,10 @@
 #include <llvm/IR/PassManager.h>
 #include <llvm/IR/Value.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/optional_helper.h>
 
 #include <cstdlib>
 #include <memory>
+#include <optional>
 
 namespace vecz {
 
@@ -61,8 +61,8 @@ struct VeczFailResult {
   }
   /// @brief For functions that return an llvm::Optional
   template <typename T>
-  operator multi_llvm::Optional<T>() const {
-    return multi_llvm::None;
+  operator std::optional<T>() const {
+    return std::nullopt;
   }
 };
 

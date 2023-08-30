@@ -22,6 +22,7 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils/Local.h>
+#include <multi_llvm/llvm_version.h>
 
 #include "debugging.h"
 #include "transform/passes.h"
