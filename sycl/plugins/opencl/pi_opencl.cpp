@@ -1081,13 +1081,59 @@ pi_result piextCommandBufferMemBufferWriteRect(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
-pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
-                                    pi_queue Queue,
-                                    pi_uint32 NumEventsInWaitList,
-                                    const pi_event *EventWaitList,
-                                    pi_event *Event) {
-  return pi2ur::piextEnqueueCommandBuffer(
-      CommandBuffer, Queue, NumEventsInWaitList, EventWaitList, Event);
+pi_result
+piextCommandBufferMemBufferFill(pi_ext_command_buffer command_buffer,
+                                pi_mem buffer, const void *pattern,
+                                size_t pattern_size, size_t offset, size_t size,
+                                pi_uint32 num_sync_points_in_wait_list,
+                                const pi_ext_sync_point *sync_point_wait_list,
+                                pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)buffer;
+  (void)pattern;
+  (void)pattern_size;
+  (void)offset;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result
+piextCommandBufferFillUSM(pi_ext_command_buffer command_buffer, void *ptr,
+                          const void *pattern, size_t pattern_size, size_t size,
+                          pi_uint32 num_sync_points_in_wait_list,
+                          const pi_ext_sync_point *sync_point_wait_list,
+                          pi_ext_sync_point *sync_point) {
+  (void)command_buffer;
+  (void)ptr;
+  (void)pattern;
+  (void)pattern_size;
+  (void)size;
+  (void)num_sync_points_in_wait_list;
+  (void)sync_point_wait_list;
+  (void)sync_point;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
+}
+
+pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer command_buffer,
+                                    pi_queue queue,
+                                    pi_uint32 num_events_in_wait_list,
+                                    const pi_event *event_wait_list,
+                                    pi_event *event) {
+  (void)command_buffer;
+  (void)queue;
+  (void)num_events_in_wait_list;
+  (void)event_wait_list;
+  (void)event;
+
+  // Not implemented
+  return PI_ERROR_INVALID_OPERATION;
 }
 
 pi_result piextPluginGetOpaqueData(void *opaque_data_param,
