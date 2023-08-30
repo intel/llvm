@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/exception.hpp>
