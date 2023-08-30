@@ -16,6 +16,7 @@
 #include <sycl/memory_enums.hpp>              // for memory_scope
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for sub_group
+#include <sycl/aspects.hpp>
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t, true_type, dec...
@@ -30,7 +31,12 @@ template <size_t PartitionSize, typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
                         fixed_size_group<PartitionSize, Group>>
+#ifdef __SYCL_DEVICE_ONLY__
+get_fixed_size_group [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_non_uniform_groups)]] (Group group);
+#else
 get_fixed_size_group(Group group);
+#endif
 
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group {
 public:
@@ -158,11 +164,8 @@ get_fixed_size_group(Group group) {
   return fixed_size_group<PartitionSize, sycl::sub_group>(
       sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
           bits, loc_size));
-#elif defined(__SPIR__)
-  return fixed_size_group<PartitionSize, sycl::sub_group>();
 #else
-  static_assert(
-      false, "fixed_size_group is not currently supported on this platform.");
+  return fixed_size_group<PartitionSize, sycl::sub_group>();
 #endif
 #else
   throw runtime_error("Non-uniform groups are not supported on host device.",

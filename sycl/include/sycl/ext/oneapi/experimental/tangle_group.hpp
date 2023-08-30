@@ -16,6 +16,7 @@
 #include <sycl/memory_enums.hpp>              // for memory_scope
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for sub_group
+#include <sycl/aspects.hpp>
 
 #include <type_traits> // for enable_if_t, decay_t
 
@@ -29,7 +30,12 @@ template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
                         tangle_group<Group>>
+#ifdef __SYCL_DEVICE_ONLY__
+get_tangle_group [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_non_uniform_groups)]] (Group group);
+#else
 get_tangle_group(Group group);
+#endif
 
 template <typename ParentGroup> class tangle_group {
 public:
@@ -148,9 +154,6 @@ get_tangle_group(Group group) {
   return tangle_group<sycl::sub_group>(mask);
 #elif defined(__NVPTX__)
   // TODO: Construct from compiler-generated mask
-  static_assert(false,
-                "tangle_group is not currently supported on this platform.");
-#else
   static_assert(false,
                 "tangle_group is not currently supported on this platform.");
 #endif

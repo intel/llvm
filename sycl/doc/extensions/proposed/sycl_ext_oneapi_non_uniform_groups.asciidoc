@@ -99,6 +99,21 @@ implementation supports.
  feature-test macro always has this value.
 |===
 
+=== Extension to `enum class aspect`
+
+[source]
+----
+namespace sycl {
+enum class aspect {
+  ...
+  ext_oneapi_non_uniform_groups
+}
+}
+----
+
+If a SYCL device has the `ext_oneapi_non_uniform_groups` aspect,
+then it supports the non-uniform groups described in the next sections.
+
 === Control Flow
 
 The SYCL specification defines

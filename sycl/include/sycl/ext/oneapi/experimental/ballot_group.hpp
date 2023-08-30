@@ -17,6 +17,7 @@
 #include <sycl/memory_enums.hpp>              // for memory_scope
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for sub_group
+#include <sycl/aspects.hpp>
 
 #include <type_traits> // for enable_if_t, decay_t
 
@@ -30,7 +31,13 @@ template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
                         ballot_group<Group>>
+#ifdef __SYCL_DEVICE_ONLY__
+get_ballot_group [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_oneapi_non_uniform_groups)]] (Group group,
+                                                    bool predicate);
+#else
 get_ballot_group(Group group, bool predicate);
+#endif
 
 template <typename ParentGroup> class ballot_group {
 public:
@@ -151,9 +158,6 @@ get_ballot_group(Group group, bool predicate) {
   } else {
     return ballot_group<sycl::sub_group>(~mask, predicate);
   }
-#else
-  static_assert(false,
-                "ballot_group is not currently supported on this platform.");
 #endif
 #else
   (void)predicate;
