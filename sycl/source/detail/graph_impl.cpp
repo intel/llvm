@@ -12,6 +12,7 @@
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -71,6 +72,51 @@ bool checkForRequirement(sycl::detail::AccessorImplHost *Req,
   }
   return SuccessorAddedDep;
 }
+
+/// Visits a node on the graph and it's successors recursively in a depth-first
+/// approach.
+/// @param[in] Node The current node being visited.
+/// @param[in,out] VisitedNodes A set of unique nodes which have already been
+/// visited.
+/// @param[in] NodeStack Stack of nodes which are currently being visited on the
+/// current path through the graph.
+/// @param[in] NodeFunc The function object to be run on each node. A return
+/// value of true indicates the search should be ended immediately and the
+/// function will return.
+/// @return True if the search should end immediately, false if not.
+bool visitNodeDepthFirst(
+    std::shared_ptr<node_impl> Node,
+    std::set<std::shared_ptr<node_impl>> &VisitedNodes,
+    std::deque<std::shared_ptr<node_impl>> &NodeStack,
+    std::function<bool(std::shared_ptr<node_impl> &,
+                       std::deque<std::shared_ptr<node_impl>> &)>
+        NodeFunc) {
+  auto EarlyReturn = NodeFunc(Node, NodeStack);
+  if (EarlyReturn) {
+    return true;
+  }
+  NodeStack.push_back(Node);
+  Node->MVisited = true;
+  VisitedNodes.emplace(Node);
+  for (auto &Successor : Node->MSuccessors) {
+    if (visitNodeDepthFirst(Successor, VisitedNodes, NodeStack, NodeFunc)) {
+      return true;
+    }
+  }
+  NodeStack.pop_back();
+  return false;
+}
+
+void duplicateNode(const std::shared_ptr<node_impl> Node,
+                   std::shared_ptr<node_impl> &NodeCopy) {
+  if (Node->MCGType == sycl::detail::CG::None) {
+    NodeCopy = std::make_shared<node_impl>();
+    NodeCopy->MCGType = sycl::detail::CG::None;
+  } else {
+    NodeCopy = std::make_shared<node_impl>(Node->MCGType, Node->getCGCopy());
+  }
+}
+
 } // anonymous namespace
 
 void exec_graph_impl::schedule() {
@@ -81,7 +127,14 @@ void exec_graph_impl::schedule() {
   }
 }
 
-std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
+graph_impl::~graph_impl() {
+  clearQueues();
+  for (auto &MemObj : MMemObjs) {
+    MemObj->markNoLongerBeingUsedInGraph();
+  }
+}
+
+std::shared_ptr<node_impl> graph_impl::addNodesToExits(
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -102,6 +155,32 @@ std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
   }
 
   return this->add(Outputs);
+}
+
+std::shared_ptr<node_impl> graph_impl::addSubgraphNodes(
+    const std::shared_ptr<exec_graph_impl> &SubGraphExec) {
+  std::map<std::shared_ptr<node_impl>, std::shared_ptr<node_impl>> NodesMap;
+
+  std::list<std::shared_ptr<node_impl>> NodesList = SubGraphExec->getSchedule();
+  std::list<std::shared_ptr<node_impl>> NewNodesList{NodesList.size()};
+
+  // Duplication of nodes
+  for (auto NodeIt = NodesList.end(), NewNodesIt = NewNodesList.end();
+       NodeIt != NodesList.begin();) {
+    --NodeIt;
+    --NewNodesIt;
+    auto Node = *NodeIt;
+    std::shared_ptr<node_impl> NodeCopy;
+    duplicateNode(Node, NodeCopy);
+    *NewNodesIt = NodeCopy;
+    NodesMap.insert({Node, NodeCopy});
+    for (auto &NextNode : Node->MSuccessors) {
+      auto Successor = NodesMap.at(NextNode);
+      NodeCopy->registerSuccessor(Successor, NodeCopy);
+    }
+  }
+
+  return addNodesToExits(NewNodesList);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -178,7 +257,20 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
   // A unique set of dependencies obtained by checking requirements and events
   std::set<std::shared_ptr<node_impl>> UniqueDeps;
   const auto &Requirements = CommandGroup->getRequirements();
+  if (!MAllowBuffers && Requirements.size()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Cannot use buffers in a graph without passing the "
+                          "assume_buffer_outlives_graph property on "
+                          "Graph construction.");
+  }
+
   for (auto &Req : Requirements) {
+    // Track and mark the memory objects being used by the graph.
+    auto MemObj = static_cast<sycl::detail::SYCLMemObjT *>(Req->MSYCLMemObj);
+    bool WasInserted = MMemObjs.insert(MemObj).second;
+    if (WasInserted) {
+      MemObj->markBeingUsedInGraph();
+    }
     // Look through the graph for nodes which share this requirement
     for (auto &NodePtr : MRoots) {
       checkForRequirement(Req, NodePtr, UniqueDeps);
@@ -218,14 +310,109 @@ graph_impl::add(sycl::detail::CG::CGTYPE CGType,
 bool graph_impl::clearQueues() {
   bool AnyQueuesCleared = false;
   for (auto &Queue : MRecordingQueues) {
-    if (Queue) {
-      Queue->setCommandGraph(nullptr);
+    if (auto ValidQueue = Queue.lock(); ValidQueue) {
+      ValidQueue->setCommandGraph(nullptr);
       AnyQueuesCleared = true;
     }
   }
   MRecordingQueues.clear();
 
   return AnyQueuesCleared;
+}
+
+void graph_impl::searchDepthFirst(
+    std::function<bool(std::shared_ptr<node_impl> &,
+                       std::deque<std::shared_ptr<node_impl>> &)>
+        NodeFunc) {
+  // Track nodes visited during the search which can be used by NodeFunc in
+  // depth first search queries. Currently unusued but is an
+  // integral part of depth first searches.
+  std::set<std::shared_ptr<node_impl>> VisitedNodes;
+
+  for (auto &Root : MRoots) {
+    std::deque<std::shared_ptr<node_impl>> NodeStack;
+    if (visitNodeDepthFirst(Root, VisitedNodes, NodeStack, NodeFunc)) {
+      break;
+    }
+  }
+
+  // Reset the visited status of all nodes encountered in the search.
+  for (auto &Node : VisitedNodes) {
+    Node->MVisited = false;
+  }
+}
+
+bool graph_impl::checkForCycles() {
+  // Using a depth-first search and checking if we vist a node more than once in
+  // the current path to identify if there are cycles.
+  bool CycleFound = false;
+  auto CheckFunc = [&](std::shared_ptr<node_impl> &Node,
+                       std::deque<std::shared_ptr<node_impl>> &NodeStack) {
+    // If the current node has previously been found in the current path through
+    // the graph then we have a cycle and we end the search early.
+    if (std::find(NodeStack.begin(), NodeStack.end(), Node) !=
+        NodeStack.end()) {
+      CycleFound = true;
+      return true;
+    }
+    return false;
+  };
+  searchDepthFirst(CheckFunc);
+  return CycleFound;
+}
+
+void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
+                          std::shared_ptr<node_impl> Dest) {
+  throwIfGraphRecordingQueue("make_edge()");
+  if (Src == Dest) {
+    throw sycl::exception(
+        make_error_code(sycl::errc::invalid),
+        "make_edge() cannot be called when Src and Dest are the same.");
+  }
+
+  bool SrcFound = false;
+  bool DestFound = false;
+  auto CheckForNodes = [&](std::shared_ptr<node_impl> &Node,
+                           std::deque<std::shared_ptr<node_impl>> &) {
+    if (Node == Src) {
+      SrcFound = true;
+    }
+    if (Node == Dest) {
+      DestFound = true;
+    }
+    return SrcFound && DestFound;
+  };
+
+  searchDepthFirst(CheckForNodes);
+
+  if (!SrcFound) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Src must be a node inside the graph.");
+  }
+  if (!DestFound) {
+    throw sycl::exception(make_error_code(sycl::errc::invalid),
+                          "Dest must be a node inside the graph.");
+  }
+
+  // We need to add the edges first before checking for cycles
+  Src->registerSuccessor(Dest, Src);
+
+  // We can skip cycle checks if either Dest has no successors (cycle not
+  // possible) or cycle checks have been disabled with the no_cycle_check
+  // property;
+  if (Dest->MSuccessors.empty() || !MSkipCycleChecks) {
+    bool CycleFound = checkForCycles();
+
+    if (CycleFound) {
+      // Remove the added successor and predecessor
+      Src->MSuccessors.pop_back();
+      Dest->MPredecessors.pop_back();
+
+      throw sycl::exception(make_error_code(sycl::errc::invalid),
+                            "Command graphs cannot contain cycles.");
+    }
+  }
+  removeRoot(Dest); // remove receiver from root node list
 }
 
 // Check if nodes are empty and if so loop back through predecessors until we
@@ -313,6 +500,11 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
 
   // TODO extract kernel bundle logic from enqueueImpKernel
   for (const auto &Node : MSchedule) {
+    // Empty nodes are not processed as other nodes, but only their
+    // dependencies are propagated in findRealDeps
+    if (Node->isEmpty())
+      continue;
+
     sycl::detail::CG::CGTYPE type = Node->MCGType;
     // If the node is a kernel with no special requirements we can enqueue it
     // directly.
@@ -333,6 +525,11 @@ void exec_graph_impl::createCommandBuffers(sycl::device Device) {
     MRequirements.insert(MRequirements.end(),
                          Node->MCommandGroup->getRequirements().begin(),
                          Node->MCommandGroup->getRequirements().end());
+    // Also store the actual accessor to make sure they are kept alive when
+    // commands are submitted
+    MAccessors.insert(MAccessors.end(),
+                      Node->MCommandGroup->getAccStorage().begin(),
+                      Node->MCommandGroup->getAccStorage().end());
   }
 
   Res =
@@ -392,6 +589,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
     // handler.
     CGData.MRequirements.insert(CGData.MRequirements.end(),
                                 MRequirements.begin(), MRequirements.end());
+    CGData.MAccStorage.insert(CGData.MAccStorage.end(), MAccessors.begin(),
+                              MAccessors.end());
+
     // If we have no requirements or dependent events for the command buffer,
     // enqueue it directly
     if (CGData.MRequirements.empty() && CGData.MEvents.empty()) {
@@ -453,8 +653,9 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
               "Error during emulated graph command group submission.");
         }
         ScheduledEvents.push_back(NewEvent);
-      } else {
-
+      } else if (!NodeImpl->isEmpty()) {
+        // Empty nodes are node processed as other nodes, but only their
+        // dependencies are propagated in findRealDeps
         sycl::detail::EventImplPtr EventImpl =
             sycl::detail::Scheduler::getInstance().addCG(NodeImpl->getCGCopy(),
                                                          Queue);
@@ -478,10 +679,12 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
 
 modifiable_command_graph::modifiable_command_graph(
     const sycl::context &SyclContext, const sycl::device &SyclDevice,
-    const sycl::property_list &)
-    : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice)) {}
+    const sycl::property_list &PropList)
+    : impl(std::make_shared<detail::graph_impl>(SyclContext, SyclDevice,
+                                                PropList)) {}
 
 node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
+  impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
@@ -494,6 +697,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
 
 node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
                                        const std::vector<node> &Deps) {
+  impl->throwIfGraphRecordingQueue("Explicit API \"Add()\" function");
   std::vector<std::shared_ptr<detail::node_impl>> DepImpls;
   for (auto &D : Deps) {
     DepImpls.push_back(sycl::detail::getSyclObjImpl(D));
@@ -512,9 +716,7 @@ void modifiable_command_graph::make_edge(node &Src, node &Dest) {
       sycl::detail::getSyclObjImpl(Dest);
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  SenderImpl->registerSuccessor(ReceiverImpl,
-                                SenderImpl); // register successor
-  impl->removeRoot(ReceiverImpl); // remove receiver from root node list
+  impl->makeEdge(SenderImpl, ReceiverImpl);
 }
 
 command_graph<graph_state::executable>
@@ -628,7 +830,7 @@ void executable_command_graph::finalizeImpl() {
     bool CmdBufSupport =
         Device.get_info<
             ext::oneapi::experimental::info::device::graph_support>() ==
-        info::graph_support_level::native;
+        graph_support_level::native;
 
 #if FORCE_EMULATION_MODE
     // Above query should still succeed in emulation mode, but ignore the

@@ -1,5 +1,5 @@
-; RUN: llvm-link -opaque-pointers %s %p/Inputs/constructor-comdat.ll -S -o - 2>&1 | FileCheck %s
-; RUN: llvm-link -opaque-pointers %p/Inputs/constructor-comdat.ll %s -S -o - 2>&1 | FileCheck --check-prefix=NOCOMDAT %s
+; RUN: llvm-link %s %p/Inputs/constructor-comdat.ll -S -o - 2>&1 | FileCheck %s
+; RUN: llvm-link %p/Inputs/constructor-comdat.ll %s -S -o - 2>&1 | FileCheck --check-prefix=NOCOMDAT %s
 
 $_ZN3fooIiEC5Ev = comdat any
 ; CHECK: $_ZN3fooIiEC5Ev = comdat any
