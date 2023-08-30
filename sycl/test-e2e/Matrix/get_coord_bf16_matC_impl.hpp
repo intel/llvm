@@ -30,9 +30,9 @@ void matrix_sum_rows(big_matrix<T1, M, N> &C, float *sum_rows) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto v = sum_rows_v.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for(nd_range<2>({M / TM, N / TN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-         {
+     cgh.parallel_for(
+         nd_range<2>({M / TM, N / TN * SG_SZ}, {1, 1 * SG_SZ}),
+         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]] {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
            // code divergence between the workitems
@@ -61,15 +61,15 @@ void matrix_sum_rows(big_matrix<T1, M, N> &C, float *sum_rows) {
            }
 
            for (int i = 0; i < M; i++) {
-               sum_local_rows[i] = reduce_over_group(
-                   sg, sum_local_rows[i], sycl::plus<>());
-               // only Groups leader perform the global reduction
-               if (global_idy % SG_SZ == 0) {
-                 sycl::atomic_ref<float, sycl::memory_order::relaxed,
-                                  sycl::memory_scope::device>
-                     aref(v[i]);
-                 aref.fetch_add(sum_local_rows[i]);
-               }
+             sum_local_rows[i] =
+                 reduce_over_group(sg, sum_local_rows[i], sycl::plus<>());
+             // only Groups leader perform the global reduction
+             if (global_idy % SG_SZ == 0) {
+               sycl::atomic_ref<float, sycl::memory_order::relaxed,
+                                sycl::memory_scope::device>
+                   aref(v[i]);
+               aref.fetch_add(sum_local_rows[i]);
+             }
            }
          }); // parallel for
    }).wait();
@@ -85,7 +85,7 @@ int main() {
   float C[MATRIX_M][MATRIX_N];
   big_matrix<float, MATRIX_M, MATRIX_N> MC((float *)&C);
 
-  matrix_rand(MATRIX_M, MATRIX_N, (float*)&C, (float)100);
+  matrix_rand(MATRIX_M, MATRIX_N, (float *)&C, (float)100);
   matrix_sum_rows(MC, sum_rows);
 
   bool res = true;

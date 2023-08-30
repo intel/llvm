@@ -1,4 +1,4 @@
-//==----------- get_coord_bf16_matA_impl.hpp  - DPC++ joint_matrix---------==//
+//==----------- get_coord_int8_matA_impl.hpp  - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.

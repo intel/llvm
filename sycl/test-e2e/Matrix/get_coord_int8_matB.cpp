@@ -1,4 +1,4 @@
-//==----------- get_coord_bf16_gemm.cpp  - DPC++ joint_matrix---------==//
+//==----------- get_coord_int8_matB.cpp  - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -11,8 +11,8 @@
 // RUN: %{run} %t.out
 // XFAIL: cpu
 
-#include <iostream>
 #include "common.hpp"
+#include <iostream>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
@@ -20,4 +20,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 constexpr size_t SG_SZ = 16;
 constexpr size_t TN = 16;
 
-#include "get_coord_bf16_gemm_impl.hpp"
+#include "get_coord_int8_matB_impl.hpp"
