@@ -23,7 +23,7 @@ static cl::opt<TargetLibraryInfoImpl::AltMathLibrary> ClAltMathLibrary(
     cl::init(TargetLibraryInfoImpl::NoAltMathLibrary),
     cl::values(clEnumValN(TargetLibraryInfoImpl::NoAltMathLibrary, "none",
                           "No alternate math library"),
-               clEnumValN(TargetLibraryInfoImpl::SVMLAltMathLibrary, "altsvml",
+               clEnumValN(TargetLibraryInfoImpl::SVMLAltMathLibrary, "svml",
                           "Intel SVML library"),
                clEnumValN(TargetLibraryInfoImpl::TestAltMathLibrary, "test",
                           "Fake library used for testing")));
