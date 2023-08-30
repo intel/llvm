@@ -60,6 +60,8 @@ public:
 
   uint32_t getEventId() const noexcept { return EventId; }
 
+  bool backendHasOwnership() const noexcept { return HasOwnership; }
+
   // Returns the counter time when the associated command(s) were enqueued
   uint64_t getQueuedTime() const;
 
@@ -77,6 +79,11 @@ public:
                                   StreamToken);
   }
 
+  static ur_event_handle_t makeWithNative(ur_context_handle_t context,
+                                          hipEvent_t eventNative) {
+    return new ur_event_handle_t_(context, eventNative);
+  }
+
   ur_result_t release();
 
   ~ur_event_handle_t_();
@@ -88,9 +95,15 @@ private:
                      ur_queue_handle_t Queue, hipStream_t Stream,
                      uint32_t StreamToken);
 
+  // This constructor is private to force programmers to use the
+  // makeWithNative for event interop
+  ur_event_handle_t_(ur_context_handle_t Context, hipEvent_t EventNative);
+
   ur_command_t CommandType; // The type of command associated with event.
 
   std::atomic_uint32_t RefCount; // Event reference count.
+
+  bool HasOwnership; // Signifies if event owns the native type.
 
   bool HasBeenWaitedOn; // Signifies whether the event has been waited
                         // on through a call to wait(), which implies
