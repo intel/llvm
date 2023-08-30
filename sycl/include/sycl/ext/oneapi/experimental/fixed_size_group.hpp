@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
 #include <sycl/detail/type_traits.hpp> // for is_fixed_size_group, is_group
 #include <sycl/exception.hpp>          // for runtime_error
@@ -16,7 +17,6 @@
 #include <sycl/memory_enums.hpp>              // for memory_scope
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for sub_group
-#include <sycl/aspects.hpp>
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t, true_type, dec...
