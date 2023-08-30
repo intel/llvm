@@ -59,7 +59,7 @@ memref.global @global : memref<3xi64>
 
 // CHECK-LABEL:   llvm.func @get_global() -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global : !llvm.ptr
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.array<3 x i64>
 // CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr
 // CHECK-NEXT:    }
 
@@ -76,7 +76,7 @@ memref.global @global_addrspace : memref<3xi64, 4>
 
 // CHECK-LABEL:   llvm.func @get_global_addrspace() -> !llvm.ptr
 // CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global_addrspace : !llvm.ptr<4>
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<4>) -> !llvm.ptr<4>, i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<4>) -> !llvm.ptr<4>, !llvm.array<3 x i64>
 // CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr<4>
 // CHECK-NEXT:    }
 
@@ -93,7 +93,7 @@ memref.global @global_sycl_addrspace : memref<3xi64, #sycl.access.address_space<
 
 // CHECK-LABEL:   llvm.func @get_global_sycl_addrspace() -> !llvm.ptr<1>
 // CHECK-NEXT:      %[[VAL_0:.*]] = llvm.mlir.addressof @global_sycl_addrspace : !llvm.ptr<1>
-// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<1>) -> !llvm.ptr<1>, i64
+// CHECK-NEXT:      %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 0] : (!llvm.ptr<1>) -> !llvm.ptr<1>, !llvm.array<3 x i64>
 // CHECK-NEXT:      llvm.return %[[VAL_1]] : !llvm.ptr<1>
 // CHECK-NEXT:    }
 

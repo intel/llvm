@@ -21,6 +21,24 @@ using namespace mlir;
 using namespace mlir::polygeist;
 
 namespace {
+/// Returns the LLVM type of the global variable given the memref type `type`.
+///
+/// Copied from `mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp`
+static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
+                                          LLVMTypeConverter &typeConverter) {
+  // LLVM type for a global memref will be a multi-dimension array. For
+  // declarations or uninitialized global memrefs, we can potentially flatten
+  // this to a 1D array. However, for memref.global's with an initial value,
+  // we do not intend to flatten the ElementsAttribute when going from std ->
+  // LLVM dialect, so the LLVM type needs to me a multi-dimension array.
+  Type elementType = typeConverter.convertType(type.getElementType());
+  Type arrayTy = elementType;
+  // Shape has the outermost dim at index 0, so need to walk it backwards
+  for (int64_t dim : llvm::reverse(type.getShape()))
+    arrayTy = LLVM::LLVMArrayType::get(arrayTy, dim);
+  return arrayTy;
+}
+
 /// Conversion similar to the canonical one, but not inserting the obtained
 /// pointer in a struct.
 struct GetGlobalMemrefOpLowering
@@ -56,9 +74,10 @@ struct GetGlobalMemrefOpLowering
 
     // Get the address of the first element in the array by creating a GEP with
     // the address of the GV as the base, and (rank + 1) number of 0 indices.
+    Type arrayTy = convertGlobalMemrefTypeToLLVM(memrefTy, *getTypeConverter());
     rewriter.replaceOpWithNewOp<LLVM::GEPOp>(
-        getGlobalOp, typeConverter->convertType(memrefTy), convElemType,
-        addressOf, SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0),
+        getGlobalOp, typeConverter->convertType(memrefTy), arrayTy, addressOf,
+        SmallVector<LLVM::GEPArg>(memrefTy.getRank() + 1, 0),
         /* inbounds */ true);
 
     return success();
