@@ -37,7 +37,6 @@
 #include <multi_llvm/creation_apis_helper.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <memory>
@@ -2123,8 +2122,6 @@ ValuePacket Packetizer::Impl::packetizeGEP(GetElementPtrInst *GEP) {
 
   // Work out the packet width from the pointed to type, rather than the
   // pointer type itself, because this is the width the memops will be using.
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(pointer->getType()), GEP->getSourceElementType()));
   auto *const ty = GEP->getSourceElementType();
   auto const packetWidth = getPacketWidthForType(ty);
 

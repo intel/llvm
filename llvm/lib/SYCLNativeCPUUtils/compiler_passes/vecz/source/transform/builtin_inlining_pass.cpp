@@ -22,7 +22,6 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/AlwaysInliner.h>
-#include <multi_llvm/opaque_pointers.h>
 
 #include "analysis/vectorization_unit_analysis.h"
 #include "debugging.h"

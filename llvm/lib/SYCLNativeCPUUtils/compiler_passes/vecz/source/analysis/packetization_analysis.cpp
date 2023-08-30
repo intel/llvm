@@ -21,7 +21,6 @@
 #include <llvm/IR/IntrinsicInst.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/Debug.h>
-#include <multi_llvm/opaque_pointers.h>
 
 #include "analysis/stride_analysis.h"
 #include "analysis/uniform_value_analysis.h"
@@ -120,9 +119,6 @@ void PacketizationAnalysisResult::markForPacketization(Value *V) {
       if (hasValidStride) {
         // Get the pointer stride as a number of elements
         auto *const eltTy = mo->getDataType();
-        assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-                   cast<PointerType>(ptr->getType()), eltTy) &&
-               "MemOp assumption broken");
         if (eltTy->isVectorTy() || eltTy->isPointerTy()) {
           // No interleaved memops exist for vector element types or pointer
           // types. We can only vectorize pointer loads/stores or widen vector

@@ -20,7 +20,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/optional_helper.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -36,13 +35,10 @@ using namespace llvm;
 static std::string getMaskedMemOpName(Type *DataTy, PointerType *PtrTy,
                                       Type *MaskTy, unsigned Alignment,
                                       bool IsLoad, bool IsVP) {
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, DataTy) &&
-         "Invalid masked memory operation");
   if (!DataTy) {
     return std::string();
   }
   compiler::utils::NameMangler Mangler(&DataTy->getContext());
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, DataTy));
   const char *BaseName = IsLoad ? "masked_load" : "masked_store";
   compiler::utils::TypeQualifiers DataQuals(compiler::utils::eTypeQualNone);
   compiler::utils::TypeQualifiers PtrQuals(compiler::utils::eTypeQualNone,
@@ -75,8 +71,6 @@ Function *vecz::getOrCreateMaskedMemOpFn(VectorizationContext &Ctx,
                                          Type *DataTy, PointerType *PtrTy,
                                          unsigned Alignment, bool IsLoad,
                                          bool IsVP) {
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, DataTy) &&
-         "Invalid masked memory operation");
   Module &M = Ctx.module();
   LLVMContext &LLVMCtx = M.getContext();
   Type *MaskTy = IntegerType::getInt1Ty(LLVMCtx);
@@ -121,8 +115,6 @@ static CallInst *createMaskedMemOp(VectorizationContext &Ctx, Value *Data,
   if (Ptr->getType() != PtrTy) {
     Ptr = BitCastInst::CreatePointerCast(Ptr, PtrTy, "", InsertBefore);
   }
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(cast<PointerType>(PtrTy),
-                                                  DataTy));
   Function *F =
       getOrCreateMaskedMemOpFn(Ctx, DataTy, PtrTy, Alignment,
                                /*IsLoad*/ Data == nullptr, EVL != nullptr);
@@ -159,9 +151,6 @@ static std::string getInterleavedMemOpName(Type *DataTy, PointerType *PtrTy,
                                            Value *Stride, Type *MaskTy,
                                            unsigned Alignment, bool IsLoad,
                                            bool IsVP) {
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy,
-                                                  DataTy->getScalarType()) &&
-         "Invalid masked memory operation");
   if (!DataTy) {
     return std::string();
   }
@@ -213,8 +202,6 @@ Function *vecz::getOrCreateInterleavedMemOpFn(VectorizationContext &Ctx,
                                               Value *Stride, Type *MaskTy,
                                               unsigned Alignment, bool IsLoad,
                                               bool IsVP) {
-  assert(
-      multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, DataTy->getScalarType()));
   Module &M = Ctx.module();
   LLVMContext &LLVMCtx = M.getContext();
 
@@ -261,8 +248,6 @@ static CallInst *createInterleavedMemOp(VectorizationContext &Ctx, Value *Data,
   if (Ptr->getType() != PtrTy) {
     Ptr = BitCastInst::CreatePointerCast(Ptr, PtrTy, "", InsertBefore);
   }
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(cast<PointerType>(PtrTy),
-                                                  DataTy->getScalarType()));
   Type *MaskTy = Mask ? Mask->getType() : nullptr;
   Function *F = getOrCreateInterleavedMemOpFn(
       Ctx, DataTy, PtrTy, Stride, MaskTy, Alignment,
@@ -391,9 +376,6 @@ static CallInst *createScatterGatherMemOp(VectorizationContext &Ctx,
   VECZ_FAIL_IF(!DataTy);
   VECZ_FAIL_IF(!VecPtr || !VecPtr->getType()->isVectorTy() ||
                !VecPtr->getType()->getScalarType()->isPointerTy());
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(VecPtr->getType()->getScalarType()),
-      DataTy->getScalarType()));
   Type *MaskTy = Mask ? Mask->getType() : nullptr;
   Function *F = getOrCreateScatterGatherMemOpFn(
       Ctx, DataTy, cast<VectorType>(VecPtr->getType()), MaskTy, Alignment,

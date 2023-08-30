@@ -17,7 +17,6 @@
 #include "analysis/instantiation_analysis.h"
 
 #include <compiler/utils/builtin_info.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "analysis/uniform_value_analysis.h"
@@ -37,10 +36,7 @@ bool analyzeType(Type *Ty) {
 }
 
 bool analyzeMemOp(MemOp &Op) {
-  assert(isa<PointerType>(Op.getPointerType()) &&
-         multi_llvm::isOpaqueOrPointeeTypeMatches(
-             cast<PointerType>(Op.getPointerType()), Op.getDataType()) &&
-         "MemOp inconsistency");
+  assert(Op.getPointerType()->isPointerTy() && "MemOp inconsistency");
   return analyzeType(Op.getDataType());
 }
 

@@ -23,7 +23,6 @@
 #include <llvm/IR/Attributes.h>
 #include <llvm/Target/TargetMachine.h>
 #include <multi_llvm/creation_apis_helper.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <algorithm>
@@ -472,8 +471,6 @@ bool VectorizationContext::emitMaskedMemOpBody(Function &F,
   Value *Mask = Desc.getMaskOperand(&F);
   Value *VL = Desc.isVLOp() ? Desc.getVLOperand(&F) : nullptr;
   Type *DataTy = Desc.isLoad() ? F.getReturnType() : Data->getType();
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(Ptr->getType()), DataTy));
 
   BasicBlock *Entry = BasicBlock::Create(F.getContext(), "entry", &F);
   IRBuilder<> B(Entry);

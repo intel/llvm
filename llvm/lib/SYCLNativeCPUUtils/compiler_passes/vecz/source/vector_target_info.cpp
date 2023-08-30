@@ -20,7 +20,6 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Target/TargetMachine.h>
 #include <multi_llvm/creation_apis_helper.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/triple.h>
 #include <multi_llvm/vector_type_helper.h>
 
@@ -433,8 +432,6 @@ Value *TargetInfo::createMaskedInterleavedLoad(IRBuilder<> &B, Type *Ty,
                                                unsigned Alignment) const {
   // We only support scalar pointer types
   assert(!Ptr->getType()->isVectorTy() && "Unsupported interleaved load");
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(Ptr->getType()), Ty->getScalarType()));
 
   auto EC = multi_llvm::getVectorElementCount(Ty);
   Value *BroadcastAddr = B.CreateVectorSplat(EC, Ptr, "BroadcastAddr");
@@ -457,8 +454,6 @@ Value *TargetInfo::createMaskedInterleavedStore(IRBuilder<> &B, Value *Data,
                                                 unsigned Alignment) const {
   // We only support scalar pointer types
   assert(!Ptr->getType()->isVectorTy() && "Unsupported interleaved store");
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(Ptr->getType()), Data->getType()->getScalarType()));
   auto EC = multi_llvm::getVectorElementCount(Data->getType());
   Value *BroadcastAddr = B.CreateVectorSplat(EC, Ptr, "BroadcastAddr");
   Value *StrideSplat = B.CreateVectorSplat(EC, Stride);
@@ -1097,8 +1092,6 @@ bool TargetInfo::optimizeInterleavedGroup(IRBuilder<> &B,
   unsigned SimdWidth = VecWidth.getFixedValue();
 
   Type *EleTy = VecTy->getElementType();
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, EleTy) &&
-         "Unhandled interleaved accesses");
   unsigned Align = EleTy->getScalarSizeInBits() / 8;
 
   bool HasMask =

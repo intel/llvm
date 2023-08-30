@@ -22,7 +22,6 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Transforms/Utils/Local.h>
-#include <multi_llvm/opaque_pointers.h>
 
 #include "analysis/uniform_value_analysis.h"
 #include "analysis/vectorization_unit_analysis.h"
@@ -303,9 +302,6 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
         Value *Base = Group.Base;
         if (Kind == eInterleavedLoad && Group.Offset != 0) {
           auto *EltTy = Group.Info.front().DataTy->getScalarType();
-          assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-                     cast<PointerType>(Base->getType()), EltTy) &&
-                 "Unhandled interleaved access");
           // if it's a Load group that was out of order, we have to use the
           // sequentially first GEP in order to preserve use-def ordering,
           // which means we have to offset it with an additional GEP and
@@ -397,8 +393,6 @@ bool InterleavedGroupCombinePass::findGroup(
     }
 
     Type *EleTy = DataType0->getScalarType();
-    assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, EleTy) &&
-           "Unhandled interleaved accesses");
     unsigned Align = EleTy->getScalarSizeInBits() / 8;
     assert(Align != 0 &&
            "interleaved memory operation with zero-sized elements");
