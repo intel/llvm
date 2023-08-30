@@ -69,7 +69,7 @@ jobs:
       ref: sycl-mlir
       build_cache_rot: /__w/
       build_sycl_impl: LLVM-MLIR
-      build_benchmarks_list: "[2mm]"
+      build_benchmarks_list: 2mm
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_decompress_command: unzstd
       artifact_archive_name: sycl_bench-mlir.tar.zst
@@ -82,7 +82,7 @@ jobs:
       ref: sycl-mlir
       build_cache_rot: /__w/
       build_sycl_impl: LLVM
-      build_benchmarks_list: "[2mm]"
+      build_benchmarks_list: 2mm
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_decompress_command: unzstd
       artifact_archive_name: sycl_bench-mlir.tar.zst
