@@ -68,14 +68,17 @@ jobs:
       CCACHE_MAXSIZE: 8G
     steps:
       - name: Download SYCL toolchain
+        id: download
         uses: actions/download-artifact@v3
         with:
           name: ${{ inputs.sycl_toolchain_artifact }}
       - name: Extract/Setup SYCL toolchain
         run: |
           mkdir toolchain
-          tar -I '${{ inputs.sycl_toolchain_decompress_command }}' -xf ${{ inputs.sycl_toolchain_archive }} -C toolchain
-          rm -f ${{ inputs.sycl_toolchain_archive }}
+          tar -I '${{ inputs.sycl_toolchain_decompress_command }}' \
+            -xvf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
+            -C toolchain
+          rm -f ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }}
           echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
           echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
           which clang++ sycl-ls
