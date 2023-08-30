@@ -300,7 +300,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     SmallVector<Instruction*> ToRemove;
     for (auto &Use : Glob->uses()) {
       auto I = dyn_cast<CallInst>(Use.getUser());
-      //todo error check
+      if(!I)
+        report_fatal_error("Unsupported Value in SYCL Native CPU\n");
       if(I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
         report_fatal_error("SYCL Native CPU currently doesn't support unlined functions, try increasing the inlining threshold");
       auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()), Entry.second.second);
