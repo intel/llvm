@@ -185,6 +185,16 @@ struct ur_exp_command_buffer_handle_t_ {
     return NextSyncPoint;
   }
 
+  // Helper to register next sync point
+  // @param CuNode Node to register as next sycn point
+  // @return Pointer to the sync that registers the Node
+  ur_exp_command_buffer_sync_point_t
+  AddSyncPoint(std::shared_ptr<CUgraphNode> CuNode) {
+    ur_exp_command_buffer_sync_point_t SyncPoint = NextSyncPoint;
+    RegisterSyncPoint(SyncPoint, CuNode);
+    return SyncPoint;
+  }
+
   // UR context associated with this command-buffer
   ur_context_handle_t Context;
   // Device associated with this command buffer
