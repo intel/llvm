@@ -14,6 +14,7 @@
 #include <cstdint>     // for uint16_t
 #include <iosfwd>      // for nullptr_t
 #include <type_traits> // for true_type
+#include <string_view> // for string_view
 
 namespace sycl {
 inline namespace _V1 {
@@ -30,8 +31,7 @@ using property_value =
     sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
 // Property definitions
-// Artem: make sure we can create a "any" resource
-enum class resource_enum : std::uint16_t { mlab, block_ram };
+enum class resource_enum : std::uint16_t { mlab, block_ram, any };
 
 struct resource_key {
   template <resource_enum Resource>
@@ -118,6 +118,7 @@ template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
 inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
 inline constexpr resource_key::value_t<resource_enum::block_ram>
     resource_block_ram;
+inline constexpr resource_key::value_t<resource_enum::any> resource_any;
 
 template <size_t e> inline constexpr num_banks_key::value_t<e> num_banks;
 
@@ -230,11 +231,20 @@ template <> struct IsCompileTimeProperty<ram_stitching_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<max_private_copies_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<num_replicates_key> : std::true_type {};
 
+constexpr const char* ResourceToString (resource_enum Value) {
+  switch (Value) {
+    case resource_enum::mlab: return "mlab"; 
+    case resource_enum::block_ram: return "block_ram"; 
+    case resource_enum::any: return ""; 
+    default: assert(false && "Unreachable");
+  }
+}
+
 // Map Property to MetaInfo
 template <resource_enum Value>
 struct PropertyMetaInfo<resource_key::value_t<Value>> {
   static constexpr const char *name = "sycl-resource";
-  static constexpr resource_enum value = Value;
+  static constexpr const char *value = ResourceToString(Value);
 };
 template <size_t Value>
 struct PropertyMetaInfo<num_banks_key::value_t<Value>> {
@@ -253,18 +263,21 @@ struct PropertyMetaInfo<word_size_key::value_t<Value>> {
 };
 template <bool Value>
 struct PropertyMetaInfo<bi_directional_ports_key::value_t<Value>> {
-  static constexpr const char *name = "sycl-bi-directional-ports";
-  static constexpr bool value = Value;
+  // historical uglyness: single property maps to different SPIRV decorations 
+  static constexpr const char *name = (Value?"sycl-bi-directional-ports-true":"sycl-bi-directional-ports-false");
+  static constexpr bool value = true;
 };
 template <bool Value>
 struct PropertyMetaInfo<clock_2x_key::value_t<Value>> {
-  static constexpr const char *name = "sycl-clock-2x";
-  static constexpr bool value = Value;
+  // historical uglyness: single property maps to different SPIRV decorations 
+  static constexpr const char *name = (Value?"sycl-clock-2x-true":"sycl-clock-2x-false");
+  static constexpr bool value = true;
 };
 template <ram_stitching_enum Value>
 struct PropertyMetaInfo<ram_stitching_key::value_t<Value>> {
   static constexpr const char *name = "sycl-ram-stitching";
-  static constexpr ram_stitching_enum value = Value;
+  // enum to bool conversion to match with the SPIR-V decoration ForcePow2DepthINTEL
+  static constexpr bool value = (Value==ram_stitching_enum::max_fmax);
 };
 template <size_t Value>
 struct PropertyMetaInfo<max_private_copies_key::value_t<Value>> {
