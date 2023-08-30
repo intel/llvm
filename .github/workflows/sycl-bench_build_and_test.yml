@@ -67,8 +67,6 @@ jobs:
       CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
       CCACHE_MAXSIZE: 8G
     steps:
-      - name: Install Ninja
-        uses: llvm/actions/install-ninja@main
       - name: Download SYCL toolchain [workflow_call]
         uses: actions/github-script@v6
         with:
