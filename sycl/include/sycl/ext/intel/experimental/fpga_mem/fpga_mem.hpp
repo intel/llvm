@@ -42,26 +42,10 @@ protected:
       ;
 
   T *get_ptr() noexcept {
-// Artem: Shouldn't be needed
-#ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_intel_sycl_ptr_annotation(
-        &val, ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...);
-#else
-    return &val;
-#endif     
-    // return &val; 
+    return &val; 
   }
   const T *get_ptr() const noexcept { 
-// Artem: Shouldn't be needed
-#ifdef __SYCL_DEVICE_ONLY__
-    return __builtin_intel_sycl_ptr_annotation(
-        &val, ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-        ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...);
-#else
     return &val;
-#endif 
-    // return &val;
   }
 
 public:
