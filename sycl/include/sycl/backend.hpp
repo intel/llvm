@@ -214,6 +214,7 @@ get_native<backend::ext_oneapi_cuda, device>(const device &Obj) {
       Obj.getNative());
 }
 
+#ifndef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 template <>
 __SYCL_DEPRECATED(
     "Context interop is deprecated for CUDA. If a native context is required,"
@@ -246,6 +247,7 @@ inline backend_return_t<backend::ext_oneapi_cuda, context> interop_handle::
 #endif // __SYCL_DEVICE_ONLY__
 }
 
+#endif // SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 #endif // SYCL_EXT_ONEAPI_BACKEND_CUDA
 
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
