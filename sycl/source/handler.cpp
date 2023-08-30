@@ -223,7 +223,7 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+    if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
         !MQueue->is_in_fusion_mode() &&
         CGData.MRequirements.size() + CGData.MEvents.size() +
                 MStreamStorage.size() ==
@@ -424,7 +424,7 @@ event handler::finalize() {
     // Empty nodes are handled by Graph like standard nodes
     // For Standard mode (non-graph),
     // empty nodes are not sent to the scheduler to save time
-    if (MGraph || MQueue->getCommandGraph()) {
+    if (MGraph || (MQueue && MQueue->getCommandGraph())) {
       CommandGroup.reset(
           new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
     } else {
@@ -455,6 +455,11 @@ event handler::finalize() {
     auto EventImpl = std::make_shared<detail::event_impl>();
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
+
+    // GraphImpl is read and written in this scope so we lock this graph
+    // with full priviledges.
+    ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+        GraphImpl->MMutex);
 
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
@@ -497,6 +502,13 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  if (getCommandGraph() &&
+      static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
+          ->needsWriteBack()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Accessors to buffers which have write_back enabled "
+                          "are not allowed to be used in command graphs.");
+  }
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
@@ -1332,6 +1344,10 @@ void handler::ext_oneapi_graph(
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
   auto GraphImpl = detail::getSyclObjImpl(Graph);
+  // GraphImpl is only read in this scope so we lock this graph for read only
+  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
+      GraphImpl->MMutex);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
   if (MQueue) {
     ParentGraph = MQueue->getCommandGraph();
@@ -1339,11 +1355,22 @@ void handler::ext_oneapi_graph(
     ParentGraph = MGraph;
   }
 
+  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
   // If a parent graph is set that means we are adding or recording a subgraph
   if (ParentGraph) {
+    // ParentGraph is read and written in this scope so we lock this graph
+    // with full priviledges.
+    // We only lock for Record&Replay API because the graph has already been
+    // lock if this function was called from the explicit API function add
+    if (MQueue) {
+      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+          ParentGraph->MMutex);
+    }
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+    // The nodes of the subgraph are duplicated when added to its parents.
+    // This avoids changing properties of the graph added as a subgraph.
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.
