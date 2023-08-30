@@ -7642,8 +7642,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.addOptInFlag(CmdArgs, options::OPT_frelaxed_template_template_args,
                     options::OPT_fno_relaxed_template_template_args);
 
-  // -fsized-deallocation is off by default, as it is an ABI-breaking change for
-  // most platforms.
+  // -fsized-deallocation is on by default in C++14 onwards and otherwise off
+  // by default.
   Args.addOptInFlag(CmdArgs, options::OPT_fsized_deallocation,
                     options::OPT_fno_sized_deallocation);
 
@@ -10312,6 +10312,14 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
     if (!A->getOption().matches(options::OPT_g0))
       CmdArgs.push_back("--device-debug");
+  }
+
+  // code-object-version=X needs to be passed to clang-linker-wrapper to ensure
+  // that it is used by lld.
+  if (const Arg *A = Args.getLastArg(options::OPT_mcode_object_version_EQ)) {
+    CmdArgs.push_back(Args.MakeArgString("-mllvm"));
+    CmdArgs.push_back(Args.MakeArgString(
+        Twine("--amdhsa-code-object-version=") + A->getValue()));
   }
 
   for (const auto &A : Args.getAllArgValues(options::OPT_Xcuda_ptxas))
