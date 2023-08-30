@@ -9,6 +9,7 @@
 :encoding: utf-8
 :lang: en
 :sectnums:
+:dpcpp: pass:[DPC++]
 
 :blank: pass:[ +]
 
@@ -62,11 +63,12 @@ SYCL specification refer to that revision.
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Introduction
 
@@ -305,6 +307,12 @@ enum class queue_state {
   recording
 };
 
+enum class graph_support_level {
+  unsupported,
+  native,
+  emulated
+};
+
 namespace property {
 
 namespace graph {
@@ -314,9 +322,9 @@ class no_cycle_check {
     no_cycle_check() = default;
 };
 
-class no_host_copy {
-public:
-  no_host_copy() = default;
+class assume_buffer_outlives_graph {
+  public:
+    assume_buffer_outlives_graph() = default;
 };
 } // namespace graph
 
@@ -338,12 +346,6 @@ namespace device {
 struct graphs_support;
 
 } // namespace device
-
-enum class graph_support_level {
-  unsupported,
-  native,
-  emulated
-};
 } // namespace info
 
 class node {};
@@ -386,7 +388,6 @@ template<>
 class command_graph<graph_state::executable> {
 public:
     command_graph() = delete;
-    void update(const command_graph<graph_state::modifiable>& graph);
 };
 }  // namespace ext::oneapi::experimental
 
@@ -419,9 +420,9 @@ public:
 === Device Info Query
 
 Due to the experimental nature of the extension, support is not available across
-all devices. The following device support query is added to report devices which
+all devices. The following device support query is added to the
+`sycl::ext::oneapi::experimental` namespace for reporting devices which are
 are currently supported, and how that support is implemented.
-
 
 Table {counter: tableNumber}. Device Info Queries.
 [%header]
@@ -429,7 +430,7 @@ Table {counter: tableNumber}. Device Info Queries.
 | Device Descriptors | Return Type | Description
 
 |`info::device::graph_support`
-|`info::device::graph_support_level`
+|`graph_support_level`
 |When passed to `device::get_info<...>()`, the function returns `native`
 if there is an underlying SYCL backend command-buffer construct which is used
 to propagate the graph to the backend. If no backend construct exists, or
@@ -444,8 +445,8 @@ support using this graph extension.
 
 :crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
 
-Node is a class that encapsulates tasks like SYCL kernel functions, memory
-operations, or host tasks for deferred execution. A graph must
+Node is a class that encapsulates tasks like SYCL kernel functions, or memory
+operations for deferred execution. A graph must
 be created first, the structure of a graph is defined second by adding nodes and
 edges.
 
@@ -469,7 +470,7 @@ node.
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental::property::node
+namespace sycl::ext::oneapi::experimental::property::node {
 class depends_on {
   public:
     template<typename... NodeTN>
@@ -522,19 +523,6 @@ graph LR
 
 ==== Graph Properties [[graph-properties]]
 
-===== No-Host-Copy Property
-
-The `no_host_copy` property is defined by this extension and can be passed to
-either the `command_graph` constructor or the `command_graph::begin_recording()`
-member function. This property will disable the host data copy that may
-occur as detailed in the <<storage-lifetimes, storage lifetimes>> section of
-this specification.
-
-Passing this property represents a promise from the user that host data
-associated with a buffer that was created using a host data pointer will
-outlive any executable graphs created from a modifiable graph which uses
-that buffer.
-
 ===== No-Cycle-Check Property
 
 The `property::graph::no_cycle_check` property disables any checks if a newly
@@ -547,15 +535,15 @@ puts that `command_graph` into an undefined state. Any further operations
 performed on a `command_graph` in this state will result in undefined
 behavior.
 
-==== Executable Graph Update
+===== Assume-Buffer-Outlives-Graph Property [[assume-buffer-outlives-graph-property]]
 
-A graph in the executable state can have each nodes inputs & outputs updated
-using the `command_graph::update()` method. This takes a graph in the
-modifiable state and updates the executable graph to use the node input &
-outputs of the modifiable graph, a technique called _Whole Graph Update_. The
-modifiable graph must have the same topology as the graph originally used to
-create the executable graphs, with the nodes targeting the same devices and
-added in the same order.
+The `property::graph::assume_buffer_outlives_graph` property disables
+<<buffer-limitations, restrictions on using buffers>> in a `command_graph` and
+can be passed to a `command_graph` on construction via the property list
+parameter. This property represents a promise from the user that any buffer
+which is used in a graph will be kept alive on the host for the lifetime of the
+graph. Destroying that buffer during the lifetime of a `command_graph`
+constructed with this property results in undefined behavior.
 
 ==== Graph Member Functions
 
@@ -599,6 +587,9 @@ associated with `syclContext`.
 
 * Throws synchronously with error code `invalid` if `syclDevice`
   <<device-info-query, reports this extension as unsupported>>.
+
+* Throws synchronously with error code `invalid` if the backend associated
+with `syclDevice` is not supported.
 
 |===
 
@@ -646,7 +637,7 @@ group function passed to `queue::submit` unless explicitly stated otherwise in
 <<extension-interaction, Interaction With Other Extensions>>. Code in the
 function is executed synchronously, before the function returns back to
 `command_graph::add`, with the exception of any SYCL commands (e.g. kernels,
-host tasks, or explicit memory copy operations). These commands are captured
+or explicit memory copy operations). These commands are captured
 into the graph and executed asynchronously when the graph is submitted to a
 queue. The requisites of `cgf` will be used to identify any dependent nodes in
 the graph to form edges with.
@@ -670,6 +661,12 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
+
+* Throws synchronously with error code `invalid` if the graph wasn't created with
+  the `property::graph::assume_buffer_outlives_graph` property and this command
+  uses a buffer. See the
+  <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+  property for more information.
 
 |
 [source,c++]
@@ -855,72 +852,6 @@ Exceptions:
 * Throws synchronously with error code `invalid` if any queue in
   `recordingQueues` is recording to a different graph.
 
-|===
-
-:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
-
-Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
-[cols="2a,a"]
-|===
-|Member function|Description
-
-|
-[source, c++]
-----
-void
-update(const command_graph<graph_state::modifiable>& graph);
-----
-
-
-|Updates the executable graph node inputs & outputs from a topologically
-identical modifiable graph. A topologically identical graph is one with the
-same structure of nodes and edges, and the nodes added in the same order to
-both graphs. Equivalent nodes in topologically identical graphs each have the
-same command, targeting the same device. There is the additional limitation that
-to update an executable graph, every node in the graph must be either a kernel
-command or a host task.
-
-The only characteristic that can differ between two topologically identical
-graphs during an update are the arguments to kernel nodes. For example,
-the graph may capture different values for the USM pointers or accessors used
-in the graph. It is these kernels arguments in `graph` that constitute the
-inputs & outputs to update to.
-
-Differences in the following characteristics between two graphs during an
-update results in undefined behavior:
-
-* Modifying the native C++ callable of a `host task` node.
-* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
-
-The effects of the update will be visible on the next submission of the
-executable graph without the need for additional user synchronization.
-
-Preconditions:
-
-* This member function is only available when the `command_graph` state is
-  `graph_state::executable`.
-
-Parameters:
-
-* `graph` - Modifiable graph object to update graph node inputs & outputs with.
-  This graph must have the same topology as the original graph used on
-  executable graph creation.
-
-Exceptions:
-
-* Throws synchronously with error code `invalid` if the topology of `graph` is
-  not the same as the existing graph topology, or if the nodes were not added in
-  the same order.
-
-:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
-
-* Throws synchronously with error code `invalid` if `graph` contains any node
-  which is not a kernel command or host task, e.g.
-  {handler-copy-functions}[memory operations].
-
-* Throws synchronously with error code `invalid` if the context or device
-  associated with `graph` does not match that of the `command_graph` being
-  updated.
 |===
 
 === Queue Class Modifications
@@ -1117,77 +1048,14 @@ As a result, users don't need to manually wrap queue recording code in a
 back to the executing state. Instead, an uncaught exception destroying the
 modifiable graph will perform this action, useful in RAII pattern usage.
 
-=== Storage Lifetimes [[storage-lifetimes]]
-
-The lifetime of any buffer recorded as part of a submission
-to a command graph will be extended in keeping with the common reference
-semantics and buffer synchronization rules in the SYCL specification. It will be
-extended either for the lifetime of the graph (including both modifiable graphs
-and the executable graphs created from them) or until the buffer is no longer
-required by the graph (such as after being replaced through executable graph update).
-
-If a buffer created with a host data pointer is recorded as part of a submission to
-a command graph, the lifetime of that host data will also be extended by taking a
-copy of that data inside the buffer. To illustrate, consider the following example:
-
-[source,c++]
-----
-void foo(queue q /* queue in recording mode */ ) {
-  float data[NUM];
-  buffer buf{data, range{NUM}};
-  q.submit([&](handler &cgh) {
-    accessor acc{buf, cgh, read_only};
-    cgh.single_task([] {
-       // use "acc"
-    });
-  });
-  // "data" goes out of scope
-}
-----
-
-In this example, the implementation extends the lifetime of the buffer because
-it is used in the recorded graph. Because the buffer uses the host memory data,
-the implementation also makes an internal copy of that host data. As illustrated
-above, that host memory might go out of scope before the recorded graph goes out
-of scope, or before the data has been copied to the device.
-
-The default behavior is to always copy the host data in a case like this, but
-this is not necessary if the user knows that the lifetime of the host data
-outlives the lifetime of the recorded graph. If the user knows this is the
-case, they may use the `graph::no_host_copy` property to avoid the internal
-copy. Passing the property to `begin_recording()` will prevent host copies only
-for commands recorded before `end_recording()` is called for a given queue.
-Passing the property to the `command_graph` constructor will prevent host copies
-for all commands recorded to the graph.
-
-The implementation guarantees that the host memory will not be copied internally
-if all the commands accessing this buffer use `access_mode::write` or the
-`no_init` property because the host memory is not needed in these cases.
-Note, however, that these cases require the application to disable copy-back
-as described in <<buffer-limitations, Buffer Limitations>>.
-
 === Host Tasks
 
 :host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
 
-A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
-dependency rules. It is valid to record a host task as part of graph, though it
-may lead to sub-optimal graph performance because a host task node may prevent
-the SYCL runtime from submitting the entire executable `command_graph` to the
-device at once.
-
-Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
-by replacing the whole node with the new callable.
-
-[source,c++]
-----
-auto node = graph.add([&](sycl::handler& cgh){
-  // Host code here is evaluated during the call to add()
-  cgh.host_task([=](){
-    // Code here is evaluated as part of executing the command graph node
-  });
-});
-----
+It is not yet supported to have a host task inside a `command_graph`, and an
+exception will be thrown if used by application code. Support will be added
+subsequently as detailed in the <<future-host-tasks, host tasks>> part from the
+<<future-direction, future direction>> section of this specification.
 
 === Queue Behavior In Recording Mode
 
@@ -1217,6 +1085,20 @@ will throw synchronously with error code `invalid`.
 synchronously with error code `invalid`.
 
 ==== Buffer Limitations
+
+The use of buffers inside a `command_graph` is restricted unless the user
+creates the graph with the <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+property. Buffer lifetimes are not extended by a `command_graph` in which they
+are used and so the user must ensure that their lifetimes exceed that of the
+`command_graph`. Attempting to use a buffer in a `command_graph` without this
+property will result in a synchronous error being throw with error code
+`invalid`.
+
+There are also restrictions on using a buffer which has been created with a
+host data pointer in commands recorded to a `command_graph`. Because of the
+delayed execution of a `command_graph`, data may not be copied to the device
+immediately when commands using these buffers are submitted to the graph,
+therefore the host data must also outlive the graph to ensure correct behavior.
 
 Because of the delayed execution of a recorded graph, it is not possible to support
 captured code which relies on the copy-back on destruction behavior of buffers.
@@ -1355,6 +1237,16 @@ code `invalid` if a user tries to add them to a graph.
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
+=== sycl_ext_oneapi_bindless_images
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
 == Examples
 
 [NOTE]
@@ -1465,14 +1357,23 @@ submitted in its entirety for execution via
 [source, c++]
 ----
   using namespace sycl;
+  namespace sycl_ext = sycl::ext::oneapi::experimental;
+
   queue q{default_selector{}};
 
-  // New object representing graph of command-groups
-  ext::oneapi::experimental::command_graph graph(q.get_context(), q.get_device());
+  // Lifetime of buffers must exceed the lifetime of graphs they are used in.
+  buffer<T> bufferA{dataA.data(), range<1>{elements}};
+  bufferA.set_write_back(false);
+  buffer<T> bufferB{dataB.data(), range<1>{elements}};
+  bufferB.set_write_back(false);
+  buffer<T> bufferC{dataC.data(), range<1>{elements}};
+  bufferC.set_write_back(false);
+
   {
-    buffer<T> bufferA{dataA.data(), range<1>{elements}};
-    buffer<T> bufferB{dataB.data(), range<1>{elements}};
-    buffer<T> bufferC{dataC.data(), range<1>{elements}};
+    // New object representing graph of command-groups
+    sycl_ext::command_graph graph(q.get_context(), q.get_device(),
+          {sycl_ext::property::graph::assume_buffer_outlives_graph{}});
+
 
     // `q` will be put in the recording state where commands are recorded to
     // `graph` rather than submitted for execution immediately.
@@ -1522,22 +1423,186 @@ submitted in its entirety for execution via
     // queue `q` will be returned to the executing state where commands are
     // submitted immediately for extension.
     graph.end_recording();
+
+    // Finalize the modifiable graph to create an executable graph that can be
+    // submitted for execution.
+    auto exec_graph = graph.finalize();
+
+    // Execute graph
+    q.submit([&](handler& cgh) {
+      cgh.ext_oneapi_graph(exec_graph);
+    }).wait();
   }
 
-  // Finalize the modifiable graph to create an executable graph that can be
-  // submitted for execution.
-  auto exec_graph = graph.finalize();
+  // Check output using host accessors
+  host_accessor hostAccA(bufferA);
+  host_accessor hostAccB(bufferB);
+  host_accessor hostAccC(bufferC);
 
-  // Execute graph
-  q.submit([&](handler& cgh) {
-    cgh.ext_oneapi_graph(exec_graph);
-  });
-
+  ...
 ----
 
-== Future Direction
+== Future Direction [[future-direction]]
 
-=== Memory Allocation Nodes
+This section contains both features of the specification which have been
+fully developed, but are not yet implemented, as well as features which are
+still in development.
+
+Fully developed features will be moved to the main specification once they
+have been implemented.
+
+=== Features Awaiting Implementation
+
+==== Storage Lifetimes [[storage-lifetimes]]
+
+The lifetime of any buffer recorded as part of a submission
+to a command graph will be extended in keeping with the common reference
+semantics and buffer synchronization rules in the SYCL specification. It will be
+extended either for the lifetime of the graph (including both modifiable graphs
+and the executable graphs created from them) or until the buffer is no longer
+required by the graph (such as after being replaced through executable graph update).
+
+If a buffer created with a host data pointer is recorded as part of a submission to
+a command graph, the lifetime of that host data will also be extended by taking a
+copy of that data inside the buffer. To illustrate, consider the following example:
+
+[source,c++]
+----
+void foo(queue q /* queue in recording mode */ ) {
+  float data[NUM];
+  buffer buf{data, range{NUM}};
+  q.submit([&](handler &cgh) {
+    accessor acc{buf, cgh, read_only};
+    cgh.single_task([] {
+       // use "acc"
+    });
+  });
+  // "data" goes out of scope
+}
+----
+
+In this example, the implementation extends the lifetime of the buffer because
+it is used in the recorded graph. Because the buffer uses the host memory data,
+the implementation also makes an internal copy of that host data. As illustrated
+above, that host memory might go out of scope before the recorded graph goes out
+of scope, or before the data has been copied to the device.
+
+The default behavior is to always copy the host data in a case like this, but
+this is not necessary if the user knows that the lifetime of the host data
+outlives the lifetime of the recorded graph. If the user knows this is the
+case, they may use the `graph::assume_data_outlives_buffer` property to avoid the internal
+copy. Passing the property to `begin_recording()` will prevent host copies only
+for commands recorded before `end_recording()` is called for a given queue.
+Passing the property to the `command_graph` constructor will prevent host copies
+for all commands recorded to the graph.
+
+The implementation guarantees that the host memory will not be copied internally
+if all the commands accessing this buffer use `access_mode::write` or the
+`no_init` property because the host memory is not needed in these cases.
+Note, however, that these cases require the application to disable copy-back
+as described in <<buffer-limitations, Buffer Limitations>>.
+
+==== Host Tasks [[future-host-tasks]]
+
+A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
+dependency rules. It is valid to record a host task as part of graph, though it
+may lead to sub-optimal graph performance because a host task node may prevent
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
+
+Host tasks can be updated as part of <<executable-graph-update, executable graph update>>
+by replacing the whole node with the new callable.
+
+[source,c++]
+----
+auto node = graph.add([&](sycl::handler& cgh){
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
+});
+----
+
+==== Executable Graph Update
+
+A graph in the executable state can have each nodes inputs & outputs updated
+using the `command_graph::update()` method. This takes a graph in the
+modifiable state and updates the executable graph to use the node input &
+outputs of the modifiable graph, a technique called _Whole Graph Update_. The
+modifiable graph must have the same topology as the graph originally used to
+create the executable graphs, with the nodes targeting the same devices and
+added in the same order.
+
+:sycl-kernel-function: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sycl-kernel-function
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class (executable graph update).
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source, c++]
+----
+void
+update(const command_graph<graph_state::modifiable>& graph);
+----
+
+
+|Updates the executable graph node inputs & outputs from a topologically
+identical modifiable graph. A topologically identical graph is one with the
+same structure of nodes and edges, and the nodes added in the same order to
+both graphs. Equivalent nodes in topologically identical graphs each have the
+same command, targeting the same device. There is the additional limitation that
+to update an executable graph, every node in the graph must be either a kernel
+command or a host task.
+
+The only characteristic that can differ between two topologically identical
+graphs during an update are the arguments to kernel nodes. For example,
+the graph may capture different values for the USM pointers or accessors used
+in the graph. It is these kernels arguments in `graph` that constitute the
+inputs & outputs to update to.
+
+Differences in the following characteristics between two graphs during an
+update results in undefined behavior:
+
+* Modifying the native C++ callable of a `host task` node.
+* Modifying the {sycl-kernel-function}[kernel function] of a kernel node.
+
+The effects of the update will be visible on the next submission of the
+executable graph without the need for additional user synchronization.
+
+Preconditions:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `graph` - Modifiable graph object to update graph node inputs & outputs with.
+  This graph must have the same topology as the original graph used on
+  executable graph creation.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the topology of `graph` is
+  not the same as the existing graph topology, or if the nodes were not added in
+  the same order.
+
+:handler-copy-functions: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#table.members.handler.copy
+
+* Throws synchronously with error code `invalid` if `graph` contains any node
+  which is not a kernel command or host task, e.g.
+  {handler-copy-functions}[memory operations].
+
+* Throws synchronously with error code `invalid` if the context or device
+  associated with `graph` does not match that of the `command_graph` being
+  updated.
+
+|===
+
+=== Features Still in Development
+
+==== Memory Allocation Nodes
 
 There is no provided interface for users to define a USM allocation/free
 operation belonging to the scope of the graph. It would be error prone and
@@ -1575,7 +1640,7 @@ are the advantage of USM.
 
 Design 3) needs specific backend support for deferred allocation.
 
-=== Device Specific Graph
+==== Device Specific Graph
 
 A modifiable state `command_graph` contains nodes targeting specific devices,
 rather than being a device agnostic representation only tied to devices on
@@ -1652,6 +1717,22 @@ block size.
 the finalize call either extending the basic command graph proposal
 or layered as a separate extension proposal.
 
+== Non-implemented features and known issues
+
+The following features are not yet supported, and an exception will be thrown
+if used in application code.
+
+. Using `handler::fill` in a graph node implemented for USM only.
+. Using `handler::memset` in a graph node.
+. Using `handler::prefetch` in a graph node.
+. Using `handler::memadvise` in a graph node.
+. Using specialization constants in a graph node.
+. Using reductions in a graph node.
+. Using sycl streams in a graph node.
+. Using a kernel bundle in a graph node.
+. Profiling an event returned from graph submission with
+  `event::get_profiling_info()`.
+
 == Revision History
 
 [cols="5,15,15,70"]
@@ -1662,5 +1743,8 @@ or layered as a separate extension proposal.
 
 |1|2023-03-23|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
 |Initial public working draft
+|2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller,
+Maxime France-Pillois
+|Promote status to experimental
 
 |========================================
