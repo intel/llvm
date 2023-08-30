@@ -18,7 +18,7 @@ jobs:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
       merge_ref: ''
-      retention-days: 90
+      retention-days: 10
 
   ubuntu2204_test:
     needs: [ubuntu2204_build]
@@ -60,3 +60,29 @@ jobs:
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+  sycl-bench-mlir_build:
+    needs: [ubuntu2204_build]
+    uses: ./.github/workflows/sycl-bench_build_and_test.yml
+    with:
+      repository_owner: whitneywhtsang
+      ref: sycl-mlir
+      build_cache_rot: /__w/
+      build_sycl_impl: LLVM-MLIR
+      build_benchmarks_list: [2mm]
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_decompress_command: unzstd
+      artifact_archive_name: sycl_bench-mlir.tar.zst
+
+  sycl-bench_build:
+    needs: [ubuntu2204_build]
+    uses: ./.github/workflows/sycl-bench_build_and_test.yml
+    with:
+      repository_owner: whitneywhtsang
+      ref: sycl-mlir
+      build_cache_rot: /__w/
+      build_sycl_impl: LLVM
+      build_benchmarks_list: [2mm]
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_decompress_command: unzstd
+      artifact_archive_name: sycl_bench-mlir.tar.zst
