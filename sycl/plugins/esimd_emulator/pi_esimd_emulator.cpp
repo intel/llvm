@@ -2185,6 +2185,20 @@ pi_result piextCommandBufferMemBufferWriteRect(
   DIE_NO_IMPLEMENTATION;
 }
 
+pi_result piextCommandBufferMemBufferFill(pi_ext_command_buffer, pi_mem,
+                                          const void *, size_t, size_t, size_t,
+                                          pi_uint32, const pi_ext_sync_point *,
+                                          pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer, void *, const void *,
+                                    size_t, size_t, pi_uint32,
+                                    const pi_ext_sync_point *,
+                                    pi_ext_sync_point *) {
+  DIE_NO_IMPLEMENTATION;
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer, pi_queue, pi_uint32,
                                     const pi_event *, pi_event *) {
   DIE_NO_IMPLEMENTATION;

@@ -1137,6 +1137,27 @@ pi_result piextCommandBufferMemBufferWriteRect(
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
 }
 
+pi_result piextCommandBufferMemBufferFill(
+    pi_ext_command_buffer CommandBuffer, pi_mem Buffer, const void *Pattern,
+    size_t PatternSize, size_t Offset, size_t Size,
+    pi_uint32 NumSyncPointsInWaitList,
+    const pi_ext_sync_point *SyncPointWaitList, pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferMemBufferFill(
+      CommandBuffer, Buffer, Pattern, PatternSize, Offset, Size,
+      NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint);
+}
+
+pi_result piextCommandBufferFillUSM(pi_ext_command_buffer CommandBuffer,
+                                    void *Ptr, const void *Pattern,
+                                    size_t PatternSize, size_t Size,
+                                    pi_uint32 NumSyncPointsInWaitList,
+                                    const pi_ext_sync_point *SyncPointWaitList,
+                                    pi_ext_sync_point *SyncPoint) {
+  return pi2ur::piextCommandBufferFillUSM(
+      CommandBuffer, Ptr, Pattern, PatternSize, Size, NumSyncPointsInWaitList,
+      SyncPointWaitList, SyncPoint);
+}
+
 pi_result piextEnqueueCommandBuffer(pi_ext_command_buffer CommandBuffer,
                                     pi_queue Queue,
                                     pi_uint32 NumEventsInWaitList,
