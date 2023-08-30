@@ -74,6 +74,7 @@ jobs:
           name: ${{ inputs.sycl_toolchain_artifact }}
       - name: Extract/Setup SYCL toolchain
         run: |
+          rm -rf toolchain
           mkdir toolchain
           tar -I '${{ inputs.sycl_toolchain_decompress_command }}' \
             -xvf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
