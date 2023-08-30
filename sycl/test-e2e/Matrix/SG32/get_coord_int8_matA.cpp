@@ -9,7 +9,7 @@
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
-// XFAIL: cpu, gpu
+// XFAIL: cpu
 
 #include <iostream>
 #include "../common.hpp"
@@ -20,4 +20,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 constexpr size_t SG_SZ = 32;
 constexpr size_t TN = 16;
 
-#include "../get_coord_bf16_matA_impl.hpp"
+#include "../get_coord_int8_matA_impl.hpp"

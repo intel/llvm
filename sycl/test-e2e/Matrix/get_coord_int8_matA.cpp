@@ -20,4 +20,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 #define SG_SZ 16
 constexpr size_t TN = 16;
 
-#include "get_coord_bf16_matA_impl.hpp"
+#include "get_coord_int8_matA_impl.hpp"
