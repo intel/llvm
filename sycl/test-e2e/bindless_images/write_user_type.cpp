@@ -1,8 +1,8 @@
 // REQUIRES: linux
 // REQUIRES: cuda
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
 
 #include <iostream>
 #include <sycl/sycl.hpp>
