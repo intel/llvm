@@ -1687,9 +1687,62 @@ ValuePacket Packetizer::Impl::packetizeSubgroupScan(
 
   IRBuilder<> B(CI);
 
-  auto *c = B.CreateCall(SubgroupFn, Ops);
+  auto *VectorScan = B.CreateCall(SubgroupFn, Ops);
 
-  results.push_back(c);
+  // We've currently got a scan over each vector group, but the full sub-group
+  // is further multiplied by the mux sub-group size. For example, we may have
+  // a vectorization factor sized group of 4 and a mux sub-group size of 2.
+  // Together the full sub-group size to the user is 4*2 = 8.
+  // In terms of invocations, we've essentially currently got:
+  //   <a0, a0+a1, a0+a1+a2, a0+a1+a2+a3> (invocation 0)
+  //   <a4, a4+a5, a4+a5+a6, a4+a5+a6+a7> (invocation 1)
+  // These two iterations need to be further scanned over the mux sub-group
+  // size. We do this by adding the identity to the first invocation, the
+  // result of the scan over the first invocation to the second, etc. This is
+  // an exclusive scan over the *reduction* of the input vector:
+  //   <a0, a1, a2, a3> (invocation 0)
+  //   <a4, a5, a6, a7> (invocation 1)
+  // -> reduction
+  //   (a0+a1+a2+a3) (invocation 0)
+  //   (a4+a5+a6+a7) (invocation 1)
+  // -> exclusive mux sub-group scan
+  //               I (invocation 0)
+  //   (a0+a1+a2+a3) (invocation 1)
+  // -> adding that to the result of the vector scan:
+  //   <I+a0, I+a0+a1, I+a0+a1+a2, I+a0+a1+a2+a3>          (invocation 0)
+  //   <(a0+a1+a2+a3)+a4, (a0+a1+a2+a3)+a4+a5,             (invocation 1)
+  //    (a0+a1+a2+a3)+a4+a5+a6, (a0+a1+a2+a3)+a4+a5+a6+a7>
+  // When viewed as a full 8-element vector, this is our final scan.
+  // Thus we essentially keep the original mux sub-group scan, but change it to
+  // be an exclusive one.
+  auto *Reduction = Ops.front();
+  if (VL) {
+    Reduction = sanitizeVPReductionInput(B, Reduction, VL, Scan.Recurrence);
+    if (!Reduction) {
+      return results;
+    }
+  }
+  Reduction = createSimpleTargetReduction(B, &TTI, Reduction, Scan.Recurrence);
+
+  // Now we defer to an *exclusive* scan over the mux sub-group.
+  auto ExclScan = Scan;
+  ExclScan.Op = compiler::utils::GroupCollective::OpKind::ScanExclusive;
+
+  auto ExclScanID = Ctx.builtins().getMuxGroupCollective(ExclScan);
+  assert(ExclScanID != compiler::utils::eBuiltinInvalid);
+
+  auto *const ExclScanFn = Ctx.builtins().getOrDeclareMuxBuiltin(
+      ExclScanID, *F.getParent(), {CI->getType()});
+  assert(ExclScanFn);
+
+  auto *const ExclScanCI = B.CreateCall(ExclScanFn, {Reduction});
+
+  Value *const Splat = B.CreateVectorSplat(SimdWidth, ExclScanCI);
+
+  auto *const Result = multi_llvm::createBinOpForRecurKind(B, VectorScan, Splat,
+                                                           Scan.Recurrence);
+
+  results.push_back(Result);
   return results;
 }
 
