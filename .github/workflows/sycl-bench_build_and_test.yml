@@ -107,7 +107,7 @@ jobs:
       - name: Checkout sycl-bench
         uses: actions/checkout@v3
         with:
-          repository: "${{ inputs.repository_owner }}"/sycl-bench
+          repository: ${{ inputs.repository_owner }}/sycl-bench
           ref: ${{ inputs.ref }}
       - name: Configure sycl-bench
         run: |
