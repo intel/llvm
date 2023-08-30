@@ -1033,7 +1033,7 @@ func.func @test_3(%nd: memref<?x!sycl_nd_item_3_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_1(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr) -> i64 {
-// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.1", {{.*}}>
+// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_item.1", {{.*}}>
 // CHECK:           %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 3, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.1", {{.*}}>
 // CHECK:           %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i64
 // CHECK:           llvm.return %[[VAL_4]] : i64
@@ -1045,7 +1045,7 @@ func.func @test_1(%nd: memref<?x!sycl_nd_item_1_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_2(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr) -> i64 {
-// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.2", {{.*}}>
+// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_item.2", {{.*}}>
 // CHECK:           %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 3, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.2", {{.*}}>
 // CHECK:           %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i64
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 2, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.2", {{.*}}>
@@ -1063,7 +1063,7 @@ func.func @test_2(%nd: memref<?x!sycl_nd_item_2_>) -> i64 {
 
 // CHECK-LABEL:   llvm.func @test_3(
 // CHECK-SAME:                      %[[VAL_0:.*]]: !llvm.ptr) -> i64 {
-// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.3", {{.*}}>
+// CHECK:           %[[VAL_1:.*]] = llvm.getelementptr inbounds %[[VAL_0]][0, 2] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::nd_item.3", {{.*}}>
 // CHECK:           %[[VAL_3:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 3, 0, 0, 0] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.3", {{.*}}>
 // CHECK:           %[[VAL_4:.*]] = llvm.load %[[VAL_3]] : !llvm.ptr -> i64
 // CHECK:           %[[VAL_5:.*]] = llvm.getelementptr inbounds %[[VAL_1]][0, 2, 0, 0, 1] : (!llvm.ptr) -> !llvm.ptr, !llvm.struct<"class.sycl::_V1::group.3", {{.*}}>

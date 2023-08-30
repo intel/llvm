@@ -1978,10 +1978,12 @@ public:
         cast<NdItemType>(op.getNDItem().getType().getElementType())
             .getBody()[indices[0]];
     const auto convGroupTy = getTypeConverter()->convertType(groupTy);
+    Type ndItemTy = op.getNDItem().getType().getElementType();
+    Type convNDItemTy = getTypeConverter()->convertType(ndItemTy);
     bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
     auto group = GetMemberPattern<NDItemGroup>::getRef(
-        rewriter, loc, convGroupTy, adaptor.getNDItem(), std::nullopt,
-        useOpaquePointers);
+        rewriter, loc, (useOpaquePointers) ? convNDItemTy : convGroupTy,
+        adaptor.getNDItem(), std::nullopt, useOpaquePointers);
     const auto thisTy = MemRefType::get(ShapedType::kDynamic, groupTy);
     // We have the already converted group, but, in order to not replicate
     // `sycl.group.get_group_linear_id` conversion to LLVM, we just reuse that
