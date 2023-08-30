@@ -258,7 +258,6 @@ SmallVector<Function *> getFunctionsFromUse(Use &U) {
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
                                                 ModuleAnalysisManager &MAM) {
-  llvm::errs() << "[ptrdbg] module pre: " << M << "\n";
   bool ModuleChanged = false;
   SmallVector<Function *> OldKernels;
   for (auto &F : M) {
@@ -303,9 +302,9 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
       auto I = dyn_cast<CallInst>(Use.getUser());
       //todo error check
       if(I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
-        report_fatal_error("ayyyy\n");
-      auto Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()), Entry.second.second);
-      auto NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc, {Arg, getStateArg(I->getFunction())}, "ncpu_call", I);
+        report_fatal_error("SYCL Native CPU currently doesn't support unlined functions, try increasing the inlining threshold");
+      auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()), Entry.second.second);
+      auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc, {Arg, getStateArg(I->getFunction())}, "ncpu_call", I);
       I->replaceAllUsesWith(NewI);
       ToRemove.push_back(I);
     }
@@ -321,6 +320,5 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   for (auto &F : M) {
     fixCallingConv(&F);
   }
-  llvm::errs() << "[ptrdbg] module post: " << M << "\n";
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
