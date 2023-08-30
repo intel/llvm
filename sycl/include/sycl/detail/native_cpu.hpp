@@ -69,42 +69,43 @@ struct __nativecpu_state {
 };
 #ifdef __SYCL_DEVICE_ONLY__
 #define __SYCL_HC_ATTRS                                                        \
-  __attribute__((weak)) __attribute((alwaysinline))                            \
+  extern "C" __attribute__((weak)) __attribute((always_inline))                \
   [[intel::device_indirectly_callable]]
+#define __NCPU_ATTRS extern "C" __SYCL_HC_ATTRS
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_global_id(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MGlobal_id[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_global_range(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_global_range(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MGlobal_range[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_get_wg_size(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_size(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MWorkGroup_size[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_get_wg_id(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_id(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MWorkGroup_id[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_get_local_id(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_local_id(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MLocal_id[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_get_num_groups(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_num_groups(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MNumGroups[dim];
 }
 
-extern "C" __SYCL_HC_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
+ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_global_offset(
     unsigned dim, __attribute((address_space(0))) __nativecpu_state *s) {
   return s->MGlobalOffset[dim];
 }
-#undef __SYCL_HC_ATTRS
+#undef __NCPU_ATTRS
 #endif
