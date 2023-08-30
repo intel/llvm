@@ -164,7 +164,7 @@ inline pi_result mock_piDeviceGetInfo(pi_device device,
                                       size_t *param_value_size_ret) {
   constexpr char MockDeviceName[] = "Mock device";
   constexpr char MockSupportedExtensions[] =
-      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program";
+      "cl_khr_fp64 cl_khr_fp16 cl_khr_il_program ur_exp_command_buffer";
   switch (param_name) {
   case PI_DEVICE_INFO_TYPE: {
     // Act like any device is a GPU.
@@ -1289,17 +1289,19 @@ inline pi_result
 mock_piextCommandBufferCreate(pi_context context, pi_device device,
                               const pi_ext_command_buffer_desc *desc,
                               pi_ext_command_buffer *ret_command_buffer) {
-
+  *ret_command_buffer = createDummyHandle<pi_ext_command_buffer>();
   return PI_SUCCESS;
 }
 
 inline pi_result
 mock_piextCommandBufferRetain(pi_ext_command_buffer command_buffer) {
+  retainDummyHandle(command_buffer);
   return PI_SUCCESS;
 }
 
 inline pi_result
 mock_piextCommandBufferRelease(pi_ext_command_buffer command_buffer) {
+  releaseDummyHandle(command_buffer);
   return PI_SUCCESS;
 }
 

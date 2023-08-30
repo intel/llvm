@@ -17,18 +17,23 @@ int main() {
     ReferenceA[i] = DataB[i];
   }
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-
   buffer<T, 1> BufferA(DataA.data(), range<1>(Size));
   BufferA.set_write_back(false);
 
-  auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    auto AccA = BufferA.get_access(CGH);
-    CGH.copy(DataB.data(), AccA);
-  });
+  {
+    exp_ext::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-  auto GraphExec = Graph.finalize();
-  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); }).wait();
+    auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
+      auto AccA = BufferA.get_access(CGH);
+      CGH.copy(DataB.data(), AccA);
+    });
+
+    auto GraphExec = Graph.finalize();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); }).wait();
+  }
 
   host_accessor HostAccA(BufferA);
 

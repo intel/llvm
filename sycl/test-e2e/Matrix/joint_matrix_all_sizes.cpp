@@ -18,5 +18,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 16
+// Sub-matrix N dimension
+static constexpr size_t SN = 16;
 
 #include "joint_matrix_all_sizes_impl.hpp"

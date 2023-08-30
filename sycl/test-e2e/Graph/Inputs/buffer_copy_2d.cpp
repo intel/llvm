@@ -27,8 +27,6 @@ int main() {
     }
   }
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-
   // Make the buffers 2D so we can test the rect copy path
   buffer BufferA{DataA.data(), range<2>(Size, Size)};
   BufferA.set_write_back(false);
@@ -36,74 +34,80 @@ int main() {
   BufferB.set_write_back(false);
   buffer BufferC{DataC.data(), range<2>(Size, Size)};
   BufferC.set_write_back(false);
+  {
+    exp_ext::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-  // Copy from B to A
-  auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    auto AccA = BufferA.get_access(CGH);
-    auto AccB = BufferB.get_access(CGH);
-    CGH.copy(AccB, AccA);
-  });
-
-  // Read & write A
-  auto NodeB = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        auto AccA = BufferA.get_access(CGH);
-        CGH.parallel_for(range<2>(Size, Size),
-                         [=](item<2> id) { AccA[id] += ModValue; });
-      },
-      NodeA);
-
-  // Read & write B
-  auto NodeModB = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        auto AccB = BufferB.get_access(CGH);
-        CGH.parallel_for(range<2>(Size, Size),
-                         [=](item<2> id) { AccB[id] += ModValue; });
-      },
-      NodeA);
-
-  // memcpy from A to B
-  auto NodeC = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        auto AccA = BufferA.get_access(CGH);
-        auto AccB = BufferB.get_access(CGH);
-        CGH.copy(AccA, AccB);
-      },
-      NodeModB);
-
-  // Read and write B
-  auto NodeD = add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        auto AccB = BufferB.get_access(CGH);
-        CGH.parallel_for(range<2>(Size, Size),
-                         [=](item<2> id) { AccB[id] += ModValue; });
-      },
-      NodeC);
-
-  // Copy from B to C
-  add_node(
-      Graph, Queue,
-      [&](handler &CGH) {
-        auto AccB = BufferB.get_access(CGH);
-        auto AccC = BufferC.get_access(CGH);
-        CGH.copy(AccB, AccC);
-      },
-      NodeD);
-
-  auto GraphExec = Graph.finalize();
-
-  event Event;
-  for (unsigned n = 0; n < Iterations; n++) {
-    Event = Queue.submit([&](handler &CGH) {
-      CGH.depends_on(Event);
-      CGH.ext_oneapi_graph(GraphExec);
+    // Copy from B to A
+    auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
+      auto AccA = BufferA.get_access(CGH);
+      auto AccB = BufferB.get_access(CGH);
+      CGH.copy(AccB, AccA);
     });
+
+    // Read & write A
+    auto NodeB = add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          auto AccA = BufferA.get_access(CGH);
+          CGH.parallel_for(range<2>(Size, Size),
+                           [=](item<2> id) { AccA[id] += ModValue; });
+        },
+        NodeA);
+
+    // Read & write B
+    auto NodeModB = add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          auto AccB = BufferB.get_access(CGH);
+          CGH.parallel_for(range<2>(Size, Size),
+                           [=](item<2> id) { AccB[id] += ModValue; });
+        },
+        NodeA);
+
+    // memcpy from A to B
+    auto NodeC = add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          auto AccA = BufferA.get_access(CGH);
+          auto AccB = BufferB.get_access(CGH);
+          CGH.copy(AccA, AccB);
+        },
+        NodeModB);
+
+    // Read and write B
+    auto NodeD = add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          auto AccB = BufferB.get_access(CGH);
+          CGH.parallel_for(range<2>(Size, Size),
+                           [=](item<2> id) { AccB[id] += ModValue; });
+        },
+        NodeC);
+
+    // Copy from B to C
+    add_node(
+        Graph, Queue,
+        [&](handler &CGH) {
+          auto AccB = BufferB.get_access(CGH);
+          auto AccC = BufferC.get_access(CGH);
+          CGH.copy(AccB, AccC);
+        },
+        NodeD);
+
+    auto GraphExec = Graph.finalize();
+
+    event Event;
+    for (unsigned n = 0; n < Iterations; n++) {
+      Event = Queue.submit([&](handler &CGH) {
+        CGH.depends_on(Event);
+        CGH.ext_oneapi_graph(GraphExec);
+      });
+    }
+    Queue.wait_and_throw();
   }
-  Queue.wait_and_throw();
 
   host_accessor HostAccA(BufferA);
   host_accessor HostAccB(BufferB);

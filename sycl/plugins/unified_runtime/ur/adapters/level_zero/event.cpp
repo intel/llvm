@@ -1,10 +1,10 @@
-//===--------- event.cpp - Level Zero Adapter ------------------------===//
+//===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -935,7 +935,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      // UR_CALL(piKernelRelease(DepEventKernel));
+      UR_CALL(urKernelRelease(DepEventKernel));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }
