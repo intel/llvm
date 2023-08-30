@@ -197,30 +197,41 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 }
 
 // Todo: add support for more SPIRV builtins here
-static std::map<std::string, std::pair<std::string, unsigned int>> BuiltinNamesMap{
-{"_Z28__spirv_GlobalInvocationId_xv", {"__dpcpp_nativecpu_global_id", 0}}, 
-{"_Z28__spirv_GlobalInvocationId_yv", {"__dpcpp_nativecpu_global_id", 1}},
-{"_Z28__spirv_GlobalInvocationId_zv", {"__dpcpp_nativecpu_global_id", 2}},
-{"_Z20__spirv_GlobalSize_xv", {"__dpcpp_nativecpu_global_range", 0}},
-{"_Z20__spirv_GlobalSize_yv", {"__dpcpp_nativecpu_global_range", 1}},
-{"_Z20__spirv_GlobalSize_zv", {"__dpcpp_nativecpu_global_range", 2}},
-{"_Z22__spirv_GlobalOffset_xv", {"__dpcpp_nativecpu_get_global_offset", 0}},
-{"_Z22__spirv_GlobalOffset_yv", {"__dpcpp_nativecpu_get_global_offset", 1}},
-{"_Z22__spirv_GlobalOffset_zv", {"__dpcpp_nativecpu_get_global_offset", 2}},
-{"_Z27__spirv_LocalInvocationId_xv", {"__dpcpp_nativecpu_get_local_id", 0}},
-{"_Z27__spirv_LocalInvocationId_yv", {"__dpcpp_nativecpu_get_local_id", 1}},
-{"_Z27__spirv_LocalInvocationId_zv", {"__dpcpp_nativecpu_get_local_id", 2}},
-{"_Z23__spirv_NumWorkgroups_xv", {"__dpcpp_nativecpu_get_num_groups", 0}},
-{"_Z23__spirv_NumWorkgroups_yv", {"__dpcpp_nativecpu_get_num_groups", 1}},
-{"_Z23__spirv_NumWorkgroups_zv", {"__dpcpp_nativecpu_get_num_groups", 2}},
-{"_Z23__spirv_WorkgroupSize_xv", {"__dpcpp_nativecpu_get_wg_size", 0}},
-{"_Z23__spirv_WorkgroupSize_yv", {"__dpcpp_nativecpu_get_wg_size", 1}},
-{"_Z23__spirv_WorkgroupSize_zv", {"__dpcpp_nativecpu_get_wg_size", 2}},
-{"_Z21__spirv_WorkgroupId_xv", {"__dpcpp_nativecpu_get_wg_id", 0}},
-{"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
-{"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
-
-
+static std::map<std::string, std::pair<std::string, unsigned int>>
+    BuiltinNamesMap{
+        {"_Z28__spirv_GlobalInvocationId_xv",
+         {"__dpcpp_nativecpu_global_id", 0}},
+        {"_Z28__spirv_GlobalInvocationId_yv",
+         {"__dpcpp_nativecpu_global_id", 1}},
+        {"_Z28__spirv_GlobalInvocationId_zv",
+         {"__dpcpp_nativecpu_global_id", 2}},
+        {"_Z20__spirv_GlobalSize_xv", {"__dpcpp_nativecpu_global_range", 0}},
+        {"_Z20__spirv_GlobalSize_yv", {"__dpcpp_nativecpu_global_range", 1}},
+        {"_Z20__spirv_GlobalSize_zv", {"__dpcpp_nativecpu_global_range", 2}},
+        {"_Z22__spirv_GlobalOffset_xv",
+         {"__dpcpp_nativecpu_get_global_offset", 0}},
+        {"_Z22__spirv_GlobalOffset_yv",
+         {"__dpcpp_nativecpu_get_global_offset", 1}},
+        {"_Z22__spirv_GlobalOffset_zv",
+         {"__dpcpp_nativecpu_get_global_offset", 2}},
+        {"_Z27__spirv_LocalInvocationId_xv",
+         {"__dpcpp_nativecpu_get_local_id", 0}},
+        {"_Z27__spirv_LocalInvocationId_yv",
+         {"__dpcpp_nativecpu_get_local_id", 1}},
+        {"_Z27__spirv_LocalInvocationId_zv",
+         {"__dpcpp_nativecpu_get_local_id", 2}},
+        {"_Z23__spirv_NumWorkgroups_xv",
+         {"__dpcpp_nativecpu_get_num_groups", 0}},
+        {"_Z23__spirv_NumWorkgroups_yv",
+         {"__dpcpp_nativecpu_get_num_groups", 1}},
+        {"_Z23__spirv_NumWorkgroups_zv",
+         {"__dpcpp_nativecpu_get_num_groups", 2}},
+        {"_Z23__spirv_WorkgroupSize_xv", {"__dpcpp_nativecpu_get_wg_size", 0}},
+        {"_Z23__spirv_WorkgroupSize_yv", {"__dpcpp_nativecpu_get_wg_size", 1}},
+        {"_Z23__spirv_WorkgroupSize_zv", {"__dpcpp_nativecpu_get_wg_size", 2}},
+        {"_Z21__spirv_WorkgroupId_xv", {"__dpcpp_nativecpu_get_wg_id", 0}},
+        {"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
+        {"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
 
 Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
   Function *F = M.getFunction(Name);
@@ -297,22 +308,25 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     if (!Glob)
       continue;
     auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second.first);
-    SmallVector<Instruction*> ToRemove;
+    SmallVector<Instruction *> ToRemove;
     for (auto &Use : Glob->uses()) {
       auto I = dyn_cast<CallInst>(Use.getUser());
-      if(!I)
+      if (!I)
         report_fatal_error("Unsupported Value in SYCL Native CPU\n");
-      if(I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
-        report_fatal_error("SYCL Native CPU currently doesn't support unlined functions, try increasing the inlining threshold");
-      auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()), Entry.second.second);
-      auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc, {Arg, getStateArg(I->getFunction())}, "ncpu_call", I);
+      if (I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
+        report_fatal_error("SYCL Native CPU currently doesn't support unlined "
+                           "functions, try increasing the inlining threshold");
+      auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()),
+                                   Entry.second.second);
+      auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
+                                    {Arg, getStateArg(I->getFunction())},
+                                    "ncpu_call", I);
       I->replaceAllUsesWith(NewI);
       ToRemove.push_back(I);
     }
 
-    for(auto& El : ToRemove)
+    for (auto &El : ToRemove)
       El->eraseFromParent();
-
 
     // Finally, we erase the builtin from the module
     Glob->eraseFromParent();
