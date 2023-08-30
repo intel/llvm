@@ -1,0 +1,5 @@
+urQueueCreateTest.InvalidValueProperties/NVIDIA_CUDA_BACKEND___{{.*}}_
+urQueueCreateTest.InvalidQueueProperties/NVIDIA_CUDA_BACKEND___{{.*}}_
+urQueueCreateWithNativeHandleTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+urQueueGetInfoTestWithInfoParam.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_QUEUE_INFO_DEVICE_DEFAULT
+urQueueGetInfoTestWithInfoParam.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_QUEUE_INFO_SIZE

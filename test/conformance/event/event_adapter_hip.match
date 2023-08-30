@@ -1,0 +1,6 @@
+urEventCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
+urEventSetCallbackTest.Success/AMD_HIP_BACKEND___{{.*}}_
+urEventSetCallbackTest.ValidateParameters/AMD_HIP_BACKEND___{{.*}}_
+urEventSetCallbackTest.AllStates/AMD_HIP_BACKEND___{{.*}}_
+urEventSetCallbackTest.EventAlreadyCompleted/AMD_HIP_BACKEND___{{.*}}_
+urEventSetCallbackNegativeTest.InvalidNullHandle/AMD_HIP_BACKEND___{{.*}}_
