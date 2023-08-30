@@ -15,8 +15,9 @@ int main() {
       Device.get_info<exp_ext::info::device::graph_support>();
   auto Backend = Device.get_backend();
 
-  if (Backend == backend::ext_oneapi_level_zero) {
-    assert(SupportsGraphs == exp_ext::graph_support_level::native);
+  if ((Backend == backend::ext_oneapi_level_zero) ||
+      (Backend == backend::ext_oneapi_cuda)) {
+    assert(SupportsGraphs == exp_ext::info::graph_support_level::native);
   } else {
     assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);
   }

@@ -31,3 +31,11 @@ setKernelParams(const ur_context_handle_t Context,
                 const size_t *LocalWorkSize, ur_kernel_handle_t &Kernel,
                 CUfunction &CuFunc, size_t (&ThreadsPerBlock)[3],
                 size_t (&BlocksPerGrid)[3]);
+
+void setCopyRectParams(ur_rect_region_t region, const void *SrcPtr,
+                       const CUmemorytype_enum SrcType,
+                       ur_rect_offset_t src_offset, size_t src_row_pitch,
+                       size_t src_slice_pitch, void *DstPtr,
+                       const CUmemorytype_enum DstType,
+                       ur_rect_offset_t dst_offset, size_t dst_row_pitch,
+                       size_t dst_slice_pitch, CUDA_MEMCPY3D &params);

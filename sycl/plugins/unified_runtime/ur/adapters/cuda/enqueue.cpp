@@ -473,23 +473,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return Result;
 }
 
-/// General 3D memory copy operation.
-/// This function requires the corresponding CUDA context to be at the top of
-/// the context stack
+/// Set parameters for general 3D memory copy.
 /// If the source and/or destination is on the device, SrcPtr and/or DstPtr
 /// must be a pointer to a CUdeviceptr
-static ur_result_t commonEnqueueMemBufferCopyRect(
-    CUstream cu_stream, ur_rect_region_t region, const void *SrcPtr,
-    const CUmemorytype_enum SrcType, ur_rect_offset_t src_offset,
-    size_t src_row_pitch, size_t src_slice_pitch, void *DstPtr,
-    const CUmemorytype_enum DstType, ur_rect_offset_t dst_offset,
-    size_t dst_row_pitch, size_t dst_slice_pitch) {
-
-  UR_ASSERT(SrcType == CU_MEMORYTYPE_DEVICE || SrcType == CU_MEMORYTYPE_HOST,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-  UR_ASSERT(DstType == CU_MEMORYTYPE_DEVICE || DstType == CU_MEMORYTYPE_HOST,
-            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
+void setCopyRectParams(ur_rect_region_t region, const void *SrcPtr,
+                       const CUmemorytype_enum SrcType,
+                       ur_rect_offset_t src_offset, size_t src_row_pitch,
+                       size_t src_slice_pitch, void *DstPtr,
+                       const CUmemorytype_enum DstType,
+                       ur_rect_offset_t dst_offset, size_t dst_row_pitch,
+                       size_t dst_slice_pitch, CUDA_MEMCPY3D &params) {
   src_row_pitch =
       (!src_row_pitch) ? region.width + src_offset.x : src_row_pitch;
   src_slice_pitch = (!src_slice_pitch)
@@ -500,8 +493,6 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
   dst_slice_pitch = (!dst_slice_pitch)
                         ? ((region.height + dst_offset.y) * dst_row_pitch)
                         : dst_slice_pitch;
-
-  CUDA_MEMCPY3D params = {};
 
   params.WidthInBytes = region.width;
   params.Height = region.height;
@@ -527,6 +518,29 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
   params.dstZ = dst_offset.z;
   params.dstPitch = dst_row_pitch;
   params.dstHeight = dst_slice_pitch / dst_row_pitch;
+}
+
+/// General 3D memory copy operation.
+/// This function requires the corresponding CUDA context to be at the top of
+/// the context stack
+/// If the source and/or destination is on the device, SrcPtr and/or DstPtr
+/// must be a pointer to a CUdeviceptr
+static ur_result_t commonEnqueueMemBufferCopyRect(
+    CUstream cu_stream, ur_rect_region_t region, const void *SrcPtr,
+    const CUmemorytype_enum SrcType, ur_rect_offset_t src_offset,
+    size_t src_row_pitch, size_t src_slice_pitch, void *DstPtr,
+    const CUmemorytype_enum DstType, ur_rect_offset_t dst_offset,
+    size_t dst_row_pitch, size_t dst_slice_pitch) {
+  UR_ASSERT(SrcType == CU_MEMORYTYPE_DEVICE || SrcType == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(DstType == CU_MEMORYTYPE_DEVICE || DstType == CU_MEMORYTYPE_HOST,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  CUDA_MEMCPY3D params = {};
+
+  setCopyRectParams(region, SrcPtr, SrcType, src_offset, src_row_pitch,
+                    src_slice_pitch, DstPtr, DstType, dst_offset, dst_row_pitch,
+                    dst_slice_pitch, params);
 
   return UR_CHECK_ERROR(cuMemcpy3DAsync(&params, cu_stream));
 }
