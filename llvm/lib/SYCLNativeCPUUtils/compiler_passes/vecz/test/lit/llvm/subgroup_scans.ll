@@ -42,7 +42,13 @@ entry:
   store i32 %call1, i32 addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_add_i32(
-; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_add_Dv4_j(<4 x i32> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x i32> @__vecz_b_sub_group_scan_inclusive_add_Dv4_j(<4 x i32> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i32 @__mux_sub_group_scan_exclusive_add_i32(i32 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = add <4 x i32> [[SCAN]], [[SPLAT]]
+; CHECK: store <4 x i32> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_add_i64(i64 addrspace(1)* %in, i64 addrspace(1)* %out) {
@@ -55,7 +61,13 @@ entry:
   store i64 %call1, i64 addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_add_i64(
-; CHECK: call <4 x i64> @__vecz_b_sub_group_scan_inclusive_add_Dv4_m(<4 x i64> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x i64> @__vecz_b_sub_group_scan_inclusive_add_Dv4_m(<4 x i64> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call i64 @llvm.vector.reduce.add.v4i64(<4 x i64> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i64 @__mux_sub_group_scan_exclusive_add_i64(i64 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i64> poison, i64 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i64> [[HEAD]], <4 x i64> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = add <4 x i64> [[SCAN]], [[SPLAT]]
+; CHECK: store <4 x i64> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_add_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -68,7 +80,13 @@ entry:
   store float %call1, float addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_add_f32(
-; CHECK: call <4 x float> @__vecz_b_sub_group_scan_inclusive_add_Dv4_f(<4 x float> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x float> @__vecz_b_sub_group_scan_inclusive_add_Dv4_f(<4 x float> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call float @llvm.vector.reduce.fadd.v4f32(float -0.0{{.*}}, <4 x float> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call float @__mux_sub_group_scan_exclusive_fadd_f32(float [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x float> poison, float [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x float> [[HEAD]], <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = fadd <4 x float> [[SCAN]], [[SPLAT]]
+; CHECK: store <4 x float> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_smin_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -82,6 +100,12 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_smin_i32(
 ; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_smin_Dv4_i(<4 x i32> %{{.*}})
+; CHECK: [[SUM:%.*]] = call i32 @llvm.vector.reduce.smin.v4i32(<4 x i32> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i32 @__mux_sub_group_scan_exclusive_smin_i32(i32 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x i32> @llvm.smin.v4i32(<4 x i32> [[SCAN]], <4 x i32> [[SPLAT]])
+; CHECK: store <4 x i32> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_umin_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -94,7 +118,13 @@ entry:
   store i32 %call1, i32 addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_umin_i32(
-; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_umin_Dv4_j(<4 x i32> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x i32> @__vecz_b_sub_group_scan_inclusive_umin_Dv4_j(<4 x i32> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call i32 @llvm.vector.reduce.umin.v4i32(<4 x i32> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i32 @__mux_sub_group_scan_exclusive_umin_i32(i32 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x i32> @llvm.umin.v4i32(<4 x i32> [[SCAN]], <4 x i32> [[SPLAT]])
+; CHECK: store <4 x i32> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_smax_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -107,7 +137,13 @@ entry:
   store i32 %call1, i32 addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_smax_i32(
-; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_smax_Dv4_i(<4 x i32> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x i32> @__vecz_b_sub_group_scan_inclusive_smax_Dv4_i(<4 x i32> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call i32 @llvm.vector.reduce.smax.v4i32(<4 x i32> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i32 @__mux_sub_group_scan_exclusive_smax_i32(i32 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x i32> @llvm.smax.v4i32(<4 x i32> [[SCAN]], <4 x i32> [[SPLAT]])
+; CHECK: store <4 x i32> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_umax_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -120,7 +156,13 @@ entry:
   store i32 %call1, i32 addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_umax_i32(
-; CHECK: call <4 x i32> @__vecz_b_sub_group_scan_inclusive_umax_Dv4_j(<4 x i32> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x i32> @__vecz_b_sub_group_scan_inclusive_umax_Dv4_j(<4 x i32> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call i32 @llvm.vector.reduce.umax.v4i32(<4 x i32> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call i32 @__mux_sub_group_scan_exclusive_umax_i32(i32 [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x i32> @llvm.umax.v4i32(<4 x i32> [[SCAN]], <4 x i32> [[SPLAT]])
+; CHECK: store <4 x i32> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_fmin_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -133,7 +175,13 @@ entry:
   store float %call1, float addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_fmin_f32(
-; CHECK: call <4 x float> @__vecz_b_sub_group_scan_inclusive_min_Dv4_f(<4 x float> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x float> @__vecz_b_sub_group_scan_inclusive_min_Dv4_f(<4 x float> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call float @llvm.vector.reduce.fmin.v4f32(<4 x float> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call float @__mux_sub_group_scan_exclusive_fmin_f32(float [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x float> poison, float [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x float> [[HEAD]], <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x float> @llvm.minnum.v4f32(<4 x float> [[SCAN]], <4 x float> [[SPLAT]])
+; CHECK: store <4 x float> [[FINAL]],
 }
 
 define spir_kernel void @reduce_scan_incl_fmax_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -146,5 +194,11 @@ entry:
   store float %call1, float addrspace(1)* %arrayidx2, align 4
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_scan_incl_fmax_f32(
-; CHECK: call <4 x float> @__vecz_b_sub_group_scan_inclusive_max_Dv4_f(<4 x float> %{{.*}})
+; CHECK: [[SCAN:%.*]] = call <4 x float> @__vecz_b_sub_group_scan_inclusive_max_Dv4_f(<4 x float> [[INPUT:%.*]])
+; CHECK: [[SUM:%.*]] = call float @llvm.vector.reduce.fmax.v4f32(<4 x float> [[INPUT]])
+; CHECK: [[EXCL_SCAN:%.*]] = call float @__mux_sub_group_scan_exclusive_fmax_f32(float [[SUM]])
+; CHECK: [[HEAD:%.*]] = insertelement <4 x float> poison, float [[EXCL_SCAN]], {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x float> [[HEAD]], <4 x float> poison, <4 x i32> zeroinitializer
+; CHECK: [[FINAL:%.*]] = call <4 x float> @llvm.maxnum.v4f32(<4 x float> [[SCAN]], <4 x float> [[SPLAT]])
+; CHECK: store <4 x float> [[FINAL]],
 }
