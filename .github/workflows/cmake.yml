@@ -195,6 +195,56 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
+  adapter-build-hw:
+    name: Build - Adapters on HW
+    if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
+    strategy:
+      matrix:
+        adapter: [CUDA, HIP, L0]
+        build_type: [Debug, Release]
+        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
+
+    runs-on: ${{matrix.adapter}}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install pip packages
+      run: pip install -r third_party/requirements.txt
+
+    - name: Download DPC++
+      run: |
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/sycl-nightly%2F20230626/dpcpp-compiler.tar.gz
+        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz
+
+    - name: Configure CMake
+      run: >
+        cmake
+        -B${{github.workspace}}/build
+        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
+        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
+        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
+        -DUR_ENABLE_TRACING=ON
+        -DUR_DEVELOPER_MODE=ON
+        -DUR_BUILD_TESTS=ON
+        -DUR_BUILD_ADAPTER_${{matrix.adapter}}=ON
+        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    # Temporarily disabling platform test for L0, because of hang
+    # See issue: #824
+    - name: Test L0 adapter
+      if: matrix.adapter == 'L0'
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "platform-adapter_level_zero" --timeout 180
+
+    - name: Test adapters
+      if: matrix.adapter != 'L0'
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
+
   windows-build:
     name: Build - Windows
     strategy:

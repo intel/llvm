@@ -1,0 +1,3 @@
+urSamplerGetNativeHandleTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+urSamplerGetNativeHandleTest.InvalidNullHandleSampler/NVIDIA_CUDA_BACKEND___{{.*}}_
+urSamplerGetNativeHandleTest.InvalidNullPointerNativeHandle/NVIDIA_CUDA_BACKEND___{{.*}}_
