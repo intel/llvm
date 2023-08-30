@@ -6,7 +6,10 @@ on:
   # https://github.com/intel/llvm/settings/actions for security.
   pull_request:
     branches:
-    - sycl-mlir
+    # UNCOMMENT BEFORE MERGE
+    # - sycl-mlir
+    # DELETE BEFORE MERGE
+    - no-branch
     # Do not run builds if changes are only in the following locations
     paths-ignore:
     - '.github/ISSUE_TEMPLATE/**'
