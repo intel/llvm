@@ -12,18 +12,29 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  SYCLcompat
+ *  SYCLcompat API
  *
- *  syclcompat.hpp
+ *  memory_common.hpp
  *
  *  Description:
- *    Main include internal header for SYCLcompat
+ *    Memory content helper for the Memory functionality tests
  **************************************************************************/
 
 #pragma once
 
-#include <syclcompat/defs.hpp>
-#include <syclcompat/device.hpp>
-#include <syclcompat/dims.hpp>
-#include <syclcompat/kernel.hpp>
-#include <syclcompat/memory.hpp>
+#include <cassert>
+#include <cmath>
+#include <tuple>
+
+#include <sycl/sycl.hpp>
+
+inline void check(float *h_data, float *h_ref, size_t size) {
+  for (size_t i = 0; i < size; i++) {
+    float diff = fabs(h_data[i] - h_ref[i]);
+    assert(diff <= 1.e-6);
+  }
+}
+
+using value_type_list =
+    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
+               long long, unsigned long long, float, double, sycl::half>;
