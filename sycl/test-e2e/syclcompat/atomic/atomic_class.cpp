@@ -67,7 +67,7 @@ template <typename T> void atomic_ref_ptr_host(T *atom_arr, T *atom_arr_in) {
   atomic_ref_ptr<T, std::atomic<T>>(atom_arr, atom_arr_in);
 }
 
-template <typename T> void atomic_class_ptr() {
+template <typename T> void test_atomic_class_ptr() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   AtomicClassPtrTypeLauncher<T>(numBlocks, numThreads, numData)
@@ -104,7 +104,7 @@ template <typename T> void atomic_ref_value_host(T *atom_arr) {
     atomic_ref_value<T, syclcompat::atomic<T>>(atom_arr);
 }
 
-template <typename T> void atomic_class_value() {
+template <typename T> void test_atomic_class_value() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   AtomicClassLauncher<T>(numBlocks, numThreads, numData)
@@ -112,10 +112,9 @@ template <typename T> void atomic_class_value() {
                             atomic_ref_value_host<T>>();
 }
 
-int main() {
-  // default constructor
-  syclcompat::atomic<int> default_constructor;
+void test_default_constructor() { syclcompat::atomic<int> default_constructor; }
 
-  INSTANTIATE_ALL_TYPES(atomic_value_type_list, atomic_class_value);
-  INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, atomic_class_ptr);
+int main() {
+  INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_class_value);
+  INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_class_ptr);
 }
