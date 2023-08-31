@@ -34,7 +34,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
              type::graph_create, type::node_create, type::edge_create,
              type::task_begin, type::task_end, type::signal,
              type::barrier_begin, type::barrier_end, type::wait_begin,
-             type::wait_end, type::queue_create, type::queue_destroy})
+             type::wait_end})
       xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclCallback);
   }
 }
