@@ -1043,6 +1043,34 @@ public:
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
+
+        /* Handle BC Files */
+
+        BinaryFileHandler BFH(BundlerConfig);
+
+        auto MR = C.getMemoryBufferRef();
+        if (!MR) {
+          dbgs() << "No memory buffer\n";
+        }
+
+        auto Buf2 = MemoryBuffer::getMemBuffer(*MR, false);
+
+        if (Error Err = BFH.ReadHeader(*Buf2))
+          return Err;
+
+        Expected<std::optional<StringRef>> NameOrErr = BFH.ReadBundleStart(*Buf2);
+        if (!NameOrErr)
+          return NameOrErr.takeError();
+
+        while (*NameOrErr) {
+          ++Bundles[**NameOrErr];
+          NameOrErr = BFH.ReadBundleStart(*Buf2);
+          if (!NameOrErr)
+            return NameOrErr.takeError();
+        }
+
+        /* Handle BC Files */
+
         continue;
       }
 
@@ -1129,6 +1157,62 @@ public:
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
+
+        /* Not an object file, but try to handle BC Files */
+        if (BundlerConfig.FilesType == "aoo") {
+          BinaryFileHandler BFH(BundlerConfig);
+
+          auto MR = C.getMemoryBufferRef();
+          if (!MR) {
+            dbgs() << "No memory buffer\n";
+          }
+
+          auto Buf2 = MemoryBuffer::getMemBuffer(*MR, false);
+
+          if (Error Err = BFH.ReadHeader(*Buf2))
+            return Err;
+
+          Expected<std::optional<StringRef>> NameOrErr = BFH.ReadBundleStart(*Buf2);
+          if (!NameOrErr)
+            return NameOrErr.takeError();
+
+          while (*NameOrErr) {
+            auto TT = **NameOrErr;
+
+            if (TT == CurrBundle->first()) {
+              if (Mode == OutputType::FileList) {
+                // Create temporary file where the device part will be extracted to.
+                SmallString<128u> ChildFileName;
+                StringRef Ext("bc");
+
+                auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
+                                                       ChildFileName);
+                if (EC)
+                  return createFileError(ChildFileName, EC);
+
+                raw_fd_ostream ChildOS(ChildFileName, EC);
+                if (EC)
+                  return createFileError(ChildFileName, EC);
+
+                if (Error Err = BFH.ReadBundle(ChildOS, *Buf2))
+                  return Err;
+
+                if (ChildOS.has_error())
+                  return createFileError(ChildFileName, ChildOS.error());
+
+                // Add temporary file name with the device part to the output file
+                // list.
+                OS << ChildFileName << "\n";
+              }
+            }
+
+            NameOrErr = BFH.ReadBundleStart(*Buf2);
+            if (!NameOrErr)
+              return NameOrErr.takeError();
+          }
+        }
+        /* Handle BC Files */
+
         continue;
       }
 
