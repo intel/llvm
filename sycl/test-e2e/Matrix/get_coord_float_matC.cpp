@@ -1,4 +1,4 @@
-//==----------- get_coord_bf16_matC.cpp  - DPC++ joint_matrix---------==//
+//==----------- get_coord_float_matC.cpp  - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -20,4 +20,4 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 constexpr size_t SG_SZ = 16;
 constexpr size_t TN = 16;
 
-#include "get_coord_bf16_matC_impl.hpp"
+#include "get_coord_float_matC_impl.hpp"

@@ -1,11 +1,10 @@
-//==----------- get_coord_bf16_matC_impl.hpp  - DPC++ joint_matrix---------==//
+//==----------- get_coord_float_matC_impl.hpp  - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-
 constexpr size_t TM = 8;
 
 // clang-format off
@@ -93,7 +92,7 @@ int main() {
     for (int j = 0; j < MATRIX_N; j++) {
       sum_rows_ref[i] += C[i][j];
     }
-    if (fabs(sum_rows_ref[i] - sum_rows[i]) > BF16_EPSILON)
+    if (fabs(sum_rows_ref[i] - sum_rows[i]) > FLOAT_EPSILON)
       res = false;
   }
 
