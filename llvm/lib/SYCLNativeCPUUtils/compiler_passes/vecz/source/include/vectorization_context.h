@@ -47,7 +47,7 @@ class VectorizationChoices;
 struct VectorizationResult;
 class VectorizationUnit;
 
-using ActiveUnitMap = llvm::DenseMap<llvm::AssertingVH<const llvm::Function>,
+using ActiveUnitMap = llvm::DenseMap<llvm::PoisoningVH<const llvm::Function>,
                                      VectorizationUnit *>;
 
 /// @brief Holds global (per-module) vectorization state.
