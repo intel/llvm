@@ -3679,7 +3679,9 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     return nullptr;
   }
   case Intrinsic::bitreverse: {
-    BM->addCapability(CapabilityShader);
+    if (!BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_bit_instructions)) {
+      BM->addCapability(CapabilityShader);
+    }
     SPIRVType *Ty = transType(II->getType());
     SPIRVValue *Op = transValue(II->getArgOperand(0), BB);
     return BM->addUnaryInst(OpBitReverse, Ty, Op, BB);
