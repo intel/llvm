@@ -67,6 +67,7 @@ def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
 def AspectUsm_system_allocator : Aspect<"usm_system_allocator">;
 def AspectUsm_restricted_shared_allocations : Aspect<"usm_restricted_shared_allocations">;
 def AspectHost : Aspect<"host">;
+def AspectExt_oneapi_non_uniform_groups : Aspect<"ext_oneapi_non_uniform_groups">;
 defvar AllUSMAspects = [AspectUsm_device_allocations, AspectUsm_host_allocations,
     AspectUsm_shared_allocations, AspectUsm_system_allocations, AspectUsm_atomic_host_allocations,
     AspectUsm_atomic_shared_allocations];
@@ -110,6 +111,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
     AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
     AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference],
+    AspectExt_oneapi_non_uniform_groups,
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
