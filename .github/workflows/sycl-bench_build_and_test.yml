@@ -124,8 +124,8 @@ jobs:
       - name: Pack benchmarks
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         run: |
-          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/sycl-bench/build/install
-      - name: Upload toolchain
+          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/sycl-bench/build/install .
+      - name: Upload benchmarks
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         uses: actions/upload-artifact@v3
         with:
