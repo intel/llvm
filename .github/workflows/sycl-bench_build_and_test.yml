@@ -91,7 +91,7 @@ jobs:
         with:
           repository: ${{ inputs.repository_owner }}/sycl-bench
           ref: ${{ inputs.ref }}
-          clean: false
+          path: sycl-bench
       - name: Configure sycl-bench
         run: |
           cmake -S sycl-bench -GNinja -B sycl-bench/build \
