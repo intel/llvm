@@ -29,3 +29,4 @@
 #include <syclcompat/kernel.hpp>
 #include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/util.hpp>
