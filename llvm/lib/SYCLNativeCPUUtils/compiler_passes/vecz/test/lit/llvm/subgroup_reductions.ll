@@ -53,8 +53,8 @@ entry:
 
 ; CHECK: [[T3:%.*]] = bitcast <4 x i1> [[T2]] to i4
 ; CHECK: [[R:%.*]] = icmp eq i4 [[T3]], 0
-
-; CHECK: [[EXT:%.*]] = sext i1 [[R]] to i32
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_all_i1(i1 [[R]])
+; CHECK: [[EXT:%.*]] = sext i1 %call2 to i32
 ; CHECK: store i32 [[EXT]], ptr addrspace(1) {{%.*}}, align 4
 }
 
@@ -76,8 +76,8 @@ entry:
 
 ; CHECK: [[T3:%.*]] = bitcast <4 x i1> [[T2]] to i4
 ; CHECK: [[R:%.*]] = icmp ne i4 [[T3]], 0
-
-; CHECK: [[EXT:%.*]] = sext i1 [[R]] to i32
+; CHECK: %call2 = tail call spir_func i1 @__mux_sub_group_any_i1(i1 [[R]])
+; CHECK: [[EXT:%.*]] = sext i1 %call2 to i32
 ; CHECK: store i32 [[EXT]], ptr addrspace(1) {{%.*}}, align 4
 }
 
@@ -94,7 +94,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_add_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> %{{.*}})
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_add_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 ; Given we've checked a "full" expanded reduction sequence above for LLVM < 13,
@@ -112,8 +113,9 @@ entry:
 ; intrinsic. LLVM 10 does the shift-left in a vector, LLVMs 11 and 12 do it in
 ; scalar.
 ; CHECK: [[CALL:%.*]] = call i32 @llvm.vector.reduce.add.v4i32(<4 x i32> {{%.*}})
-; CHECK: [[INS:%.*]] = insertelement <4 x i32> {{(undef|poison)}}, i32 [[CALL]], {{(i32|i64)}} 0
-; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[INS]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
+; CHECK: %call1 = tail call spir_func i32 @__mux_sub_group_reduce_add_i32(i32 [[CALL]])
+; CHECK: [[INS:%.*]] = insertelement <4 x i32> {{(undef|poison)}}, i32 %call1, {{(i32|i64)}} 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[INS]], <4 x i32> poison, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]],
 }
 
@@ -130,7 +132,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_add_i64(
 ; CHECK: [[R:%.*]] = call i64 @llvm.vector.reduce.add.v4i64(<4 x i64> %{{.*}})
-; CHECK: store i64 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i64 @__mux_sub_group_reduce_add_i64(i64 [[R]])
+; CHECK: store i64 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_add_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -146,7 +149,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_add_f32(
 ; CHECK: [[R:%.*]] = call float @llvm.vector.reduce.fadd.v4f32(float -0.000000e+00, <4 x float> %{{.*}})
-; CHECK: store float [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func float @__mux_sub_group_reduce_fadd_f32(float [[R]])
+; CHECK: store float %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_smin_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -162,7 +166,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_smin_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.smin.v4i32(<4 x i32> %{{.*}})
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_smin_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_umin_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -178,7 +183,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_umin_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.umin.v4i32(<4 x i32> %{{.*}})
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_umin_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_smax_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -194,7 +200,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_smax_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.smax.v4i32(<4 x i32> %{{.*}})
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_smax_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_umax_i32(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -210,7 +217,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_umax_i32(
 ; CHECK: [[R:%.*]] = call i32 @llvm.vector.reduce.umax.v4i32(<4 x i32> %{{.*}})
-; CHECK: store i32 [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func i32 @__mux_sub_group_reduce_umax_i32(i32 [[R]])
+; CHECK: store i32 %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_fmin_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -226,7 +234,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_fmin_f32(
 ; CHECK: [[R:%.*]] = call float @llvm.vector.reduce.fmin.v4f32(<4 x float> %{{.*}})
-; CHECK: store float [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func float @__mux_sub_group_reduce_fmin_f32(float [[R]])
+; CHECK: store float %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 define spir_kernel void @reduce_fmax_f32(float addrspace(1)* %in, float addrspace(1)* %out) {
@@ -242,7 +251,8 @@ entry:
   ret void
 ; CHECK-LABEL: @__vecz_v4_reduce_fmax_f32(
 ; CHECK: [[R:%.*]] = call float @llvm.vector.reduce.fmax.v4f32(<4 x float> %{{.*}})
-; CHECK: store float [[R]], ptr addrspace(1) {{%.*}}, align 4
+; CHECK: %call2 = tail call spir_func float @__mux_sub_group_reduce_fmax_f32(float [[R]])
+; CHECK: store float %call2, ptr addrspace(1) {{%.*}}, align 4
 }
 
 !opencl.ocl.version = !{!0}

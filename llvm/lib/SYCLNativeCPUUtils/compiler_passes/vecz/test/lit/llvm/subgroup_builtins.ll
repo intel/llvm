@@ -34,7 +34,8 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
   store i32 %call2, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_get_sub_group_size(
-; CHECK: store i32 4, ptr addrspace(1) {{.*}}
+; CHECK: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 4)
+; CHECK: store i32 [[RED]], ptr addrspace(1) {{.*}}
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -43,7 +44,14 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_get_sub_group_local_id(
-; CHECK: store <4 x i32> <i32 0, i32 1, i32 2, i32 3>, ptr addrspace(1) %out
+; CHECK: %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
+; CHECK: [[MUL:%.*]] = shl i32 %call, 2
+; CHECK: [[SPLATINSERT:%.*]] = insertelement <4 x i32> poison, i32 [[MUL]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[SPLATINSERT]], <4 x i32> poison, <4 x i32> zeroinitializer
+; CHECK: [[ID:%.*]] = or <4 x i32> [[SPLAT]], <i32 0, i32 1, i32 2, i32 3>
+; CHECK: [[EXT:%.*]] = sext i32 %call to i64
+; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: store <4 x i32> [[ID]], ptr addrspace(1) %arrayidx
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -56,7 +64,28 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_sub_group_broadcast(
 ; CHECK: [[LD:%.*]] = load <4 x i32>, ptr addrspace(1) {{%.*}}, align 4
-; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[LD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
+; CHECK: [[EXT:%.*]] = extractelement <4 x i32> [[LD]], i64 0
+; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 0)
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[BDCAST]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
+; CHECK: store <4 x i32> [[SPLAT]], ptr addrspace(1)
+}
+
+define spir_kernel void @sub_group_broadcast_wider_than_vf(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
+  %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
+  %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %in, i32 %call
+  %v = load i32, i32 addrspace(1)* %arrayidx, align 4
+  %broadcast = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 %v, i32 6)
+  %arrayidx2 = getelementptr inbounds i32, i32 addrspace(1)* %out, i32 %call
+  store i32 %broadcast, i32 addrspace(1)* %arrayidx2, align 4
+  ret void
+; CHECK-LABEL: define spir_kernel void @__vecz_v4_sub_group_broadcast_wider_than_vf(
+; CHECK: [[LD:%.*]] = load <4 x i32>, ptr addrspace(1) {{%.*}}, align 4
+; The sixth sub-group member is the (6 % 4 ==) 2nd vector group member
+; CHECK: [[EXT:%.*]] = extractelement <4 x i32> [[LD]], i64 2
+; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 6)
+; CHECK: [[HEAD:%.*]] = insertelement <4 x i32> poison, i32 [[BDCAST]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <4 x i32> [[HEAD]], <4 x i32> {{(undef|poison)}}, <4 x i32> zeroinitializer
 ; CHECK: store <4 x i32> [[SPLAT]], ptr addrspace(1)
 }
 

@@ -35,7 +35,8 @@ define spir_kernel void @get_sub_group_size(i32 addrspace(1)* %in, i32 addrspace
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_size(
 ; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
 ; CHECK: [[W:%.*]] = shl i32 [[VSCALE]], 2
-; CHECK: store i32 [[W]], ptr addrspace(1) {{.*}}
+; CHECK: [[RED:%.*]] = call i32 @__mux_sub_group_reduce_add_i32(i32 [[W]])
+; CHECK: store i32 [[RED]], ptr addrspace(1) {{.*}}
 }
 
 define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -44,8 +45,17 @@ define spir_kernel void @get_sub_group_local_id(i32 addrspace(1)* %in, i32 addrs
   store i32 %call, i32 addrspace(1)* %arrayidx, align 4
   ret void
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_get_sub_group_local_id(
-; CHECK: [[LID:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
-; CHECK: store <vscale x 4 x i32> [[LID]], ptr addrspace(1) %out
+; CHECK: %call = tail call spir_func i32 @__mux_get_sub_group_local_id()
+; CHECK: [[VSCALE:%.*]] = call i32 @llvm.vscale.i32()
+; CHECK: [[SHL:%.*]] = shl i32 %1, 2
+; CHECK: [[MUL:%.*]] = mul i32 %call, [[SHL]]
+; CHECK: [[SPLATINSERT:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[MUL]], i64 0
+; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[SPLATINSERT]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
+; CHECK: [[STEPVEC:%.*]] = call <vscale x 4 x i32> @llvm.experimental.stepvector.nxv4i32()
+; CHECK: [[LID:%.*]] = add <vscale x 4 x i32> [[SPLAT]], [[STEPVEC]]
+; CHECK: [[EXT:%.*]] = sext i32 %call to i64
+; CHECK: %arrayidx = getelementptr inbounds i32, ptr addrspace(1) %out, i64 [[EXT]]
+; CHECK: store <vscale x 4 x i32> [[LID]], ptr addrspace(1) %arrayidx
 }
 
 define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspace(1)* %out) {
@@ -59,7 +69,8 @@ define spir_kernel void @sub_group_broadcast(i32 addrspace(1)* %in, i32 addrspac
 ; CHECK-LABEL: define spir_kernel void @__vecz_nxv4_sub_group_broadcast(
 ; CHECK: [[LD:%.*]] = load <vscale x 4 x i32>, ptr addrspace(1) {{%.*}}, align 4
 ; CHECK: [[EXT:%.*]] = extractelement <vscale x 4 x i32> [[LD]], {{(i32|i64)}} 0
-; CHECK: [[INS:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[EXT]], {{(i32|i64)}} 0
+; CHECK: [[BDCAST:%.*]] = call spir_func i32 @__mux_sub_group_broadcast_i32(i32 [[EXT]], i32 0)
+; CHECK: [[INS:%.*]] = insertelement <vscale x 4 x i32> poison, i32 [[BDCAST]], {{(i32|i64)}} 0
 ; CHECK: [[SPLAT:%.*]] = shufflevector <vscale x 4 x i32> [[INS]], <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer
 ; CHECK: store <vscale x 4 x i32> [[SPLAT]], ptr addrspace(1)
 }
