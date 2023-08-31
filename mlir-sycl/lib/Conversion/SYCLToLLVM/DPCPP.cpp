@@ -1974,14 +1974,14 @@ public:
     // body is dropped and we can create group type more easily.
     const auto indices = GetMemberPattern<NDItemGroup>::getIndices();
     assert(indices.size() == 1 && "Expecting a single index");
-    const auto groupTy =
-        cast<NdItemType>(op.getNDItem().getType().getElementType())
-            .getBody()[indices[0]];
+    auto ndItemTy = cast<NdItemType>(op.getNDItem().getType().getElementType());
+    const auto groupTy = ndItemTy.getBody()[indices[0]];
     const auto convGroupTy = getTypeConverter()->convertType(groupTy);
+    Type convNDItemTy = getTypeConverter()->convertType(ndItemTy);
     bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
     auto group = GetMemberPattern<NDItemGroup>::getRef(
-        rewriter, loc, convGroupTy, adaptor.getNDItem(), std::nullopt,
-        useOpaquePointers);
+        rewriter, loc, (useOpaquePointers) ? convNDItemTy : convGroupTy,
+        adaptor.getNDItem(), std::nullopt, useOpaquePointers);
     const auto thisTy = MemRefType::get(ShapedType::kDynamic, groupTy);
     // We have the already converted group, but, in order to not replicate
     // `sycl.group.get_group_linear_id` conversion to LLVM, we just reuse that
