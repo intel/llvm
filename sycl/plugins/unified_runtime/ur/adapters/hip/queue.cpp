@@ -111,7 +111,8 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   try {
     std::unique_ptr<ur_queue_handle_t_> QueueImpl{nullptr};
 
-    if (hContext->getDevice() != hDevice) {
+    if (std::find(hContext->getDevices().begin(), hContext->getDevices().end(),
+                  hDevice) == hContext->getDevices().end()) {
       *phQueue = nullptr;
       return UR_RESULT_ERROR_INVALID_DEVICE;
     }
@@ -196,7 +197,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
     if (!hQueue->backendHasOwnership())
       return UR_RESULT_SUCCESS;
 
-    ScopedDevice Active(hQueue->getContext()->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->forEachStream([](hipStream_t S) {
       UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -217,7 +218,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 
   try {
 
-    ScopedDevice Active(hQueue->getContext()->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->syncStreams<true>([&Result](hipStream_t S) {
       Result = UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -248,7 +249,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
-  ScopedDevice Active(hQueue->getContext()->getDevice());
+  ScopedDevice Active(hQueue->getDevice());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;
@@ -288,7 +289,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
       new ur_queue_handle_t_{std::move(ComputeHIPStreams),
                              std::move(TransferHIPStreams),
                              hContext,
-                             hContext->getDevice(),
+                             hDevice,
                              HIPFlags,
                              Flags,
                              /*backend_owns*/ pProperties->isNativeHandleOwned};

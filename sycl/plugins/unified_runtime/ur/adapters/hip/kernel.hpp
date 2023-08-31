@@ -58,6 +58,14 @@ struct ur_kernel_handle_t_ {
     args_size_t OffsetPerIndex;
     std::set<const void *> PtrArgs;
 
+    // A struct to keep track of memargs so that we can do dependency analysis
+    // at urEnqueueKernelLaunch
+    struct mem_obj_arg {
+      ur_mem_handle_t_ *Mem;
+      ur_mem_flags_t AccessFlags;
+    };
+    std::vector<mem_obj_arg> MemObjArgs;
+
     std::uint32_t ImplicitOffsetArgs[3] = {0, 0, 0};
 
     arguments() {
@@ -143,6 +151,9 @@ struct ur_kernel_handle_t_ {
   ~ur_kernel_handle_t_() {
     urProgramRelease(Program);
     urContextRelease(Context);
+    for (auto &Mem : Args.MemObjArgs) {
+      urMemRelease(Mem.Mem);
+    }
   }
 
   ur_program_handle_t getProgram() const noexcept { return Program; }
@@ -205,4 +216,16 @@ struct ur_kernel_handle_t_ {
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
   void clearLocalSize() { Args.clearLocalSize(); }
+
+  void addMemObjArg(ur_mem_handle_t hMem, ur_mem_flags_t Flags) {
+    assert(hMem && "Invalid mem handle");
+    for (auto &MemObjArg : Args.MemObjArgs) {
+      if (hMem == MemObjArg.Mem) {
+        MemObjArg.AccessFlags |= Flags;
+        return;
+      }
+    }
+    Args.MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Flags});
+    urMemRetain(hMem);
+  };
 };

@@ -31,22 +31,24 @@ typedef void (*ur_context_extended_deleter_t)(void *UserData);
 /// with a given device and control access to said device from the user side.
 /// UR API context are objects that are passed to functions, and not bound
 /// to threads.
-/// The ur_context_handle_t_ object doesn't implement this behavior. It only
-/// holds the HIP context data. The RAII object \ref ScopedDevice implements
-/// the active context behavior.
 ///
-/// <b> Primary vs UserDefined context </b>
+/// Since the ur_context_handle_t can contain multiple devices, and a `hipCtx_t`
+/// refers to only a single device, the `hipCtx_t` is more tightly coupled to a
+/// ur_device_handle_t than a ur_context_handle_t. In order to remove some
+/// ambiguities about the different semantics of ur_context_handle_t s and
+/// native `hipCtx_t`, we access the native `hipCtx_t` solely through the
+/// ur_device_handle_t class, by using the RAII object \ref ScopedDevice, which
+/// sets the active device (by setting the active native `hipCtx_t`).
 ///
-/// HIP has two different types of context, the Primary context,
-/// which is usable by all threads on a given process for a given device, and
-/// the aforementioned custom contexts.
-/// The HIP documentation, and performance analysis, suggest using the Primary
-/// context whenever possible. The Primary context is also used by the HIP
-/// Runtime API. For UR applications to interop with HIP Runtime API, they have
-/// to use the primary context - and make that active in the thread. The
-/// `ur_context_handle_t_` object can be constructed with a `kind` parameter
-/// that allows to construct a Primary or `UserDefined` context, so that
-/// the UR object interface is always the same.
+/// <b> Primary vs User-defined `hipCtx_t` </b>
+///
+/// HIP has two different types of `hipCtx_t`, the Primary context, which is
+/// usable by all threads on a given process for a given device, and the
+/// aforementioned custom `hipCtx_t`s.
+/// The HIP documentation, confirmed with performance analysis, suggest using
+/// the Primary context whenever possible. The Primary context is also used by
+/// the HIP Runtime API. For UR applications to interop with HIP Runtime API,
+/// they have to use the primary context - and make that active in the thread.
 ///
 ///  <b> Destructor callback </b>
 ///
@@ -55,6 +57,15 @@ typedef void (*ur_context_extended_deleter_t)(void *UserData);
 ///  called upon destruction of the UR Context.
 ///  See proposal for details.
 ///  https://github.com/codeplaysoftware/standards-proposals/blob/master/extended-context-destruction/index.md
+///
+///  <b> Memory Management for Devices in a Context <\b>
+///
+///  A ur_buffer_ is associated with a ur_context_handle_t_, which may refer to
+///  multiple devices. Therefore the ur_buffer_ must handle a native allocation
+///  for each device in the context. UR is responsible for automatically
+///  handling event dependencies for kernels writing to or reading from the
+///  same ur_buffer_ and migrating memory between native allocations for
+///  devices in the same ur_context_handle_t_ if necessary.
 ///
 struct ur_context_handle_t_ {
 
@@ -67,15 +78,23 @@ struct ur_context_handle_t_ {
 
   using native_type = hipCtx_t;
 
-  ur_device_handle_t DeviceId;
+  std::vector<ur_device_handle_t> Devices;
+  uint32_t NumDevices;
+
   std::atomic_uint32_t RefCount;
 
-  ur_context_handle_t_(ur_device_handle_t DevId)
-      : DeviceId{DevId}, RefCount{1} {
-    urDeviceRetain(DeviceId);
+  ur_context_handle_t_(const ur_device_handle_t *Devs, uint32_t NumDevices)
+      : Devices{Devs, Devs + NumDevices}, NumDevices{NumDevices}, RefCount{1} {
+    for (auto &Dev : Devices) {
+      urDeviceRetain(Dev);
+    }
   };
 
-  ~ur_context_handle_t_() { urDeviceRelease(DeviceId); }
+  ~ur_context_handle_t_() {
+    for (auto &Dev : Devices) {
+      urDeviceRelease(Dev);
+    }
+  }
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
@@ -90,7 +109,9 @@ struct ur_context_handle_t_ {
     ExtendedDeleters.emplace_back(deleter_data{Function, UserData});
   }
 
-  ur_device_handle_t getDevice() const noexcept { return DeviceId; }
+  std::vector<ur_device_handle_t> getDevices() const noexcept {
+    return Devices;
+  }
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 

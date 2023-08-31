@@ -68,7 +68,7 @@ UR_APIEXPORT ur_result_t UR_APICALL USMFreeImpl(ur_context_handle_t hContext,
                                                 void *pMem) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedDevice Active(hContext->getDevice());
+    // Free does not require a scopedDevice
     hipPointerAttribute_t hipPointerAttributeType;
     Result =
         UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
@@ -97,12 +97,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
   }
 }
 
-ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_device_mem_flags_t *,
-                               size_t Size,
+ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
+                               ur_device_handle_t Device,
+                               ur_usm_device_mem_flags_t *, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Context->getDevice());
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMalloc(ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -112,12 +112,13 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
-                               ur_device_handle_t, ur_usm_host_mem_flags_t *,
+ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
+                               ur_device_handle_t Device,
+                               ur_usm_host_mem_flags_t *,
                                ur_usm_device_mem_flags_t *, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Context->getDevice());
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, hipMemAttachGlobal));
   } catch (ur_result_t Err) {
     return Err;
@@ -127,11 +128,11 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
+ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t,
                              ur_usm_host_mem_flags_t *, size_t Size,
                              [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Context->getDevice());
+    // Host malloc doesn't require a ScopedDevice
     UR_CHECK_ERROR(hipHostMalloc(ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -151,7 +152,6 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
   UrReturnHelper ReturnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   try {
-    ScopedDevice Active(hContext->getDevice());
     switch (propName) {
     case UR_USM_ALLOC_INFO_TYPE: {
       unsigned int Value;
@@ -345,7 +345,8 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
           this->DisjointPoolConfigs.Configs[usm::DisjointPoolMemType::Host])
           .second;
 
-  auto Device = Context->DeviceId;
+  // FIXME this just works for first device in context
+  auto Device = Context->getDevices()[0];
   MemProvider =
       umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, Device)
           .second;

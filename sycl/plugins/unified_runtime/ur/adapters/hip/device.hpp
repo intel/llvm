@@ -23,12 +23,13 @@ private:
   std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
   hipCtx_t HIPContext;
+  size_t DeviceIndex; // The index of the device in the UR context
 
 public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
-                      ur_platform_handle_t Platform)
+                      ur_platform_handle_t Platform, size_t DeviceIndex)
       : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        HIPContext(Context) {}
+        HIPContext(Context), DeviceIndex(DeviceIndex) {}
 
   ~ur_device_handle_t_() {
     UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
@@ -41,17 +42,25 @@ public:
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   hipCtx_t getNativeContext() { return HIPContext; };
+
+  // Returns the index of the device in question relative to the other devices
+  // in the platform
+  size_t getIndex() { return DeviceIndex; }
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
 
 namespace {
-/// RAII type to guarantee recovering original HIP context
-/// Scoped context is used across all UR HIP plugin implementation
-/// to activate the UR Context on the current thread, matching the
+/// RAII type to guarantee recovering original HIP device. In UR the
+/// `ScopedDevice` sets the active device by using the native underlying
+/// `hipCtx_t`. Since a UR context can contain multiple devices, whereas a
+/// `hipCtx_t` refers to a single device, it is semantically clearer to access
+/// the `hipCtx_t` through the UR device rather than the UR context.
+/// Scoped device is used across all UR HIP plugin implementation
+/// to activate the UR Device on the current thread, matching the
 /// HIP driver semantics where the context used for the HIP Driver
 /// API is the one active on the thread.
-/// The implementation tries to avoid replacing the hipCtx_t if it cans
+/// The implementation tries to avoid replacing the hipCtx_t if it can
 class ScopedDevice {
   hipCtx_t Original;
   bool NeedToRecover;

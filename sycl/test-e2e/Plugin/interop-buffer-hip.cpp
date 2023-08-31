@@ -1,4 +1,6 @@
-// REQUIRES: hip
+// UNSUPPORTED: hip
+// Not running this test because buffer interop doesn't make sense for a multi
+// device context.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
