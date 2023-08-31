@@ -18,6 +18,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -50,6 +51,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cstdint>
+#include <memory>
 
 #ifdef EXPENSIVE_CHECKS
 #include "llvm/IR/Verifier.h"
@@ -92,6 +94,13 @@ static cl::opt<unsigned>
     SetFixpointIterations("attributor-max-iterations", cl::Hidden,
                           cl::desc("Maximal number of fixpoint iterations."),
                           cl::init(32));
+
+static cl::opt<unsigned>
+    MaxSpecializationPerCB("attributor-max-specializations-per-call-base",
+                           cl::Hidden,
+                           cl::desc("Maximal number of callees specialized for "
+                                    "a call base"),
+                           cl::init(UINT32_MAX));
 
 static cl::opt<unsigned, true> MaxInitializationChainLengthX(
     "attributor-max-initialization-chain-length", cl::Hidden,
@@ -226,10 +235,10 @@ bool AA::isDynamicallyUnique(Attributor &A, const AbstractAttribute &QueryingAA,
   return InstanceInfoAA && InstanceInfoAA->isAssumedUniqueForAnalysis();
 }
 
-Constant *AA::getInitialValueForObj(Attributor &A, Value &Obj, Type &Ty,
-                                    const TargetLibraryInfo *TLI,
-                                    const DataLayout &DL,
-                                    AA::RangeTy *RangePtr) {
+Constant *
+AA::getInitialValueForObj(Attributor &A, const AbstractAttribute &QueryingAA,
+                          Value &Obj, Type &Ty, const TargetLibraryInfo *TLI,
+                          const DataLayout &DL, AA::RangeTy *RangePtr) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
   if (Constant *Init = getInitialValueOfAllocation(&Obj, TLI, &Ty))
@@ -242,7 +251,7 @@ Constant *AA::getInitialValueForObj(Attributor &A, Value &Obj, Type &Ty,
   Constant *Initializer = nullptr;
   if (A.hasGlobalVariableSimplificationCallback(*GV)) {
     auto AssumedGV = A.getAssumedInitializerFromCallBack(
-        *GV, /* const AbstractAttribute *AA */ nullptr, UsedAssumedInformation);
+        *GV, &QueryingAA, UsedAssumedInformation);
     Initializer = *AssumedGV;
     if (!Initializer)
       return nullptr;
@@ -526,8 +535,8 @@ static bool getPotentialCopiesOfMemoryValue(
 
     if (IsLoad && !HasBeenWrittenTo && !Range.isUnassigned()) {
       const DataLayout &DL = A.getDataLayout();
-      Value *InitialValue =
-          AA::getInitialValueForObj(A, Obj, *I.getType(), TLI, DL, &Range);
+      Value *InitialValue = AA::getInitialValueForObj(
+          A, QueryingAA, Obj, *I.getType(), TLI, DL, &Range);
       if (!InitialValue) {
         LLVM_DEBUG(dbgs() << "Could not determine required initial value of "
                              "underlying object, abort!\n");
@@ -3460,8 +3469,10 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
     Function *Callee = dyn_cast_if_present<Function>(CB.getCalledOperand());
     // TODO: Even if the callee is not known now we might be able to simplify
     //       the call/callee.
-    if (!Callee)
+    if (!Callee) {
+      getOrCreateAAFor<AAIndirectCallInfo>(CBFnPos);
       return true;
+    }
 
     // Every call site can track active assumptions.
     getOrCreateAAFor<AAAssumptionInfo>(CBFnPos);
@@ -3736,6 +3747,25 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
   AttributorConfig AC(CGUpdater);
   AC.IsModulePass = IsModulePass;
   AC.DeleteFns = DeleteFns;
+
+  /// Tracking callback for specialization of indirect calls.
+  DenseMap<CallBase *, std::unique_ptr<SmallPtrSet<Function *, 8>>>
+      IndirectCalleeTrackingMap;
+  if (MaxSpecializationPerCB.getNumOccurrences()) {
+    AC.IndirectCalleeSpecializationCallback = [&](Attributor &, CallBase &CB,
+                                                  Function &Callee) {
+      if (MaxSpecializationPerCB == 0)
+        return false;
+      auto &Set = IndirectCalleeTrackingMap[&CB];
+      if (!Set)
+        Set = std::make_unique<SmallPtrSet<Function *, 8>>();
+      if (Set->size() >= MaxSpecializationPerCB)
+        return Set->contains(&Callee);
+      Set->insert(&Callee);
+      return true;
+    };
+  }
+
   Attributor A(Functions, InfoCache, AC);
 
   // Create shallow wrappers for all functions that are not IPO amendable

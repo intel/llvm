@@ -93,8 +93,8 @@ entry:
   %0 = getelementptr inbounds %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon", %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this1, i32 0, i32 0
   %call = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(%"class._ZTSN2cl4sycl12experimental13spec_constantIm13MyUInt64ConstEE.cl::sycl::experimental::spec_constant" addrspace(4)* %0)
 ; CHECK-LLVM:  %[[SPEC_CONST:[[:alnum:]]+]] = call spir_func i64 @_ZNK2cl4sycl12experimental13spec_constantIm13MyUInt64ConstE3getEv(
-  %1 = call i8* @llvm.stacksave()
-; CHECK-LLVM: call ptr @llvm.stacksave()
+  %1 = call i8* @llvm.stacksave.p0()
+; CHECK-LLVM: call ptr @llvm.stacksave.p0()
   store i8* %1, i8** %saved_stack, align 8
   %vla = alloca i32, i64 %call, align 4
 ; CHECK-LLVM: alloca i32, i64 %[[SPEC_CONST]], align 4
@@ -102,8 +102,8 @@ entry:
   %ptridx = getelementptr inbounds i32, i32* %vla, i64 0
   store i32 42, i32* %ptridx, align 4, !tbaa !9
   %2 = load i8*, i8** %saved_stack, align 8
-  call void @llvm.stackrestore(i8* %2)
-; CHECK-LLVM: call void @llvm.stackrestore(ptr
+  call void @llvm.stackrestore.p0(i8* %2)
+; CHECK-LLVM: call void @llvm.stackrestore.p0(ptr
   ret void
 }
 
@@ -126,10 +126,10 @@ entry:
 }
 
 ; Function Attrs: nounwind
-declare i8* @llvm.stacksave() #4
+declare i8* @llvm.stacksave.p0() #4
 
 ; Function Attrs: nounwind
-declare void @llvm.stackrestore(i8*) #4
+declare void @llvm.stackrestore.p0(i8*) #4
 
 declare i64 @_Z20__spirv_SpecConstantix(i32, i64)
 

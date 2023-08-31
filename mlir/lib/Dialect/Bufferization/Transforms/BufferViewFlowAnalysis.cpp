@@ -106,7 +106,7 @@ void BufferViewFlowAnalysis::build(Operation *op) {
         // Wire the entry region's successor arguments with the initial
         // successor inputs.
         registerDependencies(
-            regionInterface.getSuccessorEntryOperands(
+            regionInterface.getEntrySuccessorOperands(
                 entrySuccessor.isParent()
                     ? std::optional<unsigned>()
                     : entrySuccessor.getSuccessor()->getRegionNumber()),
@@ -128,14 +128,11 @@ void BufferViewFlowAnalysis::build(Operation *op) {
             regionIndex = regionSuccessor->getRegionNumber();
           // Iterate over all immediate terminator operations and wire the
           // successor inputs with the successor operands of each terminator.
-          for (Block &block : region) {
-            auto successorOperands = getRegionBranchSuccessorOperands(
-                block.getTerminator(), regionIndex);
-            if (successorOperands) {
-              registerDependencies(*successorOperands,
+          for (Block &block : region)
+            if (auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(
+                    block.getTerminator()))
+              registerDependencies(terminator.getSuccessorOperands(regionIndex),
                                    successorRegion.getSuccessorInputs());
-            }
-          }
         }
       }
 

@@ -202,10 +202,20 @@ public:
 void RISCVIntrinsicManagerImpl::ConstructRVVIntrinsics(
     ArrayRef<RVVIntrinsicRecord> Recs, IntrinsicKind K) {
   const TargetInfo &TI = Context.getTargetInfo();
-  bool HasRV64 = TI.hasFeature("64bit");
+  static const std::pair<const char *, uint8_t> FeatureCheckList[] = {
+      {"64bit", RVV_REQ_RV64},
+      {"xsfvcp", RVV_REQ_Xsfvcp}};
+
   // Construction of RVVIntrinsicRecords need to sync with createRVVIntrinsics
   // in RISCVVEmitter.cpp.
   for (auto &Record : Recs) {
+    // Check requirements.
+    if (llvm::any_of(FeatureCheckList, [&](const auto &Item) {
+          return (Record.RequiredExtensions & Item.second) == Item.second &&
+                 !TI.hasFeature(Item.first);
+        }))
+      continue;
+
     // Create Intrinsics for each type and LMUL.
     BasicType BaseType = BasicType::Unknown;
     ArrayRef<PrototypeDescriptor> BasicProtoSeq =
@@ -228,11 +238,12 @@ void RISCVIntrinsicManagerImpl::ConstructRVVIntrinsics(
             /*HasMaskedOffOperand=*/false, Record.HasVL, Record.NF,
             UnMaskedPolicyScheme, DefaultPolicy, Record.IsTuple);
 
-    llvm::SmallVector<PrototypeDescriptor> ProtoMaskSeq =
-        RVVIntrinsic::computeBuiltinTypes(
-            BasicProtoSeq, /*IsMasked=*/true, Record.HasMaskedOffOperand,
-            Record.HasVL, Record.NF, MaskedPolicyScheme, DefaultPolicy,
-            Record.IsTuple);
+    llvm::SmallVector<PrototypeDescriptor> ProtoMaskSeq;
+    if (Record.HasMasked)
+      ProtoMaskSeq = RVVIntrinsic::computeBuiltinTypes(
+          BasicProtoSeq, /*IsMasked=*/true, Record.HasMaskedOffOperand,
+          Record.HasVL, Record.NF, MaskedPolicyScheme, DefaultPolicy,
+          Record.IsTuple);
 
     bool UnMaskedHasPolicy = UnMaskedPolicyScheme != PolicyScheme::SchemeNone;
     bool MaskedHasPolicy = MaskedPolicyScheme != PolicyScheme::SchemeNone;
@@ -251,10 +262,15 @@ void RISCVIntrinsicManagerImpl::ConstructRVVIntrinsics(
       if ((BaseTypeI & Record.TypeRangeMask) != BaseTypeI)
         continue;
 
-      // Check requirement.
-      if (((Record.RequiredExtensions & RVV_REQ_RV64) == RVV_REQ_RV64) &&
-          !HasRV64)
-        continue;
+      if (BaseType == BasicType::Float16) {
+        if ((Record.RequiredExtensions & RVV_REQ_ZvfhminOrZvfh) ==
+            RVV_REQ_ZvfhminOrZvfh) {
+          if (!TI.hasFeature("zvfh") && !TI.hasFeature("zvfhmin"))
+            continue;
+        } else if (!TI.hasFeature("zvfh")) {
+          continue;
+        }
+      }
 
       // Expanded with different LMUL.
       for (int Log2LMUL = -3; Log2LMUL <= 3; Log2LMUL++) {

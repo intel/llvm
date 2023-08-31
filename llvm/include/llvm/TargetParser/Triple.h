@@ -181,7 +181,6 @@ public:
     MipsTechnologies,
     NVIDIA,
     CSR,
-    Myriad,
     AMD,
     Mesa,
     SUSE,
@@ -191,7 +190,6 @@ public:
   enum OSType {
     UnknownOS,
 
-    Ananas,
     CloudABI,
     Darwin,
     DragonFly,
@@ -209,7 +207,6 @@ public:
     Win32,
     ZOS,
     Haiku,
-    Minix,
     RTEMS,
     NaCl,       // Native Client
     AIX,
@@ -223,7 +220,6 @@ public:
     WatchOS,    // Apple watchOS
     DriverKit,  // Apple DriverKit
     Mesa3D,
-    Contiki,
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
@@ -576,10 +572,6 @@ public:
            Env == Triple::GNUEABIHF || Env == Triple::GNUF32 ||
            Env == Triple::GNUF64 || Env == Triple::GNUSF ||
            Env == Triple::GNUX32;
-  }
-
-  bool isOSContiki() const {
-    return getOS() == Triple::Contiki;
   }
 
   /// Tests whether the OS is Haiku.

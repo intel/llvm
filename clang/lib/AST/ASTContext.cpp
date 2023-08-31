@@ -9484,7 +9484,7 @@ bool ASTContext::areCompatibleVectorTypes(QualType FirstVec,
 
 /// getSVETypeSize - Return SVE vector or predicate register size.
 static uint64_t getSVETypeSize(ASTContext &Context, const BuiltinType *Ty) {
-  assert(Ty->isVLSTBuiltinType() && "Invalid SVE Type");
+  assert(Ty->isSveVLSBuiltinType() && "Invalid SVE Type");
   if (Ty->getKind() == BuiltinType::SveBool ||
       Ty->getKind() == BuiltinType::SveCount)
     return (Context.getLangOpts().VScaleMin * 128) / Context.getCharWidth();
@@ -9635,9 +9635,8 @@ bool ASTContext::areLaxCompatibleRVVTypes(QualType FirstType,
       const LangOptions::LaxVectorConversionKind LVCKind =
           getLangOpts().getLaxVectorConversions();
 
-      // If __riscv_v_fixed_vlen != N do not allow GNU vector lax conversion.
-      if (VecTy->getVectorKind() == VectorType::GenericVector &&
-          getTypeSize(SecondType) != getRVVTypeSize(*this, BT))
+      // If __riscv_v_fixed_vlen != N do not allow vector lax conversion.
+      if (getTypeSize(SecondType) != getRVVTypeSize(*this, BT))
         return false;
 
       // If -flax-vector-conversions=all is specified, the types are
@@ -11711,6 +11710,14 @@ static GVALinkage basicGVALinkageForFunction(const ASTContext &Context,
   // replaced, the function definition cannot be discarded.
   if (FD->isMSExternInline())
     return GVA_StrongODR;
+
+  if (Context.getTargetInfo().getCXXABI().isMicrosoft() &&
+      isa<CXXConstructorDecl>(FD) &&
+      cast<CXXConstructorDecl>(FD)->isInheritingConstructor())
+    // Our approach to inheriting constructors is fundamentally different from
+    // that used by the MS ABI, so keep our inheriting constructor thunks
+    // internal rather than trying to pick an unambiguous mangling for them.
+    return GVA_Internal;
 
   return GVA_DiscardableODR;
 }

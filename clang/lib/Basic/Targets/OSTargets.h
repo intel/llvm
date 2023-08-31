@@ -50,20 +50,6 @@ public:
   using OSTargetInfo<Target>::OSTargetInfo;
 };
 
-// Ananas target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY AnanasTargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    // Ananas defines
-    Builder.defineMacro("__Ananas__");
-  }
-
-public:
-  using OSTargetInfo<Target>::OSTargetInfo;
-};
-
 void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
                       const llvm::Triple &Triple, StringRef &PlatformName,
                       VersionTuple &PlatformMinVersion);
@@ -327,28 +313,6 @@ protected:
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
   }
-public:
-  using OSTargetInfo<Target>::OSTargetInfo;
-};
-
-// Minix Target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY MinixTargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    // Minix defines
-
-    Builder.defineMacro("__minix", "3");
-    Builder.defineMacro("_EM_WSIZE", "4");
-    Builder.defineMacro("_EM_PSIZE", "4");
-    Builder.defineMacro("_EM_SSIZE", "2");
-    Builder.defineMacro("_EM_LSIZE", "4");
-    Builder.defineMacro("_EM_FSIZE", "4");
-    Builder.defineMacro("_EM_DSIZE", "8");
-    DefineStd(Builder, "unix", Opts);
-  }
-
 public:
   using OSTargetInfo<Target>::OSTargetInfo;
 };

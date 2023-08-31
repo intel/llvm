@@ -318,8 +318,9 @@ inline bool operator==(const RangeTy &A, const RangeTy &B) {
 inline bool operator!=(const RangeTy &A, const RangeTy &B) { return !(A == B); }
 
 /// Return the initial value of \p Obj with type \p Ty if that is a constant.
-Constant *getInitialValueForObj(Attributor &A, Value &Obj, Type &Ty,
-                                const TargetLibraryInfo *TLI,
+Constant *getInitialValueForObj(Attributor &A,
+                                const AbstractAttribute &QueryingAA, Value &Obj,
+                                Type &Ty, const TargetLibraryInfo *TLI,
                                 const DataLayout &DL,
                                 RangeTy *RangePtr = nullptr);
 
@@ -1416,6 +1417,11 @@ struct AttributorConfig {
   std::function<void(Attributor &A, const Function &F)> InitializationCallback =
       nullptr;
 
+  /// Callback function to determine if an indirect call targets should be made
+  /// direct call targets (with an if-cascade).
+  std::function<bool(Attributor &A, CallBase &CB, Function &AssummedCallee)>
+      IndirectCalleeSpecializationCallback = nullptr;
+
   /// Helper to update an underlying call graph and to delete functions.
   CallGraphUpdater &CGUpdater;
 
@@ -1686,6 +1692,15 @@ struct Attributor {
 
   /// Return true if this is a module pass, false otherwise.
   bool isModulePass() const { return Configuration.IsModulePass; }
+
+  /// Return true if we should specialize the call site \b CB for the potential
+  /// callee \p Fn.
+  bool shouldSpecializeCallSiteForCallee(CallBase &CB, Function &Callee) {
+    return Configuration.IndirectCalleeSpecializationCallback
+               ? Configuration.IndirectCalleeSpecializationCallback(*this, CB,
+                                                                    Callee)
+               : true;
+  }
 
   /// Return true if we derive attributes for \p Fn
   bool isRunOn(Function &Fn) const { return isRunOn(&Fn); }
@@ -5536,8 +5551,7 @@ struct AAInterFnReachability
   /// See also AA::isPotentiallyReachable.
   virtual bool instructionCanReach(
       Attributor &A, const Instruction &Inst, const Function &Fn,
-      const AA::InstExclusionSetTy *ExclusionSet = nullptr,
-      SmallPtrSet<const Function *, 16> *Visited = nullptr) const = 0;
+      const AA::InstExclusionSetTy *ExclusionSet = nullptr) const = 0;
 
   /// Create an abstract attribute view for the position \p IRP.
   static AAInterFnReachability &createForPosition(const IRPosition &IRP,
@@ -6103,6 +6117,48 @@ struct AAAddressSpace : public StateWrapper<BooleanState, AbstractAttribute> {
 
   // No address space which indicates the associated value is dead.
   static const int32_t NoAddressSpace = -1;
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
+/// An abstract interface for indirect call information interference.
+struct AAIndirectCallInfo
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  AAIndirectCallInfo(const IRPosition &IRP, Attributor &A)
+      : StateWrapper<BooleanState, AbstractAttribute>(IRP) {}
+
+  /// The point is to derive callees, after all.
+  static bool requiresCalleeForCallBase() { return false; }
+
+  /// See AbstractAttribute::isValidIRPositionForInit
+  static bool isValidIRPositionForInit(Attributor &A, const IRPosition &IRP) {
+    if (IRP.getPositionKind() != IRPosition::IRP_CALL_SITE)
+      return false;
+    auto *CB = cast<CallBase>(IRP.getCtxI());
+    return CB->getOpcode() == Instruction::Call && CB->isIndirectCall() &&
+           !CB->isMustTailCall();
+  }
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAIndirectCallInfo &createForPosition(const IRPosition &IRP,
+                                               Attributor &A);
+
+  /// Call \CB on each potential callee value and return true if all were known
+  /// and \p CB returned true on all of them. Otherwise, return false.
+  virtual bool foreachCallee(function_ref<bool(Function *)> CB) const = 0;
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAIndirectCallInfo"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAIndirectCallInfo
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;

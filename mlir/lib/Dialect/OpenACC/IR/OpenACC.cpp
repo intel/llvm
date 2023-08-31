@@ -116,7 +116,7 @@ LogicalResult acc::PresentOp::verify() {
 //===----------------------------------------------------------------------===//
 LogicalResult acc::CopyinOp::verify() {
   // Test for all clauses this operation can be decomposed from:
-  if (getDataClause() != acc::DataClause::acc_copyin &&
+  if (!getImplicit() && getDataClause() != acc::DataClause::acc_copyin &&
       getDataClause() != acc::DataClause::acc_copyin_readonly &&
       getDataClause() != acc::DataClause::acc_copy)
     return emitError(
@@ -1038,6 +1038,14 @@ LogicalResult acc::DeclareExitOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// DeclareOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult acc::DeclareOp::verify() {
+  return checkDeclareOperands(*this, this->getDataClauseOperands());
+}
+
+//===----------------------------------------------------------------------===//
 // RoutineOp
 //===----------------------------------------------------------------------===//
 
@@ -1113,6 +1121,21 @@ LogicalResult acc::ShutdownOp::verify() {
   while ((currOp = currOp->getParentOp()))
     if (isComputeOperation(currOp))
       return emitOpError("cannot be nested in a compute operation");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// SetOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult acc::SetOp::verify() {
+  Operation *currOp = *this;
+  while ((currOp = currOp->getParentOp()))
+    if (isComputeOperation(currOp))
+      return emitOpError("cannot be nested in a compute operation");
+  if (!getDeviceType() && !getDefaultAsync() && !getDeviceNum())
+    return emitOpError("at least one default_async, device_num, or device_type "
+                       "operand must appear");
   return success();
 }
 

@@ -539,15 +539,8 @@ static void genEndInsert(OpBuilder &builder, Location loc,
   }
 }
 
-static TypedValue<BaseMemRefType> genToMemref(OpBuilder &builder, Location loc,
-                                              Value tensor) {
-  auto tTp = llvm::cast<TensorType>(tensor.getType());
-  auto mTp = MemRefType::get(tTp.getShape(), tTp.getElementType());
-  return builder.create<bufferization::ToMemrefOp>(loc, mTp, tensor)
-      .getResult();
-}
-
-Value genSliceToSize(OpBuilder &builder, Location loc, Value mem, Value sz) {
+static Value genSliceToSize(OpBuilder &builder, Location loc, Value mem,
+                            Value sz) {
   auto elemTp = llvm::cast<MemRefType>(mem.getType()).getElementType();
   return builder
       .create<memref::SubViewOp>(
@@ -603,14 +596,14 @@ public:
     if (failed(typeConverter->convertTypes(op.getResultTypes(), finalRetTy)))
       return failure();
 
-    // (1) Genereates new call with flattened return value.
+    // (1) Generates new call with flattened return value.
     SmallVector<Value> flattened;
     flattenOperands(adaptor.getOperands(), flattened);
     auto newCall = rewriter.create<func::CallOp>(loc, op.getCallee(),
                                                  finalRetTy, flattened);
     // (2) Create cast operation for sparse tensor returns.
     SmallVector<Value> castedRet;
-    // Tracks the offset of current return value (of the orignal call)
+    // Tracks the offset of current return value (of the original call)
     // relative to the new call (after sparse tensor flattening);
     unsigned retOffset = 0;
     // Temporal buffer to hold the flattened list of type for
@@ -699,7 +692,7 @@ public:
   }
 };
 
-/// Sparse codgen rule for the alloc operator.
+/// Sparse codegen rule for the alloc operator.
 class SparseTensorAllocConverter
     : public OpConversionPattern<bufferization::AllocTensorOp> {
 public:
@@ -1190,7 +1183,7 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     // Query memSizes for the actually stored values.
     // FIXME: the nse value computed in this way might be wrong when there is
-    // any "compressed-hi" level.
+    // any "compressed_hi" level.
     rewriter.replaceOp(
         op, genValMemSize(rewriter, op.getLoc(), adaptor.getTensor()));
     return success();
@@ -1241,7 +1234,7 @@ struct SparsePackOpConverter : public OpConversionPattern<PackOp> {
     Value c0 = constantIndex(rewriter, loc, 0);
     Value c1 = constantIndex(rewriter, loc, 1);
     Value c2 = constantIndex(rewriter, loc, 2);
-    Value posBack = c0; // index to the last value in the postion array
+    Value posBack = c0; // index to the last value in the position array
     Value memSize = c1; // memory size for current array
 
     Level trailCOOStart = getCOOStart(stt.getEncoding());
