@@ -282,56 +282,75 @@ checkValueRange(const T &V) {
 #endif
 }
 
-template <typename KernelType, int Dims>
-auto item_helper(range<Dims> NumWorkItems, size_t id) {
-  if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
-                std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
-    return detail::Builder::createItem<Dims, true>(
-        NumWorkItems, getDelinearizedId(NumWorkItems, id), {});
-  else {
-    static_assert(
-        std::is_invocable_v<KernelType, item<Dims, false>> ||
-            std::is_invocable_v<KernelType, item<Dims, false>, kernel_handler>,
-        "Kernel must be invocable with an item!");
-    return detail::Builder::createItem<Dims, false>(
-        NumWorkItems, getDelinearizedId(NumWorkItems, id));
-  }
-}
+template <int Dims> class RoundedRangeIDGenerator {
+  id<Dims> Id;
+  range<Dims> OldRange;
+  range<Dims> NewRange;
+  bool Done = false;
 
-// The frontend has special handling with __pf_kernel_wrapper-named kernels
-// which copies attributes of a wrapped kernel to its direct parent; therefore
-// we use a macro to avoid nesting the call of the KernelFunc another
-// function deep.
-#define __SYCL_ROUNDED_RANGE_KERNEL_BODY__(BODY)                               \
-  auto NOldWorkItems = NumWorkItems.size();                                    \
-  for (auto id = it.get_linear_id(); id < NOldWorkItems; id += NNewWorkItems)  \
-  BODY
+public:
+  RoundedRangeIDGenerator(const id<Dims> &Id, const range<Dims> &OldRange,
+                          const range<Dims> &NewRange)
+      : Id(Id), OldRange(OldRange), NewRange(NewRange) {
+    for (int i = 0; i < Dims; ++i)
+      if (Id[i] >= OldRange[i])
+        Done = true;
+  }
+
+  explicit operator bool() { return !Done; }
+
+  void updateId() {
+    for (int i = 0; i < Dims; ++i) {
+      Id[i] += NewRange[i];
+      if (Id[i] >= OldRange[i])
+        Id[i] %= OldRange[i];
+      else
+        return;
+    }
+    Done = true;
+  }
+
+  id<Dims> getId() { return Id; }
+
+  template <typename KernelType> auto getItem() {
+    if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
+                  std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
+      return detail::Builder::createItem<Dims, true>(OldRange, getId(), {});
+    else {
+      static_assert(std::is_invocable_v<KernelType, item<Dims, false>> ||
+                        std::is_invocable_v<KernelType, item<Dims, false>,
+                                            kernel_handler>,
+                    "Kernel must be invocable with an item!");
+      return detail::Builder::createItem<Dims, false>(OldRange, getId());
+    }
+  }
+};
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
 public:
-  range<Dims> NumWorkItems;
-  size_t NNewWorkItems;
+  range<Dims> OldRange;
   KernelType KernelFunc;
-  void operator()(item<1> it) const {
-    __SYCL_ROUNDED_RANGE_KERNEL_BODY__(
-        { KernelFunc(item_helper<KernelType>(NumWorkItems, id)); });
+  void operator()(item<Dims> it) const {
+    auto NewRange = it.get_range();
+    for (RoundedRangeIDGenerator gen(it.get_id(), OldRange, NewRange); gen;
+         gen.updateId())
+      KernelFunc(gen.template getItem<KernelType>());
   }
 };
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH {
 public:
-  range<Dims> NumWorkItems;
-  size_t NNewWorkItems;
+  range<Dims> OldRange;
   KernelType KernelFunc;
-  void operator()(item<1> it, kernel_handler KH) const {
-    __SYCL_ROUNDED_RANGE_KERNEL_BODY__(
-        { KernelFunc(item_helper<KernelType>(NumWorkItems, id), KH); });
+  void operator()(item<Dims> it, kernel_handler KH) const {
+    auto NewRange = it.get_range();
+    for (RoundedRangeIDGenerator gen(it.get_id(), OldRange, NewRange); gen;
+         gen.updateId())
+      KernelFunc(gen.template getItem<KernelType>(), KH);
   }
 };
-
-#undef __SYCL_ROUNDED_RANGE_KERNEL_BODY__
 
 using std::enable_if_t;
 using sycl::detail::queue_impl;
@@ -1074,26 +1093,6 @@ private:
                             "The total number of work-items in "
                             "a range must fit within size_t");
 
-      // In SYCL, each dimension of a global range size is specified by
-      // a size_t, which can be up to 64 bits.  All backends should be
-      // able to accept a kernel launch with a 32-bit global range size
-      // (i.e. do not throw an error).  The OpenCL CPU backend will
-      // accept every 64-bit global range, but the GPU backends will not
-      // generally accept every 64-bit global range.  So, when we get a
-      // non-32-bit global range, we wrap the old kernel in a new kernel
-      // that has each work item peform multiple invocations the old
-      // kernel in a 32-bit global range.
-#ifdef __SYCL_ENABLE_LARGE_RANGE_WRAPPING__
-    bool HasLargeRange = false;
-    for (int i = 0; i < Dims; ++i)
-      if (NumWorkItems[i] > (std::numeric_limits<uint32_t>::max)())
-        HasLargeRange = true;
-
-    if (HasLargeRange)
-      return parallel_for_large_range<KernelName>(NumWorkItems, Props,
-                                                  KernelFunc);
-#endif
-
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
 
     // If 1D kernel argument is an integral type, convert it to sycl::item<1>
@@ -1116,6 +1115,22 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
+    auto OldRange = NumWorkItems;
+    auto NewRange = NumWorkItems;
+
+    // In SYCL, each dimension of a global range size is specified by
+    // a size_t, which can be up to 64 bits.  All backends should be
+    // able to accept a kernel launch with a 32-bit global range size
+    // (i.e. do not throw an error).  The OpenCL CPU backend will
+    // accept every 64-bit global range, but the GPU backends will not
+    // generally accept every 64-bit global range.  So, when we get a
+    // non-32-bit global range, we wrap the old kernel in a new kernel
+    // that has each work item peform multiple invocations the old
+    // kernel in a 32-bit global range.
+    for (int i = 0; i < Dims; ++i)
+      if (NewRange[i] > std::numeric_limits<uint32_t>::max())
+        NewRange[i] = std::numeric_limits<uint32_t>::max();
+
     // Range should be a multiple of this for reasonable performance.
     size_t MinFactorX = 16;
     // Range should be a multiple of this for improved performance.
@@ -1158,24 +1173,23 @@ private:
         std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
                   << " to " << NewValX << std::endl;
 
-      range<Dims> AdjustedRange = NumWorkItems;
-      AdjustedRange.set_range_dim0(NewValX);
-      size_t NNewWorkItems = AdjustedRange.size();
+      NewRange.set_range_dim0(NewValX);
 
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
-              KernelFunc, NumWorkItems, NNewWorkItems);
+              KernelFunc, OldRange);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
 
-      kernel_parallel_for_wrapper<KName, item<1>, decltype(Wrapper),
+      kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      detail::checkValueRange<Dims>(AdjustedRange);
-      MNDRDesc.set(range(NNewWorkItems));
-      StoreLambda<KName, decltype(Wrapper), 1, item<1>>(std::move(Wrapper));
+      detail::checkValueRange<Dims>(NewRange);
+      MNDRDesc.set(NewRange);
+      StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
+          std::move(Wrapper));
       setType(detail::CG::Kernel);
 #endif
     } else
@@ -2215,37 +2229,6 @@ public:
   parallel_for(nd_range<Dims> Range, PropertiesT Properties,
                _KERNELFUNCPARAM(KernelFunc)) {
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
-  }
-
-  template <typename KernelName, typename KernelType, int Dims,
-            typename PropertiesT>
-  void parallel_for_large_range(range<Dims> NumWorkItems, PropertiesT Props,
-                                KernelType KernelFunc) {
-    auto Dev = detail::getDeviceFromHandler(*this);
-    size_t WGSize = Dev.get_info<info::device::max_work_group_size>();
-    size_t NOldWorkItems = NumWorkItems.size();
-    auto NWorkGroups = (std::numeric_limits<uint32_t>::max)() / WGSize;
-    auto NNewWorkItems = NWorkGroups * WGSize;
-
-    using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
-    constexpr bool hasKernelHandlerArg =
-        detail::KernelLambdaHasKernelHandlerArgT<KernelType,
-                                                 LambdaArgType>::value;
-
-    auto wrapper = [=](nd_item<1> it, auto... rest) {
-      for (auto id = it.get_global_linear_id(); id < NOldWorkItems;
-           id += NNewWorkItems)
-        KernelFunc(detail::Builder::createItem<Dims, false>(
-                       NumWorkItems, getDelinearizedId(NumWorkItems, id)),
-                   rest...);
-    };
-
-    if constexpr (hasKernelHandlerArg)
-      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props,
-                   [=](nd_item<1> it, kernel_handler kh) { wrapper(it, kh); });
-    else
-      parallel_for(nd_range<1>(NNewWorkItems, WGSize), Props,
-                   [=](nd_item<1> it) { wrapper(it); });
   }
 
   /// Reductions @{
@@ -3296,11 +3279,9 @@ private:
             std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems,
-                                   size_t NNewWorkItems) {
+                                   range<Dims> OldRange) {
     return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>{
-        NumWorkItems, NNewWorkItems, KernelFunc};
+                                            KernelType>{OldRange, KernelFunc};
   }
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
@@ -3308,10 +3289,9 @@ private:
             std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> NumWorkItems,
-                                   size_t NNewWorkItems) {
+                                   range<Dims> OldRange) {
     return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
-        NumWorkItems, NNewWorkItems, KernelFunc};
+        OldRange, KernelFunc};
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;

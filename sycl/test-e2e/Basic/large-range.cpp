@@ -1,4 +1,4 @@
-// RUN: %{build} -fno-sycl-id-queries-fit-in-int -D__SYCL_ENABLE_LARGE_RANGE_WRAPPING__ -o %t.out
+// RUN: %{build} -fno-sycl-id-queries-fit-in-int -o %t.out
 // RUN: %{run} %t.out
 
 #include <numeric>
@@ -59,6 +59,7 @@ void test_spec_constant(std::string_view desc, queue &q, size_t B,
 int main(int argc, char *argv[]) {
   if (sizeof(size_t) <= 4) {
     std::cout << "size_t is 32-bit, nothing to do\n";
+    return 0;
   }
 
   queue q;
@@ -78,5 +79,5 @@ int main(int argc, char *argv[]) {
     assert(e.code() == errc::runtime);
   }
 
-  return 0;
+  return n_fail != 0;
 }
