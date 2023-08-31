@@ -193,6 +193,8 @@ PIPE_OPERATOR(AAAssumptionInfo)
 PIPE_OPERATOR(AAUnderlyingObjects)
 PIPE_OPERATOR(AAAddressSpace)
 PIPE_OPERATOR(AAIndirectCallInfo)
+PIPE_OPERATOR(AAGlobalValueInfo)
+PIPE_OPERATOR(AADenormalFPMath)
 
 #undef PIPE_OPERATOR
 
@@ -8950,6 +8952,108 @@ struct AAMemoryLocationCallSite final : AAMemoryLocationImpl {
 };
 } // namespace
 
+/// ------------------ denormal-fp-math Attribute -------------------------
+
+namespace {
+struct AADenormalFPMathImpl : public AADenormalFPMath {
+  AADenormalFPMathImpl(const IRPosition &IRP, Attributor &A)
+      : AADenormalFPMath(IRP, A) {}
+
+  const std::string getAsStr(Attributor *A) const override {
+    std::string Str("AADenormalFPMath[");
+    raw_string_ostream OS(Str);
+
+    DenormalState Known = getKnown();
+    if (Known.Mode.isValid())
+      OS << "denormal-fp-math=" << Known.Mode;
+    else
+      OS << "invalid";
+
+    if (Known.ModeF32.isValid())
+      OS << " denormal-fp-math-f32=" << Known.ModeF32;
+    OS << ']';
+    return OS.str();
+  }
+};
+
+struct AADenormalFPMathFunction final : AADenormalFPMathImpl {
+  AADenormalFPMathFunction(const IRPosition &IRP, Attributor &A)
+      : AADenormalFPMathImpl(IRP, A) {}
+
+  void initialize(Attributor &A) override {
+    const Function *F = getAnchorScope();
+    DenormalMode Mode = F->getDenormalModeRaw();
+    DenormalMode ModeF32 = F->getDenormalModeF32Raw();
+
+    // TODO: Handling this here prevents handling the case where a callee has a
+    // fixed denormal-fp-math with dynamic denormal-fp-math-f32, but called from
+    // a function with a fully fixed mode.
+    if (ModeF32 == DenormalMode::getInvalid())
+      ModeF32 = Mode;
+    Known = DenormalState{Mode, ModeF32};
+    if (isModeFixed())
+      indicateFixpoint();
+  }
+
+  ChangeStatus updateImpl(Attributor &A) override {
+    ChangeStatus Change = ChangeStatus::UNCHANGED;
+
+    auto CheckCallSite = [=, &Change, &A](AbstractCallSite CS) {
+      Function *Caller = CS.getInstruction()->getFunction();
+      LLVM_DEBUG(dbgs() << "[AADenormalFPMath] Call " << Caller->getName()
+                        << "->" << getAssociatedFunction()->getName() << '\n');
+
+      const auto *CallerInfo = A.getAAFor<AADenormalFPMath>(
+          *this, IRPosition::function(*Caller), DepClassTy::REQUIRED);
+      if (!CallerInfo)
+        return false;
+
+      Change = Change | clampStateAndIndicateChange(this->getState(),
+                                                    CallerInfo->getState());
+      return true;
+    };
+
+    bool AllCallSitesKnown = true;
+    if (!A.checkForAllCallSites(CheckCallSite, *this, true, AllCallSitesKnown))
+      return indicatePessimisticFixpoint();
+
+    if (Change == ChangeStatus::CHANGED && isModeFixed())
+      indicateFixpoint();
+    return Change;
+  }
+
+  ChangeStatus manifest(Attributor &A) override {
+    LLVMContext &Ctx = getAssociatedFunction()->getContext();
+
+    SmallVector<Attribute, 2> AttrToAdd;
+    SmallVector<StringRef, 2> AttrToRemove;
+    if (Known.Mode == DenormalMode::getDefault()) {
+      AttrToRemove.push_back("denormal-fp-math");
+    } else {
+      AttrToAdd.push_back(
+          Attribute::get(Ctx, "denormal-fp-math", Known.Mode.str()));
+    }
+
+    if (Known.ModeF32 != Known.Mode) {
+      AttrToAdd.push_back(
+          Attribute::get(Ctx, "denormal-fp-math-f32", Known.ModeF32.str()));
+    } else {
+      AttrToRemove.push_back("denormal-fp-math-f32");
+    }
+
+    auto &IRP = getIRPosition();
+
+    // TODO: There should be a combined add and remove API.
+    return A.removeAttrs(IRP, AttrToRemove) |
+           A.manifestAttrs(IRP, AttrToAdd, /*ForceReplace=*/true);
+  }
+
+  void trackStatistics() const override {
+    STATS_DECLTRACK_FN_ATTR(denormal_fp_math)
+  }
+};
+} // namespace
+
 /// ------------------ Value Constant Range Attribute -------------------------
 
 namespace {
@@ -12056,6 +12160,134 @@ struct AAUnderlyingObjectsFunction final : AAUnderlyingObjectsImpl {
 };
 } // namespace
 
+/// ------------------------ Global Value Info  -------------------------------
+namespace {
+struct AAGlobalValueInfoFloating : public AAGlobalValueInfo {
+  AAGlobalValueInfoFloating(const IRPosition &IRP, Attributor &A)
+      : AAGlobalValueInfo(IRP, A) {}
+
+  /// See AbstractAttribute::initialize(...).
+  void initialize(Attributor &A) override {}
+
+  bool checkUse(Attributor &A, const Use &U, bool &Follow,
+                SmallVectorImpl<const Value *> &Worklist) {
+    Instruction *UInst = dyn_cast<Instruction>(U.getUser());
+    if (!UInst) {
+      Follow = true;
+      return true;
+    }
+
+    LLVM_DEBUG(dbgs() << "[AAGlobalValueInfo] Check use: " << *U.get() << " in "
+                      << *UInst << "\n");
+
+    if (auto *Cmp = dyn_cast<ICmpInst>(U.getUser())) {
+      int Idx = &Cmp->getOperandUse(0) == &U;
+      if (isa<Constant>(Cmp->getOperand(Idx)))
+        return true;
+      return U == &getAnchorValue();
+    }
+
+    // Explicitly catch return instructions.
+    if (isa<ReturnInst>(UInst)) {
+      auto CallSitePred = [&](AbstractCallSite ACS) {
+        Worklist.push_back(ACS.getInstruction());
+        return true;
+      };
+      bool UsedAssumedInformation = false;
+      // TODO: We should traverse the uses or add a "non-call-site" CB.
+      if (!A.checkForAllCallSites(CallSitePred, *UInst->getFunction(),
+                                  /*RequireAllCallSites=*/true, this,
+                                  UsedAssumedInformation))
+        return false;
+      return true;
+    }
+
+    // For now we only use special logic for call sites. However, the tracker
+    // itself knows about a lot of other non-capturing cases already.
+    auto *CB = dyn_cast<CallBase>(UInst);
+    if (!CB)
+      return false;
+    // Direct calls are OK uses.
+    if (CB->isCallee(&U))
+      return true;
+    // Non-argument uses are scary.
+    if (!CB->isArgOperand(&U))
+      return false;
+    // TODO: Iterate callees.
+    auto *Fn = dyn_cast<Function>(CB->getCalledOperand());
+    if (!Fn || !A.isFunctionIPOAmendable(*Fn))
+      return false;
+
+    unsigned ArgNo = CB->getArgOperandNo(&U);
+    Worklist.push_back(Fn->getArg(ArgNo));
+    return true;
+  }
+
+  ChangeStatus updateImpl(Attributor &A) override {
+    unsigned NumUsesBefore = Uses.size();
+
+    SmallPtrSet<const Value *, 8> Visited;
+    SmallVector<const Value *> Worklist;
+    Worklist.push_back(&getAnchorValue());
+
+    auto UsePred = [&](const Use &U, bool &Follow) -> bool {
+      Uses.insert(&U);
+      switch (DetermineUseCaptureKind(U, nullptr)) {
+      case UseCaptureKind::NO_CAPTURE:
+        return checkUse(A, U, Follow, Worklist);
+      case UseCaptureKind::MAY_CAPTURE:
+        return checkUse(A, U, Follow, Worklist);
+      case UseCaptureKind::PASSTHROUGH:
+        Follow = true;
+        return true;
+      }
+      return true;
+    };
+    auto EquivalentUseCB = [&](const Use &OldU, const Use &NewU) {
+      Uses.insert(&OldU);
+      return true;
+    };
+
+    while (!Worklist.empty()) {
+      const Value *V = Worklist.pop_back_val();
+      if (!Visited.insert(V).second)
+        continue;
+      if (!A.checkForAllUses(UsePred, *this, *V,
+                             /* CheckBBLivenessOnly */ true,
+                             DepClassTy::OPTIONAL,
+                             /* IgnoreDroppableUses */ true, EquivalentUseCB)) {
+        return indicatePessimisticFixpoint();
+      }
+    }
+
+    return Uses.size() == NumUsesBefore ? ChangeStatus::UNCHANGED
+                                        : ChangeStatus::CHANGED;
+  }
+
+  bool isPotentialUse(const Use &U) const override {
+    return !isValidState() || Uses.contains(&U);
+  }
+
+  /// See AbstractAttribute::manifest(...).
+  ChangeStatus manifest(Attributor &A) override {
+    return ChangeStatus::UNCHANGED;
+  }
+
+  /// See AbstractAttribute::getAsStr().
+  const std::string getAsStr(Attributor *A) const override {
+    return "[" + std::to_string(Uses.size()) + " uses]";
+  }
+
+  void trackStatistics() const override {
+    STATS_DECLTRACK_FLOATING_ATTR(GlobalValuesTracked);
+  }
+
+private:
+  /// Set of (transitive) uses of this GlobalValue.
+  SmallPtrSet<const Use *, 8> Uses;
+};
+} // namespace
+
 /// ------------------------ Indirect Call Info  -------------------------------
 namespace {
 struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
@@ -12065,19 +12297,49 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
   /// See AbstractAttribute::initialize(...).
   void initialize(Attributor &A) override {
     auto *MD = getCtxI()->getMetadata(LLVMContext::MD_callees);
-    if (!MD)
+    if (!MD && !A.isClosedWorldModule())
       return;
-    for (const auto &Op : MD->operands())
-      if (Function *Callee = mdconst::dyn_extract_or_null<Function>(Op))
-        PotentialCallees.insert(Callee);
+
+    if (MD) {
+      for (const auto &Op : MD->operands())
+        if (Function *Callee = mdconst::dyn_extract_or_null<Function>(Op))
+          PotentialCallees.insert(Callee);
+    } else if (A.isClosedWorldModule()) {
+      ArrayRef<Function *> IndirectlyCallableFunctions =
+          A.getInfoCache().getIndirectlyCallableFunctions(A);
+      PotentialCallees.insert(IndirectlyCallableFunctions.begin(),
+                              IndirectlyCallableFunctions.end());
+    }
+
+    if (PotentialCallees.empty())
+      indicateOptimisticFixpoint();
   }
 
   ChangeStatus updateImpl(Attributor &A) override {
     CallBase *CB = cast<CallBase>(getCtxI());
+    const Use &CalleeUse = CB->getCalledOperandUse();
     Value *FP = CB->getCalledOperand();
 
     SmallSetVector<Function *, 4> AssumedCalleesNow;
     bool AllCalleesKnownNow = AllCalleesKnown;
+
+    auto CheckPotentialCalleeUse = [&](Function &PotentialCallee,
+                                       bool &UsedAssumedInformation) {
+      const auto *GIAA = A.getAAFor<AAGlobalValueInfo>(
+          *this, IRPosition::value(PotentialCallee), DepClassTy::OPTIONAL);
+      if (!GIAA || GIAA->isPotentialUse(CalleeUse))
+        return true;
+      UsedAssumedInformation = !GIAA->isAtFixpoint();
+      return false;
+    };
+
+    auto AddPotentialCallees = [&]() {
+      for (auto *PotentialCallee : PotentialCallees) {
+        bool UsedAssumedInformation = false;
+        if (CheckPotentialCalleeUse(*PotentialCallee, UsedAssumedInformation))
+          AssumedCalleesNow.insert(PotentialCallee);
+      }
+    };
 
     // Use simplification to find potential callees, if !callees was present,
     // fallback to that set if necessary.
@@ -12088,7 +12350,7 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
                                       UsedAssumedInformation)) {
       if (PotentialCallees.empty())
         return indicatePessimisticFixpoint();
-      AssumedCalleesNow.set_union(PotentialCallees);
+      AddPotentialCallees();
     }
 
     // Try to find a reason for \p Fn not to be a potential callee. If none was
@@ -12100,6 +12362,13 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
       auto &CachedResult = FilterResults[&Fn];
       if (CachedResult.has_value())
         return CachedResult.value();
+
+      bool UsedAssumedInformation = false;
+      if (!CheckPotentialCalleeUse(Fn, UsedAssumedInformation)) {
+        if (!UsedAssumedInformation)
+          CachedResult = false;
+        return false;
+      }
 
       int NumFnArgs = Fn.arg_size();
       int NumCBArgs = CB->arg_size();
@@ -12136,15 +12405,11 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
         continue;
       }
       if (!PotentialCallees.empty()) {
-        AssumedCalleesNow.set_union(PotentialCallees);
+        AddPotentialCallees();
         break;
       }
       AllCalleesKnownNow = false;
     }
-
-    // If we can't specialize at all, give up now.
-    if (!AllCalleesKnownNow && AssumedCalleesNow.empty())
-      return indicatePessimisticFixpoint();
 
     if (AssumedCalleesNow == AssumedCallees &&
         AllCalleesKnown == AllCalleesKnownNow)
@@ -12157,6 +12422,9 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
 
   /// See AbstractAttribute::manifest(...).
   ChangeStatus manifest(Attributor &A) override {
+    // If we can't specialize at all, give up now.
+    if (!AllCalleesKnown && AssumedCallees.empty())
+      return ChangeStatus::UNCHANGED;
 
     ChangeStatus Changed = ChangeStatus::UNCHANGED;
     CallBase *CB = cast<CallBase>(getCtxI());
@@ -12204,7 +12472,7 @@ struct AAIndirectCallInfoCallSite : public AAIndirectCallInfo {
     SmallVector<Function *, 8> SkippedAssumedCallees;
     SmallVector<std::pair<CallInst *, Instruction *>> NewCalls;
     for (Function *NewCallee : AssumedCallees) {
-      if (!A.shouldSpecializeCallSiteForCallee(*CB, *NewCallee)) {
+      if (!A.shouldSpecializeCallSiteForCallee(*this, *CB, *NewCallee)) {
         SkippedAssumedCallees.push_back(NewCallee);
         SpecializedForAllCallees = false;
         continue;
@@ -12545,6 +12813,8 @@ const char AAAssumptionInfo::ID = 0;
 const char AAUnderlyingObjects::ID = 0;
 const char AAAddressSpace::ID = 0;
 const char AAIndirectCallInfo::ID = 0;
+const char AAGlobalValueInfo::ID = 0;
+const char AADenormalFPMath::ID = 0;
 
 // Macro magic to create the static generator function for attributes that
 // follow the naming scheme.
@@ -12683,12 +12953,15 @@ CREATE_ALL_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAUnderlyingObjects)
 
 CREATE_ABSTRACT_ATTRIBUTE_FOR_ONE_POSITION(IRP_CALL_SITE, CallSite,
                                            AAIndirectCallInfo)
+CREATE_ABSTRACT_ATTRIBUTE_FOR_ONE_POSITION(IRP_FLOAT, Floating,
+                                           AAGlobalValueInfo)
 
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAHeapToStack)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAUndefinedBehavior)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AANonConvergent)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAIntraFnReachability)
 CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAInterFnReachability)
+CREATE_FUNCTION_ONLY_ABSTRACT_ATTRIBUTE_FOR_POSITION(AADenormalFPMath)
 
 CREATE_NON_RET_ABSTRACT_ATTRIBUTE_FOR_POSITION(AAMemoryBehavior)
 

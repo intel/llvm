@@ -2102,11 +2102,8 @@ static void getTrivialDefaultFunctionAttributes(
   }
 }
 
-/// Adds attributes to \p F according to our \p CodeGenOpts and \p LangOpts, as
-/// though we had emitted it ourselves. We remove any attributes on F that
-/// conflict with the attributes we add here.
-static void mergeDefaultFunctionDefinitionAttributes(
-    llvm::Function &F, const CodeGenOptions CodeGenOpts,
+void CodeGen::mergeDefaultFunctionDefinitionAttributes(
+    llvm::Function &F, const CodeGenOptions &CodeGenOpts,
     const LangOptions &LangOpts, const TargetOptions &TargetOpts,
     bool WillInternalize) {
 
@@ -2165,15 +2162,6 @@ static void mergeDefaultFunctionDefinitionAttributes(
   F.addFnAttrs(FuncAttrs);
 }
 
-void clang::CodeGen::mergeDefaultFunctionDefinitionAttributes(
-    llvm::Function &F, const CodeGenOptions CodeGenOpts,
-    const LangOptions &LangOpts, const TargetOptions &TargetOpts,
-    bool WillInternalize) {
-
-  ::mergeDefaultFunctionDefinitionAttributes(F, CodeGenOpts, LangOpts,
-                                             TargetOpts, WillInternalize);
-}
-
 void CodeGenModule::getTrivialDefaultFunctionAttributes(
     StringRef Name, bool HasOptnone, bool AttrOnCallSite,
     llvm::AttrBuilder &FuncAttrs) {
@@ -2192,23 +2180,6 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
   // attributes.
   if (!AttrOnCallSite)
     addMergableDefaultFunctionAttributes(CodeGenOpts, FuncAttrs);
-}
-
-void CodeGenModule::addDefaultFunctionDefinitionAttributes(llvm::Function &F) {
-  llvm::AttrBuilder FuncAttrs(F.getContext());
-  getDefaultFunctionAttributes(F.getName(), F.hasOptNone(),
-                               /* AttrOnCallSite = */ false, FuncAttrs);
-  // TODO: call GetCPUAndFeaturesAttributes?
-  F.addFnAttrs(FuncAttrs);
-}
-
-/// Apply default attributes to \p F, accounting for merge semantics of
-/// attributes that should not overwrite existing attributes.
-void CodeGenModule::mergeDefaultFunctionDefinitionAttributes(
-    llvm::Function &F, bool WillInternalize) {
-  ::mergeDefaultFunctionDefinitionAttributes(F, getCodeGenOpts(), getLangOpts(),
-                                             getTarget().getTargetOpts(),
-                                             WillInternalize);
 }
 
 void CodeGenModule::addDefaultFunctionDefinitionAttributes(

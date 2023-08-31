@@ -118,6 +118,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -1316,6 +1317,11 @@ struct InformationCache {
     return TargetTriple.isAMDGPU() || TargetTriple.isNVPTX();
   }
 
+  /// Return all functions that might be called indirectly, only valid for
+  /// closed world modules (see isClosedWorldModule).
+  const ArrayRef<Function *>
+  getIndirectlyCallableFunctions(Attributor &A) const;
+
 private:
   struct FunctionInfo {
     ~FunctionInfo();
@@ -1347,6 +1353,10 @@ private:
     }
     return *FI;
   }
+
+  /// Vector of functions that might be callable indirectly, i.a., via a
+  /// function pointer.
+  SmallVector<Function *> IndirectlyCallableFunctions;
 
   /// Initialize the function information cache \p FI for the function \p F.
   ///
@@ -1413,13 +1423,18 @@ struct AttributorConfig {
   /// Flag to determine if we should skip all liveness checks early on.
   bool UseLiveness = true;
 
+  /// Flag to indicate if the entire world is contained in this module, that
+  /// is, no outside functions exist.
+  bool IsClosedWorldModule = false;
+
   /// Callback function to be invoked on internal functions marked live.
   std::function<void(Attributor &A, const Function &F)> InitializationCallback =
       nullptr;
 
   /// Callback function to determine if an indirect call targets should be made
   /// direct call targets (with an if-cascade).
-  std::function<bool(Attributor &A, CallBase &CB, Function &AssummedCallee)>
+  std::function<bool(Attributor &A, const AbstractAttribute &AA, CallBase &CB,
+                     Function &AssummedCallee)>
       IndirectCalleeSpecializationCallback = nullptr;
 
   /// Helper to update an underlying call graph and to delete functions.
@@ -1482,9 +1497,7 @@ struct Attributor {
   /// \param Configuration The Attributor configuration which determines what
   ///                      generic features to use.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
-             AttributorConfig Configuration)
-      : Allocator(InfoCache.Allocator), Functions(Functions),
-        InfoCache(InfoCache), Configuration(Configuration) {}
+             AttributorConfig Configuration);
 
   ~Attributor();
 
@@ -1695,12 +1708,17 @@ struct Attributor {
 
   /// Return true if we should specialize the call site \b CB for the potential
   /// callee \p Fn.
-  bool shouldSpecializeCallSiteForCallee(CallBase &CB, Function &Callee) {
+  bool shouldSpecializeCallSiteForCallee(const AbstractAttribute &AA,
+                                         CallBase &CB, Function &Callee) {
     return Configuration.IndirectCalleeSpecializationCallback
-               ? Configuration.IndirectCalleeSpecializationCallback(*this, CB,
-                                                                    Callee)
+               ? Configuration.IndirectCalleeSpecializationCallback(*this, AA,
+                                                                    CB, Callee)
                : true;
   }
+
+  /// Return true if the module contains the whole world, thus, no outside
+  /// functions exist.
+  bool isClosedWorldModule() const;
 
   /// Return true if we derive attributes for \p Fn
   bool isRunOn(Function &Fn) const { return isRunOn(&Fn); }
@@ -1899,12 +1917,13 @@ struct Attributor {
 
   /// Remove all \p AttrKinds attached to \p IRP.
   ChangeStatus removeAttrs(const IRPosition &IRP,
-                           const ArrayRef<Attribute::AttrKind> &AttrKinds);
+                           ArrayRef<Attribute::AttrKind> AttrKinds);
+  ChangeStatus removeAttrs(const IRPosition &IRP, ArrayRef<StringRef> Attrs);
 
   /// Attach \p DeducedAttrs to \p IRP, if \p ForceReplace is set we do this
   /// even if the same attribute kind was already present.
   ChangeStatus manifestAttrs(const IRPosition &IRP,
-                             const ArrayRef<Attribute> &DeducedAttrs,
+                             ArrayRef<Attribute> DeducedAttrs,
                              bool ForceReplace = false);
 
 private:
@@ -1915,8 +1934,7 @@ private:
 
   /// Helper to apply \p CB on all attributes of type \p AttrDescs of \p IRP.
   template <typename DescTy>
-  ChangeStatus updateAttrMap(const IRPosition &IRP,
-                             const ArrayRef<DescTy> &AttrDescs,
+  ChangeStatus updateAttrMap(const IRPosition &IRP, ArrayRef<DescTy> AttrDescs,
                              function_ref<bool(const DescTy &, AttributeSet,
                                                AttributeMask &, AttrBuilder &)>
                                  CB);
@@ -2305,7 +2323,7 @@ public:
   bool checkForAllInstructions(function_ref<bool(Instruction &)> Pred,
                                const Function *Fn,
                                const AbstractAttribute *QueryingAA,
-                               const ArrayRef<unsigned> &Opcodes,
+                               ArrayRef<unsigned> Opcodes,
                                bool &UsedAssumedInformation,
                                bool CheckBBLivenessOnly = false,
                                bool CheckPotentiallyDead = false);
@@ -2316,7 +2334,7 @@ public:
   /// present in \p Opcode and return true if \p Pred holds on all of them.
   bool checkForAllInstructions(function_ref<bool(Instruction &)> Pred,
                                const AbstractAttribute &QueryingAA,
-                               const ArrayRef<unsigned> &Opcodes,
+                               ArrayRef<unsigned> Opcodes,
                                bool &UsedAssumedInformation,
                                bool CheckBBLivenessOnly = false,
                                bool CheckPotentiallyDead = false);
@@ -3931,6 +3949,14 @@ struct AAIsDead
   using Base = StateWrapper<BitIntegerState<uint8_t, 3, 0>, AbstractAttribute>;
   AAIsDead(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
 
+  /// See AbstractAttribute::isValidIRPositionForInit
+  static bool isValidIRPositionForInit(Attributor &A, const IRPosition &IRP) {
+    if (IRP.getPositionKind() == IRPosition::IRP_FUNCTION)
+      return isa<Function>(IRP.getAnchorValue()) &&
+             !cast<Function>(IRP.getAnchorValue()).isDeclaration();
+    return true;
+  }
+
   /// State encoding bits. A set bit in the state means the property holds.
   enum {
     HAS_NO_EFFECT = 1 << 0,
@@ -5075,6 +5101,98 @@ private:
   bool UndefIsContained;
 };
 
+struct DenormalFPMathState : public AbstractState {
+  struct DenormalState {
+    DenormalMode Mode = DenormalMode::getInvalid();
+    DenormalMode ModeF32 = DenormalMode::getInvalid();
+
+    bool operator==(const DenormalState Other) const {
+      return Mode == Other.Mode && ModeF32 == Other.ModeF32;
+    }
+
+    bool operator!=(const DenormalState Other) const {
+      return Mode != Other.Mode || ModeF32 != Other.ModeF32;
+    }
+
+    bool isValid() const {
+      return Mode.isValid() && ModeF32.isValid();
+    }
+
+    static DenormalMode::DenormalModeKind
+    unionDenormalKind(DenormalMode::DenormalModeKind Callee,
+                      DenormalMode::DenormalModeKind Caller) {
+      if (Caller == Callee)
+        return Caller;
+      if (Callee == DenormalMode::Dynamic)
+        return Caller;
+      if (Caller == DenormalMode::Dynamic)
+        return Callee;
+      return DenormalMode::Invalid;
+    }
+
+    static DenormalMode unionAssumed(DenormalMode Callee, DenormalMode Caller) {
+      return DenormalMode{unionDenormalKind(Callee.Output, Caller.Output),
+                          unionDenormalKind(Callee.Input, Caller.Input)};
+    }
+
+    DenormalState unionWith(DenormalState Caller) const {
+      DenormalState Callee(*this);
+      Callee.Mode = unionAssumed(Callee.Mode, Caller.Mode);
+      Callee.ModeF32 = unionAssumed(Callee.ModeF32, Caller.ModeF32);
+      return Callee;
+    }
+  };
+
+  DenormalState Known;
+
+  /// Explicitly track whether we've hit a fixed point.
+  bool IsAtFixedpoint = false;
+
+  DenormalFPMathState() = default;
+
+  DenormalState getKnown() const { return Known; }
+
+  // There's only really known or unknown, there's no speculatively assumable
+  // state.
+  DenormalState getAssumed() const { return Known; }
+
+  bool isValidState() const override {
+    return Known.isValid();
+  }
+
+  /// Return true if there are no dynamic components to the denormal mode worth
+  /// specializing.
+  bool isModeFixed() const {
+    return Known.Mode.Input != DenormalMode::Dynamic &&
+           Known.Mode.Output != DenormalMode::Dynamic &&
+           Known.ModeF32.Input != DenormalMode::Dynamic &&
+           Known.ModeF32.Output != DenormalMode::Dynamic;
+  }
+
+  bool isAtFixpoint() const override {
+    return IsAtFixedpoint;
+  }
+
+  ChangeStatus indicateFixpoint() {
+    bool Changed = !IsAtFixedpoint;
+    IsAtFixedpoint = true;
+    return Changed ? ChangeStatus::CHANGED : ChangeStatus::UNCHANGED;
+  }
+
+  ChangeStatus indicateOptimisticFixpoint() override {
+    return indicateFixpoint();
+  }
+
+  ChangeStatus indicatePessimisticFixpoint() override {
+    return indicateFixpoint();
+  }
+
+  DenormalFPMathState operator^=(const DenormalFPMathState &Caller) {
+    Known = Known.unionWith(Caller.getKnown());
+    return *this;
+  }
+};
+
 using PotentialConstantIntValuesState = PotentialValuesState<APInt>;
 using PotentialLLVMValuesState =
     PotentialValuesState<std::pair<AA::ValueAndContext, AA::ValueScope>>;
@@ -6003,6 +6121,8 @@ struct AAPointerInfo : public AbstractAttribute {
   static const char ID;
 };
 
+raw_ostream &operator<<(raw_ostream &, const AAPointerInfo::Access &);
+
 /// An abstract attribute for getting assumption information.
 struct AAAssumptionInfo
     : public StateWrapper<SetState<StringRef>, AbstractAttribute,
@@ -6122,6 +6242,45 @@ struct AAAddressSpace : public StateWrapper<BooleanState, AbstractAttribute> {
   static const char ID;
 };
 
+/// An abstract interface for llvm::GlobalValue information interference.
+struct AAGlobalValueInfo
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  AAGlobalValueInfo(const IRPosition &IRP, Attributor &A)
+      : StateWrapper<BooleanState, AbstractAttribute>(IRP) {}
+
+  /// See AbstractAttribute::isValidIRPositionForInit
+  static bool isValidIRPositionForInit(Attributor &A, const IRPosition &IRP) {
+    if (IRP.getPositionKind() != IRPosition::IRP_FLOAT)
+      return false;
+    auto *GV = dyn_cast<GlobalValue>(&IRP.getAnchorValue());
+    if (!GV)
+      return false;
+    return GV->hasLocalLinkage();
+  }
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAGlobalValueInfo &createForPosition(const IRPosition &IRP,
+                                              Attributor &A);
+
+  /// Return true iff \p U is a potential use of the associated global value.
+  virtual bool isPotentialUse(const Use &U) const = 0;
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAGlobalValueInfo"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAGlobalValueInfo
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
 /// An abstract interface for indirect call information interference.
 struct AAIndirectCallInfo
     : public StateWrapper<BooleanState, AbstractAttribute> {
@@ -6156,6 +6315,36 @@ struct AAIndirectCallInfo
 
   /// This function should return true if the type of the \p AA is
   /// AAIndirectCallInfo
+  /// This function should return true if the type of the \p AA is
+  /// AADenormalFPMath.
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
+/// An abstract Attribute for specializing "dynamic" components of
+/// "denormal-fp-math" and "denormal-fp-math-f32" to a known denormal mode.
+struct AADenormalFPMath
+    : public StateWrapper<DenormalFPMathState, AbstractAttribute> {
+  using Base = StateWrapper<DenormalFPMathState, AbstractAttribute>;
+
+  AADenormalFPMath(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AADenormalFPMath &createForPosition(const IRPosition &IRP,
+                                             Attributor &A);
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AADenormalFPMath"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AADenormalFPMath.
   static bool classof(const AbstractAttribute *AA) {
     return (AA->getIdAddr() == &ID);
   }
