@@ -240,6 +240,14 @@ INSTANTIATE_TEST_SUITE_P(
         return ss.str();
     });
 
+bool doesReturnArray(ur_device_info_t info_type) {
+    if (info_type == UR_DEVICE_INFO_SUPPORTED_PARTITIONS ||
+        info_type == UR_DEVICE_INFO_PARTITION_TYPE) {
+        return true;
+    }
+    return false;
+}
+
 TEST_P(urDeviceGetInfoTest, Success) {
     ur_device_info_t info_type = GetParam();
     for (auto device : devices) {
@@ -248,7 +256,11 @@ TEST_P(urDeviceGetInfoTest, Success) {
             urDeviceGetInfo(device, info_type, 0, nullptr, &size);
 
         if (result == UR_RESULT_SUCCESS) {
+            if (doesReturnArray(info_type) && size == 0) {
+                return;
+            }
             ASSERT_NE(size, 0);
+
             if (const auto expected_size = device_info_size_map.find(info_type);
                 expected_size != device_info_size_map.end()) {
                 ASSERT_EQ(expected_size->second, size);

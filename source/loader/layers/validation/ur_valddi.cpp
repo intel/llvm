@@ -398,8 +398,8 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
     ur_device_type_t DeviceType,    ///< [in] the type of the devices.
     uint32_t
         NumEntries, ///< [in] the number of devices to be added to phDevices.
-    ///< If phDevices in not NULL then NumEntries should be greater than zero,
-    ///< otherwise ::UR_RESULT_ERROR_INVALID_VALUE,
+    ///< If phDevices is not NULL, then NumEntries should be greater than zero.
+    ///< Otherwise ::UR_RESULT_ERROR_INVALID_SIZE
     ///< will be returned.
     ur_device_handle_t *
         phDevices, ///< [out][optional][range(0, NumEntries)] array of handle of devices.
@@ -421,6 +421,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
 
         if (UR_DEVICE_TYPE_VPU < DeviceType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (NumEntries == 0 && phDevices != NULL) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
