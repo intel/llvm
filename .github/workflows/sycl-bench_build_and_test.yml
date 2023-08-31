@@ -1,0 +1,130 @@
+name: sycl-bench build and test
+
+# TODO: Testing part missing
+
+on:
+  workflow_call:
+    inputs:
+      repository_owner:
+        type: string
+        required: false
+        default: 'unisa-hpc'
+      ref:
+        type: string
+        required: false
+
+      build_image:
+        type: string
+        required: false
+        default: 'ghcr.io/intel/llvm/ubuntu2204_build:latest'
+      build_cache_root:
+        type: string
+        required: false
+      build_cache_suffix:
+        type: string
+        required: false
+        default: 'default'
+      build_configure_extra_args:
+        type: string
+        required: false
+      build_sycl_impl:
+        type: string
+        required: false
+        default: 'LLVM'
+      build_artifact_suffix:
+        type: string
+        required: true
+
+      sycl_toolchain_artifact:
+        type: string
+        required: true
+      sycl_toolchain_archive:
+        type: string
+        required: true
+      sycl_toolchain_decompress_command:
+        type: string
+        required: true
+
+      artifact_archive_name:
+        type: string
+        required: false
+        default: 'sycl_bench.tar.zst'
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 10
+
+jobs:
+  build:
+    runs-on: [Linux, build]
+    container:
+      image: ${{ inputs.build_image }}
+      options: -u 1001:1001
+    env:
+      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: 8G
+    steps:
+      - name: Download SYCL toolchain
+        id: download
+        uses: actions/download-artifact@v3
+        with:
+          name: ${{ inputs.sycl_toolchain_artifact }}
+      - name: Extract/Setup SYCL toolchain
+        run: |
+          rm -rf toolchain
+          mkdir toolchain
+          tar -I '${{ inputs.sycl_toolchain_decompress_command }}' \
+            -xf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
+            -C toolchain
+          rm -f ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }}
+          echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+          echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+      - run: which clang++
+      - name: Checkout sycl-bench
+        uses: actions/checkout@v3
+        with:
+          repository: ${{ inputs.repository_owner }}/sycl-bench
+          ref: ${{ inputs.ref }}
+          path: sycl-bench
+      - name: Configure sycl-bench
+        run: |
+          cmake -S sycl-bench -G Ninja -B sycl-bench/build \
+            -DCMAKE_CXX_COMPILER="$(which clang++)" \
+            -DSYCL_IMPL=${{ inputs.build_sycl_impl }} \
+            -DCMAKE_INSTALL_PREFIX=sycl-bench/build/install \
+            ${{ inputs.build_configure_extra_args }}
+      - name: Build and install sycl-bench
+        id: build
+        run: cmake --build sycl-bench/build --target install
+      - name: Deduce artifact archive params
+        id: artifact_info
+        if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+        run: |
+          NAME="${{inputs.artifact_archive_name}}"
+          if [ -z "$NAME" ]; then
+            NAME=sycl_bench.tar.zst
+          fi
+          echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
+          if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
+            echo COMPRESS="gzip" >> $GITHUB_OUTPUT
+            echo DECOMPRESS="gunzip" >> $GITHUB_OUTPUT
+          elif [ "${NAME}" != "${NAME%.tar.zst}" ]; then
+            echo COMPRESS="zstd -9" >> $GITHUB_OUTPUT
+            echo DECOMPRESS="zstd" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported extension"
+            exit 1
+          fi
+      - name: Pack benchmarks
+        if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+        run: |
+          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' \
+              -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} \
+              -C $GITHUB_WORKSPACE/sycl-bench/build/install .
+      - name: Upload benchmarks
+        if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: sycl_bench_${{ inputs.build_artifact_suffix }}
+          path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+          retention-days: ${{ inputs.retention-days }}
