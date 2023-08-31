@@ -160,7 +160,7 @@ static int repeatWrap(int i, int dimSize) {
 static void printTestInfo(syclexp::bindless_image_sampler &samp,
                           double offset) {
 
-  sycl::addressing_mode SampAddrMode = samp.addressing;
+  sycl::addressing_mode SampAddrMode = samp.addressing[0];
   sycl::coordinate_normalization_mode SampNormMode = samp.coordinate;
   sycl::filtering_mode SampFiltMode = samp.filtering;
 
@@ -630,7 +630,7 @@ read(sycl::range<2> globalSize, sycl::vec<double, 2> coords, double offset,
   sycl::filtering_mode SampFiltMode = samp.filtering;
   if (SampFiltMode == sycl::filtering_mode::nearest) {
 
-    sycl::addressing_mode SampAddrMode = samp.addressing;
+    sycl::addressing_mode SampAddrMode = samp.addressing[0];
     if (SampAddrMode == sycl::addressing_mode::clamp) {
       return util::clampNearest<VecType>(coords, globalSize, inputImage);
     }
@@ -673,7 +673,7 @@ read(sycl::range<2> globalSize, sycl::vec<double, 2> coords, double offset,
     }
 
   } else { // linear
-    sycl::addressing_mode SampAddrMode = samp.addressing;
+    sycl::addressing_mode SampAddrMode = samp.addressing[0];
     if (SampAddrMode == sycl::addressing_mode::clamp) {
       return util::clampLinear<DType, NChannels>(coords, globalSize,
                                                  inputImage);
