@@ -23,7 +23,6 @@
 #include <llvm/IR/Attributes.h>
 #include <llvm/Target/TargetMachine.h>
 #include <multi_llvm/creation_apis_helper.h>
-#include <multi_llvm/opaque_pointers.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <algorithm>
@@ -370,14 +369,14 @@ Function *VectorizationContext::getOrCreateMaskedFunction(CallInst *CI) {
 }
 
 namespace {
-multi_llvm::Optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
+std::optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
     StringRef fnName, Type *const ty) {
   compiler::utils::Lexer L(fnName);
   if (!L.Consume(VectorizationContext::InternalBuiltinPrefix)) {
-    return multi_llvm::None;
+    return std::nullopt;
   }
   if (!L.Consume("sub_group_scan_")) {
-    return multi_llvm::None;
+    return std::nullopt;
   }
   bool isInt = ty->isIntOrIntVectorTy();
   bool isInclusive = L.Consume("inclusive_");
@@ -413,13 +412,13 @@ multi_llvm::Optional<std::tuple<bool, RecurKind, bool>> isSubgroupScan(
         opKind = RecurKind::Xor;
         assert(isInt && "unexpected internal scan builtin");
       } else {
-        return multi_llvm::None;
+        return std::nullopt;
       }
       bool isVP = L.Consume("_vp");
       return std::make_tuple(isInclusive, opKind, isVP);
     }
   }
-  return multi_llvm::None;
+  return std::nullopt;
 }
 };  // namespace
 
@@ -427,8 +426,7 @@ bool VectorizationContext::defineInternalBuiltin(Function *F) {
   assert(F->isDeclaration() && "builtin is already defined");
 
   // Handle masked memory loads and stores.
-  if (multi_llvm::Optional<MemOpDesc> Desc =
-          MemOpDesc::analyzeMemOpFunction(*F)) {
+  if (std::optional<MemOpDesc> Desc = MemOpDesc::analyzeMemOpFunction(*F)) {
     if (Desc->isMaskedMemOp()) {
       return emitMaskedMemOpBody(*F, *Desc);
     }
@@ -472,8 +470,6 @@ bool VectorizationContext::emitMaskedMemOpBody(Function &F,
   Value *Mask = Desc.getMaskOperand(&F);
   Value *VL = Desc.isVLOp() ? Desc.getVLOperand(&F) : nullptr;
   Type *DataTy = Desc.isLoad() ? F.getReturnType() : Data->getType();
-  assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-      cast<PointerType>(Ptr->getType()), DataTy));
 
   BasicBlock *Entry = BasicBlock::Create(F.getContext(), "entry", &F);
   IRBuilder<> B(Entry);

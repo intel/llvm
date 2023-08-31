@@ -22,7 +22,8 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/Support/Debug.h>
 #include <llvm/Transforms/Utils/Local.h>
-#include <multi_llvm/opaque_pointers.h>
+
+#include <optional>
 
 #include "analysis/uniform_value_analysis.h"
 #include "analysis/vectorization_unit_analysis.h"
@@ -260,7 +261,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
         continue;
       }
 
-      multi_llvm::Optional<MemOp> Op = MemOp::get(CI);
+      std::optional<MemOp> Op = MemOp::get(CI);
       // We can't optimize interleaved memops if we don't know the stride at
       // runtime, since we need to check if the stride and the group size match.
       if (!Op || !Op->isStrideConstantInt()) {
@@ -303,9 +304,6 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
         Value *Base = Group.Base;
         if (Kind == eInterleavedLoad && Group.Offset != 0) {
           auto *EltTy = Group.Info.front().DataTy->getScalarType();
-          assert(multi_llvm::isOpaqueOrPointeeTypeMatches(
-                     cast<PointerType>(Base->getType()), EltTy) &&
-                 "Unhandled interleaved access");
           // if it's a Load group that was out of order, we have to use the
           // sequentially first GEP in order to preserve use-def ordering,
           // which means we have to offset it with an additional GEP and
@@ -324,7 +322,7 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
             Group.Kind == eMaskedInterleavedLoad) {
           Masks.reserve(Group.Data.size());
           for (auto *V : Group.Data) {
-            multi_llvm::Optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
+            std::optional<MemOp> Op = MemOp::get(cast<Instruction>(V));
             assert(Op && "Unanalyzable interleaved access?");
             Masks.push_back(Op->getMaskOperand());
           }
@@ -397,8 +395,6 @@ bool InterleavedGroupCombinePass::findGroup(
     }
 
     Type *EleTy = DataType0->getScalarType();
-    assert(multi_llvm::isOpaqueOrPointeeTypeMatches(PtrTy, EleTy) &&
-           "Unhandled interleaved accesses");
     unsigned Align = EleTy->getScalarSizeInBits() / 8;
     assert(Align != 0 &&
            "interleaved memory operation with zero-sized elements");
@@ -455,7 +451,7 @@ bool InterleavedGroupCombinePass::findGroup(
           CanMove = canMoveUp(Group.Data, cast<Instruction>(InfoN.Op));
 
           if (InfoN.Kind == eMaskedInterleavedLoad) {
-            multi_llvm::Optional<MemOp> Op = MemOp::get(InfoN.Op);
+            std::optional<MemOp> Op = MemOp::get(InfoN.Op);
             assert(Op && "Unanalyzable load?");
             if (auto *MaskInst = dyn_cast<Instruction>(Op->getMaskOperand())) {
               CanMove &= Group.canDeinterleaveMask(*MaskInst);
