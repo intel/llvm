@@ -22,6 +22,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
+  // shorthand used with properties
+  namespace oneapi_exp = ext::oneapi::experimental;
 namespace detail {
 
 // Hide the base implementation in details so that manipulation
@@ -36,8 +38,8 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
       // Artem: Doesn't work for some reason
       [[__sycl_detail__::add_ir_annotations_member(
-          ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::name...,
-          ext::oneapi::experimental::detail::PropertyMetaInfo<Props>::value...)]]
+          oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
+          oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
       ;
 
@@ -89,27 +91,29 @@ public:
 };
 } // namespace detail
 
+// alias for proper namespace
+template <typename... Props>
+using properties_t = oneapi_exp::detail::properties_t<Props...>;
+
 // Empty property list specialization
-template <typename T, typename PropertyListT = ext::oneapi::experimental::detail::empty_properties_t>
+template <typename T, typename PropertyListT = oneapi_exp::detail::empty_properties_t>
 class fpga_mem
-    : public detail::fpga_mem_base<T> {
+    : public detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)> {
+
+    using property_list_t = decltype(oneapi_exp::properties(oneapi_exp::resource_any));
 
   // Inherits the base class' constructors
-  using detail::fpga_mem_base<T>::fpga_mem_base;
+  using detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)>::fpga_mem_base;
 
 public:
     template <typename propertyT> static constexpr bool has_property() {
-    return false;
+    return property_list_t::template has_property<propertyT>();
   }
 
   template <typename propertyT> static constexpr auto get_property() {
-    return false;
+    return property_list_t::template get_property<propertyT>();
   }
 };
-
-// alias for proper namespace
-template <typename... Props>
-using properties_t = ext::oneapi::experimental::detail::properties_t<Props...>;
 
 template <typename T, typename... Props>
 class fpga_mem<T, properties_t<Props...>>
@@ -122,7 +126,7 @@ class fpga_mem<T, properties_t<Props...>>
 
 public:
 
-  static_assert(ext::oneapi::experimental::is_property_list<property_list_t>::value,
+  static_assert(oneapi_exp::is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
     template <typename propertyT> static constexpr bool has_property() {

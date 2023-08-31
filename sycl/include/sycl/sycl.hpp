@@ -63,6 +63,7 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
+#include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>

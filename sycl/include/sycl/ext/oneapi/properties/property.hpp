@@ -210,8 +210,9 @@ enum PropKind : uint32_t {
   RAMStitching = 40,
   MaxPrivateCopies = 41,
   NumReplicates = 42,
+  Datapath = 43,
   // PropKindSize must always be the last value.
-  PropKindSize = 43,
+  PropKindSize = 44,
 };
 
 // This trait must be specialized for all properties and must have a unique
