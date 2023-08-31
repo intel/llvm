@@ -36,11 +36,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
   return UR_RESULT_SUCCESS;
 }
@@ -132,9 +132,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;
   pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
@@ -302,6 +302,23 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   pDdiTable->pfnPeerAccessGetInfoExp = urUsmP2PPeerAccessGetInfoExp;
 
   return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetVirtualMemProcAddrTable(
+    ur_api_version_t version, ur_virtual_mem_dditable_t *pDdiTable) {
+  auto retVal = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != retVal) {
+    return retVal;
+  }
+  pDdiTable->pfnGranularityGetInfo = urVirtualMemGranularityGetInfo;
+  pDdiTable->pfnReserve = urVirtualMemReserve;
+  pDdiTable->pfnFree = urVirtualMemFree;
+  pDdiTable->pfnMap = urVirtualMemMap;
+  pDdiTable->pfnUnmap = urVirtualMemUnmap;
+  pDdiTable->pfnSetAccess = urVirtualMemSetAccess;
+  pDdiTable->pfnGetInfo = urVirtualMemGetInfo;
+
+  return UR_RESULT_SUCCESS;
 }
 
 #if defined(__cplusplus)

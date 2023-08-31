@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "context.hpp"
 
 hipEvent_t ur_platform_handle_t_::EvBase{nullptr};
 
@@ -57,7 +58,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     static std::vector<ur_platform_handle_t_> PlatformIds;
 
     UR_ASSERT(phPlatforms || pNumPlatforms, UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_VALUE);
+    UR_ASSERT(!phPlatforms || NumEntries > 0, UR_RESULT_ERROR_INVALID_SIZE);
 
     ur_result_t Result = UR_RESULT_SUCCESS;
 
@@ -86,6 +87,14 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
                   new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
+
+              ScopedContext active(PlatformIds[i].Devices.back().get());
+              hipEvent_t EvBase;
+              Err = UR_CHECK_ERROR(
+                  hipEventCreateWithFlags(&EvBase, hipEventDefault));
+              // Use default stream to record base event counter
+              Err = UR_CHECK_ERROR(hipEventRecord(EvBase, 0));
+              PlatformIds[i].EvBase = EvBase;
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation

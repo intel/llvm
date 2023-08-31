@@ -117,6 +117,15 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
     }
 
     unsigned int Flags = 0;
+    const ur_queue_flags_t URQueueFlags = pProps ? pProps->flags : 0;
+    UR_ASSERT((URQueueFlags & UR_QUEUE_FLAGS_MASK) == 0,
+              UR_RESULT_ERROR_INVALID_VALUE);
+    UR_ASSERT(!((URQueueFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) &&
+                (URQueueFlags & UR_QUEUE_FLAG_PRIORITY_LOW)),
+              UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES);
+    UR_ASSERT(!((URQueueFlags & UR_QUEUE_FLAG_SUBMISSION_BATCHED) &&
+                (URQueueFlags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE)),
+              UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES);
 
     const bool IsOutOfOrder =
         pProps ? pProps->flags & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE
@@ -129,7 +138,7 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
 
     QueueImpl = std::unique_ptr<ur_queue_handle_t_>(new ur_queue_handle_t_{
         std::move(ComputeHipStreams), std::move(TransferHipStreams), hContext,
-        hDevice, Flags, pProps ? pProps->flags : 0});
+        hDevice, Flags, URQueueFlags});
 
     *phQueue = QueueImpl.release();
 
@@ -172,10 +181,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
     });
     return ReturnValue(IsReady);
   }
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
+  case UR_QUEUE_INFO_SIZE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    break;
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-  return {};
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueRetain(ur_queue_handle_t hQueue) {
