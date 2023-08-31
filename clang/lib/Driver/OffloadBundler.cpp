@@ -42,11 +42,11 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/WithColor.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/SourceMgr.h"
 #include "llvm/TargetParser/Host.h"
 #include "llvm/TargetParser/Triple.h"
 #include <algorithm>
@@ -618,7 +618,8 @@ class ObjectFileHandler final : public FileHandler {
       ErrorOr<std::unique_ptr<MemoryBuffer>> BufOrErr =
           MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames[I]);
       if (!BufOrErr)
-        return createFileError(BundlerConfig.InputFileNames[I], BufOrErr.getError());
+        return createFileError(BundlerConfig.InputFileNames[I],
+                               BufOrErr.getError());
 
       std::unique_ptr<MemoryBuffer> Buf = std::move(*BufOrErr);
 
@@ -1058,7 +1059,8 @@ public:
         if (Error Err = BFH.ReadHeader(*Buf2))
           return Err;
 
-        Expected<std::optional<StringRef>> NameOrErr = BFH.ReadBundleStart(*Buf2);
+        Expected<std::optional<StringRef>> NameOrErr =
+            BFH.ReadBundleStart(*Buf2);
         if (!NameOrErr)
           return NameOrErr.takeError();
 
@@ -1172,7 +1174,8 @@ public:
           if (Error Err = BFH.ReadHeader(*Buf2))
             return Err;
 
-          Expected<std::optional<StringRef>> NameOrErr = BFH.ReadBundleStart(*Buf2);
+          Expected<std::optional<StringRef>> NameOrErr =
+              BFH.ReadBundleStart(*Buf2);
           if (!NameOrErr)
             return NameOrErr.takeError();
 
@@ -1181,7 +1184,8 @@ public:
 
             if (TT == CurrBundle->first()) {
               if (Mode == OutputType::FileList) {
-                // Create temporary file where the device part will be extracted to.
+                // Create temporary file where the device part will be extracted
+                // to.
                 SmallString<128u> ChildFileName;
                 StringRef Ext("bc");
 
@@ -1200,8 +1204,8 @@ public:
                 if (ChildOS.has_error())
                   return createFileError(ChildFileName, ChildOS.error());
 
-                // Add temporary file name with the device part to the output file
-                // list.
+                // Add temporary file name with the device part to the output
+                // file list.
                 OS << ChildFileName << "\n";
               }
             }
@@ -1399,12 +1403,12 @@ CreateObjectFileHandler(MemoryBuffer &FirstInput,
       BundlerConfig);
 }
 
-static bool FilesTypeIsArchiveToList(const std::string& FilesType) {
+static bool FilesTypeIsArchiveToList(const std::string &FilesType) {
   return FilesType == "ao" || FilesType == "aoo" || FilesType == "aocr" ||
          FilesType == "aocx";
 }
 
-static bool FilesTypeIsArchive(const std::string& FilesType) {
+static bool FilesTypeIsArchive(const std::string &FilesType) {
   return FilesType == "a" || FilesTypeIsArchiveToList(FilesType);
 }
 
@@ -1549,7 +1553,8 @@ Error OffloadBundler::UnbundleFiles() {
   assert(FH);
 
   // Seed temporary filename generation with the stem of the input file.
-  FH->SetTempFileNameBase(llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
+  FH->SetTempFileNameBase(
+      llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
 
   // Read the header of the bundled file.
   if (Error Err = FH->ReadHeader(Input))
@@ -1686,7 +1691,8 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     return true;
 
   // Seed temporary filename generation with the stem of the input file.
-  FH->SetTempFileNameBase(llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
+  FH->SetTempFileNameBase(
+      llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
 
   // Read the header of the bundled file.
   if (Error Err = FH->ReadHeader(Input))
