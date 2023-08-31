@@ -253,7 +253,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   case UR_MEM_INFO_SIZE: {
     try {
       size_t AllocSize = 0;
-      UR_CHECK_ERROR(hipMemGetAddressRange(nullptr, &AllocSize,
+      hipDeviceptr_t BasePtr = nullptr;
+      UR_CHECK_ERROR(hipMemGetAddressRange(&BasePtr, &AllocSize,
                                            hMemory->Mem.BufferMem.Ptr));
       return ReturnValue(AllocSize);
     } catch (ur_result_t Err) {
@@ -474,8 +475,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
     hipSurfaceObject_t Surface;
     Result = UR_CHECK_ERROR(hipCreateSurfaceObject(&Surface, &ImageResDesc));
 
-    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-        hContext, ImageArray, Surface, flags, pImageDesc->type, pHost});
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(
+        new ur_mem_handle_t_{hContext, ImageArray, Surface, flags, *pImageDesc,
+                             *pImageFormat, pHost});
 
     if (URMemObj == nullptr) {
       return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -493,10 +495,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 }
 
 /// \TODO Not implemented
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t,
-                                                      ur_image_info_t, size_t,
-                                                      void *, size_t *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
+    ur_mem_handle_t hMemory, ur_image_info_t propName, size_t propSize,
+    void *pPropValue, size_t *pPropValueSizeRet) {
+  UR_ASSERT(hMemory->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropValueSizeRet);
+
+  ScopedContext Active(hMemory->getContext()->getDevice());
+
+  switch (propName) {
+  case UR_IMAGE_INFO_FORMAT:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageFormat());
+  case UR_IMAGE_INFO_ROW_PITCH:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageRowPitch());
+  case UR_IMAGE_INFO_SLICE_PITCH:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageSlicePitch());
+  case UR_IMAGE_INFO_WIDTH:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageWidth());
+  case UR_IMAGE_INFO_HEIGHT:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageHeight());
+  case UR_IMAGE_INFO_DEPTH:
+    return ReturnValue(hMemory->Mem.SurfaceMem.getImageDepth());
+  case UR_IMAGE_INFO_ELEMENT_SIZE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {

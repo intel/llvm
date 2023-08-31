@@ -75,7 +75,10 @@ struct ur_context_handle_t_ {
     urDeviceRetain(DeviceId);
   };
 
-  ~ur_context_handle_t_() { urDeviceRelease(DeviceId); }
+  ~ur_context_handle_t_() {
+    urDeviceRelease(DeviceId);
+    invokeExtendedDeleters();
+  }
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
