@@ -67,25 +67,29 @@ jobs:
     uses: ./.github/workflows/sycl-bench_build_and_test.yml
     with:
       repository_owner: whitneywhtsang
-      ref: sycl-mlir
+      ref: sycl-mlir-enable-benchs
       build_cache_root: /__w/
       build_sycl_impl: LLVM-MLIR
-      build_benchmarks_list: "[2mm]"
+      build_benchmarks_list: 2mm
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
       artifact_archive_name: sycl_bench-mlir.tar.zst
+      build_configure_extra_args: -DSYCL_BENCH_MLIR_BENCHMARKS_ONLY=ON
+      build_artifact_suffix: mlir
 
   sycl-bench_build:
     needs: [ubuntu2204_build]
     uses: ./.github/workflows/sycl-bench_build_and_test.yml
     with:
       repository_owner: whitneywhtsang
-      ref: sycl-mlir
+      ref: sycl-mlir-enable-benchs
       build_cache_root: /__w/
       build_sycl_impl: LLVM
       build_benchmarks_list: "[2mm]"
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
-      artifact_archive_name: sycl_bench-mlir.tar.zst
+      artifact_archive_name: sycl_bench.tar.zst
+      build_configure_extra_args: -DSYCL_BENCH_MLIR_BENCHMARKS_ONLY=ON
+      build_artifact_suffix: std

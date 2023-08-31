@@ -34,6 +34,9 @@ on:
         type: string
         required: false
         default: 'all'
+      build_artifact_suffix:
+        type: string
+        required: true
 
       sycl_toolchain_artifact:
         type: string
@@ -80,15 +83,9 @@ jobs:
             -xf ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }} \
             -C toolchain
           rm -f ${{ steps.download.outputs.download-path }}/${{ inputs.sycl_toolchain_archive }}
-          PATH=$PWD/toolchain/bin/:$PATH
-          LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH
-          echo PATH=$PATH >> $GITHUB_ENV
-          echo LD_LIBRARY_PATH=$LD_LIBRARY_PATH >> $GITHUB_ENV
-          echo "PATH=$PATH"
-          echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
-          which clang++ sycl-ls
-          sycl-ls --verbose
-          SYCL_PI_TRACE=-1 sycl-ls
+          echo PATH=$PWD/toolchain/bin/:$PATH >> $GITHUB_ENV
+          echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
+      - run: which clang++
       - name: Checkout sycl-bench
         uses: actions/checkout@v3
         with:
@@ -96,20 +93,21 @@ jobs:
           ref: ${{ inputs.ref }}
       - name: Configure sycl-bench
         run: |
-          cmake -GNinja -B "sycl-mlir/build" -DCMAKE_CXX_COMPILER=clang++ \
-            -DSYCL_IMPL=${{ inputs.build_sycl_impl }} ${{ inputs.build_configure_extra_args }} \
-            -DCMAKE_CXX_LAUNCHER=ccache
+          cmake -S sycl-mlir -GNinja -B sycl-mlir/build \
+            -DCMAKE_CXX_COMPILER="$(which clang++)" \
+            -DSYCL_IMPL=${{ inputs.build_sycl_impl }} \
+            -DCMAKE_INSTALL_PREFIX=sycl-mlir/build/install \
+            ${{ inputs.build_configure_extra_args }}
       - name: Build sycl-bench
         id: build
-        run: |
-          cmake --build build --target join(' ', ${{ inputs.build_benchmarks_list }})
+        run: cmake --build sycl-mlir/build --target install
       - name: Deduce artifact archive params
         id: artifact_info
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         run: |
           NAME="${{inputs.artifact_archive_name}}"
           if [ -z "$NAME" ]; then
-            NAME=llvm_sycl.tar.zst
+            NAME=sycl_bench.tar.zst
           fi
           echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
           if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
@@ -125,11 +123,11 @@ jobs:
       - name: Pack benchmarks
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         run: |
-          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
+          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/sycl-mlir/build/install
       - name: Upload toolchain
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sycl_linux_${{ inputs.build_artifact_suffix }}
+          name: sycl_bench_,${{ inputs.build_artifact_suffix }}
           path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
           retention-days: ${{ inputs.retention-days }}
