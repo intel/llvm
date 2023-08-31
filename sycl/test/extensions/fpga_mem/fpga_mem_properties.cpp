@@ -41,7 +41,7 @@ int main() {
   // Are all common values usable
   static_assert(is_property_value<decltype(resource_mlab)>::value);
   static_assert(is_property_value<decltype(resource_block_ram)>::value);
-  // FIXME // static_assert(is_property_value<decltype(resource_block_any)>::value);
+  static_assert(is_property_value<decltype(resource_any)>::value);
   static_assert(is_property_value<decltype(num_banks<8>)>::value);
   static_assert(is_property_value<decltype(stride_size<8>)>::value);
   static_assert(is_property_value<decltype(word_size<32>)>::value);
@@ -59,19 +59,24 @@ int main() {
   static_assert(mem_num.has_property<num_banks_key>());
   // FIX ME // static_assert(mem_num.has_property<resource_key>());
   static_assert(!mem_num.has_property<word_size_key>());
+  static_assert(mem_num.get_property<num_banks_key>().value ==
+                888);
 
   checkIsPropertyOf<decltype(mem_empty)>();
-  // FIX ME // static_assert(mem_empty.has_property<resource_key>());
+  // static_assert(mem_empty.has_property<resource_key>());
   static_assert(!mem_empty.has_property<word_size_key>());
+  // static_assert(mem_empty.get_property<resource_key>().value == resource_enum::any);
 
   checkIsPropertyOf<decltype(mem_bool)>();
   // FIX ME // static_assert(mem_num.has_property<resource_key>());
   static_assert(mem_bool.has_property<clock_2x_key>());
   static_assert(!mem_bool.has_property<word_size_key>());
+  static_assert(mem_bool.get_property<clock_2x_key>().value == true);
 
   checkIsPropertyOf<decltype(mem_enum)>();
   static_assert(mem_enum.has_property<resource_key>());
   static_assert(!mem_enum.has_property<word_size_key>());
+  static_assert(mem_enum.get_property<resource_key>().value == resource_enum::mlab);
 
   checkIsPropertyOf<decltype(mem_multi)>();
   // FIX ME // static_assert(mem_num.has_property<resource_key>());
@@ -79,6 +84,9 @@ int main() {
   static_assert(mem_multi.has_property<stride_size_key>());
   static_assert(mem_multi.has_property<bi_directional_ports_key>());
   static_assert(!mem_multi.has_property<word_size_key>());
+  static_assert(mem_multi.get_property<ram_stitching_key>().value == ram_stitching_enum::min_ram);
+  static_assert(mem_multi.get_property<stride_size_key>().value == 777);
+  static_assert(mem_multi.get_property<bi_directional_ports_key>().value == true);
 
   return 0;
 }
