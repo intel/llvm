@@ -1974,11 +1974,9 @@ public:
     // body is dropped and we can create group type more easily.
     const auto indices = GetMemberPattern<NDItemGroup>::getIndices();
     assert(indices.size() == 1 && "Expecting a single index");
-    const auto groupTy =
-        cast<NdItemType>(op.getNDItem().getType().getElementType())
-            .getBody()[indices[0]];
+    auto ndItemTy = cast<NdItemType>(op.getNDItem().getType().getElementType());
+    const auto groupTy = ndItemTy.getBody()[indices[0]];
     const auto convGroupTy = getTypeConverter()->convertType(groupTy);
-    Type ndItemTy = op.getNDItem().getType().getElementType();
     Type convNDItemTy = getTypeConverter()->convertType(ndItemTy);
     bool useOpaquePointers = getTypeConverter()->useOpaquePointers();
     auto group = GetMemberPattern<NDItemGroup>::getRef(
