@@ -29,11 +29,6 @@ on:
         type: string
         required: false
         default: 'LLVM'
-      build_benchmarks_list:
-        description: 'List of benchmarks to build'
-        type: string
-        required: false
-        default: 'all'
       build_artifact_suffix:
         type: string
         required: true

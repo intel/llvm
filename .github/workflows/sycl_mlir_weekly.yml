@@ -65,7 +65,6 @@ jobs:
       ref: sycl-mlir-enable-benchs
       build_cache_root: /__w/
       build_sycl_impl: LLVM-MLIR
-      build_benchmarks_list: 2mm
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
@@ -81,7 +80,6 @@ jobs:
       ref: sycl-mlir-enable-benchs
       build_cache_root: /__w/
       build_sycl_impl: LLVM
-      build_benchmarks_list: "[2mm]"
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
