@@ -1,13 +1,8 @@
 name: SYCL MLIR Weekly
 
 on:
-  # UNCOMMENT BEFORE MERGE
-  # schedule:
-  #  - cron: '0 22 * * 4'
-  # DROP BEFORE MERGE
-  pull_request:
-    branches:
-    - sycl-mlir
+  schedule:
+    - cron: '5 10 * * *'
 
 jobs:
   ubuntu2204_build:
