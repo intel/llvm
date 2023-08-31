@@ -12,22 +12,23 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  *
- *  SYCLcompat
+ *  SYCLcompat API
  *
- *  syclcompat.hpp
+ *  atomic_memory_order.hpp
  *
  *  Description:
- *    Main include internal header for SYCLcompat
+ *    Memory Order helper for the Atomic functionality tests
  **************************************************************************/
 
 #pragma once
 
-#include <syclcompat/atomic.hpp>
-#include <syclcompat/defs.hpp>
-#include <syclcompat/device.hpp>
-#include <syclcompat/dims.hpp>
-#include <syclcompat/id_query.hpp>
-#include <syclcompat/kernel.hpp>
-#include <syclcompat/launch.hpp>
-#include <syclcompat/memory.hpp>
-#include <syclcompat/util.hpp>
+#include <algorithm>
+#include <sycl/sycl.hpp>
+
+using namespace sycl;
+
+bool is_supported(std::vector<memory_order> capabilities,
+                  memory_order mem_order) {
+  return std::find(capabilities.begin(), capabilities.end(), mem_order) !=
+         capabilities.end();
+}
