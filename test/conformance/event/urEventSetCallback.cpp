@@ -168,20 +168,21 @@ using urEventSetCallbackNegativeTest = uur::event::urEventTest;
 void emptyCallback(ur_event_handle_t hEvent, ur_execution_info_t execStatus,
                    void *pUserData) {}
 
-TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandle) {
-
+TEST_P(urEventSetCallbackNegativeTest, InvalidNullHandleEvent) {
     ASSERT_EQ_RESULT(
         urEventSetCallback(
             nullptr,
             ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
             emptyCallback, nullptr),
         UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+}
 
+TEST_P(urEventSetCallbackNegativeTest, InvalidNullPointerCallback) {
     ASSERT_EQ_RESULT(
         urEventSetCallback(
             event, ur_execution_info_t::UR_EXECUTION_INFO_EXECUTION_INFO_QUEUED,
             nullptr, nullptr),
-        UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+        UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
 TEST_P(urEventSetCallbackNegativeTest, InvalidEnumeration) {
