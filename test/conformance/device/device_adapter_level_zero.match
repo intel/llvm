@@ -1,4 +1,5 @@
 urDeviceGetTest.InvalidValueNumEntries
+{{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_IMAGE_SUPPORTED
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_GLOBAL_MEM_FREE
 urDeviceGetInfoTest.Success/UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT
