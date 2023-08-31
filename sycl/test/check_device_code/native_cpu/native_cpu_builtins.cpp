@@ -1,4 +1,5 @@
-// Temporarily marking this as unsupported until mangling issues are fixed on windows
+// Temporarily marking this as unsupported until mangling issues are fixed on
+// windows
 // UNSUPPORTED: windows
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -Xclang -sycl-std=2020 -mllvm -sycl-opt -mllvm -inline-threshold=500 -S -emit-llvm  -o - %s | FileCheck %s
 
