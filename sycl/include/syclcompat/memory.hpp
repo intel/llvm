@@ -992,6 +992,14 @@ private:
                                                    q.get_context());
       return;
     }
+#ifdef SYCL_EXT_ONEAPI_USM_DEVICE_READ_ONLY
+    if (Memory == memory_region::constant) {
+      _device_ptr = (value_t *)sycl::malloc_device(
+          _size, q.get_device(), q.get_context(),
+          sycl::ext::oneapi::property::usm::device_read_only());
+      return;
+    }
+#endif
     _device_ptr = (value_t *)detail::malloc(_size, q);
   }
 
