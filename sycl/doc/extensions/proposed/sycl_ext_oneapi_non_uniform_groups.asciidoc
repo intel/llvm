@@ -37,13 +37,9 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
-
-This extension also depends on the following other SYCL extensions:
-
-* link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group]
 
 
 == Status
@@ -73,8 +69,9 @@ needed in function documentation.
 
 NOTE: The first version of this extension only supports partitioning of
 sub-groups. It is expected that in the future, these functions will be expanded
-to also allow partitioning of root-groups, work-groups and user-constructed
-groups.
+to also allow partitioning of
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[root-groups]
+, work-groups and user-constructed groups.
 
 
 == Specification
@@ -145,7 +142,7 @@ model topology used by SYCL kernels. These groups are implicitly created by an
 implementation when a SYCL kernel function is enqueued. The following group
 types are fixed topology groups:
 
-- `root_group` (if sycl_ext_oneapi_root_group is supported)
+- `root_group` (if link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group] is supported)
 - `group`
 - `sub_group`
 
