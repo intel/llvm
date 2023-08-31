@@ -30,6 +30,7 @@ if __name__ == '__main__':
     add_argument(parser, "layers", "generation of layer files.", True)
     add_argument(parser, "adapters", "generation of null adapter files.", True)
     add_argument(parser, "common", "generation of common files.", True)
+    add_argument(parser, "tools", "generation of common files.", True)
     parser.add_argument("--debug", action='store_true', help="dump intermediate data to disk.")
     parser.add_argument("--sections", type=list, default=None, help="Optional list of sections for which to generate source, default is all")
     parser.add_argument("--ver", type=str, default="1.0", help="specification version to generate.")
@@ -42,6 +43,7 @@ if __name__ == '__main__':
     start = time.time()
 
     srcpath = os.path.join(args.out_dir, "source")
+    toolspath = os.path.join(args.out_dir, "tools")
 
     for idx, specs in enumerate(input['specs']):
         config = input['configs'][idx]
@@ -56,6 +58,8 @@ if __name__ == '__main__':
                 generate_code.generate_adapters(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
             if args.common:
                 generate_code.generate_common(srcpath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
+            if args.tools:
+                generate_code.generate_tools(toolspath, config['name'], config['namespace'], config['tags'], args.ver, specs, input['meta'])
 
     if args.debug:
         util.makoFileListWrite("generated.json")
