@@ -70,8 +70,8 @@ needed in function documentation.
 NOTE: The first version of this extension only supports partitioning of
 sub-groups. It is expected that in the future, these functions will be expanded
 to also allow partitioning of
-link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[root-groups]
-, work-groups and user-constructed groups.
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[root-groups],
+work-groups and user-constructed groups.
 
 
 == Specification
