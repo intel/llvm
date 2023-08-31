@@ -1,8 +1,6 @@
 name: SYCL MLIR Weekly
 
-on:
-  schedule:
-    - cron: '5 10 * * *'
+on: workflow_dispatch
 
 jobs:
   ubuntu2204_build:
