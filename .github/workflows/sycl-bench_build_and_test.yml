@@ -91,16 +91,17 @@ jobs:
         with:
           repository: ${{ inputs.repository_owner }}/sycl-bench
           ref: ${{ inputs.ref }}
+          clean: false
       - name: Configure sycl-bench
         run: |
-          cmake -S sycl-mlir -GNinja -B sycl-mlir/build \
+          cmake -S sycl-bench -GNinja -B sycl-bench/build \
             -DCMAKE_CXX_COMPILER="$(which clang++)" \
             -DSYCL_IMPL=${{ inputs.build_sycl_impl }} \
-            -DCMAKE_INSTALL_PREFIX=sycl-mlir/build/install \
+            -DCMAKE_INSTALL_PREFIX=sycl-bench/build/install \
             ${{ inputs.build_configure_extra_args }}
       - name: Build sycl-bench
         id: build
-        run: cmake --build sycl-mlir/build --target install
+        run: cmake --build sycl-bench/build --target install
       - name: Deduce artifact archive params
         id: artifact_info
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
@@ -123,11 +124,11 @@ jobs:
       - name: Pack benchmarks
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         run: |
-          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/sycl-mlir/build/install
+          tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/sycl-bench/build/install
       - name: Upload toolchain
         if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
         uses: actions/upload-artifact@v3
         with:
-          name: sycl_bench_,${{ inputs.build_artifact_suffix }}
+          name: sycl_bench_${{ inputs.build_artifact_suffix }}
           path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
           retention-days: ${{ inputs.retention-days }}
