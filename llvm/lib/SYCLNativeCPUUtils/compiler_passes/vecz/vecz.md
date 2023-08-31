@@ -35,16 +35,20 @@ both to LLVM's own optimization passes that vecz runs, and to some of vecz's
 own transform passes). Furthermore, it allows these builtins to be widened
 arbitrarily, without being limited to the widths available as OpenCL builtins.
 
-If a target intends to use the `compiler::utils::HandleBarriersPass` after
-Vecz, it is important to also run the `compiler::utils::PrepareBarriersPass`
-before Vecz, in order that any barriers in the vectorized function can be
-mapped back to the same barrier calls in the original scalar function. The
-Prepare Barriers Pass will inline all functions containing barriers, and add
-metadata to each barrier call giving them a unique ID. This is necessary
-because vectorization can considerably affect control flow, so the ordering of
-the barriers in the function may change. If the barrier pass needs to combine
-two different versions of the same kernel into a single scheduled kernel, it is
-vital that direct correspondence of the barrier calls is maintained.
+If a target intends to use the `compiler::utils::WorkItemLoopsPass` after Vecz,
+it is important to ensure that, **before vecz**,  all calls to barrier-like
+functions in the full nested kernel call-graph are given unique barrier IDs.
+Note that this effectively mandates full inlining of all functions containing
+barrier-like calls.
+
+This is necessary because vectorization can considerably affect control flow,
+so the ordering of the barriers in the function may change. If the
+`WorkItemLoopsPass` needs to combine two different versions of the same kernel
+into a single scheduled kernel, it is vital that direct correspondence of the
+barrier calls is maintained.
+
+Users can run the `compiler::utils::PrepareBarriersPass`, which satisfies these
+requirements.
 
 The `vecz::RunVeczPass` does not delete the original scalar kernel after
 vectorization, nor does it transfer the scalar kernel name to the vectorized

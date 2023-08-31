@@ -181,16 +181,132 @@ functions with :ref:`mux-kernel <specifications/mux-compiler-spec:Function
 Attributes>` attributes as a source of truth to distinguish between kernels and
 other functions.
 
-HandleBarriersPass
-------------------
+WorkItemLoopsPass
+-----------------
 
-The ``HandleBarriersPass`` splits a kernel into separately executing kernel
-functions using barrier calls as boundaries. To propagate data dependencies
-between these functions an analysis is done to create a struct of live variables
-which is passed as an argument to each kernel. Generated kernels then reference
-this struct rather than the original values. Work-item scheduling is also redone
-so that every work-item in a work-group invokes each kernel function before
-advancing.
+The ``WorkItemLoopsPass`` is responsible for adding explicit parallelism to
+implicitly parallel SIMT kernels. It does so by wrapping each kernel up in a
+triple-nested loop over all work-items in the work-group. Thus, kernels
+scheduled by this pass can be invoked once per work-group.
+
+The order in which work-items are executed is fairly flexible as per the
+programming models the oneAPI Construction Kit supports, but generally in
+ascending order from `0` to `N-1` through the innermost `X` dimension, followed
+by the `Y` dimension, and lastly the `Z` dimension.
+
+Conceptually, the pass transforms ``old_kernel`` into ``new_kernel`` in the
+example below:
+
+.. code:: cpp
+
+   void old_kernel(int *in, int *out) {
+     size_t id = get_local_linear_id(0);
+     out[id] = in[id] * 4;
+   }
+
+   void new_kernel(int *in, int *out) {
+     for (size_t z = 0, sizeZ = get_local_size(2); z != sizeZ; z++) {
+       for (size_t y = 0, sizeY = get_local_size(1); y != sizeY; y++) {
+         for (size_t x = 0, sizeX = get_local_size(0); x != sizeX; x++) {
+           size_t id = (z * sizeY * sizeX) + (y * sizeX) + x;
+           out[id] = in[id] * 4;
+         }
+       }
+     }
+   }
+
+
+To satisfy the programming model, the pass must be careful around control
+barriers and *barrier-like* functions. The ``WorkItemLoopsPass`` splits a
+kernel into separately executing kernel functions using barrier calls as
+boundaries. Each section of the kernel split by these barriers is known as a
+*barrier region*.
+
+.. code:: cpp
+
+   void old_kernel(int *in, int *out) {
+     size_t id = get_local_linear_id(0);
+     out[id * 2] = in[id];
+     // All work-items in the work-group must encounter the barrier before any
+     // are allowed to continue execution beyond the barrier.
+     work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+     out[id * 2 + 1] = in[id] * 4;
+   }
+
+   void new_kernel(int *in, int *out) {
+     // Barrier region #0
+     for (size_t z = 0, sizeZ = get_local_size(2); z != sizeZ; z++) {
+       for (size_t y = 0, sizeY = get_local_size(1); y != sizeY; y++) {
+         for (size_t x = 0, sizeX = get_local_size(0); x != sizeX; x++) {
+           size_t id = (z * sizeY * sizeX) + (y * sizeX) + x;
+           out[id * 2] = in[id];
+         }
+       }
+     }
+
+     // The control aspect of the barrier has been satisfied by the loops, so
+     // it has been decomposed to just a memory barrier.
+     mem_fence(CLK_GLOBAL_MEM_FENCE);
+
+     // Barrier region #1
+     for (size_t z = 0, sizeZ = get_local_size(2); z != sizeZ; z++) {
+       for (size_t y = 0, sizeY = get_local_size(1); y != sizeY; y++) {
+         for (size_t x = 0, sizeX = get_local_size(0); x != sizeX; x++) {
+           size_t id = (z * sizeY * sizeX) + (y * sizeX) + x;
+           out[id * 2 + 1] = in[id] * 4;
+         }
+       }
+     }
+   }
+
+To propagate data dependencies between these *barrier regions*, an analysis is
+performed to create a struct of live variables which is passed as an argument
+to each kernel. Generated kernels then reference this struct rather than the
+original values. A simplified example follows:
+
+.. code:: cpp
+
+   void old_kernel(int *in, int *out) {
+     size_t id = get_local_linear_id(0);
+     // X is a barrier-carried dependency: produced in one barrier region and
+     // accessed in another.
+     int x = in[id] * 4;
+     // All work-items in the work-group must encounter the barrier before any
+     // are allowed to continue execution beyond the barrier.
+     work_group_barrier(CLK_GLOBAL_MEM_FENCE);
+     // Use X, produced by the previous barrier region.
+     out[id] = x;
+   }
+
+   void new_kernel(int *in, int *out) {
+     struct kernel_live_vars {
+       int x;
+     };
+     // Illustrative purposes: this is in reality a stack allocation.
+     kernel_live_vars *live_vars =
+         malloc(get_local_size(0) * get_local_size(1)
+                * get_local_size(2) * sizeof(live_vars));
+
+     for (size_t z = 0, sizeZ = get_local_size(2); z != sizeZ; z++) {
+       for (size_t y = 0, sizeY = get_local_size(1); y != sizeY; y++) {
+         for (size_t x = 0, sizeX = get_local_size(0); x != sizeX; x++) {
+           size_t id = (z * sizeY * sizeX) + (y * sizeX) + x;
+           live_vars[id] = in[id] * 4;
+         }
+       }
+     }
+
+     mem_fence(CLK_GLOBAL_MEM_FENCE);
+
+     for (size_t z = 0, sizeZ = get_local_size(2); z != sizeZ; z++) {
+       for (size_t y = 0, sizeY = get_local_size(1); y != sizeY; y++) {
+         for (size_t x = 0, sizeX = get_local_size(0); x != sizeX; x++) {
+           size_t id = (z * sizeY * sizeX) + (y * sizeX) + x;
+           out[id] = live_vars[id];
+         }
+       }
+     }
+   }
 
 The loop that reconstructs the kernels in the wrapper function uses the
 vectorization dimension as innermost cycle, and it relies on
@@ -962,7 +1078,7 @@ work-group collective builtins. Targets wishing to support work-group
 collectives in software **may** run this pass. This pass makes heavy use of
 barriers, so do not expect performance. Because it introduces barriers into the
 module, this pass **must** be run before any barrier analysis or
-materialization e.g., the `PrepareBarriersPass`_ and `HandleBarriersPass`_.
+materialization e.g., the `PrepareBarriersPass`_ and `WorkItemLoopsPass`_.
 
 This pass introduces global variables into the module qualified with the
 :ref:`local/Workgroup <overview/compiler/ir:Address Spaces>` address space and
@@ -996,14 +1112,15 @@ pointer arguments.
 PrepareBarriersPass
 -------------------
 
-The ``PrepareBarriersPass`` is required if using the `HandleBarriersPass`_ in
-conjunction with the `RunVeczPass`_, and must be run before using the
-vectorizer.
+The ``PrepareBarriersPass`` is useful in order to satisfy the requirements the
+`WorkItemLoopsPass`_ has on kernels containing barrier-like functions if
+running in conjunction with the `RunVeczPass`_. If running, it should be run
+before using the vectorizer.
 
 It ensures that barriers are synchronized between two or more vectorized
 versions of the same kernel. It gives each barrier a unique ID, which the
 vectorizer preserves in each vectorized kernel, meaning the
-``HandleBarriersPass`` can correctly schedule the work-item loops for each
+``WorkItemLoopsPass`` can correctly schedule the work-item loops for each
 barrier region.
 
 RemoveLifetimeIntrinsicsPass
