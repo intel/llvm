@@ -2106,7 +2106,7 @@ static void getTrivialDefaultFunctionAttributes(
 /// though we had emitted it ourselves. We remove any attributes on F that
 /// conflict with the attributes we add here.
 static void mergeDefaultFunctionDefinitionAttributes(
-    llvm::Function &F, const CodeGenOptions CodeGenOpts,
+    llvm::Function &F, const CodeGenOptions &CodeGenOpts,
     const LangOptions &LangOpts, const TargetOptions &TargetOpts,
     bool WillInternalize) {
 
@@ -2192,14 +2192,6 @@ void CodeGenModule::getDefaultFunctionAttributes(StringRef Name,
   // attributes.
   if (!AttrOnCallSite)
     addMergableDefaultFunctionAttributes(CodeGenOpts, FuncAttrs);
-}
-
-void CodeGenModule::addDefaultFunctionDefinitionAttributes(llvm::Function &F) {
-  llvm::AttrBuilder FuncAttrs(F.getContext());
-  getDefaultFunctionAttributes(F.getName(), F.hasOptNone(),
-                               /* AttrOnCallSite = */ false, FuncAttrs);
-  // TODO: call GetCPUAndFeaturesAttributes?
-  F.addFnAttrs(FuncAttrs);
 }
 
 /// Apply default attributes to \p F, accounting for merge semantics of

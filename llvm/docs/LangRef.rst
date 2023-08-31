@@ -7822,13 +7822,6 @@ enum is the smallest type which can represent all of its values::
     !0 = !{i32 1, !"short_wchar", i32 1}
     !1 = !{i32 1, !"short_enum", i32 0}
 
-LTO Post-Link Module Flags Metadata
------------------------------------
-
-Some optimisations are only when the entire LTO unit is present in the current
-module. This is represented by the ``LTOPostLink`` module flags metadata, which
-will be created with a value of ``1`` when LTO linking occurs.
-
 Stack Alignment Metadata
 ------------------------
 
@@ -26667,6 +26660,8 @@ Floating Point Environment Manipulation intrinsics
 These functions read or write floating point environment, such as rounding
 mode or state of floating point exceptions. Altering the floating point
 environment requires special care. See :ref:`Floating Point Environment <floatenv>`.
+
+.. _int_get_rounding:
 
 '``llvm.get.rounding``' Intrinsic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

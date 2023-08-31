@@ -864,12 +864,20 @@ Sema::ActOnCXXThrow(Scope *S, SourceLocation OpLoc, Expr *Ex) {
 
 ExprResult Sema::BuildCXXThrow(SourceLocation OpLoc, Expr *Ex,
                                bool IsThrownVarInScope) {
-  // Don't report an error if 'throw' is used in system headers.
-  if (!getLangOpts().CXXExceptions &&
+  const llvm::Triple &T = Context.getTargetInfo().getTriple();
+  const bool IsOpenMPGPUTarget =
+      getLangOpts().OpenMPIsTargetDevice && (T.isNVPTX() || T.isAMDGCN());
+  // Don't report an error if 'throw' is used in system headers or in an OpenMP
+  // target region compiled for a GPU architecture.
+  if (!IsOpenMPGPUTarget && !getLangOpts().CXXExceptions &&
       !getSourceManager().isInSystemHeader(OpLoc) && !getLangOpts().CUDA) {
     // Delay error emission for the OpenMP device code.
     targetDiag(OpLoc, diag::err_exceptions_disabled) << "throw";
   }
+
+  // In OpenMP target regions, we replace 'throw' with a trap on GPU targets.
+  if (IsOpenMPGPUTarget)
+    targetDiag(OpLoc, diag::warn_throw_not_valid_on_target) << T.str();
 
   // Exceptions aren't allowed in CUDA device code.
   if (getLangOpts().CUDA)
@@ -4021,6 +4029,10 @@ ExprResult Sema::CheckConditionVariable(VarDecl *ConditionVar,
   ExprResult Condition = BuildDeclRefExpr(
       ConditionVar, ConditionVar->getType().getNonReferenceType(), VK_LValue,
       ConditionVar->getLocation());
+
+  // Ensure that `-Wunused-variable` will be emitted for condition variables
+  // that are not referenced later. e.g.: if (int var = init());
+  ConditionVar->setReferenced(/*R=*/false);
 
   switch (CK) {
   case ConditionKind::Boolean:

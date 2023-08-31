@@ -118,6 +118,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/ConstantRange.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -1316,6 +1317,11 @@ struct InformationCache {
     return TargetTriple.isAMDGPU() || TargetTriple.isNVPTX();
   }
 
+  /// Return all functions that might be called indirectly, only valid for
+  /// closed world modules (see isClosedWorldModule).
+  const ArrayRef<Function *>
+  getIndirectlyCallableFunctions(Attributor &A) const;
+
 private:
   struct FunctionInfo {
     ~FunctionInfo();
@@ -1347,6 +1353,10 @@ private:
     }
     return *FI;
   }
+
+  /// Vector of functions that might be callable indirectly, i.a., via a
+  /// function pointer.
+  SmallVector<Function *> IndirectlyCallableFunctions;
 
   /// Initialize the function information cache \p FI for the function \p F.
   ///
@@ -1413,13 +1423,18 @@ struct AttributorConfig {
   /// Flag to determine if we should skip all liveness checks early on.
   bool UseLiveness = true;
 
+  /// Flag to indicate if the entire world is contained in this module, that
+  /// is, no outside functions exist.
+  bool IsClosedWorldModule = false;
+
   /// Callback function to be invoked on internal functions marked live.
   std::function<void(Attributor &A, const Function &F)> InitializationCallback =
       nullptr;
 
   /// Callback function to determine if an indirect call targets should be made
   /// direct call targets (with an if-cascade).
-  std::function<bool(Attributor &A, CallBase &CB, Function &AssummedCallee)>
+  std::function<bool(Attributor &A, const AbstractAttribute &AA, CallBase &CB,
+                     Function &AssummedCallee)>
       IndirectCalleeSpecializationCallback = nullptr;
 
   /// Helper to update an underlying call graph and to delete functions.
@@ -1482,9 +1497,7 @@ struct Attributor {
   /// \param Configuration The Attributor configuration which determines what
   ///                      generic features to use.
   Attributor(SetVector<Function *> &Functions, InformationCache &InfoCache,
-             AttributorConfig Configuration)
-      : Allocator(InfoCache.Allocator), Functions(Functions),
-        InfoCache(InfoCache), Configuration(Configuration) {}
+             AttributorConfig Configuration);
 
   ~Attributor();
 
@@ -1695,12 +1708,17 @@ struct Attributor {
 
   /// Return true if we should specialize the call site \b CB for the potential
   /// callee \p Fn.
-  bool shouldSpecializeCallSiteForCallee(CallBase &CB, Function &Callee) {
+  bool shouldSpecializeCallSiteForCallee(const AbstractAttribute &AA,
+                                         CallBase &CB, Function &Callee) {
     return Configuration.IndirectCalleeSpecializationCallback
-               ? Configuration.IndirectCalleeSpecializationCallback(*this, CB,
-                                                                    Callee)
+               ? Configuration.IndirectCalleeSpecializationCallback(*this, AA,
+                                                                    CB, Callee)
                : true;
   }
+
+  /// Return true if the module contains the whole world, thus, no outside
+  /// functions exist.
+  bool isClosedWorldModule() const;
 
   /// Return true if we derive attributes for \p Fn
   bool isRunOn(Function &Fn) const { return isRunOn(&Fn); }
@@ -3931,6 +3949,14 @@ struct AAIsDead
   using Base = StateWrapper<BitIntegerState<uint8_t, 3, 0>, AbstractAttribute>;
   AAIsDead(const IRPosition &IRP, Attributor &A) : Base(IRP) {}
 
+  /// See AbstractAttribute::isValidIRPositionForInit
+  static bool isValidIRPositionForInit(Attributor &A, const IRPosition &IRP) {
+    if (IRP.getPositionKind() == IRPosition::IRP_FUNCTION)
+      return isa<Function>(IRP.getAnchorValue()) &&
+             !cast<Function>(IRP.getAnchorValue()).isDeclaration();
+    return true;
+  }
+
   /// State encoding bits. A set bit in the state means the property holds.
   enum {
     HAS_NO_EFFECT = 1 << 0,
@@ -6117,6 +6143,45 @@ struct AAAddressSpace : public StateWrapper<BooleanState, AbstractAttribute> {
 
   // No address space which indicates the associated value is dead.
   static const int32_t NoAddressSpace = -1;
+
+  /// Unique ID (due to the unique address)
+  static const char ID;
+};
+
+/// An abstract interface for llvm::GlobalValue information interference.
+struct AAGlobalValueInfo
+    : public StateWrapper<BooleanState, AbstractAttribute> {
+  AAGlobalValueInfo(const IRPosition &IRP, Attributor &A)
+      : StateWrapper<BooleanState, AbstractAttribute>(IRP) {}
+
+  /// See AbstractAttribute::isValidIRPositionForInit
+  static bool isValidIRPositionForInit(Attributor &A, const IRPosition &IRP) {
+    if (IRP.getPositionKind() != IRPosition::IRP_FLOAT)
+      return false;
+    auto *GV = dyn_cast<GlobalValue>(&IRP.getAnchorValue());
+    if (!GV)
+      return false;
+    return GV->hasLocalLinkage();
+  }
+
+  /// Create an abstract attribute view for the position \p IRP.
+  static AAGlobalValueInfo &createForPosition(const IRPosition &IRP,
+                                              Attributor &A);
+
+  /// Return true iff \p U is a potential use of the associated global value.
+  virtual bool isPotentialUse(const Use &U) const = 0;
+
+  /// See AbstractAttribute::getName()
+  const std::string getName() const override { return "AAGlobalValueInfo"; }
+
+  /// See AbstractAttribute::getIdAddr()
+  const char *getIdAddr() const override { return &ID; }
+
+  /// This function should return true if the type of the \p AA is
+  /// AAGlobalValueInfo
+  static bool classof(const AbstractAttribute *AA) {
+    return (AA->getIdAddr() == &ID);
+  }
 
   /// Unique ID (due to the unique address)
   static const char ID;
