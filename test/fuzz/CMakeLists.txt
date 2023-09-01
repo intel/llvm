@@ -16,11 +16,19 @@ function(add_fuzz_test name label)
     add_test(NAME ${TEST_TARGET_NAME}
         COMMAND ${TEST_TARGET_NAME} ${ARGN} -verbosity=1
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    set(ENV_VARS UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION)
+    if (UR_BUILD_ADAPTER_L0)
+        list(APPEND ENV_VARS
+                UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\"
+                NEOReadDebugKeys=1
+                DisableDeepBind=1)
+    else()
+        list(APPEND ENV_VARS UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\")
+    endif()
     set_tests_properties(${TEST_TARGET_NAME} PROPERTIES
         LABELS ${label}
-        ENVIRONMENT
-            "UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION;UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\"")
-
+        ENVIRONMENT "${ENV_VARS}")
     # TODO: Should we check if this sanitizer flag is available?
     target_compile_options(${TEST_TARGET_NAME} PRIVATE -g -fsanitize=fuzzer)
     target_compile_definitions(${TEST_TARGET_NAME} PRIVATE -DKERNEL_IL_PATH="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/bar/sycl_spir641.spv")
