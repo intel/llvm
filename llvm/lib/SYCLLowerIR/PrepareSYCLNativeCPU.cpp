@@ -233,7 +233,7 @@ static std::map<std::string, std::pair<std::string, unsigned int>>
         {"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
         {"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
 
-Function *getReplaceFunc(Module &M, Type *T, StringRef Name) {
+Function *getReplaceFunc(Module &M, StringRef Name) {
   Function *F = M.getFunction(Name);
   assert(F && "Error retrieving replace function");
   return F;
@@ -286,7 +286,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
       continue;
-    auto *ReplaceFunc = getReplaceFunc(M, StatePtrType, Entry.second.first);
+    auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
     SmallVector<Instruction *> ToRemove;
     for (auto &Use : Glob->uses()) {
       auto I = dyn_cast<CallInst>(Use.getUser());
@@ -294,7 +294,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         report_fatal_error("Unsupported Value in SYCL Native CPU\n");
       if (I->getFunction()->getCallingConv() != llvm::CallingConv::SPIR_KERNEL)
         report_fatal_error(
-            "SYCL Native CPU currently doesn't support unlined "
+            "SYCL Native CPU currently doesn't support non-inlined "
             "functions yet, try increasing the inlining threshold. Support for "
             "unlined functions is planned.");
       auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()),
