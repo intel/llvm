@@ -11,6 +11,7 @@
 
 #include <cuda.h>
 
+#include "adapter.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
@@ -44,15 +45,17 @@ struct ur_physical_mem_handle_t_ {
 
 // Find a device ordinal of a device.
 inline ur_result_t GetDeviceOrdinal(ur_device_handle_t Device, int &Ordinal) {
+  ur_adapter_handle_t AdapterHandle = &adapter;
   // Get list of platforms
   uint32_t NumPlatforms;
-  UR_ASSERT(urPlatformGet(0, nullptr, &NumPlatforms),
+  UR_ASSERT(urPlatformGet(AdapterHandle, 1, 0, nullptr, &NumPlatforms),
             UR_RESULT_ERROR_INVALID_ARGUMENT);
   UR_ASSERT(NumPlatforms, UR_RESULT_ERROR_UNKNOWN);
 
   std::vector<ur_platform_handle_t> Platforms{NumPlatforms};
-  UR_ASSERT(urPlatformGet(NumPlatforms, Platforms.data(), nullptr),
-            UR_RESULT_ERROR_INVALID_ARGUMENT);
+  UR_ASSERT(
+      urPlatformGet(AdapterHandle, 1, NumPlatforms, Platforms.data(), nullptr),
+      UR_RESULT_ERROR_INVALID_ARGUMENT);
 
   // Ordinal corresponds to the platform ID as each device has its own platform.
   CUdevice NativeDevice = Device->get();
