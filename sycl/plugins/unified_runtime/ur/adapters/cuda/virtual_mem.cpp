@@ -18,10 +18,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hDevice, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   ScopedContext Active(hContext);
@@ -53,9 +49,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
                     size_t size, void **ppStart) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(ppStart, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ScopedContext Active(hContext);
   return UR_CHECK_ERROR(cuMemAddressReserve((CUdeviceptr *)ppStart, size, 0,
                                             (CUdeviceptr)pStart, 0));
@@ -64,9 +57,6 @@ urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
     ur_context_handle_t hContext, const void *pStart, size_t size) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pStart, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ScopedContext Active(hContext);
   UR_CHECK_ERROR(cuMemAddressFree((CUdeviceptr)pStart, size));
   return UR_RESULT_SUCCESS;
@@ -75,9 +65,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
 UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
                       size_t size, ur_virtual_mem_access_flags_t flags) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pStart, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   CUmemAccessDesc AccessDesc;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
@@ -99,10 +86,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
                 ur_physical_mem_handle_t hPhysicalMem, size_t offset,
                 ur_virtual_mem_access_flags_t flags) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(hPhysicalMem, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pStart, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ScopedContext Active(hContext);
   UR_CHECK_ERROR(
       cuMemMap((CUdeviceptr)pStart, size, offset, hPhysicalMem->get(), 0));
@@ -114,9 +97,6 @@ urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
 
 UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemUnmap(
     ur_context_handle_t hContext, const void *pStart, size_t size) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pStart, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   ScopedContext Active(hContext);
   UR_CHECK_ERROR(cuMemUnmap((CUdeviceptr)pStart, size));
   return UR_RESULT_SUCCESS;
@@ -126,9 +106,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
     ur_context_handle_t hContext, const void *pStart,
     [[maybe_unused]] size_t size, ur_virtual_mem_info_t propName,
     size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
-  UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
-  UR_ASSERT(pPropValue || pPropSizeRet, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   ScopedContext Active(hContext);
