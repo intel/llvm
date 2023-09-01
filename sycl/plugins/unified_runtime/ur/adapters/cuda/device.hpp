@@ -7,7 +7,10 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include <cuda.h>
 #include <ur/ur.hpp>
+
+#include "common.hpp"
 
 struct ur_device_handle_t_ {
 private:
