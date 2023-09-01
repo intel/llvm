@@ -2,7 +2,7 @@
 // RUN: %t.out
 //
 // Checks that sycl::tanpi with double has the accuracy required by the
-// specification. Reference results are taken from SYCL-CTS.
+// specification.
 
 #include <cmath>
 #include <iomanip>
@@ -15,6 +15,10 @@ double get_ulp(double X) {
   return std::fmin(Negative, Positive);
 }
 
+// NOTE: Acc is the expected accuracy in ULPs. For non-half builtins, the
+// SYCL 2020 specification specifies that it should follow the accuracy required
+// by the OpenCL specification, which for tanpi means <= 6 ULP. See
+// https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_C.html#relative-error-as-ulps.
 int check_tanpi(double input, double ReferenceRes, unsigned int Acc = 6) {
   double Value = sycl::tanpi(input);
 
@@ -33,6 +37,7 @@ int check_tanpi(double input, double ReferenceRes, unsigned int Acc = 6) {
 int main() {
   int Failures = 0;
   std::cout << std::setprecision(64);
+  // Reference results are taken from SYCL-CTS.
   Failures += check_tanpi(0.5090197771,
                           -35.2807704551884313559639849700033664703369140625);
   Failures += check_tanpi(0.4812775633,
