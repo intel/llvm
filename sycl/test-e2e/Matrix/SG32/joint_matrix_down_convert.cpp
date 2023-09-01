@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
 
-#include "common.hpp"
+#include "../common.hpp"
 
-constexpr size_t SG_SZ = 16;
+constexpr size_t SG_SZ = 32;
 
-#include "joint_matrix_down_convert_impl.hpp"
+#include "../joint_matrix_down_convert_impl.hpp"
