@@ -251,11 +251,24 @@ event handler::finalize() {
             // Capture the host timestamp for profiling (queue time)
             if (NewEvent != nullptr)
               NewEvent->setHostEnqueueTime();
-            MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
-                nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
-                MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
-                &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0, nullptr,
-                nullptr);
+            if (MImpl->MKernelIsCooperative) {
+              MQueue->getPlugin()
+                  ->call<
+                      detail::PiApiKind::piextEnqueueCooperativeKernelLaunch>(
+                      nullptr,
+                      reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+                      MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
+                      &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0,
+                      nullptr, nullptr);
+            } else {
+              MQueue->getPlugin()
+                  ->call<detail::PiApiKind::piEnqueueKernelLaunch>(
+                      nullptr,
+                      reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
+                      MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
+                      &MNDRDesc.GlobalSize[0], &MNDRDesc.LocalSize[0], 0,
+                      nullptr, nullptr);
+            }
             Result = PI_SUCCESS;
           } else {
             Result = enqueueImpKernel(
