@@ -68,16 +68,16 @@ void fixCallingConv(Function *F) {
 
 // returns the indexes of the used arguments
 SmallVector<unsigned> getUsedIndexes(const Function *F) {
-  SmallVector<unsigned> res;
+  SmallVector<unsigned> Res;
   auto UsedNode = F->getMetadata("sycl_kernel_omit_args");
   if (!UsedNode) {
     // the metadata node is not available if -fenable-sycl-dae
     // was not set; set everything to true
     // Exclude one arg because we already added the state ptr
     for (unsigned I = 0; I + 1 < F->getFunctionType()->getNumParams(); I++) {
-      res.push_back(I);
+      Res.push_back(I);
     }
-    return res;
+    return Res;
   }
   auto NumOperands = UsedNode->getNumOperands();
   for (unsigned I = 0; I < NumOperands; I++) {
@@ -86,7 +86,7 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
       if (auto Const = dyn_cast<ConstantInt>(CAM->getValue())) {
         auto Val = Const->getValue();
         if (!Val.getBoolValue()) {
-          res.push_back(I);
+          Res.push_back(I);
         }
       } else {
         report_fatal_error("Unable to retrieve constant int from "
@@ -97,7 +97,7 @@ SmallVector<unsigned> getUsedIndexes(const Function *F) {
           "Error while processing sycl_kernel_omit_args metadata node");
     }
   }
-  return res;
+  return Res;
 }
 
 void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
@@ -197,7 +197,7 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 }
 
 // Todo: add support for more SPIRV builtins here
-static std::map<std::string, std::pair<std::string, unsigned int>>
+static const std::map<std::string, std::pair<std::string, unsigned int>>
     BuiltinNamesMap{
         {"_Z28__spirv_GlobalInvocationId_xv",
          {"__dpcpp_nativecpu_global_id", 0}},
@@ -233,7 +233,7 @@ static std::map<std::string, std::pair<std::string, unsigned int>>
         {"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
         {"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
 
-Function *getReplaceFunc(Module &M, StringRef Name) {
+Function *getReplaceFunc(const Module &M, StringRef Name) {
   Function *F = M.getFunction(Name);
   assert(F && "Error retrieving replace function");
   return F;
@@ -282,13 +282,13 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
 
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
-  for (auto &Entry : BuiltinNamesMap) {
+  for (const auto &Entry : BuiltinNamesMap) {
     auto *Glob = M.getFunction(Entry.first);
     if (!Glob)
       continue;
     auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
     SmallVector<Instruction *> ToRemove;
-    for (auto &Use : Glob->uses()) {
+    for (const auto &Use : Glob->uses()) {
       auto I = dyn_cast<CallInst>(Use.getUser());
       if (!I)
         report_fatal_error("Unsupported Value in SYCL Native CPU\n");
