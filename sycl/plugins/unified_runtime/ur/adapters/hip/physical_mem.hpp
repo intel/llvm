@@ -18,9 +18,7 @@
 struct ur_physical_mem_handle_t_ {
   std::atomic_uint32_t RefCount;
 
-  ur_physical_mem_handle_t_()
-      : RefCount(1) {
-  }
+  ur_physical_mem_handle_t_() : RefCount(1) {}
 
   uint32_t incrementReferenceCount() noexcept { return ++RefCount; }
 

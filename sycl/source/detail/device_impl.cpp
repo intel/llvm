@@ -547,12 +547,12 @@ bool device_impl::has(aspect Aspect) const {
     return call_successful && support;
   }
   case aspect::ext_oneapi_virtual_mem: {
-  pi_bool virtual_mem_supported;
-  bool call_successful =
-      getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
-          MDevice, PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
-          sizeof(pi_bool), &virtual_mem_supported, nullptr) == PI_SUCCESS;
-  return call_successful && virtual_mem_supported;
+    pi_bool support;
+    bool call_successful =
+        getPlugin()->call_nocheck<detail::PiApiKind::piDeviceGetInfo>(
+            MDevice, PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM,
+            sizeof(pi_bool), &support, nullptr) == PI_SUCCESS;
+    return call_successful && support;
   }
   }
   throw runtime_error("This device aspect has not been implemented yet.",
