@@ -44,13 +44,13 @@ source_filename = "test.f90"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64"
 
-%qnca = type { i32 addrspace(4)*, i64, i64, i64, i64, i64, [1 x { i64, i64, i64 }] }
+%qnca = type { ptr addrspace(4), i64, i64, i64, i64, i64, [1 x { i64, i64, i64 }] }
 
 ; Function Attrs: noinline nounwind optnone
 define weak dso_local spir_kernel void @TEST() #0 !dbg !5 {
 newFuncRoot:
   %0 = alloca %qnca, align 8
-  call void @llvm.dbg.value(metadata %qnca* %0, metadata !8, metadata !DIExpression()), !dbg !14
+  call void @llvm.dbg.value(metadata ptr %0, metadata !8, metadata !DIExpression()), !dbg !14
   ret void
 }
 

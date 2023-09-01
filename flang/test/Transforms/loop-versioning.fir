@@ -13,6 +13,8 @@
 //  end subroutine sum1d
 module {
   func.func @sum1d(%arg0: !fir.box<!fir.array<?xf64>> {fir.bindc_name = "a"}, %arg1: !fir.ref<i32> {fir.bindc_name = "n"}) {
+    %decl = fir.declare %arg0 {uniq_name = "a"} : (!fir.box<!fir.array<?xf64>>) -> !fir.box<!fir.array<?xf64>>
+    %rebox = fir.rebox %decl : (!fir.box<!fir.array<?xf64>>) -> !fir.box<!fir.array<?xf64>>
     %0 = fir.alloca i32 {bindc_name = "i", uniq_name = "_QMmoduleFsum1dEi"}
     %1 = fir.alloca f64 {bindc_name = "sum", uniq_name = "_QMmoduleFsum1dEsum"}
     %cst = arith.constant 0.000000e+00 : f64
@@ -30,7 +32,7 @@ module {
       %9 = fir.convert %8 : (i32) -> i64
       %c1_i64 = arith.constant 1 : i64
       %10 = arith.subi %9, %c1_i64 : i64
-      %11 = fir.coordinate_of %arg0, %10 : (!fir.box<!fir.array<?xf64>>, i64) -> !fir.ref<f64>
+      %11 = fir.coordinate_of %rebox, %10 : (!fir.box<!fir.array<?xf64>>, i64) -> !fir.ref<f64>
       %12 = fir.load %11 : !fir.ref<f64>
       %13 = arith.addf %7, %12 fastmath<contract> : f64
       fir.store %13 to %1 : !fir.ref<f64>
@@ -47,12 +49,14 @@ module {
 // Note this only checks the expected transformation, not the entire generated code:
 // CHECK-LABEL: func.func @sum1d(
 // CHECK-SAME:                  %[[ARG0:.*]]: !fir.box<!fir.array<?xf64>> {{.*}})
+// CHECK: %[[DECL:.*]] = fir.declare %arg0 {uniq_name = "a"} : (!fir.box<!fir.array<?xf64>>) -> !fir.box<!fir.array<?xf64>>
+// CHECK: %[[REBOX:.*]] = fir.rebox %[[DECL]]
 // CHECK: %[[ZERO:.*]] = arith.constant 0 : index
-// CHECK: %[[DIMS:.*]]:3 = fir.box_dims %[[ARG0]], %[[ZERO]] : {{.*}}
+// CHECK: %[[DIMS:.*]]:3 = fir.box_dims %[[REBOX]], %[[ZERO]] : {{.*}}
 // CHECK: %[[SIZE:.*]] = arith.constant 8 : index
 // CHECK: %[[CMP:.*]] = arith.cmpi eq, %[[DIMS]]#2, %[[SIZE]]
 // CHECK: %[[IF_RES:.*]]:2 = fir.if %[[CMP]] -> {{.*}}
-// CHECK: %[[NEWARR:.*]] = fir.convert %[[ARG0]]
+// CHECK: %[[NEWARR:.*]] = fir.convert %[[REBOX]]
 // CHECK: %[[BOXADDR:.*]] = fir.box_addr %[[NEWARR]] : {{.*}} -> !fir.ref<!fir.array<?xf64>>
 // CHECK: %[[LOOP_RES:.*]]:2 = fir.do_loop {{.*}}
 // CHECK: %[[COORD:.*]] = fir.coordinate_of %[[BOXADDR]], %{{.*}} : (!fir.ref<!fir.array<?xf64>>, index) -> !fir.ref<f64>
@@ -62,7 +66,7 @@ module {
 // CHECK  fir.result %[[LOOP_RES]]#0, %[[LOOP_RES]]#1
 // CHECK: } else {
 // CHECK: %[[LOOP_RES2:.*]]:2 = fir.do_loop {{.*}}
-// CHECK: %[[COORD2:.*]] = fir.coordinate_of %[[ARG0]], %{{.*}} : (!fir.box<!fir.array<?xf64>>, i64) -> !fir.ref<f64>
+// CHECK: %[[COORD2:.*]] = fir.coordinate_of %[[REBOX]], %{{.*}} : (!fir.box<!fir.array<?xf64>>, i64) -> !fir.ref<f64>
 // CHECK: %{{.*}}= fir.load %[[COORD2]] : !fir.ref<f64>
 // CHECK: fir.result %{{.*}}, %{{.*}}
 // CHECK: }
@@ -517,5 +521,53 @@ func.func @sum1dfixed(%arg0: !fir.ref<!fir.array<?xf64>> {fir.bindc_name = "a"},
 // CHECK: }
 // CHECK: fir.store %[[IF_RES]]#1 to %{{.*}}
 // CHECK: return
+
+// Check that OPTIONAL argument's box is not accessed illegally
+// before the loop.
+func.func @test_optional_arg(%arg0: !fir.box<!fir.array<?xf32>> {fir.bindc_name = "x", fir.optional}) {
+  %c1 = arith.constant 1 : index
+  %c20 = arith.constant 20 : index
+  %c0_i64 = arith.constant 0 : i64
+  %0 = fir.alloca i32 {bindc_name = "i", uniq_name = "_QMcheck_modFtestEi"}
+  %1 = fir.convert %c1 : (index) -> i32
+  %2:2 = fir.do_loop %arg1 = %c1 to %c20 step %c1 iter_args(%arg2 = %1) -> (index, i32) {
+    fir.store %arg2 to %0 : !fir.ref<i32>
+    %3 = fir.is_present %arg0 : (!fir.box<!fir.array<?xf32>>) -> i1
+    fir.if %3 {
+      %8 = fir.coordinate_of %arg0, %c0_i64 : (!fir.box<!fir.array<?xf32>>, i64) -> !fir.ref<f32>
+    } else {
+    }
+    %4 = arith.addi %arg1, %c1 : index
+    %5 = fir.convert %c1 : (index) -> i32
+    %6 = fir.load %0 : !fir.ref<i32>
+    %7 = arith.addi %6, %5 : i32
+    fir.result %4, %7 : index, i32
+  }
+  fir.store %2#1 to %0 : !fir.ref<i32>
+  return
+}
+// CHECK-LABEL:   func.func @test_optional_arg(
+// CHECK-SAME:                                 %[[VAL_0:.*]]: !fir.box<!fir.array<?xf32>> {fir.bindc_name = "x", fir.optional}) {
+// CHECK-NEXT:           %[[VAL_1:.*]] = arith.constant 1 : index
+// CHECK-NEXT:           %[[VAL_2:.*]] = arith.constant 20 : index
+// CHECK-NEXT:           %[[VAL_3:.*]] = arith.constant 0 : i64
+// CHECK-NEXT:           %[[VAL_4:.*]] = fir.alloca i32 {bindc_name = "i", uniq_name = "_QMcheck_modFtestEi"}
+// CHECK-NEXT:           %[[VAL_5:.*]] = fir.convert %[[VAL_1]] : (index) -> i32
+// CHECK-NEXT:           %[[VAL_6:.*]]:2 = fir.do_loop %[[VAL_7:.*]] = %[[VAL_1]] to %[[VAL_2]] step %[[VAL_1]] iter_args(%[[VAL_8:.*]] = %[[VAL_5]]) -> (index, i32) {
+// CHECK-NEXT:             fir.store %[[VAL_8]] to %[[VAL_4]] : !fir.ref<i32>
+// CHECK-NEXT:             %[[VAL_9:.*]] = fir.is_present %[[VAL_0]] : (!fir.box<!fir.array<?xf32>>) -> i1
+// CHECK-NEXT:             fir.if %[[VAL_9]] {
+// CHECK-NEXT:               %[[VAL_10:.*]] = fir.coordinate_of %[[VAL_0]], %[[VAL_3]] : (!fir.box<!fir.array<?xf32>>, i64) -> !fir.ref<f32>
+// CHECK-NEXT:             } else {
+// CHECK-NEXT:             }
+// CHECK-NEXT:             %[[VAL_11:.*]] = arith.addi %[[VAL_7]], %[[VAL_1]] : index
+// CHECK-NEXT:             %[[VAL_12:.*]] = fir.convert %[[VAL_1]] : (index) -> i32
+// CHECK-NEXT:             %[[VAL_13:.*]] = fir.load %[[VAL_4]] : !fir.ref<i32>
+// CHECK-NEXT:             %[[VAL_14:.*]] = arith.addi %[[VAL_13]], %[[VAL_12]] : i32
+// CHECK-NEXT:             fir.result %[[VAL_11]], %[[VAL_14]] : index, i32
+// CHECK-NEXT:           }
+// CHECK-NEXT:           fir.store %[[VAL_15:.*]]#1 to %[[VAL_4]] : !fir.ref<i32>
+// CHECK-NEXT:           return
+// CHECK-NEXT:         }
 
 } // End module
