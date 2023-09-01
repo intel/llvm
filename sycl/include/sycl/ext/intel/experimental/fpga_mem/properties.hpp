@@ -31,7 +31,7 @@ using property_value =
     sycl::ext::oneapi::experimental::property_value<PropertyT, Ts...>;
 
 // Property definitions
-enum class resource_enum : std::uint16_t { mlab, block_ram, any };
+enum class resource_enum : std::uint16_t { mlab, block_ram };
 
 struct resource_key {
   template <resource_enum Resource>
@@ -118,7 +118,6 @@ template <resource_enum r> inline constexpr resource_key::value_t<r> resource;
 inline constexpr resource_key::value_t<resource_enum::mlab> resource_mlab;
 inline constexpr resource_key::value_t<resource_enum::block_ram>
     resource_block_ram;
-inline constexpr resource_key::value_t<resource_enum::any> resource_any;
 
 template <size_t e> inline constexpr num_banks_key::value_t<e> num_banks;
 
@@ -231,20 +230,11 @@ template <> struct IsCompileTimeProperty<ram_stitching_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<max_private_copies_key> : std::true_type {};
 template <> struct IsCompileTimeProperty<num_replicates_key> : std::true_type {};
 
-constexpr const char* ResourceToString (resource_enum Value) {
-  switch (Value) {
-    case resource_enum::mlab: return "mlab"; 
-    case resource_enum::block_ram: return "block_ram"; 
-    case resource_enum::any: return ""; 
-    default: assert(false && "Unreachable");
-  }
-}
-
 // Map Property to MetaInfo
 template <resource_enum Value>
 struct PropertyMetaInfo<resource_key::value_t<Value>> {
   static constexpr const char *name = "sycl-resource";
-  static constexpr const char *value = ResourceToString(Value);
+  static constexpr const char *value = ((Value==resource_enum::mlab)?"mlab":"block_ram");
 };
 template <size_t Value>
 struct PropertyMetaInfo<num_banks_key::value_t<Value>> {

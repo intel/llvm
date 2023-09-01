@@ -57,18 +57,14 @@ int main() {
   //Check that only the property that are expected are associated with obj
   checkIsPropertyOf<decltype(mem_num)>();
   static_assert(mem_num.has_property<num_banks_key>());
-  // FIX ME // static_assert(mem_num.has_property<resource_key>());
   static_assert(!mem_num.has_property<word_size_key>());
   static_assert(mem_num.get_property<num_banks_key>().value ==
                 888);
 
   checkIsPropertyOf<decltype(mem_empty)>();
-  // static_assert(mem_empty.has_property<resource_key>());
   static_assert(!mem_empty.has_property<word_size_key>());
-  // static_assert(mem_empty.get_property<resource_key>().value == resource_enum::any);
 
   checkIsPropertyOf<decltype(mem_bool)>();
-  // FIX ME // static_assert(mem_num.has_property<resource_key>());
   static_assert(mem_bool.has_property<clock_2x_key>());
   static_assert(!mem_bool.has_property<word_size_key>());
   static_assert(mem_bool.get_property<clock_2x_key>().value == true);
@@ -79,7 +75,6 @@ int main() {
   static_assert(mem_enum.get_property<resource_key>().value == resource_enum::mlab);
 
   checkIsPropertyOf<decltype(mem_multi)>();
-  // FIX ME // static_assert(mem_num.has_property<resource_key>());
   static_assert(mem_multi.has_property<ram_stitching_key>());
   static_assert(mem_multi.has_property<stride_size_key>());
   static_assert(mem_multi.has_property<bi_directional_ports_key>());

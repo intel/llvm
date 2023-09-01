@@ -98,12 +98,12 @@ using properties_t = oneapi_exp::detail::properties_t<Props...>;
 // Empty property list specialization
 template <typename T, typename PropertyListT = oneapi_exp::detail::empty_properties_t>
 class fpga_mem
-    : public detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)> {
+    : public detail::fpga_mem_base<T> {
 
-    using property_list_t = decltype(oneapi_exp::properties(oneapi_exp::resource_any));
+    using property_list_t = decltype(oneapi_exp::properties());
 
   // Inherits the base class' constructors
-  using detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)>::fpga_mem_base;
+  using detail::fpga_mem_base<T>::fpga_mem_base;
 
 public:
     template <typename propertyT> static constexpr bool has_property() {
