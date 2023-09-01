@@ -412,6 +412,8 @@ private:
       return "MarkingClassDllexported";
     case CodeSynthesisContext::BuildingBuiltinDumpStructCall:
       return "BuildingBuiltinDumpStructCall";
+    case CodeSynthesisContext::BuildingDeductionGuides:
+      return "BuildingDeductionGuides";
     }
     return "";
   }
@@ -457,6 +459,8 @@ private:
       OS << "unnamed " << Decl->getKindName();
       return;
     }
+
+    assert(NamedCtx && "NamedCtx cannot be null");
 
     if (const auto *Decl = dyn_cast<ParmVarDecl>(NamedTemplate)) {
       OS << "unnamed function parameter " << Decl->getFunctionScopeIndex()

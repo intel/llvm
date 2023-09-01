@@ -25,26 +25,16 @@ on:
         type: string
         required: false
         default: "default"
-      build_cache_size:
-        type: string
-        required: false
-        default: 8G
       build_configure_extra_args:
         type: string
         required: false
-        default: "--hip --cuda --enable-esimd-emulator"
+        default: "--hip --cuda"
       build_artifact_suffix:
         type: string
         required: true
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.zst
-      artifact_compress_command:
-        type: string
-        default: zstd -9
-      artifact_decompress_command:
-        type: string
-        default: zstd
       lts_matrix:
         type: string
         required: false
@@ -53,14 +43,6 @@ on:
         type: string
         required: false
         default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
-      lts_ref:
-        type: string
-        required: false
-        default: 'intel'
       cts_matrix:
         type: string
         required: false
@@ -69,19 +51,65 @@ on:
         type: string
         required: false
         default: ""
-      cts_ref:
-        type: string
-        required: false
-        default: 'SYCL-2020'
-      check_filters:
+      changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
         required: false
-      merge:
-        description: 'Merge default branch after the checkout'
-        type: boolean
-        default: true
+      merge_ref:
+        description: |
+          Commit-ish to merge post-checkout if non-empty. Must be reachable from
+          the default_branch input paramter.
+        type: string
+        default: 'FETCH_HEAD'
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
+
+  workflow_dispatch:
+    inputs:
+      changes:
+        description: 'Filter matches for the changed files in the PR'
+        type: choice
+        options:
+          - "[]"
+          - '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
+      build_image:
+        type: choice
+        options:
+          - "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
+      cc:
+        type: choice
+        options:
+          - gcc
+      cxx:
+        type: choice
+        options:
+          - g++
+      build_configure_extra_args:
+        type: choice
+        options:
+          - "--hip --cuda"
+      # Cache properties need to match CC/CXX/CMake opts. Any additional choices
+      # would need extra care.
+      build_cache_root:
+        type: choice
+        options:
+          - "/__w/"
+      build_cache_suffix:
+        type: choice
+        options:
+          - "default"
+
+      build_artifact_suffix:
+        type: choice
+        options:
+          - "default"
+      retention-days:
+        type: choice
+        options:
+          - 3
 
 jobs:
   build:
@@ -92,73 +120,94 @@ jobs:
       options: -u 1001:1001
     outputs:
       build_conclusion: ${{ steps.build.conclusion }}
+      artifact_archive_name: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+      artifact_decompress_command: ${{ steps.artifact_info.outputs.DECOMPRESS }}
+    env:
+      CCACHE_DIR: ${{ inputs.build_cache_root }}/build_cache_${{ inputs.build_cache_suffix }}
+      CCACHE_MAXSIZE: 8G
     steps:
-    # GHA requires relative paths for actions. Copy actions from container root
-    # to CWD.
-    - run: cp -r /actions .
+    - name: Deduce artifact archive params
+      # To reduce number of inputs parameters that is limited for manual triggers.
+      id: artifact_info
+      run: |
+        NAME="${{inputs.artifact_archive_name}}"
+        if [ -z "$NAME" ]; then
+          NAME=llvm_sycl.tar.zst
+        fi
+        echo ARCHIVE_NAME="$NAME" >> $GITHUB_OUTPUT
+        if [ "${NAME}" != "${NAME%.tar.gz}" ]; then
+          echo COMPRESS="gzip" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="gunzip" >> $GITHUB_OUTPUT
+        elif [ "${NAME}" != "${NAME%.tar.zst}" ]; then
+          echo COMPRESS="zstd -9" >> $GITHUB_OUTPUT
+          echo DECOMPRESS="zstd" >> $GITHUB_OUTPUT
+        else
+          echo "Unsupported extension"
+          exit 1
+        fi
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     # Cleanup will be run after all actions are completed.
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - uses: ./actions/cached_checkout
+      uses: ./devops/actions/cleanup
+    - uses: ./devops/actions/cached_checkout
       with:
         path: src
         ref: ${{ inputs.build_ref || github.sha }}
+        merge_ref: ${{ inputs.merge_ref }}
         cache_path: "/__w/repo_cache/"
-        merge: ${{ inputs.merge }}
     - name: Configure
       env:
         CC: ${{ inputs.cc }}
         CXX: ${{ inputs.cxx }}
-        CACHE_ROOT: ${{ inputs.build_cache_root }}
-        CACHE_SUFFIX: ${{ inputs.build_cache_suffix }}
-        CACHE_SIZE: ${{ inputs.build_cache_size }}
         ARGS: ${{ inputs.build_configure_extra_args }}
         CUDA_LIB_PATH: "/usr/local/cuda/lib64/stubs"
       run: |
-        mkdir -p $CACHE_ROOT/build_cache_$CACHE_SUFFIX
+        mkdir -p $CCACHE_DIR
         mkdir -p $GITHUB_WORKSPACE/build
         cd $GITHUB_WORKSPACE/build
         python3 $GITHUB_WORKSPACE/src/buildbot/configure.py -w $GITHUB_WORKSPACE \
           -s $GITHUB_WORKSPACE/src -o $GITHUB_WORKSPACE/build -t Release \
           --ci-defaults $ARGS \
-          --cmake-opt="-DLLVM_CCACHE_BUILD=ON" \
-          --cmake-opt="-DLLVM_CCACHE_DIR=$CACHE_ROOT/build_cache_$CACHE_SUFFIX" \
-          --cmake-opt="-DLLVM_CCACHE_MAXSIZE=$CACHE_SIZE" \
+          --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DSYCL_PI_TESTS=OFF"
     - name: Compile
       id: build
       run: cmake --build $GITHUB_WORKSPACE/build
     - name: check-llvm
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm
     - name: check-clang
-      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
+      if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
         # Can we move this to Dockerfile? Hopefully, noop on Windows.
         export XDG_CACHE_HOME=$GITHUB_WORKSPACE/os_cache
         cmake --build $GITHUB_WORKSPACE/build --target check-clang
     - name: check-sycl
-      if: always() && !cancelled() && contains(inputs.check_filters, 'sycl')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         # TODO consider moving this to Dockerfile.
         export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
         cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: check-llvm-spirv
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm_spirv')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-llvm-spirv
     - name: check-xptifw
-      if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
+      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-xptifw
     - name: check-libclc
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libclc')
+      if: always() && !cancelled() && contains(inputs.changes, 'libclc')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libclc
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
     - name: Install
@@ -190,18 +239,19 @@ jobs:
 
     - name: Pack toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
-      run: tar -I '${{ inputs.artifact_compress_command }}' -cf ${{ inputs.artifact_archive_name }} -C $GITHUB_WORKSPACE/build/install .
+      run: tar -I '${{ steps.artifact_info.outputs.COMPRESS }}' -cf ${{ steps.artifact_info.outputs.ARCHIVE_NAME }} -C $GITHUB_WORKSPACE/build/install .
     - name: Upload toolchain
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       uses: actions/upload-artifact@v3
       with:
         name: sycl_linux_${{ inputs.build_artifact_suffix }}
-        path: ${{ inputs.artifact_archive_name }}
+        path: ${{ steps.artifact_info.outputs.ARCHIVE_NAME }}
+        retention-days: ${{ inputs.retention-days }}
 
   aws-start:
     name: Start AWS
     needs: build
-    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && !cancelled() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_aws_matrix != '[]' && inputs.lts_aws_matrix != '' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
     with:
@@ -212,54 +262,34 @@ jobs:
     needs: [build, aws-start]
     # Continue if build was successful. If aws-start is not successful all
     # AWS tasks will fail, but all non-AWS tasks should continue.
-    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' && inputs.lts_matrix != '' }}
     strategy:
       fail-fast: false
       matrix:
         include: ${{ fromJSON(inputs.lts_matrix) }}
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.runs-on }}
-    env: ${{ matrix.env }}
-    container:
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
+    with:
+      tests_selector: e2e
+
+      name: ${{ matrix.name }}
+      runner: ${{ toJSON(matrix.runs-on) }}
       image: ${{ matrix.image }}
-      options: ${{ matrix.container_options }}
-    steps:
-    - name: Reset GPU
-      if: ${{ contains(matrix.runs-on, 'gen9') && contains(matrix.runs-on, 'Linux') }}
-      run: |
-        sudo mount -t debugfs none /sys/kernel/debug
-        sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
-    - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
-    - name: Install drivers
-      if: env.compute_runtime_tag != ''
-      run: |
-        if [ -e /opt/install_drivers.sh ]; then
-          # TODO pack this script into container
-          wget raw.githubusercontent.com/intel/llvm/${{ github.sha }}/devops/scripts/get_release.py
-          sudo mv get_release.py /opt/
-          sudo -E /opt/install_drivers.sh --all
-        fi
-    # FIXME cached_checkout fails here, but works everywhere else
-    - uses: actions/checkout@v3
-      with:
-        persist-credentials: false
-        path: llvm
-        ref: ${{ inputs.build_ref || github.sha }}
-    # TODO should this action be packed into container as well?
-    - uses: ./llvm/devops/actions/e2e-tests
-      name: Run SYCL End-to-End tests
-      with:
-        sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: ${{ inputs.artifact_archive_name }}
-        decompress_command: ${{ inputs.artifact_decompress_command }}
-        targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+      image_options: ${{ matrix.container_options }}
+      extra_cmake_args: ${{ matrix.cmake_args }}
+      target_devices: ${{ matrix.targets }}
+      ref: ${{ inputs.build_ref || github.sha }}
+      merge_ref: ${{ inputs.merge_ref }}
+      reset_gpu: ${{ contains(matrix.runs-on, 'gen12') && contains(matrix.runs-on, 'Linux') }}
+
+      sycl_toolchain_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
+      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
+
+      env: ${{ toJSON(matrix.env) }}
 
   khronos_sycl_cts:
     needs: build
-    if: ${{ inputs.cts_matrix != '[]' && inputs.check_sycl == 'true' }}
+    if: ${{ inputs.cts_matrix != '[]' && inputs.cts_matrix != '' && inputs.check_sycl == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -272,13 +302,16 @@ jobs:
       options: ${{ matrix.container_options }}
     steps:
     - name: Reset GPU
-      if: ${{ contains(matrix.config, 'gen9') }}
+      if: ${{ contains(matrix.config, 'gen12') }}
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
-    - run: cp -r /actions .
+    - uses: actions/checkout@v3
+      with:
+        sparse-checkout: |
+          devops/actions
     - name: Register cleanup after job is finished
-      uses: ./actions/cleanup
+      uses: ./devops/actions/cleanup
     - name: Install drivers
       if: env.compute_runtime_tag != ''
       run: |
@@ -297,10 +330,9 @@ jobs:
     - uses: ./llvm/devops/actions/khronos_cts_test
       name: Run Khronos SYCL CTS
       with:
-        test_ref: ${{ inputs.cts_ref }}
         sycl_artifact: sycl_linux_${{ inputs.build_artifact_suffix }}
-        sycl_archive: ${{ inputs.artifact_archive_name }}
-        decompress_command: ${{ inputs.artifact_decompress_command }}
+        sycl_archive: ${{ needs.build.outputs.artifact_archive_name }}
+        decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
         sycl_device_filter: ${{ matrix.sycl_device_filter }}
         cmake_args: '${{ matrix.cmake_args }} ${{ inputs.cts_cmake_extra_args }}'
 
@@ -309,7 +341,7 @@ jobs:
     needs: [ aws-start, e2e-tests ]
     # Always attempt to shutdown AWS instance, even if AWS start was not
     # successful.
-    if: ${{ always() && inputs.lts_aws_matrix != '[]' }}
+    if: ${{ always() && inputs.lts_aws_matrix != '[]' && inputs.lts_aws_matrix != '' }}
     uses: ./.github/workflows/aws.yml
     secrets: inherit
     with:

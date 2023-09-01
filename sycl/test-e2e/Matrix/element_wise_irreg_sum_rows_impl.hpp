@@ -1,4 +1,3 @@
-#define TN SG_SZ
 #define TK 32
 
 template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
@@ -43,7 +42,7 @@ void matrix_sum_rows(queue q, big_matrix<T, M, N> &B, nd_range<2> &r) {
            const auto sg_startx = global_idx - spmd_item.get_local_id(0);
            const auto sg_starty = global_idy - spmd_item.get_local_id(1);
 
-           ext::oneapi::sub_group sg = spmd_item.get_sub_group();
+           sycl::sub_group sg = spmd_item.get_sub_group();
 
            joint_matrix<sub_group, T, use::b, TK, TN,
                         ext::intel::experimental::matrix::layout::packed>

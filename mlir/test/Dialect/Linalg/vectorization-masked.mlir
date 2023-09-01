@@ -405,7 +405,7 @@ transform.sequence failures(propagate) {
 
 // -----
 
-//       CHECK: #[[MAP:.+]] = affine_map<()[s0, s1] -> (s1 + s0)>
+//       CHECK: #[[MAP:.+]] = affine_map<()[s0, s1] -> (s0 + s1)>
 //       CHECK: func @test_masked_vectorize_dynamic_pad
 func.func @test_masked_vectorize_dynamic_pad(
   %0 : tensor<?x?xf32>, %h0 : index, %h1 : index)
@@ -484,3 +484,4 @@ transform.sequence failures(propagate) {
   %0 = transform.structured.match ops{["linalg.matmul"]} in %arg1 : (!transform.any_op) -> !transform.any_op
   transform.structured.masked_vectorize %0 vector_sizes [8, 16, 4] : !transform.any_op
 }
+

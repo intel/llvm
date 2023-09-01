@@ -119,8 +119,7 @@ LegalizerHelper::legalizeInstrStep(MachineInstr &MI,
 
   MIRBuilder.setInstrAndDebugLoc(MI);
 
-  if (MI.getOpcode() == TargetOpcode::G_INTRINSIC ||
-      MI.getOpcode() == TargetOpcode::G_INTRINSIC_W_SIDE_EFFECTS)
+  if (isa<GIntrinsic>(MI))
     return LI.legalizeIntrinsic(*this, MI) ? Legalized : UnableToLegalize;
   auto Step = LI.getAction(MI, MRI);
   switch (Step.Action) {
@@ -542,6 +541,8 @@ static RTLIB::Libcall getRTLibDesc(unsigned Opcode, unsigned Size) {
     RTLIBCASE(LOG_F);
   case TargetOpcode::G_FLOG2:
     RTLIBCASE(LOG2_F);
+  case TargetOpcode::G_FLDEXP:
+    RTLIBCASE(LDEXP_F);
   case TargetOpcode::G_FCEIL:
     RTLIBCASE(CEIL_F);
   case TargetOpcode::G_FFLOOR:
@@ -826,6 +827,7 @@ LegalizerHelper::libcall(MachineInstr &MI, LostDebugLocObserver &LocObserver) {
   case TargetOpcode::G_FLOG10:
   case TargetOpcode::G_FLOG:
   case TargetOpcode::G_FLOG2:
+  case TargetOpcode::G_FLDEXP:
   case TargetOpcode::G_FEXP:
   case TargetOpcode::G_FEXP2:
   case TargetOpcode::G_FCEIL:
@@ -1413,6 +1415,9 @@ LegalizerHelper::LegalizeResult LegalizerHelper::narrowScalar(MachineInstr &MI,
     narrowScalarDst(MI, NarrowTy, 0, TargetOpcode::G_FPEXT);
     Observer.changedInstr(MI);
     return Legalized;
+  case TargetOpcode::G_FLDEXP:
+  case TargetOpcode::G_STRICT_FLDEXP:
+    return narrowScalarFLDEXP(MI, TypeIdx, NarrowTy);
   }
 }
 
@@ -2553,12 +2558,41 @@ LegalizerHelper::widenScalar(MachineInstr &MI, unsigned TypeIdx, LLT WideTy) {
     widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
     Observer.changedInstr(MI);
     return Legalized;
-  case TargetOpcode::G_FPOWI: {
-    if (TypeIdx != 0)
-      return UnableToLegalize;
+  case TargetOpcode::G_FPOWI:
+  case TargetOpcode::G_FLDEXP:
+  case TargetOpcode::G_STRICT_FLDEXP: {
+    if (TypeIdx == 0) {
+      if (MI.getOpcode() == TargetOpcode::G_STRICT_FLDEXP)
+        return UnableToLegalize;
+
+      Observer.changingInstr(MI);
+      widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_FPEXT);
+      widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
+      Observer.changedInstr(MI);
+      return Legalized;
+    }
+
+    if (TypeIdx == 1) {
+      // For some reason SelectionDAG tries to promote to a libcall without
+      // actually changing the integer type for promotion.
+      Observer.changingInstr(MI);
+      widenScalarSrc(MI, WideTy, 2, TargetOpcode::G_SEXT);
+      Observer.changedInstr(MI);
+      return Legalized;
+    }
+
+    return UnableToLegalize;
+  }
+  case TargetOpcode::G_FFREXP: {
     Observer.changingInstr(MI);
-    widenScalarSrc(MI, WideTy, 1, TargetOpcode::G_FPEXT);
-    widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
+
+    if (TypeIdx == 0) {
+      widenScalarSrc(MI, WideTy, 2, TargetOpcode::G_FPEXT);
+      widenScalarDst(MI, WideTy, 0, TargetOpcode::G_FPTRUNC);
+    } else {
+      widenScalarDst(MI, WideTy, 1);
+    }
+
     Observer.changedInstr(MI);
     return Legalized;
   }
@@ -4136,6 +4170,7 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
   case G_FLOG:
   case G_FLOG2:
   case G_FLOG10:
+  case G_FLDEXP:
   case G_FNEARBYINT:
   case G_FCEIL:
   case G_FFLOOR:
@@ -4211,6 +4246,8 @@ LegalizerHelper::fewerElementsVector(MachineInstr &MI, unsigned TypeIdx,
   case G_STRICT_FSUB:
   case G_STRICT_FMUL:
   case G_STRICT_FMA:
+  case G_STRICT_FLDEXP:
+  case G_FFREXP:
     return fewerElementsVectorMultiEltType(GMI, NumElts);
   case G_ICMP:
   case G_FCMP:
@@ -4912,6 +4949,19 @@ LegalizerHelper::moreElementsVector(MachineInstr &MI, unsigned TypeIdx,
     Observer.changedInstr(MI);
     return Legalized;
   }
+  case TargetOpcode::G_FPTRUNC:
+  case TargetOpcode::G_FPEXT: {
+    if (TypeIdx != 0)
+      return UnableToLegalize;
+    Observer.changingInstr(MI);
+    LLT SrcTy = LLT::fixed_vector(
+        MoreTy.getNumElements(),
+        MRI.getType(MI.getOperand(1).getReg()).getElementType());
+    moreElementsVectorSrc(MI, SrcTy, 1);
+    moreElementsVectorDst(MI, MoreTy, 0);
+    Observer.changedInstr(MI);
+    return Legalized;
+  }
   default:
     return UnableToLegalize;
   }
@@ -5593,6 +5643,31 @@ LegalizerHelper::narrowScalarCTPOP(MachineInstr &MI, unsigned TypeIdx,
 }
 
 LegalizerHelper::LegalizeResult
+LegalizerHelper::narrowScalarFLDEXP(MachineInstr &MI, unsigned TypeIdx,
+                                    LLT NarrowTy) {
+  if (TypeIdx != 1)
+    return UnableToLegalize;
+
+  MachineIRBuilder &B = MIRBuilder;
+  Register ExpReg = MI.getOperand(2).getReg();
+  LLT ExpTy = MRI.getType(ExpReg);
+
+  unsigned ClampSize = NarrowTy.getScalarSizeInBits();
+
+  // Clamp the exponent to the range of the target type.
+  auto MinExp = B.buildConstant(ExpTy, minIntN(ClampSize));
+  auto ClampMin = B.buildSMax(ExpTy, ExpReg, MinExp);
+  auto MaxExp = B.buildConstant(ExpTy, maxIntN(ClampSize));
+  auto Clamp = B.buildSMin(ExpTy, ClampMin, MaxExp);
+
+  auto Trunc = B.buildTrunc(NarrowTy, Clamp);
+  Observer.changingInstr(MI);
+  MI.getOperand(2).setReg(Trunc.getReg(0));
+  Observer.changedInstr(MI);
+  return Legalized;
+}
+
+LegalizerHelper::LegalizeResult
 LegalizerHelper::lowerBitCount(MachineInstr &MI) {
   unsigned Opc = MI.getOpcode();
   const auto &TII = MIRBuilder.getTII();
@@ -6192,15 +6267,27 @@ LegalizerHelper::LegalizeResult LegalizerHelper::lowerFPTOSI(MachineInstr &MI) {
 // f64 -> f16 conversion using round-to-nearest-even rounding mode.
 LegalizerHelper::LegalizeResult
 LegalizerHelper::lowerFPTRUNC_F64_TO_F16(MachineInstr &MI) {
+  const LLT S1 = LLT::scalar(1);
+  const LLT S32 = LLT::scalar(32);
+
   auto [Dst, Src] = MI.getFirst2Regs();
+  assert(MRI.getType(Dst).getScalarType() == LLT::scalar(16) &&
+         MRI.getType(Src).getScalarType() == LLT::scalar(64));
+
   if (MRI.getType(Src).isVector()) // TODO: Handle vectors directly.
     return UnableToLegalize;
+
+  if (MIRBuilder.getMF().getTarget().Options.UnsafeFPMath) {
+    unsigned Flags = MI.getFlags();
+    auto Src32 = MIRBuilder.buildFPTrunc(S32, Src, Flags);
+    MIRBuilder.buildFPTrunc(Dst, Src32, Flags);
+    MI.eraseFromParent();
+    return Legalized;
+  }
 
   const unsigned ExpMask = 0x7ff;
   const unsigned ExpBiasf64 = 1023;
   const unsigned ExpBiasf16 = 15;
-  const LLT S32 = LLT::scalar(32);
-  const LLT S1 = LLT::scalar(1);
 
   auto Unmerge = MIRBuilder.buildUnmerge(S32, Src);
   Register U = Unmerge.getReg(0);
@@ -7211,6 +7298,9 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
     return Legalized;
   }
 
+  // TODO: Try inverting the test with getInvertedFPClassTest like the DAG
+  // version
+
   unsigned BitSize = SrcTy.getScalarSizeInBits();
   const fltSemantics &Semantics = getFltSemanticForLLT(SrcTy.getScalarType());
 
@@ -7264,6 +7354,18 @@ LegalizerHelper::lowerISFPCLASS(MachineInstr &MI) {
     auto And = MIRBuilder.buildAnd(DstTy, Cmp, Sign);
     appendToRes(And);
     Mask &= ~fcNegFinite;
+  }
+
+  if (FPClassTest PartialCheck = Mask & (fcZero | fcSubnormal)) {
+    // fcZero | fcSubnormal => test all exponent bits are 0
+    // TODO: Handle sign bit specific cases
+    // TODO: Handle inverted case
+    if (PartialCheck == (fcZero | fcSubnormal)) {
+      auto ExpBits = MIRBuilder.buildAnd(IntTy, AsInt, ExpMaskC);
+      appendToRes(MIRBuilder.buildICmp(CmpInst::Predicate::ICMP_EQ, DstTy,
+                                       ExpBits, ZeroC));
+      Mask &= ~PartialCheck;
+    }
   }
 
   // Check for individual classes.
@@ -7471,7 +7573,7 @@ LegalizerHelper::lowerVectorReduction(MachineInstr &MI) {
     Observer.changedInstr(MI);
     return Legalized;
   }
-  return UnableToLegalize;;
+  return UnableToLegalize;
 }
 
 static bool shouldLowerMemFuncForSize(const MachineFunction &MF) {

@@ -18,7 +18,7 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 enum class granularity_mode : char {
@@ -67,5 +67,5 @@ __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
                          const context &SyclContext);
 
 } // Namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // Namespace sycl

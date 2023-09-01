@@ -34,11 +34,14 @@ Getting Started with libc++
 .. toctree::
    :maxdepth: 1
 
-   ReleaseNotes
+   ReleaseNotes/17
+   ReleaseNotes/18
    UsingLibcxx
    BuildingLibcxx
    TestingLibcxx
    Contributing
+   Modules
+   Hardening
    ReleaseProcedure
    Status/Cxx14
    Status/Cxx17
@@ -47,6 +50,7 @@ Getting Started with libc++
    Status/Cxx2c
    Status/Format
    Status/Parallelism
+   Status/PSTL
    Status/Ranges
    Status/Spaceship
    Status/Zip
@@ -178,7 +182,6 @@ Design Documents
    DesignDocs/ABIVersioning
    DesignDocs/AtomicDesign
    DesignDocs/CapturingConfigInfo
-   DesignDocs/DebugMode
    DesignDocs/ExperimentalFeatures
    DesignDocs/ExtendedCXX03Support
    DesignDocs/FeatureTestMacros

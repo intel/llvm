@@ -150,8 +150,15 @@ bool DWARFVerifier::verifyUnitHeader(const DWARFDataExtractor DebugInfoData,
     AddrSize = DebugInfoData.getU8(Offset);
   }
 
-  if (!DCtx.getDebugAbbrev()->getAbbreviationDeclarationSet(AbbrOffset))
+  Expected<const DWARFAbbreviationDeclarationSet *> AbbrevSetOrErr =
+      DCtx.getDebugAbbrev()->getAbbreviationDeclarationSet(AbbrOffset);
+  if (!AbbrevSetOrErr) {
     ValidAbbrevOffset = false;
+    // FIXME: A problematic debug_abbrev section is reported below in the form
+    // of a `note:`. We should propagate this error there (or elsewhere) to
+    // avoid losing the specific problem with the debug_abbrev section.
+    consumeError(AbbrevSetOrErr.takeError());
+  }
 
   ValidLength = DebugInfoData.isValidOffset(OffsetStart + Length + 3);
   ValidVersion = DWARFContext::isSupportedVersion(Version);
@@ -299,20 +306,27 @@ unsigned DWARFVerifier::verifyDebugInfoCallSite(const DWARFDie &Die) {
 }
 
 unsigned DWARFVerifier::verifyAbbrevSection(const DWARFDebugAbbrev *Abbrev) {
+  if (!Abbrev)
+    return 0;
+
+  Expected<const DWARFAbbreviationDeclarationSet *> AbbrDeclsOrErr =
+      Abbrev->getAbbreviationDeclarationSet(0);
+  if (!AbbrDeclsOrErr) {
+    error() << toString(AbbrDeclsOrErr.takeError()) << "\n";
+    return 1;
+  }
+
+  const auto *AbbrDecls = *AbbrDeclsOrErr;
   unsigned NumErrors = 0;
-  if (Abbrev) {
-    const DWARFAbbreviationDeclarationSet *AbbrDecls =
-        Abbrev->getAbbreviationDeclarationSet(0);
-    for (auto AbbrDecl : *AbbrDecls) {
-      SmallDenseSet<uint16_t> AttributeSet;
-      for (auto Attribute : AbbrDecl.attributes()) {
-        auto Result = AttributeSet.insert(Attribute.Attr);
-        if (!Result.second) {
-          error() << "Abbreviation declaration contains multiple "
-                  << AttributeString(Attribute.Attr) << " attributes.\n";
-          AbbrDecl.dump(OS);
-          ++NumErrors;
-        }
+  for (auto AbbrDecl : *AbbrDecls) {
+    SmallDenseSet<uint16_t> AttributeSet;
+    for (auto Attribute : AbbrDecl.attributes()) {
+      auto Result = AttributeSet.insert(Attribute.Attr);
+      if (!Result.second) {
+        error() << "Abbreviation declaration contains multiple "
+                << AttributeString(Attribute.Attr) << " attributes.\n";
+        AbbrDecl.dump(OS);
+        ++NumErrors;
       }
     }
   }

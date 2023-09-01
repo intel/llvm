@@ -12,7 +12,7 @@
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
@@ -133,5 +133,5 @@ __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
 }
 
 } // Namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // Namespace sycl

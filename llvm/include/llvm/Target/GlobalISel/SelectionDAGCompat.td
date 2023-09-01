@@ -39,6 +39,10 @@ class GINodeEquiv<Instruction i, SDNode node> {
   // SelectionDAG has one setcc for all compares. This differentiates
   // for G_ICMP and G_FCMP.
   Instruction IfFloatingPoint = ?;
+
+  // SelectionDAG does not differentiate between convergent and non-convergent
+  // intrinsics. This specifies an alternate opcode for a convergent intrinsic.
+  Instruction IfConvergent = ?;
 }
 
 // These are defined in the same order as the G_* instructions.
@@ -103,12 +107,20 @@ def : GINodeEquiv<G_FREM, frem>;
 def : GINodeEquiv<G_FPOW, fpow>;
 def : GINodeEquiv<G_FEXP2, fexp2>;
 def : GINodeEquiv<G_FLOG2, flog2>;
+def : GINodeEquiv<G_FLDEXP, fldexp>;
 def : GINodeEquiv<G_FCANONICALIZE, fcanonicalize>;
 def : GINodeEquiv<G_IS_FPCLASS, is_fpclass>;
-def : GINodeEquiv<G_INTRINSIC, intrinsic_wo_chain>;
+
+def : GINodeEquiv<G_INTRINSIC, intrinsic_wo_chain> {
+  let IfConvergent = G_INTRINSIC_CONVERGENT;
+}
+
 // ISD::INTRINSIC_VOID can also be handled with G_INTRINSIC_W_SIDE_EFFECTS.
-def : GINodeEquiv<G_INTRINSIC_W_SIDE_EFFECTS, intrinsic_void>;
-def : GINodeEquiv<G_INTRINSIC_W_SIDE_EFFECTS, intrinsic_w_chain>;
+let IfConvergent = G_INTRINSIC_CONVERGENT_W_SIDE_EFFECTS in {
+  def : GINodeEquiv<G_INTRINSIC_W_SIDE_EFFECTS, intrinsic_void>;
+  def : GINodeEquiv<G_INTRINSIC_W_SIDE_EFFECTS, intrinsic_w_chain>;
+}
+
 def : GINodeEquiv<G_BR, br>;
 def : GINodeEquiv<G_BSWAP, bswap>;
 def : GINodeEquiv<G_BITREVERSE, bitreverse>;
@@ -150,6 +162,7 @@ def : GINodeEquiv<G_ROTR, rotr>;
 def : GINodeEquiv<G_ROTL, rotl>;
 def : GINodeEquiv<G_LROUND, lround>;
 def : GINodeEquiv<G_LLROUND, llround>;
+def : GINodeEquiv<G_VECREDUCE_FADD, vecreduce_fadd>;
 
 def : GINodeEquiv<G_STRICT_FADD, strict_fadd>;
 def : GINodeEquiv<G_STRICT_FSUB, strict_fsub>;
@@ -158,6 +171,7 @@ def : GINodeEquiv<G_STRICT_FDIV, strict_fdiv>;
 def : GINodeEquiv<G_STRICT_FREM, strict_frem>;
 def : GINodeEquiv<G_STRICT_FMA, strict_fma>;
 def : GINodeEquiv<G_STRICT_FSQRT, strict_fsqrt>;
+def : GINodeEquiv<G_STRICT_FLDEXP, strict_fldexp>;
 
 // Broadly speaking G_LOAD is equivalent to ISD::LOAD but there are some
 // complications that tablegen must take care of. For example, Predicates such

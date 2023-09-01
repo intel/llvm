@@ -605,6 +605,7 @@ void ASTStmtReader::VisitDeclRefExpr(DeclRefExpr *E) {
   E->DeclRefExprBits.HadMultipleCandidates = Record.readInt();
   E->DeclRefExprBits.RefersToEnclosingVariableOrCapture = Record.readInt();
   E->DeclRefExprBits.NonOdrUseReason = Record.readInt();
+  E->DeclRefExprBits.IsImmediateEscalating = Record.readInt();
   unsigned NumTemplateArgs = 0;
   if (E->hasTemplateKWAndArgsInfo())
     NumTemplateArgs = Record.readInt();
@@ -1713,6 +1714,7 @@ void ASTStmtReader::VisitCXXConstructExpr(CXXConstructExpr *E) {
   E->CXXConstructExprBits.StdInitListInitialization = Record.readInt();
   E->CXXConstructExprBits.ZeroInitialization = Record.readInt();
   E->CXXConstructExprBits.ConstructionKind = Record.readInt();
+  E->CXXConstructExprBits.IsImmediateEscalating = Record.readInt();
   E->CXXConstructExprBits.Loc = readSourceLocation();
   E->Constructor = readDeclAs<CXXConstructorDecl>();
   E->ParenOrBraceRange = readSourceRange();
@@ -2355,6 +2357,7 @@ void ASTStmtReader::VisitOMPExecutableDirective(OMPExecutableDirective *E) {
   Record.readOMPChildren(E->Data);
   E->setLocStart(readSourceLocation());
   E->setLocEnd(readSourceLocation());
+  E->setMappedDirective(Record.readEnum<OpenMPDirectiveKind>());
 }
 
 void ASTStmtReader::VisitOMPLoopBasedDirective(OMPLoopBasedDirective *D) {
@@ -2969,12 +2972,14 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
 
     case EXPR_DECL_REF:
       S = DeclRefExpr::CreateEmpty(
-        Context,
-        /*HasQualifier=*/Record[ASTStmtReader::NumExprFields],
-        /*HasFoundDecl=*/Record[ASTStmtReader::NumExprFields + 1],
-        /*HasTemplateKWAndArgsInfo=*/Record[ASTStmtReader::NumExprFields + 2],
-        /*NumTemplateArgs=*/Record[ASTStmtReader::NumExprFields + 2] ?
-          Record[ASTStmtReader::NumExprFields + 6] : 0);
+          Context,
+          /*HasQualifier=*/Record[ASTStmtReader::NumExprFields],
+          /*HasFoundDecl=*/Record[ASTStmtReader::NumExprFields + 1],
+          /*HasTemplateKWAndArgsInfo=*/Record[ASTStmtReader::NumExprFields + 2],
+          /*NumTemplateArgs=*/
+          Record[ASTStmtReader::NumExprFields + 2]
+              ? Record[ASTStmtReader::NumExprFields + 7]
+              : 0);
       break;
 
     case EXPR_INTEGER_LITERAL:
@@ -3559,7 +3564,7 @@ Stmt *ASTReader::ReadStmtFromStream(ModuleFile &F) {
                                                   CollapsedNum, Empty);
       break;
     }
-    
+
     case STMT_OMP_MASKED_TASKLOOP_DIRECTIVE: {
       unsigned CollapsedNum = Record[ASTStmtReader::NumStmtFields];
       unsigned NumClauses = Record[ASTStmtReader::NumStmtFields + 1];

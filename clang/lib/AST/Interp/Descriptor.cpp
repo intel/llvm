@@ -186,6 +186,11 @@ static BlockCtorFn getCtorPrim(PrimType Type) {
 }
 
 static BlockDtorFn getDtorPrim(PrimType Type) {
+  // Floating types are special. They are primitives, but need their
+  // destructor called, since they might allocate memory.
+  if (Type == PT_Float)
+    return dtorTy<PrimConv<PT_Float>::T>;
+
   COMPOSITE_TYPE_SWITCH(Type, return dtorTy<T>, return nullptr);
 }
 
@@ -274,6 +279,8 @@ QualType Descriptor::getType() const {
     return E->getType();
   if (auto *D = asValueDecl())
     return D->getType();
+  if (auto *T = dyn_cast<TypeDecl>(asDecl()))
+    return QualType(T->getTypeForDecl(), 0);
   llvm_unreachable("Invalid descriptor type");
 }
 

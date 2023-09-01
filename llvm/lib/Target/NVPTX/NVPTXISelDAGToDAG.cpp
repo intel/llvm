@@ -638,18 +638,10 @@ bool NVPTXDAGToDAGISel::tryEXTRACT_VECTOR_ELEMENT(SDNode *N) {
   if (E0.empty() || E1.empty())
     return false;
 
-  unsigned Op = NVPTX::SplitF16x2;
-  // If the vector has been BITCAST'ed from i32, we can use original
-  // value directly and avoid register-to-register move.
-  SDValue Source = Vector;
-  if (Vector->getOpcode() == ISD::BITCAST) {
-    Op = NVPTX::SplitI32toF16x2;
-    Source = Vector->getOperand(0);
-  }
   // Merge (f16 extractelt(V, 0), f16 extractelt(V,1))
   // into f16,f16 SplitF16x2(V)
-  SDNode *ScatterOp =
-      CurDAG->getMachineNode(Op, SDLoc(N), MVT::f16, MVT::f16, Source);
+  SDNode *ScatterOp = CurDAG->getMachineNode(NVPTX::I32toV2I16, SDLoc(N),
+                                             MVT::f16, MVT::f16, Vector);
   for (auto *Node : E0)
     ReplaceUses(SDValue(Node, 0), SDValue(ScatterOp, 0));
   for (auto *Node : E1)
@@ -1607,13 +1599,13 @@ bool NVPTXDAGToDAGISel::tryLDGLDU(SDNode *N) {
   EVT OrigType = N->getValueType(0);
   LoadSDNode *LdNode = dyn_cast<LoadSDNode>(N);
 
-  if (OrigType != EltVT && LdNode) {
+  if (OrigType != EltVT &&
+      (LdNode || (OrigType.isFloatingPoint() && EltVT.isFloatingPoint()))) {
     // We have an extending-load. The instruction we selected operates on the
     // smaller type, but the SDNode we are replacing has the larger type. We
     // need to emit a CVT to make the types match.
-    bool IsSigned = LdNode->getExtensionType() == ISD::SEXTLOAD;
-    unsigned CvtOpc = GetConvertOpcode(OrigType.getSimpleVT(),
-                                       EltVT.getSimpleVT(), IsSigned);
+    unsigned CvtOpc =
+        GetConvertOpcode(OrigType.getSimpleVT(), EltVT.getSimpleVT(), LdNode);
 
     // For each output value, apply the manual sign/zero-extension and make sure
     // all users of the load go through that CVT.
@@ -3301,7 +3293,7 @@ bool NVPTXDAGToDAGISel::tryBFE(SDNode *N) {
     }
 
     // How many bits are in our mask?
-    uint64_t NumBits = llvm::countr_one(MaskVal);
+    int64_t NumBits = countr_one(MaskVal);
     Len = CurDAG->getTargetConstant(NumBits, DL, MVT::i32);
 
     if (LHS.getOpcode() == ISD::SRL || LHS.getOpcode() == ISD::SRA) {
@@ -3313,7 +3305,7 @@ bool NVPTXDAGToDAGISel::tryBFE(SDNode *N) {
         uint64_t StartVal = StartConst->getZExtValue();
         // How many "good" bits do we have left?  "good" is defined here as bits
         // that exist in the original value, not shifted in.
-        uint64_t GoodBits = Start.getValueSizeInBits() - StartVal;
+        int64_t GoodBits = Start.getValueSizeInBits() - StartVal;
         if (NumBits > GoodBits) {
           // Do not handle the case where bits have been shifted in. In theory
           // we could handle this, but the cost is likely higher than just
@@ -3609,7 +3601,8 @@ bool NVPTXDAGToDAGISel::SelectInlineAsmMemoryOperand(
 /// GetConvertOpcode - Returns the CVT_ instruction opcode that implements a
 /// conversion from \p SrcTy to \p DestTy.
 unsigned NVPTXDAGToDAGISel::GetConvertOpcode(MVT DestTy, MVT SrcTy,
-                                             bool IsSigned) {
+                                             LoadSDNode *LdNode) {
+  bool IsSigned = LdNode && LdNode->getExtensionType() == ISD::SEXTLOAD;
   switch (SrcTy.SimpleTy) {
   default:
     llvm_unreachable("Unhandled source type");
@@ -3656,6 +3649,15 @@ unsigned NVPTXDAGToDAGISel::GetConvertOpcode(MVT DestTy, MVT SrcTy,
       return IsSigned ? NVPTX::CVT_s16_s64 : NVPTX::CVT_u16_u64;
     case MVT::i32:
       return IsSigned ? NVPTX::CVT_s32_s64 : NVPTX::CVT_u32_u64;
+    }
+  case MVT::f16:
+    switch (DestTy.SimpleTy) {
+    default:
+      llvm_unreachable("Unhandled dest type");
+    case MVT::f32:
+      return NVPTX::CVT_f32_f16;
+    case MVT::f64:
+      return NVPTX::CVT_f64_f16;
     }
   }
 }

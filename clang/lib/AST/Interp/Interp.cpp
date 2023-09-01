@@ -53,17 +53,6 @@ static bool Jf(InterpState &S, CodePtr &PC, int32_t Offset) {
   return true;
 }
 
-static bool CheckInitialized(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
-                             AccessKinds AK) {
-  if (Ptr.isInitialized())
-    return true;
-  if (!S.checkingPotentialConstantExpression()) {
-    const SourceInfo &Loc = S.Current->getSource(OpPC);
-    S.FFDiag(Loc, diag::note_constexpr_access_uninit) << AK << false;
-  }
-  return false;
-}
-
 static bool CheckActive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
                         AccessKinds AK) {
   if (Ptr.isActive())
@@ -79,7 +68,7 @@ static bool CheckActive(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
   }
 
   // Find the active field of the union.
-  Record *R = U.getRecord();
+  const Record *R = U.getRecord();
   assert(R && R->isUnion() && "Not a union");
   const FieldDecl *ActiveField = nullptr;
   for (unsigned I = 0, N = R->getNumFields(); I < N; ++I) {
@@ -133,12 +122,25 @@ static bool CheckGlobal(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 namespace clang {
 namespace interp {
 
+bool popBuiltinArgs(InterpState &S, CodePtr OpPC) {
+  assert(S.Current && S.Current->getFunction()->needsRuntimeArgPop(S.getCtx()));
+  const Expr *E = S.Current->getExpr(OpPC);
+  assert(isa<CallExpr>(E));
+  const CallExpr *CE = cast<CallExpr>(E);
+  for (int32_t I = CE->getNumArgs() - 1; I >= 0; --I) {
+    const Expr *A = CE->getArg(I);
+    PrimType Ty = S.getContext().classify(A->getType()).value_or(PT_Ptr);
+    TYPE_SWITCH(Ty, S.Stk.discard<T>());
+  }
+  return true;
+}
+
 bool CheckExtern(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   if (!Ptr.isExtern())
     return true;
 
   if (!S.checkingPotentialConstantExpression()) {
-    auto *VD = Ptr.getDeclDesc()->asValueDecl();
+    const auto *VD = Ptr.getDeclDesc()->asValueDecl();
     const SourceInfo &Loc = S.Current->getSource(OpPC);
     S.FFDiag(Loc, diag::note_constexpr_ltor_non_constexpr, 1) << VD;
     S.Note(VD->getLocation(), diag::note_declared_at);
@@ -243,6 +245,19 @@ bool CheckMutable(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   return false;
 }
 
+bool CheckInitialized(InterpState &S, CodePtr OpPC, const Pointer &Ptr,
+                      AccessKinds AK) {
+  if (Ptr.isInitialized())
+    return true;
+
+  if (!S.checkingPotentialConstantExpression()) {
+    const SourceInfo &Loc = S.Current->getSource(OpPC);
+    S.FFDiag(Loc, diag::note_constexpr_access_uninit)
+        << AK << /*uninitialized=*/true;
+  }
+  return false;
+}
+
 bool CheckLoad(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
   if (!CheckLive(S, OpPC, Ptr, AK_Read))
     return false;
@@ -295,12 +310,10 @@ bool CheckInit(InterpState &S, CodePtr OpPC, const Pointer &Ptr) {
 
 bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
 
-  if (F->isVirtual()) {
-    if (!S.getLangOpts().CPlusPlus20) {
-      const SourceLocation &Loc = S.Current->getLocation(OpPC);
-      S.CCEDiag(Loc, diag::note_constexpr_virtual_call);
-      return false;
-    }
+  if (F->isVirtual() && !S.getLangOpts().CPlusPlus20) {
+    const SourceLocation &Loc = S.Current->getLocation(OpPC);
+    S.CCEDiag(Loc, diag::note_constexpr_virtual_call);
+    return false;
   }
 
   if (!F->isConstexpr()) {
@@ -315,9 +328,9 @@ bool CheckCallable(InterpState &S, CodePtr OpPC, const Function *F) {
 
       // If this function is not constexpr because it is an inherited
       // non-constexpr constructor, diagnose that directly.
-      auto *CD = dyn_cast<CXXConstructorDecl>(DiagDecl);
+      const auto *CD = dyn_cast<CXXConstructorDecl>(DiagDecl);
       if (CD && CD->isInheritingConstructor()) {
-        auto *Inherited = CD->getInheritedConstructor().getConstructor();
+        const auto *Inherited = CD->getInheritedConstructor().getConstructor();
         if (!Inherited->isConstexpr())
           DiagDecl = CD = Inherited;
       }
@@ -359,7 +372,7 @@ bool CheckThis(InterpState &S, CodePtr OpPC, const Pointer &This) {
   const SourceInfo &Loc = S.Current->getSource(OpPC);
 
   bool IsImplicit = false;
-  if (auto *E = dyn_cast_if_present<CXXThisExpr>(Loc.asExpr()))
+  if (const auto *E = dyn_cast_if_present<CXXThisExpr>(Loc.asExpr()))
     IsImplicit = E->isImplicit();
 
   if (S.getLangOpts().CPlusPlus11)
@@ -403,7 +416,7 @@ static bool CheckArrayInitialized(InterpState &S, CodePtr OpPC,
       Pointer ElemPtr = BasePtr.atIndex(I).narrow();
       Result &= CheckFieldsInitialized(S, OpPC, ElemPtr, R);
     }
-  } else if (auto *ElemCAT = dyn_cast<ConstantArrayType>(ElemType)) {
+  } else if (const auto *ElemCAT = dyn_cast<ConstantArrayType>(ElemType)) {
     for (size_t I = 0; I != NumElems; ++I) {
       Pointer ElemPtr = BasePtr.atIndex(I).narrow();
       Result &= CheckArrayInitialized(S, OpPC, ElemPtr, ElemCAT);
@@ -455,8 +468,22 @@ static bool CheckFieldsInitialized(InterpState &S, CodePtr OpPC,
 
 bool CheckCtorCall(InterpState &S, CodePtr OpPC, const Pointer &This) {
   assert(!This.isZero());
-  const Record *R = This.getRecord();
-  return CheckFieldsInitialized(S, OpPC, This, R);
+  if (const Record *R = This.getRecord())
+    return CheckFieldsInitialized(S, OpPC, This, R);
+  const auto *CAT =
+      cast<ConstantArrayType>(This.getType()->getAsArrayTypeUnsafe());
+  return CheckArrayInitialized(S, OpPC, This, CAT);
+}
+
+bool CheckPotentialReinterpretCast(InterpState &S, CodePtr OpPC,
+                                   const Pointer &Ptr) {
+  if (!S.inConstantContext())
+    return true;
+
+  const SourceInfo &E = S.Current->getSource(OpPC);
+  S.CCEDiag(E, diag::note_constexpr_invalid_cast)
+      << 2 << S.getLangOpts().CPlusPlus << S.Current->getRange(OpPC);
+  return false;
 }
 
 bool CheckFloatResult(InterpState &S, CodePtr OpPC, APFloat::opStatus Status) {
@@ -491,14 +518,6 @@ bool CheckFloatResult(InterpState &S, CodePtr OpPC, APFloat::opStatus Status) {
     return false;
   }
 
-  return true;
-}
-
-bool CastFP(InterpState &S, CodePtr OpPC, const llvm::fltSemantics *Sem,
-            llvm::RoundingMode RM) {
-  Floating F = S.Stk.pop<Floating>();
-  Floating Result = F.toSemantics(Sem, RM);
-  S.Stk.push<Floating>(Result);
   return true;
 }
 

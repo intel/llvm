@@ -402,6 +402,10 @@ public:
 
   bool isTargetHardFloat() const;
 
+  bool isReadTPSoft() const {
+    return !(isReadTPTPIDRURW() || isReadTPTPIDRURO() || isReadTPTPIDRPRW());
+  }
+
   bool isTargetAndroid() const { return TargetTriple.isAndroid(); }
 
   bool isXRaySupported() const override;
@@ -493,6 +497,11 @@ public:
   /// stack frame on entry to the function and which must be maintained by every
   /// function for this subtarget.
   Align getStackAlignment() const { return stackAlignment; }
+
+  // Returns the required alignment for LDRD/STRD instructions
+  Align getDualLoadStoreAlignment() const {
+    return Align(hasV7Ops() || allowsUnalignedMem() ? 4 : 8);
+  }
 
   unsigned getMaxInterleaveFactor() const { return MaxInterleaveFactor; }
 

@@ -13,8 +13,20 @@
 ; CHECK-SPIRV: String [[#StrChar2:]] "CHARACTER_2"
 ; CHECK-SPIRV: String [[#StrChar3:]] "CHARACTER_3"
 ; CHECK-SPIRV: TypeInt [[#TypeInt:]] 32 0
-; CHECK-SPIRV: Constant [[#TypeInt]] [[#ConstZero:]] 0
-; CHECK-SPIRV: Constant [[#TypeInt]] [[#Const80:]] 80
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#ConstZero:]] 0{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const1:]] 1{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const2:]] 2{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const6:]] 6{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const7:]] 7{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const9:]] 9{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const12:]] 12{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const23:]] 23{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const24:]] 24{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const27:]] 27{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const28:]] 28{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const36:]] 36{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const37:]] 37{{[[:space:]]}}
+; CHECK-SPIRV-DAG: Constant [[#TypeInt]] [[#Const80:]] 80{{[[:space:]]}}
 ; CHECK-SPIRV: TypeVoid [[#TypeVoid:]]
 
 ; CHECK-SPIRV: [[#DINoneId:]] [[#EISId]] DebugInfoNone
@@ -32,14 +44,33 @@
 ; CHECK-SPIRV-COUNT-4: [[#LengthAddrVar2:]] [[#EISId]] DebugLocalVariable
 ; CHECK-SPIRV-NEXT: [[#EISId]] DebugTypeString [[#StrChar2]] [[#DINoneId]] [[#DINoneId]] [[#ConstZero]] [[#LengthAddrVar2]]
 
-; CHECK-LLVM: !DICompileUnit(language: DW_LANG_Fortran95
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const6]] [[#Const6]] [[#Const23]] [[#Const24]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#ConstZero]] [[#ConstZero]] [[#ConstZero]] [[#Const1]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const9]] [[#Const9]] [[#Const27]] [[#Const28]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const9]] [[#Const9]] [[#Const36]] [[#Const37]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const7]] [[#Const7]] [[#Const1]] [[#Const2]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#ConstZero]] [[#ConstZero]] [[#ConstZero]] [[#Const1]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const9]] [[#Const9]] [[#Const27]] [[#Const28]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const9]] [[#Const9]] [[#Const36]] [[#Const37]]
+; CHECK-SPIRV: [[#EISId]] DebugLine [[#]] [[#Const12]] [[#Const12]] [[#Const1]] [[#Const2]]
+
+; CHECK-LLVM-DAG: !DICompileUnit(language: DW_LANG_Fortran95
+; CHECK-LLVM-DAG: ![[#Scope_hello_world:]] = distinct !DISubprogram(name: "hello_world", linkageName: "MAIN__"
+; CHECK-LLVM-DAG: !DILocation(line: 6, column: 23, scope: ![[#Scope_hello_world]]
 ; CHECK-LLVM-DAG: !DIStringType(name: "CHARACTER_1", size: 80)
 ; CHECK-LLVM-DAG: !DIStringType(name: ".str.GREETING", stringLengthExpression: !DIExpression(DW_OP_push_object_address, DW_OP_plus_uconst, 8), stringLocationExpression: !DIExpression(DW_OP_push_object_address, DW_OP_deref))
-; CHECK-LLVM-DAG: ![[#Scope:]] = distinct !DISubprogram(name: "print_greeting", linkageName: "print_greeting_"
-; CHECK-LLVM-DAG: ![[#StrLenMD:]] = !DILocalVariable(name: "STRING1.len", scope: ![[#Scope]]
+; CHECK-LLVM-DAG: ![[#Scope_print_greeting:]] = distinct !DISubprogram(name: "print_greeting", linkageName: "print_greeting_"
+; CHECK-LLVM-DAG: ![[#StrLenMD:]] = !DILocalVariable(name: "STRING1.len", scope: ![[#Scope_print_greeting]]
 ; CHECK-LLVM-DAG: !DIStringType(name: "CHARACTER_2", stringLength: ![[#StrLenMD]])
-; CHECK-LLVM-DAG: ![[#StrLenMD1:]] = !DILocalVariable(name: "STRING2.len", scope: ![[#Scope]]
+; CHECK-LLVM-DAG: ![[#StrLenMD1:]] = !DILocalVariable(name: "STRING2.len", scope: ![[#Scope_print_greeting]]
 ; CHECK-LLVM-DAG: !DIStringType(name: "CHARACTER_3", stringLength: ![[#StrLenMD1]])
+; CHECK-LLVM: !DILocation(line: 9, column: 27, scope: ![[#Scope_print_greeting]]
+; CHECK-LLVM-NEXT: !DILocation(line: 9, column: 36, scope: ![[#Scope_print_greeting]]
+; CHECK-LLVM-NEXT: !DILocation(line: 7, column: 1, scope: ![[#Scope_hello_world]]
+; CHECK-LLVM-NEXT: !DILocation(line: 0, scope: ![[#Scope_print_greeting]]
+; CHECK-LLVM-NEXT: !DILocation(line: 9, column: 27, scope: ![[#Scope_print_greeting]]
+; CHECK-LLVM-NEXT: !DILocation(line: 9, column: 36, scope: ![[#Scope_print_greeting]]
+; CHECK-LLVM-NEXT: !DILocation(line: 12, column: 1, scope: ![[#Scope_print_greeting]]
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"

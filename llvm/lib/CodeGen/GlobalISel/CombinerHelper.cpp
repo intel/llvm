@@ -1113,7 +1113,6 @@ void CombinerHelper::applyCombineIndexedLoadStore(
 
 bool CombinerHelper::matchCombineDivRem(MachineInstr &MI,
                                         MachineInstr *&OtherMI) {
-  OtherMI = nullptr;
   unsigned Opcode = MI.getOpcode();
   bool IsDiv, IsSigned;
 
@@ -1168,44 +1167,11 @@ bool CombinerHelper::matchCombineDivRem(MachineInstr &MI,
         matchEqualDefs(MI.getOperand(2), UseMI.getOperand(2)) &&
         matchEqualDefs(MI.getOperand(1), UseMI.getOperand(1))) {
       OtherMI = &UseMI;
-      break;
+      return true;
     }
   }
-  if (!OtherMI)
-    return false;
 
-  // We may have a situation like this:
-  //   %4:_(s32) = G_SEXT %2:_(s1)
-  //   %5:_(s32) = G_SEXT %2:_(s1)
-  //   %6:_(s32) = G_UDIV %4:_, %5:_
-  //   %8:_(s32) = G_SEXT %2:_(s1)
-  //   %9:_(s32) = G_UREM %5:_, %8:_
-  // and choosing the insertion point as the G_UDIV will cause it to use %8
-  // before the def. We check here if any of the operands of the later
-  // instruction (i.e. one of DIV/REM that is the second in the block) are
-  // dominated by the first instruction. In this case we check if %8 is
-  // dominated by the G_UDIV and bail out if so.
-
-  SmallSet<Register, 2> RegsToCheck;
-  MachineInstr *First, *Second;
-  if (dominates(MI, *OtherMI)) {
-    First = &MI;
-    Second = OtherMI;
-  } else {
-    First = OtherMI;
-    Second = &MI;
-  }
-  RegsToCheck.insert(Second->getOperand(1).getReg());
-  RegsToCheck.insert(Second->getOperand(2).getReg());
-  for (MachineBasicBlock::iterator II = std::next(First->getIterator());
-       II != Second->getIterator(); ++II) {
-    for (auto &MO : II->operands()) {
-      if (MO.isReg() && MO.isDef() && RegsToCheck.count(MO.getReg()) &&
-          dominates(*First, *II))
-        return false;
-    }
-  }
-  return true;
+  return false;
 }
 
 void CombinerHelper::applyCombineDivRem(MachineInstr &MI,
@@ -1226,16 +1192,22 @@ void CombinerHelper::applyCombineDivRem(MachineInstr &MI,
       Opcode == TargetOpcode::G_SDIV || Opcode == TargetOpcode::G_SREM;
 
   // Check which instruction is first in the block so we don't break def-use
-  // deps by "moving" the instruction incorrectly.
-  if (dominates(MI, *OtherMI))
+  // deps by "moving" the instruction incorrectly. Also keep track of which
+  // instruction is first so we pick it's operands, avoiding use-before-def
+  // bugs.
+  MachineInstr *FirstInst;
+  if (dominates(MI, *OtherMI)) {
     Builder.setInstrAndDebugLoc(MI);
-  else
+    FirstInst = &MI;
+  } else {
     Builder.setInstrAndDebugLoc(*OtherMI);
+    FirstInst = OtherMI;
+  }
 
   Builder.buildInstr(IsSigned ? TargetOpcode::G_SDIVREM
                               : TargetOpcode::G_UDIVREM,
                      {DestDivReg, DestRemReg},
-                     {MI.getOperand(1).getReg(), MI.getOperand(2).getReg()});
+                     { FirstInst->getOperand(1), FirstInst->getOperand(2) });
   MI.eraseFromParent();
   OtherMI->eraseFromParent();
 }
@@ -1722,9 +1694,9 @@ bool CombinerHelper::matchCombineShlOfExtend(MachineInstr &MI,
       !mi_match(LHS, MRI, m_GSExt(m_Reg(ExtSrc))))
     return false;
 
-  // TODO: Should handle vector splat.
   Register RHS = MI.getOperand(2).getReg();
-  auto MaybeShiftAmtVal = getIConstantVRegValWithLookThrough(RHS, MRI);
+  MachineInstr *MIShiftAmt = MRI.getVRegDef(RHS);
+  auto MaybeShiftAmtVal = isConstantOrConstantSplatVector(*MIShiftAmt, MRI);
   if (!MaybeShiftAmtVal)
     return false;
 
@@ -1739,12 +1711,13 @@ bool CombinerHelper::matchCombineShlOfExtend(MachineInstr &MI,
       return false;
   }
 
-  int64_t ShiftAmt = MaybeShiftAmtVal->Value.getSExtValue();
+  int64_t ShiftAmt = MaybeShiftAmtVal->getSExtValue();
   MatchData.Reg = ExtSrc;
   MatchData.Imm = ShiftAmt;
 
   unsigned MinLeadingZeros = KB->getKnownZeroes(ExtSrc).countl_one();
-  return MinLeadingZeros >= ShiftAmt;
+  unsigned SrcTySize = MRI.getType(ExtSrc).getScalarSizeInBits();
+  return MinLeadingZeros >= ShiftAmt && ShiftAmt < SrcTySize;
 }
 
 void CombinerHelper::applyCombineShlOfExtend(MachineInstr &MI,
@@ -2499,10 +2472,7 @@ bool CombinerHelper::matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx) {
   return true;
 }
 
-bool CombinerHelper::eraseInst(MachineInstr &MI) {
-  MI.eraseFromParent();
-  return true;
-}
+void CombinerHelper::eraseInst(MachineInstr &MI) { MI.eraseFromParent(); }
 
 bool CombinerHelper::matchEqualDefs(const MachineOperand &MOP1,
                                     const MachineOperand &MOP2) {
@@ -2610,7 +2580,7 @@ bool CombinerHelper::matchConstantOp(const MachineOperand &MOP, int64_t C) {
          MaybeCst->getSExtValue() == C;
 }
 
-bool CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
+void CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
                                                      unsigned OpIdx) {
   assert(MI.getNumExplicitDefs() == 1 && "Expected one explicit def?");
   Register OldReg = MI.getOperand(0).getReg();
@@ -2618,17 +2588,15 @@ bool CombinerHelper::replaceSingleDefInstWithOperand(MachineInstr &MI,
   assert(canReplaceReg(OldReg, Replacement, MRI) && "Cannot replace register?");
   MI.eraseFromParent();
   replaceRegWith(MRI, OldReg, Replacement);
-  return true;
 }
 
-bool CombinerHelper::replaceSingleDefInstWithReg(MachineInstr &MI,
+void CombinerHelper::replaceSingleDefInstWithReg(MachineInstr &MI,
                                                  Register Replacement) {
   assert(MI.getNumExplicitDefs() == 1 && "Expected one explicit def?");
   Register OldReg = MI.getOperand(0).getReg();
   assert(canReplaceReg(OldReg, Replacement, MRI) && "Cannot replace register?");
   MI.eraseFromParent();
   replaceRegWith(MRI, OldReg, Replacement);
-  return true;
 }
 
 bool CombinerHelper::matchSelectSameVal(MachineInstr &MI) {
@@ -2663,36 +2631,32 @@ bool CombinerHelper::matchOperandIsKnownToBeAPowerOfTwo(MachineInstr &MI,
   return isKnownToBeAPowerOfTwo(MO.getReg(), MRI, KB);
 }
 
-bool CombinerHelper::replaceInstWithFConstant(MachineInstr &MI, double C) {
+void CombinerHelper::replaceInstWithFConstant(MachineInstr &MI, double C) {
   assert(MI.getNumDefs() == 1 && "Expected only one def?");
   Builder.setInstr(MI);
   Builder.buildFConstant(MI.getOperand(0), C);
   MI.eraseFromParent();
-  return true;
 }
 
-bool CombinerHelper::replaceInstWithConstant(MachineInstr &MI, int64_t C) {
+void CombinerHelper::replaceInstWithConstant(MachineInstr &MI, int64_t C) {
   assert(MI.getNumDefs() == 1 && "Expected only one def?");
   Builder.setInstr(MI);
   Builder.buildConstant(MI.getOperand(0), C);
   MI.eraseFromParent();
-  return true;
 }
 
-bool CombinerHelper::replaceInstWithConstant(MachineInstr &MI, APInt C) {
+void CombinerHelper::replaceInstWithConstant(MachineInstr &MI, APInt C) {
   assert(MI.getNumDefs() == 1 && "Expected only one def?");
   Builder.setInstr(MI);
   Builder.buildConstant(MI.getOperand(0), C);
   MI.eraseFromParent();
-  return true;
 }
 
-bool CombinerHelper::replaceInstWithUndef(MachineInstr &MI) {
+void CombinerHelper::replaceInstWithUndef(MachineInstr &MI) {
   assert(MI.getNumDefs() == 1 && "Expected only one def?");
   Builder.setInstr(MI);
   Builder.buildUndef(MI.getOperand(0));
   MI.eraseFromParent();
-  return true;
 }
 
 bool CombinerHelper::matchSimplifyAddToSub(
@@ -3301,7 +3265,7 @@ bool CombinerHelper::matchFoldBinOpIntoSelect(MachineInstr &MI,
 
 /// \p SelectOperand is the operand in binary operator \p MI that is the select
 /// to fold.
-bool CombinerHelper::applyFoldBinOpIntoSelect(MachineInstr &MI,
+void CombinerHelper::applyFoldBinOpIntoSelect(MachineInstr &MI,
                                               const unsigned &SelectOperand) {
   Builder.setInstrAndDebugLoc(MI);
 
@@ -3337,8 +3301,6 @@ bool CombinerHelper::applyFoldBinOpIntoSelect(MachineInstr &MI,
 
   Builder.buildSelect(Dst, SelectCond, FoldTrue, FoldFalse, MI.getFlags());
   MI.eraseFromParent();
-
-  return true;
 }
 
 std::optional<SmallVector<Register, 8>>
@@ -4498,6 +4460,62 @@ bool CombinerHelper::matchReassocPtrAdd(MachineInstr &MI,
   if (matchReassocConstantInnerRHS(PtrAdd, RHS, MatchInfo))
     return true;
 
+  return false;
+}
+bool CombinerHelper::tryReassocBinOp(unsigned Opc, Register DstReg,
+                                     Register OpLHS, Register OpRHS,
+                                     BuildFnTy &MatchInfo) {
+  LLT OpRHSTy = MRI.getType(OpRHS);
+  MachineInstr *OpLHSDef = MRI.getVRegDef(OpLHS);
+
+  if (OpLHSDef->getOpcode() != Opc)
+    return false;
+
+  MachineInstr *OpRHSDef = MRI.getVRegDef(OpRHS);
+  Register OpLHSLHS = OpLHSDef->getOperand(1).getReg();
+  Register OpLHSRHS = OpLHSDef->getOperand(2).getReg();
+
+  // If the inner op is (X op C), pull the constant out so it can be folded with
+  // other constants in the expression tree. Folding is not guaranteed so we
+  // might have (C1 op C2). In that case do not pull a constant out because it
+  // won't help and can lead to infinite loops.
+  if (isConstantOrConstantSplatVector(*MRI.getVRegDef(OpLHSRHS), MRI) &&
+      !isConstantOrConstantSplatVector(*MRI.getVRegDef(OpLHSLHS), MRI)) {
+    if (isConstantOrConstantSplatVector(*OpRHSDef, MRI)) {
+      // (Opc (Opc X, C1), C2) -> (Opc X, (Opc C1, C2))
+      MatchInfo = [=](MachineIRBuilder &B) {
+        auto NewCst = B.buildInstr(Opc, {OpRHSTy}, {OpLHSRHS, OpRHS});
+        B.buildInstr(Opc, {DstReg}, {OpLHSLHS, NewCst});
+      };
+      return true;
+    }
+    if (getTargetLowering().isReassocProfitable(MRI, OpLHS, OpRHS)) {
+      // Reassociate: (op (op x, c1), y) -> (op (op x, y), c1)
+      //              iff (op x, c1) has one use
+      MatchInfo = [=](MachineIRBuilder &B) {
+        auto NewLHSLHS = B.buildInstr(Opc, {OpRHSTy}, {OpLHSLHS, OpRHS});
+        B.buildInstr(Opc, {DstReg}, {NewLHSLHS, OpLHSRHS});
+      };
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool CombinerHelper::matchReassocCommBinOp(MachineInstr &MI,
+                                           BuildFnTy &MatchInfo) {
+  // We don't check if the reassociation will break a legal addressing mode
+  // here since pointer arithmetic is handled by G_PTR_ADD.
+  unsigned Opc = MI.getOpcode();
+  Register DstReg = MI.getOperand(0).getReg();
+  Register LHSReg = MI.getOperand(1).getReg();
+  Register RHSReg = MI.getOperand(2).getReg();
+
+  if (tryReassocBinOp(Opc, DstReg, LHSReg, RHSReg, MatchInfo))
+    return true;
+  if (tryReassocBinOp(Opc, DstReg, RHSReg, LHSReg, MatchInfo))
+    return true;
   return false;
 }
 

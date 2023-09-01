@@ -13,8 +13,9 @@ RUN /install.sh
 # discover user home directory and fail a few LIT tests. Fixes UID and GID to
 # 1001, that is used as default by GitHub Actions.
 RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
-# Add sycl user to video group so that it can access GPU
+# Add sycl user to video/irc groups so that it can access GPU
 RUN usermod -aG video sycl
+RUN usermod -aG irc sycl
 # Allow sycl user to run as sudo
 RUN echo "sycl  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 

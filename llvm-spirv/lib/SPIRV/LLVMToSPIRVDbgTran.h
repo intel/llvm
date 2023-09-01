@@ -144,6 +144,7 @@ private:
   SPIRVEntry *transDebugLoc(const DebugLoc &Loc, SPIRVBasicBlock *BB,
                             SPIRVInstruction *InsertBefore = nullptr);
   SPIRVEntry *transDbgInlinedAt(const DILocation *D);
+  SPIRVEntry *transDbgInlinedAtNonSemanticShader200(const DILocation *D);
 
   template <class T> SPIRVExtInst *getSource(const T *DIEntry);
   SPIRVEntry *transDbgFileType(const DIFile *F);
@@ -163,6 +164,10 @@ private:
 
   // A module in programming language. Example - Fortran module, clang module.
   SPIRVEntry *transDbgModule(const DIModule *IE);
+
+  // Flags
+  SPIRVWord mapDebugFlags(DINode::DIFlags DFlags);
+  SPIRVWord transDebugFlags(const DINode *DN);
 
   SPIRVModule *BM;
   Module *M;

@@ -401,7 +401,11 @@ void CodeGenFunction::EmitAnyExprToExn(const Expr *e, Address addr) {
   // __cxa_allocate_exception returns a void*;  we need to cast this
   // to the appropriate type for the object.
   llvm::Type *ty = ConvertTypeForMem(e->getType());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Address typedAddr = addr.withElementType(ty);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Address typedAddr = Builder.CreateElementBitCast(addr, ty);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // FIXME: this isn't quite right!  If there's a final unelided call
   // to a copy constructor, then according to [except.terminate]p1 we
@@ -2101,7 +2105,9 @@ void CodeGenFunction::EmitSEHExceptionCodeSave(CodeGenFunction &ParentCGF,
     // pointer is stored in the second field. So, GEP 20 bytes backwards and
     // load the pointer.
     SEHInfo = Builder.CreateConstInBoundsGEP1_32(Int8Ty, EntryFP, -20);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     SEHInfo = Builder.CreateBitCast(SEHInfo, Int8PtrTy->getPointerTo());
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     SEHInfo = Builder.CreateAlignedLoad(Int8PtrTy, SEHInfo, getPointerAlign());
     SEHCodeSlotStack.push_back(recoverAddrOfEscapedLocal(
         ParentCGF, ParentCGF.SEHCodeSlotStack.back(), ParentFP));
@@ -2114,10 +2120,16 @@ void CodeGenFunction::EmitSEHExceptionCodeSave(CodeGenFunction &ParentCGF,
   //   CONTEXT *ContextRecord;
   // };
   // int exceptioncode = exception_pointers->ExceptionRecord->ExceptionCode;
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Type *RecordTy = llvm::PointerType::getUnqual(getLLVMContext());
+  llvm::Type *PtrsTy = llvm::StructType::get(RecordTy, CGM.VoidPtrTy);
+  llvm::Value *Rec = Builder.CreateStructGEP(PtrsTy, SEHInfo, 0);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Type *RecordTy = CGM.Int32Ty->getPointerTo();
   llvm::Type *PtrsTy = llvm::StructType::get(RecordTy, CGM.VoidPtrTy);
   llvm::Value *Ptrs = Builder.CreateBitCast(SEHInfo, PtrsTy->getPointerTo());
   llvm::Value *Rec = Builder.CreateStructGEP(PtrsTy, Ptrs, 0);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Rec = Builder.CreateAlignedLoad(RecordTy, Rec, getPointerAlign());
   llvm::Value *Code = Builder.CreateAlignedLoad(Int32Ty, Rec, getIntAlign());
   assert(!SEHCodeSlotStack.empty() && "emitting EH code outside of __except");

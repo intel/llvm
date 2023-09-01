@@ -1,8 +1,10 @@
 // RUN: %clang_cc1 -fexperimental-new-constant-interpreter -verify %s
 // RUN: %clang_cc1 -fexperimental-new-constant-interpreter -std=c++14 -verify %s
+// RUN: %clang_cc1 -fexperimental-new-constant-interpreter -std=c++20 -verify %s
 // RUN: %clang_cc1 -fexperimental-new-constant-interpreter -triple i686 -verify %s
 // RUN: %clang_cc1 -verify=ref %s
 // RUN: %clang_cc1 -verify=ref -std=c++14 %s
+// RUN: %clang_cc1 -verify=ref -std=c++20 %s
 // RUN: %clang_cc1 -verify=ref -triple i686 %s
 
 struct BoolPair {
@@ -109,8 +111,8 @@ static_assert(c.a == 100, "");
 static_assert(c.b == 200, "");
 
 constexpr C c2 = C().get();
-static_assert(c.a == 100, "");
-static_assert(c.b == 200, "");
+static_assert(c2.a == 100, "");
+static_assert(c2.b == 200, "");
 
 constexpr int getB() {
   C c;
@@ -309,16 +311,38 @@ namespace InitializerTemporaries {
     int Pos = 0;
 
     {
-      auto T = Test(Arr, Pos);
+      Test(Arr, Pos);
       // End of scope, should destroy Test.
     }
 
     return Arr[Index];
   }
-
   static_assert(T(0) == 1);
   static_assert(T(1) == 2);
   static_assert(T(2) == 3);
+
+  // Invalid destructor.
+  struct S {
+    constexpr S() {}
+    constexpr ~S() noexcept(false) { throw 12; } // expected-error {{cannot use 'throw'}} \
+                                                 // expected-error {{never produces a constant expression}} \
+                                                 // expected-note 2{{subexpression not valid}} \
+                                                 // ref-error {{cannot use 'throw'}} \
+                                                 // ref-error {{never produces a constant expression}} \
+                                                 // ref-note 2{{subexpression not valid}}
+  };
+
+  constexpr int f() {
+    S{}; // ref-note {{in call to 'S{}.~S()'}}
+    /// FIXME: Wrong source location below.
+    return 12; // expected-note {{in call to '&S{}->~S()'}}
+  }
+  static_assert(f() == 12); // expected-error {{not an integral constant expression}} \
+                            // expected-note {{in call to 'f()'}} \
+                            // ref-error {{not an integral constant expression}} \
+                            // ref-note {{in call to 'f()'}}
+
+
 #endif
 }
 
@@ -380,6 +404,7 @@ namespace MI {
 };
 
 namespace DeriveFailures {
+#if __cplusplus < 202002L
   struct Base { // ref-note 2{{declared here}} expected-note {{declared here}}
     int Val;
   };
@@ -397,10 +422,12 @@ namespace DeriveFailures {
                            // ref-note {{declared here}} \
                            // expected-error {{must be initialized by a constant expression}} \
                            // expected-note {{in call to 'Derived(12)'}}
+
   static_assert(D.Val == 0, ""); // ref-error {{not an integral constant expression}} \
                                  // ref-note {{initializer of 'D' is not a constant expression}} \
                                  // expected-error {{not an integral constant expression}} \
-                                 // expected-note {{read of object outside its lifetime}}
+                                 // expected-note {{read of uninitialized object}}
+#endif
 
   struct AnotherBase {
     int Val;
@@ -462,7 +489,7 @@ namespace DeclRefs {
   constexpr A a{10}; // expected-error {{must be initialized by a constant expression}}
   static_assert(a.m == 10, "");
   static_assert(a.f == 10, ""); // expected-error {{not an integral constant expression}} \
-                                // expected-note {{read of object outside its lifetime}}
+                                // expected-note {{read of uninitialized object}}
 
   class Foo {
   public:
@@ -488,3 +515,268 @@ namespace DeclRefs {
   //static_assert(b.a.m == 100, "");
   //static_assert(b.a.f == 100, "");
 }
+
+#if __cplusplus >= 202002L
+namespace VirtualCalls {
+namespace Obvious {
+
+  class A {
+  public:
+    constexpr A(){}
+    constexpr virtual int foo() {
+      return 3;
+    }
+  };
+  class B : public A {
+  public:
+    constexpr int foo() override {
+      return 6;
+    }
+  };
+
+  constexpr int getFooB(bool b) {
+    A *a;
+    A myA;
+    B myB;
+
+    if (b)
+      a = &myA;
+    else
+      a = &myB;
+
+    return a->foo();
+  }
+  static_assert(getFooB(true) == 3, "");
+  static_assert(getFooB(false) == 6, "");
+}
+
+namespace MultipleBases {
+  class A {
+  public:
+    constexpr virtual int getInt() const { return 10; }
+  };
+  class B {
+  public:
+  };
+  class C : public A, public B {
+  public:
+    constexpr int getInt() const override { return 20; }
+  };
+
+  constexpr int callGetInt(const A& a) { return a.getInt(); }
+  static_assert(callGetInt(C()) == 20, "");
+  static_assert(callGetInt(A()) == 10, "");
+}
+
+namespace Destructors {
+  class Base {
+  public:
+    int i;
+    constexpr Base(int &i) : i(i) {i++;}
+    constexpr virtual ~Base() {i--;}
+  };
+
+  class Derived : public Base {
+  public:
+    constexpr Derived(int &i) : Base(i) {}
+    constexpr virtual ~Derived() {i--;}
+  };
+
+  constexpr int test() {
+    int i = 0;
+    Derived d(i);
+    return i;
+  }
+  static_assert(test() == 1);
+
+  struct S {
+    constexpr S() {}
+    constexpr ~S() { // expected-error {{never produces a constant expression}} \
+                     // ref-error {{never produces a constant expression}}
+      int i = 1 / 0; // expected-warning {{division by zero}} \
+                     // expected-note 2{{division by zero}} \
+                     // ref-warning {{division by zero}} \
+                     // ref-note 2{{division by zero}}
+    }
+  };
+  constexpr int testS() {
+    S{}; // ref-note {{in call to 'S{}.~S()'}}
+    return 1; // expected-note {{in call to '&S{}->~S()'}}
+              // FIXME: ^ Wrong line
+  }
+  static_assert(testS() == 1); // expected-error {{not an integral constant expression}} \
+                               // expected-note {{in call to 'testS()'}} \
+                               // ref-error {{not an integral constant expression}} \
+                               // ref-note {{in call to 'testS()'}}
+}
+
+
+namespace VirtualDtors {
+  class A {
+  public:
+    unsigned &v;
+    constexpr A(unsigned &v) : v(v) {}
+    constexpr virtual ~A() {
+      v |= (1 << 0);
+    }
+  };
+  class B : public A {
+  public:
+    constexpr B(unsigned &v) : A(v) {}
+    constexpr virtual ~B() {
+      v |= (1 << 1);
+    }
+  };
+  class C : public B {
+  public:
+    constexpr C(unsigned &v) : B(v) {}
+    constexpr virtual ~C() {
+      v |= (1 << 2);
+    }
+  };
+
+  constexpr bool foo() {
+    unsigned a = 0;
+    {
+      C c(a);
+    }
+    return ((a & (1 << 0)) && (a & (1 << 1)) && (a & (1 << 2)));
+  }
+
+  static_assert(foo());
+
+
+};
+
+namespace QualifiedCalls {
+  class A {
+      public:
+      constexpr virtual int foo() const {
+          return 5;
+      }
+  };
+  class B : public A {};
+  class C : public B {
+      public:
+      constexpr int foo() const override {
+          return B::foo(); // B doesn't have a foo(), so this should call A::foo().
+      }
+      constexpr int foo2() const {
+        return this->A::foo();
+      }
+  };
+  constexpr C c;
+  static_assert(c.foo() == 5);
+  static_assert(c.foo2() == 5);
+
+
+  struct S {
+    int _c = 0;
+    virtual constexpr int foo() const { return 1; }
+  };
+
+  struct SS : S {
+    int a;
+    constexpr SS() {
+      a = S::foo();
+    }
+    constexpr int foo() const override {
+      return S::foo();
+    }
+  };
+
+  constexpr SS ss;
+  static_assert(ss.a == 1);
+}
+
+namespace CtorDtor {
+  struct Base {
+    int i = 0;
+    int j = 0;
+
+    constexpr Base() : i(func()) {
+      j = func();
+    }
+    constexpr Base(int i) : i(i), j(i) {}
+
+    constexpr virtual int func() const { return 1; }
+  };
+
+  struct Derived : Base {
+    constexpr Derived() {}
+    constexpr Derived(int i) : Base(i) {}
+    constexpr int func() const override { return 2; }
+  };
+
+  struct Derived2 : Derived {
+    constexpr Derived2() : Derived(func()) {} // ref-note {{subexpression not valid in a constant expression}}
+    constexpr int func() const override { return 3; }
+  };
+
+  constexpr Base B;
+  static_assert(B.i == 1 && B.j == 1, "");
+
+  constexpr Derived D;
+  static_assert(D.i == 1, ""); // expected-error {{static assertion failed}} \
+                               // expected-note {{2 == 1}}
+  static_assert(D.j == 1, ""); // expected-error {{static assertion failed}} \
+                               // expected-note {{2 == 1}}
+
+  constexpr Derived2 D2; // ref-error {{must be initialized by a constant expression}} \
+                         // ref-note {{in call to 'Derived2()'}} \
+                         // ref-note 2{{declared here}}
+  static_assert(D2.i == 3, ""); // ref-error {{not an integral constant expression}} \
+                                // ref-note {{initializer of 'D2' is not a constant expression}}
+  static_assert(D2.j == 3, ""); // ref-error {{not an integral constant expression}} \
+                                // ref-note {{initializer of 'D2' is not a constant expression}}
+
+}
+
+namespace VirtualFunctionPointers {
+  struct S {
+    virtual constexpr int func() const { return 1; }
+  };
+
+  struct Middle : S {
+    constexpr Middle(int i) : i(i) {}
+    int i;
+  };
+
+  struct Other {
+    constexpr Other(int k) : k(k) {}
+    int k;
+  };
+
+  struct S2 : Middle, Other {
+    int j;
+    constexpr S2(int i, int j, int k) : Middle(i), Other(k), j(j) {}
+    virtual constexpr int func() const { return i + j + k  + S::func(); }
+  };
+
+  constexpr S s;
+  constexpr decltype(&S::func) foo = &S::func;
+  constexpr int value = (s.*foo)();
+  static_assert(value == 1);
+
+
+  constexpr S2 s2(1, 2, 3);
+  static_assert(s2.i == 1);
+  static_assert(s2.j == 2);
+  static_assert(s2.k == 3);
+
+  constexpr int value2 = s2.func();
+  constexpr int value3 = (s2.*foo)();
+  static_assert(value3 == 7);
+
+  constexpr int dynamicDispatch(const S &s) {
+    constexpr decltype(&S::func) SFunc = &S::func;
+
+    return (s.*SFunc)();
+  }
+
+  static_assert(dynamicDispatch(s) == 1);
+  static_assert(dynamicDispatch(s2) == 7);
+};
+
+};
+#endif

@@ -93,6 +93,7 @@ class X86TTIImpl : public BasicTTIImplBase<X86TTIImpl> {
       X86::TuningNoDomainDelayShuffle,
       X86::TuningNoDomainDelayBlend,
       X86::TuningPreferShiftShuffle,
+      X86::TuningFastImmVectorShift,
 
       // Perf-tuning flags.
       X86::TuningFastGather,
@@ -206,12 +207,12 @@ public:
                                              std::optional<FastMathFlags> FMF,
                                              TTI::TargetCostKind CostKind);
 
-  InstructionCost getMinMaxCost(Type *Ty, Type *CondTy,
-                                TTI::TargetCostKind CostKind, bool IsUnsigned,
+  InstructionCost getMinMaxCost(Intrinsic::ID IID, Type *Ty,
+                                TTI::TargetCostKind CostKind,
                                 FastMathFlags FMF);
 
-  InstructionCost getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy,
-                                         bool IsUnsigned, FastMathFlags FMF,
+  InstructionCost getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty,
+                                         FastMathFlags FMF,
                                          TTI::TargetCostKind CostKind);
 
   InstructionCost getInterleavedMemoryOpCost(
@@ -273,6 +274,11 @@ public:
                            const Function *Callee) const;
   bool areTypesABICompatible(const Function *Caller, const Function *Callee,
                              const ArrayRef<Type *> &Type) const;
+
+  uint64_t getMaxMemIntrinsicInlineSizeThreshold() const {
+    return ST->getMaxInlineSizeThreshold();
+  }
+
   TTI::MemCmpExpansionOptions enableMemCmpExpansion(bool OptSize,
                                                     bool IsZeroCmp) const;
   bool prefersVectorizedAddressing() const;

@@ -801,12 +801,15 @@ std::vector<Chain> Vectorizer::splitChainByAlignment(Chain &C) {
       //
       // FIXME: We will upgrade the alignment of the alloca even if it turns out
       // we can't vectorize for some other reason.
+      Value *PtrOperand = getLoadStorePointerOperand(C[CBegin].Inst);
+      bool IsAllocaAccess = AS == DL.getAllocaAddrSpace() &&
+                            isa<AllocaInst>(PtrOperand->stripPointerCasts());
       Align Alignment = getLoadStoreAlignment(C[CBegin].Inst);
-      if (AS == DL.getAllocaAddrSpace() && Alignment.value() % SizeBytes != 0 &&
-          IsAllowedAndFast(Align(StackAdjustedAlignment))) {
+      Align PrefAlign = Align(StackAdjustedAlignment);
+      if (IsAllocaAccess && Alignment.value() % SizeBytes != 0 &&
+          IsAllowedAndFast(PrefAlign)) {
         Align NewAlign = getOrEnforceKnownAlignment(
-            getLoadStorePointerOperand(C[CBegin].Inst),
-            Align(StackAdjustedAlignment), DL, C[CBegin].Inst, nullptr, &DT);
+            PtrOperand, PrefAlign, DL, C[CBegin].Inst, nullptr, &DT);
         if (NewAlign >= Alignment) {
           LLVM_DEBUG(dbgs()
                      << "LSV: splitByChain upgrading alloca alignment from "
@@ -897,9 +900,9 @@ bool Vectorizer::vectorizeChain(Chain &C) {
 
     // Chain is in offset order, so C[0] is the instr with the lowest offset,
     // i.e. the root of the vector.
-    Value *Bitcast = Builder.CreateBitCast(
-        getLoadStorePointerOperand(C[0].Inst), VecTy->getPointerTo(AS));
-    VecInst = Builder.CreateAlignedLoad(VecTy, Bitcast, Alignment);
+    VecInst = Builder.CreateAlignedLoad(VecTy,
+                                        getLoadStorePointerOperand(C[0].Inst),
+                                        Alignment);
 
     unsigned VecIdx = 0;
     for (const ChainElem &E : C) {
@@ -973,8 +976,7 @@ bool Vectorizer::vectorizeChain(Chain &C) {
     // i.e. the root of the vector.
     VecInst = Builder.CreateAlignedStore(
         Vec,
-        Builder.CreateBitCast(getLoadStorePointerOperand(C[0].Inst),
-                              VecTy->getPointerTo(AS)),
+        getLoadStorePointerOperand(C[0].Inst),
         Alignment);
   }
 

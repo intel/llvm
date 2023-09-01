@@ -22,7 +22,6 @@
 namespace llvm {
 class AssumeInst;
 class Function;
-class FunctionPass;
 class Instruction;
 class AssumptionCache;
 class DominatorTree;
@@ -56,8 +55,6 @@ AssumeInst *buildAssumeFromKnowledge(ArrayRef<RetainedKnowledge> Knowledge,
 struct AssumeSimplifyPass : public PassInfoMixin<AssumeSimplifyPass> {
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
-
-FunctionPass *createAssumeSimplifyPass();
 
 /// This pass will try to build an llvm.assume for every instruction in the
 /// function. Its main purpose is testing.

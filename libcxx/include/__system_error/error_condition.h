@@ -12,6 +12,7 @@
 
 #include <__compare/ordering.h>
 #include <__config>
+#include <__functional/hash.h>
 #include <__functional/unary_function.h>
 #include <__system_error/errc.h>
 #include <__system_error/error_category.h>
@@ -46,7 +47,7 @@ namespace __adl_only {
 void make_error_condition() = delete;
 } // namespace __adl_only
 
-class _LIBCPP_TYPE_VIS error_condition {
+class _LIBCPP_EXPORTED_FROM_ABI error_condition {
   int __val_;
   const error_category* __cat_;
 

@@ -10,7 +10,7 @@
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 physical_mem::physical_mem(const device &SyclDevice, const context &SyclContext,
@@ -34,5 +34,5 @@ device physical_mem::get_device() const { return impl->get_device(); }
 size_t physical_mem::size() const noexcept { return impl->size(); }
 
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

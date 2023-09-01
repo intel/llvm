@@ -235,8 +235,16 @@ void LLVMToSPIRVDbgTran::transLocationInfo() {
               V = VPrev;
             }
           }
-          BM->addLine(V, File ? File->getId() : getDebugInfoNone()->getId(),
-                      LineNo, Col);
+          if (BM->getDebugInfoEIS() ==
+                  SPIRVEIS_NonSemantic_Shader_DebugInfo_100 ||
+              BM->getDebugInfoEIS() ==
+                  SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+            BM->addDebugLine(V, getVoidTy(),
+                             File ? File->getId() : getDebugInfoNoneId(),
+                             LineNo, LineNo, Col, Col + 1);
+          else
+            BM->addLine(V, File ? File->getId() : getDebugInfoNoneId(), LineNo,
+                        Col);
         }
       } // Instructions
     }   // Basic Blocks
@@ -448,7 +456,7 @@ void LLVMToSPIRVDbgTran::transformToConstant(std::vector<SPIRVWord> &Ops,
   }
 }
 
-SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
+SPIRVWord LLVMToSPIRVDbgTran::mapDebugFlags(DINode::DIFlags DFlags) {
   SPIRVWord Flags = 0;
   if ((DFlags & DINode::FlagAccessibility) == DINode::FlagPublic)
     Flags |= SPIRVDebug::FlagIsPublic;
@@ -478,10 +486,13 @@ SPIRVWord mapDebugFlags(DINode::DIFlags DFlags) {
     Flags |= SPIRVDebug::FlagTypePassByValue;
   if (DFlags & DINode::FlagTypePassByReference)
     Flags |= SPIRVDebug::FlagTypePassByReference;
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    if (DFlags & DINode::FlagBitField)
+      Flags |= SPIRVDebug::FlagBitField;
   return Flags;
 }
 
-SPIRVWord transDebugFlags(const DINode *DN) {
+SPIRVWord LLVMToSPIRVDbgTran::transDebugFlags(const DINode *DN) {
   SPIRVWord Flags = 0;
   if (const DIGlobalVariable *GV = dyn_cast<DIGlobalVariable>(DN)) {
     if (GV->isLocalToUnit())
@@ -558,7 +569,8 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgCompileUnit(const DICompileUnit *CU) {
   Ops[DWARFVersionIdx] = M->getDwarfVersion();
   Ops[SourceIdx] = getSource(CU)->getId();
 
-  generateBuildIdentifierAndStoragePath(CU);
+  if (isNonSemanticDebugInfo())
+    generateBuildIdentifierAndStoragePath(CU);
 
   auto DwarfLang =
       static_cast<llvm::dwarf::SourceLanguage>(CU->getSourceLanguage());
@@ -760,7 +772,7 @@ LLVMToSPIRVDbgTran::transDbgArrayTypeDynamic(const DICompositeType *AT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
   using namespace SPIRVDebug::Operand::TypeSubrange;
-  SPIRVWordVec Ops(OperandCount);
+  SPIRVWordVec Ops(MinOperandCount);
   auto TransOperand = [&Ops, this, ST](int Idx) -> void {
     Metadata *RawNode = nullptr;
     switch (Idx) {
@@ -772,9 +784,6 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       break;
     case CountIdx:
       RawNode = ST->getRawCountNode();
-      break;
-    case StrideIdx:
-      RawNode = ST->getRawStride();
       break;
     }
     if (!RawNode) {
@@ -795,16 +804,22 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgSubrangeType(const DISubrange *ST) {
       case CountIdx:
         IntNode = ST->getCount().get<ConstantInt *>();
         break;
-      case StrideIdx:
-        IntNode = ST->getStride().get<ConstantInt *>();
-        break;
       }
       Ops[Idx] = IntNode ? SPIRVWriter->transValue(IntNode, nullptr)->getId()
                          : getDebugInfoNoneId();
     }
   };
-  for (int Idx = CountIdx; Idx < OperandCount; ++Idx)
+  for (int Idx = 0; Idx < MinOperandCount; ++Idx)
     TransOperand(Idx);
+  if (auto *RawNode = ST->getRawStride()) {
+    Ops.resize(MaxOperandCount);
+    if (auto *Node = dyn_cast<MDNode>(RawNode))
+      Ops[StrideIdx] = transDbgEntry(Node)->getId();
+    else
+      Ops[StrideIdx] =
+          SPIRVWriter->transValue(ST->getStride().get<ConstantInt *>(), nullptr)
+              ->getId();
+  }
   return BM->addDebugInfo(SPIRVDebug::TypeSubrange, getVoidTy(), Ops);
 }
 
@@ -1036,16 +1051,20 @@ LLVMToSPIRVDbgTran::transDbgMemberTypeNonSemantic(const DIDerivedType *MT) {
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInheritance(const DIDerivedType *DT) {
   using namespace SPIRVDebug::Operand::TypeInheritance;
-  SPIRVWordVec Ops(OperandCount);
-  Ops[ChildIdx] = transDbgEntry(DT->getScope())->getId();
-  Ops[ParentIdx] = transDbgEntry(DT->getBaseType())->getId();
-  ConstantInt *Offset = getUInt(M, DT->getOffsetInBits());
-  Ops[OffsetIdx] = SPIRVWriter->transValue(Offset, nullptr)->getId();
+  const SPIRVWord Offset = isNonSemanticDebugInfo() ? 1 : 0;
+  SPIRVWordVec Ops(OperandCount - Offset);
+  // There is no Child operand in NonSemantic debug spec
+  if (!isNonSemanticDebugInfo())
+    Ops[ChildIdx] = transDbgEntry(DT->getScope())->getId();
+  Ops[ParentIdx - Offset] = transDbgEntry(DT->getBaseType())->getId();
+  ConstantInt *OffsetInBits = getUInt(M, DT->getOffsetInBits());
+  Ops[OffsetIdx - Offset] =
+      SPIRVWriter->transValue(OffsetInBits, nullptr)->getId();
   ConstantInt *Size = getUInt(M, DT->getSizeInBits());
-  Ops[SizeIdx] = SPIRVWriter->transValue(Size, nullptr)->getId();
-  Ops[FlagsIdx] = transDebugFlags(DT);
+  Ops[SizeIdx - Offset] = SPIRVWriter->transValue(Size, nullptr)->getId();
+  Ops[FlagsIdx - Offset] = transDebugFlags(DT);
   if (isNonSemanticDebugInfo())
-    transformToConstant(Ops, {FlagsIdx});
+    transformToConstant(Ops, {FlagsIdx - Offset});
   return BM->addDebugInfo(SPIRVDebug::TypeInheritance, getVoidTy(), Ops);
 }
 
@@ -1183,7 +1202,7 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgFunction(const DISubprogram *Func) {
   Ops[SourceIdx] = getSource(Func)->getId();
   Ops[LineIdx] = Func->getLine();
   Ops[ColumnIdx] = 0; // This version of DISubprogram has no column number
-  auto Scope = Func->getScope();
+  auto *Scope = Func->getScope();
   if (Scope && !isa<DIFile>(Scope)) {
     Ops[ParentIdx] = getScope(Scope)->getId();
   } else {
@@ -1378,7 +1397,10 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDebugLoc(const DebugLoc &Loc,
 }
 
 SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInlinedAt(const DILocation *Loc) {
-  using namespace SPIRVDebug::Operand::InlinedAt;
+  // There is a Column operand in NonSemantic.Shader.200 spec
+  if (BM->getDebugInfoEIS() == SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+    return transDbgInlinedAtNonSemanticShader200(Loc);
+  using namespace SPIRVDebug::Operand::InlinedAt::OpenCL;
   SPIRVWordVec Ops(MinOperandCount);
   Ops[LineIdx] = Loc->getLine();
   Ops[ScopeIdx] = getScope(Loc->getScope())->getId();
@@ -1386,6 +1408,19 @@ SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInlinedAt(const DILocation *Loc) {
     Ops.push_back(transDbgEntry(IA)->getId());
   if (isNonSemanticDebugInfo())
     transformToConstant(Ops, {LineIdx});
+  return BM->addDebugInfo(SPIRVDebug::InlinedAt, getVoidTy(), Ops);
+}
+
+SPIRVEntry *LLVMToSPIRVDbgTran::transDbgInlinedAtNonSemanticShader200(
+    const DILocation *Loc) {
+  using namespace SPIRVDebug::Operand::InlinedAt::NonSemantic;
+  SPIRVWordVec Ops(MinOperandCount);
+  Ops[LineIdx] = Loc->getLine();
+  Ops[ColumnIdx] = Loc->getColumn();
+  transformToConstant(Ops, {LineIdx, ColumnIdx});
+  Ops[ScopeIdx] = getScope(Loc->getScope())->getId();
+  if (DILocation *IA = Loc->getInlinedAt())
+    Ops.push_back(transDbgEntry(IA)->getId());
   return BM->addDebugInfo(SPIRVDebug::InlinedAt, getVoidTy(), Ops);
 }
 
@@ -1573,20 +1608,19 @@ LLVMToSPIRVDbgTran::transDbgImportedEntry(const DIImportedEntity *IE) {
   auto Tag = static_cast<dwarf::Tag>(IE->getTag());
   // FIXME: 'OpenCL/bugged' version is kept because it's hard to remove it
   // It's W/A for missing 2nd index in OpenCL's implementation
-  const SPIRVWord OffsetIdx =
-      isNonSemanticDebugInfo() ? OperandCount - NonSemantic::OperandCount : 0;
-  SPIRVWordVec Ops(OperandCount - OffsetIdx);
-  Ops[NameIdx] = BM->getString(IE->getName().str())->getId();
-  Ops[TagIdx] = SPIRV::DbgImportedEntityMap::map(Tag);
-  Ops[SourceIdx - OffsetIdx] = getSource(IE->getFile())->getId();
-  Ops[EntityIdx - OffsetIdx] = transDbgEntry(IE->getEntity())->getId();
-  Ops[LineIdx - OffsetIdx] = IE->getLine();
+  const SPIRVWord OffsetIdx = static_cast<int>(isNonSemanticDebugInfo());
+  SPIRVWordVec Ops(OpenCL::OperandCount - OffsetIdx);
+  Ops[OpenCL::NameIdx] = BM->getString(IE->getName().str())->getId();
+  Ops[OpenCL::TagIdx] = SPIRV::DbgImportedEntityMap::map(Tag);
+  Ops[OpenCL::SourceIdx - OffsetIdx] = getSource(IE->getFile())->getId();
+  Ops[OpenCL::EntityIdx - OffsetIdx] = transDbgEntry(IE->getEntity())->getId();
+  Ops[OpenCL::LineIdx - OffsetIdx] = IE->getLine();
   // This version of DIImportedEntity has no column number
-  Ops[ColumnIdx - OffsetIdx] = 0;
-  Ops[ParentIdx - OffsetIdx] = getScope(IE->getScope())->getId();
+  Ops[OpenCL::ColumnIdx - OffsetIdx] = 0;
+  Ops[OpenCL::ParentIdx - OffsetIdx] = getScope(IE->getScope())->getId();
   if (isNonSemanticDebugInfo())
-    transformToConstant(Ops,
-                        {TagIdx, LineIdx - OffsetIdx, ColumnIdx - OffsetIdx});
+    transformToConstant(Ops, {OpenCL::TagIdx, OpenCL::LineIdx - OffsetIdx,
+                              OpenCL::ColumnIdx - OffsetIdx});
   return BM->addDebugInfo(SPIRVDebug::ImportedEntity, getVoidTy(), Ops);
 }
 

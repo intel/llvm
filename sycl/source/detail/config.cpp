@@ -17,12 +17,17 @@
 #include <limits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifndef SYCL_CONFIG_FILE_NAME
 #define SYCL_CONFIG_FILE_NAME "sycl.conf"
 #endif // SYCL_CONFIG_FILE_NAME
+
+// Stringify an argument to pass it in _Pragma directive below.
+#ifndef __SYCL_STRINGIFY
+#define __SYCL_STRINGIFY(x) #x
+#endif // __SYCL_STRINGIFY
 
 #define CONFIG(Name, MaxSize, CompileTimeDef)                                  \
   const char *SYCLConfigBase<Name>::MValueFromFile = nullptr;                  \
@@ -186,5 +191,5 @@ const std::array<std::pair<std::string, backend>, 8> &getSyclBeMap() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -61,6 +61,11 @@ public:
       delete Previous;
   }
 
+  DelegatingDeserializationListener(const DelegatingDeserializationListener &) =
+      delete;
+  DelegatingDeserializationListener &
+  operator=(const DelegatingDeserializationListener &) = delete;
+
   void ReaderInitialized(ASTReader *Reader) override {
     if (Previous)
       Previous->ReaderInitialized(Reader);
@@ -379,9 +384,7 @@ static std::error_code collectModuleHeaderIncludes(
     llvm::sys::path::native(UmbrellaDir->Entry.getName(), DirNative);
 
     llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
-    SmallVector<
-        std::pair<std::string, OptionalFileEntryRefDegradesToFileEntryPtr>, 8>
-        Headers;
+    SmallVector<std::pair<std::string, FileEntryRef>, 8> Headers;
     for (llvm::vfs::recursive_directory_iterator Dir(FS, DirNative, EC), End;
          Dir != End && !EC; Dir.increment(EC)) {
       // Check whether this entry has an extension typically associated with

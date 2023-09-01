@@ -16,10 +16,10 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
-using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../get_coord_bf16_matA_impl.hpp"

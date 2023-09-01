@@ -1,10 +1,10 @@
-//===--------- memory.cpp - Level Zero Adapter -----------------------===//
+//===--------- memory.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -73,7 +73,7 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
   const auto &WaitList = (*Event)->WaitList;
 
   urPrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -124,7 +124,7 @@ ur_result_t enqueueMemCopyRectHelper(
   const auto &WaitList = (*Event)->WaitList;
 
   urPrint("calling zeCommandListAppendMemoryCopy() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -161,15 +161,10 @@ ur_result_t enqueueMemCopyRectHelper(
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
              (ZeCommandList, DstBuffer, &ZeDstRegion, DstPitch, DstSlicePitch,
-              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, nullptr,
+              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   urPrint("calling zeCommandListAppendMemoryCopyRegion()\n");
-
-  ZE2UR_CALL(zeCommandListAppendBarrier, (ZeCommandList, ZeEvent, 0, nullptr));
-
-  urPrint("calling zeCommandListAppendBarrier() with Event %#llx\n",
-          ur_cast<std::uintptr_t>(ZeEvent));
 
   UR_CALL(Queue->executeCommandList(CommandList, Blocking, OkToBatch));
 
@@ -243,7 +238,7 @@ static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
               WaitList.Length, WaitList.ZeEventList));
 
   urPrint("calling zeCommandListAppendMemoryFill() with\n"
-          "  ZeEvent %#llx\n",
+          "  ZeEvent %#" PRIxPTR "\n",
           ur_cast<uint64_t>(ZeEvent));
   printZeEventList(WaitList);
 
@@ -1626,7 +1621,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
              (Context->ZeContext, Device->ZeDevice, &ZeImageDesc, &ZeImage));
 
   try {
-    auto UrImage = new _ur_image(Context, ZeImage);
+    auto UrImage = new _ur_image(Context, ZeImage, true /*OwnZeMemHandle*/);
     *Mem = reinterpret_cast<ur_mem_handle_t>(UrImage);
 
 #ifndef NDEBUG
@@ -2101,7 +2096,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     // The host allocation may already exists, e.g. with imported
     // host ptr, or in case of interop buffer.
     if (!HostAllocation.ZeHandle) {
-      if (USMAllocatorConfigInstance.EnableBuffers) {
+      if (DisjointPoolConfigInstance.EnableBuffers) {
         HostAllocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
@@ -2160,7 +2155,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       Allocation.Valid = true;
       return UR_RESULT_SUCCESS;
     } else { // Create device allocation
-      if (USMAllocatorConfigInstance.EnableBuffers) {
+      if (DisjointPoolConfigInstance.EnableBuffers) {
         Allocation.ReleaseAction = allocation_t::free;
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
@@ -2224,7 +2219,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         // host ptr, or in case of interop buffer.
         if (!HostAllocation.ZeHandle) {
           void *ZeHandleHost;
-          if (USMAllocatorConfigInstance.EnableBuffers) {
+          if (DisjointPoolConfigInstance.EnableBuffers) {
             HostAllocation.ReleaseAction = allocation_t::free;
             ur_usm_desc_t USMDesc{};
             USMDesc.align = getAlignment();

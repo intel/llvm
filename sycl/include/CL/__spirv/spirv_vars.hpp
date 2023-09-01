@@ -8,10 +8,12 @@
 
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 #ifdef __SYCL_DEVICE_ONLY__
+
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+
+#include <cstddef> // for size_t
+#include <cstdint> // for uint8_t
 
 #define __SPIRV_VAR_QUALIFIERS extern "C" const
 
@@ -190,7 +192,7 @@ namespace __spirv {
     }                                                                          \
   };                                                                           \
                                                                                \
-  template <int Dims, class DstT> static DstT init##POSTFIX() {                \
+  template <int Dims, class DstT> DstT init##POSTFIX() {                       \
     return InitSizesST##POSTFIX<Dims, DstT>::initSize();                       \
   }
 

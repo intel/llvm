@@ -336,7 +336,7 @@ void EliminateUnreachableBlocks::runOnFunction(BinaryFunction &Function) {
     if (Count) {
       Modified.insert(&Function);
       if (opts::Verbosity > 0)
-        outs() << "BOLT-INFO: Removed " << Count
+        outs() << "BOLT-INFO: removed " << Count
                << " dead basic block(s) accounting for " << Bytes
                << " bytes in function " << Function << '\n';
     }
@@ -350,8 +350,9 @@ void EliminateUnreachableBlocks::runOnFunctions(BinaryContext &BC) {
       runOnFunction(Function);
   }
 
-  outs() << "BOLT-INFO: UCE removed " << DeletedBlocks << " blocks and "
-         << DeletedBytes << " bytes of code.\n";
+  if (DeletedBlocks)
+    outs() << "BOLT-INFO: UCE removed " << DeletedBlocks << " blocks and "
+           << DeletedBytes << " bytes of code\n";
 }
 
 bool ReorderBasicBlocks::shouldPrint(const BinaryFunction &BF) const {
@@ -999,16 +1000,17 @@ void SimplifyConditionalTailCalls::runOnFunctions(BinaryContext &BC) {
     }
   }
 
-  outs() << "BOLT-INFO: SCTC: patched " << NumTailCallsPatched
-         << " tail calls (" << NumOrigForwardBranches << " forward)"
-         << " tail calls (" << NumOrigBackwardBranches << " backward)"
-         << " from a total of " << NumCandidateTailCalls << " while removing "
-         << NumDoubleJumps << " double jumps"
-         << " and removing " << DeletedBlocks << " basic blocks"
-         << " totalling " << DeletedBytes
-         << " bytes of code. CTCs total execution count is " << CTCExecCount
-         << " and the number of times CTCs are taken is " << CTCTakenCount
-         << ".\n";
+  if (NumTailCallsPatched)
+    outs() << "BOLT-INFO: SCTC: patched " << NumTailCallsPatched
+           << " tail calls (" << NumOrigForwardBranches << " forward)"
+           << " tail calls (" << NumOrigBackwardBranches << " backward)"
+           << " from a total of " << NumCandidateTailCalls << " while removing "
+           << NumDoubleJumps << " double jumps"
+           << " and removing " << DeletedBlocks << " basic blocks"
+           << " totalling " << DeletedBytes
+           << " bytes of code. CTCs total execution count is " << CTCExecCount
+           << " and the number of times CTCs are taken is " << CTCTakenCount
+           << "\n";
 }
 
 uint64_t ShortenInstructions::shortenInstructions(BinaryFunction &Function) {
@@ -1048,7 +1050,8 @@ void ShortenInstructions::runOnFunctions(BinaryContext &BC) {
       [&](BinaryFunction &BF) { NumShortened += shortenInstructions(BF); },
       nullptr, "ShortenInstructions");
 
-  outs() << "BOLT-INFO: " << NumShortened << " instructions were shortened\n";
+  if (NumShortened)
+    outs() << "BOLT-INFO: " << NumShortened << " instructions were shortened\n";
 }
 
 void Peepholes::addTailcallTraps(BinaryFunction &Function) {
@@ -1341,10 +1344,13 @@ void PrintProfileStats::runOnFunctions(BinaryContext &BC) {
 void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   uint64_t NumRegularFunctions = 0;
   uint64_t NumStaleProfileFunctions = 0;
+  uint64_t NumAllStaleFunctions = 0;
+  uint64_t NumInferredFunctions = 0;
   uint64_t NumNonSimpleProfiledFunctions = 0;
   uint64_t NumUnknownControlFlowFunctions = 0;
   uint64_t TotalSampleCount = 0;
   uint64_t StaleSampleCount = 0;
+  uint64_t InferredSampleCount = 0;
   std::vector<const BinaryFunction *> ProfiledFunctions;
   const char *StaleFuncsHeader = "BOLT-INFO: Functions with stale profile:\n";
   for (auto &BFI : BC.getBinaryFunctions()) {
@@ -1379,6 +1385,11 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
 
     if (Function.hasValidProfile()) {
       ProfiledFunctions.push_back(&Function);
+      if (Function.hasInferredProfile()) {
+        ++NumInferredFunctions;
+        InferredSampleCount += SampleCount;
+        ++NumAllStaleFunctions;
+      }
     } else {
       if (opts::ReportStaleFuncs) {
         outs() << StaleFuncsHeader;
@@ -1387,6 +1398,7 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
       }
       ++NumStaleProfileFunctions;
       StaleSampleCount += SampleCount;
+      ++NumAllStaleFunctions;
     }
   }
   BC.NumProfiledFuncs = ProfiledFunctions.size();
@@ -1432,6 +1444,24 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
              << opts::StaleThreshold << "%. Exiting.\n";
       exit(1);
     }
+  }
+  if (NumInferredFunctions) {
+    outs() << format("BOLT-INFO: inferred profile for %d (%.2f%% of profiled, "
+                     "%.2f%% of stale) functions responsible for %.2f%% samples"
+                     " (%zu out of %zu)\n",
+                     NumInferredFunctions,
+                     100.0 * NumInferredFunctions / NumAllProfiledFunctions,
+                     100.0 * NumInferredFunctions / NumAllStaleFunctions,
+                     100.0 * InferredSampleCount / TotalSampleCount,
+                     InferredSampleCount, TotalSampleCount);
+    outs() << format(
+        "BOLT-INFO: inference found an exact match for %.2f%% of basic blocks"
+        " (%zu out of %zu stale) responsible for %.2f%% samples"
+        " (%zu out of %zu stale)\n",
+        100.0 * BC.Stats.NumMatchedBlocks / BC.Stats.NumStaleBlocks,
+        BC.Stats.NumMatchedBlocks, BC.Stats.NumStaleBlocks,
+        100.0 * BC.Stats.MatchedSampleCount / BC.Stats.StaleSampleCount,
+        BC.Stats.MatchedSampleCount, BC.Stats.StaleSampleCount);
   }
 
   if (const uint64_t NumUnusedObjects = BC.getNumUnusedProfiledObjects()) {
@@ -1540,10 +1570,11 @@ void PrintProgramStats::runOnFunctions(BinaryContext &BC) {
   }
 
   // Print information on missed macro-fusion opportunities seen on input.
-  if (BC.MissedMacroFusionPairs) {
-    outs() << "BOLT-INFO: the input contains " << BC.MissedMacroFusionPairs
-           << " (dynamic count : " << BC.MissedMacroFusionExecCount
-           << ") opportunities for macro-fusion optimization";
+  if (BC.Stats.MissedMacroFusionPairs) {
+    outs() << format("BOLT-INFO: the input contains %zu (dynamic count : %zu)"
+                     " opportunities for macro-fusion optimization",
+                     BC.Stats.MissedMacroFusionPairs,
+                     BC.Stats.MissedMacroFusionExecCount);
     switch (opts::AlignMacroOpFusion) {
     case MFT_NONE:
       outs() << ". Use -align-macro-fusion to fix.\n";

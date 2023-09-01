@@ -8,11 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-
-#include <type_traits>
+#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/generic_type_traits.hpp> // for convertDataToType
 
 // TODO Decide whether to mark functions with this attribute.
 #define __NOEXC /*noexcept*/

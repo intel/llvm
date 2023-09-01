@@ -2543,3 +2543,123 @@ module attributes {omp.flags = #omp.flags<debug_kind = 0, assume_teams_oversubsc
 // CHECK: @__omp_rtl_assume_no_thread_state = weak_odr hidden constant i32 1
 // CHECK: @__omp_rtl_assume_no_nested_parallelism = weak_odr hidden constant i32 0
 module attributes {omp.flags = #omp.flags<assume_teams_oversubscription = true, assume_no_thread_state = true>} {}
+
+// -----
+
+module attributes {omp.is_target_device = false} {
+  // DISABLED, this portion of the test is disabled via the removal of the colon for the time 
+  // being as filtering is enabled for device only for the time being while a fix is in progress. 
+  // CHECK-NOT @filter_host_nohost
+  llvm.func @filter_host_nohost() -> ()
+      attributes {
+        omp.declare_target =
+          #omp.declaretarget<device_type = (nohost), capture_clause = (to)>
+      } {
+    llvm.return
+  }
+
+  // CHECK: @filter_host_host
+  llvm.func @filter_host_host() -> ()
+      attributes {
+        omp.declare_target =
+          #omp.declaretarget<device_type = (host), capture_clause = (to)>
+      } {
+    llvm.return
+  }
+}
+
+// -----
+
+module attributes {omp.is_target_device = true} {
+  // CHECK: @filter_device_nohost
+  llvm.func @filter_device_nohost() -> ()
+      attributes {
+        omp.declare_target =
+          #omp.declaretarget<device_type = (nohost), capture_clause = (to)>
+      } {
+    llvm.return
+  }
+
+  // CHECK-NOT: @filter_device_host
+  llvm.func @filter_device_host() -> ()
+      attributes {
+        omp.declare_target =
+          #omp.declaretarget<device_type = (host), capture_clause = (to)>
+      } {
+    llvm.return
+  }
+}
+
+// -----
+
+llvm.func external @foo_before() -> ()
+llvm.func external @foo() -> ()
+llvm.func external @foo_after() -> ()
+
+llvm.func @omp_task_final(%boolexpr: i1) {
+  llvm.call @foo_before() : () -> ()
+  omp.task final(%boolexpr) {
+    llvm.call @foo() : () -> ()
+    omp.terminator
+  }
+  llvm.call @foo_after() : () -> ()
+  llvm.return
+}
+
+// CHECK-LABEL: define void @omp_task_final(
+// CHECK-SAME:    i1 %[[boolexpr:.+]]) {
+// CHECK:         call void @foo_before()
+// CHECK:         br label %[[entry:[^,]+]]
+// CHECK:       [[entry]]:
+// CHECK:         br label %[[codeRepl:[^,]+]]
+// CHECK:       [[codeRepl]]:                                         ; preds = %entry
+// CHECK:         %[[omp_global_thread_num:.+]] = call i32 @__kmpc_global_thread_num(ptr @{{.+}})
+// CHECK:         %[[final_flag:.+]] = select i1 %[[boolexpr]], i32 2, i32 0
+// CHECK:         %[[task_flags:.+]] = or i32 %[[final_flag]], 1
+// CHECK:         %[[task_data:.+]] = call ptr @__kmpc_omp_task_alloc(ptr @{{.+}}, i32 %[[omp_global_thread_num]], i32 %[[task_flags]], i64 0, i64 0, ptr @omp_task_final..omp_par.wrapper)
+// CHECK:         %{{.+}} = call i32 @__kmpc_omp_task(ptr @{{.+}}, i32 %[[omp_global_thread_num]], ptr %[[task_data]])
+// CHECK:         br label %[[task_exit:[^,]+]]
+// CHECK:       [[task_exit]]:
+// CHECK:         call void @foo_after()
+// CHECK:         ret void
+
+// -----
+
+llvm.func external @foo_before() -> ()
+llvm.func external @foo() -> ()
+llvm.func external @foo_after() -> ()
+
+llvm.func @omp_task_if(%boolexpr: i1) {
+  llvm.call @foo_before() : () -> ()
+  omp.task if(%boolexpr) {
+    llvm.call @foo() : () -> ()
+    omp.terminator
+  }
+  llvm.call @foo_after() : () -> ()
+  llvm.return
+}
+
+// CHECK-LABEL: define void @omp_task_if(
+// CHECK-SAME:    i1 %[[boolexpr:.+]]) {
+// CHECK:         call void @foo_before()
+// CHECK:         br label %[[entry:[^,]+]]
+// CHECK:       [[entry]]:
+// CHECK:         br label %[[codeRepl:[^,]+]]
+// CHECK:       [[codeRepl]]:
+// CHECK:         %[[omp_global_thread_num:.+]] = call i32 @__kmpc_global_thread_num(ptr @{{.+}})
+// CHECK:         %[[task_data:.+]] = call ptr @__kmpc_omp_task_alloc(ptr @{{.+}}, i32 %[[omp_global_thread_num]], i32 1, i64 0, i64 0, ptr @omp_task_if..omp_par.wrapper)
+// CHECK:         br i1 %[[boolexpr]], label %[[true_label:[^,]+]], label %[[false_label:[^,]+]]
+// CHECK:       [[true_label]]:
+// CHECK:         %{{.+}} = call i32 @__kmpc_omp_task(ptr @{{.+}}, i32 %[[omp_global_thread_num]], ptr %[[task_data]])
+// CHECK:         br label %[[if_else_exit:[^,]+]]
+// CHECK:       [[false_label:[^,]+]]:                                                ; preds = %codeRepl
+// CHECK:         call void @__kmpc_omp_task_begin_if0(ptr @{{.+}}, i32 %[[omp_global_thread_num]], ptr %[[task_data]])
+// CHECK:         %{{.+}} = call i32 @omp_task_if..omp_par.wrapper(i32 %[[omp_global_thread_num]])
+// CHECK:         call void @__kmpc_omp_task_complete_if0(ptr @{{.+}}, i32 %[[omp_global_thread_num]], ptr %[[task_data]])
+// CHECK:         br label %[[if_else_exit]]
+// CHECK:       [[if_else_exit]]:
+// CHECK:         br label %[[task_exit:[^,]+]]
+// CHECK:       [[task_exit]]:
+// CHECK:         call void @foo_after()
+// CHECK:         ret void
+

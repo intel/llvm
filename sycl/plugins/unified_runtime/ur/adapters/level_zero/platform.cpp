@@ -1,125 +1,17 @@
-//===--------- platform.cpp - Level Zero Adapter ---------------------===//
+//===--------- platform.cpp - Level Zero Adapter --------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
+#include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(
-    ur_device_init_flags_t
-        DeviceFlags ///< [in] device initialization flags.
-                    ///< must be 0 (default) or a combination of
-                    ///< ::ur_device_init_flag_t.
-) {
-  std::ignore = DeviceFlags;
-
-  return UR_RESULT_SUCCESS;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(
-    void *Params ///< [in] pointer to tear down parameters
-) {
-  std::ignore = Params;
-  // reclaim pi_platform objects here since we don't have piPlatformRelease.
-  for (ur_platform_handle_t Platform : *PiPlatformsCache) {
-    delete Platform;
-  }
-  delete PiPlatformsCache;
-  delete PiPlatformsCacheMutex;
-
-  bool LeakFound = false;
-  // Print the balance of various create/destroy native calls.
-  // The idea is to verify if the number of create(+) and destroy(-) calls are
-  // matched.
-  if (ZeCallCount && (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) != 0) {
-    // clang-format off
-    //
-    // The format of this table is such that each row accounts for a
-    // specific type of objects, and all elements in the raw except the last
-    // one are allocating objects of that type, while the last element is known
-    // to deallocate objects of that type.
-    //
-    std::vector<std::vector<const char *>> CreateDestroySet = {
-      {"zeContextCreate",      "zeContextDestroy"},
-      {"zeCommandQueueCreate", "zeCommandQueueDestroy"},
-      {"zeModuleCreate",       "zeModuleDestroy"},
-      {"zeKernelCreate",       "zeKernelDestroy"},
-      {"zeEventPoolCreate",    "zeEventPoolDestroy"},
-      {"zeCommandListCreateImmediate", "zeCommandListCreate", "zeCommandListDestroy"},
-      {"zeEventCreate",        "zeEventDestroy"},
-      {"zeFenceCreate",        "zeFenceDestroy"},
-      {"zeImageCreate",        "zeImageDestroy"},
-      {"zeSamplerCreate",      "zeSamplerDestroy"},
-      {"zeMemAllocDevice", "zeMemAllocHost", "zeMemAllocShared", "zeMemFree"},
-    };
-
-    // A sample output aimed below is this:
-    // ------------------------------------------------------------------------
-    //                zeContextCreate = 1     \--->        zeContextDestroy = 1
-    //           zeCommandQueueCreate = 1     \--->   zeCommandQueueDestroy = 1
-    //                 zeModuleCreate = 1     \--->         zeModuleDestroy = 1
-    //                 zeKernelCreate = 1     \--->         zeKernelDestroy = 1
-    //              zeEventPoolCreate = 1     \--->      zeEventPoolDestroy = 1
-    //   zeCommandListCreateImmediate = 1     |
-    //            zeCommandListCreate = 1     \--->    zeCommandListDestroy = 1  ---> LEAK = 1
-    //                  zeEventCreate = 2     \--->          zeEventDestroy = 2
-    //                  zeFenceCreate = 1     \--->          zeFenceDestroy = 1
-    //                  zeImageCreate = 0     \--->          zeImageDestroy = 0
-    //                zeSamplerCreate = 0     \--->        zeSamplerDestroy = 0
-    //               zeMemAllocDevice = 0     |
-    //                 zeMemAllocHost = 1     |
-    //               zeMemAllocShared = 0     \--->               zeMemFree = 1
-    //
-    // clang-format on
-
-    fprintf(stderr, "ZE_DEBUG=%d: check balance of create/destroy calls\n",
-            UR_L0_DEBUG_CALL_COUNT);
-    fprintf(stderr,
-            "----------------------------------------------------------\n");
-    for (const auto &Row : CreateDestroySet) {
-      int diff = 0;
-      for (auto I = Row.begin(); I != Row.end();) {
-        const char *ZeName = *I;
-        const auto &ZeCount = (*ZeCallCount)[*I];
-
-        bool First = (I == Row.begin());
-        bool Last = (++I == Row.end());
-
-        if (Last) {
-          fprintf(stderr, " \\--->");
-          diff -= ZeCount;
-        } else {
-          diff += ZeCount;
-          if (!First) {
-            fprintf(stderr, " | \n");
-          }
-        }
-
-        fprintf(stderr, "%30s = %-5d", ZeName, ZeCount);
-      }
-
-      if (diff) {
-        LeakFound = true;
-        fprintf(stderr, " ---> LEAK = %d", diff);
-      }
-      fprintf(stderr, "\n");
-    }
-
-    ZeCallCount->clear();
-    delete ZeCallCount;
-    ZeCallCount = nullptr;
-  }
-  if (LeakFound)
-    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
-
-  return UR_RESULT_SUCCESS;
-}
-
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+    ur_adapter_handle_t *, uint32_t,
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
                          ///< NumEntries should be greater than zero, otherwise
@@ -137,7 +29,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   try {
     std::call_once(ZeCallCountInitialized, []() {
       if (UrL0Debug & UR_L0_DEBUG_CALL_COUNT) {
-        ZeCallCount = new std::map<const char *, int>;
+        ZeCallCount = new std::map<std::string, int>;
       }
     });
   } catch (const std::bad_alloc &) {
@@ -153,23 +45,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     setEnvVar("ZE_ENABLE_PARAMETER_VALIDATION", "1");
   }
 
-  // Enable SYSMAN support for obtaining the PCI address
-  // and maximum memory bandwidth.
   if (getenv("SYCL_ENABLE_PCI") != nullptr) {
-    setEnvVar("ZES_ENABLE_SYSMAN", "1");
+    urPrint("WARNING: SYCL_ENABLE_PCI is deprecated and no longer needed.\n");
   }
 
   // TODO: We can still safely recover if something goes wrong during the init.
   // Implement handling segfault using sigaction.
 
-  // We must only initialize the driver once, even if piPlatformsGet() is called
+  // We must only initialize the driver once, even if urPlatformGet() is called
   // multiple times.  Declaring the return value as "static" ensures it's only
   // called once.
   static ze_result_t ZeResult = ZE_CALL_NOCHECK(zeInit, (0));
 
   // Absorb the ZE_RESULT_ERROR_UNINITIALIZED and just return 0 Platforms.
   if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    UR_ASSERT(NumEntries != 0, UR_RESULT_ERROR_INVALID_VALUE);
+    UR_ASSERT(NumEntries == 0, UR_RESULT_ERROR_INVALID_VALUE);
     if (NumPlatforms)
       *NumPlatforms = 0;
     return UR_RESULT_SUCCESS;
@@ -180,21 +70,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
     return ze2urResult(ZeResult);
   }
 
-  // Cache pi_platforms for reuse in the future
+  // Cache ur_platform_handle_t for reuse in the future
   // It solves two problems;
-  // 1. sycl::platform equality issue; we always return the same pi_platform.
+  // 1. sycl::platform equality issue; we always return the same
+  // ur_platform_handle_t
   // 2. performance; we can save time by immediately return from cache.
   //
 
-  const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
-  if (!PiPlatformCachePopulated) {
+  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
+  if (!URPlatformCachePopulated) {
     try {
       // Level Zero does not have concept of Platforms, but Level Zero driver is
       // the closest match.
       uint32_t ZeDriverCount = 0;
       ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
       if (ZeDriverCount == 0) {
-        PiPlatformCachePopulated = true;
+        URPlatformCachePopulated = true;
       } else {
         std::vector<ze_driver_handle_t> ZeDrivers;
         ZeDrivers.resize(ZeDriverCount);
@@ -203,11 +94,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
         for (uint32_t I = 0; I < ZeDriverCount; ++I) {
           auto Platform = new ur_platform_handle_t_(ZeDrivers[I]);
           // Save a copy in the cache for future uses.
-          PiPlatformsCache->push_back(Platform);
+          URPlatformsCache->push_back(Platform);
 
           UR_CALL(Platform->initialize());
         }
-        PiPlatformCachePopulated = true;
+        URPlatformCachePopulated = true;
       }
     } catch (const std::bad_alloc &) {
       return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -218,16 +109,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
 
   // Populate returned platforms from the cache.
   if (Platforms) {
-    UR_ASSERT(NumEntries <= PiPlatformsCache->size(),
+    UR_ASSERT(NumEntries <= URPlatformsCache->size(),
               UR_RESULT_ERROR_INVALID_PLATFORM);
-    std::copy_n(PiPlatformsCache->begin(), NumEntries, Platforms);
+    std::copy_n(URPlatformsCache->begin(), NumEntries, Platforms);
   }
 
   if (NumPlatforms) {
     if (*NumPlatforms == 0)
-      *NumPlatforms = PiPlatformsCache->size();
+      *NumPlatforms = URPlatformsCache->size();
     else
-      *NumPlatforms = std::min(PiPlatformsCache->size(), (size_t)NumEntries);
+      *NumPlatforms = std::min(URPlatformsCache->size(), (size_t)NumEntries);
   }
 
   return UR_RESULT_SUCCESS;
@@ -292,7 +183,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
     ur_api_version_t *Version    ///< [out] api version
 ) {
   std::ignore = Driver;
-  *Version = UR_API_VERSION_0_6;
+  *Version = UR_API_VERSION_CURRENT;
   return UR_RESULT_SUCCESS;
 }
 
@@ -319,11 +210,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   auto ZeDriver = ur_cast<ze_driver_handle_t>(NativePlatform);
 
   uint32_t NumPlatforms = 0;
-  UR_CALL(urPlatformGet(0, nullptr, &NumPlatforms));
+  ur_adapter_handle_t AdapterHandle = &Adapter;
+  UR_CALL(urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(urPlatformGet(NumPlatforms, Platforms.data(), nullptr));
+    UR_CALL(urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(),
+                          nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
     // the duration of the application's execution. We assume that we found all
@@ -339,20 +232,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
   }
 
   return UR_RESULT_ERROR_INVALID_VALUE;
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetLastError(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance
-    const char **Message, ///< [out] pointer to a C string where the adapter
-                          ///< specific error message will be stored.
-    int32_t *Error ///< [out] pointer to an integer where the adapter specific
-                   ///< error code will be stored.
-) {
-  std::ignore = Platform;
-  std::ignore = Message;
-  std::ignore = Error;
-  urPrint("[UR][L0] %s function not implemented!\n", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 ur_result_t ur_platform_handle_t_::initialize() {
@@ -422,14 +301,14 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
   // mapping from L0 device handle to PI device assumed in this function. Until
   // Level-Zero adds unique ze_device_handle_t for sub-sub-devices, here we
   // filter out PI sub-sub-devices.
-  std::shared_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
-  auto it = std::find_if(PiDevicesCache.begin(), PiDevicesCache.end(),
+  std::shared_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
+  auto it = std::find_if(URDevicesCache.begin(), URDevicesCache.end(),
                          [&](std::unique_ptr<ur_device_handle_t_> &D) {
                            return D.get()->ZeDevice == ZeDevice &&
                                   (D.get()->RootDevice == nullptr ||
                                    D.get()->RootDevice->RootDevice == nullptr);
                          });
-  if (it != PiDevicesCache.end()) {
+  if (it != URDevicesCache.end()) {
     return (*it).get();
   }
   return nullptr;
@@ -437,7 +316,7 @@ ur_platform_handle_t_::getDeviceFromNativeHandle(ze_device_handle_t ZeDevice) {
 
 // Check the device cache and load it if necessary.
 ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
-  std::scoped_lock<ur_shared_mutex> Lock(PiDevicesCacheMutex);
+  std::scoped_lock<ur_shared_mutex> Lock(URDevicesCacheMutex);
 
   if (DeviceCachePopulated) {
     return UR_RESULT_SUCCESS;
@@ -456,7 +335,7 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
       UR_CALL(Device->initialize());
 
       // Additionally we need to cache all sub-devices too, such that they
-      // are readily visible to the piextDeviceCreateWithNativeHandle.
+      // are readily visible to the urDeviceCreateWithNativeHandle.
       //
       uint32_t SubDevicesCount = 0;
       ZE2UR_CALL(zeDeviceGetSubDevices,
@@ -508,36 +387,36 @@ ur_result_t ur_platform_handle_t_::populateDeviceCacheIfNeeded() {
           // Each {ordinal, index} points to a specific CCS which constructs
           // a sub-sub-device at this point.
           //
-          // FIXME: Level Zero creates multiple PiDevices for a single physical
+          // FIXME: Level Zero creates multiple UrDevices for a single physical
           // device when sub-device is partitioned into sub-sub-devices.
           // Sub-sub-device is technically a command queue and we should not
-          // build program for each command queue. PiDevice is probably not the
+          // build program for each command queue. UrDevice is probably not the
           // right abstraction for a Level Zero command queue.
           for (uint32_t J = 0; J < Ordinals.size(); ++J) {
             for (uint32_t K = 0;
                  K < QueueGroupProperties[Ordinals[J]].numQueues; ++K) {
-              std::unique_ptr<ur_device_handle_t_> PiSubSubDevice(
+              std::unique_ptr<ur_device_handle_t_> URSubSubDevice(
                   new ur_device_handle_t_(ZeSubdevices[I],
                                           (ur_platform_handle_t)this,
                                           UrSubDevice.get()));
-              UR_CALL(PiSubSubDevice->initialize(Ordinals[J], K));
+              UR_CALL(URSubSubDevice->initialize(Ordinals[J], K));
 
               // save pointers to sub-sub-devices for quick retrieval in the
               // future.
-              UrSubDevice->SubDevices.push_back(PiSubSubDevice.get());
-              PiDevicesCache.push_back(std::move(PiSubSubDevice));
+              UrSubDevice->SubDevices.push_back(URSubSubDevice.get());
+              URDevicesCache.push_back(std::move(URSubSubDevice));
             }
           }
         }
 
         // save pointers to sub-devices for quick retrieval in the future.
         Device->SubDevices.push_back(UrSubDevice.get());
-        PiDevicesCache.push_back(std::move(UrSubDevice));
+        URDevicesCache.push_back(std::move(UrSubDevice));
       }
       delete[] ZeSubdevices;
 
       // Save the root device in the cache for future uses.
-      PiDevicesCache.push_back(std::move(Device));
+      URDevicesCache.push_back(std::move(Device));
     }
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;

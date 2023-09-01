@@ -449,9 +449,9 @@ public:
 
   /// Since emitting CFI unwind information is entangled with supporting the
   /// exceptions, this returns true for platforms which use CFI unwind
-  /// information for debugging purpose when
+  /// information for other purposes (debugging, sanitizers, ...) when
   /// `MCAsmInfo::ExceptionsType == ExceptionHandling::None`.
-  bool needsCFIForDebug() const;
+  bool usesCFIWithoutEH() const;
 
   /// Print to the current output stream assembly representations of the
   /// constants in the constant pool MCP. This is used to print out constants
@@ -866,7 +866,7 @@ private:
   /// Emit llvm.ident metadata in an '.ident' directive.
   void emitModuleIdents(Module &M);
   /// Emit bytes for llvm.commandline metadata.
-  void emitModuleCommandLines(Module &M);
+  virtual void emitModuleCommandLines(Module &M);
 
   GCMetadataPrinter *getOrCreateGCPrinter(GCStrategy &S);
   void emitGlobalAlias(Module &M, const GlobalAlias &GA);

@@ -1,14 +1,10 @@
 ;; This test checks that two DICompileUnits resulted in a link of C and C++
 ;; object files are being translated correctly
 
-; ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-; COM: llvm-as < %s -o %t.bc
-; else
-; RUN: llvm-as -opaque-pointers < %s -o %t.bc
-; endif
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv --to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: String [[#Foo:]] "foo"
@@ -41,7 +37,7 @@
 ; CHECK-LLVM: ![[#File]] = !DIFile(filename: "foo.c", directory: "/tmp")
 ; CHECK-LLVM: ![[#CU2]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_17, file: ![[#File]], producer: "clang version 17", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 ; CHECK-LLVM: ![[#Empty:]] = !{}
-; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]], retainedNodes: ![[#Empty]])
+; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]])
 ; CHECK-LLVM: ![[#Func1T]] = !DISubroutineType(types: ![[#Func1TP:]])
 ; CHECK-LLVM: ![[#Func1TP]] = !{null}
 ; CHECK-LLVM: ![[#Puts1Loc]] = !DILocation(line: 6, column: 3, scope: ![[#Puts1Scope:]])

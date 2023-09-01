@@ -12,11 +12,11 @@ endif()
 set(SANITIZER_UNITTESTS
   sanitizer_addrhashmap_test.cpp
   sanitizer_allocator_test.cpp
+  sanitizer_array_ref_test.cpp
   sanitizer_atomic_test.cpp
   sanitizer_bitvector_test.cpp
   sanitizer_bvgraph_test.cpp
   sanitizer_chained_origin_depot_test.cpp
-  sanitizer_common_range_test.cpp
   sanitizer_common_test.cpp
   sanitizer_deadlock_detector_test.cpp
   sanitizer_dense_map_test.cpp
@@ -31,12 +31,14 @@ set(SANITIZER_UNITTESTS
   sanitizer_list_test.cpp
   sanitizer_lzw_test.cpp
   sanitizer_mac_test.cpp
+  sanitizer_module_uuid_size.cpp
   sanitizer_mutex_test.cpp
   sanitizer_nolibc_test.cpp
   sanitizer_posix_test.cpp
   sanitizer_printf_test.cpp
   sanitizer_procmaps_test.cpp
   sanitizer_procmaps_mac_test.cpp
+  sanitizer_range_test.cpp
   sanitizer_ring_buffer_test.cpp
   sanitizer_quarantine_test.cpp
   sanitizer_stack_store_test.cpp
@@ -163,7 +165,7 @@ set_target_properties(SanitizerUnitTests PROPERTIES FOLDER "Compiler-RT Tests")
 macro(add_sanitizer_tests_for_arch arch)
   set(extra_flags)
   if( CMAKE_SIZEOF_VOID_P EQUAL 4 )
-    list(APPEND extra_flags "-D_LARGEFILE_SOURCE")
+    list(APPEND extra_flags "-D_LARGEFILE_SOURCE=1")
     list(APPEND extra_flags "-D_FILE_OFFSET_BITS=64")
   endif()
   get_sanitizer_common_lib_for_arch(${arch} SANITIZER_COMMON_LIB)

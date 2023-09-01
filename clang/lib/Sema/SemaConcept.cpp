@@ -679,6 +679,15 @@ bool Sema::CheckFunctionConstraints(const FunctionDecl *FD,
     return false;
   }
 
+  // A lambda conversion operator has the same constraints as the call operator
+  // and constraints checking relies on whether we are in a lambda call operator
+  // (and may refer to its parameters), so check the call operator instead.
+  if (const auto *MD = dyn_cast<CXXConversionDecl>(FD);
+      MD && isLambdaConversionOperator(const_cast<CXXConversionDecl *>(MD)))
+    return CheckFunctionConstraints(MD->getParent()->getLambdaCallOperator(),
+                                    Satisfaction, UsageLoc,
+                                    ForOverloadResolution);
+
   DeclContext *CtxToSave = const_cast<FunctionDecl *>(FD);
 
   while (isLambdaCallOperator(CtxToSave) || FD->isTransparentContext()) {
@@ -1155,6 +1164,11 @@ void Sema::DiagnoseUnsatisfiedConstraint(
 const NormalizedConstraint *
 Sema::getNormalizedAssociatedConstraints(
     NamedDecl *ConstrainedDecl, ArrayRef<const Expr *> AssociatedConstraints) {
+  // In case the ConstrainedDecl comes from modules, it is necessary to use
+  // the canonical decl to avoid different atomic constraints with the 'same'
+  // declarations.
+  ConstrainedDecl = cast<NamedDecl>(ConstrainedDecl->getCanonicalDecl());
+
   auto CacheEntry = NormalizationCache.find(ConstrainedDecl);
   if (CacheEntry == NormalizationCache.end()) {
     auto Normalized =

@@ -10,15 +10,7 @@ on:
       build_ref:
         type: string
         required: false
-      lts_matrix:
-        type: string
-        required: false
-        default: "[]"
-      lts_cmake_extra_args:
-        type: string
-        required: false
-        default: ""
-      check_filters:
+      changes:
         type: string
         description: 'Filter matches for the changed files in the PR'
         default: '[llvm, clang, sycl, llvm_spirv, xptifw, libclc, libdevice]'
@@ -26,6 +18,10 @@ on:
       artifact_archive_name:
         type: string
         default: llvm_sycl.tar.gz
+      retention-days:
+        description: 'Artifacts retention period'
+        type: string
+        default: 3
 
 jobs:
   build:
@@ -73,27 +69,27 @@ jobs:
       run: |
         cmake --build build --target sycl-toolchain
     - name: check-llvm
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm')
       run: |
         cmake --build build --target check-llvm
     - name: check-clang
-      if: always() && !cancelled() && contains(inputs.check_filters, 'clang')
+      if: always() && !cancelled() && contains(inputs.changes, 'clang')
       run: |
         cmake --build build --target check-clang
     - name: check-sycl
-      if: always() && !cancelled() && contains(inputs.check_filters, 'sycl')
+      if: always() && !cancelled() && contains(inputs.changes, 'sycl')
       run: |
         cmake --build build --target check-sycl
     - name: check-llvm-spirv
-      if: always() && !cancelled() && contains(inputs.check_filters, 'llvm_spirv')
+      if: always() && !cancelled() && contains(inputs.changes, 'llvm_spirv')
       run: |
         cmake --build build --target check-llvm-spirv
     - name: check-xptifw
-      if: always() && !cancelled() && contains(inputs.check_filters, 'xptifw')
+      if: always() && !cancelled() && contains(inputs.changes, 'xptifw')
       run: |
         cmake --build build --target check-xptifw
     - name: check-libdevice
-      if: always() && !cancelled() && contains(inputs.check_filters, 'libdevice')
+      if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build build --target check-libdevice
     - name: Install
@@ -122,18 +118,14 @@ jobs:
       with:
         name: sycl_windows_default
         path: ${{ inputs.artifact_archive_name }}
+        retention-days: ${{ inputs.retention-days }}
 
   e2e-tests:
     needs: build
     # Continue if build was successful.
-    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' && inputs.lts_matrix != '[]' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(inputs.lts_matrix) }}
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.runs-on }}
-    env: ${{ matrix.env }}
+    if: ${{ always() && needs.build.outputs.build_conclusion == 'success' }}
+    name: SYCL E2E on Windows
+    runs-on: [Windows, gen12]
     steps:
     - uses: ilammy/msvc-dev-cmd@7315a94840631165970262a99c72cfb48a65d25d
       with:
@@ -151,9 +143,37 @@ jobs:
         path: llvm
     - name: Register cleanup after job is finished
       uses: ./llvm/devops/actions/cleanup
-    - uses: ./llvm/devops/actions/e2e-tests-win
-      name: Run SYCL End-to-End tests
+    - name: Download compiler toolchain
+      uses: actions/download-artifact@v3
       with:
-        sycl_artifact: sycl_windows_default
-        targets: ${{ matrix.targets }}
-        cmake_args: '${{ matrix.cmake_args }} ${{ inputs.lts_cmake_extra_args }}'
+        name: sycl_windows_default
+    - name: Extract SYCL toolchain
+      shell: bash
+      run: |
+        mkdir install
+        tar -xf ${{ inputs.artifact_archive_name }} -C install
+        rm ${{ inputs.artifact_archive_name }}
+    - name: Setup SYCL toolchain
+      run: |
+        echo "PATH=$env:GITHUB_WORKSPACE\\install\\bin;$env:PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+    - run: |
+        sycl-ls
+    - run: |
+        sycl-ls --verbose
+    - name: Configure E2E with Level Zero target
+      shell: cmd
+      run: |
+        mkdir build-e2e
+        cmake -GNinja -B build-e2e -S.\llvm\sycl\test-e2e -DSYCL_TEST_E2E_TARGETS="ext_oneapi_level_zero:gpu" -DCMAKE_CXX_COMPILER="clang++" -DLEVEL_ZERO_LIBS_DIR="D:\github\level-zero_win-sdk\lib" -DLLVM_LIT="..\llvm\llvm\utils\lit\lit.py"
+    - name: Run End-to-End tests
+      shell: bash
+      run: |
+        # Run E2E tests.
+        export LIT_OPTS="-v --no-progress-bar --show-unsupported --max-time 3600 --time-tests"
+        cmake --build build-e2e --target check-sycl-e2e
+    - name: Cleanup
+      shell: cmd
+      if: always()
+      run: |
+        rmdir /q /s install
+        rmdir /q /s build-e2e

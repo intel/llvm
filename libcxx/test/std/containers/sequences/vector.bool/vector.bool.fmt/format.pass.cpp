@@ -7,8 +7,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17, c++20
 
-// TODO FMT Fix this test using GCC, it currently times out.
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // <vector>
 
@@ -26,6 +25,7 @@
 #include <cassert>
 #include <concepts>
 #include <format>
+#include <iterator>
 #include <vector>
 
 #include "test_format_context.h"
