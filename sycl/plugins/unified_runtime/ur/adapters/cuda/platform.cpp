@@ -122,15 +122,11 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
-            for (int i = 0; i < NumDevices; ++i) {
-              Platform.Devices.clear();
-            }
+            Platform.Devices.clear();
             Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
           } catch (...) {
             // Clear and rethrow to allow retry
-            for (int i = 0; i < NumDevices; ++i) {
-              Platform.Devices.clear();
-            }
+            Platform.Devices.clear();
             throw;
           }
         },
