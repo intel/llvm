@@ -184,17 +184,16 @@ bool run_test() {
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_compute_cmd_buffer, &cbbi));
-    vkCmdPipelineBarrier(vk_compute_cmd_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    VK_CHECK_CALL(vkBeginCommandBuffer(vk_computeCmdBuffer, &cbbi));
+    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
                          nullptr, 1, &barrierInput);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_compute_cmd_buffer));
+    VK_CHECK_CALL(vkEndCommandBuffer(vk_computeCmdBuffer));
 
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_compute_cmd_buffer;
+    submission.pCommandBuffers = &vk_computeCmdBuffer;
 
     VK_CHECK_CALL(vkQueueSubmit(vk_compute_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
@@ -213,16 +212,16 @@ bool run_test() {
     copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     copyRegion.imageSubresource.layerCount = 1;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transfer_cmd_buffers[0], &cbbi));
-    vkCmdCopyBufferToImage(vk_transfer_cmd_buffers[0], inputStagingBuffer,
+    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
+    vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inputStagingBuffer,
                            inputImage, VK_IMAGE_LAYOUT_GENERAL,
                            1 /*regionCount*/, &copyRegion);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transfer_cmd_buffers[0]));
+    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
 
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transfer_cmd_buffers[0];
+    submission.pCommandBuffers = &vk_transferCmdBuffers[0];
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));

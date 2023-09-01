@@ -22,8 +22,8 @@
 namespace util {
 
 VkFormat to_vulkan_format(sycl::image_channel_order order,
-                          sycl::image_channel_type channel_type) {
-  if (channel_type == sycl::image_channel_type::unsigned_int32) {
+                          sycl::image_channel_type channelType) {
+  if (channelType == sycl::image_channel_type::unsigned_int32) {
     switch (order) {
     case sycl::image_channel_order::r:
       return VK_FORMAT_R32_UINT;
@@ -37,7 +37,7 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       exit(-1);
     }
     }
-  } else if (channel_type == sycl::image_channel_type::signed_int32) {
+  } else if (channelType == sycl::image_channel_type::signed_int32) {
     switch (order) {
     case sycl::image_channel_order::r:
       return VK_FORMAT_R32_SINT;
@@ -51,7 +51,7 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       exit(-1);
     }
     }
-  } else if (channel_type == sycl::image_channel_type::fp32) {
+  } else if (channelType == sycl::image_channel_type::fp32) {
     switch (order) {
     case sycl::image_channel_order::r:
       return VK_FORMAT_R32_SFLOAT;
@@ -322,61 +322,61 @@ void run_ndim_test(sycl::range<NDims> global_size,
 } // namespace util
 
 auto createImageMemoryBarrier(VkImage &img) {
-  VkImageMemoryBarrier barrier_input = {};
-  barrier_input.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-  barrier_input.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  barrier_input.newLayout = VK_IMAGE_LAYOUT_GENERAL;
-  barrier_input.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier_input.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-  barrier_input.image = img;
-  barrier_input.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-  barrier_input.subresourceRange.levelCount = 1;
-  barrier_input.subresourceRange.layerCount = 1;
-  barrier_input.srcAccessMask = 0;
-  barrier_input.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-  return barrier_input;
+  VkImageMemoryBarrier barrierInput = {};
+  barrierInput.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+  barrierInput.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+  barrierInput.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+  barrierInput.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrierInput.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+  barrierInput.image = img;
+  barrierInput.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  barrierInput.subresourceRange.levelCount = 1;
+  barrierInput.subresourceRange.layerCount = 1;
+  barrierInput.srcAccessMask = 0;
+  barrierInput.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  return barrierInput;
 }
 
 struct vulkan_image_test_resources_t {
-  VkImage vk_image;
-  VkDeviceMemory image_memory;
-  VkBuffer staging_buffer;
-  VkDeviceMemory staging_memory;
+  VkImage vkImage;
+  VkDeviceMemory imageMemory;
+  VkBuffer stagingBuffer;
+  VkDeviceMemory stagingMemory;
 };
 
 vulkan_image_test_resources_t
-create_vulkan_image_resources(VkImageType img_type, VkFormat format,
-                              VkExtent3D ext, const size_t image_size_bytes) {
-  auto vulkan_image = vkutil::createImage(img_type, format, ext,
-                                          VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                              VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                              VK_IMAGE_USAGE_STORAGE_BIT);
-  auto input_image_memory_type_index = vkutil::getImageMemoryTypeIndex(
-      vulkan_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  auto image_mem = vkutil::allocateDeviceMemory(image_size_bytes,
-                                                input_image_memory_type_index);
-  VK_CHECK_CALL(vkBindImageMemory(vk_device, vulkan_image, image_mem,
-                                  0 /*memoryOffset*/));
+create_vulkan_image_resources(VkImageType imgType, VkFormat format,
+                              VkExtent3D ext, const size_t imageSizeBytes) {
+  auto vulkanImage = vkutil::createImage(imgType, format, ext,
+                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                             VK_IMAGE_USAGE_STORAGE_BIT);
+  auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
+      vulkanImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  auto imageMem =
+      vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
+  VK_CHECK_CALL(
+      vkBindImageMemory(vk_device, vulkanImage, imageMem, 0 /*memoryOffset*/));
 
-  auto staging_buf = vkutil::createBuffer(image_size_bytes,
-                                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
-                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  auto input_staging_memory_type_index = vkutil::getBufferMemoryTypeIndex(
-      staging_buf, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  auto staging_mem = vkutil::allocateDeviceMemory(
-      image_size_bytes, input_staging_memory_type_index, false /*exportable*/);
-  VK_CHECK_CALL(vkBindBufferMemory(vk_device, staging_buf, staging_mem,
+  auto stagingBuf = vkutil::createBuffer(imageSizeBytes,
+                                         VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
+                                             VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+  auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
+      stagingBuf, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  auto stagingMem = vkutil::allocateDeviceMemory(
+      imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
+  VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuf, stagingMem,
                                    0 /*memoryOffset*/));
 
-  return {vulkan_image, image_mem, staging_buf, staging_mem};
+  return {vulkanImage, imageMem, stagingBuf, stagingMem};
 }
 
 void destroy_vulkan_image_resources(vulkan_image_test_resources_t &vitr) {
-  vkDestroyBuffer(vk_device, vitr.staging_buffer, nullptr);
-  vkDestroyImage(vk_device, vitr.vk_image, nullptr);
-  vkFreeMemory(vk_device, vitr.staging_memory, nullptr);
-  vkFreeMemory(vk_device, vitr.image_memory, nullptr);
+  vkDestroyBuffer(vk_device, vitr.stagingBuffer, nullptr);
+  vkDestroyImage(vk_device, vitr.vkImage, nullptr);
+  vkFreeMemory(vk_device, vitr.stagingMemory, nullptr);
+  vkFreeMemory(vk_device, vitr.imageMemory, nullptr);
 }
 
 template <int NDims, typename DType, int NChannels,
@@ -389,28 +389,28 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   uint32_t depth = 1;
 
   size_t num_elems = dims[0];
-  VkImageType img_type = VK_IMAGE_TYPE_1D;
+  VkImageType imgType = VK_IMAGE_TYPE_1D;
 
   if (NDims > 1) {
     num_elems *= dims[1];
     height = static_cast<uint32_t>(dims[1]);
-    img_type = VK_IMAGE_TYPE_2D;
+    imgType = VK_IMAGE_TYPE_2D;
   }
   if (NDims > 2) {
     num_elems *= dims[2];
     depth = static_cast<uint32_t>(dims[2]);
-    img_type = VK_IMAGE_TYPE_3D;
+    imgType = VK_IMAGE_TYPE_3D;
   }
 
   VkFormat format = util::to_vulkan_format(COrder, CType);
-  const size_t image_size_bytes = num_elems * NChannels * sizeof(DType);
+  const size_t imageSizeBytes = num_elems * NChannels * sizeof(DType);
 
-  auto in_vk_img_res_1 = create_vulkan_image_resources(
-      img_type, format, {width, height, depth}, image_size_bytes);
-  auto in_vk_img_res_2 = create_vulkan_image_resources(
-      img_type, format, {width, height, depth}, image_size_bytes);
-  auto out_vk_img_res = create_vulkan_image_resources(
-      img_type, format, {width, height, depth}, image_size_bytes);
+  auto inVkImgRes1 = create_vulkan_image_resources(
+      imgType, format, {width, height, depth}, imageSizeBytes);
+  auto inVkImgRes2 = create_vulkan_image_resources(
+      imgType, format, {width, height, depth}, imageSizeBytes);
+  auto outVkImgRes = create_vulkan_image_resources(
+      imgType, format, {width, height, depth}, imageSizeBytes);
 
   printString("Populating staging buffer\n");
   // Populate staging memory
@@ -419,63 +419,60 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   std::srand(seed);
   util::fill_rand(input_vector_0);
 
-  VecType *input_staging_data = nullptr;
-  VK_CHECK_CALL(vkMapMemory(vk_device, in_vk_img_res_1.staging_memory,
-                            0 /*offset*/, image_size_bytes, 0 /*flags*/,
-                            (void **)&input_staging_data));
+  VecType *inputStagingData = nullptr;
+  VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes1.stagingMemory, 0 /*offset*/,
+                            imageSizeBytes, 0 /*flags*/,
+                            (void **)&inputStagingData));
   for (int i = 0; i < num_elems; ++i) {
-    input_staging_data[i] = input_vector_0[i];
+    inputStagingData[i] = input_vector_0[i];
   }
-  vkUnmapMemory(vk_device, in_vk_img_res_1.staging_memory);
+  vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
   std::vector<VecType> input_vector_1(num_elems);
   std::srand(seed);
   util::fill_rand(input_vector_1);
 
-  VK_CHECK_CALL(vkMapMemory(vk_device, in_vk_img_res_2.staging_memory,
-                            0 /*offset*/, image_size_bytes, 0 /*flags*/,
-                            (void **)&input_staging_data));
+  VK_CHECK_CALL(vkMapMemory(vk_device, inVkImgRes2.stagingMemory, 0 /*offset*/,
+                            imageSizeBytes, 0 /*flags*/,
+                            (void **)&inputStagingData));
   for (int i = 0; i < num_elems; ++i) {
-    input_staging_data[i] = input_vector_1[i];
+    inputStagingData[i] = input_vector_1[i];
   }
-  vkUnmapMemory(vk_device, in_vk_img_res_2.staging_memory);
+  vkUnmapMemory(vk_device, inVkImgRes2.stagingMemory);
 
   printString("Submitting image layout transition\n");
   // Transition image layouts
   {
-    VkImageMemoryBarrier barrier_input_1 =
-        createImageMemoryBarrier(in_vk_img_res_1.vk_image);
-    VkImageMemoryBarrier barrier_input_2 =
-        createImageMemoryBarrier(in_vk_img_res_2.vk_image);
+    VkImageMemoryBarrier barrierInput1 =
+        createImageMemoryBarrier(inVkImgRes1.vkImage);
+    VkImageMemoryBarrier barrierInput2 =
+        createImageMemoryBarrier(inVkImgRes2.vkImage);
 
-    VkImageMemoryBarrier barrier_output =
-        createImageMemoryBarrier(out_vk_img_res.vk_image);
+    VkImageMemoryBarrier barrierOutput =
+        createImageMemoryBarrier(outVkImgRes.vkImage);
 
     VkCommandBufferBeginInfo cbbi = {};
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_compute_cmd_buffer, &cbbi));
-    vkCmdPipelineBarrier(vk_compute_cmd_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    VK_CHECK_CALL(vkBeginCommandBuffer(vk_computeCmdBuffer, &cbbi));
+    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier_input_1);
+                         nullptr, 1, &barrierInput1);
 
-    vkCmdPipelineBarrier(vk_compute_cmd_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier_input_2);
+                         nullptr, 1, &barrierInput2);
 
-    vkCmdPipelineBarrier(vk_compute_cmd_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+    vkCmdPipelineBarrier(vk_computeCmdBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                          VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                         nullptr, 1, &barrier_output);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_compute_cmd_buffer));
+                         nullptr, 1, &barrierOutput);
+    VK_CHECK_CALL(vkEndCommandBuffer(vk_computeCmdBuffer));
 
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_compute_cmd_buffer;
+    submission.pCommandBuffers = &vk_computeCmdBuffer;
 
     VK_CHECK_CALL(vkQueueSubmit(vk_compute_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
@@ -484,7 +481,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
 
   // Create semaphore to later import in SYCL
   printString("Creating semaphores\n");
-  VkSemaphore sycl_wait_semaphore;
+  VkSemaphore syclWaitSemaphore;
   {
     VkExportSemaphoreCreateInfo esci = {};
     esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
@@ -494,10 +491,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     sci.pNext = &esci;
     VK_CHECK_CALL(
-        vkCreateSemaphore(vk_device, &sci, nullptr, &sycl_wait_semaphore));
+        vkCreateSemaphore(vk_device, &sci, nullptr, &syclWaitSemaphore));
   }
 
-  VkSemaphore sycl_done_semaphore;
+  VkSemaphore syclDoneSemaphore;
   {
     VkExportSemaphoreCreateInfo esci = {};
     esci.sType = VK_STRUCTURE_TYPE_EXPORT_SEMAPHORE_CREATE_INFO;
@@ -507,7 +504,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     sci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     sci.pNext = &esci;
     VK_CHECK_CALL(
-        vkCreateSemaphore(vk_device, &sci, nullptr, &sycl_done_semaphore));
+        vkCreateSemaphore(vk_device, &sci, nullptr, &syclDoneSemaphore));
   }
 
   printString("Copying staging memory to images\n");
@@ -517,31 +514,29 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-    VkBufferImageCopy copy_region = {};
-    copy_region.imageExtent = {width, height, depth};
-    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copy_region.imageSubresource.layerCount = 1;
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.imageExtent = {width, height, depth};
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.layerCount = 1;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transfer_cmd_buffers[0], &cbbi));
-    vkCmdCopyBufferToImage(vk_transfer_cmd_buffers[0],
-                           in_vk_img_res_1.staging_buffer,
-                           in_vk_img_res_1.vk_image, VK_IMAGE_LAYOUT_GENERAL,
-                           1 /*regionCount*/, &copy_region);
-    vkCmdCopyBufferToImage(vk_transfer_cmd_buffers[0],
-                           in_vk_img_res_2.staging_buffer,
-                           in_vk_img_res_2.vk_image, VK_IMAGE_LAYOUT_GENERAL,
-                           1 /*regionCount*/, &copy_region);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transfer_cmd_buffers[0]));
+    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[0], &cbbi));
+    vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inVkImgRes1.stagingBuffer,
+                           inVkImgRes1.vkImage, VK_IMAGE_LAYOUT_GENERAL,
+                           1 /*regionCount*/, &copyRegion);
+    vkCmdCopyBufferToImage(vk_transferCmdBuffers[0], inVkImgRes2.stagingBuffer,
+                           inVkImgRes2.vkImage, VK_IMAGE_LAYOUT_GENERAL,
+                           1 /*regionCount*/, &copyRegion);
+    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[0]));
 
     std::vector<VkPipelineStageFlags> stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
 
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transfer_cmd_buffers[0];
+    submission.pCommandBuffers = &vk_transferCmdBuffers[0];
 
     submission.signalSemaphoreCount = 1;
-    submission.pSignalSemaphores = &sycl_wait_semaphore;
+    submission.pSignalSemaphores = &syclWaitSemaphore;
     submission.pWaitDstStageMask = stages.data();
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
@@ -552,15 +547,13 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   // Pass memory to SYCL for modification
 
   auto global_size = dims;
-  auto input_fd_1 = vkutil::getMemoryOpaqueFD(in_vk_img_res_1.image_memory);
-  auto input_fd_2 = vkutil::getMemoryOpaqueFD(in_vk_img_res_2.image_memory);
-  auto output_fd = vkutil::getMemoryOpaqueFD(out_vk_img_res.image_memory);
+  auto input_fd_1 = vkutil::getMemoryOpaqueFD(inVkImgRes1.imageMemory);
+  auto input_fd_2 = vkutil::getMemoryOpaqueFD(inVkImgRes2.imageMemory);
+  auto output_fd = vkutil::getMemoryOpaqueFD(outVkImgRes.imageMemory);
 
   // Pass semaphores to SYCL for synchronization
-  int sycl_wait_semaphore_fd =
-      vkutil::getSemaphoreOpaqueFD(sycl_wait_semaphore);
-  int sycl_done_semaphore_fd =
-      vkutil::getSemaphoreOpaqueFD(sycl_done_semaphore);
+  int sycl_wait_semaphore_fd = vkutil::getSemaphoreOpaqueFD(syclWaitSemaphore);
+  int sycl_done_semaphore_fd = vkutil::getSemaphoreOpaqueFD(syclDoneSemaphore);
 
   util::run_ndim_test<NDims, DType, CType, NChannels, KernelName>(
       global_size, local_size, input_fd_1, input_fd_2, output_fd,
@@ -573,27 +566,26 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     cbbi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cbbi.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-    VkBufferImageCopy copy_region = {};
-    copy_region.imageExtent = {width, height, depth};
-    copy_region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    copy_region.imageSubresource.layerCount = 1;
+    VkBufferImageCopy copyRegion = {};
+    copyRegion.imageExtent = {width, height, depth};
+    copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    copyRegion.imageSubresource.layerCount = 1;
 
-    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transfer_cmd_buffers[1], &cbbi));
-    vkCmdCopyImageToBuffer(vk_transfer_cmd_buffers[1], out_vk_img_res.vk_image,
-                           VK_IMAGE_LAYOUT_GENERAL,
-                           out_vk_img_res.staging_buffer, 1 /*regionCount*/,
-                           &copy_region);
-    VK_CHECK_CALL(vkEndCommandBuffer(vk_transfer_cmd_buffers[1]));
+    VK_CHECK_CALL(vkBeginCommandBuffer(vk_transferCmdBuffers[1], &cbbi));
+    vkCmdCopyImageToBuffer(vk_transferCmdBuffers[1], outVkImgRes.vkImage,
+                           VK_IMAGE_LAYOUT_GENERAL, outVkImgRes.stagingBuffer,
+                           1 /*regionCount*/, &copyRegion);
+    VK_CHECK_CALL(vkEndCommandBuffer(vk_transferCmdBuffers[1]));
 
     std::vector<VkPipelineStageFlags> stages{VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT};
 
     VkSubmitInfo submission = {};
     submission.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submission.commandBufferCount = 1;
-    submission.pCommandBuffers = &vk_transfer_cmd_buffers[1];
+    submission.pCommandBuffers = &vk_transferCmdBuffers[1];
 
     submission.waitSemaphoreCount = 1;
-    submission.pWaitSemaphores = &sycl_done_semaphore;
+    submission.pWaitSemaphores = &syclDoneSemaphore;
     submission.pWaitDstStageMask = stages.data();
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
@@ -604,10 +596,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Validating\n");
   // Validate that SYCL made changes to the memory
   bool validated = true;
-  VecType *output_staging_data = nullptr;
-  VK_CHECK_CALL(vkMapMemory(vk_device, out_vk_img_res.staging_memory,
-                            0 /*offset*/, image_size_bytes, 0 /*flags*/,
-                            (void **)&output_staging_data));
+  VecType *outputStagingData = nullptr;
+  VK_CHECK_CALL(vkMapMemory(vk_device, outVkImgRes.stagingMemory, 0 /*offset*/,
+                            imageSizeBytes, 0 /*flags*/,
+                            (void **)&outputStagingData));
   for (int i = 0; i < num_elems; ++i) {
     VecType expected = input_vector_0[i];
     expected += input_vector_1[i];
@@ -615,9 +607,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
       // Use helper function to determine if data is accepted
       // For integers, exact results are expected
       // For floats, accepted error variance is passed
-      if (!util::is_equal(output_staging_data[i][j], expected[j])) {
+      if (!util::is_equal(outputStagingData[i][j], expected[j])) {
         std::cerr << "Result mismatch! actual[" << i << "][" << j
-                  << "] == " << output_staging_data[i][j]
+                  << "] == " << outputStagingData[i][j]
                   << " : expected == " << expected[j] << "\n";
         validated = false;
       }
@@ -625,18 +617,18 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     if (!validated)
       break;
   }
-  vkUnmapMemory(vk_device, out_vk_img_res.staging_memory);
+  vkUnmapMemory(vk_device, outVkImgRes.stagingMemory);
 
   if (validated) {
     printString("  Results are correct!\n");
   }
 
   // Cleanup
-  destroy_vulkan_image_resources(in_vk_img_res_1);
-  destroy_vulkan_image_resources(in_vk_img_res_2);
-  destroy_vulkan_image_resources(out_vk_img_res);
-  vkDestroySemaphore(vk_device, sycl_wait_semaphore, nullptr);
-  vkDestroySemaphore(vk_device, sycl_done_semaphore, nullptr);
+  destroy_vulkan_image_resources(inVkImgRes1);
+  destroy_vulkan_image_resources(inVkImgRes2);
+  destroy_vulkan_image_resources(outVkImgRes);
+  vkDestroySemaphore(vk_device, syclWaitSemaphore, nullptr);
+  vkDestroySemaphore(vk_device, syclDoneSemaphore, nullptr);
 
   return validated;
 }

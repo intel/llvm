@@ -38,11 +38,11 @@ static PFN_vkGetSemaphoreFdKHR vk_getSemaphoreFdKHR;
 static uint32_t vk_computeQueueFamilyIndex;
 static uint32_t vk_transferQueueFamilyIndex;
 
-static VkCommandPool vk_compute_cmd_pool;
-static VkCommandPool vk_transfer_cmd_pool;
+static VkCommandPool vk_computeCmdPool;
+static VkCommandPool vk_transferCmdPool;
 
-static VkCommandBuffer vk_compute_cmd_buffer;
-static VkCommandBuffer vk_transfer_cmd_buffers[2];
+static VkCommandBuffer vk_computeCmdBuffer;
+static VkCommandBuffer vk_transferCmdBuffers[2];
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -218,37 +218,37 @@ VkResult setupCommandBuffers() {
   cpci.queueFamilyIndex = vk_computeQueueFamilyIndex;
   cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
   VK_CHECK_CALL_RET(
-      vkCreateCommandPool(vk_device, &cpci, nullptr, &vk_compute_cmd_pool));
+      vkCreateCommandPool(vk_device, &cpci, nullptr, &vk_computeCmdPool));
 
   if (vk_computeQueueFamilyIndex == vk_transferQueueFamilyIndex) {
-    vk_transfer_cmd_pool = vk_compute_cmd_pool;
+    vk_transferCmdPool = vk_computeCmdPool;
   } else {
     VkCommandPoolCreateInfo cpci = {};
     cpci.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cpci.queueFamilyIndex = vk_transferQueueFamilyIndex;
     cpci.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     VK_CHECK_CALL_RET(
-        vkCreateCommandPool(vk_device, &cpci, nullptr, &vk_transfer_cmd_pool));
+        vkCreateCommandPool(vk_device, &cpci, nullptr, &vk_transferCmdPool));
   }
 
   {
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cbai.commandPool = vk_compute_cmd_pool;
+    cbai.commandPool = vk_computeCmdPool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = 1;
     VK_CHECK_CALL_RET(
-        vkAllocateCommandBuffers(vk_device, &cbai, &vk_compute_cmd_buffer));
+        vkAllocateCommandBuffers(vk_device, &cbai, &vk_computeCmdBuffer));
   }
 
   {
     VkCommandBufferAllocateInfo cbai = {};
     cbai.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cbai.commandPool = vk_transfer_cmd_pool;
+    cbai.commandPool = vk_transferCmdPool;
     cbai.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cbai.commandBufferCount = 2;
     VK_CHECK_CALL_RET(
-        vkAllocateCommandBuffers(vk_device, &cbai, vk_transfer_cmd_buffers));
+        vkAllocateCommandBuffers(vk_device, &cbai, vk_transferCmdBuffers));
   }
 
   return VK_SUCCESS;
@@ -361,10 +361,10 @@ uint32_t getBufferMemoryTypeIndex(VkBuffer buffer,
 VkResult cleanup() {
 
   if (vk_computeQueueFamilyIndex == vk_transferQueueFamilyIndex) {
-    vkDestroyCommandPool(vk_device, vk_compute_cmd_pool, nullptr);
+    vkDestroyCommandPool(vk_device, vk_computeCmdPool, nullptr);
   } else {
-    vkDestroyCommandPool(vk_device, vk_compute_cmd_pool, nullptr);
-    vkDestroyCommandPool(vk_device, vk_transfer_cmd_pool, nullptr);
+    vkDestroyCommandPool(vk_device, vk_computeCmdPool, nullptr);
+    vkDestroyCommandPool(vk_device, vk_transferCmdPool, nullptr);
   }
 
   auto destroyDebugUtilsMessenger =
