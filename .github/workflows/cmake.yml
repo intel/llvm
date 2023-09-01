@@ -136,56 +136,6 @@ jobs:
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "fuzz-short"
 
-  adapter-build:
-    name: Build - Adapters on Ubuntu
-    strategy:
-      matrix:
-        os: ['ubuntu-22.04']
-        adapter: [CUDA, HIP, L0]
-        build_type: [Debug, Release]
-        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
-
-    runs-on: ${{matrix.os}}
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Install apt packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y doxygen ${{matrix.compiler.c}}
-
-    - name: Install pip packages
-      run: pip install -r third_party/requirements.txt
-
-    - name: Install CUDA specific dependencies
-      if: matrix.adapter == 'CUDA'
-      run: |
-        sudo apt-get install nvidia-cuda-toolkit nvidia-cuda-toolkit-gcc
-
-    - name: Install HIP specific dependencies
-      if: matrix.adapter == 'HIP'
-      run: |
-        wget https://repo.radeon.com/amdgpu-install/5.6/ubuntu/jammy/amdgpu-install_5.6.50600-1_all.deb
-        sudo apt install ./amdgpu-install_5.6.50600-1_all.deb
-        sudo amdgpu-install --usecase=rocm
-
-    - name: Configure CMake
-      run: >
-        cmake
-        -B${{github.workspace}}/build
-        -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
-        -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DUR_ENABLE_TRACING=ON
-        -DUR_DEVELOPER_MODE=ON
-        -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
-        -DUR_BUILD_TESTS=ON
-        -DUR_FORMAT_CPP_STYLE=ON
-        -DUR_BUILD_ADAPTER_${{matrix.adapter}}=ON
-
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build -j $(nproc)
-
   adapter-build-hw:
     name: Build - Adapters on HW
     if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
