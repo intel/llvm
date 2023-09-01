@@ -296,7 +296,7 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
         report_fatal_error(
             "SYCL Native CPU currently doesn't support non-inlined "
             "functions yet, try increasing the inlining threshold. Support for "
-            "unlined functions is planned.");
+            "non-inlined functions is planned.");
       auto *Arg = ConstantInt::get(Type::getInt32Ty(M.getContext()),
                                    Entry.second.second);
       auto *NewI = CallInst::Create(ReplaceFunc->getFunctionType(), ReplaceFunc,
