@@ -23,4 +23,7 @@
 #pragma once
 
 #include <syclcompat/defs.hpp>
+#include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
+#include <syclcompat/kernel.hpp>
+#include <syclcompat/memory.hpp>

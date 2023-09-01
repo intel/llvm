@@ -12,16 +12,19 @@
 //===----------------------------------------------------------------------===//
 
 #include "VPlanTransforms.h"
-#include "VPlanDominatorTree.h"
 #include "VPRecipeBuilder.h"
 #include "VPlanCFG.h"
+#include "VPlanDominatorTree.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/Analysis/IVDescriptors.h"
 #include "llvm/Analysis/VectorUtils.h"
 #include "llvm/IR/Intrinsics.h"
+#include "llvm/IR/PatternMatch.h"
 
 using namespace llvm;
+
+using namespace llvm::PatternMatch;
 
 void VPlanTransforms::VPInstructionsToVPRecipes(
     VPlanPtr &Plan,
@@ -479,10 +482,20 @@ void VPlanTransforms::removeDeadRecipes(VPlan &Plan) {
     // The recipes in the block are processed in reverse order, to catch chains
     // of dead recipes.
     for (VPRecipeBase &R : make_early_inc_range(reverse(*VPBB))) {
-      if (R.mayHaveSideEffects() || any_of(R.definedValues(), [](VPValue *V) {
-            return V->getNumUsers() > 0;
-          }))
+      // A user keeps R alive:
+      if (any_of(R.definedValues(),
+                 [](VPValue *V) { return V->getNumUsers(); }))
         continue;
+
+      // Having side effects keeps R alive, but do remove conditional assume
+      // instructions as their conditions may be flattened.
+      auto *RepR = dyn_cast<VPReplicateRecipe>(&R);
+      bool IsConditionalAssume =
+          RepR && RepR->isPredicated() &&
+          match(RepR->getUnderlyingInstr(), m_Intrinsic<Intrinsic::assume>());
+      if (R.mayHaveSideEffects() && !IsConditionalAssume)
+        continue;
+
       R.eraseFromParent();
     }
   }
@@ -664,6 +677,9 @@ sinkRecurrenceUsersAfterPrevious(VPFirstOrderRecurrencePHIRecipe *FOR,
         properlyDominates(Previous, SinkCandidate, VPDT))
       return true;
 
+    if (SinkCandidate->mayHaveSideEffects())
+      return false;
+
     WorkList.push_back(SinkCandidate);
     return true;
   };
@@ -674,6 +690,7 @@ sinkRecurrenceUsersAfterPrevious(VPFirstOrderRecurrencePHIRecipe *FOR,
     VPRecipeBase *Current = WorkList[I];
     assert(Current->getNumDefinedValues() == 1 &&
            "only recipes with a single defined value expected");
+
     for (VPUser *User : Current->getVPSingleValue()->users()) {
       if (auto *R = dyn_cast<VPRecipeBase>(User))
         if (!TryToPushSinkCandidate(R))
@@ -741,4 +758,49 @@ bool VPlanTransforms::adjustFixedOrderRecurrences(VPlan &Plan,
     RecurSplice->setOperand(0, FOR);
   }
   return true;
+}
+
+void VPlanTransforms::clearReductionWrapFlags(VPlan &Plan) {
+  for (VPRecipeBase &R :
+       Plan.getVectorLoopRegion()->getEntryBasicBlock()->phis()) {
+    auto *PhiR = dyn_cast<VPReductionPHIRecipe>(&R);
+    if (!PhiR)
+      continue;
+    const RecurrenceDescriptor &RdxDesc = PhiR->getRecurrenceDescriptor();
+    RecurKind RK = RdxDesc.getRecurrenceKind();
+    if (RK != RecurKind::Add && RK != RecurKind::Mul)
+      continue;
+
+    SmallSetVector<VPValue *, 8> Worklist;
+    Worklist.insert(PhiR);
+
+    for (unsigned I = 0; I != Worklist.size(); ++I) {
+      VPValue *Cur = Worklist[I];
+      if (auto *RecWithFlags =
+              dyn_cast<VPRecipeWithIRFlags>(Cur->getDefiningRecipe())) {
+        RecWithFlags->dropPoisonGeneratingFlags();
+      }
+
+      for (VPUser *U : Cur->users()) {
+        auto *UserRecipe = dyn_cast<VPRecipeBase>(U);
+        if (!UserRecipe)
+          continue;
+        for (VPValue *V : UserRecipe->definedValues())
+          Worklist.insert(V);
+      }
+    }
+  }
+}
+
+void VPlanTransforms::optimize(VPlan &Plan, ScalarEvolution &SE) {
+  removeRedundantCanonicalIVs(Plan);
+  removeRedundantInductionCasts(Plan);
+
+  optimizeInductions(Plan, SE);
+  removeDeadRecipes(Plan);
+
+  createAndOptimizeReplicateRegions(Plan);
+
+  removeRedundantExpandSCEVRecipes(Plan);
+  mergeBlocksIntoPredecessors(Plan);
 }

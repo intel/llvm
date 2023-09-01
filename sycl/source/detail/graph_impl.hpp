@@ -17,12 +17,18 @@
 #include <detail/kernel_impl.hpp>
 
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <list>
 #include <set>
+#include <shared_mutex>
 
 namespace sycl {
 inline namespace _V1 {
+
+namespace detail {
+class SYCLMemObjT;
+}
 
 namespace ext {
 namespace oneapi {
@@ -43,6 +49,9 @@ public:
   /// Command group object which stores all args etc needed to enqueue the node
   std::unique_ptr<sycl::detail::CG> MCommandGroup;
 
+  /// Used for tracking visited status during cycle checks.
+  bool MVisited = false;
+
   /// Add successor to the node.
   /// @param Node Node to add as a successor.
   /// @param Prev Predecessor to \p node being added as successor.
@@ -51,6 +60,10 @@ public:
   /// use a raw \p this pointer, so the extra \Prev parameter is passed.
   void registerSuccessor(const std::shared_ptr<node_impl> &Node,
                          const std::shared_ptr<node_impl> &Prev) {
+    if (std::find(MSuccessors.begin(), MSuccessors.end(), Node) !=
+        MSuccessors.end()) {
+      return;
+    }
     MSuccessors.push_back(Node);
     Node->registerPredecessor(Prev);
   }
@@ -58,6 +71,12 @@ public:
   /// Add predecessor to the node.
   /// @param Node Node to add as a predecessor.
   void registerPredecessor(const std::shared_ptr<node_impl> &Node) {
+    if (std::find_if(MPredecessors.begin(), MPredecessors.end(),
+                     [&Node](const std::weak_ptr<node_impl> &Ptr) {
+                       return Ptr.lock() == Node;
+                     }) != MPredecessors.end()) {
+      return;
+    }
     MPredecessors.push_back(Node);
   }
 
@@ -72,20 +91,63 @@ public:
             std::unique_ptr<sycl::detail::CG> &&CommandGroup)
       : MCGType(CGType), MCommandGroup(std::move(CommandGroup)) {}
 
+  /// Tests if two nodes have the same content,
+  /// i.e. same command group
+  /// This function should only be used for internal purposes.
+  /// A true return from this operator is not a guarantee that the nodes are
+  /// equals according to the Common reference semantics. But this function is
+  /// an helper to verify that two nodes contain equivalent Command Groups.
+  /// @param Node node to compare with
+  /// @return true if two nodes have equivament command groups. false otherwise.
+  bool operator==(const node_impl &Node) {
+    if (MCGType != Node.MCGType)
+      return false;
+
+    switch (MCGType) {
+    case sycl::detail::CG::CGTYPE::Kernel: {
+      sycl::detail::CGExecKernel *ExecKernelA =
+          static_cast<sycl::detail::CGExecKernel *>(MCommandGroup.get());
+      sycl::detail::CGExecKernel *ExecKernelB =
+          static_cast<sycl::detail::CGExecKernel *>(Node.MCommandGroup.get());
+      return ExecKernelA->MKernelName.compare(ExecKernelB->MKernelName) == 0;
+    }
+    case sycl::detail::CG::CGTYPE::CopyUSM: {
+      sycl::detail::CGCopyUSM *CopyA =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      sycl::detail::CGCopyUSM *CopyB =
+          static_cast<sycl::detail::CGCopyUSM *>(MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst()) &&
+             (CopyA->getLength() == CopyB->getLength());
+    }
+    case sycl::detail::CG::CGTYPE::CopyAccToAcc:
+    case sycl::detail::CG::CGTYPE::CopyAccToPtr:
+    case sycl::detail::CG::CGTYPE::CopyPtrToAcc: {
+      sycl::detail::CGCopy *CopyA =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      sycl::detail::CGCopy *CopyB =
+          static_cast<sycl::detail::CGCopy *>(MCommandGroup.get());
+      return (CopyA->getSrc() == CopyB->getSrc()) &&
+             (CopyA->getDst() == CopyB->getDst());
+    }
+    default:
+      assert(false && "Unexpected command group type!");
+      return false;
+    }
+  }
+
   /// Recursively add nodes to execution stack.
   /// @param NodeImpl Node to schedule.
   /// @param Schedule Execution ordering to add node to.
   void sortTopological(std::shared_ptr<node_impl> NodeImpl,
                        std::list<std::shared_ptr<node_impl>> &Schedule) {
-    for (auto Next : MSuccessors) {
+    for (auto &Next : MSuccessors) {
       // Check if we've already scheduled this node
       if (std::find(Schedule.begin(), Schedule.end(), Next) == Schedule.end())
         Next->sortTopological(Next, Schedule);
     }
-    // We don't need to schedule empty nodes as they are only used when
-    // calculating dependencies
-    if (!NodeImpl->isEmpty())
-      Schedule.push_front(NodeImpl);
+
+    Schedule.push_front(NodeImpl);
   }
 
   /// Checks if this node has a given requirement.
@@ -167,6 +229,52 @@ public:
     return nullptr;
   }
 
+  /// Tests is the caller is similar to Node
+  /// @return True if the two nodes are similar
+  bool isSimilar(std::shared_ptr<node_impl> Node) {
+    if (MSuccessors.size() != Node->MSuccessors.size())
+      return false;
+
+    if (MPredecessors.size() != Node->MPredecessors.size())
+      return false;
+
+    if (*this == *Node.get())
+      return true;
+
+    return false;
+  }
+
+  /// Recursive traversal of successor nodes checking for
+  /// equivalent node successions in Node
+  /// @param Node pointer to the starting node for structure comparison
+  /// @return true is same structure found, false otherwise
+  bool checkNodeRecursive(std::shared_ptr<node_impl> Node) {
+    size_t FoundCnt = 0;
+    for (std::shared_ptr<node_impl> SuccA : MSuccessors) {
+      for (std::shared_ptr<node_impl> SuccB : Node->MSuccessors) {
+        if (isSimilar(Node) && SuccA->checkNodeRecursive(SuccB)) {
+          FoundCnt++;
+          break;
+        }
+      }
+    }
+    if (FoundCnt != MSuccessors.size()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /// Recusively computes the number of successor nodes
+  /// @return number of successor nodes
+  size_t depthSearchCount() const {
+    size_t NumberOfNodes = 1;
+    for (const auto &Succ : MSuccessors) {
+      NumberOfNodes += Succ->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
   /// Creates a copy of the node's CG by casting to it's actual type, then using
   /// that to copy construct and create a new unique ptr from that copy.
@@ -180,16 +288,41 @@ private:
 /// Implementation details of command_graph<modifiable>.
 class graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device to create nodes with.
-  graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice)
+  /// @param PropList Optional list of properties.
+  graph_impl(const sycl::context &SyclContext, const sycl::device &SyclDevice,
+             const sycl::property_list &PropList = {})
       : MContext(SyclContext), MDevice(SyclDevice), MRecordingQueues(),
-        MEventsMap(), MInorderQueueMap() {}
+        MEventsMap(), MInorderQueueMap() {
+    if (PropList.has_property<property::graph::no_cycle_check>()) {
+      MSkipCycleChecks = true;
+    }
+    if (PropList
+            .has_property<property::graph::assume_buffer_outlives_graph>()) {
+      MAllowBuffers = true;
+    }
 
-  /// Insert node into list of root nodes.
-  /// @param Root Node to add to list of root nodes.
-  void addRoot(const std::shared_ptr<node_impl> &Root);
+    if (SyclDevice.get_info<
+            ext::oneapi::experimental::info::device::graph_support>() ==
+        graph_support_level::unsupported) {
+      std::stringstream Stream;
+      Stream << SyclDevice.get_backend();
+      std::string BackendString = Stream.str();
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          BackendString + " backend is not supported by SYCL Graph extension.");
+    }
+  }
+
+  ~graph_impl();
 
   /// Remove node from list of root nodes.
   /// @param Root Node to remove from list of root nodes.
@@ -264,6 +397,7 @@ public:
   /// @return Event associated with node.
   std::shared_ptr<sycl::detail::event_impl>
   getEventForNode(std::shared_ptr<node_impl> NodeImpl) const {
+    ReadLock Lock(MMutex);
     if (auto EventImpl = std::find_if(
             MEventsMap.begin(), MEventsMap.end(),
             [NodeImpl](auto &it) { return it.second == NodeImpl; });
@@ -276,11 +410,12 @@ public:
         "No event has been recorded for the specified graph node");
   }
 
-  /// Adds sub-graph nodes from an executable graph to this graph.
-  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// Duplicates and Adds sub-graph nodes from an executable graph to this
+  /// graph.
+  /// @param SubGraphExec sub-graph to add to the parent.
   /// @return An empty node is used to schedule dependencies on this sub-graph.
   std::shared_ptr<node_impl>
-  addSubgraphNodes(const std::list<std::shared_ptr<node_impl>> &NodeList);
+  addSubgraphNodes(const std::shared_ptr<exec_graph_impl> &SubGraphExec);
 
   /// Query for the context tied to this graph.
   /// @return Context associated with graph.
@@ -315,14 +450,152 @@ public:
     MInorderQueueMap[QueueWeakPtr] = Node;
   }
 
+  /// Make an edge between two nodes in the graph. Performs some mandatory
+  /// error checks as well as an optional check for cycles introduced by making
+  /// this edge.
+  /// @param Src The source of the new edge.
+  /// @param Dest The destination of the new edge.
+  void makeEdge(std::shared_ptr<node_impl> Src,
+                std::shared_ptr<node_impl> Dest);
+
+  /// Throws an invalid exception if this function is called
+  /// while a queue is recording commands to the graph.
+  /// @param ExceptionMsg Message to append to the exception message
+  void throwIfGraphRecordingQueue(const std::string ExceptionMsg) const {
+    if (MRecordingQueues.size()) {
+      throw sycl::exception(make_error_code(sycl::errc::invalid),
+                            ExceptionMsg +
+                                " cannot be called when a queue "
+                                "is currently recording commands to a graph.");
+    }
+  }
+
+  /// Checks if the graph_impl of Graph has a similar structure to
+  /// the graph_impl of the caller.
+  /// Graphs are considered similar if they have same numbers of nodes
+  /// of the same type with similar predecessor and successor nodes (number and
+  /// type). Two nodes are considered similar if they have the same
+  /// command-group type. For command-groups of type "kernel", the "signature"
+  /// of the kernel is also compared (i.e. the name of the command-group).
+  /// @param Graph if reference to the graph to compare with.
+  /// @param DebugPrint if set to true throw exception with additional debug
+  /// information about the spotted graph differences.
+  /// @return true if the two graphs are similar, false otherwise
+  bool hasSimilarStructure(std::shared_ptr<detail::graph_impl> Graph,
+                           bool DebugPrint = false) const {
+    if (this == Graph.get())
+      return true;
+
+    if (MContext != Graph->MContext) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MContext are not the same.");
+      }
+      return false;
+    }
+
+    if (MDevice != Graph->MDevice) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MDevice are not the same.");
+      }
+      return false;
+    }
+
+    if (MEventsMap.size() != Graph->MEventsMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MEventsMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MInorderQueueMap.size() != Graph->MInorderQueueMap.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MInorderQueueMap sizes are not the same.");
+      }
+      return false;
+    }
+
+    if (MRoots.size() != Graph->MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "MRoots sizes are not the same.");
+      }
+      return false;
+    }
+
+    size_t RootsFound = 0;
+    for (std::shared_ptr<node_impl> NodeA : MRoots) {
+      for (std::shared_ptr<node_impl> NodeB : Graph->MRoots) {
+        if (NodeA->isSimilar(NodeB)) {
+          if (NodeA->checkNodeRecursive(NodeB)) {
+            RootsFound++;
+            break;
+          }
+        }
+      }
+    }
+
+    if (RootsFound != MRoots.size()) {
+      if (DebugPrint) {
+        throw sycl::exception(sycl::make_error_code(errc::invalid),
+                              "Root Nodes do NOT match.");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  // Returns the number of nodes in the Graph
+  // @return Number of nodes in the Graph
+  size_t getNumberOfNodes() const {
+    size_t NumberOfNodes = 0;
+    for (const auto &Node : MRoots) {
+      NumberOfNodes += Node->depthSearchCount();
+    }
+    return NumberOfNodes;
+  }
+
 private:
+  /// Iterate over the graph depth-first and run \p NodeFunc on each node.
+  /// @param NodeFunc A function which receives as input a node in the graph to
+  /// perform operations on as well as the stack of nodes encountered in the
+  /// current path. The return value of this function determines whether an
+  /// early exit is triggered, if true the depth-first search will end
+  /// immediately and no further nodes will be visited.
+  void
+  searchDepthFirst(std::function<bool(std::shared_ptr<node_impl> &,
+                                      std::deque<std::shared_ptr<node_impl>> &)>
+                       NodeFunc);
+
+  /// Check the graph for cycles by performing a depth-first search of the
+  /// graph. If a node is visited more than once in a given path through the
+  /// graph, a cycle is present and the search ends immediately.
+  /// @return True if a cycle is detected, false if not.
+  bool checkForCycles();
+
+  /// Insert node into list of root nodes.
+  /// @param Root Node to add to list of root nodes.
+  void addRoot(const std::shared_ptr<node_impl> &Root);
+
+  /// Adds nodes to the exit nodes of this graph.
+  /// @param NodeList List of nodes from sub-graph in schedule order.
+  /// @return An empty node is used to schedule dependencies on this sub-graph.
+  std::shared_ptr<node_impl>
+  addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
+
   /// Context associated with this graph.
   sycl::context MContext;
   /// Device associated with this graph. All graph nodes will execute on this
   /// device.
   sycl::device MDevice;
   /// Unique set of queues which are currently recording to this graph.
-  std::set<std::shared_ptr<sycl::detail::queue_impl>> MRecordingQueues;
+  std::set<std::weak_ptr<sycl::detail::queue_impl>,
+           std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
+      MRecordingQueues;
   /// Map of events to their associated recorded nodes.
   std::unordered_map<std::shared_ptr<sycl::detail::event_impl>,
                      std::shared_ptr<node_impl>>
@@ -333,11 +606,26 @@ private:
   std::map<std::weak_ptr<sycl::detail::queue_impl>, std::shared_ptr<node_impl>,
            std::owner_less<std::weak_ptr<sycl::detail::queue_impl>>>
       MInorderQueueMap;
+  /// Controls whether we skip the cycle checks in makeEdge, set by the presence
+  /// of the no_cycle_check property on construction.
+  bool MSkipCycleChecks = false;
+  /// Unique set of SYCL Memory Objects which are currently in use in the graph.
+  std::set<sycl::detail::SYCLMemObjT *> MMemObjs;
+
+  /// Controls whether we allow buffers to be used in the graph. Set by the
+  /// presence of the assume_buffer_outlives_graph property.
+  bool MAllowBuffers = false;
 };
 
 /// Class representing the implementation of command_graph<executable>.
 class exec_graph_impl {
 public:
+  using ReadLock = std::shared_lock<std::shared_mutex>;
+  using WriteLock = std::unique_lock<std::shared_mutex>;
+
+  /// Protects all the fields that can be changed by class' methods.
+  mutable std::shared_mutex MMutex;
+
   /// Constructor.
   /// @param Context Context to create graph with.
   /// @param GraphImpl Modifiable graph implementation to create with.
@@ -378,6 +666,10 @@ public:
     return MSchedule;
   }
 
+  /// Query the graph_impl.
+  /// @return pointer to the graph_impl MGraphImpl
+  const std::shared_ptr<graph_impl> &getGraphImpl() const { return MGraphImpl; }
+
 private:
   /// Create a command-group for the node and add it to command-buffer by going
   /// through the scheduler.
@@ -413,6 +705,10 @@ private:
   std::list<std::shared_ptr<node_impl>> MSchedule;
   /// Pointer to the modifiable graph impl associated with this executable
   /// graph.
+  /// Thread-safe implementation note: in the current implementation
+  /// multiple exec_graph_impl can reference the same graph_impl object.
+  /// This specificity must be taken into account when trying to lock
+  /// the graph_impl mutex from an exec_graph_impl to avoid deadlock.
   std::shared_ptr<graph_impl> MGraphImpl;
   /// Map of devices to command buffers.
   std::unordered_map<sycl::device, sycl::detail::pi::PiExtCommandBuffer>
@@ -427,6 +723,9 @@ private:
   /// List of requirements for enqueueing this command graph, accumulated from
   /// all nodes enqueued to the graph.
   std::vector<sycl::detail::AccessorImplHost *> MRequirements;
+  /// Storage for accessors which are used by this graph, accumulated from
+  /// all nodes enqueued to the graph.
+  std::vector<sycl::detail::AccessorImplPtr> MAccessors;
   /// List of all execution events returned from command buffer enqueue calls.
   std::vector<sycl::detail::EventImplPtr> MExecutionEvents;
 };
