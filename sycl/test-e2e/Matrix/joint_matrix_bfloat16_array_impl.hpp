@@ -13,7 +13,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 static constexpr int TM = 8;
-static constexpr int TN = SG_SZ;
 static constexpr int TK = 16;
 static constexpr int JM_ARRAY_SZ = 2;
 

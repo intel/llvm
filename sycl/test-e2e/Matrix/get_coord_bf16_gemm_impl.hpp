@@ -1,5 +1,4 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 16
 
 static constexpr size_t MATRIX_M = TM * 2;
