@@ -48,12 +48,14 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
 #include <set>
 
 using namespace llvm;
+using namespace PatternMatch;
 using namespace SPIRV;
 using namespace OCLUtil;
 
@@ -1355,10 +1357,56 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
     });
 }
 
+namespace {
+// Return true if any users of the CallInst use any of the constants
+// introduced by the SPV_EXT_image_raw10_raw12 extension.
+bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
+  const std::array ExtConstants{
+      OCLImageChannelDataTypeOffset + ImageChannelDataTypeUnsignedIntRaw10EXT,
+      OCLImageChannelDataTypeOffset + ImageChannelDataTypeUnsignedIntRaw12EXT};
+
+  // The return values for `OpImageQueryFormat` added by the extension are
+  // integer constants that may appear anywhere in LLVM IR.  Only detect some
+  // common use patterns here.
+  for (auto *U : CI->users()) {
+    for (auto C : ExtConstants) {
+      ICmpInst::Predicate Pred;
+      if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
+        return true;
+      }
+      if (auto *Switch = dyn_cast<SwitchInst>(U)) {
+        if (any_of(Switch->cases(), [C](const auto &Case) {
+              return Case.getCaseValue()->equalsInt(C);
+            })) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+} // anonymous namespace
+
 void OCLToSPIRVBase::visitCallGetImageChannel(CallInst *CI,
                                               StringRef DemangledName,
                                               unsigned int Offset) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
+
+  if (Offset == OCLImageChannelDataTypeOffset) {
+    // See if any of the SPV_EXT_image_raw10_raw12 constants are used, and
+    // add the extension if not already there.
+    if (usesSpvExtImageRaw10Raw12Constants(CI)) {
+      const char *ExtStr = "SPV_EXT_image_raw10_raw12";
+      NamedMDNode *NMD = M->getOrInsertNamedMetadata(kSPIRVMD::Extension);
+      if (none_of(NMD->operands(), [ExtStr](MDNode *N) {
+            return N->getOperand(0).equalsStr(ExtStr);
+          })) {
+        MDString *MDS = MDString::get(*Ctx, ExtStr);
+        NMD->addOperand(MDNode::get(*Ctx, MDS));
+      }
+    }
+  }
+
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
   mutateCallInst(CI, OC).changeReturnType(

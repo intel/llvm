@@ -34,9 +34,9 @@ entry:
 ; Function Attrs: noinline nounwind
 define dllexport void @vadd() {
 entry:
-  %Funcs = alloca <2 x i32 (i32)*>, align 16
-  %0 = insertelement <2 x i32 (i32)*> undef, i32 (i32)* @_Z2f1u2CMvb32_j, i32 0
-  %1 = insertelement <2 x i32 (i32)*> %0, i32 (i32)* @_Z2f2u2CMvb32_j, i32 1
-  store <2 x i32 (i32)*> %1, <2 x i32 (i32)*>* %Funcs, align 16
+  %Funcs = alloca <2 x ptr>, align 16
+  %0 = insertelement <2 x ptr> undef, ptr @_Z2f1u2CMvb32_j, i32 0
+  %1 = insertelement <2 x ptr> %0, ptr @_Z2f2u2CMvb32_j, i32 1
+  store <2 x ptr> %1, ptr %Funcs, align 16
   ret void
 }

@@ -1,4 +1,4 @@
-//==----------- get_coord_bf16_gemm.cpp  - DPC++ joint_matrix---------==//
+//==---------- joint_matrix_colA_rowB_colC.cpp - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -9,17 +9,12 @@
 
 // RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
 // RUN: %{run} %t.out
-// XFAIL: cpu
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+// XFAIL:*
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#include "../common.hpp"
 
-#define SG_SZ 16
+constexpr size_t SG_SZ = 32;
 constexpr size_t TN = 16;
 
-#include "get_coord_bf16_gemm_impl.hpp"
+#include "../joint_matrix_colA_rowB_colC_impl.hpp"
