@@ -229,7 +229,7 @@ class ClassWithOverride1 : ClassWithVirtual4 {
 };
 
 class ClassWithOverride2 : ClassWithVirtual4 {
-  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() final{}; 
+  [[__sycl_detail__::add_ir_attributes_function("Attr1", nullptr)]] void ValidVirtualFunction() final{};
 };
 
 [[__sycl_detail__::add_ir_attributes_function("Attr1")]] void InvalidFunction1() {}                                                                                                                                                                         // expected-error {{attribute 'add_ir_attributes_function' must specify a value for each specified name in the argument list}}
