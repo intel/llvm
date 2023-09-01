@@ -122,7 +122,7 @@ jobs:
         -B${{github.workspace}}/build
         -DCMAKE_C_COMPILER=${{matrix.compiler.c}}
         -DCMAKE_CXX_COMPILER=${{matrix.compiler.cxx}}
-        -DUR_ENABLE_TRACING=OFF
+        -DUR_ENABLE_TRACING=ON
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_USE_ASAN=ON
