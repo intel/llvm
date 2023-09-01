@@ -31,20 +31,12 @@ jobs:
       - name: Clone the git repo
         uses: actions/checkout@v3
 
-      - name: Install apt packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen
-
       - name: Install pip packages
         run: pip install -r third_party/requirements.txt
 
       - name: Configure CMake
-        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUR_FORMAT_CPP_STYLE=ON -DUMF_ENABLE_POOL_TRACKING=ON
+        run: cmake -B $WORKDIR/build -DUR_ENABLE_TRACING=ON -DUR_DEVELOPER_MODE=ON -DUR_BUILD_TESTS=ON -DUMF_ENABLE_POOL_TRACKING=ON
 
-      - name: Generate source from spec, check for uncommitted diff
-        run: |
-          cmake --build $WORKDIR/build --target check-generated
       - name: Run Coverity
         run: |
           cd $WORKDIR/build
