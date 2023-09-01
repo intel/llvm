@@ -103,11 +103,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Install apt packages
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y doxygen ${{matrix.compiler.c}}
-
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
@@ -130,13 +125,9 @@ jobs:
         -DUR_ENABLE_TRACING=OFF
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
-        -DUR_FORMAT_CPP_STYLE=ON
         -DUR_USE_ASAN=ON
         -DUR_USE_UBSAN=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
-
-    - name: Generate source from spec, check for uncommitted diff
-      run: cmake --build ${{github.workspace}}/build --target check-generated
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
