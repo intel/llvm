@@ -37,7 +37,7 @@ int main() {
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %max_fmax{{.*}}, ptr addrspace(1) [[ForcePow2DepthINTEL_TRUE]]
     intel::fpga_mem<int[10], decltype(oneapi::properties(oneapi::clock_2x_true))> double_pumped;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %double_pumped{{.*}}, ptr addrspace(1) [[DoublepumpINTEL]]
-    intel::fpga_mem<int[10], decltype(oneapi::properties(oneapi::clock_2x_true))> single_pumped;
+    intel::fpga_mem<int[10], decltype(oneapi::properties(oneapi::clock_2x_false))> single_pumped;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %single_pumped{{.*}}, ptr addrspace(1) [[SinglepumpINTEL]]
     intel::fpga_mem<int[10], decltype(oneapi::properties(oneapi::resource_mlab))> mlab;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %mlab{{.*}}, ptr addrspace(1) [[MemoryINTEL_mlab]]

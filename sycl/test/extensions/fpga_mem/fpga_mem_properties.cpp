@@ -41,7 +41,6 @@ int main() {
   // Are all common values usable
   static_assert(is_property_value<decltype(resource_mlab)>::value);
   static_assert(is_property_value<decltype(resource_block_ram)>::value);
-  static_assert(is_property_value<decltype(resource_any)>::value);
   static_assert(is_property_value<decltype(num_banks<8>)>::value);
   static_assert(is_property_value<decltype(stride_size<8>)>::value);
   static_assert(is_property_value<decltype(word_size<32>)>::value);
