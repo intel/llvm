@@ -428,8 +428,8 @@ public:
 
   /// Returns true if Reg contains RegUnit.
   bool hasRegUnit(MCRegister Reg, Register RegUnit) const {
-    for (MCRegUnitIterator Units(Reg, this); Units.isValid(); ++Units)
-      if (Register(*Units) == RegUnit)
+    for (MCRegUnit Unit : regunits(Reg))
+      if (Register(Unit) == RegUnit)
         return true;
     return false;
   }
@@ -1045,7 +1045,8 @@ public:
   /// the RegScavenger passed to eliminateFrameIndex. If this is true targets
   /// should scavengeRegisterBackwards in eliminateFrameIndex. New targets
   /// should prefer reverse scavenging behavior.
-  virtual bool supportsBackwardScavenger() const { return false; }
+  /// TODO: Remove this when all targets return true.
+  virtual bool eliminateFrameIndicesBackwards() const { return true; }
 
   /// This method must be overriden to eliminate abstract frame indices from
   /// instructions which may use them. The instruction referenced by the

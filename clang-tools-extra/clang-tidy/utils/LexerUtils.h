@@ -13,6 +13,7 @@
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Lex/Lexer.h"
 #include <optional>
+#include <utility>
 
 namespace clang {
 
@@ -23,6 +24,9 @@ namespace tidy::utils::lexer {
 /// Returns previous token or ``tok::unknown`` if not found.
 Token getPreviousToken(SourceLocation Location, const SourceManager &SM,
                        const LangOptions &LangOpts, bool SkipComments = true);
+std::pair<Token, SourceLocation>
+getPreviousTokenAndStart(SourceLocation Location, const SourceManager &SM,
+                         const LangOptions &LangOpts, bool SkipComments = true);
 
 SourceLocation findPreviousTokenStart(SourceLocation Start,
                                       const SourceManager &SM,
@@ -115,6 +119,11 @@ std::optional<Token> getQualifyingToken(tok::TokenKind TK,
 /// See implementation for exceptions.
 SourceLocation getUnifiedEndLoc(const Stmt &S, const SourceManager &SM,
                                 const LangOptions &LangOpts);
+
+/// For a given FunctionDecl returns the location where you would need to place
+/// the noexcept specifier.
+SourceLocation getLocationForNoexceptSpecifier(const FunctionDecl *FuncDecl,
+                                               const SourceManager &SM);
 
 } // namespace tidy::utils::lexer
 } // namespace clang

@@ -11,7 +11,7 @@
 #include <sycl/property_list.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
@@ -23,7 +23,8 @@ sampler_impl::sampler_impl(coordinate_normalization_mode normalizationMode,
 
 sampler_impl::sampler_impl(cl_sampler clSampler, const context &syclContext) {
 
-  RT::PiSampler Sampler = pi::cast<RT::PiSampler>(clSampler);
+  sycl::detail::pi::PiSampler Sampler =
+      pi::cast<sycl::detail::pi::PiSampler>(clSampler);
   MContextToSampler[syclContext] = Sampler;
   const PluginPtr &Plugin = getSyclObjImpl(syclContext)->getPlugin();
   Plugin->call<PiApiKind::piSamplerRetain>(Sampler);
@@ -47,7 +48,8 @@ sampler_impl::~sampler_impl() {
   }
 }
 
-RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
+sycl::detail::pi::PiSampler
+sampler_impl::getOrCreateSampler(const context &Context) {
   {
     std::lock_guard<std::mutex> Lock(MMutex);
     auto It = MContextToSampler.find(Context);
@@ -64,8 +66,8 @@ RT::PiSampler sampler_impl::getOrCreateSampler(const context &Context) {
       static_cast<pi_sampler_properties>(MFiltMode),
       0};
 
-  RT::PiResult errcode_ret = PI_SUCCESS;
-  RT::PiSampler resultSampler = nullptr;
+  sycl::detail::pi::PiResult errcode_ret = PI_SUCCESS;
+  sycl::detail::pi::PiSampler resultSampler = nullptr;
   const PluginPtr &Plugin = getSyclObjImpl(Context)->getPlugin();
 
   errcode_ret = Plugin->call_nocheck<PiApiKind::piSamplerCreate>(
@@ -92,5 +94,5 @@ sampler_impl::get_coordinate_normalization_mode() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -264,25 +264,23 @@ bool Module::fullModuleNameIs(ArrayRef<StringRef> nameParts) const {
 }
 
 OptionalDirectoryEntryRef Module::getEffectiveUmbrellaDir() const {
-  if (const auto *ME = Umbrella.dyn_cast<const FileEntryRef::MapEntry *>())
-    return FileEntryRef(*ME).getDir();
-  if (const auto *ME = Umbrella.dyn_cast<const DirectoryEntryRef::MapEntry *>())
-    return DirectoryEntryRef(*ME);
+  if (Umbrella && Umbrella.is<FileEntryRef>())
+    return Umbrella.get<FileEntryRef>().getDir();
+  if (Umbrella && Umbrella.is<DirectoryEntryRef>())
+    return Umbrella.get<DirectoryEntryRef>();
   return std::nullopt;
 }
 
-void Module::addTopHeader(const FileEntry *File) {
+void Module::addTopHeader(FileEntryRef File) {
   assert(File);
   TopHeaders.insert(File);
 }
 
-ArrayRef<const FileEntry *> Module::getTopHeaders(FileManager &FileMgr) {
+ArrayRef<FileEntryRef> Module::getTopHeaders(FileManager &FileMgr) {
   if (!TopHeaderNames.empty()) {
-    for (std::vector<std::string>::iterator
-           I = TopHeaderNames.begin(), E = TopHeaderNames.end(); I != E; ++I) {
-      if (auto FE = FileMgr.getFile(*I))
+    for (StringRef TopHeaderName : TopHeaderNames)
+      if (auto FE = FileMgr.getOptionalFileRef(TopHeaderName))
         TopHeaders.insert(*FE);
-    }
     TopHeaderNames.clear();
   }
 
@@ -695,6 +693,14 @@ void VisibleModuleSet::setVisible(Module *M, SourceLocation Loc,
     }
   };
   VisitModule({M, nullptr});
+}
+
+void VisibleModuleSet::makeTransitiveImportsVisible(Module *M,
+                                                    SourceLocation Loc,
+                                                    VisibleCallback Vis,
+                                                    ConflictCallback Cb) {
+  for (auto *I : M->Imports)
+    setVisible(I, Loc, Vis, Cb);
 }
 
 ASTSourceDescriptor::ASTSourceDescriptor(Module &M)

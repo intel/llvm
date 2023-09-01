@@ -34,14 +34,14 @@
 #include <CL/__spirv/spirv_ops.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Type trait to get the associated sampled image type for a given image type.
 template <typename ImageType> struct sampled_opencl_image_type;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #define __SYCL_INVOKE_SPIRV_CALL_ARG1(call)                                    \
@@ -83,6 +83,56 @@ static RetType __invoke__ImageRead(ImageT Img, CoordT Coords) {
   return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
 }
 
+template <typename RetType, typename SmpImageT, typename CoordT>
+static RetType __invoke__ImageReadLod(SmpImageT SmpImg, CoordT Coords,
+                                      float Level) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+
+  TempArgT TmpCoords =
+      sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+
+  enum ImageOperands { Lod = 0x2 };
+
+  // OpImageSampleExplicitLod
+  // Its components must be the same as Sampled Type of the underlying
+  // OpTypeImage
+  // Sampled Image must be an object whose type is OpTypeSampledImage
+  // Image Operands encodes what operands follow. Either Lod
+  // or Grad image operands must be present
+  TempRetT Ret = __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, TempArgT>(
+      SmpImg, TmpCoords, ImageOperands::Lod, Level);
+  return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+}
+
+template <typename RetType, typename SmpImageT, typename CoordT>
+static RetType __invoke__ImageReadGrad(SmpImageT SmpImg, CoordT Coords,
+                                       CoordT Dx, CoordT Dy) {
+
+  // Convert from sycl types to builtin types to get correct function mangling.
+  using TempRetT = sycl::detail::ConvertToOpenCLType_t<RetType>;
+  using TempArgT = sycl::detail::ConvertToOpenCLType_t<CoordT>;
+
+  TempArgT TmpCoords =
+      sycl::detail::convertDataToType<CoordT, TempArgT>(Coords);
+  TempArgT TmpGraddX = sycl::detail::convertDataToType<CoordT, TempArgT>(Dx);
+  TempArgT TmpGraddY = sycl::detail::convertDataToType<CoordT, TempArgT>(Dy);
+
+  enum ImageOperands { Grad = 0x3 };
+
+  // OpImageSampleExplicitLod
+  // Its components must be the same as Sampled Type of the underlying
+  // OpTypeImage
+  // Sampled Image must be an object whose type is OpTypeSampledImage
+  // Image Operands encodes what operands follow. Either Lod
+  // or Grad image operands must be present
+  TempRetT Ret = __spirv_ImageSampleExplicitLod<SmpImageT, TempRetT, TempArgT>(
+      SmpImg, TmpCoords, ImageOperands::Grad, TmpGraddX, TmpGraddY);
+  return sycl::detail::convertDataToType<TempRetT, RetType>(Ret);
+}
+
 template <typename RetType, typename ImageT, typename CoordT>
 static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
                                           const __ocl_sampler_t &Smpl) {
@@ -114,7 +164,7 @@ static RetType __invoke__ImageReadSampler(ImageT Img, CoordT Coords,
 }
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Function to return the number of channels for Image Channel Order returned by
@@ -256,7 +306,7 @@ __SYCL_IMAGETY_WRITE_2_DIM_IARRAY
 __SYCL_IMAGETY_DISCARD_WRITE_2_DIM_IARRAY
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_SAMPLED_AND_IMAGETY_DEFINE

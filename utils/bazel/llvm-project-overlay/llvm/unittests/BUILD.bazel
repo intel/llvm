@@ -396,6 +396,7 @@ cc_test(
         "//llvm:Support",
         "//llvm:TargetParser",
         "//llvm:TransformUtils",
+        "//third-party/unittest:gmock",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
@@ -446,6 +447,7 @@ cc_test(
         ["MI/*.cpp"],
         allow_empty = False,
     ),
+    features = ["-layering_check"],  # #include "../lib/CodeGen/RegisterCoalescer.h"
     deps = [
         "//llvm:AllTargetsAsmParsers",
         "//llvm:AllTargetsCodeGens",
@@ -458,7 +460,6 @@ cc_test(
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
-    features = ["-layering_check"],  # #include "../lib/CodeGen/RegisterCoalescer.h"
 )
 
 cc_test(
@@ -638,6 +639,7 @@ cc_test(
         "//llvm:AllTargetsCodeGens",
         "//llvm:BinaryFormat",
         "//llvm:Core",
+        "//llvm:ProfileData",
         "//llvm:Support",
         "//llvm:TargetParser",
         "//llvm:TestingSupport",
@@ -696,6 +698,7 @@ cc_test(
     copts = [
         "$(STACK_FRAME_UNLIMITED)",
     ],
+    features = ["-layering_check"],  # #include "AArch64GenInstrInfo.inc"
     deps = [
         "//llvm:AArch64CodeGen",
         "//llvm:AArch64UtilsAndDesc",
@@ -705,6 +708,7 @@ cc_test(
         "//llvm:Core",
         "//llvm:MC",
         "//llvm:Support",
+        "//llvm:Target",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
@@ -767,6 +771,7 @@ cc_test(
     ) + [
         "tools/llvm-exegesis/Common/AssemblerUtils.h",
     ],
+    includes = ["tools/llvm-exegesis"],
     deps = [
         "//llvm:AllTargetsCodeGens",
         "//llvm:AllTargetsDisassemblers",

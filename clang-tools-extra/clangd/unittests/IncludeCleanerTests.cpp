@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "Annotations.h"
-#include "Config.h"
 #include "Diagnostics.h"
 #include "IncludeCleaner.h"
 #include "ParsedAST.h"
@@ -16,22 +15,21 @@
 #include "TestTU.h"
 #include "clang-include-cleaner/Analysis.h"
 #include "clang-include-cleaner/Types.h"
-#include "support/Context.h"
 #include "clang/AST/DeclBase.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Syntax/Tokens.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ScopedPrinter.h"
-#include "llvm/Testing/Support/SupportHelpers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include <cstddef>
 #include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace clang {
@@ -45,7 +43,8 @@ using ::testing::Matcher;
 using ::testing::Pointee;
 using ::testing::UnorderedElementsAre;
 
-Matcher<const Diag &> withFix(std::vector<::testing::Matcher<Fix>> FixMatcheres) {
+Matcher<const Diag &>
+withFix(std::vector<::testing::Matcher<Fix>> FixMatcheres) {
   return Field(&Diag::Fixes, testing::UnorderedElementsAreArray(FixMatcheres));
 }
 
@@ -62,7 +61,6 @@ MATCHER_P3(Fix, Range, Replacement, Message,
 }
 MATCHER_P(FixMessage, Message, "") { return arg.Message == Message; }
 
-
 std::string guard(llvm::StringRef Code) {
   return "#pragma once\n" + Code.str();
 }
@@ -74,13 +72,11 @@ MATCHER_P(writtenInclusion, Written, "") {
 }
 
 TEST(IncludeCleaner, StdlibUnused) {
-  setIncludeCleanerAnalyzesStdlib(true);
-  auto Cleanup =
-      llvm::make_scope_exit([] { setIncludeCleanerAnalyzesStdlib(false); });
-
   auto TU = TestTU::withCode(R"cpp(
     #include <list>
     #include <queue>
+    #include <vector> // IWYU pragma: keep
+    #include <string> // IWYU pragma: export
     std::list<int> x;
   )cpp");
   // Layout of std library impl is not relevant.
@@ -89,10 +85,13 @@ TEST(IncludeCleaner, StdlibUnused) {
     namespace std {
       template <typename> class list {};
       template <typename> class queue {};
+      template <typename> class vector {};
     }
   )cpp";
   TU.AdditionalFiles["list"] = "#include <bits>";
   TU.AdditionalFiles["queue"] = "#include <bits>";
+  TU.AdditionalFiles["vector"] = "#include <bits>";
+  TU.AdditionalFiles["string"] = "#include <bits>";
   TU.ExtraArgs = {"-isystem", testRoot()};
   auto AST = TU.build();
   IncludeCleanerFindings Findings = computeIncludeCleanerFindings(AST);
@@ -174,11 +173,6 @@ TEST(IncludeCleaner, ComputeMissingHeaders) {
 }
 
 TEST(IncludeCleaner, GenerateMissingHeaderDiags) {
-  Config Cfg;
-  Cfg.Diagnostics.MissingIncludes = Config::IncludesPolicy::Strict;
-  Cfg.Diagnostics.Includes.IgnoreHeader = {
-      [](llvm::StringRef Header) { return Header.ends_with("buzz.h"); }};
-  WithContextValue Ctx(Config::Key, std::move(Cfg));
   Annotations MainFile(R"cpp(
 #include "a.h"
 #include "all.h"
@@ -191,6 +185,10 @@ $insert_f[[]]$insert_vector[[]]
 
 #define DEF(X) const Foo *X;
 #define BAZ(X) const X x
+
+// No missing include insertion for ambiguous macro refs.
+#if defined(FOO)
+#endif
 
   void foo() {
     $b[[b]]();
@@ -216,7 +214,7 @@ $insert_f[[]]$insert_vector[[]]
 })cpp");
 
   TestTU TU;
-  TU.Filename = "foo.cpp";
+  TU.Filename = "main.cpp";
   TU.AdditionalFiles["a.h"] = guard("#include \"b.h\"");
   TU.AdditionalFiles["b.h"] = guard("void b();");
 
@@ -250,8 +248,11 @@ $insert_f[[]]$insert_vector[[]]
   TU.Code = MainFile.code();
   ParsedAST AST = TU.build();
 
-  std::vector<clangd::Diag> Diags =
-      issueIncludeCleanerDiagnostics(AST, TU.Code);
+  auto Findings = computeIncludeCleanerFindings(AST);
+  Findings.UnusedIncludes.clear();
+  std::vector<clangd::Diag> Diags = issueIncludeCleanerDiagnostics(
+      AST, TU.Code, Findings,
+      {[](llvm::StringRef Header) { return Header.ends_with("buzz.h"); }});
   EXPECT_THAT(
       Diags,
       UnorderedElementsAre(
@@ -279,9 +280,11 @@ $insert_f[[]]$insert_vector[[]]
           AllOf(
               Diag(MainFile.range("vector"),
                    "No header providing \"std::vector\" is directly included"),
-              withFix({Fix(MainFile.range("insert_vector"),
-                           "#include <vector>\n", "#include <vector>"),
-                       FixMessage("add all missing includes"),})),
+              withFix({
+                  Fix(MainFile.range("insert_vector"), "#include <vector>\n",
+                      "#include <vector>"),
+                  FixMessage("add all missing includes"),
+              })),
           AllOf(Diag(MainFile.range("FOO"),
                      "No header providing \"FOO\" is directly included"),
                 withFix({Fix(MainFile.range("insert_foo"),
@@ -320,11 +323,7 @@ TEST(IncludeCleaner, IWYUPragmas) {
     // IWYU pragma: private, include "public.h"
     void foo() {}
   )cpp");
-  Config Cfg;
-  Cfg.Diagnostics.UnusedIncludes = Config::IncludesPolicy::Strict;
-  WithContextValue Ctx(Config::Key, std::move(Cfg));
   ParsedAST AST = TU.build();
-  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
   IncludeCleanerFindings Findings = computeIncludeCleanerFindings(AST);
   EXPECT_THAT(Findings.UnusedIncludes, IsEmpty());
 }
@@ -347,7 +346,6 @@ TEST(IncludeCleaner, IWYUPragmaExport) {
   )cpp");
   ParsedAST AST = TU.build();
 
-  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
   IncludeCleanerFindings Findings = computeIncludeCleanerFindings(AST);
   EXPECT_THAT(Findings.UnusedIncludes,
               ElementsAre(Pointee(writtenInclusion("\"foo.h\""))));
@@ -368,13 +366,10 @@ TEST(IncludeCleaner, NoDiagsForObjC) {
   )cpp";
   TU.ExtraArgs.emplace_back("-xobjective-c");
 
-  Config Cfg;
-
-  Cfg.Diagnostics.UnusedIncludes = Config::IncludesPolicy::Strict;
-  Cfg.Diagnostics.MissingIncludes = Config::IncludesPolicy::Strict;
-  WithContextValue Ctx(Config::Key, std::move(Cfg));
   ParsedAST AST = TU.build();
-  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
+  IncludeCleanerFindings Findings = computeIncludeCleanerFindings(AST);
+  EXPECT_THAT(Findings.MissingIncludes, IsEmpty());
+  EXPECT_THAT(Findings.UnusedIncludes, IsEmpty());
 }
 
 TEST(IncludeCleaner, UmbrellaUsesPrivate) {
@@ -387,11 +382,7 @@ TEST(IncludeCleaner, UmbrellaUsesPrivate) {
     void foo() {}
   )cpp");
   TU.Filename = "public.h";
-  Config Cfg;
-  Cfg.Diagnostics.UnusedIncludes = Config::IncludesPolicy::Strict;
-  WithContextValue Ctx(Config::Key, std::move(Cfg));
   ParsedAST AST = TU.build();
-  EXPECT_THAT(AST.getDiagnostics(), llvm::ValueIs(IsEmpty()));
   IncludeCleanerFindings Findings = computeIncludeCleanerFindings(AST);
   EXPECT_THAT(Findings.UnusedIncludes, IsEmpty());
 }
@@ -468,54 +459,33 @@ TEST(IncludeCleaner, NoCrash) {
       MainCode.range());
 }
 
-TEST(IncludeCleaner, FirstMatchedProvider) {
-  struct {
-    const char *Code;
-    const std::vector<include_cleaner::Header> Providers;
-    const std::optional<include_cleaner::Header> ExpectedProvider;
-  } Cases[] = {
-      {R"cpp(
-        #include "bar.h"
-        #include "foo.h"
-      )cpp",
-       {include_cleaner::Header{"bar.h"}, include_cleaner::Header{"foo.h"}},
-       include_cleaner::Header{"bar.h"}},
-      {R"cpp(
-        #include "bar.h"
-        #include "foo.h"
-      )cpp",
-       {include_cleaner::Header{"foo.h"}, include_cleaner::Header{"bar.h"}},
-       include_cleaner::Header{"foo.h"}},
-      {"#include \"bar.h\"",
-       {include_cleaner::Header{"bar.h"}},
-       include_cleaner::Header{"bar.h"}},
-      {"#include \"bar.h\"", {include_cleaner::Header{"foo.h"}}, std::nullopt},
-      {"#include \"bar.h\"", {}, std::nullopt}};
-  for (const auto &Case : Cases) {
-    Annotations Code{Case.Code};
-    SCOPED_TRACE(Code.code());
+TEST(IncludeCleaner, IsPreferredProvider) {
+  auto TU = TestTU::withCode(R"cpp(
+     #include "decl.h"
+     #include "def.h"
+     #include "def.h"
+  )cpp");
+  TU.AdditionalFiles["decl.h"] = "";
+  TU.AdditionalFiles["def.h"] = "";
 
-    TestTU TU;
-    TU.Code = Code.code();
-    TU.AdditionalFiles["bar.h"] = "";
-    TU.AdditionalFiles["foo.h"] = "";
+  auto AST = TU.build();
+  auto &IncludeDecl = AST.getIncludeStructure().MainFileIncludes[0];
+  auto &IncludeDef1 = AST.getIncludeStructure().MainFileIncludes[1];
+  auto &IncludeDef2 = AST.getIncludeStructure().MainFileIncludes[2];
 
-    auto AST = TU.build();
-    std::optional<include_cleaner::Header> MatchedProvider =
-        firstMatchedProvider(
-            convertIncludes(AST.getSourceManager(),
-                            AST.getIncludeStructure().MainFileIncludes),
-            Case.Providers);
-    EXPECT_EQ(MatchedProvider, Case.ExpectedProvider);
-  }
+  auto &FM = AST.getSourceManager().getFileManager();
+  auto *DeclH = &FM.getOptionalFileRef("decl.h")->getFileEntry();
+  auto *DefH = &FM.getOptionalFileRef("def.h")->getFileEntry();
+
+  auto Includes = convertIncludes(AST);
+  std::vector<include_cleaner::Header> Providers = {
+      include_cleaner::Header(DefH), include_cleaner::Header(DeclH)};
+  EXPECT_FALSE(isPreferredProvider(IncludeDecl, Includes, Providers));
+  EXPECT_TRUE(isPreferredProvider(IncludeDef1, Includes, Providers));
+  EXPECT_TRUE(isPreferredProvider(IncludeDef2, Includes, Providers));
 }
 
 TEST(IncludeCleaner, BatchFix) {
-  Config Cfg;
-  Cfg.Diagnostics.MissingIncludes = Config::IncludesPolicy::Strict;
-  Cfg.Diagnostics.UnusedIncludes = Config::IncludesPolicy::Strict;
-  WithContextValue Ctx(Config::Key, std::move(Cfg));
-
   TestTU TU;
   TU.Filename = "main.cpp";
   TU.AdditionalFiles["foo.h"] = guard("class Foo;");
@@ -532,7 +502,8 @@ TEST(IncludeCleaner, BatchFix) {
   )cpp";
   auto AST = TU.build();
   EXPECT_THAT(
-      issueIncludeCleanerDiagnostics(AST, TU.Code),
+      issueIncludeCleanerDiagnostics(AST, TU.Code,
+                                     computeIncludeCleanerFindings(AST)),
       UnorderedElementsAre(withFix({FixMessage("#include \"foo.h\""),
                                     FixMessage("fix all includes")}),
                            withFix({FixMessage("remove #include directive"),
@@ -546,14 +517,15 @@ TEST(IncludeCleaner, BatchFix) {
   )cpp";
   AST = TU.build();
   EXPECT_THAT(
-      issueIncludeCleanerDiagnostics(AST, TU.Code),
+      issueIncludeCleanerDiagnostics(AST, TU.Code,
+                                     computeIncludeCleanerFindings(AST)),
       UnorderedElementsAre(withFix({FixMessage("#include \"foo.h\""),
                                     FixMessage("fix all includes")}),
                            withFix({FixMessage("remove #include directive"),
                                     FixMessage("remove all unused includes"),
                                     FixMessage("fix all includes")}),
                            withFix({FixMessage("remove #include directive"),
-                                   FixMessage("remove all unused includes"),
+                                    FixMessage("remove all unused includes"),
                                     FixMessage("fix all includes")})));
 
   TU.Code = R"cpp(
@@ -564,7 +536,8 @@ TEST(IncludeCleaner, BatchFix) {
   )cpp";
   AST = TU.build();
   EXPECT_THAT(
-      issueIncludeCleanerDiagnostics(AST, TU.Code),
+      issueIncludeCleanerDiagnostics(AST, TU.Code,
+                                     computeIncludeCleanerFindings(AST)),
       UnorderedElementsAre(withFix({FixMessage("#include \"foo.h\""),
                                     FixMessage("add all missing includes"),
                                     FixMessage("fix all includes")}),
@@ -573,6 +546,32 @@ TEST(IncludeCleaner, BatchFix) {
                                     FixMessage("fix all includes")}),
                            withFix({FixMessage("remove #include directive"),
                                     FixMessage("fix all includes")})));
+}
+
+// In the presence of IWYU pragma private, we should accept spellings other
+// than the recommended one if they appear to name the same public header.
+TEST(IncludeCleaner, VerbatimEquivalence) {
+  auto TU = TestTU::withCode(R"cpp(
+    #include "lib/rel/public.h"
+    int x = Public;
+  )cpp");
+  TU.AdditionalFiles["repo/lib/rel/private.h"] = R"cpp(
+    #pragma once
+    // IWYU pragma: private, include "rel/public.h"
+    int Public;
+  )cpp";
+  TU.AdditionalFiles["repo/lib/rel/public.h"] = R"cpp(
+    #pragma once
+    #include "rel/private.h"
+  )cpp";
+
+  TU.ExtraArgs.push_back("-Irepo");
+  TU.ExtraArgs.push_back("-Irepo/lib");
+
+  auto AST = TU.build();
+  auto Findings = computeIncludeCleanerFindings(AST);
+  EXPECT_THAT(Findings.MissingIncludes, IsEmpty());
+  EXPECT_THAT(Findings.UnusedIncludes, IsEmpty());
 }
 
 } // namespace

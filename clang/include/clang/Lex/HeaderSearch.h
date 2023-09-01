@@ -277,6 +277,9 @@ class HeaderSearch {
 
   /// Keeps track of each lookup performed by LookupFile.
   struct LookupFileCacheInfo {
+    // The requesting module for the lookup we cached.
+    const Module *RequestingModule = nullptr;
+
     /// Starting search directory iterator that the cached search was performed
     /// from. If there is a hit and this value doesn't match the current query,
     /// the cache has to be ignored.
@@ -292,7 +295,9 @@ class HeaderSearch {
     /// Default constructor -- Initialize all members with zero.
     LookupFileCacheInfo() = default;
 
-    void reset(ConstSearchDirIterator NewStartIt) {
+    void reset(const Module *NewRequestingModule,
+               ConstSearchDirIterator NewStartIt) {
+      RequestingModule = NewRequestingModule;
       StartIt = NewStartIt;
       MappedName = nullptr;
     }
@@ -638,7 +643,7 @@ public:
 
   /// Try to find a module map file in the given directory, returning
   /// \c nullopt if none is found.
-  OptionalFileEntryRef lookupModuleMapFile(const DirectoryEntry *Dir,
+  OptionalFileEntryRef lookupModuleMapFile(DirectoryEntryRef Dir,
                                            bool IsFramework);
 
   /// Determine whether there is a module map that may map the header

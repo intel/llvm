@@ -2,30 +2,30 @@
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK1
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK1
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK3
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK3
+// RUN: %clang_cc1 -verify -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK3
+// RUN: %clang_cc1 -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK3
 
 // RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK5
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK5
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK7
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK7
+// RUN: %clang_cc1 -verify -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK7
+// RUN: %clang_cc1 -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple x86_64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple x86_64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK7
 
 // RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK9
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK9
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK11
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK11
+// RUN: %clang_cc1 -verify -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK11
+// RUN: %clang_cc1 -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK11
 
 // RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK13
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
 // RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=45 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK13
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK15
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK15
+// RUN: %clang_cc1 -verify -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix=CHECK15
+// RUN: %clang_cc1 -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple aarch64-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -DOMP5 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple aarch64-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s --check-prefix=CHECK15
 
 // expected-no-diagnostics
 #ifndef HEADER
@@ -107,7 +107,6 @@ int main() {
 // call void [[T_OUTLINE_FUN_3:@.+]](
 
 #endif
-
 // CHECK1-LABEL: define {{[^@]+}}@_Z9gtid_testv
 // CHECK1-SAME: () #[[ATTR0:[0-9]+]] {
 // CHECK1-NEXT:  entry:
@@ -1872,7 +1871,7 @@ int main() {
 // CHECK3-NEXT:    [[TMP8:%.*]] = zext i32 [[TMP7]] to i64
 // CHECK3-NEXT:    [[TMP9:%.*]] = load i32, ptr [[DOTOMP_COMB_UB]], align 4, !llvm.access.group [[ACC_GRP9]]
 // CHECK3-NEXT:    [[TMP10:%.*]] = zext i32 [[TMP9]] to i64
-// CHECK3-NEXT:    [[TMP11:%.*]] = load i32, ptr [[ARG_ADDR]], align 4, !nontemporal !10, !llvm.access.group [[ACC_GRP9]]
+// CHECK3-NEXT:    [[TMP11:%.*]] = load i32, ptr [[ARG_ADDR]], align 4, !nontemporal [[META10:![0-9]+]], !llvm.access.group [[ACC_GRP9]]
 // CHECK3-NEXT:    store i32 [[TMP11]], ptr [[ARG_CASTED]], align 4, !llvm.access.group [[ACC_GRP9]]
 // CHECK3-NEXT:    [[TMP12:%.*]] = load i64, ptr [[ARG_CASTED]], align 8, !llvm.access.group [[ACC_GRP9]]
 // CHECK3-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB3]], i32 3, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9gtid_testv_l45.omp_outlined.omp_outlined, i64 [[TMP8]], i64 [[TMP10]], i64 [[TMP12]]), !llvm.access.group [[ACC_GRP9]]
@@ -1954,7 +1953,7 @@ int main() {
 // CHECK3-NEXT:    [[MUL:%.*]] = mul nsw i32 [[TMP9]], 1
 // CHECK3-NEXT:    [[ADD:%.*]] = add nsw i32 0, [[MUL]]
 // CHECK3-NEXT:    store i32 [[ADD]], ptr [[I]], align 4, !llvm.access.group [[ACC_GRP14]]
-// CHECK3-NEXT:    store i32 0, ptr [[ARG_ADDR]], align 4, !nontemporal !10, !llvm.access.group [[ACC_GRP14]]
+// CHECK3-NEXT:    store i32 0, ptr [[ARG_ADDR]], align 4, !nontemporal [[META10]], !llvm.access.group [[ACC_GRP14]]
 // CHECK3-NEXT:    br label [[OMP_BODY_CONTINUE:%.*]]
 // CHECK3:       omp.body.continue:
 // CHECK3-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]
@@ -3872,7 +3871,7 @@ int main() {
 // CHECK7-NEXT:    [[MUL:%.*]] = mul nsw i32 [[TMP3]], 1
 // CHECK7-NEXT:    [[ADD:%.*]] = add nsw i32 0, [[MUL]]
 // CHECK7-NEXT:    store i32 [[ADD]], ptr [[I]], align 4, !llvm.access.group [[ACC_GRP2]]
-// CHECK7-NEXT:    store i32 0, ptr @Arg, align 4, !nontemporal !3, !llvm.access.group [[ACC_GRP2]]
+// CHECK7-NEXT:    store i32 0, ptr @Arg, align 4, !nontemporal [[META3:![0-9]+]], !llvm.access.group [[ACC_GRP2]]
 // CHECK7-NEXT:    br label [[OMP_BODY_CONTINUE:%.*]]
 // CHECK7:       omp.body.continue:
 // CHECK7-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]
@@ -5919,7 +5918,7 @@ int main() {
 // CHECK11-NEXT:    [[TMP8:%.*]] = zext i32 [[TMP7]] to i64
 // CHECK11-NEXT:    [[TMP9:%.*]] = load i32, ptr [[DOTOMP_COMB_UB]], align 4, !llvm.access.group [[ACC_GRP9]]
 // CHECK11-NEXT:    [[TMP10:%.*]] = zext i32 [[TMP9]] to i64
-// CHECK11-NEXT:    [[TMP11:%.*]] = load i32, ptr [[ARG_ADDR]], align 4, !nontemporal !10, !llvm.access.group [[ACC_GRP9]]
+// CHECK11-NEXT:    [[TMP11:%.*]] = load i32, ptr [[ARG_ADDR]], align 4, !nontemporal [[META10:![0-9]+]], !llvm.access.group [[ACC_GRP9]]
 // CHECK11-NEXT:    store i32 [[TMP11]], ptr [[ARG_CASTED]], align 4, !llvm.access.group [[ACC_GRP9]]
 // CHECK11-NEXT:    [[TMP12:%.*]] = load i64, ptr [[ARG_CASTED]], align 8, !llvm.access.group [[ACC_GRP9]]
 // CHECK11-NEXT:    call void (ptr, i32, ptr, ...) @__kmpc_fork_call(ptr @[[GLOB3]], i32 3, ptr @{{__omp_offloading_[0-9a-z]+_[0-9a-z]+}}__Z9gtid_testv_l45.omp_outlined.omp_outlined, i64 [[TMP8]], i64 [[TMP10]], i64 [[TMP12]]), !llvm.access.group [[ACC_GRP9]]
@@ -6001,7 +6000,7 @@ int main() {
 // CHECK11-NEXT:    [[MUL:%.*]] = mul nsw i32 [[TMP9]], 1
 // CHECK11-NEXT:    [[ADD:%.*]] = add nsw i32 0, [[MUL]]
 // CHECK11-NEXT:    store i32 [[ADD]], ptr [[I]], align 4, !llvm.access.group [[ACC_GRP14]]
-// CHECK11-NEXT:    store i32 0, ptr [[ARG_ADDR]], align 4, !nontemporal !10, !llvm.access.group [[ACC_GRP14]]
+// CHECK11-NEXT:    store i32 0, ptr [[ARG_ADDR]], align 4, !nontemporal [[META10]], !llvm.access.group [[ACC_GRP14]]
 // CHECK11-NEXT:    br label [[OMP_BODY_CONTINUE:%.*]]
 // CHECK11:       omp.body.continue:
 // CHECK11-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]
@@ -7919,7 +7918,7 @@ int main() {
 // CHECK15-NEXT:    [[MUL:%.*]] = mul nsw i32 [[TMP3]], 1
 // CHECK15-NEXT:    [[ADD:%.*]] = add nsw i32 0, [[MUL]]
 // CHECK15-NEXT:    store i32 [[ADD]], ptr [[I]], align 4, !llvm.access.group [[ACC_GRP2]]
-// CHECK15-NEXT:    store i32 0, ptr @Arg, align 4, !nontemporal !3, !llvm.access.group [[ACC_GRP2]]
+// CHECK15-NEXT:    store i32 0, ptr @Arg, align 4, !nontemporal [[META3:![0-9]+]], !llvm.access.group [[ACC_GRP2]]
 // CHECK15-NEXT:    br label [[OMP_BODY_CONTINUE:%.*]]
 // CHECK15:       omp.body.continue:
 // CHECK15-NEXT:    br label [[OMP_INNER_FOR_INC:%.*]]

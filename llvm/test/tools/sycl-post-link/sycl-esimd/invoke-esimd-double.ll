@@ -1,4 +1,4 @@
-; RUN: sycl-post-link -symbols -split=auto -S < %s -o %t.table
+; RUN: sycl-post-link --emit-only-kernels-as-entry-points -symbols -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t.table --check-prefixes CHECK-TABLE
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-M0-SYMS
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-M1-SYMS
@@ -9,14 +9,10 @@
 ; CHECK-TABLE: {{.*}}_1.ll|{{.*}}_1.prop|{{.*}}_1.sym
 ; CHECK-TABLE-EMPTY:
 
-; CHECK-M0-SYMS:      simd_func_double
-; CHECK-M0-SYMS-NEXT: helper_double_[[#]]
-; CHECK-M0-SYMS-NEXT: double_kernel
+; CHECK-M0-SYMS: double_kernel
 ; CHECK-M0-SYMS-EMPTY:
 
-; CHECK-M1-SYMS:      simd_func_float
-; CHECK-M1-SYMS-NEXT: helper_float_[[#]]
-; CHECK-M1-SYMS-NEXT: float_kernel
+; CHECK-M1-SYMS: float_kernel
 ; CHECK-M1-SYMS-EMPTY:
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"

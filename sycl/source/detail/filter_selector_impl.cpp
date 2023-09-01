@@ -20,7 +20,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::detail {
 
 std::vector<std::string> tokenize(const std::string &Filter,
@@ -91,7 +91,7 @@ filter create_filter(const std::string &Input) {
 }
 
 filter_selector_impl::filter_selector_impl(const std::string &Input)
-    : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
+    : mFilters(), mNumDevicesSeen(0), mMatchFound(false) {
   std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
@@ -139,7 +139,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       }
     }
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = mRanker(Dev);
+      Score = default_selector_v(Dev);
       mMatchFound = true;
       break;
     }
@@ -170,5 +170,5 @@ void filter_selector_impl::reset() const {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

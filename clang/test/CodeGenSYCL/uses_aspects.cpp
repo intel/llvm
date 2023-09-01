@@ -38,6 +38,9 @@ constexpr sycl::aspect getAspect() { return sycl::aspect::cpu; }
 // CHECK: define dso_local spir_func void @{{.*}}func7{{.*}} !sycl_used_aspects ![[ASPECTS1]] {
 [[__sycl_detail__::__uses_aspects__(getAspect())]] void func7() {}
 
+// CHECK: declare !sycl_used_aspects ![[ASPECTS1]] spir_func void @{{.*}}func8{{.*}}
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] SYCL_EXTERNAL void func8();
+
 class KernelFunctor {
 public:
   void operator()() const {
@@ -48,6 +51,7 @@ public:
     func5();
     func6();
     func7();
+    func8();
   }
 };
 

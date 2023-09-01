@@ -22,6 +22,7 @@ target_include_directories(PiHipTests
     "${sycl_inc_dir}/sycl/detail/"
     "${sycl_inc_dir}"
     "${sycl_plugin_dir}/hip/"
+    "${sycl_plugin_dir}/unified_runtime/"
 )
 
 if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
@@ -37,4 +38,5 @@ endif()
 target_link_libraries(PiHipTests
   PRIVATE
     rocmdrv
+    UnifiedRuntime-Headers
 )

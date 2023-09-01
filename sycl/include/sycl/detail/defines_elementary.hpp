@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
-
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -79,11 +77,6 @@
 #define __SYCL_HAS_CPP_ATTRIBUTE(x) 0
 #endif
 #endif
-
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
 
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");

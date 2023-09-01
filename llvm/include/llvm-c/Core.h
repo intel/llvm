@@ -468,6 +468,20 @@ enum {
   LLVMAttributeFunctionIndex = -1,
 };
 
+/**
+ * Tail call kind for LLVMSetTailCallKind and LLVMGetTailCallKind.
+ *
+ * Note that 'musttail' implies 'tail'.
+ *
+ * @see CallInst::TailCallKind
+ */
+typedef enum {
+  LLVMTailCallKindNone = 0,
+  LLVMTailCallKindTail = 1,
+  LLVMTailCallKindMustTail = 2,
+  LLVMTailCallKindNoTail = 3,
+} LLVMTailCallKind;
+
 typedef unsigned LLVMAttributeIndex;
 
 /**
@@ -3437,6 +3451,20 @@ LLVMBool LLVMIsTailCall(LLVMValueRef CallInst);
 void LLVMSetTailCall(LLVMValueRef CallInst, LLVMBool IsTailCall);
 
 /**
+ * Obtain a tail call kind of the call instruction.
+ *
+ * @see llvm::CallInst::setTailCallKind()
+ */
+LLVMTailCallKind LLVMGetTailCallKind(LLVMValueRef CallInst);
+
+/**
+ * Set the call kind of the call instruction.
+ *
+ * @see llvm::CallInst::getTailCallKind()
+ */
+void LLVMSetTailCallKind(LLVMValueRef CallInst, LLVMTailCallKind kind);
+
+/**
  * Return the normal destination basic block.
  *
  * This only works on llvm::InvokeInst instructions.
@@ -3919,6 +3947,13 @@ LLVMValueRef LLVMBuildNUWNeg(LLVMBuilderRef B, LLVMValueRef V,
                              const char *Name);
 LLVMValueRef LLVMBuildFNeg(LLVMBuilderRef, LLVMValueRef V, const char *Name);
 LLVMValueRef LLVMBuildNot(LLVMBuilderRef, LLVMValueRef V, const char *Name);
+
+LLVMBool LLVMGetNUW(LLVMValueRef ArithInst);
+void LLVMSetNUW(LLVMValueRef ArithInst, LLVMBool HasNUW);
+LLVMBool LLVMGetNSW(LLVMValueRef ArithInst);
+void LLVMSetNSW(LLVMValueRef ArithInst, LLVMBool HasNSW);
+LLVMBool LLVMGetExact(LLVMValueRef DivOrShrInst);
+void LLVMSetExact(LLVMValueRef DivOrShrInst, LLVMBool IsExact);
 
 /* Memory */
 LLVMValueRef LLVMBuildMalloc(LLVMBuilderRef, LLVMTypeRef Ty, const char *Name);

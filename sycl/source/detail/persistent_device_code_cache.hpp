@@ -21,7 +21,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /* This is temporary solution until std::filesystem is available when SYCL RT
@@ -182,7 +182,7 @@ public:
                             const RTDeviceBinaryImage &Img,
                             const SerializedObj &SpecConsts,
                             const std::string &BuildOptionsString,
-                            const RT::PiProgram &NativePrg);
+                            const sycl::detail::pi::PiProgram &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
@@ -192,5 +192,5 @@ public:
   }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

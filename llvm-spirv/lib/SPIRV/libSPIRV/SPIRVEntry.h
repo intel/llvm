@@ -289,6 +289,7 @@ public:
     return Id;
   }
   std::shared_ptr<const SPIRVLine> getLine() const { return Line; }
+  std::shared_ptr<const SPIRVExtInst> getDebugLine() const { return DebugLine; }
   SPIRVLinkageTypeKind getLinkageType() const;
   Op getOpCode() const { return OpCode; }
   SPIRVModule *getModule() const { return Module; }
@@ -361,10 +362,11 @@ public:
   void setHasNoId() { Attrib |= SPIRVEA_NOID; }
   void setId(SPIRVId TheId) { Id = TheId; }
   void setLine(const std::shared_ptr<const SPIRVLine> &L);
+  void setDebugLine(const std::shared_ptr<const SPIRVExtInst> &DL);
   void setLinkageType(SPIRVLinkageTypeKind);
   void setModule(SPIRVModule *TheModule);
   void setName(const std::string &TheName);
-  virtual void setScope(SPIRVEntry *Scope){};
+  virtual void setScope(SPIRVEntry *Scope) {}
   void takeAnnotations(SPIRVForward *);
   void takeDecorates(SPIRVEntry *);
   void takeDecorateIds(SPIRVEntry *);
@@ -387,6 +389,7 @@ public:
   friend spv_ostream &operator<<(spv_ostream &O, const SPIRVEntry &E);
   friend std::istream &operator>>(std::istream &I, SPIRVEntry &E);
   virtual void encodeLine(spv_ostream &O) const;
+  virtual void encodeDebugLine(spv_ostream &O) const;
   virtual void encodeAll(spv_ostream &O) const;
   virtual void encodeName(spv_ostream &O) const;
   virtual void encodeChildren(spv_ostream &O) const;
@@ -451,6 +454,7 @@ protected:
   DecorateIdMapType DecorateIds;
   MemberDecorateMapType MemberDecorates;
   std::shared_ptr<const SPIRVLine> Line;
+  std::shared_ptr<const SPIRVExtInst> DebugLine;
 };
 
 class SPIRVEntryNoIdGeneric : public SPIRVEntry {
@@ -529,6 +533,7 @@ public:
 
 class SPIRVEntryPoint : public SPIRVAnnotation<OpEntryPoint> {
 public:
+  static const SPIRVWord FixedWC = 4;
   SPIRVEntryPoint(SPIRVModule *TheModule, SPIRVExecutionModelKind,
                   SPIRVId TheId, const std::string &TheName,
                   std::vector<SPIRVId> Variables);

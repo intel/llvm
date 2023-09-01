@@ -14,11 +14,11 @@
 #include <sycl/info/info_desc.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename Param>
-typename Param::return_type get_context_info(RT::PiContext Ctx,
+typename Param::return_type get_context_info(sycl::detail::pi::PiContext Ctx,
                                              const PluginPtr &Plugin) {
   static_assert(is_context_info_desc<Param>::value,
                 "Invalid context information descriptor");
@@ -30,5 +30,5 @@ typename Param::return_type get_context_info(RT::PiContext Ctx,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -12,11 +12,11 @@ __SYCL_PARAM_TRAITS_SPEC(device, max_compute_units, pi_uint32,
                          PI_DEVICE_INFO_MAX_COMPUTE_UNITS)
 __SYCL_PARAM_TRAITS_SPEC(device, max_work_item_dimensions, pi_uint32,
                          PI_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS)
-__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<1>, id<1>,
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<1>, range<1>,
                                   PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES)
-__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<2>, id<2>,
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<2>, range<2>,
                                   PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES)
-__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<3>, id<3>,
+__SYCL_PARAM_TRAITS_TEMPLATE_SPEC(device, max_work_item_sizes<3>, range<3>,
                                   PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES)
 __SYCL_PARAM_TRAITS_SPEC(device, max_work_group_size, size_t,
                          PI_DEVICE_INFO_MAX_WORK_GROUP_SIZE)

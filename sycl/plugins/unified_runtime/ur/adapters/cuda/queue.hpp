@@ -1,14 +1,15 @@
-//===--------- queue.hpp - CUDA Adapter ------------------------------===//
+//===--------- queue.hpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <ur/ur.hpp>
 
+#include <algorithm>
 #include <cuda.h>
 #include <vector>
 
@@ -99,7 +100,7 @@ struct ur_queue_handle_t_ {
     if (StreamToken == std::numeric_limits<uint32_t>::max()) {
       return false;
     }
-    return LastSyncComputeStreams >= StreamToken;
+    return LastSyncComputeStreams > StreamToken;
   }
 
   bool canReuseStream(uint32_t StreamToken) {

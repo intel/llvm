@@ -82,6 +82,25 @@ static bool DecodeAArch64Features(const Driver &D, StringRef text,
     else
       return false;
 
+    // +sme implies +bf16.
+    // +sme-f64f64 and +sme-i16i64 both imply +sme.
+    if (Feature == "sme") {
+      Features.push_back("+bf16");
+    } else if (Feature == "nosme") {
+      Features.push_back("-sme-f64f64");
+      Features.push_back("-sme-i16i64");
+    } else if (Feature == "sme-f64f64") {
+      Features.push_back("+sme");
+      Features.push_back("+bf16");
+    } else if (Feature == "sme-i16i64") {
+      Features.push_back("+sme");
+      Features.push_back("+bf16");
+    } else if (Feature == "nobf16") {
+      Features.push_back("-sme");
+      Features.push_back("-sme-f64f64");
+      Features.push_back("-sme-i16i64");
+    }
+
     if (Feature == "sve2")
       Features.push_back("+sve");
     else if (Feature == "sve2-bitperm" || Feature == "sve2-sha3" ||
@@ -291,13 +310,15 @@ void aarch64::getAArch64TargetFeatures(const Driver &D,
 
   if (Arg *A = Args.getLastArg(options::OPT_mtp_mode_EQ)) {
     StringRef Mtp = A->getValue();
-    if (Mtp == "el3")
+    if (Mtp == "el3" || Mtp == "tpidr_el3")
       Features.push_back("+tpidr-el3");
-    else if (Mtp == "el2")
+    else if (Mtp == "el2" || Mtp == "tpidr_el2")
       Features.push_back("+tpidr-el2");
-    else if (Mtp == "el1")
+    else if (Mtp == "el1" || Mtp == "tpidr_el1")
       Features.push_back("+tpidr-el1");
-    else if (Mtp != "el0")
+    else if (Mtp == "tpidrro_el0")
+      Features.push_back("+tpidrro-el0");
+    else if (Mtp != "el0" && Mtp != "tpidr_el0")
       D.Diag(diag::err_drv_invalid_mtp) << A->getAsString(Args);
   }
 

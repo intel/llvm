@@ -2,6 +2,9 @@
 //
 // RUN: %{run} %t.out
 
+// FIXME: enable opaque pointers support
+// REQUIRES: TEMPORARY_DISABLED
+
 //==-- local-arg-align.cpp - Test for local argument alignmnent ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -39,7 +42,7 @@ int main(int argc, char *argv[]) {
      });
    }).wait_and_throw();
 
-  auto hres = res.get_access<access::mode::read_write>();
+  auto hres = res.get_host_access();
 
   int ret = 0;
   // Check that the addresses are aligned as expected

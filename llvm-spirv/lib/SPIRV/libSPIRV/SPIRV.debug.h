@@ -1,5 +1,6 @@
 #ifndef SPIRV_DEBUG_H
 #define SPIRV_DEBUG_H
+#include "SPIRVEnum.h"
 #include "SPIRVUtil.h"
 #include "spirv/unified1/spirv.hpp"
 #include "spirv_internal.hpp"
@@ -57,6 +58,8 @@ enum Instruction {
   InstCount                     = 37,
   FunctionDefinition            = 101,
   SourceContinued               = 102,
+  DebugLine                     = 103,
+  DebugNoLine                   = 104,
   BuildIdentifier               = 105,
   StoragePath                   = 106,
   EntryPoint                    = 107,
@@ -67,26 +70,27 @@ enum Instruction {
 };
 
 enum Flag {
-  FlagIsProtected            = 1 << 0,
-  FlagIsPrivate              = 1 << 1,
-  FlagIsPublic               = FlagIsPrivate | FlagIsProtected,
-  FlagAccess                 = FlagIsPublic,
-  FlagIsLocal                = 1 << 2,
-  FlagIsDefinition           = 1 << 3,
-  FlagIsFwdDecl              = 1 << 4,
-  FlagIsArtificial           = 1 << 5,
-  FlagIsExplicit             = 1 << 6,
-  FlagIsPrototyped           = 1 << 7,
-  FlagIsObjectPointer        = 1 << 8,
-  FlagIsStaticMember         = 1 << 9,
-  FlagIsIndirectVariable     = 1 << 10,
-  FlagIsLValueReference      = 1 << 11,
-  FlagIsRValueReference      = 1 << 12,
-  FlagIsOptimized            = 1 << 13,
-  FlagIsEnumClass            = 1 << 14,
-  FlagTypePassByValue        = 1 << 15,
-  FlagTypePassByReference    = 1 << 16,
-  FlagUnknownPhysicalLayout  = 1 << 17,
+  FlagIsProtected           = 1 << 0,
+  FlagIsPrivate             = 1 << 1,
+  FlagIsPublic              = FlagIsPrivate | FlagIsProtected,
+  FlagAccess                = FlagIsPublic,
+  FlagIsLocal               = 1 << 2,
+  FlagIsDefinition          = 1 << 3,
+  FlagIsFwdDecl             = 1 << 4,
+  FlagIsArtificial          = 1 << 5,
+  FlagIsExplicit            = 1 << 6,
+  FlagIsPrototyped          = 1 << 7,
+  FlagIsObjectPointer       = 1 << 8,
+  FlagIsStaticMember        = 1 << 9,
+  FlagIsIndirectVariable    = 1 << 10,
+  FlagIsLValueReference     = 1 << 11,
+  FlagIsRValueReference     = 1 << 12,
+  FlagIsOptimized           = 1 << 13,
+  FlagIsEnumClass           = 1 << 14,
+  FlagTypePassByValue       = 1 << 15,
+  FlagTypePassByReference   = 1 << 16,
+  FlagUnknownPhysicalLayout = 1 << 17,
+  FlagBitField              = 1 << 18
 };
 
 enum EncodingTag {
@@ -392,11 +396,12 @@ namespace TypeVector = TypeArray;
 
 namespace TypeSubrange {
 enum {
-  CountIdx        = 0,
-  LowerBoundIdx   = 1,
-  UpperBoundIdx   = 2,
+  LowerBoundIdx   = 0,
+  UpperBoundIdx   = 1,
+  CountIdx        = 2,
   StrideIdx       = 3,
-  OperandCount    = 4
+  MinOperandCount = 3,
+  MaxOperandCount = 4
 };
 }
 
@@ -499,12 +504,14 @@ enum {
 
 namespace TypeInheritance {
 enum {
-  ChildIdx     = 0,
-  ParentIdx    = 1,
-  OffsetIdx    = 2,
-  SizeIdx      = 3,
-  FlagsIdx     = 4,
-  OperandCount = 5
+  ChildIdx        = 0,
+  ParentIdx       = 1,
+  OffsetIdx       = 2,
+  SizeIdx         = 3,
+  FlagsIdx        = 4,
+  // NonSemantic
+  MinOperandCount = 4,
+  OperandCount    = 5
 };
 }
 
@@ -627,6 +634,23 @@ enum {
 };
 }
 
+namespace DebugLine {
+enum {
+  SourceIdx      = 0,
+  StartIdx       = 1,
+  EndIdx         = 2,
+  ColumnStartIdx = 3,
+  ColumnEndIdx   = 4,
+  OperandCount   = 5
+};
+}
+
+namespace DebugNoLine {
+enum {
+  OperandCount = 0
+};
+}
+
 namespace EntryPoint {
 enum {
   EntryPointIdx        = 0,
@@ -671,13 +695,25 @@ namespace NoScope {
 }
 
 namespace InlinedAt {
+namespace OpenCL {
 enum {
   LineIdx         = 0,
   ScopeIdx        = 1,
   InlinedIdx      = 2,
   MinOperandCount = 2
 };
-}
+} // namespace OpenCL
+
+namespace NonSemantic {
+enum {
+  LineIdx         = 0,
+  ColumnIdx       = 1,
+  ScopeIdx        = 2,
+  InlinedIdx      = 3,
+  MinOperandCount = 3
+};
+} // namespace NonSemantic
+} // namespace ImportedEntity
 
 namespace LocalVariable {
 enum {
@@ -897,7 +933,7 @@ static std::map<ExpressionOpCode, unsigned> OpCountMap {
 }
 
 namespace ImportedEntity {
-inline namespace OpenCL {
+namespace OpenCL {
 // it's bugged version, note 2nd index is missing
 // FIXME: need to remove it after some graceful period
 enum {
@@ -941,8 +977,9 @@ enum {
 
 // helper function to get parent scope of debug instruction, to be used
 // to determine with which compile unit the particular instruction relates
-inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
-                                     uint32_t &ParentScopeIdx) {
+inline bool hasDbgInstParentScopeIdx(
+    const uint32_t Kind, uint32_t &ParentScopeIdx,
+    const SPIRV::SPIRVExtInstSetKind ExtKind = SPIRV::SPIRVEIS_OpenCL) {
   switch (Kind) {
   case SPIRVDebug::Typedef:
     ParentScopeIdx = Typedef::ParentIdx;
@@ -975,13 +1012,19 @@ inline bool hasDbgInstParentScopeIdx(const uint32_t Kind,
     ParentScopeIdx = Scope::ScopeIdx;
     return true;
   case SPIRVDebug::InlinedAt:
-    ParentScopeIdx = InlinedAt::ScopeIdx;
+    if (ExtKind == SPIRV::SPIRVEIS_NonSemantic_Shader_DebugInfo_200)
+      ParentScopeIdx = InlinedAt::NonSemantic::ScopeIdx;
+    else
+      ParentScopeIdx = InlinedAt::OpenCL::ScopeIdx;
     return true;
   case SPIRVDebug::LocalVariable:
     ParentScopeIdx = LocalVariable::ParentIdx;
     return true;
   case SPIRVDebug::ImportedEntity:
-    ParentScopeIdx = ImportedEntity::ParentIdx;
+    if (ExtKind == SPIRV::SPIRVEIS_OpenCL_DebugInfo_100)
+      ParentScopeIdx = ImportedEntity::OpenCL::ParentIdx;
+    else
+      ParentScopeIdx = ImportedEntity::NonSemantic::ParentIdx;
     return true;
   case SPIRVDebug::ModuleINTEL:
     ParentScopeIdx = ModuleINTEL::ParentIdx;

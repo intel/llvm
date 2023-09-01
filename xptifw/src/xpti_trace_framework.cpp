@@ -22,13 +22,6 @@
 #include <unordered_map>
 #include <vector>
 
-#ifdef XPTI_USE_TBB
-#include <tbb/concurrent_hash_map.h>
-#include <tbb/concurrent_unordered_map.h>
-#include <tbb/concurrent_vector.h>
-#include <tbb/spin_mutex.h>
-#endif
-
 #define XPTI_USER_DEFINED_TRACE_TYPE16(value)                                  \
   ((uint16_t)xpti::trace_point_type_t::user_defined | (uint16_t)value)
 #define XPTI_USER_DEFINED_EVENT_TYPE16(value)                                  \
@@ -85,15 +78,13 @@ public:
   // with the valid attribute set to 'false'
   plugin_data_t queryPlugin(xpti_plugin_handle_t Handle) {
     plugin_data_t PData;
-#ifdef XPTI_USE_TBB
-    tbb::spin_mutex::scoped_lock MyLock(MMutex);
-#else
-    std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-    if (MHandleLUT.count(Handle))
-      return MHandleLUT[Handle];
-    else
-      return PData; // return invalid plugin data
+    {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      if (MHandleLUT.count(Handle))
+        return MHandleLUT[Handle];
+      else
+        return PData; // return invalid plugin data
+    }
   }
 
   // Load the provided shared object file name using the explicit load API. If
@@ -109,17 +100,15 @@ public:
     // Check to see if the subscriber has already been loaded; if so, return the
     // handle from the previously loaded library
     if (MNameLUT.count(Path)) {
-#ifdef XPTI_USE_TBB
-      tbb::spin_mutex::scoped_lock MyLock(MMutex);
-#else
-      std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-      // This plugin has already been loaded, so let's return previously
-      // recorded handle
-      plugin_data_t &Data = MNameLUT[Path];
-      assert(Data.valid && "Lookup is invalid!");
-      if (Data.valid)
-        return Data.handle;
+      {
+        std::lock_guard<std::mutex> Lock(MMutex);
+        // This plugin has already been loaded, so let's return previously
+        // recorded handle
+        plugin_data_t &Data = MNameLUT[Path];
+        assert(Data.valid && "Lookup is invalid!");
+        if (Data.valid)
+          return Data.handle;
+      }
     }
 
     Handle = g_helper.loadLibrary(Path, Error);
@@ -141,13 +130,11 @@ public:
         Data.name = Path;
         Data.init = InitFunc;
         Data.fini = FiniFunc;
-#ifdef XPTI_USE_TBB
-        tbb::spin_mutex::scoped_lock MyLock(MMutex);
-#else
-        std::lock_guard<std::mutex> Lock(MMutex);
-#endif
-        MNameLUT[Path] = Data;
-        MHandleLUT[Handle] = Data;
+        {
+          std::lock_guard<std::mutex> Lock(MMutex);
+          MNameLUT[Path] = Data;
+          MHandleLUT[Handle] = Data;
+        }
       } else {
         // We may have loaded another shared object that is not a tool plugin
         // for the tracing framework, so we'll unload it now
@@ -222,15 +209,13 @@ public:
       //  Let's go through the subscribers and load these plugins;
       for (auto &Path : Listeners) {
         // Load the plugins listed in the environment variable
-#ifdef XPTI_USE_TBB
-        tbb::spin_mutex::scoped_lock MyLock(MLoader);
-#else
-        std::lock_guard<std::mutex> Lock(MLoader);
-#endif
-        auto SubscriberHandle = loadPlugin(Path.c_str());
-        if (!SubscriberHandle) {
-          ValidSubscribers--;
-          std::cout << "Failed to load " << Path << " successfully\n";
+        {
+          std::lock_guard<std::mutex> Lock(MLoader);
+          auto SubscriberHandle = loadPlugin(Path.c_str());
+          if (!SubscriberHandle) {
+            ValidSubscribers--;
+            std::cout << "Failed to load " << Path << " successfully\n";
+          }
         }
       }
     }
@@ -249,17 +234,10 @@ private:
   plugin_name_lut_t MNameLUT;
   /// Hash map that maps shared object handle to the plugin data
   plugin_handle_lut_t MHandleLUT;
-#ifdef XPTI_USE_TBB
-  /// Lock to ensure the operation on these maps are safe
-  tbb::spin_mutex MMutex;
-  /// Lock to ensure that only one load happens at a time
-  tbb::spin_mutex MLoader;
-#else
   /// Lock to ensure the operation on these maps are safe
   std::mutex MMutex;
   /// Lock to ensure that only one load happens at a time
   std::mutex MLoader;
-#endif
 };
 
 /// \brief Helper class to create and  manage tracepoints
@@ -553,17 +531,10 @@ private:
 class Notifications {
 public:
   using cb_entry_t = std::pair<bool, xpti::tracepoint_callback_api_t>;
-#ifdef XPTI_USE_TBB
-  using cb_entries_t = tbb::concurrent_vector<cb_entry_t>;
-  using cb_t = tbb::concurrent_hash_map<uint16_t, cb_entries_t>;
-  using stream_cb_t = tbb::concurrent_unordered_map<uint16_t, cb_t>;
-  using statistics_t = tbb::concurrent_unordered_map<uint16_t, uint64_t>;
-#else
   using cb_entries_t = std::vector<cb_entry_t>;
   using cb_t = std::unordered_map<uint16_t, cb_entries_t>;
   using stream_cb_t = std::unordered_map<uint16_t, cb_t>;
   using statistics_t = std::unordered_map<uint16_t, uint64_t>;
-#endif
 
   xpti::result_t registerCallback(uint8_t StreamID, uint16_t TraceType,
                                   xpti::tracepoint_callback_api_t cbFunc) {
@@ -574,36 +545,25 @@ public:
     //  Initialize first encountered trace
     //  type statistics counters
     {
-#ifdef XPTI_USE_TBB
-      tbb::spin_mutex::scoped_lock Lock(MStatsLock);
-#else
       std::lock_guard<std::mutex> Lock(MStatsLock);
-#endif
       auto InstanceNo = MStats.find(TraceType);
       if (InstanceNo == MStats.end()) {
         MStats[TraceType] = 0;
       }
     }
 #endif
-#ifndef XPTI_USE_TBB
     std::lock_guard<std::mutex> Lock(MCBsLock);
-#endif
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       // What we get is a concurrent_hash_map
                                       // of vectors holding the callbacks we
                                       // need access to;
-#ifdef XPTI_USE_TBB
-    cb_t::accessor Acc;
-    StreamCBs.insert(Acc, TraceType);
-#else
     auto Acc = StreamCBs.find(TraceType);
     if (Acc == StreamCBs.end()) {
       // Create a new slot and return the accessor for the trace type
       auto Tmp = StreamCBs[TraceType];
       Acc = StreamCBs.find(TraceType);
     }
-#endif
     // If the key does not exist, a new entry is created and an accessor to it
     // is returned. If it exists, we have access to the previous entry.
     //
@@ -634,21 +594,14 @@ public:
     if (!cbFunc)
       return xpti::result_t::XPTI_RESULT_INVALIDARG;
 
-#ifndef XPTI_USE_TBB
     std::lock_guard<std::mutex> Lock(MCBsLock);
-#endif
     auto &StreamCBs =
         MCallbacksByStream[StreamID]; // thread-safe
                                       //  What we get is a concurrent_hash_map
                                       //  of vectors holding the callbacks we
                                       //  need access to;
-#ifdef XPTI_USE_TBB
-    cb_t::accessor Acc;
-    bool Success = StreamCBs.find(Acc, TraceType);
-#else
     auto Acc = StreamCBs.find(TraceType);
     bool Success = (Acc != StreamCBs.end());
-#endif
     if (Success) {
       for (auto &Ele : Acc->second) {
         if (Ele.second == cbFunc) {
@@ -672,9 +625,7 @@ public:
   xpti::result_t unregisterStream(uint8_t StreamID) {
     // If there are no callbacks registered for the requested stream ID, we
     // return not found
-#ifndef XPTI_USE_TBB
     std::lock_guard<std::mutex> Lock(MCBsLock);
-#endif
     if (MCallbacksByStream.count(StreamID) == 0)
       return xpti::result_t::XPTI_RESULT_NOTFOUND;
 
@@ -689,22 +640,33 @@ public:
     return xpti::result_t::XPTI_RESULT_SUCCESS;
   }
 
+  bool checkSubscribed(uint16_t StreamID, uint16_t TraceType) {
+    if (StreamID == 0)
+      return false;
+
+    std::lock_guard<std::mutex> Lock(MCBsLock);
+    auto &StreamCBs =
+        MCallbacksByStream[StreamID]; // thread-safe
+                                      // What we get is a concurrent_hash_map
+                                      // of vectors holding the callbacks we
+                                      // need access to;
+    bool StreamSubscribed = (StreamCBs.size() > 0);
+    if (TraceType) {
+      bool TraceTypeSubscribed = (StreamCBs.count(TraceType) > 0);
+      return (StreamSubscribed && TraceTypeSubscribed);
+    } else
+      return StreamSubscribed;
+  }
+
   xpti::result_t notifySubscribers(uint16_t StreamID, uint16_t TraceType,
                                    xpti::trace_event_data_t *Parent,
                                    xpti::trace_event_data_t *Object,
                                    uint64_t InstanceNo, const void *UserData) {
     {
-#ifndef XPTI_USE_TBB
       std::lock_guard<std::mutex> Lock(MCBsLock);
-#endif
       cb_t &Stream = MCallbacksByStream[StreamID]; // Thread-safe
-#ifdef XPTI_USE_TBB
-      cb_t::const_accessor Acc; // read-only accessor
-      bool Success = Stream.find(Acc, TraceType);
-#else
       auto Acc = Stream.find(TraceType);
       bool Success = (Acc != Stream.end());
-#endif
 
       if (Success) {
         // Go through all registered callbacks and invoke them
@@ -717,11 +679,7 @@ public:
 #ifdef XPTI_STATISTICS
     auto &Counter = MStats[TraceType];
     {
-#ifdef XPTI_USE_TBB
-      tbb::spin_mutex::scoped_lock Lock(MStatsLock);
-#else
       std::lock_guard<std::mutex> Lock(MStatsLock);
-#endif
       Counter++;
     }
 #endif
@@ -798,12 +756,8 @@ private:
   }
 #endif
   stream_cb_t MCallbacksByStream;
-#ifdef XPTI_USE_TBB
-  tbb::spin_mutex MStatsLock;
-#else
   std::mutex MCBsLock;
   std::mutex MStatsLock;
-#endif
   statistics_t MStats;
 };
 
@@ -833,6 +787,13 @@ public:
   uint64_t getUniversalID() const noexcept { return g_tls_uid; }
 
   void setUniversalID(uint64_t uid) noexcept { g_tls_uid = uid; }
+
+  bool checkTraceEnabled(uint16_t stream, uint16_t type) {
+    if (MTraceEnabled) {
+      return MNotifier.checkSubscribed(stream, type);
+    }
+    return false;
+  }
 
   xpti::result_t addMetadata(xpti::trace_event_data_t *Event, const char *Key,
                              object_id_t ValueID) {
@@ -959,7 +920,7 @@ public:
       // have 'nullptr' for both the Parent and Object only if UserData is
       // provided and the trace_point_type is function_begin/function_end.
       // This allows us to trace function calls without too much effort.
-      std::array<trace_point_type_t, 14> AllowedTypes = {
+      std::array<trace_point_type_t, 26> AllowedTypes = {
           trace_point_type_t::function_begin,
           trace_point_type_t::function_end,
           trace_point_type_t::function_with_args_begin,
@@ -968,10 +929,10 @@ public:
           trace_point_type_t::mem_alloc_end,
           trace_point_type_t::mem_release_begin,
           trace_point_type_t::mem_release_end,
-          trace_point_type_t::offload_alloc_construct,
-          trace_point_type_t::offload_alloc_associate,
-          trace_point_type_t::offload_alloc_release,
-          trace_point_type_t::offload_alloc_destruct,
+          trace_point_type_t::offload_alloc_memory_object_construct,
+          trace_point_type_t::offload_alloc_memory_object_associate,
+          trace_point_type_t::offload_alloc_memory_object_release,
+          trace_point_type_t::offload_alloc_memory_object_destruct,
           trace_point_type_t::offload_alloc_accessor,
           trace_point_type_t::diagnostics};
       const auto Predicate = [TraceType](trace_point_type_t RHS) {
@@ -1199,6 +1160,10 @@ xptiNotifySubscribers(uint8_t StreamID, uint16_t TraceType,
 
 XPTI_EXPORT_API bool xptiTraceEnabled() {
   return xpti::Framework::instance().traceEnabled();
+}
+
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+  return xpti::Framework::instance().checkTraceEnabled(stream, ttype);
 }
 
 XPTI_EXPORT_API xpti::result_t xptiAddMetadata(xpti::trace_event_data_t *Event,

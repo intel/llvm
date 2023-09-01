@@ -46,12 +46,6 @@ class Arith_BinaryOp<string mnemonic, list<Trait> traits = []> :
   let assemblyFormat = "$lhs `,` $rhs attr-dict `:` type($result)";
 }
 
-// Base class for ternary arithmetic operations.
-class Arith_TernaryOp<string mnemonic, list<Trait> traits = []> :
-    Arith_ArithOp<mnemonic, traits # [Pure]> {
-  let assemblyFormat = "$a `,` $b `,` $c attr-dict `:` type($result)";
-}
-
 // Base class for integer binary operations.
 class Arith_IntBinaryOp<string mnemonic, list<Trait> traits = []> :
     Arith_BinaryOp<mnemonic, traits #
@@ -87,6 +81,20 @@ class Arith_FloatBinaryOp<string mnemonic, list<Trait> traits = []> :
     Results<(outs FloatLike:$result)> {
   let assemblyFormat = [{ $lhs `,` $rhs (`fastmath` `` $fastmath^)?
                           attr-dict `:` type($result) }];
+}
+
+// Base class for floating point unary predicate operations.
+class Arith_FloatPredicateOp<string mnemonic, list<Trait> traits = []> :
+    Arith_Op<mnemonic,
+      !listconcat([DeclareOpInterfaceMethods<ArithFastMathInterface>, Pure,
+        TypesMatchWith<"result type has i1 element type and same shape as operands",
+        "operand", "result", "::getI1SameShape($_self)">], traits)>,
+    Arguments<(ins FloatLike:$operand,
+      DefaultValuedAttr<
+        Arith_FastMathAttr, "::mlir::arith::FastMathFlags::none">:$fastmath)>,
+    Results<(outs BoolLike:$result)> {
+  let assemblyFormat = [{ $operand (`fastmath` `` $fastmath^)?
+                          attr-dict `:` type($operand) }];
 }
 
 // Base class for arithmetic cast operations. Requires a single operand and
@@ -291,6 +299,7 @@ def Arith_SubIOp : Arith_TotalIntBinaryOp<"subi"> {
 def Arith_MulIOp : Arith_TotalIntBinaryOp<"muli", [Commutative]> {
   let summary = "integer multiplication operation";
   let hasFolder = 1;
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -973,6 +982,22 @@ def Arith_DivFOp : Arith_FloatBinaryOp<"divf"> {
 
 def Arith_RemFOp : Arith_FloatBinaryOp<"remf"> {
   let summary = "floating point division remainder operation";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// IsNanOp
+//===----------------------------------------------------------------------===//
+def Arith_IsNanOp : Arith_FloatPredicateOp<"is_nan"> {
+  let summary = "Returns true for IEEE NaN inputs";
+  let hasFolder = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// IsInfOp
+//===----------------------------------------------------------------------===//
+def Arith_IsInfOp : Arith_FloatPredicateOp<"is_inf"> {
+  let summary = "Returns true for infinite float inputs";
   let hasFolder = 1;
 }
 

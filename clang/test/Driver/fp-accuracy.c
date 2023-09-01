@@ -36,7 +36,7 @@
 // RUN: not %clang -Xclang -verify -fno-math-errno -ffp-accuracy=high=[sin] %s 2>& 1 \
 // RUN: | FileCheck %s --check-prefixes=ERR-2
 
-// RUN: not %clang -Xclang -verify -fno-math-errno -ffp-accuracy=low:[sin,cos] \
+// RUN: not %clang -fno-math-errno -ffp-accuracy=low:[sin,cos] \
 // RUN: -ffp-accuracy=high %s 2>&1  \
 // RUN: | FileCheck %s --check-prefix=WARN
 
@@ -48,9 +48,6 @@
 // RUN: -fmath-errno %s 2>&1  \
 // RUN: | FileCheck %s --check-prefixes=ERR-3
 
-// Disabled due to https://github.com/intel/llvm/issues/9934
-// UNSUPPORTED: system-linux
-
 // HIGH: "-ffp-builtin-accuracy=high"
 // LOW: "-ffp-builtin-accuracy=low"
 // MEDIUM: "-ffp-builtin-accuracy=medium"
@@ -61,6 +58,7 @@
 // ERR: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
 // ERR-1: (frontend): unsupported argument 'foo' to option '-ffp-accuracy'
 // ERR-2: (frontend): unsupported argument 'high=[sin]' to option '-ffp-accuracy'
-// WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'cos'
-// WARN: (frontend): floating point accuracy value of 'high' has already been assigned to function 'sin'
+// WARN: floating point accuracy value of 'low' has already been assigned to function 'cos'
+// WARN: floating point accuracy value of 'low' has already been assigned to function 'sin'
+
 // ERR-3: (frontend): floating point accuracy requirements cannot be guaranteed when '-fmath-errno' is enabled; use '-fno-math-errno' to enable floating point accuracy control

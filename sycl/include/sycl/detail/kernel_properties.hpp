@@ -14,7 +14,7 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 enum class register_alloc_mode_enum : uint32_t {
   automatic = 0,
@@ -29,7 +29,10 @@ struct register_alloc_mode_key {
 };
 
 template <register_alloc_mode_enum Mode>
-inline constexpr register_alloc_mode_key::value_t<Mode> register_alloc_mode;
+inline constexpr register_alloc_mode_key::value_t<Mode> register_alloc_mode
+    __SYCL_DEPRECATED("register_alloc_mode is deprecated, "
+                      "use sycl::ext::intel::experimental::grf_size or "
+                      "sycl::ext::intel::experimental::grf_size_automatic");
 } // namespace detail
 
 namespace ext::oneapi::experimental {
@@ -53,5 +56,5 @@ struct PropertyMetaInfo<sycl::detail::register_alloc_mode_key::value_t<Mode>> {
 };
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

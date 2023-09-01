@@ -8,15 +8,20 @@
 
 #pragma once
 
-#include <memory>
-#include <vector>
+#include <sycl/context.hpp>                // for context
+#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
+#include <sycl/device.hpp>                 // for device
+#include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/property_list.hpp>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <type_traits> // for true_type
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 class queue;
@@ -26,6 +31,45 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
+// List of sycl features and extensions which are not supported by graphs. Used
+// for throwing errors when these features are used with graphs.
+enum class UnsupportedGraphFeatures {
+  sycl_reductions = 0,
+  sycl_specialization_constants = 1,
+  sycl_kernel_bundle = 2,
+  sycl_ext_oneapi_kernel_properties = 3,
+  sycl_ext_oneapi_enqueue_barrier = 4,
+  sycl_ext_oneapi_memcpy2d = 5,
+  sycl_ext_oneapi_device_global = 6,
+  sycl_ext_oneapi_bindless_images = 7
+};
+
+inline const char *
+UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
+  using UGF = UnsupportedGraphFeatures;
+  switch (Feature) {
+  case UGF::sycl_reductions:
+    return "Reductions";
+  case UGF::sycl_specialization_constants:
+    return "Specialization Constants";
+  case UGF::sycl_kernel_bundle:
+    return "Kernel Bundles";
+  case UGF::sycl_ext_oneapi_kernel_properties:
+    return "sycl_ext_oneapi_kernel_properties";
+  case UGF::sycl_ext_oneapi_enqueue_barrier:
+    return "sycl_ext_oneapi_enqueue_barrier";
+  case UGF::sycl_ext_oneapi_memcpy2d:
+    return "sycl_ext_oneapi_memcpy2d";
+  case UGF::sycl_ext_oneapi_device_global:
+    return "sycl_ext_oneapi_device_global";
+  case UGF::sycl_ext_oneapi_bindless_images:
+    return "sycl_ext_oneapi_bindless_images";
+  }
+
+  assert(false && "Unhandled graphs feature");
+  return {};
+}
+
 class node_impl;
 class graph_impl;
 class exec_graph_impl;
@@ -57,13 +101,22 @@ namespace graph {
 
 /// Property passed to command_graph constructor to disable checking for cycles.
 ///
-/// \todo Cycle check not yet implemented.
 class no_cycle_check : public ::sycl::detail::DataLessProperty<
                            ::sycl::detail::GraphNoCycleCheck> {
 public:
   no_cycle_check() = default;
 };
 
+/// Property passed to command_graph constructor to allow buffers to be used
+/// with graphs. Passing this property represents a promise from the user that
+/// the buffer will outlive any graph that it is used in.
+///
+class assume_buffer_outlives_graph
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
+public:
+  assume_buffer_outlives_graph() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -87,16 +140,18 @@ private:
 } // namespace node
 } // namespace property
 
-/// Graph in the modifiable state.
-template <graph_state State = graph_state::modifiable>
-class __SYCL_EXPORT command_graph {
+template <graph_state State> class command_graph;
+
+namespace detail {
+// Templateless modifiable command-graph base class.
+class __SYCL_EXPORT modifiable_command_graph {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
   /// @param SyclDevice Device all nodes will be associated with.
   /// @param PropList Optional list of properties to pass.
-  command_graph(const context &SyclContext, const device &SyclDevice,
-                const property_list &PropList = {});
+  modifiable_command_graph(const context &SyclContext, const device &SyclDevice,
+                           const property_list &PropList = {});
 
   /// Add an empty node to the graph.
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
@@ -166,10 +221,11 @@ public:
   /// executing.
   bool end_recording(const std::vector<queue> &RecordingQueues);
 
-private:
+protected:
   /// Constructor used internally by the runtime.
   /// @param Impl Detail implementation class to construct object with.
-  command_graph(const std::shared_ptr<detail::graph_impl> &Impl) : impl(Impl) {}
+  modifiable_command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
+      : impl(Impl) {}
 
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.
@@ -192,21 +248,22 @@ private:
   std::shared_ptr<detail::graph_impl> impl;
 };
 
-template <> class __SYCL_EXPORT command_graph<graph_state::executable> {
+// Templateless executable command-graph base class.
+class __SYCL_EXPORT executable_command_graph {
 public:
   /// An executable command-graph is not user constructable.
-  command_graph() = delete;
+  executable_command_graph() = delete;
 
   /// Update the inputs & output of the graph.
   /// @param Graph Graph to use the inputs and outputs of.
   void update(const command_graph<graph_state::modifiable> &Graph);
 
-private:
+protected:
   /// Constructor used by internal runtime.
   /// @param Graph Detail implementation class to construct with.
   /// @param Ctx Context to use for graph.
-  command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
-                const sycl::context &Ctx);
+  executable_command_graph(const std::shared_ptr<detail::graph_impl> &Graph,
+                           const sycl::context &Ctx);
 
   template <class Obj>
   friend decltype(Obj::impl)
@@ -215,10 +272,37 @@ private:
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
 
-  int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
+};
+} // namespace detail
 
-  friend class command_graph<graph_state::modifiable>;
+/// Graph in the modifiable state.
+template <graph_state State = graph_state::modifiable>
+class command_graph : public detail::modifiable_command_graph {
+public:
+  /// Constructor.
+  /// @param SyclContext Context to use for graph.
+  /// @param SyclDevice Device all nodes will be associated with.
+  /// @param PropList Optional list of properties to pass.
+  command_graph(const context &SyclContext, const device &SyclDevice,
+                const property_list &PropList = {})
+      : modifiable_command_graph(SyclContext, SyclDevice, PropList) {}
+
+private:
+  /// Constructor used internally by the runtime.
+  /// @param Impl Detail implementation class to construct object with.
+  command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
+      : modifiable_command_graph(Impl) {}
+};
+
+template <>
+class command_graph<graph_state::executable>
+    : public detail::executable_command_graph {
+
+protected:
+  friend command_graph<graph_state::executable>
+  detail::modifiable_command_graph::finalize(const sycl::property_list &) const;
+  using detail::executable_command_graph::executable_command_graph;
 };
 
 /// Additional CTAD deduction guide.
@@ -249,5 +333,5 @@ template <>
 struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
                       ext::oneapi::experimental::node> : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

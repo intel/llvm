@@ -1,8 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+
 // REQUIRES: gpu
-// UNSUPPORTED: hip
 
 #include <sycl/sycl.hpp>
 #include <vector>

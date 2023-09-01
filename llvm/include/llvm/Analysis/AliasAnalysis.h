@@ -54,7 +54,6 @@ namespace llvm {
 
 class AnalysisUsage;
 class AtomicCmpXchgInst;
-class BasicAAResult;
 class BasicBlock;
 class CatchPadInst;
 class CatchReturnInst;
@@ -972,8 +971,6 @@ struct ExternalAAWrapperPass : ImmutablePass {
     AU.setPreservesAll();
   }
 };
-
-FunctionPass *createAAResultsWrapperPass();
 
 /// A wrapper pass around a callback which can be used to populate the
 /// AAResults in the AAResultsWrapperPass from an external AA.

@@ -17,9 +17,7 @@ using namespace llvm::opt;
 
 enum ID {
   OPT_INVALID = 0, // This is not an option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
   LastOption
 #undef OPTION
@@ -47,10 +45,7 @@ enum OptionFlags {
 };
 
 static constexpr OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {PREFIX, NAME,  HELPTEXT,    METAVAR,     OPT_##ID,  Option::KIND##Class,    \
-   PARAM,  FLAGS, OPT_##GROUP, OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -342,7 +337,9 @@ TYPED_TEST(OptTableTest, FindNearest) {
   EXPECT_EQ(Nearest, "--blurmp=foo");
 
   // Flags should be included and excluded as specified.
-  EXPECT_EQ(1U, T.findNearest("-doopf", Nearest, /*FlagsToInclude=*/OptFlag2));
+  EXPECT_EQ(1U, T.findNearest("-doopf", Nearest,
+                              /*FlagsToInclude=*/OptFlag2,
+                              /*FlagsToExclude=*/0));
   EXPECT_EQ(Nearest, "-doopf2");
   EXPECT_EQ(1U, T.findNearest("-doopf", Nearest,
                               /*FlagsToInclude=*/0,
@@ -389,6 +386,39 @@ TYPED_TEST(OptTableTest, ParseGroupedShortOptions) {
   InputArgList AL3 = T.ParseArgs(Args3, MAI, MAC);
   EXPECT_TRUE(AL3.hasArg(OPT_A));
   EXPECT_TRUE(AL3.hasArg(OPT_Blorp));
+}
+
+TYPED_TEST(OptTableTest, ParseDashDash) {
+  TypeParam T;
+  T.setDashDashParsing(true);
+  unsigned MAI, MAC;
+
+  const char *Args1[] = {"-A", "--"};
+  InputArgList AL = T.ParseArgs(Args1, MAI, MAC);
+  EXPECT_TRUE(AL.hasArg(OPT_A));
+  EXPECT_EQ(size_t(0), AL.getAllArgValues(OPT_INPUT).size());
+  EXPECT_EQ(size_t(0), AL.getAllArgValues(OPT_UNKNOWN).size());
+
+  const char *Args2[] = {"-A", "--", "-A", "--", "-B"};
+  AL = T.ParseArgs(Args2, MAI, MAC);
+  EXPECT_TRUE(AL.hasArg(OPT_A));
+  EXPECT_FALSE(AL.hasArg(OPT_B));
+  const std::vector<std::string> Input = AL.getAllArgValues(OPT_INPUT);
+  ASSERT_EQ(size_t(3), Input.size());
+  EXPECT_EQ("-A", Input[0]);
+  EXPECT_EQ("--", Input[1]);
+  EXPECT_EQ("-B", Input[2]);
+  EXPECT_EQ(size_t(0), AL.getAllArgValues(OPT_UNKNOWN).size());
+
+  T.setDashDashParsing(false);
+  AL = T.ParseArgs(Args2, MAI, MAC);
+  EXPECT_TRUE(AL.hasArg(OPT_A));
+  EXPECT_TRUE(AL.hasArg(OPT_B));
+  EXPECT_EQ(size_t(0), AL.getAllArgValues(OPT_INPUT).size());
+  const std::vector<std::string> Unknown = AL.getAllArgValues(OPT_UNKNOWN);
+  ASSERT_EQ(size_t(2), Unknown.size());
+  EXPECT_EQ("--", Unknown[0]);
+  EXPECT_EQ("--", Unknown[1]);
 }
 
 TYPED_TEST(OptTableTest, UnknownOptions) {

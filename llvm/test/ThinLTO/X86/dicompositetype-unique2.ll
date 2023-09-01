@@ -1,8 +1,8 @@
 ; RUN: opt -module-summary -o %t1.bc %s
 ; RUN: opt -module-summary -o %t2.bc %S/Inputs/dicompositetype-unique2.ll
-; RUN: llvm-lto --thinlto-action=run -opaque-pointers %t1.bc %t2.bc -thinlto-save-temps=%t3.
+; RUN: llvm-lto --thinlto-action=run %t1.bc %t2.bc -thinlto-save-temps=%t3.
 ; RUN: llvm-dis %t3.0.3.imported.bc -o - | FileCheck %s
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -o %t --save-temps \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -o %t --save-temps \
 ; RUN: -r %t1.bc,_ZN1CD2Ev,pl \
 ; RUN: -r %t1.bc,_ZN4CFVSD2Ev,l \
 ; RUN: -r %t1.bc,_Z3Getv,l \

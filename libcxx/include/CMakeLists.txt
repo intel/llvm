@@ -78,6 +78,7 @@ set(files
   __algorithm/pstl_backends/cpu_backends/fill.h
   __algorithm/pstl_backends/cpu_backends/find_if.h
   __algorithm/pstl_backends/cpu_backends/for_each.h
+  __algorithm/pstl_backends/cpu_backends/libdispatch.h
   __algorithm/pstl_backends/cpu_backends/merge.h
   __algorithm/pstl_backends/cpu_backends/serial.h
   __algorithm/pstl_backends/cpu_backends/stable_sort.h
@@ -90,8 +91,11 @@ set(files
   __algorithm/pstl_find.h
   __algorithm/pstl_for_each.h
   __algorithm/pstl_frontend_dispatch.h
+  __algorithm/pstl_generate.h
+  __algorithm/pstl_is_partitioned.h
   __algorithm/pstl_merge.h
   __algorithm/pstl_replace.h
+  __algorithm/pstl_sort.h
   __algorithm/pstl_stable_sort.h
   __algorithm/pstl_transform.h
   __algorithm/push_heap.h
@@ -245,6 +249,7 @@ set(files
   __bit/countr.h
   __bit/endian.h
   __bit/has_single_bit.h
+  __bit/invert_if.h
   __bit/popcount.h
   __bit/rotate.h
   __bit_reference
@@ -324,7 +329,6 @@ set(files
   __coroutine/coroutine_traits.h
   __coroutine/noop_coroutine_handle.h
   __coroutine/trivial_awaitables.h
-  __debug
   __debug_utils/randomize_range.h
   __debug_utils/strict_weak_ordering_check.h
   __exception/exception.h
@@ -383,6 +387,7 @@ set(files
   __format/range_formatter.h
   __format/unicode.h
   __format/width_estimation_table.h
+  __format/write_escaped.h
   __functional/binary_function.h
   __functional/binary_negate.h
   __functional/bind.h
@@ -411,11 +416,13 @@ set(files
   __functional/unary_negate.h
   __functional/weak_result_type.h
   __fwd/array.h
+  __fwd/bit_reference.h
   __fwd/fstream.h
   __fwd/get.h
   __fwd/hash.h
   __fwd/ios.h
   __fwd/istream.h
+  __fwd/mdspan.h
   __fwd/memory_resource.h
   __fwd/ostream.h
   __fwd/pair.h
@@ -435,6 +442,7 @@ set(files
   __iterator/common_iterator.h
   __iterator/concepts.h
   __iterator/counted_iterator.h
+  __iterator/cpp17_iterator_concepts.h
   __iterator/data.h
   __iterator/default_sentinel.h
   __iterator/distance.h
@@ -460,6 +468,7 @@ set(files
   __iterator/permutable.h
   __iterator/prev.h
   __iterator/projected.h
+  __iterator/ranges_iterator_traits.h
   __iterator/readable_traits.h
   __iterator/reverse_access.h
   __iterator/reverse_iterator.h
@@ -472,8 +481,31 @@ set(files
   __locale_dir/locale_base_api/bsd_locale_defaults.h
   __locale_dir/locale_base_api/bsd_locale_fallbacks.h
   __locale_dir/locale_base_api/locale_guard.h
+  __math/abs.h
+  __math/copysign.h
+  __math/error_functions.h
+  __math/exponential_functions.h
+  __math/fdim.h
+  __math/fma.h
+  __math/gamma.h
+  __math/hyperbolic_functions.h
+  __math/hypot.h
+  __math/inverse_hyperbolic_functions.h
+  __math/inverse_trigonometric_functions.h
+  __math/logarithms.h
+  __math/min_max.h
+  __math/modulo.h
+  __math/remainder.h
+  __math/roots.h
+  __math/rounding_functions.h
+  __math/traits.h
+  __math/trigonometric_functions.h
   __mbstate_t.h
+  __mdspan/default_accessor.h
   __mdspan/extents.h
+  __mdspan/layout_left.h
+  __mdspan/layout_right.h
+  __mdspan/mdspan.h
   __memory/addressof.h
   __memory/align.h
   __memory/aligned_alloc.h
@@ -605,7 +637,6 @@ set(files
   __ranges/common_view.h
   __ranges/concepts.h
   __ranges/container_compatible_range.h
-  __ranges/copyable_box.h
   __ranges/counted.h
   __ranges/dangling.h
   __ranges/data.h
@@ -622,12 +653,14 @@ set(files
   __ranges/istream_view.h
   __ranges/join_view.h
   __ranges/lazy_split_view.h
+  __ranges/movable_box.h
   __ranges/non_propagating_cache.h
   __ranges/owning_view.h
   __ranges/range_adaptor.h
   __ranges/rbegin.h
   __ranges/ref_view.h
   __ranges/rend.h
+  __ranges/repeat_view.h
   __ranges/reverse_view.h
   __ranges/single_view.h
   __ranges/size.h
@@ -635,11 +668,13 @@ set(files
   __ranges/subrange.h
   __ranges/take_view.h
   __ranges/take_while_view.h
+  __ranges/to.h
   __ranges/transform_view.h
   __ranges/view_interface.h
   __ranges/views.h
   __ranges/zip_view.h
   __split_buffer
+  __std_clang_module
   __std_mbstate_t.h
   __stop_token/atomic_unique_lock.h
   __stop_token/intrusive_list_view.h
@@ -669,7 +704,11 @@ set(files
   __system_error/error_code.h
   __system_error/error_condition.h
   __system_error/system_error.h
+  __thread/formatter.h
+  __thread/id.h
   __thread/poll_with_backoff.h
+  __thread/this_thread.h
+  __thread/thread.h
   __thread/timed_backoff_policy.h
   __threading_support
   __tree
@@ -699,6 +738,7 @@ set(files
   __type_traits/conjunction.h
   __type_traits/copy_cv.h
   __type_traits/copy_cvref.h
+  __type_traits/datasizeof.h
   __type_traits/decay.h
   __type_traits/dependent_type.h
   __type_traits/disjunction.h
@@ -831,6 +871,7 @@ set(files
   __utility/forward_like.h
   __utility/in_place.h
   __utility/integer_sequence.h
+  __utility/is_pointer_in_range.h
   __utility/move.h
   __utility/pair.h
   __utility/piecewise_construct.h
@@ -944,6 +985,7 @@ set(files
   numeric
   optional
   ostream
+  print
   queue
   random
   ranges
@@ -990,7 +1032,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()

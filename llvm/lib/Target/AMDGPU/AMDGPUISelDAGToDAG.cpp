@@ -168,6 +168,7 @@ bool AMDGPUDAGToDAGISel::fp16SrcZerosHighBits(unsigned Opc) const {
   case ISD::FFLOOR:
   case ISD::FMINNUM:
   case ISD::FMAXNUM:
+  case ISD::FLDEXP:
   case AMDGPUISD::FRACT:
   case AMDGPUISD::CLAMP:
   case AMDGPUISD::COS_HW:
@@ -179,7 +180,6 @@ bool AMDGPUDAGToDAGISel::fp16SrcZerosHighBits(unsigned Opc) const {
   case AMDGPUISD::RCP:
   case AMDGPUISD::RSQ:
   case AMDGPUISD::RCP_IFLAG:
-  case AMDGPUISD::LDEXP:
     // On gfx10, all 16-bit instructions preserve the high bits.
     return Subtarget->getGeneration() <= AMDGPUSubtarget::GFX9;
   case ISD::FP_ROUND:
@@ -2369,8 +2369,9 @@ static unsigned gwsIntrinToOpcode(unsigned IntrID) {
 }
 
 void AMDGPUDAGToDAGISel::SelectDS_GWS(SDNode *N, unsigned IntrID) {
-  if (IntrID == Intrinsic::amdgcn_ds_gws_sema_release_all &&
-      !Subtarget->hasGWSSemaReleaseAll()) {
+  if (!Subtarget->hasGWS() ||
+      (IntrID == Intrinsic::amdgcn_ds_gws_sema_release_all &&
+       !Subtarget->hasGWSSemaReleaseAll())) {
     // Let this error.
     SelectCode(N);
     return;
@@ -2570,13 +2571,22 @@ void AMDGPUDAGToDAGISel::SelectINTRINSIC_VOID(SDNode *N) {
 
 bool AMDGPUDAGToDAGISel::SelectVOP3ModsImpl(SDValue In, SDValue &Src,
                                             unsigned &Mods,
+                                            bool IsCanonicalizing,
                                             bool AllowAbs) const {
-  Mods = 0;
+  Mods = SISrcMods::NONE;
   Src = In;
 
   if (Src.getOpcode() == ISD::FNEG) {
     Mods |= SISrcMods::NEG;
     Src = Src.getOperand(0);
+  } else if (Src.getOpcode() == ISD::FSUB && IsCanonicalizing) {
+    // Fold fsub [+-]0 into fneg. This may not have folded depending on the
+    // denormal mode, but we're implicitly canonicalizing in a source operand.
+    auto *LHS = dyn_cast<ConstantFPSDNode>(Src.getOperand(0));
+    if (LHS && LHS->isZero()) {
+      Mods |= SISrcMods::NEG;
+      Src = Src.getOperand(1);
+    }
   }
 
   if (AllowAbs && Src.getOpcode() == ISD::FABS) {
@@ -2590,7 +2600,20 @@ bool AMDGPUDAGToDAGISel::SelectVOP3ModsImpl(SDValue In, SDValue &Src,
 bool AMDGPUDAGToDAGISel::SelectVOP3Mods(SDValue In, SDValue &Src,
                                         SDValue &SrcMods) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods, /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/true)) {
+    SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
+    return true;
+  }
+
+  return false;
+}
+
+bool AMDGPUDAGToDAGISel::SelectVOP3ModsNonCanonicalizing(
+    SDValue In, SDValue &Src, SDValue &SrcMods) const {
+  unsigned Mods;
+  if (SelectVOP3ModsImpl(In, Src, Mods, /*IsCanonicalizing=*/false,
+                         /*AllowAbs=*/true)) {
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
     return true;
   }
@@ -2601,7 +2624,9 @@ bool AMDGPUDAGToDAGISel::SelectVOP3Mods(SDValue In, SDValue &Src,
 bool AMDGPUDAGToDAGISel::SelectVOP3BMods(SDValue In, SDValue &Src,
                                          SDValue &SrcMods) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods, /* AllowAbs */ false)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods,
+                         /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/false)) {
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
     return true;
   }
@@ -2621,7 +2646,9 @@ bool AMDGPUDAGToDAGISel::SelectVINTERPModsImpl(SDValue In, SDValue &Src,
                                                SDValue &SrcMods,
                                                bool OpSel) const {
   unsigned Mods;
-  if (SelectVOP3ModsImpl(In, Src, Mods, /* AllowAbs */ false)) {
+  if (SelectVOP3ModsImpl(In, Src, Mods,
+                         /*IsCanonicalizing=*/true,
+                         /*AllowAbs=*/false)) {
     if (OpSel)
       Mods |= SISrcMods::OP_SEL_0;
     SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
@@ -2674,9 +2701,10 @@ bool AMDGPUDAGToDAGISel::SelectVOP3OMods(SDValue In, SDValue &Src,
 
 bool AMDGPUDAGToDAGISel::SelectVOP3PMods(SDValue In, SDValue &Src,
                                          SDValue &SrcMods, bool IsDOT) const {
-  unsigned Mods = 0;
+  unsigned Mods = SISrcMods::NONE;
   Src = In;
 
+  // TODO: Handle G_FSUB 0 as fneg
   if (Src.getOpcode() == ISD::FNEG) {
     Mods ^= (SISrcMods::NEG | SISrcMods::NEG_HI);
     Src = Src.getOperand(0);
@@ -2755,7 +2783,7 @@ bool AMDGPUDAGToDAGISel::SelectVOP3PMods(SDValue In, SDValue &Src,
       uint64_t Lit = cast<ConstantFPSDNode>(Lo)->getValueAPF()
                       .bitcastToAPInt().getZExtValue();
       if (AMDGPU::isInlinableLiteral32(Lit, Subtarget->hasInv2PiInlineImm())) {
-        Src = CurDAG->getTargetConstant(Lit, SDLoc(In), MVT::i64);;
+        Src = CurDAG->getTargetConstant(Lit, SDLoc(In), MVT::i64);
         SrcMods = CurDAG->getTargetConstant(Mods, SDLoc(In), MVT::i32);
         return true;
       }
