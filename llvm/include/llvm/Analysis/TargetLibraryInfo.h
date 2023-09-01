@@ -124,7 +124,7 @@ public:
   /// math function implementations.
   enum AltMathLibrary {
     NoAltMathLibrary,   // Don't use any alternate math library
-    SVMLAltMathLibrary, // INTEL SVML Library
+    SVMLAltMathLibrary, // Intel SVML Library
     TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
