@@ -3623,8 +3623,8 @@ where the last N*2 are as described above.
 .. Note:: This attribute will only generate LLVM IR attributes in SYCL device
   code.
 
-.. Note:: This attribute is not currently allowed on virtual, overridden, final,
-  defaulted, and deleted functions.
+.. Note:: This attribute is not currently allowed on defaulted and deleted
+  functions.
 
 .. Note:: This attribute is intended as an internal implementation detail and is
   not intended to be used by external users.
