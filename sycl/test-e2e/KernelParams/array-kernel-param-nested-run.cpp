@@ -81,7 +81,7 @@ bool test_accessor_array_in_struct(queue &myQueue) {
           output_accessor[index] = S.a[0][index] + S.a[1][index] + S.x + S.y;
         });
   });
-  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_host_access();
 
   return verify_1D("Accessor array in struct", c_num_items, output, ref);
 }
@@ -109,7 +109,7 @@ bool test_templated_array_in_struct(queue &myQueue) {
           output_accessor[index] = sint.a[index] + sll.a[index];
         });
   });
-  const auto HostAccessor = out_buffer.get_access<sycl::access::mode::read>();
+  const auto HostAccessor = out_buffer.get_host_access();
 
   return verify_1D("Templated array in struct", c_num_items, output, ref);
 }

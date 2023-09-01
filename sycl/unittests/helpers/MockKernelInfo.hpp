@@ -12,7 +12,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace unittest {
 struct MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
@@ -27,5 +27,5 @@ struct MockKernelInfoBase {
 };
 
 } // namespace unittest
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

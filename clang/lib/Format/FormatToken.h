@@ -102,7 +102,9 @@ namespace format {
   TYPE(MacroBlockBegin)                                                        \
   TYPE(MacroBlockEnd)                                                          \
   TYPE(ModulePartitionColon)                                                   \
+  TYPE(NamespaceLBrace)                                                        \
   TYPE(NamespaceMacro)                                                         \
+  TYPE(NamespaceRBrace)                                                        \
   TYPE(NonNullAssertion)                                                       \
   TYPE(NullCoalescingEqual)                                                    \
   TYPE(NullCoalescingOperator)                                                 \
@@ -141,6 +143,7 @@ namespace format {
   TYPE(TrailingReturnArrow)                                                    \
   TYPE(TrailingUnaryOperator)                                                  \
   TYPE(TypeDeclarationParen)                                                   \
+  TYPE(TypeName)                                                               \
   TYPE(TypenameMacro)                                                          \
   TYPE(UnaryOperator)                                                          \
   TYPE(UnionLBrace)                                                            \
@@ -417,6 +420,12 @@ public:
   /// This can be used to determine what the user wrote in the original code
   /// and thereby e.g. leave an empty line between two function definitions.
   unsigned NewlinesBefore = 0;
+
+  /// The number of newlines immediately before the \c Token after formatting.
+  ///
+  /// This is used to avoid overlapping whitespace replacements when \c Newlines
+  /// is recomputed for a finalized preprocessor branching directive.
+  int Newlines = -1;
 
   /// The offset just past the last '\n' in this token's leading
   /// whitespace (relative to \c WhiteSpaceStart). 0 if there is no '\n'.
@@ -767,6 +776,9 @@ public:
       Tok = Tok->Next;
     return Tok;
   }
+
+  /// Returns \c true if this token ends a block indented initializer list.
+  [[nodiscard]] bool isBlockIndentedInitRBrace(const FormatStyle &Style) const;
 
   /// Returns \c true if this tokens starts a block-type list, i.e. a
   /// list that should be indented with a block indent.

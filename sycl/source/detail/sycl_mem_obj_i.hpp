@@ -12,7 +12,7 @@
 #include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -62,6 +62,14 @@ public:
   // Returns size of object in bytes
   virtual size_t getSizeInBytes() const noexcept = 0;
 
+  virtual bool isInterop() const = 0;
+
+  virtual bool hasUserDataPtr() const = 0;
+
+  virtual bool isHostPointerReadOnly() const = 0;
+
+  virtual bool usesPinnedHostMemory() const = 0;
+
   // Returns the context which is passed if a memory object is created using
   // interoperability constructor, nullptr otherwise.
   virtual ContextImplPtr getInteropContext() const = 0;
@@ -78,5 +86,5 @@ protected:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

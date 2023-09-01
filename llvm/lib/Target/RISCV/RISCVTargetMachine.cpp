@@ -76,6 +76,7 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   RegisterTargetMachine<RISCVTargetMachine> Y(getTheRISCV64Target());
   auto *PR = PassRegistry::getPassRegistry();
   initializeGlobalISel(*PR);
+  initializeKCFIPass(*PR);
   initializeRISCVMakeCompressibleOptPass(*PR);
   initializeRISCVGatherScatterLoweringPass(*PR);
   initializeRISCVCodeGenPreparePass(*PR);
@@ -84,8 +85,11 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeRISCVTarget() {
   initializeRISCVPreRAExpandPseudoPass(*PR);
   initializeRISCVExpandPseudoPass(*PR);
   initializeRISCVInsertVSETVLIPass(*PR);
+  initializeRISCVInsertReadWriteCSRPass(*PR);
   initializeRISCVDAGToDAGISelPass(*PR);
   initializeRISCVInitUndefPass(*PR);
+  initializeRISCVMoveMergePass(*PR);
+  initializeRISCVPushPopOptPass(*PR);
 }
 
 static StringRef computeDataLayout(const Triple &TT) {
@@ -331,7 +335,10 @@ bool RISCVPassConfig::addGlobalInstructionSelect() {
   return false;
 }
 
-void RISCVPassConfig::addPreSched2() {}
+void RISCVPassConfig::addPreSched2() {
+  // Emit KCFI checks for indirect calls.
+  addPass(createKCFIPass());
+}
 
 void RISCVPassConfig::addPreEmitPass() {
   addPass(&BranchRelaxationPassID);
@@ -347,12 +354,23 @@ void RISCVPassConfig::addPreEmitPass() {
 }
 
 void RISCVPassConfig::addPreEmitPass2() {
+  if (TM->getOptLevel() != CodeGenOpt::None) {
+    addPass(createRISCVMoveMergePass());
+    // Schedule PushPop Optimization before expansion of Pseudo instruction,
+    // ensuring return instruction is detected correctly.
+    addPass(createRISCVPushPopOptimizationPass());
+  }
   addPass(createRISCVExpandPseudoPass());
 
   // Schedule the expansion of AMOs at the last possible moment, avoiding the
   // possibility for other passes to break the requirements for forward
   // progress in the LR/SC block.
   addPass(createRISCVExpandAtomicPseudoPass());
+
+  // KCFI indirect call checks are lowered to a bundle.
+  addPass(createUnpackMachineBundles([&](const MachineFunction &MF) {
+    return MF.getFunction().getParent()->getModuleFlag("kcfi");
+  }));
 }
 
 void RISCVPassConfig::addMachineSSAOptimization() {
@@ -370,6 +388,7 @@ void RISCVPassConfig::addPreRegAlloc() {
   if (TM->getOptLevel() != CodeGenOpt::None)
     addPass(createRISCVMergeBaseOffsetOptPass());
   addPass(createRISCVInsertVSETVLIPass());
+  addPass(createRISCVInsertReadWriteCSRPass());
 }
 
 void RISCVPassConfig::addOptimizedRegAlloc() {

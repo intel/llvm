@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/functional.hpp>
-#include <sycl/half_type.hpp>
 
-#include <complex>
-#include <functional>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/functional.hpp> // for maximum, minimum
+
+#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
@@ -119,5 +119,5 @@ static T calc(Group g, typename GroupOpTag<T>::type, T x,
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

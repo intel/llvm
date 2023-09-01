@@ -8,15 +8,38 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/handler.hpp>
+#include <sycl/access/access.hpp>  // for target, mode, address_space
+#include <sycl/accessor.hpp>       // for accessor
+#include <sycl/aliases.hpp>        // for half
+#include <sycl/atomic.hpp>         // for atomic
+#include <sycl/builtins.hpp>       // for isinf, isnan, signbit
+#include <sycl/detail/array.hpp>   // for array
+#include <sycl/detail/cg.hpp>      // for stream_impl
+#include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/item_base.hpp>          // for id, range
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/group.hpp>                     // for group
+#include <sycl/h_item.hpp>                    // for h_item
+#include <sycl/half_type.hpp>                 // for half, operator-, operator<
+#include <sycl/handler.hpp>                   // for handler
+#include <sycl/item.hpp>                      // for item
+#include <sycl/nd_item.hpp>                   // for nd_item
+#include <sycl/nd_range.hpp>                  // for nd_range
+#include <sycl/property_list.hpp>             // for property_list
+#include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>                 // for multi_ptr
+#include <sycl/types.hpp>                     // for vec, SwizzleOp
+
+#include <cstddef>     // for size_t, byte
+#include <memory>      // for hash, shared_ptr
+#include <stdint.h>    // for uint16_t, uint8_t
+#include <type_traits> // for enable_if_t, is_same, fal...
+#include <variant>     // for hash
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -66,21 +89,19 @@ using EnableIfFP = typename std::enable_if_t<std::is_same_v<F, float> ||
                                              T>;
 
 using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
-                                    sycl::access::target::global_buffer,
-                                    sycl::access::placeholder::false_t>;
+                                    sycl::access::target::device>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
-                                       sycl::access::target::global_buffer,
-                                       sycl::access::placeholder::false_t>;
+                                       sycl::access::target::device>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -226,7 +247,7 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
-static inline unsigned F2I32(float Val) {
+inline unsigned F2I32(float Val) {
   union {
     float FVal;
     unsigned I32Val;
@@ -235,7 +256,7 @@ static inline unsigned F2I32(float Val) {
   return Internal.I32Val;
 }
 
-static inline unsigned long long D2I64(double Val) {
+inline unsigned long long D2I64(double Val) {
   union {
     double DVal;
     unsigned long long I64Val;
@@ -1266,7 +1287,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 namespace std {
 template <> struct hash<sycl::stream> {

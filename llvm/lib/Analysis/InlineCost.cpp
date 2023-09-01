@@ -717,7 +717,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   void onInitializeSROAArg(AllocaInst *Arg) override {
     assert(Arg != nullptr &&
            "Should not initialize SROA costs for null value.");
-    SROAArgCosts[Arg] = 0;
+    auto SROAArgCost = TTI.getCallerAllocaCost(&CandidateCall, Arg);
+    SROACostSavings += SROAArgCost;
+    SROAArgCosts[Arg] = SROAArgCost;
   }
 
   void onAggregateSROAUse(AllocaInst *SROAArg) override {
@@ -1191,7 +1193,12 @@ private:
               InstrCost);
   }
 
-  void onInitializeSROAArg(AllocaInst *Arg) override { SROACosts[Arg] = 0; }
+  void onInitializeSROAArg(AllocaInst *Arg) override {
+    auto SROAArgCost = TTI.getCallerAllocaCost(&CandidateCall, Arg);
+    SROACosts[Arg] = SROAArgCost;
+    SROACostSavingOpportunities += SROAArgCost;
+  }
+
   void onAggregateSROAUse(AllocaInst *Arg) override {
     SROACosts.find(Arg)->second += InstrCost;
     SROACostSavingOpportunities += InstrCost;
@@ -2680,9 +2687,7 @@ InlineResult CallAnalyzer::analyze() {
   // basic blocks in a breadth-first order as we insert live successors. To
   // accomplish this, prioritizing for small iterations because we exit after
   // crossing our threshold, we use a small-size optimized SetVector.
-  typedef SetVector<BasicBlock *, SmallVector<BasicBlock *, 16>,
-                    SmallPtrSet<BasicBlock *, 16>>
-      BBSetVector;
+  typedef SmallSetVector<BasicBlock *, 16> BBSetVector;
   BBSetVector BBWorklist;
   BBWorklist.insert(&F.getEntryBlock());
 

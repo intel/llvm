@@ -63,9 +63,7 @@ void foo(int arg) {
 
   // CK1: %{{.+}} = add nsw i32 %{{[^,]+}}, 1
 
-  // CK1-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV:%[^,]+]], i32 1, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[SIZE00]], ptr [[MTYPE00]], ptr null, ptr null)
-  // CK1-DAG: [[DEV]] = sext i32 [[DEVi32:%[^,]+]] to i64
-  // CK1-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
+  // CK1-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV]], i32 1, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[SIZE00]], ptr [[MTYPE00]], ptr null, ptr null)
   // CK1-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP]]
 // CK1-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P]]
   #pragma omp target data if(1+3-5) device(arg) map(from: gc)
@@ -220,19 +218,19 @@ void foo(int arg) {
 }
 #endif
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK1A -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK1A --check-prefix CK1A-64
-// RUN: %clang_cc1 -DCK1A -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-64
-// RUN: %clang_cc1 -DCK1A -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-32
-// RUN: %clang_cc1 -DCK1A -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-32
+// RUN: %clang_cc1 -DCK1A -verify -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK1A --check-prefix CK1A-64
+// RUN: %clang_cc1 -DCK1A -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-64
+// RUN: %clang_cc1 -DCK1A -verify -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-32
+// RUN: %clang_cc1 -DCK1A -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK1A --check-prefix CK1A-32
 
-// RUN: %clang_cc1 -DCK1A -verify -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -DCK1A -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -DCK1A -verify -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
-// RUN: %clang_cc1 -DCK1A -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DCK1A -verify -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DCK1A -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DCK1A -verify -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY0 %s
+// RUN: %clang_cc1 -DCK1A -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY0 %s
 // SIMD-ONLY0-NOT: {{__kmpc|__tgt}}
 #ifdef CK1A
 
@@ -354,11 +352,11 @@ int bar(int arg){
 }
 
 // Region 00
+// CK2-DAG: [[DEV:%[^,]+]] = sext i32 [[DEVi32:%[^,]+]] to i64
+// CK2-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
 // CK2: br i1 %{{[^,]+}}, label %[[IFTHEN:[^,]+]], label %[[IFELSE:[^,]+]]
 // CK2: [[IFTHEN]]
-// CK2-DAG: call void @__tgt_target_data_begin_mapper(ptr @{{.+}}, i64 [[DEV:%[^,]+]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%[^,]+]], ptr [[MTYPE00]], ptr null, ptr null)
-// CK2-DAG: [[DEV]] = sext i32 [[DEVi32:%[^,]+]] to i64
-// CK2-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
+// CK2-DAG: call void @__tgt_target_data_begin_mapper(ptr @{{.+}}, i64 [[DEV]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%[^,]+]], ptr [[MTYPE00]], ptr null, ptr null)
 // CK2-DAG: [[GEPBP]] = getelementptr inbounds [2 x ptr], ptr [[BP:%[^,]+]]
 // CK2-DAG: [[GEPP]] = getelementptr inbounds [2 x ptr], ptr [[P:%[^,]+]]
 // CK2-DAG: [[GEPS]] = getelementptr inbounds [2 x i64], ptr [[PS:%[^,]+]]
@@ -388,9 +386,7 @@ int bar(int arg){
 // CK2: br i1 %{{[^,]+}}, label %[[IFTHEN:[^,]+]], label %[[IFELSE:[^,]+]]
 
 // CK2: [[IFTHEN]]
-// CK2-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV:%[^,]+]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%[^,]+]], ptr [[MTYPE00]], ptr null, ptr null)
-// CK2-DAG: [[DEV]] = sext i32 [[DEVi32:%[^,]+]] to i64
-// CK2-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
+// CK2-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%[^,]+]], ptr [[MTYPE00]], ptr null, ptr null)
 // CK2-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP]]
 // CK2-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P]]
 // CK2-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[PS]]
@@ -467,11 +463,11 @@ int bar(int arg){
 }
 
 // Region 00
+// CK4-DAG: [[DEV:%[^,]+]] = sext i32 [[DEVi32:%[^,]+]] to i64
+// CK4-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
 // CK4: br i1 %{{[^,]+}}, label %[[IFTHEN:[^,]+]], label %[[IFELSE:[^,]+]]
 // CK4: [[IFTHEN]]
-// CK4-DAG: call void @__tgt_target_data_begin_mapper(ptr @{{.+}}, i64 [[DEV:%[^,]+]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%.+]], ptr [[MTYPE00]], ptr null, ptr null)
-// CK4-DAG: [[DEV]] = sext i32 [[DEVi32:%[^,]+]] to i64
-// CK4-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
+// CK4-DAG: call void @__tgt_target_data_begin_mapper(ptr @{{.+}}, i64 [[DEV]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%.+]], ptr [[MTYPE00]], ptr null, ptr null)
 // CK4-DAG: [[GEPBP]] = getelementptr inbounds [2 x ptr], ptr [[BP:%[^,]+]]
 // CK4-DAG: [[GEPP]] = getelementptr inbounds [2 x ptr], ptr [[P:%[^,]+]]
 // CK4-DAG: [[GEPS]] = getelementptr inbounds [2 x i64], ptr [[PS:%[^,]+]]
@@ -501,9 +497,7 @@ int bar(int arg){
 // CK4: br i1 %{{[^,]+}}, label %[[IFTHEN:[^,]+]], label %[[IFELSE:[^,]+]]
 
 // CK4: [[IFTHEN]]
-// CK4-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV:%[^,]+]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%.+]], ptr [[MTYPE00]], ptr null, ptr null)
-// CK4-DAG: [[DEV]] = sext i32 [[DEVi32:%[^,]+]] to i64
-// CK4-DAG: [[DEVi32]] = load i32, ptr %{{[^,]+}},
+// CK4-DAG: call void @__tgt_target_data_end_mapper(ptr @{{.+}}, i64 [[DEV]], i32 2, ptr [[GEPBP:%.+]], ptr [[GEPP:%.+]], ptr [[GEPS:%.+]], ptr [[MTYPE00]], ptr null, ptr null)
 // CK4-DAG: [[GEPBP]] = getelementptr inbounds {{.+}}[[BP]]
 // CK4-DAG: [[GEPP]] = getelementptr inbounds {{.+}}[[P]]
 // CK4-DAG: [[GEPS]] = getelementptr inbounds {{.+}}[[PS]]
@@ -602,19 +596,19 @@ void test_device_ptr_addr(int arg) {
 }
 #endif
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK8 -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK8 --check-prefix CK8-64
-// RUN: %clang_cc1 -DCK8 -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-64
-// RUN: %clang_cc1 -DCK8 -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-32
-// RUN: %clang_cc1 -DCK8 -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-32
+// RUN: %clang_cc1 -DCK8 -verify -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK8 --check-prefix CK8-64
+// RUN: %clang_cc1 -DCK8 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-64
+// RUN: %clang_cc1 -DCK8 -verify -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-32
+// RUN: %clang_cc1 -DCK8 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK8 --check-prefix CK8-32
 
-// RUN: %clang_cc1 -DCK8 -verify -fopenmp-simd -fopenmp-version=51 -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
-// RUN: %clang_cc1 -DCK8 -fopenmp-simd -fopenmp-version=51 -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK8 -verify -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK8 -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
 // RUN: %clang_cc1 -DCK8 -verify -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
-// RUN: %clang_cc1 -DCK8 -fopenmp-simd -fopenmp-version=51 -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK8 -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
 // SIMD-ONLY2-NOT: {{__kmpc|__tgt}}#ifdef CK8
 #ifdef CK8
 struct S1 {
@@ -673,19 +667,19 @@ void test_present_modifier(int arg) {
 }
 #endif
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK9 -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK9 --check-prefix CK9-64
-// RUN: %clang_cc1 -DCK9 -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-64
-// RUN: %clang_cc1 -DCK9 -verify -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-32
-// RUN: %clang_cc1 -DCK9 -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=51 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-32
+// RUN: %clang_cc1 -DCK9 -verify -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK9 --check-prefix CK9-64
+// RUN: %clang_cc1 -DCK9 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-64
+// RUN: %clang_cc1 -DCK9 -verify -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-32
+// RUN: %clang_cc1 -DCK9 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK9 --check-prefix CK9-32
 
-// RUN: %clang_cc1 -DCK9 -verify -fopenmp-simd -fopenmp-version=51 -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
-// RUN: %clang_cc1 -DCK9 -fopenmp-simd -fopenmp-version=51 -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK9 -verify -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK9 -fopenmp-simd -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
 // RUN: %clang_cc1 -DCK9 -verify -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY2 %s
-// RUN: %clang_cc1 -DCK9 -fopenmp-simd -fopenmp-version=51 -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=51 -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
+// RUN: %clang_cc1 -DCK9 -fopenmp-simd -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY2 %s
 // SIMD-ONLY2-NOT: {{__kmpc|__tgt}}
 #ifdef CK9
 void test_present_modifier(int arg) {

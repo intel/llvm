@@ -13,6 +13,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
@@ -127,48 +128,6 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
 
 bool isESIMDFunction(const Function &F) {
   return F.getMetadata(ESIMD_MARKER_MD) != nullptr;
-}
-
-// This function makes one or two groups depending on kernel types (SYCL, ESIMD)
-EntryPointGroupVec
-groupEntryPointsByKernelType(ModuleDesc &MD,
-                             bool EmitOnlyKernelsAsEntryPoints) {
-  Module &M = MD.getModule();
-  EntryPointGroupVec EntryPointGroups{};
-  std::map<StringRef, EntryPointSet> EntryPointMap;
-
-  // Only process module entry points:
-  for (Function &F : M.functions()) {
-    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
-        !MD.isEntryPointCandidate(F))
-      continue;
-    if (isESIMDFunction(F))
-      EntryPointMap[ESIMD_SCOPE_NAME].insert(&F);
-    else
-      EntryPointMap[SYCL_SCOPE_NAME].insert(&F);
-  }
-
-  if (!EntryPointMap.empty()) {
-    for (auto &EPG : EntryPointMap) {
-      EntryPointGroups.emplace_back(EPG.first, std::move(EPG.second),
-                                    MD.getEntryPointGroup().Props);
-      EntryPointGroup &G = EntryPointGroups.back();
-
-      if (G.GroupId == ESIMD_SCOPE_NAME) {
-        G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
-      } else {
-        assert(G.GroupId == SYCL_SCOPE_NAME);
-        G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
-      }
-    }
-  } else {
-    // No entry points met, record this.
-    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, EntryPointSet{});
-    EntryPointGroup &G = EntryPointGroups.back();
-    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
-  }
-
-  return EntryPointGroups;
 }
 
 // Represents "dependency" or "use" graph of global objects (functions and
@@ -387,7 +346,11 @@ public:
   using ModuleSplitterBase::ModuleSplitterBase; // to inherit base constructors
 
   ModuleDesc nextSplit() override {
-    return ModuleDesc{releaseInputModule(), nextGroup(), Input.Props};
+    ModuleDesc Desc{releaseInputModule(), nextGroup(), Input.Props};
+    // Do some basic optimization like unused symbol removal
+    // even if there was no split.
+    Desc.cleanup();
+    return Desc;
   }
 };
 
@@ -604,6 +567,21 @@ void ModuleDesc::cleanup() {
   MPM.run(*M, MAM);
 }
 
+bool ModuleDesc::isSpecConstantDefault() const {
+  return Props.IsSpecConstantDefault;
+}
+
+void ModuleDesc::setSpecConstantDefault(bool Value) {
+  Props.IsSpecConstantDefault = Value;
+}
+
+ModuleDesc ModuleDesc::clone() const {
+  std::unique_ptr<Module> NewModule = CloneModule(getModule());
+  ModuleDesc NewMD(std::move(NewModule));
+  NewMD.EntryPoints.Props = EntryPoints.Props;
+  return NewMD;
+}
+
 #ifndef NDEBUG
 void ModuleDesc::verifyESIMDProperty() const {
   if (EntryPoints.Props.HasESIMD == SyclEsimdSplitStatus::SYCL_AND_ESIMD) {
@@ -669,6 +647,12 @@ void EntryPointGroup::rebuildFromNames(const std::vector<std::string> &Names,
       Functions.insert(F);
     }
   });
+}
+
+void EntryPointGroup::rebuild(const Module &M) {
+  for (const Function &F : M.functions())
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
+      Functions.insert(const_cast<Function *>(&F));
 }
 
 namespace {
@@ -896,8 +880,11 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
     Categorizer.registerSimpleStringAttributeRule("sycl-register-alloc-mode");
+    Categorizer.registerSimpleStringAttributeRule("sycl-grf-size");
     Categorizer.registerListOfIntegersInMetadataSortedRule("sycl_used_aspects");
     Categorizer.registerListOfIntegersInMetadataRule("reqd_work_group_size");
+    Categorizer.registerListOfIntegersInMetadataRule(
+        "intel_reqd_sub_group_size");
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_OPTLEVEL);
     break;
@@ -953,17 +940,47 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
 // Functions, which are used from both ESIMD and non-ESIMD code will be
 // duplicated into each module.
 //
-// If there are dependenceis between ESIMD and non-ESIMD code (produced by
-// inoke_simd, for example), the modules has to be linked back together to avoid
-// undefined behavior at later stages. That is done at higher level, outside of
-// this function.
+// If there are dependencies between ESIMD and non-ESIMD code (produced by
+// invoke_simd, for example), the modules has to be linked back together to
+// avoid undefined behavior at later stages. That is done at higher level,
+// outside of this function.
 SmallVector<ModuleDesc, 2> splitByESIMD(ModuleDesc &&MD,
                                         bool EmitOnlyKernelsAsEntryPoints) {
 
   SmallVector<module_split::ModuleDesc, 2> Result;
+  EntryPointGroupVec EntryPointGroups{};
+  EntryPointSet SYCLEntryPoints, ESIMDEntryPoints;
+  bool hasESIMDFunctions = false;
 
-  EntryPointGroupVec EntryPointGroups =
-      groupEntryPointsByKernelType(MD, EmitOnlyKernelsAsEntryPoints);
+  // Only process module entry points:
+  for (Function &F : MD.getModule().functions()) {
+    if (isESIMDFunction(F))
+      hasESIMDFunctions = true;
+    if (!isEntryPoint(F, EmitOnlyKernelsAsEntryPoints) ||
+        !MD.isEntryPointCandidate(F))
+      continue;
+    if (isESIMDFunction(F))
+      ESIMDEntryPoints.insert(&F);
+    else
+      SYCLEntryPoints.insert(&F);
+  }
+
+  // If there are no ESIMD entry points but there are ESIMD functions,
+  // we still need to create an (empty) entry point group so that we
+  // can lower the ESIMD functions.
+  if (!ESIMDEntryPoints.empty() || hasESIMDFunctions) {
+    EntryPointGroups.emplace_back(ESIMD_SCOPE_NAME, std::move(ESIMDEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::ESIMD_ONLY;
+  }
+
+  if (!SYCLEntryPoints.empty() || EntryPointGroups.empty()) {
+    EntryPointGroups.emplace_back(SYCL_SCOPE_NAME, std::move(SYCLEntryPoints),
+                                  MD.getEntryPointGroup().Props);
+    EntryPointGroup &G = EntryPointGroups.back();
+    G.Props.HasESIMD = SyclEsimdSplitStatus::SYCL_ONLY;
+  }
 
   if (EntryPointGroups.size() == 1) {
     Result.emplace_back(std::move(MD.releaseModulePtr()),

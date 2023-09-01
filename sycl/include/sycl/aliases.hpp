@@ -8,20 +8,18 @@
 
 #pragma once
 
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/half_type.hpp>                 // for half
 
-#include <cstddef>
-#include <cstdint>
+#include <cstdint> // for uint8_t, int16_t, int32_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, int N> class vec;
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #define __SYCL_MAKE_VECTOR_ALIAS(ALIAS, TYPE, N)                               \
@@ -91,7 +89,7 @@ class half;
   __SYCL_MAKE_VECTOR_ALIAS(half, half, N)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 using byte __SYCL2020_DEPRECATED("use std::byte instead") = std::uint8_t;
 using schar __SYCL2020_DEPRECATED("") = signed char;
 using uchar __SYCL2020_DEPRECATED("") = unsigned char;
@@ -156,7 +154,7 @@ __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(4)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(8)
 __SYCL_MAKE_VECTOR_ALIASES_FOR_VECTOR_LENGTH(16)
 #endif
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __SYCL_MAKE_VECTOR_ALIAS

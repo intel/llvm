@@ -1367,9 +1367,10 @@ static void handleExplicitExports() {
   }
 }
 
-bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
-                 llvm::raw_ostream &stderrOS, bool exitEarly,
-                 bool disableOutput) {
+namespace lld {
+namespace macho {
+bool link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
+          llvm::raw_ostream &stderrOS, bool exitEarly, bool disableOutput) {
   // This driver-specific context will be freed later by lldMain().
   auto *ctx = new CommonLinkerContext;
 
@@ -1639,6 +1640,7 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
   config->ltoDebugPassManager = args.hasArg(OPT_lto_debug_pass_manager);
   config->csProfileGenerate = args.hasArg(OPT_cs_profile_generate);
   config->csProfilePath = args.getLastArgValue(OPT_cs_profile_path);
+  config->generateUuid = !args.hasArg(OPT_no_uuid);
 
   for (const Arg *arg : args.filtered(OPT_alias)) {
     config->aliasedSymbols.push_back(
@@ -1968,3 +1970,5 @@ bool macho::link(ArrayRef<const char *> argsArr, llvm::raw_ostream &stdoutOS,
 
   return errorCount() == 0;
 }
+} // namespace macho
+} // namespace lld

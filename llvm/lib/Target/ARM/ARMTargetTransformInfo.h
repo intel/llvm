@@ -25,7 +25,7 @@
 #include "llvm/CodeGen/BasicTTIImpl.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Function.h"
-#include "llvm/MC/SubtargetFeature.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include <optional>
 
 namespace llvm {
@@ -209,6 +209,10 @@ public:
   }
 
   InstructionCost getMemcpyCost(const Instruction *I);
+
+  uint64_t getMaxMemIntrinsicInlineSizeThreshold() const {
+    return ST->getMaxInlineSizeThreshold();
+  }
 
   int getNumMemOps(const IntrinsicInst *I) const;
 

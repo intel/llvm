@@ -109,6 +109,7 @@
 ; CHECK-NEXT:       RISC-V Pre-RA pseudo instruction expansion pass
 ; CHECK-NEXT:       RISC-V Merge Base Offset
 ; CHECK-NEXT:       RISC-V Insert VSETVLI pass
+; CHECK-NEXT:       RISC-V Insert Read/Write CSR Pass
 ; CHECK-NEXT:       Detect Dead Lanes
 ; CHECK-NEXT:       RISC-V init undef pass
 ; CHECK-NEXT:       Process Implicit Definitions
@@ -119,7 +120,7 @@
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Slot index numbering
 ; CHECK-NEXT:       Live Interval Analysis
-; CHECK-NEXT:       Simple Register Coalescing
+; CHECK-NEXT:       Register Coalescer
 ; CHECK-NEXT:       Rename Disconnected Subregister Components
 ; CHECK-NEXT:       Machine Instruction Scheduler
 ; CHECK-NEXT:       Machine Block Frequency Analysis
@@ -155,6 +156,7 @@
 ; CHECK-NEXT:       Tail Duplication
 ; CHECK-NEXT:       Machine Copy Propagation Pass
 ; CHECK-NEXT:       Post-RA pseudo instruction expansion pass
+; CHECK-NEXT:       Insert KCFI indirect call checks
 ; CHECK-NEXT:       MachineDominator Tree Construction
 ; CHECK-NEXT:       Machine Natural Loop Construction
 ; CHECK-NEXT:       Post RA top-down list latency scheduler
@@ -177,8 +179,11 @@
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       Stack Frame Layout Analysis
+; CHECK-NEXT:       RISC-V Zcmp move merging pass
+; CHECK-NEXT:       RISC-V Zcmp Push/Pop optimization pass 
 ; CHECK-NEXT:       RISC-V pseudo instruction expansion pass
 ; CHECK-NEXT:       RISC-V atomic pseudo instruction expansion pass
+; CHECK-NEXT:       Unpack machine instruction bundles
 ; CHECK-NEXT:       Lazy Machine Block Frequency Analysis
 ; CHECK-NEXT:       Machine Optimization Remark Emitter
 ; CHECK-NEXT:       RISC-V Assembly Printer

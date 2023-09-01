@@ -22,16 +22,20 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   return true;
@@ -87,20 +91,19 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
   }
 }
 
-EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
-                              const QueueImplPtr &Queue) {
+EventImplPtr Scheduler::addCG(
+    std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+    sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+    const std::vector<sycl::detail::pi::PiExtSyncPoint> &Dependencies) {
   EventImplPtr NewEvent = nullptr;
   const CG::CGTYPE Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
   std::vector<StreamImplPtr> Streams;
-  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
 
   if (Type == CG::Kernel) {
     auto *CGExecKernelPtr = static_cast<CGExecKernel *>(CommandGroup.get());
     Streams = CGExecKernelPtr->getStreams();
     CGExecKernelPtr->clearStreams();
-    AuxiliaryResources = CGExecKernelPtr->getAuxiliaryResources();
-    CGExecKernelPtr->clearAuxiliaryResources();
     // Stream's flush buffer memory is mainly initialized in stream's __init
     // method. However, this method is not available on host device.
     // Initializing stream's flush buffer on the host side in a separate task.
@@ -110,6 +113,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
       }
     }
   }
+  std::vector<std::shared_ptr<const void>> AuxiliaryResources;
+  AuxiliaryResources = CommandGroup->getAuxiliaryResources();
+  CommandGroup->clearAuxiliaryResources();
 
   bool ShouldEnqueue = true;
   {
@@ -132,7 +138,9 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
     }
     default:
       auto Result = MGraphBuilder.addCG(std::move(CommandGroup),
-                                        std::move(Queue), AuxiliaryCmds);
+                                        std::move(Queue), AuxiliaryCmds,
+                                        CommandBuffer, std::move(Dependencies));
+
       NewCmd = Result.NewCmd;
       NewEvent = Result.NewEvent;
       ShouldEnqueue = Result.ShouldEnqueue;
@@ -143,7 +151,7 @@ EventImplPtr Scheduler::addCG(std::unique_ptr<detail::CG> CommandGroup,
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
-    for (auto StreamImplPtr : Streams) {
+    for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
 
@@ -546,7 +554,6 @@ void Scheduler::registerAuxiliaryResources(
 
 void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   std::unique_lock<std::mutex> Lock{MAuxiliaryResourcesMutex};
-  ForceDeferredReleaseWrapper ForceDeferredRelease;
   for (auto It = MAuxiliaryResources.begin();
        It != MAuxiliaryResources.end();) {
     const EventImplPtr &Event = It->first;
@@ -559,8 +566,6 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
       ++It;
   }
 }
-
-thread_local bool Scheduler::ForceDeferredMemObjRelease = false;
 
 void Scheduler::startFusion(QueueImplPtr Queue) {
   WriteLockT Lock = acquireWriteLock();
@@ -619,5 +624,5 @@ KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

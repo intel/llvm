@@ -8,12 +8,16 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/context.hpp>                    // for context
+#include <sycl/detail/property_helper.hpp>     // for PropWithDataKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property_of
+
+#include <mutex>       // for mutex
+#include <type_traits> // for true_type
+#include <utility>     // for move
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace property::image {
 class use_host_ptr : public detail::DataLessProperty<detail::ImageUseHostPtr> {
 };
@@ -82,5 +86,5 @@ struct is_property_of<property::image::context_bound,
                       unsampled_image<Dimensions, AllocatorT>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

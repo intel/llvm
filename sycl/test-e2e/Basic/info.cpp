@@ -337,7 +337,7 @@ int main() {
       dev, "Preferred interop user sync");
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (invalid_object_error e) {
+  } catch (sycl::exception e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }

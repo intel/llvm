@@ -21,9 +21,7 @@ export namespace std {
   using std::operator>;
   using std::operator<=;
   using std::operator>=;
-#if 0 // P1614
   using std::operator<=>;
-#endif
 
   using std::swap;
   using std::uses_allocator;

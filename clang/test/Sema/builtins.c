@@ -131,7 +131,7 @@ struct foo x = (struct foo) { __builtin_constant_p(42) ? 37 : 927 };
 
 const int test17_n = 0;
 const char test17_c[] = {1, 2, 3, 0};
-const char test17_d[] = {1, 2, 3, 4};
+const char test17_d[] = {1, 2, 3, 4}; // Like test17_c but not NUL-terminated.
 typedef int __attribute__((vector_size(16))) IntVector;
 struct Aggregate { int n; char c; };
 enum Enum { EnumValue1, EnumValue2 };
@@ -178,9 +178,10 @@ void test17(void) {
   ASSERT(!OPT("abcd"));
   // In these cases, the strlen is non-constant, but the __builtin_constant_p
   // is 0: the array size is not an ICE but is foldable.
-  ASSERT(!OPT(test17_c));        // expected-warning {{folding}}
-  ASSERT(!OPT(&test17_c[0]));    // expected-warning {{folding}}
-  ASSERT(!OPT((char*)test17_c)); // expected-warning {{folding}}
+  ASSERT(!OPT(test17_c));
+  ASSERT(!OPT(&test17_c[0]));
+  ASSERT(!OPT((char*)test17_c));
+  // NOTE: test17_d is not NUL-termintated, so calling strlen on it is UB.
   ASSERT(!OPT(test17_d));        // expected-warning {{folding}}
   ASSERT(!OPT(&test17_d[0]));    // expected-warning {{folding}}
   ASSERT(!OPT((char*)test17_d)); // expected-warning {{folding}}
@@ -378,3 +379,14 @@ void test_builtin_complex(void) {
 }
 
 _Complex double builtin_complex_static_init = __builtin_complex(1.0, 2.0);
+
+int test_is_fpclass(float x, int mask) {
+  int x1 = __builtin_isfpclass(x, 1024); // expected-error {{argument value 1024 is outside the valid range [0, 1023]}}
+  int x2 = __builtin_isfpclass(3, 3); // expected-error{{floating point classification requires argument of floating point type (passed in 'int')}}
+  int x3 = __builtin_isfpclass(x, 3, x); // expected-error{{too many arguments to function call, expected 2, have 3}}
+  int x4 = __builtin_isfpclass(x); // expected-error{{too few arguments to function call, expected 2, have 1}}
+  int x5 = __builtin_isfpclass(x, mask); // expected-error{{argument to '__builtin_isfpclass' must be a constant integer}}
+  int x6 = __builtin_isfpclass(x, -1); // expected-error{{argument value -1 is outside the valid range [0, 1023]}}
+  float _Complex c = x;
+  int x7 = __builtin_isfpclass(c, 3); // expected-error{{floating point classification requires argument of floating point type (passed in '_Complex float')}}
+}

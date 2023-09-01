@@ -4,7 +4,7 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-NOT: 6 Store {{[0-9]+}} {{[0-9]+}} 1 2 8
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}} 3 8
@@ -22,14 +22,14 @@
 ; CHECK-SPIRV-NOT: 5 Store {{[0-9]+}} {{[0-9]+}} 2 0
 ; CHECK-SPIRV: 5 Store {{[0-9]+}} {{[0-9]+}}
 
-; CHECK-LLVM: store volatile i32 addrspace(4)* %0, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load i32, i32 addrspace(4)* %1, align 4
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8
-; CHECK-LLVM: load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr
-; CHECK-LLVM: %[[VOLATILELOAD:[0-9]+]] = load volatile i32 addrspace(4)*, i32 addrspace(4)** %ptr, align 8, !nontemporal ![[NTMetadata:[0-9]+]]
-; CHECK-LLVM: store i32 %call, i32 addrspace(4)* %arrayidx, align 4, !nontemporal ![[NTMetadata:[0-9]+]]
-; CHECK-LLVM: store i32 addrspace(4)* %[[VOLATILELOAD]], i32 addrspace(4)** %ptr
+; CHECK-LLVM: store volatile ptr addrspace(4) %0, ptr %ptr, align 8
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr, align 8
+; CHECK-LLVM: load i32, ptr addrspace(4) %1, align 4
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr, align 8
+; CHECK-LLVM: load volatile ptr addrspace(4), ptr %ptr
+; CHECK-LLVM: %[[VOLATILELOAD:[0-9]+]] = load volatile ptr addrspace(4), ptr %ptr, align 8, !nontemporal ![[NTMetadata:[0-9]+]]
+; CHECK-LLVM: store i32 %call, ptr addrspace(4) %arrayidx, align 4, !nontemporal ![[NTMetadata:[0-9]+]]
+; CHECK-LLVM: store ptr addrspace(4) %[[VOLATILELOAD]], ptr %ptr
 ; CHECK-LLVM: ![[NTMetadata:[0-9]+]] = !{i32 1}
 
 ; ModuleID = 'test.bc'

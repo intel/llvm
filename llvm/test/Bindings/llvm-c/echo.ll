@@ -80,11 +80,36 @@ define i32 @iops(i32 %a, i32 %b) {
   %11 = and i32 %9, %10
   %12 = or i32 %2, %11
   %13 = xor i32 %12, %4
-  ret i32 %13
+  %14 = add nuw i32 %13, %a
+  %15 = add nsw i32 %14, %b
+  %16 = add nuw nsw i32 %15, %a
+  %17 = shl nuw i32 %16, %a
+  %18 = shl nsw i32 %17, %b
+  %19 = shl nuw nsw i32 %18, %a
+  %20 = udiv exact i32 %19, %1
+  %21 = sdiv exact i32 %20, %2
+  %22 = lshr exact i32 %21, %4
+  %23 = ashr exact i32 %22, %14
+  ret i32 %23
 }
 
 define i32 @call() {
   %1 = call i32 @iops(i32 23, i32 19)
+  ret i32 %1
+}
+
+define i32 @tailcall() {
+  %1 = tail call i32 @call()
+  ret i32 %1
+}
+
+define i32 @musttailcall() {
+  %1 = musttail call i32 @call()
+  ret i32 %1
+}
+
+define i32 @notailcall() {
+  %1 = notail call i32 @call()
   ret i32 %1
 }
 

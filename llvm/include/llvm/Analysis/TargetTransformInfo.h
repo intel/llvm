@@ -39,6 +39,7 @@ namespace Intrinsic {
 typedef unsigned ID;
 }
 
+class AllocaInst;
 class AssumptionCache;
 class BlockFrequencyInfo;
 class DominatorTree;
@@ -283,9 +284,19 @@ public:
   };
 
   /// Estimate the cost of a GEP operation when lowered.
+  ///
+  /// \p PointeeType is the source element type of the GEP.
+  /// \p Ptr is the base pointer operand.
+  /// \p Operands is the list of indices following the base pointer.
+  ///
+  /// \p AccessType is a hint as to what type of memory might be accessed by
+  /// users of the GEP. getGEPCost will use it to determine if the GEP can be
+  /// folded into the addressing mode of a load/store. If AccessType is null,
+  /// then the resulting target type based off of PointeeType will be used as an
+  /// approximation.
   InstructionCost
   getGEPCost(Type *PointeeType, const Value *Ptr,
-             ArrayRef<const Value *> Operands,
+             ArrayRef<const Value *> Operands, Type *AccessType = nullptr,
              TargetCostKind CostKind = TCK_SizeAndLatency) const;
 
   /// Describe known properties for a set of pointers.
@@ -340,6 +351,10 @@ public:
   /// \returns A value to be added to the inlining threshold.
   unsigned adjustInliningThreshold(const CallBase *CB) const;
 
+  /// \returns The cost of having an Alloca in the caller if not inlined, to be
+  /// added to the threshold
+  unsigned getCallerAllocaCost(const CallBase *CB, const AllocaInst *AI) const;
+
   /// \returns Vector bonus in percent.
   ///
   /// Vector bonuses: We want to more aggressively inline vector-dense kernels
@@ -355,6 +370,10 @@ public:
   /// \return the expected cost of a memcpy, which could e.g. depend on the
   /// source/destination type and alignment and the number of bytes copied.
   InstructionCost getMemcpyCost(const Instruction *I) const;
+
+  /// Returns the maximum memset / memcpy size in bytes that still makes it
+  /// profitable to inline the call.
+  uint64_t getMaxMemIntrinsicInlineSizeThreshold() const;
 
   /// \return The estimated number of case clusters when lowering \p 'SI'.
   /// \p JTSize Set a jump table size only when \p SI is suitable for a jump
@@ -398,7 +417,11 @@ public:
   /// Branch divergence has a significantly negative impact on GPU performance
   /// when threads in the same wavefront take different paths due to conditional
   /// branches.
-  bool hasBranchDivergence() const;
+  ///
+  /// If \p F is passed, provides a context function. If \p F is known to only
+  /// execute in a single threaded environment, the target may choose to skip
+  /// uniformity analysis and assume all values are uniform.
+  bool hasBranchDivergence(const Function *F = nullptr) const;
 
   /// Returns whether V is a source of divergence.
   ///
@@ -414,6 +437,9 @@ public:
   /// Query the target whether the specified address space cast from FromAS to
   /// ToAS is valid.
   bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const;
+
+  /// Return false if a \p AS0 address cannot possibly alias a \p AS1 address.
+  bool addrspacesMayAlias(unsigned AS0, unsigned AS1) const;
 
   /// Returns the address space ID for a target's 'flat' address space. Note
   /// this is not necessarily the same as addrspace(0), which LLVM sometimes
@@ -1383,8 +1409,7 @@ public:
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
 
   InstructionCost getMinMaxReductionCost(
-      VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
-      FastMathFlags FMF = FastMathFlags(),
+      Intrinsic::ID IID, VectorType *Ty, FastMathFlags FMF = FastMathFlags(),
       TTI::TargetCostKind CostKind = TTI::TCK_RecipThroughput) const;
 
   /// Calculate the cost of an extended reduction pattern, similar to
@@ -1664,6 +1689,7 @@ public:
   virtual const DataLayout &getDataLayout() const = 0;
   virtual InstructionCost getGEPCost(Type *PointeeType, const Value *Ptr,
                                      ArrayRef<const Value *> Operands,
+                                     Type *AccessType,
                                      TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost
   getPointersChainCost(ArrayRef<const Value *> Ptrs, const Value *Base,
@@ -1672,7 +1698,10 @@ public:
   virtual unsigned getInliningThresholdMultiplier() const = 0;
   virtual unsigned adjustInliningThreshold(const CallBase *CB) = 0;
   virtual int getInlinerVectorBonusPercent() const = 0;
+  virtual unsigned getCallerAllocaCost(const CallBase *CB,
+                                       const AllocaInst *AI) const = 0;
   virtual InstructionCost getMemcpyCost(const Instruction *I) = 0;
+  virtual uint64_t getMaxMemIntrinsicInlineSizeThreshold() const = 0;
   virtual unsigned
   getEstimatedNumberOfCaseClusters(const SwitchInst &SI, unsigned &JTSize,
                                    ProfileSummaryInfo *PSI,
@@ -1681,10 +1710,11 @@ public:
                                              ArrayRef<const Value *> Operands,
                                              TargetCostKind CostKind) = 0;
   virtual BranchProbability getPredictableBranchThreshold() = 0;
-  virtual bool hasBranchDivergence() = 0;
+  virtual bool hasBranchDivergence(const Function *F = nullptr) = 0;
   virtual bool isSourceOfDivergence(const Value *V) = 0;
   virtual bool isAlwaysUniform(const Value *V) = 0;
   virtual bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const = 0;
+  virtual bool addrspacesMayAlias(unsigned AS0, unsigned AS1) const = 0;
   virtual unsigned getFlatAddressSpace() = 0;
   virtual bool collectFlatAddressOperands(SmallVectorImpl<int> &OpIndexes,
                                           Intrinsic::ID IID) const = 0;
@@ -1928,8 +1958,8 @@ public:
                              std::optional<FastMathFlags> FMF,
                              TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost
-  getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
-                         FastMathFlags FMF, TTI::TargetCostKind CostKind) = 0;
+  getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty, FastMathFlags FMF,
+                         TTI::TargetCostKind CostKind) = 0;
   virtual InstructionCost getExtendedReductionCost(
       unsigned Opcode, bool IsUnsigned, Type *ResTy, VectorType *Ty,
       FastMathFlags FMF,
@@ -2021,9 +2051,9 @@ public:
 
   InstructionCost
   getGEPCost(Type *PointeeType, const Value *Ptr,
-             ArrayRef<const Value *> Operands,
+             ArrayRef<const Value *> Operands, Type *AccessType,
              TargetTransformInfo::TargetCostKind CostKind) override {
-    return Impl.getGEPCost(PointeeType, Ptr, Operands, CostKind);
+    return Impl.getGEPCost(PointeeType, Ptr, Operands, AccessType, CostKind);
   }
   InstructionCost getPointersChainCost(ArrayRef<const Value *> Ptrs,
                                        const Value *Base,
@@ -2041,9 +2071,18 @@ public:
   int getInlinerVectorBonusPercent() const override {
     return Impl.getInlinerVectorBonusPercent();
   }
+  unsigned getCallerAllocaCost(const CallBase *CB,
+                               const AllocaInst *AI) const override {
+    return Impl.getCallerAllocaCost(CB, AI);
+  }
   InstructionCost getMemcpyCost(const Instruction *I) override {
     return Impl.getMemcpyCost(I);
   }
+
+  uint64_t getMaxMemIntrinsicInlineSizeThreshold() const override {
+    return Impl.getMaxMemIntrinsicInlineSizeThreshold();
+  }
+
   InstructionCost getInstructionCost(const User *U,
                                      ArrayRef<const Value *> Operands,
                                      TargetCostKind CostKind) override {
@@ -2052,7 +2091,9 @@ public:
   BranchProbability getPredictableBranchThreshold() override {
     return Impl.getPredictableBranchThreshold();
   }
-  bool hasBranchDivergence() override { return Impl.hasBranchDivergence(); }
+  bool hasBranchDivergence(const Function *F = nullptr) override {
+    return Impl.hasBranchDivergence(F);
+  }
   bool isSourceOfDivergence(const Value *V) override {
     return Impl.isSourceOfDivergence(V);
   }
@@ -2063,6 +2104,10 @@ public:
 
   bool isValidAddrSpaceCast(unsigned FromAS, unsigned ToAS) const override {
     return Impl.isValidAddrSpaceCast(FromAS, ToAS);
+  }
+
+  bool addrspacesMayAlias(unsigned AS0, unsigned AS1) const override {
+    return Impl.addrspacesMayAlias(AS0, AS1);
   }
 
   unsigned getFlatAddressSpace() override { return Impl.getFlatAddressSpace(); }
@@ -2538,10 +2583,9 @@ public:
     return Impl.getArithmeticReductionCost(Opcode, Ty, FMF, CostKind);
   }
   InstructionCost
-  getMinMaxReductionCost(VectorType *Ty, VectorType *CondTy, bool IsUnsigned,
-                         FastMathFlags FMF,
+  getMinMaxReductionCost(Intrinsic::ID IID, VectorType *Ty, FastMathFlags FMF,
                          TTI::TargetCostKind CostKind) override {
-    return Impl.getMinMaxReductionCost(Ty, CondTy, IsUnsigned, FMF, CostKind);
+    return Impl.getMinMaxReductionCost(IID, Ty, FMF, CostKind);
   }
   InstructionCost
   getExtendedReductionCost(unsigned Opcode, bool IsUnsigned, Type *ResTy,

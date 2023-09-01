@@ -51,8 +51,8 @@ E: andrey.churbanov@intel.com
 D: OpenMP runtime library
 
 N: Johannes Doerfert
-E: jdoerfert@anl.gov
-D: OpenMP target offloading
+E: jdoerfert@llnl.gov
+D: OpenMP target offloading, OpenMP-Opt, Attributor
 
 N: Greg Clayton
 E: clayborg@gmail.com
@@ -135,8 +135,8 @@ N: Benjamin Kramer
 E: benny.kra@gmail.com
 D: DWARF Parser
 
-N: Michael Kuperstein
-E: mkuper@google.com
+N: Florian Hahn
+E: flo@fhahn.com
 D: Loop Vectorizer
 
 N: Alexey Bataev

@@ -6,14 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/defines.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/pi.hpp>
 
 #include <dlfcn.h>
 #include <string>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail::pi {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
@@ -47,6 +48,22 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
 
+// Load plugins corresponding to provided list of plugin names.
+std::vector<std::tuple<std::string, backend, void *>>
+loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
+  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins;
+  const std::string LibSYCLDir =
+      sycl::detail::OSUtil::getCurrentDSODir() + sycl::detail::OSUtil::DirSep;
+
+  for (auto &PluginName : PluginNames) {
+    void *Library = loadOsPluginLibrary(LibSYCLDir + PluginName.first);
+    LoadedPlugins.push_back(std::make_tuple(
+        std::move(PluginName.first), std::move(PluginName.second), Library));
+  }
+
+  return LoadedPlugins;
+}
+
 } // namespace detail::pi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -22,7 +22,6 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/BinaryFormat/MachO.h"
 #include "llvm/BinaryFormat/Swift.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Object/Binary.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Object/SymbolicFile.h"
@@ -30,6 +29,7 @@
 #include "llvm/Support/Format.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/TargetParser/Triple.h"
 #include <cstdint>
 #include <memory>
@@ -807,6 +807,8 @@ public:
     case MachO::TOOL_CLANG: return "clang";
     case MachO::TOOL_SWIFT: return "swift";
     case MachO::TOOL_LD: return "ld";
+    case MachO::TOOL_LLD:
+      return "lld";
     default:
       std::string ret;
       raw_string_ostream ss(ret);

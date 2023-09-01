@@ -68,7 +68,7 @@ int main() {
 
     calc_buf(q, a, b, c, r);
 
-    auto C = c.get_access<access::mode::read>();
+    auto C = c.get_host_access();
     for (size_t i = 0; i < N; i++) {
       if (C[i] != 1) {
         std::cout << "Wrong value " << C[i] << " for element " << i

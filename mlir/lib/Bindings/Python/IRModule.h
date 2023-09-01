@@ -655,7 +655,8 @@ public:
          std::optional<std::vector<PyValue *>> operands,
          std::optional<pybind11::dict> attributes,
          std::optional<std::vector<PyBlock *>> successors, int regions,
-         DefaultingPyLocation location, const pybind11::object &ip);
+         DefaultingPyLocation location, const pybind11::object &ip,
+         bool inferType);
 
   /// Creates an OpView suitable for this operation.
   pybind11::object createOpView();
@@ -704,13 +705,12 @@ public:
 
   pybind11::object getOperationObject() { return operationObject; }
 
-  static pybind11::object
-  buildGeneric(const pybind11::object &cls, pybind11::list resultTypeList,
-               pybind11::list operandList,
-               std::optional<pybind11::dict> attributes,
-               std::optional<std::vector<PyBlock *>> successors,
-               std::optional<int> regions, DefaultingPyLocation location,
-               const pybind11::object &maybeIp);
+  static pybind11::object buildGeneric(
+      const pybind11::object &cls, std::optional<pybind11::list> resultTypeList,
+      pybind11::list operandList, std::optional<pybind11::dict> attributes,
+      std::optional<std::vector<PyBlock *>> successors,
+      std::optional<int> regions, DefaultingPyLocation location,
+      const pybind11::object &maybeIp);
 
   /// Construct an instance of a class deriving from OpView, bypassing its
   /// `__init__` method. The derived class will typically define a constructor
@@ -762,6 +762,9 @@ public:
   PyOperationRef &getParentOperation() { return parentOperation; }
 
   void checkValid() { return parentOperation->checkValid(); }
+
+  /// Gets a capsule wrapping the void* within the MlirBlock.
+  pybind11::object getCapsule();
 
 private:
   PyOperationRef parentOperation;
@@ -986,6 +989,8 @@ public:
   //   const char *pyClassName
   using ClassTy = pybind11::class_<DerivedTy, BaseTy>;
   using IsAFunctionTy = bool (*)(MlirAttribute);
+  using GetTypeIDFunctionTy = MlirTypeID (*)();
+  static constexpr GetTypeIDFunctionTy getTypeIdFunction = nullptr;
 
   PyConcreteAttribute() = default;
   PyConcreteAttribute(PyMlirContextRef contextRef, MlirAttribute attr)
@@ -1017,6 +1022,34 @@ public:
         pybind11::arg("other"));
     cls.def_property_readonly(
         "type", [](PyAttribute &attr) { return mlirAttributeGetType(attr); });
+    cls.def_property_readonly_static(
+        "static_typeid", [](py::object & /*class*/) -> MlirTypeID {
+          if (DerivedTy::getTypeIdFunction)
+            return DerivedTy::getTypeIdFunction();
+          throw py::attribute_error(
+              (DerivedTy::pyClassName + llvm::Twine(" has no typeid.")).str());
+        });
+    cls.def_property_readonly("typeid", [](PyAttribute &self) {
+      return py::cast(self).attr("typeid").cast<MlirTypeID>();
+    });
+    cls.def("__repr__", [](DerivedTy &self) {
+      PyPrintAccumulator printAccum;
+      printAccum.parts.append(DerivedTy::pyClassName);
+      printAccum.parts.append("(");
+      mlirAttributePrint(self, printAccum.getCallback(),
+                         printAccum.getUserData());
+      printAccum.parts.append(")");
+      return printAccum.join();
+    });
+
+    if (DerivedTy::getTypeIdFunction) {
+      PyGlobals::get().registerTypeCaster(
+          DerivedTy::getTypeIdFunction(),
+          pybind11::cpp_function([](PyAttribute pyAttribute) -> DerivedTy {
+            return pyAttribute;
+          }));
+    }
+
     DerivedTy::bindDerived(cls);
   }
 
@@ -1144,14 +1177,14 @@ public:
 
   /// Inserts the given operation into the symbol table. The operation must have
   /// the symbol trait.
-  PyAttribute insert(PyOperationBase &symbol);
+  MlirAttribute insert(PyOperationBase &symbol);
 
   /// Gets and sets the name of a symbol op.
-  static PyAttribute getSymbolName(PyOperationBase &symbol);
+  static MlirAttribute getSymbolName(PyOperationBase &symbol);
   static void setSymbolName(PyOperationBase &symbol, const std::string &name);
 
   /// Gets and sets the visibility of a symbol op.
-  static PyAttribute getVisibility(PyOperationBase &symbol);
+  static MlirAttribute getVisibility(PyOperationBase &symbol);
   static void setVisibility(PyOperationBase &symbol,
                             const std::string &visibility);
 

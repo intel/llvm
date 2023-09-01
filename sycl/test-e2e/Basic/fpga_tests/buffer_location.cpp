@@ -17,7 +17,7 @@ int main() {
 
   Queue.wait();
 
-  auto Acc = Buf.template get_access<sycl::access::mode::read_write>();
+  auto Acc = Buf.get_host_access();
   assert(Acc[0] == 42 && "Value mismatch");
 
   return 0;

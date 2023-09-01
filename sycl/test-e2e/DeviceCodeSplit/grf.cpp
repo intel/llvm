@@ -21,13 +21,23 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
+// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
-#include <sycl/detail/kernel_properties.hpp>
 #include <sycl/sycl.hpp>
+#ifdef USE_NEW_API
+#include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#else
+#include <sycl/detail/kernel_properties.hpp>
+#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -92,7 +102,11 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-#ifdef USE_AUTO_GRF
+#if defined(USE_NEW_API) && defined(USE_AUTO_GRF)
+    properties prop{grf_size_automatic};
+#elif defined(USE_NEW_API)
+    properties prop{grf_size<256>};
+#elif USE_AUTO_GRF
     properties prop{register_alloc_mode<register_alloc_mode_enum::automatic>};
 #else
     properties prop{register_alloc_mode<register_alloc_mode_enum::large>};

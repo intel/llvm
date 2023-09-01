@@ -106,8 +106,10 @@ private:
   SDValue LowerFDIV32(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV64(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFDIV(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFFREXP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSTORE(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerTrig(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFSQRTF64(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerATOMIC_CMP_SWAP(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBRCOND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerRETURNADDR(SDValue Op, SelectionDAG &DAG) const;
@@ -141,6 +143,7 @@ private:
   /// Custom lowering for ISD::FP_ROUND for MVT::f16.
   SDValue lowerFP_ROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerFMINNUM_FMAXNUM(SDValue Op, SelectionDAG &DAG) const;
+  SDValue lowerFLDEXP(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXMULO(SDValue Op, SelectionDAG &DAG) const;
   SDValue lowerXMUL_LOHI(SDValue Op, SelectionDAG &DAG) const;
 
@@ -350,6 +353,12 @@ public:
 
   bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
 
+  unsigned combineRepeatedFPDivisors() const override {
+    // Combine multiple FDIVs with the same divisor into multiple FMULs by the
+    // reciprocal.
+    return 2;
+  }
+
   bool supportSplitCSR(MachineFunction *MF) const override;
   void initializeSplitCSR(MachineBasicBlock *Entry) const override;
   void insertCopiesSplitCSR(
@@ -493,6 +502,9 @@ public:
 
   bool isReassocProfitable(SelectionDAG &DAG, SDValue N0,
                            SDValue N1) const override;
+
+  bool isReassocProfitable(MachineRegisterInfo &MRI, Register N0,
+                           Register N1) const override;
 
   bool isCanonicalized(SelectionDAG &DAG, SDValue Op,
                        unsigned MaxDepth = 5) const;

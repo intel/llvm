@@ -10,18 +10,23 @@
 
 using namespace sycl;
 using namespace ext::oneapi::experimental;
+using namespace ext::intel::experimental;
 
 using annotated_ptr_t1 =
-    annotated_ptr<int, decltype(properties(awidth<32>, dwidth<32>))>;
+    annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>,
+                                           dwidth<32>))>;
 
 using annotated_ptr_t2 =
-    annotated_ptr<int,
-                  decltype(properties(conduit, register_map, alignment<8>))>;
+    annotated_ptr<int, decltype(properties(buffer_location<0>, conduit,
+                                           register_map, alignment<8>))>;
 
-using annotated_ptr_t3 = annotated_ptr<int, decltype(properties(awidth<32>))>;
+using annotated_ptr_t3 =
+    annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>))>;
 
 struct MyIP {
-  annotated_ptr<int, decltype(properties(awidth<32>, dwidth<32>))> a;
+  annotated_ptr<int, decltype(properties(buffer_location<0>, awidth<32>,
+                                         dwidth<32>))>
+      a;
 
   int b;
 
@@ -38,7 +43,7 @@ struct MyIP {
 
 template <typename T> T foo() {
   auto raw = new int;
-  return annotated_ptr(raw, awidth<32>);
+  return annotated_ptr(raw, buffer_location<0>, awidth<32>);
 }
 
 void TestVectorAddWithAnnotatedMMHosts() {
@@ -60,24 +65,30 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Construct from raw pointers
   auto tmp11 = annotated_ptr(raw); // empty property list
   // Construct from raw pointers and a property list
-  auto tmp12 = annotated_ptr<int, decltype(properties{awidth<32>})>(
-      raw, properties{awidth<32>});
-  auto tmp14 = annotated_ptr(raw, properties{awidth<32>}); // deduction guide
+  auto tmp12 =
+      annotated_ptr<int, decltype(properties{buffer_location<0>, awidth<32>})>(
+          raw, properties{buffer_location<0>, awidth<32>});
+  auto tmp14 = annotated_ptr(
+      raw, properties{buffer_location<0>, awidth<32>}); // deduction guide
   static_assert(std::is_same<decltype(tmp14), annotated_ptr_t3>::value,
                 "deduction guide failed 1");
   // Construct from raw pointers and variadic properties
-  auto tmp13 = annotated_ptr(raw, dwidth<32>, awidth<32>); // deduction guide
+  auto tmp13 = annotated_ptr(raw, buffer_location<0>, dwidth<32>,
+                             awidth<32>); // deduction guide
   static_assert(std::is_same<decltype(tmp13), annotated_ptr_t1>::value,
                 "deduction guide failed 2");
-  auto tmp15 = annotated_ptr(raw, awidth<32>);
+  auto tmp15 = annotated_ptr(raw, buffer_location<0>, awidth<32>);
   static_assert(std::is_same<decltype(tmp15), annotated_ptr_t3>::value,
                 "deduction guide failed 1");
 
   // Construct from another annotated_ptr
   // templated copy constructor
-  annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg11(tmp11);
+  annotated_ptr<int, decltype(properties{buffer_location<0>, awidth<32>,
+                                         dwidth<32>})>
+      arg11(tmp11);
   auto arg12 =
-      annotated_ptr<int, decltype(properties{dwidth<32>, awidth<32>})>(tmp11);
+      annotated_ptr<int, decltype(properties{buffer_location<0>, dwidth<32>,
+                                             awidth<32>})>(tmp11);
 
   // default copy constructor
   auto arg13 = annotated_ptr(tmp12);
@@ -85,8 +96,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
                 "deduction guide failed 3");
 
   // Construct from another annotated_ptr and a property list
-  annotated_ptr<int, decltype(properties{awidth<32>, dwidth<32>})> arg22(
-      tmp12, properties{dwidth<32>});
+  annotated_ptr<int, decltype(properties{buffer_location<0>, awidth<32>,
+                                         dwidth<32>})>
+      arg22(tmp12, properties{dwidth<32>});
   auto arg23 = annotated_ptr(tmp12, properties{dwidth<32>}); // deduction guide
   static_assert(std::is_same<decltype(arg22), annotated_ptr_t1>::value,
                 "deduction guide failed 4");
@@ -98,8 +110,11 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
+  // Implicit conversion
+  a1 = raw;
+
   // Property merge
-  auto arg31 = annotated_ptr_t3(raw, awidth<32>);                         // OK
+  auto arg31 = annotated_ptr_t3(raw, buffer_location<0>, awidth<32>);     // OK
   auto arg32 = annotated_ptr(arg31, properties{dwidth<32>});              // OK
   auto arg33 = annotated_ptr(arg32, properties{dwidth<32>, awidth<32>});  // OK
   auto arg34 = annotated_ptr(arg32, properties{awidth<32>, latency<22>}); // OK

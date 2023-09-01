@@ -21,7 +21,6 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def Func_Dialect : Dialect {
   let name = "func";
   let cppNamespace = "::mlir::func";
-  let dependentDialects = ["cf::ControlFlowDialect"];
   let hasConstantMaterializer = 1;
   let usePropertiesForAttributes = 1;
 }
@@ -82,6 +81,10 @@ def CallOp : Func_Op<"call",
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    MutableOperandRange getArgOperandsMutable() {
+      return getOperandsMutable();
     }
 
     operand_iterator arg_operand_begin() { return operand_begin(); }
@@ -151,6 +154,10 @@ def CallIndirectOp : Func_Op<"call_indirect", [
     /// Get the argument operands to the called function.
     operand_range getArgOperands() {
       return {arg_operand_begin(), arg_operand_end()};
+    }
+
+    MutableOperandRange getArgOperandsMutable() {
+      return getCalleeOperandsMutable();
     }
 
     operand_iterator arg_operand_begin() { return ++operand_begin(); }

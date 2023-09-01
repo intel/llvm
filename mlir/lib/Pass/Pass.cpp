@@ -438,6 +438,9 @@ LogicalResult OpToOpPassAdaptor::run(Pass *pass, Operation *op,
   if (!opInfo->hasTrait<OpTrait::IsIsolatedFromAbove>())
     return op->emitOpError() << "trying to schedule a pass on an operation not "
                                 "marked as 'IsolatedFromAbove'";
+  if (!pass->canScheduleOn(*op->getName().getRegisteredInfo()))
+    return op->emitOpError()
+           << "trying to schedule a pass on an unsupported operation";
 
   // Initialize the pass state with a callback for the pass to dynamically
   // execute a pipeline on the currently visited operation.
@@ -817,6 +820,9 @@ LogicalResult PassManager::run(Operation *op) {
   if (failed(getImpl().finalizePassList(context)))
     return failure();
 
+  // Notify the context that we start running a pipeline for bookkeeping.
+  context->enterMultiThreadedExecution();
+
   // Initialize all of the passes within the pass manager with a new generation.
   llvm::hash_code newInitKey = context->getRegistryHash();
   if (newInitKey != initializationKey) {
@@ -827,9 +833,6 @@ LogicalResult PassManager::run(Operation *op) {
 
   // Construct a top level analysis manager for the pipeline.
   ModuleAnalysisManager am(op, instrumentor.get());
-
-  // Notify the context that we start running a pipeline for book keeping.
-  context->enterMultiThreadedExecution();
 
   // If reproducer generation is enabled, run the pass manager with crash
   // handling enabled.

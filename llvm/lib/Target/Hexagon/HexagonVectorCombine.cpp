@@ -684,6 +684,13 @@ auto AlignVectors::createAdjustedPointer(IRBuilderBase &Builder, Value *Ptr,
                                          Type *ValTy, int Adjust,
                                          const InstMap &CloneMap) const
     -> Value * {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (auto *I = dyn_cast<Instruction>(Ptr))
+    if (Instruction *New = CloneMap.lookup(I))
+      Ptr = New;
+  return Builder.CreateGEP(Type::getInt8Ty(HVC.F.getContext()), Ptr,
+                           HVC.getConstInt(Adjust), "gep");
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   auto remap = [&](Value *V) -> Value * {
     if (auto *I = dyn_cast<Instruction>(V)) {
       for (auto [Old, New] : CloneMap)
@@ -711,6 +718,7 @@ auto AlignVectors::createAdjustedPointer(IRBuilderBase &Builder, Value *Ptr,
   Value *Tmp1 = Builder.CreateGEP(Type::getInt8Ty(HVC.F.getContext()),
                                   remap(Tmp0), HVC.getConstInt(Adjust), "gep");
   return Builder.CreatePointerCast(remap(Tmp1), ValTy->getPointerTo(), "cst");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 auto AlignVectors::createAlignedPointer(IRBuilderBase &Builder, Value *Ptr,
@@ -1355,20 +1363,32 @@ auto AlignVectors::realignStoreGroup(IRBuilderBase &Builder,
     // Adjust the store offsets relative to the section start offset.
     ByteSpan VSection =
         VSpan.section(Index * ScLen, ScLen).shift(-Index * ScLen);
-    Value *AccumV = UndefValue::get(SecTy);
-    Value *AccumM = HVC.getNullValue(SecTy);
+    Value *Undef = UndefValue::get(SecTy);
+    Value *Zero = HVC.getNullValue(SecTy);
+    Value *AccumV = Undef;
+    Value *AccumM = Zero;
     for (ByteSpan::Block &S : VSection) {
       Value *Pay = getPayload(S.Seg.Val);
       Value *Mask = HVC.rescale(Builder, MakeVec(Builder, getMask(S.Seg.Val)),
                                 Pay->getType(), HVC.getByteTy());
-      AccumM = HVC.insertb(Builder, AccumM, HVC.vbytes(Builder, Mask),
-                           S.Seg.Start, S.Seg.Size, S.Pos);
-      AccumV = HVC.insertb(Builder, AccumV, HVC.vbytes(Builder, Pay),
-                           S.Seg.Start, S.Seg.Size, S.Pos);
+      Value *PartM = HVC.insertb(Builder, Zero, HVC.vbytes(Builder, Mask),
+                                 S.Seg.Start, S.Seg.Size, S.Pos);
+      AccumM = Builder.CreateOr(AccumM, PartM);
+
+      Value *PartV = HVC.insertb(Builder, Undef, HVC.vbytes(Builder, Pay),
+                                 S.Seg.Start, S.Seg.Size, S.Pos);
+
+      AccumV = Builder.CreateSelect(
+          Builder.CreateICmp(CmpInst::ICMP_NE, PartM, Zero), PartV, AccumV);
     }
     ASpanV.Blocks.emplace_back(AccumV, ScLen, Index * ScLen);
     ASpanM.Blocks.emplace_back(AccumM, ScLen, Index * ScLen);
   }
+
+  LLVM_DEBUG({
+    dbgs() << "ASpanV before vlalign:\n" << ASpanV << '\n';
+    dbgs() << "ASpanM before vlalign:\n" << ASpanM << '\n';
+  });
 
   // vlalign
   if (DoAlign) {
@@ -1380,6 +1400,11 @@ auto AlignVectors::realignStoreGroup(IRBuilderBase &Builder,
       ASpanM[Index - 1].Seg.Val = HVC.vlalignb(Builder, PrevM, ThisM, AlignVal);
     }
   }
+
+  LLVM_DEBUG({
+    dbgs() << "ASpanV after vlalign:\n" << ASpanV << '\n';
+    dbgs() << "ASpanM after vlalign:\n" << ASpanM << '\n';
+  });
 
   auto createStore = [&](IRBuilderBase &Builder, const ByteSpan &ASpanV,
                          const ByteSpan &ASpanM, int Index, bool MakePred) {

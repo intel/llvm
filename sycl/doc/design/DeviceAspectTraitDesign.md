@@ -5,7 +5,7 @@ traits `any_device_has` and `all_devices_have` as described in the
 [SYCL 2020 Specification Rev. 6 Section 4.6.4.3][1].
 
 In summary, `any_device_has<aspect>` and `all_devices_have<aspect>` must inherit
-from either `std::true_t` or `std::false_t` depending on whether the
+from either `std::true_type` or `std::false_type` depending on whether the
 corresponding compilation environment can guarantee that any and all the
 supported devices support the `aspect`.
 
@@ -56,11 +56,11 @@ When compiling a SYCL program, where $[t1, t2, \ldots, tn]$ are the $n$ targets
 specified in `-fsycl-targets` including any targets implicitly added by the
 driver, the driver defines the following macros in both host and device
 compilation invocations:
-* `__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `1` for all $i$ in
+* `__SYCL_ALL_DEVICES_HAVE_`$aspectName_{i}$`__` as `1` for all $i$ in
 ${\bigcap}^n_{k=1} A^{all}_{tk}$.
 * `__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` as `1` if
 ${\bigcup}^n_{k=1} A^{any}_{tk}$ is the set of all aspects.
-* `__SYCL_ANY_DEVICE_HAS_`$j$`__` as `1` for all $j$ in
+* `__SYCL_ANY_DEVICE_HAS_`$aspectName_{j}$`__` as `1` for all $j$ in
 ${\bigcup}^n_{k=1} A^{any}_{tk}$ if `__SYCL_ANY_DEVICE_HAS_ANY_ASPECT__` was not
 defined.
 
@@ -79,19 +79,19 @@ together with specializations for each aspect:
 ```c++
 namespace sycl {
 template <aspect Aspect> all_devices_have;
-template<> all_devices_have<aspect::host> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_0__> {};
-template<> all_devices_have<aspect::cpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_1__> {};
-template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_2__> {};
+template<> all_devices_have<aspect::host> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_host__> {};
+template<> all_devices_have<aspect::cpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_cpu__> {};
+template<> all_devices_have<aspect::gpu> : std::bool_constant<__SYCL_ALL_DEVICES_HAVE_gpu__> {};
 ...
 
 #ifdef __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 // Special case where any_device_has is trivially true.
-template <aspect Aspect> any_device_has : std::true_t {};
+template <aspect Aspect> any_device_has : std::true_type {};
 #else
 template <aspect Aspect> any_device_has;
-template<> any_device_has<aspect::host> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_0__> {};
-template<> any_device_has<aspect::cpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_1__> {};
-template<> any_device_has<aspect::gpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_2__> {};
+template<> any_device_has<aspect::host> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_host__> {};
+template<> any_device_has<aspect::cpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_cpu__> {};
+template<> any_device_has<aspect::gpu> : std::bool_constant<__SYCL_ANY_DEVICE_HAS_gpu__> {};
 ...
 #endif // __SYCL_ANY_DEVICE_HAS_ANY_ASPECT__
 
@@ -102,8 +102,8 @@ template <aspect Aspect> constexpr bool any_device_has_v = any_device_has<Aspect
 
 Note that the driver may not define macros for all aspects as it only knows the
 specified subset from the configuration file. As such the device headers will
-have to define any undefined `__SYCL_ANY_DEVICE_HAS_`$i$`__` and
-`__SYCL_ALL_DEVICES_HAVE_`$i$`__` as `0` for all aspect values $i$.
+have to define any undefined `__SYCL_ANY_DEVICE_HAS_`$aspectName_{i}$`__` and
+`__SYCL_ALL_DEVICES_HAVE_`$aspectName_{i}$`__` as `0` for all aspect values $i$.
 
 Since the specializations need to be explicitly specified, there is a high
 probability of mistakes when new aspects are added. To avoid such mistakes, a

@@ -83,6 +83,9 @@ protected:
 
   bool MadeIRChange = false;
 
+  /// Edges that are known to never be taken.
+  SmallDenseSet<std::pair<BasicBlock *, BasicBlock *>, 8> DeadEdges;
+
 public:
   InstCombiner(InstructionWorklist &Worklist, BuilderTy &Builder,
                bool MinimizeSize, AAResults *AA, AssumptionCache &AC,
@@ -441,15 +444,17 @@ public:
 
   /// Replace operand of instruction and add old operand to the worklist.
   Instruction *replaceOperand(Instruction &I, unsigned OpNum, Value *V) {
-    Worklist.addValue(I.getOperand(OpNum));
+    Value *OldOp = I.getOperand(OpNum);
     I.setOperand(OpNum, V);
+    Worklist.handleUseCountDecrement(OldOp);
     return &I;
   }
 
   /// Replace use and add the previously used value to the worklist.
   void replaceUse(Use &U, Value *NewValue) {
-    Worklist.addValue(U);
+    Value *OldOp = U;
     U = NewValue;
+    Worklist.handleUseCountDecrement(OldOp);
   }
 
   /// Combiner aware instruction erasure.

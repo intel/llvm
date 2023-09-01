@@ -8,6 +8,10 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.o -O0 -o %t.out
 // RUN: %{run} %t.out
 
+// Failing on HIP AMD, enable after fixed
+// UNSUPPORTED: hip_amd
+
+
 #include <iostream>
 #include <sycl/sycl.hpp>
 

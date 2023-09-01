@@ -696,7 +696,7 @@ int main() {
           acc(b);
 
       q.submit([&](sycl::handler &cgh) {
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         cgh.parallel_for<class ph1>(r,
                                     [=](sycl::id<1> index) { acc[index] = 0; });
@@ -727,7 +727,7 @@ int main() {
       AccT acc(b);
 
       q.submit([&](sycl::handler &cgh) {
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         // The difference with the previous test is that the use of acc
         // is usually optimized away for this particular scenario, but the
@@ -762,14 +762,14 @@ int main() {
 
       q.submit([&](sycl::handler &cgh) {
         AccT acc2(b, cgh);
-        // we do NOT call .require(acc) without which we should throw a
+        // We do NOT call .require(acc) without which we should throw a
         // synchronous exception with errc::kernel_argument
         // The particularity of this test is that it passes to a command
         // one bound accessor and one unbound accessor. In the past, this
         // has led to throw the wrong exception.
         cgh.single_task<class ph3>([=] {
-          volatile int x = acc[0];
-          volatile int y = acc2[0];
+          int x = acc[0];
+          int y = acc2[0];
         });
       });
       q.wait_and_throw();
@@ -784,7 +784,41 @@ int main() {
     }
   }
 
-  // SYCL2020 4.9.4.1: calling require() on empty accessor should throw
+  // placeholder accessor exception (4)  // SYCL2020 4.7.6.9
+  {
+    sycl::queue q;
+    // host device executes kernels via a different method and there
+    // is no good way to throw an exception at this time.
+    sycl::range<1> r(4);
+    sycl::buffer<int, 1> b(r);
+    try {
+      using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write,
+                                  sycl::access::target::device,
+                                  sycl::access::placeholder::true_t>;
+      AccT acc(b);
+
+      q.submit([&](sycl::handler &cgh) {
+        AccT acc2(b, cgh);
+        // Pass placeholder accessor to command, but having required a different
+        // accessor in the command. In past versions, we used to compare the
+        // number of accessors with the number of requirements, and if they
+        // matched, we did not throw, allowing this scenario that shouldn't be
+        // allowed.
+        cgh.single_task<class ph4>([=] { int x = acc[0]; });
+      });
+      q.wait_and_throw();
+      assert(false && "we should not be here, missing exception");
+    } catch (sycl::exception &e) {
+      std::cout << "exception received: " << e.what() << std::endl;
+      assert(e.code() == sycl::errc::kernel_argument && "incorrect error code");
+    } catch (...) {
+      std::cout << "Some other exception (line " << __LINE__ << ")"
+                << std::endl;
+      return 1;
+    }
+  }
+
+  // SYCL2020 4.9.4.1: calling require() on empty accessor should not throw.
   {
     sycl::queue q;
     try {
@@ -792,12 +826,10 @@ int main() {
 
       q.submit([&](sycl::handler &cgh) { cgh.require(acc); });
       q.wait_and_throw();
-      assert(false && "we should not be here, missing exception");
     } catch (sycl::exception &e) {
-      std::cout << "exception received: " << e.what() << std::endl;
-      assert(e.code() == sycl::errc::invalid && "error code should be invalid");
+      assert("Unexpected exception");
     } catch (...) {
-      std::cout << "Some other exception (line " << __LINE__ << ")"
+      std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
                 << std::endl;
       return 1;
     }
@@ -1428,6 +1460,102 @@ int main() {
             .wait();
       }
     }
+  }
+
+  // default constructed accessor is not a placeholder
+  {
+    AccT acc;
+    assert(!acc.is_placeholder());
+    sycl::queue q;
+    bool result;
+    {
+      sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
+      // As a non-placeholder accessor, make sure no exception is thrown when
+      // passed to a command. However, we cannot access it, because there's
+      // no underlying storage.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          sycl::accessor res_acc{Buf, cgh};
+          cgh.single_task<class def_ctor>(
+              [=] { res_acc[0] = acc.is_placeholder(); });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
+  }
+
+  // default constructed accessor can be passed to a kernel.
+  {
+    AccT acc;
+    sycl::queue q;
+    bool result = false;
+    {
+      sycl::buffer<bool, 1> Buf{&result, sycl::range<1>{1}};
+      // We are passing a default constructed accessor and a non default
+      // constructed accessor with storage. Default constructed accessors can be
+      // passed to commands, but trying to access the (non-existing) underlying
+      // storage is UB. This test should work, since the access to the default
+      // constructed accessor must never be reached.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          sycl::accessor res_acc{Buf, cgh};
+          cgh.single_task<class def_ctor_kernel>([=] {
+            if (false)
+              res_acc[0] = acc[0];
+          });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
+  }
+
+  // default constructed accessor can be passed to a kernel (2).
+  {
+    using AccT = sycl::accessor<int, 1, sycl::access::mode::read_write>;
+    AccT acc;
+    assert(acc.empty());
+    sycl::queue q;
+    bool result = false;
+    {
+      // We are passing only a default constructed accessor. Default constructed
+      // accessors can be passed to commands, but trying to access the
+      // (non-existing) underlying storage is UB. This test should work, since
+      // the access to the default constructed accessor must never be reached.
+      // The difference with the previous test case is that in this case the
+      // task will not have any requirements, while the previous one does have
+      // one requirement for the non default constructed accessor, testing
+      // different code paths.
+      try {
+        q.submit([&](sycl::handler &cgh) {
+          cgh.single_task<class def_ctor_kernel2>([=] {
+            if (!acc.empty())
+              acc[0] = 1;
+          });
+        });
+        q.wait_and_throw();
+      } catch (sycl::exception &e) {
+        assert("Unexpected exception");
+      } catch (...) {
+        std::cout << "Some other unexpected exception (line " << __LINE__ << ")"
+                  << std::endl;
+        return 1;
+      }
+    }
+    assert(!result);
   }
 
   std::cout << "Test passed" << std::endl;

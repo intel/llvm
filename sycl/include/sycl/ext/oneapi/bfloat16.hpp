@@ -8,9 +8,12 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/builtins.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/builtins.hpp>                  // for isnan
+#include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
+#include <sycl/half_type.hpp>                 // for half
+
+#include <stdint.h> // for uint16_t, uint32_t
 
 extern "C" __DPCPP_SYCL_EXTERNAL uint16_t
 __devicelib_ConvertFToBF16INTEL(const float &) noexcept;
@@ -18,7 +21,7 @@ extern "C" __DPCPP_SYCL_EXTERNAL float
 __devicelib_ConvertBF16ToFINTEL(const uint16_t &) noexcept;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 class bfloat16;
@@ -61,7 +64,9 @@ private:
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
 #if (__SYCL_CUDA_ARCH__ >= 800)
-    return __nvvm_f2bf16_rn(a);
+    detail::Bfloat16StorageT res;
+    asm("cvt.rn.bf16.f32 %0, %1;" : "=h"(res) : "f"(a));
+    return res;
 #else
     return from_float_fallback(a);
 #endif
@@ -117,7 +122,9 @@ public:
   friend bfloat16 operator-(bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
-    return detail::bitsToBfloat16(__nvvm_neg_bf16(lhs.value));
+    detail::Bfloat16StorageT res;
+    asm("neg.bf16 %0, %1;" : "=h"(res) : "h"(lhs.value));
+    return detail::bitsToBfloat16(res);
 #elif defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     return bfloat16{-__devicelib_ConvertBF16ToFINTEL(lhs.value)};
 #else
@@ -213,5 +220,5 @@ inline bfloat16 bitsToBfloat16(const Bfloat16StorageT Value) {
 
 } // namespace ext::oneapi
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

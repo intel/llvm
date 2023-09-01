@@ -44,6 +44,7 @@
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
+#include "llvm/CodeGen/TargetOpcodes.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/CodeGen/TargetSubtargetInfo.h"
@@ -1468,8 +1469,14 @@ bool IRTranslator::translateBitCast(const User &U,
                                     MachineIRBuilder &MIRBuilder) {
   // If we're bitcasting to the source type, we can reuse the source vreg.
   if (getLLTForType(*U.getOperand(0)->getType(), *DL) ==
-      getLLTForType(*U.getType(), *DL))
+      getLLTForType(*U.getType(), *DL)) {
+    // If the source is a ConstantInt then it was probably created by
+    // ConstantHoisting and we should leave it alone.
+    if (isa<ConstantInt>(U.getOperand(0)))
+      return translateCast(TargetOpcode::G_CONSTANT_FOLD_BARRIER, U,
+                           MIRBuilder);
     return translateCopy(U, *U.getOperand(0), MIRBuilder);
+  }
 
   return translateCast(TargetOpcode::G_BITCAST, U, MIRBuilder);
 }
@@ -1759,6 +1766,8 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_FLOG2;
     case Intrinsic::log10:
       return TargetOpcode::G_FLOG10;
+    case Intrinsic::ldexp:
+      return TargetOpcode::G_FLDEXP;
     case Intrinsic::nearbyint:
       return TargetOpcode::G_FNEARBYINT;
     case Intrinsic::pow:
@@ -1851,6 +1860,8 @@ static unsigned getConstrainedOpcode(Intrinsic::ID ID) {
     return TargetOpcode::G_STRICT_FMA;
   case Intrinsic::experimental_constrained_sqrt:
     return TargetOpcode::G_STRICT_FSQRT;
+  case Intrinsic::experimental_constrained_ldexp:
+    return TargetOpcode::G_STRICT_FLDEXP;
   default:
     return 0;
   }
@@ -2164,6 +2175,13 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
                             getOrCreateVReg(*CI.getArgOperand(0)),
                             MachineInstr::copyFlagsFromInstruction(CI));
     return true;
+  case Intrinsic::frexp: {
+    ArrayRef<Register> VRegs = getOrCreateVRegs(CI);
+    MIRBuilder.buildFFrexp(VRegs[0], VRegs[1],
+                           getOrCreateVReg(*CI.getArgOperand(0)),
+                           MachineInstr::copyFlagsFromInstruction(CI));
+    return true;
+  }
   case Intrinsic::memcpy_inline:
     return translateMemFunc(CI, MIRBuilder, TargetOpcode::G_MEMCPY_INLINE);
   case Intrinsic::memcpy:
@@ -2515,8 +2533,7 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
 
   // Ignore the callsite attributes. Backend code is most likely not expecting
   // an intrinsic to sometimes have side effects and sometimes not.
-  MachineInstrBuilder MIB =
-      MIRBuilder.buildIntrinsic(ID, ResultRegs, !F->doesNotAccessMemory());
+  MachineInstrBuilder MIB = MIRBuilder.buildIntrinsic(ID, ResultRegs);
   if (isa<FPMathOperator>(CI))
     MIB->copyIRFlags(CI);
 
@@ -2850,7 +2867,7 @@ bool IRTranslator::translateVAArg(const User &U, MachineIRBuilder &MIRBuilder) {
 }
 
 bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuilder) {
-    if (!MF->getTarget().Options.TrapUnreachable)
+  if (!MF->getTarget().Options.TrapUnreachable)
     return true;
 
   auto &UI = cast<UnreachableInst>(U);
@@ -2867,7 +2884,7 @@ bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuil
     }
   }
 
-  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>(), true);
+  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>());
   return true;
 }
 

@@ -9,14 +9,16 @@
 // Detailed description of the tests cases can be seen per test function.
 #include "../thread_safety/ThreadUtils.h"
 #include "detail/persistent_device_code_cache.hpp"
-#include <cstdio>
 #include <detail/device_binary_image.hpp>
 #include <gtest/gtest.h>
 #include <helpers/PiMock.hpp>
 #include <llvm/Support/FileSystem.h>
-#include <optional>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/sycl.hpp>
+
+#include <cstdio>
+#include <fstream>
+#include <optional>
 #include <vector>
 
 #define ASSERT_NO_ERROR(x)                                                     \
