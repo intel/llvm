@@ -244,27 +244,6 @@ Value *getStateArg(const Function *F) {
   return F->getArg(FT->getNumParams() - 1);
 }
 
-SmallVector<Function *> getFunctionsFromUse(Use &U) {
-  // This function returns a vector since an operator may be used by
-  // instructions in multiple functions
-  User *Usr = U.getUser();
-  if (auto *I = dyn_cast<Instruction>(Usr)) {
-    if (I->getParent())
-      return {I->getFunction()};
-  }
-  if (auto *Op = dyn_cast<Operator>(Usr)) {
-    SmallVector<Function *> Res;
-    for (auto &Use : Op->uses()) {
-      if (auto *I = dyn_cast<Instruction>(Use.getUser())) {
-        if (I->getParent())
-          Res.push_back(I->getFunction());
-      }
-    }
-    return Res;
-  }
-  return {};
-}
-
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
