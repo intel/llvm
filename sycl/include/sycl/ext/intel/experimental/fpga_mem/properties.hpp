@@ -265,13 +265,13 @@ template <bool Value>
 struct PropertyMetaInfo<bi_directional_ports_key::value_t<Value>> {
   // historical uglyness: single property maps to different SPIRV decorations 
   static constexpr const char *name = (Value?"sycl-bi-directional-ports-true":"sycl-bi-directional-ports-false");
-  static constexpr bool value = true;
+  static constexpr std::nullptr_t value = nullptr;
 };
 template <bool Value>
 struct PropertyMetaInfo<clock_2x_key::value_t<Value>> {
   // historical uglyness: single property maps to different SPIRV decorations 
   static constexpr const char *name = (Value?"sycl-clock-2x-true":"sycl-clock-2x-false");
-  static constexpr bool value = true;
+  static constexpr std::nullptr_t value = nullptr;
 };
 template <ram_stitching_enum Value>
 struct PropertyMetaInfo<ram_stitching_key::value_t<Value>> {

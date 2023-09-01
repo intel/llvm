@@ -28,18 +28,18 @@ namespace detail {
 
 // Hide the base implementation in details so that manipulation
 // of properties parameter pack can be modularized away from main logic
-// template <typename T, typename PropertyListT, typename = void>
-// class fpga_mem_base {
 template <typename T, typename... Props>
 class fpga_mem_base {
 
 protected:
   T val
 #ifdef __SYCL_DEVICE_ONLY__
-      // Artem: Doesn't work for some reason
+      // In addition to annotating all the user specified properties, also add
+      // {"sycl-resource", ""} hinting to the optimizer that this object
+      // should be implemented in memory outside the datapath.
       [[__sycl_detail__::add_ir_annotations_member(
-          oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
-          oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
+          "sycl-resource", oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
+          "", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
       ;
 
@@ -121,7 +121,7 @@ class fpga_mem<T, properties_t<Props...>>
 
   using property_list_t = properties_t<Props...>;
 
-    // Inherits the base class' constructors
+  // Inherits the base class' constructors
   using detail::fpga_mem_base<T, Props...>::fpga_mem_base;
 
 public:

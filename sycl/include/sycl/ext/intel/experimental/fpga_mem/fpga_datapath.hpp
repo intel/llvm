@@ -27,6 +27,9 @@ namespace ext::intel::experimental {
   namespace oneapi_exp = ext::oneapi::experimental;
 namespace detail {
 
+// Non-user accessible or documented property. Internal use only.
+// Implementation detail used in-order to limit 
+// duplication of code between fpga_mem and fpga_datapath.
 struct datapath_key {
   using value_t = oneapi_exp::property_value<datapath_key>;
 };
@@ -40,10 +43,10 @@ using properties_t = oneapi_exp::detail::properties_t<Props...>;
 
 template <typename T>
 class fpga_datapath
-    : public detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)> {
+    : public detail::fpga_mem_base<T, detail::datapath_key> {
 
   // Inherits the base class' constructors
-  using detail::fpga_mem_base<T, decltype(oneapi_exp::resource_any)>::fpga_mem_base;
+  using detail::fpga_mem_base<T, detail::datapath_key>::fpga_mem_base;
 
 };
 
