@@ -87,12 +87,6 @@ pi_result piDeviceRelease(pi_device Device) {
 pi_result piDeviceGetInfo(pi_device Device, pi_device_info ParamName,
                           size_t ParamValueSize, void *ParamValue,
                           size_t *ParamValueSizeRet) {
-  // TODO: This is a work-around for missing UR info query. Replace with propper
-  //       UR mapping when available.
-  if (ParamName == PI_EXT_ONEAPI_DEVICE_INFO_SUPPORTS_VIRTUAL_MEM) {
-    ReturnHelper ReturnValue(ParamValueSize, ParamValue, ParamValueSizeRet);
-    return ReturnValue(bool{true});
-  }
   return pi2ur::piDeviceGetInfo(Device, ParamName, ParamValueSize, ParamValue,
                                 ParamValueSizeRet);
 }
