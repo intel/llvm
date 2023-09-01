@@ -21,7 +21,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Make archive with bundled BC and o files
-// RUN: rm %t_bundled.a
+// RUN: rm -f %t_bundled.a
 // RUN: ar cr %t_bundled.a %t1_bundled.bc %t2_bundled.bc %t3_bundled.bc %t_bundled.o
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +64,7 @@
 // RUN: not clang-offload-bundler -check-section -type=aoo -input=%t_bundled.a -targets=host-spir64_x86_64-e
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Unbundle object file
+// Unbundle object file to use as a reference result
 // RUN: clang-offload-bundler -unbundle -type=o -input=%t_bundled.o -targets=sycl-spir64-unknown-unknown   -output=%t_unbundled_A.o
 // RUN: clang-offload-bundler -unbundle -type=o -input=%t_bundled.o -targets=host-x86_64-unknown-linux-gnu -output=%t_unbundled_B.o
 
