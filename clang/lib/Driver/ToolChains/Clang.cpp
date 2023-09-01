@@ -8965,6 +8965,8 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
   //   -input=unbundle_file_tgt2
 
   ArgStringList CmdArgs;
+  const OffloadBundlingJobAction *OffloadBundler =
+      dyn_cast<OffloadBundlingJobAction>(&JA);
 
   // Get the type.
   CmdArgs.push_back(TCArgs.MakeArgString(
@@ -9000,7 +9002,19 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                    ? Action::GetOffloadKindName(Action::OFK_SYCL)
                    : Action::GetOffloadKindName(CurKind);
     Triples += '-';
-    Triples += CurTC->getTriple().normalize();
+    // Incoming DeviceArch is set, break down the Current triple and add the
+    // device arch value to it.
+    if (CurKind != Action::OFK_Host &&
+        !OffloadBundler->getDeviceArch().empty()) {
+      llvm::Triple T(CurTC->getTriple());
+      SmallString<128> ArchName(CurTC->getArchName());
+      ArchName += "_";
+      ArchName += OffloadBundler->getDeviceArch();
+      T.setArchName(ArchName);
+      Triples += T.normalize();
+    } else {
+      Triples += CurTC->getTriple().normalize();
+    }
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
@@ -9025,6 +9039,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       }
       Triples += GPUArchName.str();
     }
+    llvm::errs() << "  Unbundle Triples = " << Triples << '\n';
   }
   // If we see we are bundling for FPGA using -fintelfpga, add the
   // dependency bundle
@@ -9068,7 +9083,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       UB += CurTC->getInputFilename(Inputs[I]);
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
+    llvm::errs() << "  Input" << I << " is " << UB << '\n';
   }
+  for (auto *Input : JA.getInputs()) {
+    llvm::errs() << "  JA input " << Input << '\n';
+  }
+
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {

@@ -603,6 +603,15 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadBundlingJobClass;
   }
+
+  /// Set the corresponding device arch value for the current bundling action.
+  /// This is used for specific bundles used for SYCL AOT when generating full
+  /// device files that are bundled with the host object.
+  void setDeviceArch(StringRef Arch) { DeviceArch = Arch; }
+
+  StringRef getDeviceArch() const { return DeviceArch; }
+private:
+  StringRef DeviceArch;
 };
 
 class OffloadUnbundlingJobAction final : public JobAction {
