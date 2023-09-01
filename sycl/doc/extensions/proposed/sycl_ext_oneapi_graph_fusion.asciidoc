@@ -211,7 +211,7 @@ namespace sycl::ext::oneapi::experimental::property{
   inline constexpr auto access_scope_local = 
                                     access_scope<memory_scope_work_group>;
 
-  inlint constexpr auto access_scope_private = 
+  inline constexpr auto access_scope_private = 
                                     access_scope<memory_scope_work_item>;
 
 } // namespace sycl::ext::oneapi::experimental::property
