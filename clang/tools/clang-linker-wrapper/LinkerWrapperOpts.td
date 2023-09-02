@@ -75,7 +75,7 @@ def arch_EQ : Joined<["--"], "arch=">,
   Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<arch>">,
   HelpText<"The device subarchitecture">;
 def triple_EQ : Joined<["--"], "triple=">,
-  Flags<[DeviceOnlyOption, HelpHidden]>, MetaVarName<"<triple>">,
+  Flags<[WrapperOnlyOption, DeviceOnlyOption, HelpHidden]>, MetaVarName<"<triple>">,
   HelpText<"The device target triple">;
 def whole_program : Flag<["--"], "whole-program">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
@@ -126,3 +126,11 @@ def version : Flag<["--", "-"], "version">, Flags<[HelpHidden]>, Alias<v>;
 
 def whole_archive : Flag<["--", "-"], "whole-archive">, Flags<[HelpHidden]>;
 def no_whole_archive : Flag<["--", "-"], "no-whole-archive">, Flags<[HelpHidden]>;
+
+// Options to specify SYCL device library files
+def sycl_device_lib_EQ : CommaJoined<["-"], "sycl-device-libraries=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"A comma separated list of device libraries that are linked during the device link.">;
+def sycl_device_library_location_EQ : Joined<["-"],
+  "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
+  HelpText<"Location of SYCL device library files">;

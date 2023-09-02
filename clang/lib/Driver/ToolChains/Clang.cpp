@@ -5575,7 +5575,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       if (IsDeviceOffloadAction && !JA.isDeviceOffloading(Action::OFK_OpenMP) &&
           !Args.hasFlag(options::OPT_offload_new_driver,
                         options::OPT_no_offload_new_driver, false) &&
-          !Triple.isAMDGPU()) {
+          !(Triple.isAMDGPU() || Triple.isSPIR())) {
         D.Diag(diag::err_drv_unsupported_opt_for_target)
             << Args.getLastArg(options::OPT_foffload_lto,
                                options::OPT_foffload_lto_EQ)
@@ -10320,6 +10320,18 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       Args.MakeArgString("--host-triple=" + TheTriple.getTriple()));
   if (Args.hasArg(options::OPT_v))
     CmdArgs.push_back("--wrapper-verbose");
+
+  // Pass the device triple to the linker wrapper tool for SYCL offload.
+  // Only the first triple is passed.
+  // TODO: Pass multiple triples if needed.
+  if (Args.hasArg(options::OPT_fsycl)) {
+    auto TCRange = C.getOffloadToolChains(Action::OFK_SYCL);
+    for (auto &I : llvm::make_range(TCRange.first, TCRange.second)) {
+      const ToolChain *TC = I.second;
+      CmdArgs.push_back(Args.MakeArgString("--triple=" + TC->getTriple().str()));
+      break;
+    }
+  }
 
   if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
     if (!A->getOption().matches(options::OPT_g0))
