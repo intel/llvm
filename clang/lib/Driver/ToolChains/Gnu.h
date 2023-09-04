@@ -224,8 +224,7 @@ public:
 
   public:
     explicit GCCInstallationDetector(const Driver &D) : IsValid(false), D(D) {}
-    void init(const llvm::Triple &TargetTriple, const llvm::opt::ArgList &Args,
-              ArrayRef<std::string> ExtraTripleAliases = std::nullopt);
+    void init(const llvm::Triple &TargetTriple, const llvm::opt::ArgList &Args);
 
     /// Check whether we detected a valid GCC install.
     bool isValid() const { return IsValid; }
@@ -256,6 +255,7 @@ public:
     void print(raw_ostream &OS) const;
 
   private:
+    std::string TripleNoVendor;
     static void
     CollectLibDirsAndTriples(const llvm::Triple &TargetTriple,
                              const llvm::Triple &BiarchTriple,

@@ -154,7 +154,11 @@ TEST(Local, ReplaceDbgDeclare) {
   ASSERT_TRUE(Inst);
   auto *DII = dyn_cast<DbgDeclareInst>(Inst);
   ASSERT_TRUE(DII);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *NewBase = Constant::getNullValue(Type::getInt32PtrTy(C));
+#else
+  Value *NewBase = Constant::getNullValue(PointerType::getUnqual(C));
+#endif
   DIBuilder DIB(*M);
   replaceDbgDeclare(AI, NewBase, DIB, DIExpression::ApplyOffset, 0);
 
@@ -1151,7 +1155,7 @@ TEST(Local, CanReplaceOperandWithVariable) {
 
   // Test that it's invalid to replace gcroot operands, even though it can't use
   // immarg.
-  Type *PtrPtr = B.getInt8Ty()->getPointerTo(0);
+  Type *PtrPtr = B.getPtrTy(0);
   Value *Alloca = B.CreateAlloca(PtrPtr, (unsigned)0);
   CallInst *GCRoot = B.CreateIntrinsic(Intrinsic::gcroot, {},
     {Alloca, Constant::getNullValue(PtrPtr)});

@@ -82,10 +82,6 @@ DEFAULT_FEATURES = [
         when=lambda cfg: hasCompileFlag(cfg, "-fdelayed-template-parsing"),
     ),
     Feature(
-        name="libcpp-no-coroutines",
-        when=lambda cfg: featureTestMacros(cfg).get("__cpp_impl_coroutine", 0) < 201902,
-    ),
-    Feature(
         name="has-fobjc-arc",
         when=lambda cfg: hasCompileFlag(cfg, "-xobjective-c++ -fobjc-arc")
         and sys.platform.lower().strip() == "darwin",
@@ -307,6 +303,7 @@ macros = {
     "_LIBCPP_HAS_NO_LOCALIZATION": "no-localization",
     "_LIBCPP_HAS_NO_WIDE_CHARACTERS": "no-wide-characters",
     "_LIBCPP_HAS_NO_UNICODE": "libcpp-has-no-unicode",
+    "_LIBCPP_HAS_NO_STD_MODULES":  "libcpp-has-no-std-modules",
     "_LIBCPP_PSTL_CPU_BACKEND_LIBDISPATCH": "libcpp-pstl-cpu-backend-libdispatch",
 }
 for macro, feature in macros.items():

@@ -30,17 +30,14 @@ target triple = "spir-unknown-unknown"
 %structtype = type { float, float }
 
 ; Function Attrs: nounwind
-define spir_func void @_Z19cmul_kernel_complexPSt7complexIfES1_S1_(%"struct.std::complex"* noalias nocapture readonly %a, %"struct.std::complex"* noalias nocapture readonly %b, %"struct.std::complex"* noalias nocapture %c) #0 {
+define spir_func void @_Z19cmul_kernel_complexPSt7complexIfES1_S1_(ptr noalias nocapture readonly %a, ptr noalias nocapture readonly %b, ptr noalias nocapture %c) #0 {
 entry:
-  %0 = bitcast %"struct.std::complex"* %a to <2 x float>*
-  %1 = load <2 x float>, <2 x float>* %0, align 4
-  %2 = bitcast %"struct.std::complex"* %b to <2 x float>*
-  %3 = load <2 x float>, <2 x float>* %2, align 4
-  %4 = call spir_func <2 x float> @_Z24__spirv_ComplexFDivINTELDv2_fS_(<2 x float> %1, <2 x float> %3) #0
-  %ref.tmp.sroa.0.0..sroa_cast5 = bitcast %"struct.std::complex"* %c to <2 x float>*
-  store <2 x float> %4, <2 x float>* %ref.tmp.sroa.0.0..sroa_cast5, align 4
-  %5 = call spir_func <2 x float> @_Z24__spirv_ComplexFMulINTELDv2_fS_(<2 x float> %1, <2 x float> %3) #0
-  store <2 x float> %5, <2 x float>* %ref.tmp.sroa.0.0..sroa_cast5, align 4
+  %0 = load <2 x float>, ptr %a, align 4
+  %1 = load <2 x float>, ptr %b, align 4
+  %2 = call spir_func <2 x float> @_Z24__spirv_ComplexFDivINTELDv2_fS_(<2 x float> %0, <2 x float> %1) #0
+  store <2 x float> %2, ptr %c, align 4
+  %3 = call spir_func <2 x float> @_Z24__spirv_ComplexFMulINTELDv2_fS_(<2 x float> %0, <2 x float> %1) #0
+  store <2 x float> %3, ptr %c, align 4
   ret void
 }
 

@@ -853,7 +853,7 @@ void Sema::getUndefinedButUsed(
       continue;
     }
 
-    if (FunctionDecl *FD = dyn_cast<FunctionDecl>(ND)) {
+    if (const auto *FD = dyn_cast<FunctionDecl>(ND)) {
       if (FD->isDefined())
         continue;
       if (FD->isExternallyVisible() &&
@@ -864,7 +864,7 @@ void Sema::getUndefinedButUsed(
       if (FD->getBuiltinID())
         continue;
     } else {
-      auto *VD = cast<VarDecl>(ND);
+      const auto *VD = cast<VarDecl>(ND);
       if (VD->hasDefinition() != VarDecl::DeclarationOnly)
         continue;
       if (VD->isExternallyVisible() &&
@@ -1531,6 +1531,18 @@ NamedDecl *Sema::getCurFunctionOrMethodDecl() const {
   DeclContext *DC = getFunctionLevelDeclContext();
   if (isa<ObjCMethodDecl>(DC) || isa<FunctionDecl>(DC))
     return cast<NamedDecl>(DC);
+  return nullptr;
+}
+
+Decl *Sema::getCurLocalScopeDecl() {
+  if (const BlockScopeInfo *BSI = getCurBlock())
+    return BSI->TheDecl;
+  if (const LambdaScopeInfo *LSI = getCurLambda())
+    return LSI->CallOperator;
+  if (const CapturedRegionScopeInfo *CSI = getCurCapturedRegion())
+    return CSI->TheCapturedDecl;
+  if (NamedDecl *ND = getCurFunctionOrMethodDecl())
+    return ND;
   return nullptr;
 }
 

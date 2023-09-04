@@ -42,7 +42,7 @@ entry:
 ; SPV-DAG: EntryPoint {{[0-9]+}} [[KERNEL1:[0-9]+]] "k_float_controls_1"
 ; SPV-DAG: EntryPoint {{[0-9]+}} [[KERNEL2:[0-9]+]] "k_float_controls_2"
 ; SPV-DAG: EntryPoint {{[0-9]+}} [[KERNEL3:[0-9]+]] "k_float_controls_3"
-!0 = !{void (i32, i32)* @k_float_controls_0, !"k_float_controls_0", !1, i32 0, !2, !3, !4, i32 0, i32 0}
+!0 = !{ptr @k_float_controls_0, !"k_float_controls_0", !1, i32 0, !2, !3, !4, i32 0, i32 0}
 !1 = !{i32 2, i32 2}
 !2 = !{i32 32, i32 36}
 !3 = !{i32 0, i32 0}
@@ -52,29 +52,29 @@ entry:
 !14 = !{i32 1, i32 0}
 
 ; SPV-DAG: ExecutionMode [[KERNEL0]] 5620 64
-!15 = !{void (i32, i32)* @k_float_controls_0, i32 5620, i32 64}
+!15 = !{ptr @k_float_controls_0, i32 5620, i32 64}
 ; SPV-DAG: ExecutionMode [[KERNEL0]] 5620 32
-!16 = !{void (i32, i32)* @k_float_controls_0, i32 5620, i32 32}
+!16 = !{ptr @k_float_controls_0, i32 5620, i32 32}
 ; SPV-DAG: ExecutionMode [[KERNEL0]] 5620 16
-!17 = !{void (i32, i32)* @k_float_controls_0, i32 5620, i32 16}
+!17 = !{ptr @k_float_controls_0, i32 5620, i32 16}
 
 ; SPV-DAG: ExecutionMode [[KERNEL1]] 5621 64
-!18 = !{void (i32, i32)* @k_float_controls_1, i32 5621, i32 64}
+!18 = !{ptr @k_float_controls_1, i32 5621, i32 64}
 ; SPV-DAG: ExecutionMode [[KERNEL1]] 5621 32
-!19 = !{void (i32, i32)* @k_float_controls_1, i32 5621, i32 32}
+!19 = !{ptr @k_float_controls_1, i32 5621, i32 32}
 ; SPV-DAG: ExecutionMode [[KERNEL1]] 5621 16
-!20 = !{void (i32, i32)* @k_float_controls_1, i32 5621, i32 16}
+!20 = !{ptr @k_float_controls_1, i32 5621, i32 16}
 
 ; SPV-DAG: ExecutionMode [[KERNEL2]] 5622 64
-!21 = !{void (i32, i32)* @k_float_controls_2, i32 5622, i32 64}
+!21 = !{ptr @k_float_controls_2, i32 5622, i32 64}
 ; SPV-DAG: ExecutionMode [[KERNEL2]] 5622 32
-!22 = !{void (i32, i32)* @k_float_controls_2, i32 5622, i32 32}
+!22 = !{ptr @k_float_controls_2, i32 5622, i32 32}
 ; SPV-DAG: ExecutionMode [[KERNEL2]] 5622 16
-!23 = !{void (i32, i32)* @k_float_controls_2, i32 5622, i32 16}
+!23 = !{ptr @k_float_controls_2, i32 5622, i32 16}
 
 ; SPV-DAG: ExecutionMode [[KERNEL3]] 5623 64
-!24 = !{void (i32, i32)* @k_float_controls_3, i32 5623, i32 64}
+!24 = !{ptr @k_float_controls_3, i32 5623, i32 64}
 ; SPV-DAG: ExecutionMode [[KERNEL3]] 5623 32
-!25 = !{void (i32, i32)* @k_float_controls_3, i32 5623, i32 32}
+!25 = !{ptr @k_float_controls_3, i32 5623, i32 32}
 ; SPV-DAG: ExecutionMode [[KERNEL3]] 5623 16
-!26 = !{void (i32, i32)* @k_float_controls_3, i32 5623, i32 16}
+!26 = !{ptr @k_float_controls_3, i32 5623, i32 16}

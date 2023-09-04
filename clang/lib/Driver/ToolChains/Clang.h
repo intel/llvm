@@ -90,9 +90,7 @@ private:
                                  RewriteKind rewrite) const;
 
   void AddClangCLArgs(const llvm::opt::ArgList &Args, types::ID InputType,
-                      llvm::opt::ArgStringList &CmdArgs,
-                      llvm::codegenoptions::DebugInfoKind *DebugInfoKind,
-                      bool *EmitCodeView) const;
+                      llvm::opt::ArgStringList &CmdArgs) const;
 
   void ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
                                 const InputInfo &Output,

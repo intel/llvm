@@ -87,7 +87,12 @@ template <typename T> inline T __sincos(T x, T *cosval) {
 
 template <typename T> inline T __sinpi(T x) { return std::sin(M_PI * x); }
 
-template <typename T> inline T __tanpi(T x) { return std::tan(M_PI * x); }
+template <typename T> inline T __tanpi(T x) {
+  // For uniformity, place in range [0.0, 1.0).
+  double y = x - std::floor(x);
+  // Flip for better accuracy.
+  return 1.0 / std::tan((0.5 - y) * M_PI);
+}
 
 } // namespace
 
@@ -1078,7 +1083,7 @@ __SYCL_EXPORT s::cl_double sycl_host_tanpi(s::cl_double x) __NOEXC {
   return __tanpi(x);
 }
 __SYCL_EXPORT s::cl_half sycl_host_tanpi(s::cl_half x) __NOEXC {
-  return __tanpi(x);
+  return __tanpi<float>(x);
 }
 MAKE_1V(sycl_host_tanpi, s::cl_float, s::cl_float)
 MAKE_1V(sycl_host_tanpi, s::cl_double, s::cl_double)

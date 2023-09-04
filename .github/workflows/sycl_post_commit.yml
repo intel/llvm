@@ -5,7 +5,6 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
-    - llvmspirv_pulldown
 
   pull_request:
     branches:
