@@ -1,1 +1,9 @@
-Segmentation fault
+urKernelSetArgLocalTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
+urKernelSetArgLocalTest.InvalidNullHandleKernel/NVIDIA_CUDA_BACKEND___{{.*}}_
+urKernelSetArgLocalTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgPointerNegativeTest.InvalidNullHandleKernel/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}Segmentation fault
