@@ -12,8 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
-#include "llvm/IR/PassManager.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -246,7 +246,6 @@ Value *getStateArg(const Function *F) {
   auto *FT = F->getFunctionType();
   return F->getArg(FT->getNumParams() - 1);
 }
-
 
 static constexpr unsigned int NativeCPUGlobalAS = 1;
 

@@ -74,9 +74,8 @@ struct __nativecpu_state {
   [[intel::device_indirectly_callable]]
 #define __NCPU_ATTRS extern "C" __SYCL_HC_ATTRS
 
-__NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(unsigned dim,
-                                                __SYCL_NCPU_GLOBAL_AS
-                                                __nativecpu_state *s) {
+__NCPU_ATTRS size_t __dpcpp_nativecpu_global_id(
+    unsigned dim, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return s->MGlobal_id[dim];
 }
 
@@ -90,9 +89,8 @@ __NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_size(
   return s->MWorkGroup_size[dim];
 }
 
-__NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_id(unsigned dim,
-                                                __SYCL_NCPU_GLOBAL_AS
-                                                __nativecpu_state *s) {
+__NCPU_ATTRS size_t __dpcpp_nativecpu_get_wg_id(
+    unsigned dim, __SYCL_NCPU_GLOBAL_AS __nativecpu_state *s) {
   return s->MWorkGroup_id[dim];
 }
 
