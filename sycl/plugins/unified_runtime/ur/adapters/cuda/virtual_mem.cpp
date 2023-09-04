@@ -70,6 +70,8 @@ urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READWRITE;
   else if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
     AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_READ;
+  else
+    AccessDesc.flags = CU_MEM_ACCESS_FLAGS_PROT_NONE;
   AccessDesc.location.type = CU_MEM_LOCATION_TYPE_DEVICE;
   // TODO: When contexts support multiple devices, we should create a descriptor
   //       for each. We may also introduce a variant of this function with a
