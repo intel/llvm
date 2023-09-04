@@ -145,6 +145,7 @@
 //         - piextSignalExternalSemaphore
 // 14.37 Added piextUSMImportExternalPointer and piextUSMReleaseImportedPointer.
 // 14.38 Change PI_MEM_ADVICE_* values to flags for use in bitwise operations.
+// 14.39 Add HIP _pi_mem_advice alises to match the PI_MEM_ADVICE_CUDA* ones.
 
 #define _PI_H_VERSION_MAJOR 14
 #define _PI_H_VERSION_MINOR 38
@@ -576,6 +577,18 @@ typedef enum {
   PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST = 1 << 9,
   PI_MEM_ADVICE_UNKNOWN = 0x7FFFFFFF,
 } _pi_mem_advice;
+
+// HIP _pi_mem_advice aliases
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_READ_MOSTLY = PI_MEM_ADVICE_CUDA_SET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_READ_MOSTLY = PI_MEM_ADVICE_CUDA_UNSET_READ_MOSTLY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION = PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION = PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY = PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY = PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_PREFERRED_LOCATION_HOST = PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_PREFERRED_LOCATION_HOST = PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_SET_ACCESSED_BY_HOST = PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST;
+static constexpr _pi_mem_advice PI_MEM_ADVICE_HIP_UNSET_ACCESSED_BY_HOST = PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST;
 
 typedef enum {
   PI_IMAGE_CHANNEL_ORDER_A = 0x10B1,
