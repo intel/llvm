@@ -34,9 +34,12 @@ static Ty __handling_fp_overflow(unsigned z_sig, int rd) {
 
 template <typename UTy>
 static UTy __handling_rounding(UTy sig, UTy fra, unsigned grs, int rd) {
-  if (grs == 0) return 0;
-  if ((__IML_RTP == rd) && (sig == 0)) return 1;
-  if ((__IML_RTN == rd) && (sig == 1)) return 1;
+  if (grs == 0)
+    return 0;
+  if ((__IML_RTP == rd) && (sig == 0))
+    return 1;
+  if ((__IML_RTN == rd) && (sig == 1))
+    return 1;
   if ((__IML_RTE == rd)) {
     if ((grs > 0x4) || ((grs == 0x4) && ((fra & 0x1) == 0x1)))
       return 1;
@@ -91,7 +94,7 @@ template <typename Ty> Ty __fp_add_sig_same(Ty x, Ty y, int rd) {
 
   // y_fra_shift means y needs to be right shifted in order to align exp
   // with x, guard, round, sticky bit will be initialized and y_fra will
-  // change to. 
+  // change to.
   if (y_fra_shift > 0) {
     if (y_fra_shift == 1) {
       // if y_fra_shift == 1, bit 0 of y_fra will be dicarded from frac
@@ -99,24 +102,35 @@ template <typename Ty> Ty __fp_add_sig_same(Ty x, Ty y, int rd) {
       g_bit = y_fra & 0x1;
       y_fra = y_fra >> 1;
       if (y_ib == 1)
-        y_fra = y_fra | (static_cast<UTy>(1) << (std::numeric_limits<Ty>::digits - 2));
-    }  else if (y_fra_shift <= (std::numeric_limits<Ty>::digits - 1)) {
+        y_fra = y_fra |
+                (static_cast<UTy>(1) << (std::numeric_limits<Ty>::digits - 2));
+    } else if (y_fra_shift <= (std::numeric_limits<Ty>::digits - 1)) {
       // For fp32, when y_fra_shift <= 23, part of fra bits will be discarded
       // and these bits will be used to initialize g,r,s bit. Situation is
       // similar for fp64.
       g_bit = (y_fra & (static_cast<UTy>(0x1) << (y_fra_shift - 1))) ? 1 : 0;
       r_bit = (y_fra & (static_cast<UTy>(0x1) << (y_fra_shift - 2))) ? 1 : 0;
-      s_bit = (y_fra & ((static_cast<UTy>(0x1) << (y_fra_shift - 2)) - 1)) ? 1 : 0;
+      s_bit =
+          (y_fra & ((static_cast<UTy>(0x1) << (y_fra_shift - 2)) - 1)) ? 1 : 0;
       y_fra = y_fra >> y_fra_shift;
       if (y_ib == 1)
-        y_fra = y_fra | (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 1 - y_fra_shift));
+        y_fra =
+            y_fra | (static_cast<UTy>(0x1)
+                     << (std::numeric_limits<Ty>::digits - 1 - y_fra_shift));
     } else if (y_fra_shift == std::numeric_limits<Ty>::digits) {
       // For fp32, when y_fra_shift == 24, fra will be 0 and implicit bit will
       // be guard bit, bit 22 of original fra will be round bit. Situation is
       // similar for fp64.
       g_bit = y_ib;
-      r_bit = (y_fra & (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 2))) ? 1 : 0;
-      s_bit = (y_fra & ((static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 2)) - 1)) ? 1 : 0;
+      r_bit = (y_fra &
+               (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 2)))
+                  ? 1
+                  : 0;
+      s_bit = (y_fra & ((static_cast<UTy>(0x1)
+                         << (std::numeric_limits<Ty>::digits - 2)) -
+                        1))
+                  ? 1
+                  : 0;
       y_fra = 0;
     } else if (y_fra_shift == 25) {
       r_bit = y_ib;
@@ -141,11 +155,12 @@ template <typename Ty> Ty __fp_add_sig_same(Ty x, Ty y, int rd) {
     g_bit = z_fra & 0x1;
     z_fra = z_fra >> 1;
     if (z_ib == 3)
-      z_fra = z_fra | (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 2));
+      z_fra = z_fra |
+              (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 2));
     z_exp++;
   } else {
     z_ib = x_ib + y_ib;
-    if (z_ib == 2) { 
+    if (z_ib == 2) {
       s_bit = (r_bit == 1) ? 1 : s_bit;
       r_bit = g_bit;
       g_bit = z_fra & 0x1;
@@ -154,17 +169,20 @@ template <typename Ty> Ty __fp_add_sig_same(Ty x, Ty y, int rd) {
     }
   }
 
-  UTy rb = __handling_rounding(x_sig, z_fra, ((g_bit << 2) | (r_bit << 1) | s_bit), rd);
+  UTy rb = __handling_rounding(x_sig, z_fra,
+                               ((g_bit << 2) | (r_bit << 1) | s_bit), rd);
   z_fra += rb;
-  if (z_fra == (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 1))) {
+  if (z_fra ==
+      (static_cast<UTy>(0x1) << (std::numeric_limits<Ty>::digits - 1))) {
     z_fra = 0;
     z_exp++;
   }
 
   if (z_exp == __iml_fp_config<Ty>::exp_mask)
-      return __handling_fp_overflow<Ty>(x_sig, rd);
-  return __builtin_bit_cast(Ty, x_sig << (sizeof(Ty) * 8 - 1) | (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
-
+    return __handling_fp_overflow<Ty>(x_sig, rd);
+  return __builtin_bit_cast(
+      Ty, x_sig << (sizeof(Ty) * 8 - 1) |
+              (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
 }
 
 template <typename Ty> Ty __fp_add_sig_diff(Ty x, Ty y, int rd) { return 0; }
