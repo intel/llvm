@@ -25,21 +25,6 @@ typedef uint16_t _iml_half_internal;
 
 static uint16_t __iml_half_exp_mask = 0x7C00;
 
-template <typename Ty> struct __iml_fp_config {};
-
-template <> struct __iml_fp_config<float> {
-  // signed/unsigned integral type with same size
-  using utype = uint32_t;
-  using stype = int32_t;
-  const static uint32_t exp_mask = 0xFF;
-};
-
-template <> struct __iml_fp_config<double> {
-  using utype = uint64_t;
-  using stype = int64_t;
-  const static uint64_t exp_mask = 0x7FF;
-};
-
 static uint16_t __iml_half_overflow_handle(__iml_rounding_mode rounding_mode,
                                            uint16_t sign) {
   if (rounding_mode == __IML_RTZ) {

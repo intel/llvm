@@ -1852,4 +1852,28 @@ DEVICE_EXTERN_C_INLINE
 float __imf_fast_powf(float x, float y) {
   return __devicelib_imf_fast_powf(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rd(float x, float y) { return __devicelib_imf_fadd_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rn(float x, float y) { return __devicelib_imf_fadd_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_ru(float x, float y) { return __devicelib_imf_fadd_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rz(float x, float y) { return __devicelib_imf_fadd_rz(x, y); }
 #endif // __LIBDEVICE_IMF_ENABLED__
