@@ -16,8 +16,10 @@ add_mlir_dialect_library(MLIRLinalgTransformOps
   LINK_LIBS PUBLIC
   MLIRAffineDialect
   MLIRArithDialect
+  MLIRBufferizationDialect
   MLIRBufferizationTransforms
   MLIRFuncDialect
+  MLIRFunctionInterfaces
   MLIRIR
   MLIRLinalgDialect
   MLIRLinalgTransforms

@@ -36,18 +36,17 @@ $"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE4Test" = comdat any
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE4Test"() local_unnamed_addr #0 comdat !kernel_arg_buffer_location !3 {
 entry:
   %agg.tmp.i = alloca %struct._ZTS1A.A, align 8
-  %0 = bitcast ptr %agg.tmp.i to ptr
-  call void @llvm.lifetime.start.p0i8(i64 65600, ptr nonnull %0)
+  call void @llvm.lifetime.start.p0(i64 65600, ptr nonnull %agg.tmp.i)
   tail call spir_func void @_Z3foo1A(ptr nonnull byval(%struct._ZTS1A.A) align 8 %agg.tmp.i) #3
-  call void @llvm.lifetime.end.p0i8(i64 65600, ptr nonnull %0)
+  call void @llvm.lifetime.end.p0(i64 65600, ptr nonnull %agg.tmp.i)
   ret void
 }
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: argmemonly nofree nosync nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, ptr nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: convergent
 declare dso_local spir_func void @_Z3foo1A(ptr byval(%struct._ZTS1A.A) align 8) local_unnamed_addr #2

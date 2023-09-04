@@ -43,11 +43,13 @@ std::string getMatchOpcodeForImmPredicate(const TreePredicateFn &Predicate) {
 
 //===- Helpers ------------------------------------------------------------===//
 
-std::string
-getNameForFeatureBitset(const std::vector<Record *> &FeatureBitset) {
+std::string getNameForFeatureBitset(const std::vector<Record *> &FeatureBitset,
+                                    int HwModeIdx) {
   std::string Name = "GIFBS";
   for (const auto &Feature : FeatureBitset)
     Name += ("_" + Feature->getName()).str();
+  if (HwModeIdx >= 0)
+    Name += ("_HwMode" + std::to_string(HwModeIdx));
   return Name;
 }
 
@@ -851,9 +853,10 @@ void RuleMatcher::emit(MatchTable &Table) {
         << MatchTable::Comment(("Rule ID " + Twine(RuleID) + " //").str())
         << MatchTable::LineBreak;
 
-  if (!RequiredFeatures.empty()) {
+  if (!RequiredFeatures.empty() || HwModeIdx >= 0) {
     Table << MatchTable::Opcode("GIM_CheckFeatures")
-          << MatchTable::NamedValue(getNameForFeatureBitset(RequiredFeatures))
+          << MatchTable::NamedValue(
+                 getNameForFeatureBitset(RequiredFeatures, HwModeIdx))
           << MatchTable::LineBreak;
   }
 
@@ -1935,9 +1938,12 @@ void BuildMIAction::emitActionOpcodes(MatchTable &Table,
         auto Namespace = Def->getValue("Namespace")
                              ? Def->getValueAsString("Namespace")
                              : "";
+        const bool IsDead = DeadImplicitDefs.contains(Def);
         Table << MatchTable::Opcode("GIR_AddImplicitDef")
               << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
               << MatchTable::NamedValue(Namespace, Def->getName())
+              << (IsDead ? MatchTable::NamedValue("RegState", "Dead")
+                         : MatchTable::IntValue(0))
               << MatchTable::LineBreak;
       }
       for (auto *Use : I->ImplicitUses) {
@@ -1962,6 +1968,19 @@ void BuildMIAction::emitActionOpcodes(MatchTable &Table,
         << MatchTable::LineBreak;
   for (const auto &Renderer : OperandRenderers)
     Renderer->emitRenderOpcodes(Table, Rule);
+
+  for (auto [OpIdx, Def] : enumerate(I->ImplicitDefs)) {
+    auto Namespace =
+        Def->getValue("Namespace") ? Def->getValueAsString("Namespace") : "";
+    if (DeadImplicitDefs.contains(Def)) {
+      Table
+          << MatchTable::Opcode("GIR_SetImplicitDefDead")
+          << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
+          << MatchTable::Comment(
+                 ("OpIdx for " + Namespace + "::" + Def->getName() + "").str())
+          << MatchTable::IntValue(OpIdx) << MatchTable::LineBreak;
+    }
+  }
 
   if (I->mayLoad || I->mayStore) {
     Table << MatchTable::Opcode("GIR_MergeMemOperands")

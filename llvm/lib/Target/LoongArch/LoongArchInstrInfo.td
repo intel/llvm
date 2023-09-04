@@ -182,7 +182,7 @@ def imm32 : Operand<GRLenVT> {
   let ParserMatchClass = ImmAsmOperand<"", 32, "">;
 }
 
-def uimm1 : Operand<GRLenVT> {
+def uimm1 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<1>(Imm);}]>{
   let ParserMatchClass = UImmAsmOperand<1>;
 }
 
@@ -197,11 +197,11 @@ def uimm2_plus1 : Operand<GRLenVT>,
   let DecoderMethod = "decodeUImmOperand<2, 1>";
 }
 
-def uimm3 : Operand<GRLenVT> {
+def uimm3 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<3>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<3>;
 }
 
-def uimm4 : Operand<GRLenVT> {
+def uimm4 : Operand<GRLenVT>, ImmLeaf<GRLenVT, [{return isUInt<4>(Imm);}]> {
   let ParserMatchClass = UImmAsmOperand<4>;
 }
 
@@ -517,6 +517,40 @@ def AlslSlliImmI0 : SDNodeXForm<imm, [{
   }
   return CurDAG->getTargetConstant(I0, SDLoc(N),
                                    N->getValueType(0));
+}]>;
+
+// Check if (and r, imm) can be optimized to (BSTRINS r, R0, msb, lsb),
+// in which imm = ~((2^^(msb-lsb+1) - 1) << lsb).
+def BstrinsImm : PatLeaf<(imm), [{
+  if (!N->hasOneUse())
+    return false;
+  uint64_t Imm = N->getZExtValue();
+  // andi can be used instead if Imm <= 0xfff.
+  if (Imm <= 0xfff)
+    return false;
+  unsigned MaskIdx, MaskLen;
+  return N->getValueType(0).getSizeInBits() == 32
+             ? llvm::isShiftedMask_32(~Imm, MaskIdx, MaskLen)
+             : llvm::isShiftedMask_64(~Imm, MaskIdx, MaskLen);
+}]>;
+
+def BstrinsMsb: SDNodeXForm<imm, [{
+  uint64_t Imm = N->getZExtValue();
+  unsigned MaskIdx, MaskLen;
+  N->getValueType(0).getSizeInBits() == 32
+      ? llvm::isShiftedMask_32(~Imm, MaskIdx, MaskLen)
+      : llvm::isShiftedMask_64(~Imm, MaskIdx, MaskLen);
+  return CurDAG->getTargetConstant(MaskIdx + MaskLen - 1, SDLoc(N),
+                                   N->getValueType(0));
+}]>;
+
+def BstrinsLsb: SDNodeXForm<imm, [{
+  uint64_t Imm = N->getZExtValue();
+  unsigned MaskIdx, MaskLen;
+  N->getValueType(0).getSizeInBits() == 32
+      ? llvm::isShiftedMask_32(~Imm, MaskIdx, MaskLen)
+      : llvm::isShiftedMask_64(~Imm, MaskIdx, MaskLen);
+  return CurDAG->getTargetConstant(MaskIdx, SDLoc(N), N->getValueType(0));
 }]>;
 
 //===----------------------------------------------------------------------===//
@@ -1141,6 +1175,18 @@ def : Pat<(not GPR:$rj), (NOR GPR:$rj, R0)>;
 def : Pat<(not (or GPR:$rj, GPR:$rk)), (NOR GPR:$rj, GPR:$rk)>;
 def : Pat<(or GPR:$rj, (not GPR:$rk)), (ORN GPR:$rj, GPR:$rk)>;
 def : Pat<(and GPR:$rj, (not GPR:$rk)), (ANDN GPR:$rj, GPR:$rk)>;
+
+let Predicates = [IsLA32] in {
+def : Pat<(and GPR:$rj, BstrinsImm:$imm),
+          (BSTRINS_W GPR:$rj, R0, (BstrinsMsb BstrinsImm:$imm),
+                     (BstrinsLsb BstrinsImm:$imm))>;
+} // Predicates = [IsLA32]
+
+let Predicates = [IsLA64] in {
+def : Pat<(and GPR:$rj, BstrinsImm:$imm),
+          (BSTRINS_D GPR:$rj, R0, (BstrinsMsb BstrinsImm:$imm),
+                     (BstrinsLsb BstrinsImm:$imm))>;
+} // Predicates = [IsLA64]
 
 /// Traps
 

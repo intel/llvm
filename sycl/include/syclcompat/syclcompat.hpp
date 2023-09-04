@@ -26,3 +26,4 @@
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
 #include <syclcompat/kernel.hpp>
+#include <syclcompat/memory.hpp>

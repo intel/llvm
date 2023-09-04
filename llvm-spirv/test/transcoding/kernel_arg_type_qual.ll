@@ -23,7 +23,7 @@ target triple = "spir64-unknown-unknown."
 ; CHECK-LLVM-WORKAROUND-NEGATIVE: !kernel_arg_type_qual
 
 ; Function Attrs: convergent noinline norecurse nounwind optnone
-define dso_local spir_kernel void @test(float addrspace(1)* %g, float addrspace(1)* %c, float addrspace(1)* %asd) #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define dso_local spir_kernel void @test(ptr addrspace(1) %g, ptr addrspace(1) %c, ptr addrspace(1) %asd) #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
   ret void
 }

@@ -70,14 +70,15 @@ using namespace mlir;
 using namespace mlir::bufferization;
 
 /// Walks over all immediate return-like terminators in the given region.
-static LogicalResult
-walkReturnOperations(Region *region,
-                     llvm::function_ref<LogicalResult(Operation *)> func) {
+static LogicalResult walkReturnOperations(
+    Region *region,
+    llvm::function_ref<LogicalResult(RegionBranchTerminatorOpInterface)> func) {
   for (Block &block : *region) {
     Operation *terminator = block.getTerminator();
     // Skip non region-return-like terminators.
-    if (isRegionReturnLike(terminator)) {
-      if (failed(func(terminator)))
+    if (auto regionTerminator =
+            dyn_cast<RegionBranchTerminatorOpInterface>(terminator)) {
+      if (failed(func(regionTerminator)))
         return failure();
     }
   }
@@ -371,7 +372,7 @@ private:
     // parent operation. In this case, we have to introduce an additional clone
     // for buffer that is passed to the argument.
     SmallVector<RegionSuccessor, 2> successorRegions;
-    regionInterface.getSuccessorRegions(/*index=*/std::nullopt,
+    regionInterface.getSuccessorRegions(/*point=*/RegionBranchPoint::parent(),
                                         successorRegions);
     auto *it =
         llvm::find_if(successorRegions, [&](RegionSuccessor &successorRegion) {
@@ -382,8 +383,7 @@ private:
 
     // Determine the actual operand to introduce a clone for and rewire the
     // operand to point to the clone instead.
-    auto operands =
-        regionInterface.getSuccessorEntryOperands(argRegion->getRegionNumber());
+    auto operands = regionInterface.getEntrySuccessorOperands(argRegion);
     size_t operandIndex =
         llvm::find(it->getSuccessorInputs(), blockArg).getIndex() +
         operands.getBeginOperandIndex();
@@ -431,8 +431,7 @@ private:
       // Query the regionInterface to get all successor regions of the current
       // one.
       SmallVector<RegionSuccessor, 2> successorRegions;
-      regionInterface.getSuccessorRegions(region.getRegionNumber(),
-                                          successorRegions);
+      regionInterface.getSuccessorRegions(region, successorRegions);
       // Try to find a matching region successor.
       RegionSuccessor *regionSuccessor =
           llvm::find_if(successorRegions, regionPredicate);
@@ -447,23 +446,24 @@ private:
       // Iterate over all immediate terminator operations to introduce
       // new buffer allocations. Thereby, the appropriate terminator operand
       // will be adjusted to point to the newly allocated buffer instead.
-      if (failed(walkReturnOperations(&region, [&](Operation *terminator) {
-            // Get the actual mutable operands for this terminator op.
-            auto terminatorOperands = *getMutableRegionBranchSuccessorOperands(
-                terminator, region.getRegionNumber());
-            // Extract the source value from the current terminator.
-            // This conversion needs to exist on a separate line due to a bug in
-            // GCC conversion analysis.
-            OperandRange immutableTerminatorOperands = terminatorOperands;
-            Value sourceValue = immutableTerminatorOperands[operandIndex];
-            // Create a new clone at the current location of the terminator.
-            auto clone = introduceCloneBuffers(sourceValue, terminator);
-            if (failed(clone))
-              return failure();
-            // Wire clone and terminator operand.
-            terminatorOperands.slice(operandIndex, 1).assign(*clone);
-            return success();
-          })))
+      if (failed(walkReturnOperations(
+              &region, [&](RegionBranchTerminatorOpInterface terminator) {
+                // Get the actual mutable operands for this terminator op.
+                auto terminatorOperands =
+                    terminator.getMutableSuccessorOperands(*regionSuccessor);
+                // Extract the source value from the current terminator.
+                // This conversion needs to exist on a separate line due to a
+                // bug in GCC conversion analysis.
+                OperandRange immutableTerminatorOperands = terminatorOperands;
+                Value sourceValue = immutableTerminatorOperands[operandIndex];
+                // Create a new clone at the current location of the terminator.
+                auto clone = introduceCloneBuffers(sourceValue, terminator);
+                if (failed(clone))
+                  return failure();
+                // Wire clone and terminator operand.
+                terminatorOperands.slice(operandIndex, 1).assign(*clone);
+                return success();
+              })))
         return failure();
     }
     return success();
@@ -637,6 +637,22 @@ struct DefaultAllocationInterface
     return builder.create<bufferization::CloneOp>(alloc.getLoc(), alloc)
         .getResult();
   }
+  static ::mlir::HoistingKind getHoistingKind() {
+    return HoistingKind::Loop | HoistingKind::Block;
+  }
+  static ::std::optional<::mlir::Operation *>
+  buildPromotedAlloc(OpBuilder &builder, Value alloc) {
+    Operation *definingOp = alloc.getDefiningOp();
+    return builder.create<memref::AllocaOp>(
+        definingOp->getLoc(), cast<MemRefType>(definingOp->getResultTypes()[0]),
+        definingOp->getOperands(), definingOp->getAttrs());
+  }
+};
+
+struct DefaultAutomaticAllocationHoistingInterface
+    : public bufferization::AllocationOpInterface::ExternalModel<
+          DefaultAutomaticAllocationHoistingInterface, memref::AllocaOp> {
+  static ::mlir::HoistingKind getHoistingKind() { return HoistingKind::Loop; }
 };
 
 struct DefaultReallocationInterface
@@ -713,6 +729,8 @@ void bufferization::registerAllocationOpInterfaceExternalModels(
     DialectRegistry &registry) {
   registry.addExtension(+[](MLIRContext *ctx, memref::MemRefDialect *dialect) {
     memref::AllocOp::attachInterface<DefaultAllocationInterface>(*ctx);
+    memref::AllocaOp::attachInterface<
+        DefaultAutomaticAllocationHoistingInterface>(*ctx);
     memref::ReallocOp::attachInterface<DefaultReallocationInterface>(*ctx);
   });
 }
