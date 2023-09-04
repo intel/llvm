@@ -2742,7 +2742,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
                                        /*SignedIndices=*/false, isSubtraction,
                                        E->getExprLoc(), "incdec.funcptr");
 
-
     // For everything else, we can just do a simple increment.
     } else {
       llvm::Value *amt = Builder.getInt32(amount);

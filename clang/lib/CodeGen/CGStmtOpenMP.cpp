@@ -7274,8 +7274,8 @@ void CodeGenFunction::EmitOMPUseDeviceAddrClause(
     // correct mapping, since the pointer to the data was passed to the runtime.
     if (isa<DeclRefExpr>(Ref->IgnoreParenImpCasts()) ||
         MatchingVD->getType()->isArrayType()) {
-      QualType PtrTy = getContext().getPointerType(
-          OrigVD->getType().getNonReferenceType());
+      QualType PtrTy =
+          getContext().getPointerType(OrigVD->getType().getNonReferenceType());
       PrivAddr =
           EmitLoadOfPointer(PrivAddr.withElementType(ConvertTypeForMem(PtrTy)),
                             PtrTy->castAs<PointerType>());

@@ -235,7 +235,6 @@ public:
   llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF, Address Value,
                                      QualType SrcRecordTy) override;
 
-
   llvm::Value *emitExactDynamicCast(CodeGenFunction &CGF, Address ThisAddr,
                                     QualType SrcRecordTy, QualType DestTy,
                                     QualType DestRecordTy,
@@ -2028,8 +2027,7 @@ llvm::GlobalVariable *ItaniumCXXABI::getAddrOfVTable(const CXXRecordDecl *RD,
 }
 
 CGCallee ItaniumCXXABI::getVirtualFunctionPointer(CodeGenFunction &CGF,
-                                                  GlobalDecl GD,
-                                                  Address This,
+                                                  GlobalDecl GD, Address This,
                                                   llvm::Type *Ty,
                                                   SourceLocation Loc) {
   llvm::Type *PtrTy = CGM.GlobalsInt8PtrTy;

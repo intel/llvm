@@ -2648,7 +2648,6 @@ void CodeGenFunction::EmitARCDestroyWeak(Address addr) {
   if (!fn)
     fn = getARCIntrinsic(llvm::Intrinsic::objc_destroyWeak, CGM);
 
-
   EmitNounwindRuntimeCall(fn, addr.getPointer());
 }
 

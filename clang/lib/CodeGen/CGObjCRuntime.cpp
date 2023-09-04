@@ -372,7 +372,6 @@ CGObjCRuntime::getMessageSendInfo(const ObjCMethodDecl *method,
     const CGFunctionInfo &signature =
       CGM.getTypes().arrangeObjCMessageSendSignature(method, callArgs[0].Ty);
 
-
     const CGFunctionInfo &signatureForCall =
       CGM.getTypes().arrangeCall(signature, callArgs);
 

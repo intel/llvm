@@ -155,7 +155,6 @@ public:
                             Addr.isKnownNonNull());
   }
 
-
   using CGBuilderBaseTy::CreatePointerBitCastOrAddrSpaceCast;
   Address CreatePointerBitCastOrAddrSpaceCast(Address Addr, llvm::Type *Ty,
                                               llvm::Type *ElementTy,

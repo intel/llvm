@@ -241,7 +241,6 @@ CodeGenFunction::GetAddressOfDirectBaseInCompleteClass(Address This,
     V = Builder.CreateConstInBoundsByteGEP(V, Offset);
   }
   return V.withElementType(ConvertType(Base));
-
 }
 
 static Address
@@ -436,7 +435,6 @@ CodeGenFunction::GetAddressOfDerivedClass(Address BaseAddr,
   llvm::Value *Value = BaseAddr.getPointer();
   Value = Builder.CreateInBoundsGEP(
       Int8Ty, Value, Builder.CreateNeg(NonVirtualOffset), "sub.ptr");
-
 
   // Produce a PHI if we had a null-check.
   if (NullCheckValue) {
@@ -2673,8 +2671,7 @@ void CodeGenFunction::InitializeVTablePointers(const CXXRecordDecl *RD) {
     CGM.getCXXABI().initializeHiddenVirtualInheritanceMembers(*this, RD);
 }
 
-llvm::Value *CodeGenFunction::GetVTablePtr(Address This,
-                                           llvm::Type *VTableTy,
+llvm::Value *CodeGenFunction::GetVTablePtr(Address This, llvm::Type *VTableTy,
                                            const CXXRecordDecl *RD) {
   Address VTablePtrSrc = This.withElementType(VTableTy);
   llvm::Instruction *VTable = Builder.CreateLoad(VTablePtrSrc, "vtable");

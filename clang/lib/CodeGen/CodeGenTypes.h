@@ -78,13 +78,11 @@ class CodeGenTypes {
   /// Hold memoized CGFunctionInfo results.
   llvm::FoldingSet<CGFunctionInfo> FunctionInfos{FunctionInfosLog2InitSize};
 
-
   llvm::SmallPtrSet<const CGFunctionInfo*, 4> FunctionsBeingProcessed;
 
   /// True if we didn't layout a function due to a being inside
   /// a recursive struct conversion, set this to true.
   bool SkippedLayout;
-
 
   /// This map keeps cache of llvm::Types and maps clang::Type to
   /// corresponding llvm::Type.

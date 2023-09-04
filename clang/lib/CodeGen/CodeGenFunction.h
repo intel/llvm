@@ -2659,7 +2659,6 @@ public:
                                  AggValueSlot::DoesNotOverlap);
   }
 
-
   /// EvaluateExprAsBool - Perform the usual unary conversions on the specified
   /// expression and compare the result against zero, returning an Int1Ty value.
   llvm::Value *EvaluateExprAsBool(const Expr *E);

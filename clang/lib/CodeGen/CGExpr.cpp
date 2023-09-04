@@ -56,7 +56,6 @@ using namespace CodeGen;
 //                        Miscellaneous Helper Methods
 //===--------------------------------------------------------------------===//
 
-
 /// CreateTempAlloca - This creates a alloca and inserts it into the entry
 /// block.
 Address CodeGenFunction::CreateTempAllocaWithoutCast(llvm::Type *Ty,
@@ -2489,7 +2488,6 @@ static void setObjCGCLValueClass(const ASTContext &Ctx, const Expr *E,
     return;
   }
 }
-
 
 static LValue EmitThreadPrivateVarDeclLValue(
     CodeGenFunction &CGF, const VarDecl *VD, QualType T, Address Addr,

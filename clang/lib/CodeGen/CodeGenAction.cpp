@@ -1104,7 +1104,6 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
   if (BA != Backend_EmitNothing && !OS)
     return nullptr;
 
-
   // Load bitcode modules to link with, if we need to.
   if (loadLinkModules(CI))
     return nullptr;
@@ -1139,7 +1138,6 @@ std::unique_ptr<llvm::Module>
 CodeGenAction::loadModule(MemoryBufferRef MBRef) {
   CompilerInstance &CI = getCompilerInstance();
   SourceManager &SM = CI.getSourceManager();
-
 
   auto DiagErrors = [&](Error E) -> std::unique_ptr<llvm::Module> {
     unsigned DiagID =

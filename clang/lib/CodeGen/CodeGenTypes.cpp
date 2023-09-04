@@ -142,7 +142,6 @@ bool CodeGenTypes::isFuncParamTypeConvertible(QualType Ty) {
   // Incomplete types cannot be converted.
   // Incomplete types cannot be converted.
   return !TT->isIncompleteType();
-
 }
 
 

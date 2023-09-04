@@ -173,8 +173,6 @@ public:
   llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF, Address Value,
                                      QualType SrcRecordTy) override;
 
-
-
   bool EmitBadCastCall(CodeGenFunction &CGF) override;
   bool canSpeculativelyEmitVTable(const CXXRecordDecl *RD) const override {
     return false;

@@ -1681,7 +1681,6 @@ CodeGenTypes::GetFunctionType(const CGFunctionInfo &FI) {
     ArgTypes[IRFunctionArgs.getInallocaArgNo()] =
         llvm::PointerType::getUnqual(getLLVMContext());
 
-
   // Add in all of the required arguments.
   unsigned ArgNo = 0;
   CGFunctionInfo::const_arg_iterator it = FI.arg_begin(),
@@ -3932,7 +3931,7 @@ void CodeGenFunction::EmitFunctionEpilog(const CGFunctionInfo &FI,
     auto coercionType = RetAI.getCoerceAndExpandType();
 
     // Load all of the coerced elements out into results.
-    llvm::SmallVector<llvm::Value*, 4> results;
+    llvm::SmallVector<llvm::Value *, 4> results;
     Address addr = ReturnValue.withElementType(coercionType);
     for (unsigned i = 0, e = coercionType->getNumElements(); i != e; ++i) {
       auto coercedEltType = coercionType->getElementType(i);

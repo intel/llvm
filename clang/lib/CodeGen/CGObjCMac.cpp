@@ -5013,8 +5013,7 @@ void CGObjCMac::EmitObjCStrongCastAssign(CodeGen::CodeGenFunction &CGF,
 }
 
 void CGObjCMac::EmitGCMemmoveCollectable(CodeGen::CodeGenFunction &CGF,
-                                         Address DestPtr,
-                                         Address SrcPtr,
+                                         Address DestPtr, Address SrcPtr,
                                          llvm::Value *size) {
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
@@ -7685,10 +7684,8 @@ void CGObjCNonFragileABIMac::EmitObjCStrongCastAssign(
 }
 
 void CGObjCNonFragileABIMac::EmitGCMemmoveCollectable(
-  CodeGen::CodeGenFunction &CGF,
-  Address DestPtr,
-  Address SrcPtr,
-  llvm::Value *Size) {
+    CodeGen::CodeGenFunction &CGF, Address DestPtr, Address SrcPtr,
+    llvm::Value *Size) {
   llvm::Value *args[] = { DestPtr.getPointer(), SrcPtr.getPointer(), Size };
   CGF.EmitNounwindRuntimeCall(ObjCTypes.GcMemmoveCollectableFn(), args);
 }
