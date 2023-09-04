@@ -18,13 +18,20 @@ function(add_fuzz_test name label)
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
     set(ENV_VARS UR_ENABLE_LAYERS=UR_LAYER_FULL_VALIDATION)
-    if (UR_BUILD_ADAPTER_L0)
+    if(UR_BUILD_ADAPTER_L0)
         list(APPEND ENV_VARS
                 UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\"
                 NEOReadDebugKeys=1
                 DisableDeepBind=1)
     else()
         list(APPEND ENV_VARS UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_null>\")
+    endif()
+    if(UR_ENABLE_TRACING)
+        list(APPEND ENV_VARS
+                XPTI_TRACE_ENABLE=1
+                XPTI_FRAMEWORK_DISPATCHER=$<TARGET_FILE:xptifw>
+                XPTI_SUBSCRIBERS=$<TARGET_FILE:collector>
+                UR_ENABLE_LAYERS=UR_LAYER_TRACING)
     endif()
     set_tests_properties(${TEST_TARGET_NAME} PROPERTIES
         LABELS ${label}
