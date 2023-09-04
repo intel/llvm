@@ -482,6 +482,10 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     return std::string(getWebAssemblyTargetCPU(Args));
+
+  case llvm::Triple::loongarch32:
+  case llvm::Triple::loongarch64:
+    return loongarch::getLoongArchTargetCPU(Args, T);
   }
 }
 
@@ -532,7 +536,7 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     break;
   case llvm::Triple::x86:
   case llvm::Triple::x86_64:
-    x86::getX86TargetFeatures(D, Triple, Args, Features);
+    x86::getX86TargetFeatures(D, Triple, Args, Features, ForAS);
     break;
   case llvm::Triple::hexagon:
     hexagon::getHexagonTargetFeatures(D, Triple, Args, Features);
@@ -588,9 +592,9 @@ llvm::StringRef tools::getLTOParallelism(const ArgList &Args, const Driver &D) {
   return LtoJobsArg->getValue();
 }
 
-// CloudABI and PS4/PS5 use -ffunction-sections and -fdata-sections by default.
+// PS4/PS5 uses -ffunction-sections and -fdata-sections by default.
 bool tools::isUseSeparateSections(const llvm::Triple &Triple) {
-  return Triple.getOS() == llvm::Triple::CloudABI || Triple.isPS();
+  return Triple.isPS();
 }
 
 void tools::addLTOOptions(const ToolChain &ToolChain, const ArgList &Args,
@@ -1005,24 +1009,30 @@ static bool addSanitizerDynamicList(const ToolChain &TC, const ArgList &Args,
   return false;
 }
 
-const char *tools::getAsNeededOption(const ToolChain &TC, bool as_needed) {
+void tools::addAsNeededOption(const ToolChain &TC,
+                              const llvm::opt::ArgList &Args,
+                              llvm::opt::ArgStringList &CmdArgs,
+                              bool as_needed) {
   assert(!TC.getTriple().isOSAIX() &&
          "AIX linker does not support any form of --as-needed option yet.");
 
   // While the Solaris 11.2 ld added --as-needed/--no-as-needed as aliases
   // for the native forms -z ignore/-z record, they are missing in Illumos,
   // so always use the native form.
-  if (TC.getTriple().isOSSolaris())
-    return as_needed ? "-zignore" : "-zrecord";
-  else
-    return as_needed ? "--as-needed" : "--no-as-needed";
+  if (TC.getTriple().isOSSolaris()) {
+    CmdArgs.push_back("-z");
+    CmdArgs.push_back(as_needed ? "ignore" : "record");
+  } else {
+    CmdArgs.push_back(as_needed ? "--as-needed" : "--no-as-needed");
+  }
 }
 
 void tools::linkSanitizerRuntimeDeps(const ToolChain &TC,
+                                     const llvm::opt::ArgList &Args,
                                      ArgStringList &CmdArgs) {
   // Force linking against the system libraries sanitizers depends on
   // (see PR15823 why this is necessary).
-  CmdArgs.push_back(getAsNeededOption(TC, false));
+  addAsNeededOption(TC, Args, CmdArgs, false);
   // There's no libpthread or librt on RTEMS & Android.
   if (TC.getTriple().getOS() != llvm::Triple::RTEMS &&
       !TC.getTriple().isAndroid() && !TC.getTriple().isOHOSFamily()) {
@@ -1266,8 +1276,10 @@ bool tools::addXRayRuntime(const ToolChain&TC, const ArgList &Args, ArgStringLis
   return false;
 }
 
-void tools::linkXRayRuntimeDeps(const ToolChain &TC, ArgStringList &CmdArgs) {
-  CmdArgs.push_back(getAsNeededOption(TC, false));
+void tools::linkXRayRuntimeDeps(const ToolChain &TC,
+                                const llvm::opt::ArgList &Args,
+                                ArgStringList &CmdArgs) {
+  addAsNeededOption(TC, Args, CmdArgs, false);
   CmdArgs.push_back("-lpthread");
   if (!TC.getTriple().isOSOpenBSD())
     CmdArgs.push_back("-lrt");
@@ -1820,7 +1832,7 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
                   !TC.getTriple().isAndroid() &&
                   !TC.getTriple().isOSCygMing() && !TC.getTriple().isOSAIX();
   if (AsNeeded)
-    CmdArgs.push_back(getAsNeededOption(TC, true));
+    addAsNeededOption(TC, Args, CmdArgs, true);
 
   switch (UNW) {
   case ToolChain::UNW_Libgcc: {
@@ -1852,7 +1864,7 @@ static void AddUnwindLibrary(const ToolChain &TC, const Driver &D,
   }
 
   if (AsNeeded)
-    CmdArgs.push_back(getAsNeededOption(TC, false));
+    addAsNeededOption(TC, Args, CmdArgs, false);
 }
 
 static void AddLibgcc(const ToolChain &TC, const Driver &D,

@@ -35,15 +35,14 @@ entry:
 ; Function Attrs: nounwind
 define spir_func i32 @f4(i32 %val, ptr addrspace(4) %ptr) #1 {
 entry:
-  %0 = bitcast ptr addrspace(4) %ptr to ptr addrspace(4)
-  %call = tail call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4) %0) #3
+  %call = tail call spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4) %ptr) #3
   %switch.i = icmp ult i32 %call, 4
-  %1 = load i32, ptr addrspace(4) %ptr, align 4
-  %cmp = icmp eq i32 %1, %val
+  %0 = load i32, ptr addrspace(4) %ptr, align 4
+  %cmp = icmp eq i32 %0, %val
   %and4 = and i1 %switch.i, %cmp
   %and = zext i1 %and4 to i32
-  %2 = xor i32 %and, 1
-  ret i32 %2
+  %1 = xor i32 %and, 1
+  ret i32 %1
 }
 
 declare spir_func i32 @_Z9get_fencePU3AS4v(ptr addrspace(4)) #2

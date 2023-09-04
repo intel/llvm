@@ -2643,8 +2643,6 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
   VTableAddressPoint = Builder.CreateBitCast(VTableAddressPoint, VTablePtrTy);
 #endif
 
-  VTableField = VTableField.withElementType(VTablePtrTy);
-
   llvm::StoreInst *Store = Builder.CreateStore(VTableAddressPoint, VTableField);
   TBAAAccessInfo TBAAInfo = CGM.getTBAAVTablePtrAccessInfo(VTablePtrTy);
   CGM.DecorateInstructionWithTBAA(Store, TBAAInfo);

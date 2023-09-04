@@ -41,6 +41,9 @@ DEVICE_EXTERN_C_INLINE
 float __devicelib_roundf(float x) { return __spirv_ocl_round(x); }
 
 DEVICE_EXTERN_C_INLINE
+float __devicelib_floorf(float x) { return __spirv_ocl_floor(x); }
+
+DEVICE_EXTERN_C_INLINE
 float __devicelib_logf(float x) { return __spirv_ocl_log(x); }
 
 DEVICE_EXTERN_C_INLINE

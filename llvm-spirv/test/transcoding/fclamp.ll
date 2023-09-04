@@ -16,11 +16,11 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @test_scalar(float addrspace(1)* nocapture readonly %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @test_scalar(ptr addrspace(1) nocapture readonly %f) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %0 = load float, float addrspace(1)* %f, align 4
+  %0 = load float, ptr addrspace(1) %f, align 4
   %call = tail call spir_func float @_Z5clampfff(float %0, float 0.000000e+00, float 1.000000e+00) #2
-  %1 = load float, float addrspace(1)* %f, align 4
+  %1 = load float, ptr addrspace(1) %f, align 4
   %conv = fptrunc float %1 to half
   %call1 = tail call spir_func half @_Z5clampDhDhDh(half %conv, half %conv, half %conv) #2
   ret void

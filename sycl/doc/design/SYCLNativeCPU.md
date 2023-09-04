@@ -31,7 +31,7 @@ In order to execute kernels compiled for `native-cpu`, we provide a PI Plugin. T
 
 # Supported features and current limitations
 
-The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barrier` and all the math builtins are not supported, and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
+The SYCL Native CPU flow is still WIP, not optimized and several core SYCL features are currently unsupported. Currently `barrier` and several math builtins are not supported, and attempting to use those will most likely fail with an `undefined reference` error at link time. Examples of supported applications can be found in the [runtime tests](sycl/test/native_cpu).
 
 
 To execute the `e2e` tests on the Native CPU, configure the test suite with:
@@ -173,3 +173,4 @@ The information produced by the device compiler is then employed to correctly lo
 * Performance optimizations
 * Support for multiple SYCL targets alongside native_cpu
 
+### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.
