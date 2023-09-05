@@ -87,7 +87,7 @@ invoke_simd/ @intel/dpcpp-esimd-reviewers
 InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
-.github/workflows/ @intel/dpcpp-devops-reviewers
+.github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
