@@ -313,10 +313,11 @@ struct OperationFormat {
     resultTypes.resize(op.getNumResults(), TypeResolution());
 
     hasImplicitTermTrait = llvm::any_of(op.getTraits(), [](const Trait &trait) {
-      return trait.getDef().isSubClassOf("SingleBlockImplicitTerminatorImpl");
+      return trait.getDef().isSubClassOf("SingleBlockImplicitTerminator");
     });
 
-    hasSingleBlockTrait = op.getTrait("::mlir::OpTrait::SingleBlock");
+    hasSingleBlockTrait =
+        hasImplicitTermTrait || op.getTrait("::mlir::OpTrait::SingleBlock");
   }
 
   /// Generate the operation parser from this format.
