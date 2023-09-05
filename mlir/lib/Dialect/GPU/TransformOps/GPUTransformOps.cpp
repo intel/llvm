@@ -274,9 +274,10 @@ collectEffects(Operation *op,
 /// set. Returns `true` if the memory effects added to `effects` are exact,
 /// `false` if they are a conservative over-approximation. The latter means that
 /// `effects` contain instances not associated with a specific value.
-bool getEffectsBefore(Operation *op,
-                      SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
-                      bool stopAtBarrier) {
+static bool
+getEffectsBefore(Operation *op,
+                 SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                 bool stopAtBarrier) {
   if (!op->getBlock())
     return true;
 
@@ -353,9 +354,10 @@ bool getEffectsBefore(Operation *op,
 /// set. Returns `true` if the memory effects added to `effects` are exact,
 /// `false` if they are a conservative over-approximation. The latter means that
 /// `effects` contain instances not associated with a specific value.
-bool getEffectsAfter(Operation *op,
-                     SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
-                     bool stopAtBarrier) {
+static bool
+getEffectsAfter(Operation *op,
+                SmallVectorImpl<MemoryEffects::EffectInstance> &effects,
+                bool stopAtBarrier) {
   if (!op->getBlock())
     return true;
 
@@ -498,7 +500,7 @@ static std::optional<bool> getKnownCapturingStatus(Operation *op, Value v) {
 /// the user may be storing this value into memory. This makes aliasing analysis
 /// more conservative as it cannot assume the pointer-like value is only passed
 /// around through SSA use-def.
-bool maybeCaptured(Value v) {
+static bool maybeCaptured(Value v) {
   SmallVector<Value> todo = {v};
   while (!todo.empty()) {
     Value v = todo.pop_back_val();
@@ -618,7 +620,7 @@ static bool mayAlias(Value first, Value second) {
 /// Returns `true` if the effect may be affecting memory aliasing the value. If
 /// the effect is not associated with any value, it is assumed to affect all
 /// memory and therefore aliases with everything.
-bool mayAlias(MemoryEffects::EffectInstance a, Value v2) {
+static bool mayAlias(MemoryEffects::EffectInstance a, Value v2) {
   if (Value v = a.getValue()) {
     return mayAlias(v, v2);
   }
@@ -629,8 +631,8 @@ bool mayAlias(MemoryEffects::EffectInstance a, Value v2) {
 /// an effect is not associated with any value, it is assumed to affect all
 /// memory and therefore aliases with everything. Effects on different resources
 /// cannot alias.
-bool mayAlias(MemoryEffects::EffectInstance a,
-              MemoryEffects::EffectInstance b) {
+static bool mayAlias(MemoryEffects::EffectInstance a,
+                     MemoryEffects::EffectInstance b) {
   if (a.getResource()->getResourceID() != b.getResource()->getResourceID())
     return false;
   if (Value v2 = b.getValue()) {
