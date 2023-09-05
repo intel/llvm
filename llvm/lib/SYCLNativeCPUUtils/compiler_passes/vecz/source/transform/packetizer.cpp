@@ -202,6 +202,13 @@ class Packetizer::Impl : public Packetizer {
   ///
   /// @return Packetized instruction.
   Value *packetizeGroupBroadcast(Instruction *I);
+  /// @brief Returns true if the instruction is a subgroup shuffle.
+  ///
+  /// @param[in] I Instruction to query.
+  ///
+  /// @return True if the instruction is a call to a mux subgroup shuffle
+  /// builtin.
+  bool isSubgroupShuffle(Instruction *I);
   /// @brief Packetize PHI node.
   ///
   /// @param[in] Phi PHI Node to packetize.
@@ -853,6 +860,13 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
   }
 
   auto *const Ins = cast<Instruction>(V);
+
+  // FIXME: Add support for vectorizing sub-group shuffles
+  if (isSubgroupShuffle(Ins)) {
+    emitVeczRemarkMissed(&F, Ins, "Could not packetize sub-group shuffle");
+    return Packetizer::Result(*this);
+  }
+
   if (auto *const Branch = dyn_cast<BranchInst>(Ins)) {
     if (Branch->isConditional()) {
       // varying reductions need to be packetized
@@ -1249,6 +1263,20 @@ Value *Packetizer::Impl::packetizeGroupBroadcast(Instruction *I) {
   CI->setOperand(argIdx, val);
 
   return CI;
+}
+
+bool Packetizer::Impl::isSubgroupShuffle(Instruction *I) {
+  auto *const CI = dyn_cast<CallInst>(I);
+  if (!CI || !CI->getCalledFunction()) {
+    return false;
+  }
+  compiler::utils::BuiltinInfo &BI = Ctx.builtins();
+  Function *callee = CI->getCalledFunction();
+
+  auto const Builtin = BI.analyzeBuiltin(*callee);
+  auto const Info = BI.isMuxGroupCollective(Builtin.ID);
+
+  return Info && Info->isSubGroupScope() && Info->isShuffleLike();
 }
 
 Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
