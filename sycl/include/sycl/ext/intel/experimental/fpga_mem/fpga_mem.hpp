@@ -46,7 +46,7 @@ protected:
   T *get_ptr() noexcept {
     return &val; 
   }
-  const T *get_ptr() const noexcept { 
+  constexpr const T *get_ptr() const noexcept { 
     return &val;
   }
 
@@ -65,7 +65,7 @@ public:
     return *this->get_ptr();
   }
 
-  const T &get() const noexcept {
+  constexpr const T &get() const noexcept {
     return *this->get_ptr();
   }
 
@@ -75,7 +75,7 @@ public:
   }
 
   // Allows for implicit conversion from this to T
-  operator const T &() const noexcept {
+  constexpr operator const T &() const noexcept {
     return get();
   }
 
@@ -116,7 +116,13 @@ public:
 };
 
 template <typename T, typename... Props>
-class fpga_mem<T, properties_t<Props...>>
+class
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::aadd_ir_attributes_global_variable(
+          "sycl-resource", oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
+          "", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
+#endif
+fpga_mem<T, properties_t<Props...>>
     : public detail::fpga_mem_base<T, Props...> {
 
   using property_list_t = properties_t<Props...>;
