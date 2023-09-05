@@ -73,4 +73,18 @@ template <typename Ty> static size_t get_msb_pos(Ty x) {
   return (sizeof(Ty) * 8 - 1 - idx);
 }
 
+// Pre-assumption, fra is not all zero bit from bit pos idx - 1 to 0
+template <typename Ty>
+static int get_leading_zeros_from(Ty fra, int idx) {
+  Ty y = static_cast<Ty>(0x1) << (idx - 1);
+  for (size_t i = 0; i < idx; ++i) {
+    if ((fra & y) == y)
+      return i;
+    y >>= 1;
+  }
+
+  // FATAL error;
+  return -1;
+}
+
 #endif // __LIBDEVICE_IMF_IMPL_UTILS_H__

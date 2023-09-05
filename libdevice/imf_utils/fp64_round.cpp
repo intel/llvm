@@ -28,4 +28,24 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_imf_dadd_rz(double x, double y) {
   return __fp_add_sub_entry(x, y, __IML_RTZ);
 }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dsub_rd(double x, double y) {
+  return __fp_add_sub_entry(x, -y, __IML_RTN);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dsub_rn(double x, double y) {
+  return __fp_add_sub_entry(x, -y, __IML_RTE);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dsub_ru(double x, double y) {
+  return __fp_add_sub_entry(x, -y, __IML_RTP);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dsub_rz(double x, double y) {
+  return __fp_add_sub_entry(x, -y, __IML_RTZ);
+}
 #endif
