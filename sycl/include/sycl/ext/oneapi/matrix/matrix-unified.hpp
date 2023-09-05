@@ -65,9 +65,7 @@ struct joint_matrix {
   // memcpy from being generated.
   // TODO: to remove, when either IGC can handle alloca JointMatrix or
   // combination of InstCombine + SROA + mem2reg can remove it
-  joint_matrix(const joint_matrix &other) {
-    spvm = other.spvm;
-  }
+  joint_matrix(const joint_matrix &other) { spvm = other.spvm; }
 
   joint_matrix &operator=(const joint_matrix &rhs) {
     spvm = rhs.spvm;
