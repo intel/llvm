@@ -29,7 +29,9 @@ public:
   using const_reference = const T &;
 
 public:
-  template <typename U> struct rebind { typedef CustomAllocator<U> other; };
+  template <typename U> struct rebind {
+    typedef CustomAllocator<U> other;
+  };
 
   void construct(pointer Ptr, const_reference Val) {
     new (Ptr) value_type(Val);
