@@ -963,8 +963,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
-    bool IsLTO = CodeGenOpts.PrepareForLTO;
+    const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
+    const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
     if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
@@ -1053,17 +1053,18 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinOrUnifiedLTO = IsThinLTO || (IsLTO && CodeGenOpts.UnifiedLTO);
+    const bool PrepareForThinOrUnifiedLTO =
+        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
-      MPM =
-          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+      MPM = PB.buildO0DefaultPipeline(OptimizationLevel::O0,
+                                      PrepareForLTO || PrepareForThinLTO);
     } else if (CodeGenOpts.FatLTO) {
-      MPM = PB.buildFatLTODefaultPipeline(Level, IsThinOrUnifiedLTO,
-                                          IsThinOrUnifiedLTO ||
+      MPM = PB.buildFatLTODefaultPipeline(Level, PrepareForThinOrUnifiedLTO,
+                                          PrepareForThinOrUnifiedLTO ||
                                               shouldEmitRegularLTOSummary());
-    } else if (IsThinOrUnifiedLTO) {
+    } else if (PrepareForThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
-    } else if (IsLTO) {
+    } else if (PrepareForLTO) {
       MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
     } else {
       MPM = PB.buildPerModuleDefaultPipeline(Level);
@@ -1156,12 +1157,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (CodeGenOpts.FatLTO) {
     // Set module flags, like EnableSplitLTOUnit and UnifiedLTO, since FatLTO
     // uses a different action than Backend_EmitBC or Backend_EmitLL.
-    bool IsThinOrUnifiedLTO =
-        CodeGenOpts.PrepareForThinLTO ||
-        (CodeGenOpts.PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (!TheModule->getModuleFlag("ThinLTO"))
       TheModule->addModuleFlag(Module::Error, "ThinLTO",
-                               uint32_t(IsThinOrUnifiedLTO));
+                               uint32_t(CodeGenOpts.PrepareForThinLTO));
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
