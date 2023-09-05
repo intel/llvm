@@ -4,7 +4,7 @@
 
 int main() {
 
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
   if (!Queue.get_device().has(sycl::aspect::usm_host_allocations)) {
     return 0;
   }
