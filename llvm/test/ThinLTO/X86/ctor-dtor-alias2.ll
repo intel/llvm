@@ -17,11 +17,11 @@
 ; RUN: rm -rf %t && split-file %s %t && cd %t
 
 ;; a.bc defines D0 in comdat D0 and D2 in comdat D2. b.bc defines D0/D1/D2 in comdat D5.
-; RUN: opt -opaque-pointers -module-summary a.ll -o a.bc
-; RUN: opt -opaque-pointers -module-summary b.ll -o b.bc
-; RUN: llvm-lto2 run -opaque-pointers a.bc b.bc -r=a.bc,aa,px -r=a.bc,_ZN1AIiED0Ev,px -r=a.bc,_ZN1AIiED2Ev,px -r=a.bc,_ZdlPv, \
+; RUN: opt -module-summary a.ll -o a.bc
+; RUN: opt -module-summary b.ll -o b.bc
+; RUN: llvm-lto2 run a.bc b.bc -r=a.bc,aa,px -r=a.bc,_ZN1AIiED0Ev,px -r=a.bc,_ZN1AIiED2Ev,px -r=a.bc,_ZdlPv, \
 ; RUN:   -r=b.bc,bb,px -r=b.bc,_ZN1AIiED0Ev, -r=b.bc,_ZN1AIiED1Ev,px -r=b.bc,_ZN1AIiED2Ev, -r=b.bc,_ZdlPv, -o out --save-temps
-; RUN: llvm-dis -opaque-pointers < out.2.1.promote.bc | FileCheck %s
+; RUN: llvm-dis < out.2.1.promote.bc | FileCheck %s
 
 ;; Although D0/D2 in b.bc is non-prevailing, keep D1/D2 as definitions, otherwise
 ;; the output may have an undefined and unsatisfied D1.

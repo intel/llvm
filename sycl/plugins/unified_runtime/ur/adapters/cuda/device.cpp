@@ -1,10 +1,10 @@
-//===--------- device.cpp - CUDA Adapter -----------------------------===//
+//===--------- device.cpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <array>
 #include <cassert>
@@ -287,22 +287,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Bits);
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_CUSTOM.
-
-    size_t Global = 0;
-    detail::ur::assertion(cuDeviceTotalMem(&Global, hDevice->get()) ==
-                          CUDA_SUCCESS);
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                             32u * 1024u * 1024u);
-
-    return ReturnValue(uint64_t{MaxAlloc});
+    return ReturnValue(uint64_t{hDevice->getMaxAllocSize()});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
     bool Enabled = false;

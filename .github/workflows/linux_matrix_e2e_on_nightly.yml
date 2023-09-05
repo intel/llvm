@@ -43,12 +43,6 @@ jobs:
             image_options: -u 1001
             target_devices: opencl:cpu
 
-          - name: ESIMD Emu
-            runner: '["Linux", "x86-cpu"]'
-            image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:latest
-            image_options: -u 1001
-            target_devices: ext_intel_esimd_emulator:gpu
-
           - name: Self-hosted CUDA
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build

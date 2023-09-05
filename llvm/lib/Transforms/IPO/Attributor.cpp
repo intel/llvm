@@ -18,6 +18,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/PointerIntPair.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -50,6 +51,7 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include <cstdint>
+#include <memory>
 
 #ifdef EXPENSIVE_CHECKS
 #include "llvm/IR/Verifier.h"
@@ -92,6 +94,13 @@ static cl::opt<unsigned>
     SetFixpointIterations("attributor-max-iterations", cl::Hidden,
                           cl::desc("Maximal number of fixpoint iterations."),
                           cl::init(32));
+
+static cl::opt<unsigned>
+    MaxSpecializationPerCB("attributor-max-specializations-per-call-base",
+                           cl::Hidden,
+                           cl::desc("Maximal number of callees specialized for "
+                                    "a call base"),
+                           cl::init(UINT32_MAX));
 
 static cl::opt<unsigned, true> MaxInitializationChainLengthX(
     "attributor-max-initialization-chain-length", cl::Hidden,
@@ -166,6 +175,10 @@ static cl::opt<bool> SimplifyAllLoads("attributor-simplify-all-loads",
                                       cl::desc("Try to simplify all loads."),
                                       cl::init(true));
 
+static cl::opt<bool> CloseWorldAssumption(
+    "attributor-assume-closed-world", cl::Hidden,
+    cl::desc("Should a closed world be assumed, or not. Default if not set."));
+
 /// Logic operators for the change status enum class.
 ///
 ///{
@@ -226,10 +239,10 @@ bool AA::isDynamicallyUnique(Attributor &A, const AbstractAttribute &QueryingAA,
   return InstanceInfoAA && InstanceInfoAA->isAssumedUniqueForAnalysis();
 }
 
-Constant *AA::getInitialValueForObj(Attributor &A, Value &Obj, Type &Ty,
-                                    const TargetLibraryInfo *TLI,
-                                    const DataLayout &DL,
-                                    AA::RangeTy *RangePtr) {
+Constant *
+AA::getInitialValueForObj(Attributor &A, const AbstractAttribute &QueryingAA,
+                          Value &Obj, Type &Ty, const TargetLibraryInfo *TLI,
+                          const DataLayout &DL, AA::RangeTy *RangePtr) {
   if (isa<AllocaInst>(Obj))
     return UndefValue::get(&Ty);
   if (Constant *Init = getInitialValueOfAllocation(&Obj, TLI, &Ty))
@@ -242,7 +255,7 @@ Constant *AA::getInitialValueForObj(Attributor &A, Value &Obj, Type &Ty,
   Constant *Initializer = nullptr;
   if (A.hasGlobalVariableSimplificationCallback(*GV)) {
     auto AssumedGV = A.getAssumedInitializerFromCallBack(
-        *GV, /* const AbstractAttribute *AA */ nullptr, UsedAssumedInformation);
+        *GV, &QueryingAA, UsedAssumedInformation);
     Initializer = *AssumedGV;
     if (!Initializer)
       return nullptr;
@@ -526,8 +539,8 @@ static bool getPotentialCopiesOfMemoryValue(
 
     if (IsLoad && !HasBeenWrittenTo && !Range.isUnassigned()) {
       const DataLayout &DL = A.getDataLayout();
-      Value *InitialValue =
-          AA::getInitialValueForObj(A, Obj, *I.getType(), TLI, DL, &Range);
+      Value *InitialValue = AA::getInitialValueForObj(
+          A, QueryingAA, Obj, *I.getType(), TLI, DL, &Range);
       if (!InitialValue) {
         LLVM_DEBUG(dbgs() << "Could not determine required initial value of "
                              "underlying object, abort!\n");
@@ -1046,6 +1059,21 @@ ChangeStatus AbstractAttribute::update(Attributor &A) {
                     << "\n");
 
   return HasChanged;
+}
+
+Attributor::Attributor(SetVector<Function *> &Functions,
+                       InformationCache &InfoCache,
+                       AttributorConfig Configuration)
+    : Allocator(InfoCache.Allocator), Functions(Functions),
+      InfoCache(InfoCache), Configuration(Configuration) {
+  if (!isClosedWorldModule())
+    return;
+  for (Function *Fn : Functions)
+    if (Fn->hasAddressTaken(/*PutOffender=*/nullptr,
+                            /*IgnoreCallbackUses=*/false,
+                            /*IgnoreAssumeLikeCalls=*/true,
+                            /*IgnoreLLVMUsed=*/true))
+      InfoCache.IndirectlyCallableFunctions.push_back(Fn);
 }
 
 bool Attributor::getAttrsFromAssumes(const IRPosition &IRP,
@@ -3242,6 +3270,12 @@ InformationCache::FunctionInfo::~FunctionInfo() {
     It.getSecond()->~InstructionVectorTy();
 }
 
+const ArrayRef<Function *>
+InformationCache::getIndirectlyCallableFunctions(Attributor &A) const {
+  assert(A.isClosedWorldModule() && "Cannot see all indirect callees!");
+  return IndirectlyCallableFunctions;
+}
+
 void Attributor::recordDependence(const AbstractAttribute &FromAA,
                                   const AbstractAttribute &ToAA,
                                   DepClassTy DepClass) {
@@ -3460,8 +3494,10 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
     Function *Callee = dyn_cast_if_present<Function>(CB.getCalledOperand());
     // TODO: Even if the callee is not known now we might be able to simplify
     //       the call/callee.
-    if (!Callee)
+    if (!Callee) {
+      getOrCreateAAFor<AAIndirectCallInfo>(CBFnPos);
       return true;
+    }
 
     // Every call site can track active assumptions.
     getOrCreateAAFor<AAAssumptionInfo>(CBFnPos);
@@ -3573,6 +3609,12 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       UsedAssumedInformation);
   (void)Success;
   assert(Success && "Expected the check call to be successful!");
+}
+
+bool Attributor::isClosedWorldModule() const {
+  if (CloseWorldAssumption.getNumOccurrences())
+    return CloseWorldAssumption;
+  return isModulePass() && Configuration.IsClosedWorldModule;
 }
 
 /// Helpers to ease debugging through output streams and print calls.
@@ -3736,6 +3778,26 @@ static bool runAttributorOnFunctions(InformationCache &InfoCache,
   AttributorConfig AC(CGUpdater);
   AC.IsModulePass = IsModulePass;
   AC.DeleteFns = DeleteFns;
+
+  /// Tracking callback for specialization of indirect calls.
+  DenseMap<CallBase *, std::unique_ptr<SmallPtrSet<Function *, 8>>>
+      IndirectCalleeTrackingMap;
+  if (MaxSpecializationPerCB.getNumOccurrences()) {
+    AC.IndirectCalleeSpecializationCallback =
+        [&](Attributor &, const AbstractAttribute &AA, CallBase &CB,
+            Function &Callee) {
+          if (MaxSpecializationPerCB == 0)
+            return false;
+          auto &Set = IndirectCalleeTrackingMap[&CB];
+          if (!Set)
+            Set = std::make_unique<SmallPtrSet<Function *, 8>>();
+          if (Set->size() >= MaxSpecializationPerCB)
+            return Set->contains(&Callee);
+          Set->insert(&Callee);
+          return true;
+        };
+  }
+
   Attributor A(Functions, InfoCache, AC);
 
   // Create shallow wrappers for all functions that are not IPO amendable

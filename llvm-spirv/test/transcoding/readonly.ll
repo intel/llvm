@@ -14,7 +14,7 @@ target triple = "spir64-unknown-unknown"
 
 ; CHECK-LLVM: spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(1) readonly %{{.*}})
 ; Function Attrs: norecurse nounwind readonly willreturn
-define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function(i32 addrspace(1)* readonly %_arg_) local_unnamed_addr #0 {
+define dso_local spir_kernel void @_ZTSZ4mainE15kernel_function(ptr addrspace(1) readonly %_arg_) local_unnamed_addr #0 {
 entry:
   ret void
 }

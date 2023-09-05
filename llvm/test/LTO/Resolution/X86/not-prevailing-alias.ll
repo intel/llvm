@@ -1,6 +1,6 @@
 ; Test to ensure that dead alias are dropped by converting to a declaration
 ; RUN: opt -module-summary %s -o %t1.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc -r %t1.bc,barAlias,x \
+; RUN: llvm-lto2 run %t1.bc -r %t1.bc,barAlias,x \
 ; RUN:   -r %t1.bc,bar,x -r %t1.bc,zed,px \
 ; RUN:   -r %t1.bc,var,x -r %t1.bc,varAlias,x \
 ; RUN:   -o %t2.o -save-temps

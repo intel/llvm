@@ -50,7 +50,7 @@ through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not
 import the <sycl/sycl.hpp> header.
 
 ``` cpp
-#include <sycl/syclcompat.hpp>
+#include <syclcompat.hpp>
 ```
 
 This document presents the public API under the [Features](#features) section,
@@ -768,8 +768,8 @@ The exposed functionalities include creation and destruction of queues, through
 `syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
 ability to wait for submitted kernels using `syclcompat::wait` or
 `syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
-`print_on_async_exceptions`. Synchronous exceptions have to be managed by users
-independently of what is set in this parameter.
+`print_on_async_exceptions`, and will have the default behavior otherwise, which calls `std:terminate`. Synchronous exceptions have to be managed
+by users independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
@@ -1159,7 +1159,7 @@ using this library:
 #include <cassert>
 #include <iostream>
 
-#include <sycl/syclcompat.hpp>
+#include <syclcompat.hpp>
 #include <sycl/sycl.hpp>
 
 /**

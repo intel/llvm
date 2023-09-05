@@ -173,3 +173,4 @@ The information produced by the device compiler is then employed to correctly lo
 * Performance optimizations
 * Support for multiple SYCL targets alongside native_cpu
 
+### Please note that Windows support is temporarily disabled due to some implementation details, it will be reinstantiated soon.

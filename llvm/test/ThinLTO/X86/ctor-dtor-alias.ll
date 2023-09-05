@@ -7,11 +7,11 @@
 ;;
 ;; clang -c -fpic -O1 -flto=thin a.cc && cp a.o b.o && ld.lld -shared a.o b.so
 
-; RUN: opt -opaque-pointers -module-summary %s -o %t1.bc
+; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: cp %t1.bc %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers %t1.bc %t2.bc -r=%t1.bc,_ZTV1A,pl -r=%t1.bc,_ZN1AD0Ev,pl -r=%t1.bc,_ZN1AD1Ev,pl -r=%t1.bc,_ZN1AD2Ev,pl -r=%t1.bc,D1_a,pl -r=%t1.bc,D1_a_a,pl \
+; RUN: llvm-lto2 run %t1.bc %t2.bc -r=%t1.bc,_ZTV1A,pl -r=%t1.bc,_ZN1AD0Ev,pl -r=%t1.bc,_ZN1AD1Ev,pl -r=%t1.bc,_ZN1AD2Ev,pl -r=%t1.bc,D1_a,pl -r=%t1.bc,D1_a_a,pl \
 ; RUN:    -r=%t2.bc,_ZTV1A,l -r=%t2.bc,_ZN1AD0Ev,l -r=%t2.bc,_ZN1AD1Ev,l -r=%t2.bc,_ZN1AD2Ev,l -r=%t2.bc,D1_a,l -r=%t2.bc,D1_a_a,l -o %t3 --save-temps
-; RUN: llvm-dis -opaque-pointers < %t3.2.1.promote.bc | FileCheck %s
+; RUN: llvm-dis < %t3.2.1.promote.bc | FileCheck %s
 
 ; CHECK: @_ZTV1A = available_externally dso_local unnamed_addr constant { [4 x ptr] } { [4 x ptr] [ptr null, ptr null, ptr @_ZN1AD1Ev, ptr @_ZN1AD0Ev] }
 ; CHECK: @D1_a = weak_odr dso_local unnamed_addr alias void (ptr), ptr @_ZN1AD1Ev

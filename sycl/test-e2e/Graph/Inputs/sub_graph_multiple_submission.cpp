@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
@@ -62,7 +62,7 @@ int main() {
   Queue.memcpy(Output.data(), X, N * sizeof(float), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    assert(Output[i] == -6.25f);
+    assert(Output[i] == -4.5f);
   }
 
   sycl::free(X, Queue);

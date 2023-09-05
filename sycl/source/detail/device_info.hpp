@@ -228,28 +228,16 @@ struct get_device_info_impl<std::vector<info::fp_config>,
   }
 };
 
-inline bool checkNativeQueueProfiling(const DeviceImplPtr &Dev) {
-  pi_queue_properties Properties;
-  Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
-      Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
-      sizeof(Properties), &Properties, nullptr);
-  return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
-}
-
 // Specialization for queue_profiling. In addition to pi_queue level profiling,
-// piGetDeviceAndHostTimer support is needed for command_submit query support.
+// piGetDeviceAndHostTimer is not supported, command_submit, command_start,
+// command_end will be calculated. See MFallbackProfiling
 template <> struct get_device_info_impl<bool, info::device::queue_profiling> {
   static bool get(const DeviceImplPtr &Dev) {
-    if (!checkNativeQueueProfiling(Dev))
-      return false;
-    sycl::detail::pi::PiResult Result =
-        Dev->getPlugin()
-            ->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
-                Dev->getHandleRef(), nullptr, nullptr);
-    if (Result == PI_ERROR_INVALID_OPERATION)
-      return false;
-    Dev->getPlugin()->checkPiResult(Result);
-    return true;
+    pi_queue_properties Properties;
+    Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
+        Dev->getHandleRef(), PiInfoCode<info::device::queue_profiling>::value,
+        sizeof(Properties), &Properties, nullptr);
+    return Properties & PI_QUEUE_FLAG_PROFILING_ENABLE;
   }
 };
 
@@ -946,16 +934,16 @@ struct get_device_info_impl<
 // Specialization for graph extension support
 template <>
 struct get_device_info_impl<
-    ext::oneapi::experimental::info::graph_support_level,
+    ext::oneapi::experimental::graph_support_level,
     ext::oneapi::experimental::info::device::graph_support> {
-  static ext::oneapi::experimental::info::graph_support_level
+  static ext::oneapi::experimental::graph_support_level
   get(const DeviceImplPtr &Dev) {
     size_t ResultSize = 0;
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
         Dev->getHandleRef(), PI_DEVICE_INFO_EXTENSIONS, 0, nullptr,
         &ResultSize);
     if (ResultSize == 0)
-      return ext::oneapi::experimental::info::graph_support_level::unsupported;
+      return ext::oneapi::experimental::graph_support_level::unsupported;
 
     std::unique_ptr<char[]> Result(new char[ResultSize]);
     Dev->getPlugin()->call<PiApiKind::piDeviceGetInfo>(
@@ -966,9 +954,8 @@ struct get_device_info_impl<
     bool CmdBufferSupport =
         ExtensionsString.find("ur_exp_command_buffer") != std::string::npos;
     return CmdBufferSupport
-               ? ext::oneapi::experimental::info::graph_support_level::native
-               : ext::oneapi::experimental::info::graph_support_level::
-                     unsupported;
+               ? ext::oneapi::experimental::graph_support_level::native
+               : ext::oneapi::experimental::graph_support_level::unsupported;
   }
 };
 
@@ -1874,10 +1861,10 @@ inline uint32_t get_device_info_host<
 }
 
 template <>
-inline ext::oneapi::experimental::info::graph_support_level
+inline ext::oneapi::experimental::graph_support_level
 get_device_info_host<ext::oneapi::experimental::info::device::graph_support>() {
   // No support for graphs on the host device.
-  return ext::oneapi::experimental::info::graph_support_level::unsupported;
+  return ext::oneapi::experimental::graph_support_level::unsupported;
 }
 
 template <>

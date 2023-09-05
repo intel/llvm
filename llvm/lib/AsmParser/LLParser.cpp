@@ -61,6 +61,7 @@ static std::string getTypeString(Type *T) {
   return Tmp.str();
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 static void setContextOpaquePointers(LLLexer &L, LLVMContext &C) {
   while (true) {
     lltok::Kind K = L.Lex();
@@ -74,10 +75,11 @@ static void setContextOpaquePointers(LLLexer &L, LLVMContext &C) {
     }
   }
 }
-
+#endif
 /// Run: module ::= toplevelentity*
 bool LLParser::Run(bool UpgradeDebugInfo,
                    DataLayoutCallbackTy DataLayoutCallback) {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // If we haven't decided on whether or not we're using opaque pointers, do a
   // quick lex over the tokens to see if we explicitly construct any typed or
   // opaque pointer types.
@@ -85,7 +87,7 @@ bool LLParser::Run(bool UpgradeDebugInfo,
   // regardless of if --opaque-pointers is set.
   if (!Context.hasSetOpaquePointersValue())
     setContextOpaquePointers(OPLex, Context);
-
+#endif
   // Prime the lexer.
   Lex.Lex();
 
@@ -3927,6 +3929,10 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
     return error(ID.Loc, "fdiv constexprs are no longer supported");
   case lltok::kw_frem:
     return error(ID.Loc, "frem constexprs are no longer supported");
+  case lltok::kw_and:
+    return error(ID.Loc, "and constexprs are no longer supported");
+  case lltok::kw_or:
+    return error(ID.Loc, "or constexprs are no longer supported");
   case lltok::kw_fneg:
     return error(ID.Loc, "fneg constexprs are no longer supported");
   case lltok::kw_select:
@@ -4035,8 +4041,6 @@ bool LLParser::parseValID(ValID &ID, PerFunctionState *PFS, Type *ExpectedTy) {
   }
 
   // Logical Operations
-  case lltok::kw_and:
-  case lltok::kw_or:
   case lltok::kw_xor: {
     unsigned Opc = Lex.getUIntVal();
     Constant *Val0, *Val1;

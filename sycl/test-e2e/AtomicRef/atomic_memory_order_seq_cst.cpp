@@ -1,8 +1,5 @@
 // RUN: %{build} -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
 // RUN: %{run} %t.out
-//
-// Tracked in the internal bug tracking system.
-// UNSUPPORTED: gpu-intel-pvc
 
 #include "atomic_memory_order.h"
 #include <iostream>
@@ -39,8 +36,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   });
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access::mode::read>(cgh);
-    auto checked =
-        checked_buf.template get_access<access::mode::discard_write>(cgh);
+    auto checked = checked_buf.template get_access<access::mode::write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items / 2, 32), [=](nd_item<1> it) {
       size_t id = it.get_global_id(0);
       for (int i = 1; i < N_iters; i++) {
@@ -58,7 +54,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access::mode::read>(cgh);
     auto checked = checked_buf.template get_access<access::mode::read>(cgh);
-    auto err = err_buf.template get_access<access::mode::discard_write>(cgh);
+    auto err = err_buf.template get_access<access::mode::write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items / 2, 32), [=](nd_item<1> it) {
       size_t id = it.get_global_id(0);
       for (int i = 1; i < N_iters; i++) {

@@ -17,20 +17,18 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_kernel void @foo(i32 addrspace(1)* %a, i32 addrspace(1)* %b) #0 !dbg !8 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !13 !kernel_arg_type_qual !14 {
+define spir_kernel void @foo(ptr addrspace(1) %a, ptr addrspace(1) %b) #0 !dbg !8 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !13 !kernel_arg_type_qual !14 {
 entry:
-  %a.addr = alloca i32 addrspace(1)*, align 4
-  %b.addr = alloca i32 addrspace(1)*, align 4
-  store i32 addrspace(1)* %a, i32 addrspace(1)** %a.addr, align 4
-  store i32 addrspace(1)* %b, i32 addrspace(1)** %b.addr, align 4
-  %0 = load i32 addrspace(1)*, i32 addrspace(1)** %b.addr, align 4, !dbg !15
-  %arrayidx = getelementptr inbounds i32, i32 addrspace(1)* %0, i32 0, !dbg !15
-  %1 = load i32, i32 addrspace(1)* %arrayidx, align 4, !dbg !15
-  %2 = load i32 addrspace(1)*, i32 addrspace(1)** %a.addr, align 4, !dbg !15
-  %arrayidx1 = getelementptr inbounds i32, i32 addrspace(1)* %2, i32 0, !dbg !15
-  %3 = load i32, i32 addrspace(1)* %arrayidx1, align 4, !dbg !15
+  %a.addr = alloca ptr addrspace(1), align 4
+  %b.addr = alloca ptr addrspace(1), align 4
+  store ptr addrspace(1) %a, ptr %a.addr, align 4
+  store ptr addrspace(1) %b, ptr %b.addr, align 4
+  %0 = load ptr addrspace(1), ptr %b.addr, align 4, !dbg !15
+  %1 = load i32, ptr addrspace(1) %0, align 4, !dbg !15
+  %2 = load ptr addrspace(1), ptr %a.addr, align 4, !dbg !15
+  %3 = load i32, ptr addrspace(1) %2, align 4, !dbg !15
   %add = add nsw i32 %3, %1, !dbg !15
-  store i32 %add, i32 addrspace(1)* %arrayidx1, align 4, !dbg !15
+  store i32 %add, ptr addrspace(1) %2, align 4, !dbg !15
   ret void, !dbg !16
 }
 
