@@ -32,8 +32,7 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R32G32B32A32_UINT;
     default: {
-      std::cerr << "error in converting to vulkan format"
-                << "\n";
+      std::cerr << "error in converting to vulkan format\n";
       exit(-1);
     }
     }
@@ -46,8 +45,7 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R32G32B32A32_SINT;
     default: {
-      std::cerr << "error in converting to vulkan format"
-                << "\n";
+      std::cerr << "error in converting to vulkan format\n";
       exit(-1);
     }
     }
@@ -60,15 +58,13 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R32G32B32A32_SFLOAT;
     default: {
-      std::cerr << "error in converting to vulkan format"
-                << "\n";
+      std::cerr << "error in converting to vulkan format\n";
       exit(-1);
     }
     }
   } else {
     std::cerr
-        << "error in converting to vulkan format - channel type not included"
-        << " \n";
+        << "error in converting to vulkan format - channel type not included\n";
     exit(-1);
   }
 }
