@@ -6,7 +6,9 @@
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 add_subdirectory(hello_world)
-add_subdirectory(codegen)
+if(UR_BUILD_EXAMPLE_CODEGEN)
+    add_subdirectory(codegen)
+endif()
 if(UR_ENABLE_TRACING)
     add_subdirectory(collector)
 endif()
