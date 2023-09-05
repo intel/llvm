@@ -18,8 +18,8 @@ from templates import helper as th
  * @file ${name}.hpp
  *
  */
-#ifndef ${X}_PARAMS_HPP
-#define ${X}_PARAMS_HPP 1
+#ifndef ${X}_PRINT_HPP
+#define ${X}_PRINT_HPP 1
 
 #include "${x}_api.h"
 #include <ostream>
@@ -27,15 +27,15 @@ from templates import helper as th
 
 <%def name="member(iname, itype, loop)">
     %if iname == "pNext":
-        ${x}_params::serializeStruct(os, ${caller.body()});
+        ${x}_print::printStruct(os, ${caller.body()});
     %elif th.type_traits.is_flags(itype):
-        ${x}_params::serializeFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
+        ${x}_print::printFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
     %elif not loop and th.type_traits.is_pointer(itype):
-        ${x}_params::serializePtr(os, ${caller.body()});
+        ${x}_print::printPtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
-        ${x}_params::serializePtr(os, ${caller.body()});
+        ${x}_print::printPtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
-        ${x}_params::serializePtr(os, ${caller.body()});
+        ${x}_print::printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
         os << reinterpret_cast<void*>(${caller.body()});
     %else:
@@ -83,7 +83,7 @@ def findMemberType(_item):
         os << "}";
     %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
-        ${x}_params::serializeUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
+        ${x}_print::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
         os << ".${iname} = {";
         for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
@@ -97,7 +97,7 @@ def findMemberType(_item):
         os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
-        ${x}_params::serializeTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
+        ${x}_print::printTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
     %else:
         os << ".${iname} = ";
         <%call expr="member(iname, itype, False)">
@@ -106,7 +106,7 @@ def findMemberType(_item):
     %endif
 </%def>
 
-namespace ${x}_params {
+namespace ${x}_print {
 template <typename T> struct is_handle : std::false_type {};
 %for spec in specs:
 %for obj in spec['objects']:
@@ -117,24 +117,24 @@ template <> struct is_handle<${th.make_type_name(n, tags, obj)}> : std::true_typ
 %endfor
 template <typename T>
 inline constexpr bool is_handle_v = is_handle<T>::value;
-template <typename T> inline void serializePtr(std::ostream &os, const T *ptr);
-template <typename T> inline void serializeFlag(std::ostream &os, uint32_t flag);
-template <typename T> inline void serializeTagged(std::ostream &os, const void *ptr, T value, size_t size);
+template <typename T> inline void printPtr(std::ostream &os, const T *ptr);
+template <typename T> inline void printFlag(std::ostream &os, uint32_t flag);
+template <typename T> inline void printTagged(std::ostream &os, const void *ptr, T value, size_t size);
 
 %for spec in specs:
 %for obj in spec['objects']:
 ## ENUM #######################################################################
 %if re.match(r"enum", obj['type']):
     %if obj.get('typed_etors', False) is True:
-    template <> inline void serializeTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size);
+    template <> inline void printTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size);
     %elif "structure_type" in obj['name']:
-    inline void serializeStruct(std::ostream &os, const void *ptr);
+    inline void printStruct(std::ostream &os, const void *ptr);
     %endif
 %endif
 
 %if re.match(r"union", obj['type']) and obj['name']:
     <% tag = [_obj for _s in specs for _obj in _s['objects'] if _obj['name'] == obj['tag']][0] %>
-    inline void serializeUnion(
+    inline void printUnion(
         std::ostream &os,
         const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
         const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
@@ -143,11 +143,11 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
 
 
 %if th.type_traits.is_flags(obj['name']):
-    template<> inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
+    template<> inline void printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag);
 %endif
 %endfor # obj in spec['objects']
 %endfor
-} // namespace ${x}_params
+} // namespace ${x}_print
 
 %for spec in specs:
 %for obj in spec['objects']:
@@ -188,11 +188,11 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
     }
     %endif
     %if obj.get('typed_etors', False) is True:
-    namespace ${x}_params {
+    namespace ${x}_print {
     template <>
-    inline void serializeTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size) {
+    inline void printTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size) {
         if (ptr == NULL) {
-            serializePtr(os, ptr);
+            printPtr(os, ptr);
             return;
         }
 
@@ -211,7 +211,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                     const ${atype} *tptr = (const ${atype} *)ptr;
                     %endif
                         %if "char" in atype: ## print char* arrays as simple NULL-terminated strings
-                            serializePtr(os, tptr);
+                            printPtr(os, tptr);
                         %else:
                             os << "{";
                             size_t nelems = size / sizeof(${atype});
@@ -250,10 +250,10 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
     }
     }
     %elif "structure_type" in obj['name']:
-    namespace ${x}_params {
-    inline void serializeStruct(std::ostream &os, const void *ptr) {
+    namespace ${x}_print {
+    inline void printStruct(std::ostream &os, const void *ptr) {
         if (ptr == NULL) {
-            ${x}_params::serializePtr(os, ptr);
+            ${x}_print::printPtr(os, ptr);
             return;
         }
 
@@ -266,7 +266,7 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                 %>
                 case ${ename}: {
                     const ${th.subt(n, tags, item['desc'])} *pstruct = (const ${th.subt(n, tags, item['desc'])} *)ptr;
-                    ${x}_params::serializePtr(os, pstruct);
+                    ${x}_print::printPtr(os, pstruct);
                 } break;
             %endfor
                 default:
@@ -274,13 +274,13 @@ template <typename T> inline void serializeTagged(std::ostream &os, const void *
                     break;
         }
     }
-    } // namespace ${x}_params
+    } // namespace ${x}_print
     %endif
 %if th.type_traits.is_flags(obj['name']):
-namespace ${x}_params {
+namespace ${x}_print {
 
 template<>
-inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
+inline void printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
     uint32_t val = flag;
     bool first = true;
     %for n, item in enumerate(obj['etors']):
@@ -310,7 +310,7 @@ inline void serializeFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, 
         os << "0";
     }
 }
-} // namespace ${x}_params
+} // namespace ${x}_print
 %endif
 ## STRUCT/UNION ###############################################################
 %elif re.match(r"struct", obj['type']):
@@ -332,7 +332,7 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
 }
 %elif re.match(r"union", obj['type']) and obj['name']:
 <% tag = findUnionTag(obj) %>
-inline void ${x}_params::serializeUnion(
+inline void ${x}_print::printUnion(
     std::ostream &os,
     const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
     const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
@@ -381,14 +381,14 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 %endfor
 %endfor
 
-namespace ${x}_params {
+namespace ${x}_print {
 
-template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
+template <typename T> inline void printPtr(std::ostream &os, const T *ptr) {
     if (ptr == nullptr) {
         os << "nullptr";
     } else if constexpr (std::is_pointer_v<T>) {
         os << (const void *)(ptr) << " (";
-        serializePtr(os, *ptr);
+        printPtr(os, *ptr);
         os << ")";
     } else if constexpr (std::is_void_v<T> || is_handle_v<T *>) {
         os << (const void *)ptr;
@@ -403,7 +403,7 @@ template <typename T> inline void serializePtr(std::ostream &os, const T *ptr) {
     }
 }
 
-inline int serializeFunctionParams(std::ostream &os, uint32_t function, const void *params) {
+inline int printFunctionParams(std::ostream &os, uint32_t function, const void *params) {
     switch((enum ${x}_function_t)function) {
     %for tbl in th.get_pfncbtables(specs, meta, n, tags):
     %for obj in tbl['functions']:
@@ -416,6 +416,6 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function, const vo
     }
     return 0;
 }
-} // namespace ur_params
+} // namespace ur_print
 
-#endif /* ${X}_PARAMS_HPP */
+#endif /* ${X}_PRINT_HPP */
