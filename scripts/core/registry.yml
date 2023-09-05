@@ -535,6 +535,12 @@ etors:
 - name: COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendMemBufferFillExp
   value: '192'
+- name: ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP
+  desc: Enumerator for $xEnqueueCooperativeKernelLaunchExp
+  value: '193'
+- name: KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP
+  desc: Enumerator for $xKernelSuggestMaxCooperativeGroupCountExp
+  value: '194'
 ---
 type: enum
 desc: Defines structure types
