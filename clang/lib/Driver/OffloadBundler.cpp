@@ -1040,68 +1040,52 @@ public:
     for (auto &C : Ar->children(Err)) {
       ++ChildIndex;
       auto BinOrErr = C.getAsBinary();
+
+      std::unique_ptr<FileHandler> FHP{nullptr};
+      std::unique_ptr<MemoryBuffer> Buf{nullptr};
+
       if (!BinOrErr) {
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
 
         /* Handle BC Files */
-
-        BinaryFileHandler BFH(BundlerConfig);
-
+        FHP = std::make_unique<BinaryFileHandler>(BundlerConfig);
         auto MR = C.getMemoryBufferRef();
         if (!MR) {
           dbgs() << "No memory buffer\n";
         }
+        Buf = MemoryBuffer::getMemBuffer(*MR, false);
+      } else {
+        auto &Bin = BinOrErr.get();
+        if (!Bin->isObject())
+          continue;
 
-        auto Buf2 = MemoryBuffer::getMemBuffer(*MR, false);
+        auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
+        if (!CheckOrErr)
+          return CheckOrErr.takeError();
 
-        if (Error Err = BFH.ReadHeader(*Buf2))
-          return Err;
-
-        Expected<std::optional<StringRef>> NameOrErr =
-            BFH.ReadBundleStart(*Buf2);
-        if (!NameOrErr)
-          return NameOrErr.takeError();
-
-        while (*NameOrErr) {
-          ++Bundles[**NameOrErr];
-          NameOrErr = BFH.ReadBundleStart(*Buf2);
-          if (!NameOrErr)
-            return NameOrErr.takeError();
+        if (*CheckOrErr) {
+          LLVM_DEBUG(outs()
+                     << "Add child to ban list. Index: " << ChildIndex << "\n");
+          ExcludedChildIndexes.emplace(ChildIndex);
         }
 
-        /* Handle BC Files */
+        auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+        Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
 
-        continue;
+        // Collect the list of bundles from the object.
+        FHP =
+            std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      auto &Bin = BinOrErr.get();
-      if (!Bin->isObject())
-        continue;
-
-      auto CheckOrErr = CheckIfObjectFileContainsExcludedTargets(C);
-      if (!CheckOrErr)
-        return CheckOrErr.takeError();
-
-      if (*CheckOrErr) {
-        LLVM_DEBUG(outs() << "Add child to ban list. Index: " << ChildIndex
-                          << "\n");
-        ExcludedChildIndexes.emplace(ChildIndex);
-      }
-
-      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
-      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-
-      // Collect the list of bundles from the object.
-      ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
-      if (Error Err = OFH.ReadHeader(*Buf))
+      if (Error Err = FHP->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FHP->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
         ++Bundles[**NameOrErr];
-        NameOrErr = OFH.ReadBundleStart(*Buf);
+        NameOrErr = FHP->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }
@@ -1154,86 +1138,43 @@ public:
         continue;
       }
 
+      std::unique_ptr<FileHandler> FHP{nullptr};
+      std::unique_ptr<MemoryBuffer> Buf{nullptr};
+      StringRef Ext("o");
+      if (BundlerConfig.FilesType == "aocr" ||
+          BundlerConfig.FilesType == "aocx")
+        Ext = BundlerConfig.FilesType;
+
       auto BinOrErr = C.getAsBinary();
       if (!BinOrErr) {
+        /* Not a recognized binary file.  Specifically not an object file */
         if (auto Err = isNotObjectErrorInvalidFileType(BinOrErr.takeError()))
           return Err;
 
-        /* Not an object file, but try to handle BC Files */
         if (BundlerConfig.FilesType == "aoo") {
-          BinaryFileHandler BFH(BundlerConfig);
-
+          /* Handle BC Files */
+          Ext = "bc";
+          FHP = std::make_unique<BinaryFileHandler>(BundlerConfig);
           auto MR = C.getMemoryBufferRef();
           if (!MR) {
             dbgs() << "No memory buffer\n";
           }
-
-          auto Buf2 = MemoryBuffer::getMemBuffer(*MR, false);
-
-          if (Error Err = BFH.ReadHeader(*Buf2))
-            return Err;
-
-          Expected<std::optional<StringRef>> NameOrErr =
-              BFH.ReadBundleStart(*Buf2);
-          if (!NameOrErr)
-            return NameOrErr.takeError();
-
-          while (*NameOrErr) {
-            auto TT = **NameOrErr;
-
-            if (TT == CurrBundle->first()) {
-              if (Mode == OutputType::FileList) {
-                // Create temporary file where the device part will be extracted
-                // to.
-                SmallString<128u> ChildFileName;
-                StringRef Ext("bc");
-
-                auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
-                                                       ChildFileName);
-                if (EC)
-                  return createFileError(ChildFileName, EC);
-
-                raw_fd_ostream ChildOS(ChildFileName, EC);
-                if (EC)
-                  return createFileError(ChildFileName, EC);
-
-                if (Error Err = BFH.ReadBundle(ChildOS, *Buf2))
-                  return Err;
-
-                if (ChildOS.has_error())
-                  return createFileError(ChildFileName, ChildOS.error());
-
-                // Add temporary file name with the device part to the output
-                // file list.
-                OS << ChildFileName << "\n";
-              }
-            }
-
-            NameOrErr = BFH.ReadBundleStart(*Buf2);
-            if (!NameOrErr)
-              return NameOrErr.takeError();
-          }
-        }
-        /* Handle BC Files */
-
-        continue;
+          Buf = MemoryBuffer::getMemBuffer(*MR, false);
+        } else
+          continue;
+      } else {
+        auto &Bin = BinOrErr.get();
+        if (!Bin->isObject())
+          continue;
+        auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
+        Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
+        FHP =
+            std::make_unique<ObjectFileHandler>(std::move(Obj), BundlerConfig);
       }
 
-      auto &Bin = BinOrErr.get();
-      if (!Bin->isObject())
-        continue;
-
-      auto Obj = std::unique_ptr<ObjectFile>(cast<ObjectFile>(Bin.release()));
-      auto Buf = MemoryBuffer::getMemBuffer(Obj->getMemoryBufferRef(), false);
-
-      auto ChildNameOrErr = C.getName();
-      if (!ChildNameOrErr)
-        return ChildNameOrErr.takeError();
-
-      ObjectFileHandler OFH(std::move(Obj), BundlerConfig);
-      if (Error Err = OFH.ReadHeader(*Buf))
+      if (Error Err = FHP->ReadHeader(*Buf))
         return Err;
-      Expected<std::optional<StringRef>> NameOrErr = OFH.ReadBundleStart(*Buf);
+      Expected<std::optional<StringRef>> NameOrErr = FHP->ReadBundleStart(*Buf);
       if (!NameOrErr)
         return NameOrErr.takeError();
       while (*NameOrErr) {
@@ -1243,10 +1184,7 @@ public:
           if (Mode == OutputType::FileList) {
             // Create temporary file where the device part will be extracted to.
             SmallString<128u> ChildFileName;
-            StringRef Ext("o");
-            if (BundlerConfig.FilesType == "aocr" ||
-                BundlerConfig.FilesType == "aocx")
-              Ext = BundlerConfig.FilesType;
+
             auto EC = sys::fs::createTemporaryFile(TempFileNameBase, Ext,
                                                    ChildFileName);
             if (EC)
@@ -1256,7 +1194,7 @@ public:
             if (EC)
               return createFileError(ChildFileName, EC);
 
-            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+            if (Error Err = FHP->ReadBundle(ChildOS, *Buf))
               return Err;
 
             if (ChildOS.has_error())
@@ -1267,13 +1205,17 @@ public:
             OS << ChildFileName << "\n";
           } else if (Mode == OutputType::Object) {
             // Extract the bundle to the output file in single file mode.
-            if (Error Err = OFH.ReadBundle(OS, *Buf))
+            if (Error Err = FHP->ReadBundle(OS, *Buf))
               return Err;
           } else if (Mode == OutputType::Archive) {
+            auto ChildNameOrErr = C.getName();
+            if (!ChildNameOrErr)
+              return ChildNameOrErr.takeError();
+
             // Extract the bundle to a buffer.
             SmallVector<char> Data;
             raw_svector_ostream ChildOS{Data};
-            if (Error Err = OFH.ReadBundle(ChildOS, *Buf))
+            if (Error Err = FHP->ReadBundle(ChildOS, *Buf))
               return Err;
 
             // Add new archive member.
@@ -1282,10 +1224,10 @@ public:
             Member.Buf = MemoryBuffer::getMemBufferCopy(ChildOS.str(), Name);
             Member.MemberName = Member.Buf->getBufferIdentifier();
           }
-          if (Error Err = OFH.ReadBundleEnd(*Buf))
+          if (Error Err = FHP->ReadBundleEnd(*Buf))
             return Err;
         }
-        NameOrErr = OFH.ReadBundleStart(*Buf);
+        NameOrErr = FHP->ReadBundleStart(*Buf);
         if (!NameOrErr)
           return NameOrErr.takeError();
       }
