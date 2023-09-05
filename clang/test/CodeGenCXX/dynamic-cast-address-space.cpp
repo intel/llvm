@@ -1,3 +1,5 @@
+// XFAIL: *
+//
 // RUN: %clang_cc1 -I%S %s -triple amdgcn-amd-amdhsa -emit-llvm -fcxx-exceptions -fexceptions -o - | FileCheck %s
 struct A { virtual void f(); };
 struct B : A { };

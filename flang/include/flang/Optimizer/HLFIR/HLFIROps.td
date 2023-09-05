@@ -28,8 +28,14 @@ class hlfir_Op<string mnemonic, list<Trait> traits>
   : Op<hlfir_Dialect, mnemonic, traits>;
 
 
-
+// DeclareOp can be lowered to EmboxOp, EmboxCharOp, ReboxOp, etc and so could
+// generate code. All of the operations it can generate are modelled with
+// NoMemoryEffect. However, if hlfir.declare is given NoMemoryEffect, it can be
+// removed by dead code elimination if the value result is unused. Information
+// from the delclare operation can be used to generate debug information so we
+// don't want to remove it as dead code
 def hlfir_DeclareOp : hlfir_Op<"declare", [AttrSizedOperandSegments,
+    MemoryEffects<[MemWrite<DebuggingResource>]>,
     DeclareOpInterfaceMethods<fir_FortranVariableOpInterface>]> {
   let summary = "declare a variable and produce an SSA value that can be used as a variable in HLFIR operations";
 
@@ -740,7 +746,13 @@ def hlfir_ElementalOpInterface : OpInterface<"ElementalOpInterface"> {
   let cppNamespace = "hlfir";
 }
 
-def hlfir_ElementalOp : hlfir_Op<"elemental", [RecursiveMemoryEffects, hlfir_ElementalOpInterface]> {
+def hlfir_ElementalOp : hlfir_Op<"elemental",
+    // The ElementalOp, in general, causes an allocation of a temporary,
+    // so to guarantee proper behavior of MLIR optimization passes
+    // we explicitly set MemAlloc effect for it. On top of this,
+    // the recursive memory effects also apply.
+    [RecursiveMemoryEffects, MemoryEffects<[MemAlloc]>,
+     hlfir_ElementalOpInterface, AttrSizedOperandSegments]> {
   let summary = "elemental expression";
   let description = [{
     Represent an elemental expression as a function of the indices.
@@ -752,6 +764,12 @@ def hlfir_ElementalOp : hlfir_Op<"elemental", [RecursiveMemoryEffects, hlfir_Ele
 
     The shape and typeparams operands represent the extents and type
     parameters of the resulting array value.
+
+    The optional mold is an entity carrying the information about
+    the dynamic type of the polymorphic result. Note that the shape
+    of the mold does not necessarily match the shape of the result,
+    for example, the result of `merge(poly_scalar1, poly_scalar2, mask_array)`
+    will have the shape of `mask_array` and the dynamic type of `poly_scalar*`.
 
     The unordered attribute can be set to allow out of order processing
     of the indices. This is safe only if the operations in the body
@@ -775,6 +793,7 @@ def hlfir_ElementalOp : hlfir_Op<"elemental", [RecursiveMemoryEffects, hlfir_Ele
 
   let arguments = (ins
     AnyShapeType:$shape,
+    Optional<AnyPolymorphicObject>:$mold,
     Variadic<AnyIntegerType>:$typeparams,
     OptionalAttr<UnitAttr>:$unordered
   );
@@ -783,7 +802,8 @@ def hlfir_ElementalOp : hlfir_Op<"elemental", [RecursiveMemoryEffects, hlfir_Ele
   let regions = (region SizedRegion<1>:$region);
 
   let assemblyFormat = [{
-    $shape (`typeparams` $typeparams^)? (`unordered` $unordered^)?
+    $shape (`mold` $mold^)? (`typeparams` $typeparams^)?
+    (`unordered` $unordered^)?
     attr-dict `:` functional-type(operands, results)
     $region
     }];
@@ -808,10 +828,12 @@ def hlfir_ElementalOp : hlfir_Op<"elemental", [RecursiveMemoryEffects, hlfir_Ele
   let skipDefaultBuilders = 1;
   let builders = [
     OpBuilder<(ins "mlir::Type":$result_type, "mlir::Value":$shape,
+      CArg<"mlir::Value", "{}">:$mold,
       CArg<"mlir::ValueRange", "{}">:$typeparams,
       CArg<"bool", "false">:$isUnordered)>
   ];
 
+  let hasVerifier = 1;
 }
 
 def hlfir_YieldElementOp : hlfir_Op<"yield_element", [Terminator, HasParent<"ElementalOp">, Pure]> {
