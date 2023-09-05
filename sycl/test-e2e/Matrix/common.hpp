@@ -35,6 +35,25 @@ void matrix_multiply_ref(bfloat16 *A, bfloat16 *B, float *C, int MATRIX_M,
   }
 }
 
+template <typename T1, typename T2>
+void matrix_multiply_vnni_postop_ref(int32_t *A_mem, int32_t *B_mem,
+                                     int32_t *C_mem, int M, int N, int K,
+                                     int VF, T2 alpha) {
+  for (int m = 0; m < M; m++)
+    for (int n = 0; n < N; n++) {
+      for (int k = 0; k < K; k++) {
+        T1 *va = (T1 *)(A_mem + m * K + k);
+        T1 *vb = (T1 *)(B_mem + k * N + n);
+        T2 acc = *((T2 *)(C_mem + m * N + n));
+        for (int i = 0; i < VF; i++) {
+          acc += (make_fp32(va[i]) * make_fp32(vb[i]));
+        }
+        *(T2 *)(C_mem + m * N + n) = acc;
+      }
+      *(T2 *)(C_mem + m * N + n) *= alpha;
+    }
+}
+
 template <typename T>
 void matrix_vnni(unsigned int rows, unsigned int cols, T *src, T *dest,
                  unsigned int vnniFactor = 2) {
