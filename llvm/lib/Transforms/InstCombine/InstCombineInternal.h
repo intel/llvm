@@ -155,9 +155,6 @@ public:
   Instruction *visitPHINode(PHINode &PN);
   Instruction *visitGetElementPtrInst(GetElementPtrInst &GEP);
   Instruction *visitGEPOfGEP(GetElementPtrInst &GEP, GEPOperator *Src);
-  #ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Instruction *visitGEPOfBitcast(BitCastInst *BCI, GetElementPtrInst &GEP);
-  #endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Instruction *visitAllocaInst(AllocaInst &AI);
   Instruction *visitAllocSite(Instruction &FI);
   Instruction *visitFree(CallInst &FI, Value *FreedOp);
@@ -403,11 +400,7 @@ public:
   void CreateNonTerminatorUnreachable(Instruction *InsertAt) {
     auto &Ctx = InsertAt->getContext();
     auto *SI = new StoreInst(ConstantInt::getTrue(Ctx),
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-                             PoisonValue::get(Type::getInt1PtrTy(Ctx)),
-#else
                              PoisonValue::get(PointerType::getUnqual(Ctx)),
-#endif
                              /*isVolatile*/ false, Align(1));
     InsertNewInstBefore(SI, *InsertAt);
   }
@@ -667,9 +660,6 @@ public:
 
   Value *insertRangeTest(Value *V, const APInt &Lo, const APInt &Hi,
                          bool isSigned, bool Inside);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Instruction *PromoteCastOfAllocation(BitCastInst &CI, AllocaInst &AI);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   bool mergeStoreIntoSuccessor(StoreInst &SI);
 
   /// Given an initial instruction, check to see if it is the root of a
@@ -683,12 +673,6 @@ public:
 
   Value *EvaluateInDifferentType(Value *V, Type *Ty, bool isSigned);
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  /// Returns a value X such that Val = X * Scale, or null if none.
-  ///
-  /// If the multiplication is known not to overflow then NoSignedWrap is set.
-  Value *Descale(Value *Val, APInt Scale, bool &NoSignedWrap);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   bool tryToSinkInstruction(Instruction *I, BasicBlock *DestBlock);
 

@@ -1634,16 +1634,6 @@ public:
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate &);
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  // TODO: clean up the following after we no longer support non-opaque pointer
-  // types.
-  bool getOpaquePointers();
-  bool hasOpaquePointersValue();
-  void setOpaquePointers(bool OP);
-
-private:
-  std::optional<bool> OpaquePointers;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 };
 
 } // end namespace llvm
