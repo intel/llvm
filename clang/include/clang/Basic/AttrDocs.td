@@ -3427,8 +3427,8 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and shall be non-negative integer. Cannot be
-used on the same loop in conjunction with disable_loop_pipelining.
+Parameter N is mandatory, and shall be non-negative integer. Can be used on the
+same loop in conjunction with disable_loop_pipelining.
 
 .. code-block:: c++
 

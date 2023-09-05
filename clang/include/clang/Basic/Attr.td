@@ -2493,8 +2493,6 @@ def SYCLIntelMaxInterleaving : StmtAttr {
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Documentation = [SYCLIntelMaxInterleavingAttrDocs];
 }
-def : MutualExclusions<[SYCLIntelDisableLoopPipelining,
-                        SYCLIntelMaxInterleaving]>;
 
 def SYCLIntelSpeculatedIterations : StmtAttr {
   let Spellings = [CXX11<"intel", "speculated_iterations">];
