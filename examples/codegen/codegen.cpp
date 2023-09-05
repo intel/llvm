@@ -1,3 +1,19 @@
+/*
+ *
+ * Copyright (C) 2023 Intel Corporation
+ *
+ * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+ * See LICENSE.TXT
+ * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+ *
+ * @file codegen.cpp
+ *
+ * @brief UR code generation and execution example for use with the Level Zero adapter.
+ *
+ * The codegen example demonstrates a complete flow for generating LLVM IR,
+ * translating it to SPIR-V, and submitting the kernel to Level Zero Runtime via UR API.
+ */
+
 #include <iostream>
 #include <vector>
 
