@@ -974,7 +974,6 @@ static void maybeSetDSOLocal(bool DSOLocal, GlobalValue &GV) {
     GV.setDSOLocal(true);
 }
 
-
 /// parseAliasOrIFunc:
 ///   ::= GlobalVar '=' OptionalLinkage OptionalPreemptionSpecifier
 ///                     OptionalVisibility OptionalDLLStorageClass
@@ -1045,7 +1044,6 @@ bool LLParser::parseAliasOrIFunc(const std::string &Name, LocTy NameLoc,
   if (!PTy)
     return error(AliaseeLoc, "An alias or ifunc must have pointer type");
   unsigned AddrSpace = PTy->getAddressSpace();
-
 
   GlobalValue *GVal = nullptr;
 
@@ -7894,7 +7892,6 @@ int LLParser::parseGetElementPtr(Instruction *&Inst, PerFunctionState &PFS) {
   PointerType *BasePointerType = dyn_cast<PointerType>(BaseType->getScalarType());
   if (!BasePointerType)
     return error(Loc, "base of getelementptr must be a pointer");
-
 
   SmallVector<Value*, 16> Indices;
   bool AteExtraComma = false;

@@ -851,9 +851,7 @@ LLVMTypeRef LLVMPointerType(LLVMTypeRef ElementType, unsigned AddressSpace) {
   return wrap(PointerType::get(unwrap(ElementType), AddressSpace));
 }
 
-LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty) {
-  return true;
-}
+LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty) { return true; }
 
 LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
   return wrap(FixedVectorType::get(unwrap(ElementType), ElementCount));

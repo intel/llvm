@@ -172,8 +172,8 @@ Value *SCEVExpander::InsertNoopCastOfTo(Value *V, Type *Ty) {
     if (DL.isNonIntegralPointerType(PtrTy)) {
       assert(DL.getTypeAllocSize(Builder.getInt8Ty()) == 1 &&
              "alloc size of i8 must by 1 byte for the GEP to be correct");
-      return Builder.CreateGEP(
-          Builder.getInt8Ty(), Constant::getNullValue(PtrTy), V, "scevgep");
+      return Builder.CreateGEP(Builder.getInt8Ty(),
+                               Constant::getNullValue(PtrTy), V, "scevgep");
     }
   }
   // Short-circuit unnecessary bitcasts.
@@ -340,7 +340,8 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *Offset, Type *Ty, Value *V) {
           cast<GEPOperator>(&*IP)->getSourceElementType() ==
               Type::getInt8Ty(Ty->getContext()))
         return &*IP;
-      if (IP == BlockBegin) break;
+      if (IP == BlockBegin)
+        break;
     }
   }
 
@@ -351,7 +352,8 @@ Value *SCEVExpander::expandAddToGEP(const SCEV *Offset, Type *Ty, Value *V) {
   while (const Loop *L = SE.LI.getLoopFor(Builder.GetInsertBlock())) {
     if (!L->isLoopInvariant(V) || !L->isLoopInvariant(Idx)) break;
     BasicBlock *Preheader = L->getLoopPreheader();
-    if (!Preheader) break;
+    if (!Preheader)
+      break;
 
     // Ok, move up a level.
     Builder.SetInsertPoint(Preheader->getTerminator());

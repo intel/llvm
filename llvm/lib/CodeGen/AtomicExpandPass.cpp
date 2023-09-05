@@ -400,9 +400,8 @@ AtomicExpand::convertAtomicXchgToIntegerType(AtomicRMWInst *RMWI) {
                       ? Builder.CreatePtrToInt(Val, NewTy)
                       : Builder.CreateBitCast(Val, NewTy);
 
-  auto *NewRMWI =
-      Builder.CreateAtomicRMW(AtomicRMWInst::Xchg, Addr, NewVal,
-                              RMWI->getAlign(), RMWI->getOrdering());
+  auto *NewRMWI = Builder.CreateAtomicRMW(
+      AtomicRMWInst::Xchg, Addr, NewVal, RMWI->getAlign(), RMWI->getOrdering());
   NewRMWI->setVolatile(RMWI->isVolatile());
   LLVM_DEBUG(dbgs() << "Replaced " << *RMWI << " with " << *NewRMWI << "\n");
 

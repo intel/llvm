@@ -2030,7 +2030,7 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
     SmallVector<EVT, 1> PtrValueVTs;
     ComputeValueVTs(TLI, DL,
                     PointerType::get(F->getContext(),
-                        DAG.getDataLayout().getAllocaAddrSpace()),
+                                     DAG.getDataLayout().getAllocaAddrSpace()),
                     PtrValueVTs);
 
     SDValue RetPtr =
@@ -10950,7 +10950,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
     SmallVector<EVT, 1> ValueVTs;
     ComputeValueVTs(*TLI, DAG.getDataLayout(),
                     PointerType::get(F.getContext(),
-                        DAG.getDataLayout().getAllocaAddrSpace()),
+                                     DAG.getDataLayout().getAllocaAddrSpace()),
                     ValueVTs);
     MVT VT = ValueVTs[0].getSimpleVT();
     MVT RegVT = TLI->getRegisterType(*CurDAG->getContext(), VT);

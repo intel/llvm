@@ -599,7 +599,6 @@ CallInst *IRBuilderBase::CreateMaskedScatter(Value *Data, Value *Ptrs,
   auto *DataTy = cast<VectorType>(Data->getType());
   ElementCount NumElts = PtrsTy->getElementCount();
 
-
   if (!Mask)
     Mask = getAllOnesMask(NumElts);
 

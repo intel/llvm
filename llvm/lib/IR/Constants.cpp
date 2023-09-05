@@ -2387,8 +2387,8 @@ Constant *ConstantExpr::getGetElementPtr(Type *Ty, Constant *C,
           ConstantFoldGetElementPtr(Ty, C, InBounds, InRangeIndex, Idxs))
     return FC;          // Fold a few common cases.
 
-  assert(GetElementPtrInst::getIndexedType(Ty, Idxs) &&
-         "GEP indices invalid!");;
+  assert(GetElementPtrInst::getIndexedType(Ty, Idxs) && "GEP indices invalid!");
+  ;
 
   // Get the result type of the getelementptr!
   Type *ReqTy = GetElementPtrInst::getGEPReturnType(C, Idxs);

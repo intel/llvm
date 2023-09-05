@@ -57,7 +57,6 @@ bool Type::isIntegerTy(unsigned Bitwidth) const {
   return isIntegerTy() && cast<IntegerType>(this)->getBitWidth() == Bitwidth;
 }
 
-
 bool Type::isScalableTy() const {
   if (const auto *STy = dyn_cast<StructType>(this)) {
     SmallPtrSet<Type *, 4> Visited;
@@ -751,7 +750,6 @@ PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
     Entry = new (CImpl->Alloc) PointerType(C, AddressSpace);
   return Entry;
 }
-
 
 PointerType::PointerType(LLVMContext &C, unsigned AddrSpace)
     : Type(C, PointerTyID) {

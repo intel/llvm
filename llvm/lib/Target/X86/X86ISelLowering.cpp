@@ -18632,7 +18632,6 @@ X86TargetLowering::LowerGlobalTLSAddress(SDValue Op, SelectionDAG &DAG) const {
         Subtarget.is64Bit() ? PointerType::get(*DAG.getContext(), 256)
                             : PointerType::get(*DAG.getContext(), 257));
 
-
     SDValue TlsArray = Subtarget.is64Bit()
                            ? DAG.getIntPtrConstant(0x58, dl)
                            : (Subtarget.isTargetWindowsGNU()

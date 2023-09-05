@@ -165,9 +165,9 @@ namespace Intrinsic {
     ArgKind getArgumentKind() const {
       assert(Kind == Argument || Kind == ExtendArgument ||
              Kind == TruncArgument || Kind == HalfVecArgument ||
-             Kind == SameVecWidthArgument ||
-             Kind == VecElementArgument || Kind == Subdivide2Argument ||
-             Kind == Subdivide4Argument || Kind == VecOfBitcastsToInt);
+             Kind == SameVecWidthArgument || Kind == VecElementArgument ||
+             Kind == Subdivide2Argument || Kind == Subdivide4Argument ||
+             Kind == VecOfBitcastsToInt);
       return (ArgKind)(Argument_Info & 7);
     }
 

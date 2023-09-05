@@ -377,6 +377,4 @@ void LLVMContext::setOpaquePointers(bool Enable) const {
   assert(Enable && "Cannot disable opaque pointers");
 }
 
-bool LLVMContext::supportsTypedPointers() const {
-  return false;
-}
+bool LLVMContext::supportsTypedPointers() const { return false; }

@@ -140,7 +140,6 @@ public:
     ClearInsertionPoint();
   }
 
-
   /// Insert and return the specified instruction.
   template<typename InstTy>
   InstTy *Insert(InstTy *I, const Twine &Name = "") const {

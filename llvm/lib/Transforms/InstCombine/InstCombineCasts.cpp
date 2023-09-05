@@ -25,7 +25,6 @@ using namespace PatternMatch;
 
 #define DEBUG_TYPE "instcombine"
 
-
 /// Given an expression that CanEvaluateTruncated or CanEvaluateSExtd returns
 /// true for, actually insert the code to evaluate the expression.
 Value *InstCombinerImpl::EvaluateInDifferentType(Value *V, Type *Ty,
@@ -2568,7 +2567,6 @@ Instruction *InstCombinerImpl::optimizeBitCastFromPhi(CastInst &CI,
   return RetVal;
 }
 
-
 Instruction *InstCombinerImpl::visitBitCast(BitCastInst &CI) {
   // If the operands are integer typed then apply the integer transforms,
   // otherwise just apply the common ones.
@@ -2580,7 +2578,6 @@ Instruction *InstCombinerImpl::visitBitCast(BitCastInst &CI) {
   // be replaced by the operand.
   if (DestTy == Src->getType())
     return replaceInstUsesWith(CI, Src);
-
 
   if (FixedVectorType *DestVTy = dyn_cast<FixedVectorType>(DestTy)) {
     // Beware: messing with this target-specific oddity may cause trouble.

@@ -634,7 +634,7 @@ TEST(InstructionsTest, isEliminableCastPair) {
 
   Type* Int16Ty = Type::getInt16Ty(C);
   Type* Int32Ty = Type::getInt32Ty(C);
-  Type* Int64Ty = Type::getInt64Ty(C);
+  Type *Int64Ty = Type::getInt64Ty(C);
   Type *Int64PtrTy = PointerType::get(C, 0);
 
   // Source and destination pointers have same size -> bitcast.

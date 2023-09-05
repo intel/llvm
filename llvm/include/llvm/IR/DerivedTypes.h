@@ -673,9 +673,9 @@ public:
   /// given address space. This is only useful during the opaque pointer
   /// transition.
   /// TODO: remove after opaque pointer transition is complete.
-  [[deprecated("Use PointerType::get() with LLVMContext argument instead")]]
-  static PointerType *getWithSamePointeeType(PointerType *PT,
-                                             unsigned AddressSpace) {
+  [[deprecated("Use PointerType::get() with LLVMContext argument "
+               "instead")]] static PointerType *
+  getWithSamePointeeType(PointerType *PT, unsigned AddressSpace) {
     return get(PT->getContext(), AddressSpace);
   }
 
@@ -686,8 +686,7 @@ public:
     return PointeeTy;
   }
 
-  [[deprecated("Always returns true")]]
-  bool isOpaque() const { return true; }
+  [[deprecated("Always returns true")]] bool isOpaque() const { return true; }
 
   /// Return true if the specified type is valid as a element type.
   static bool isValidElementType(Type *ElemTy);

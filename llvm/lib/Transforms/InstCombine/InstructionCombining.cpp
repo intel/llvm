@@ -1630,7 +1630,6 @@ Instruction *InstCombinerImpl::foldBinOpIntoSelectOrPhi(BinaryOperator &I) {
   return nullptr;
 }
 
-
 static bool shouldMergeGEPs(GEPOperator &GEP, GEPOperator &Src) {
   // If this GEP has only 0 indices, it is the same pointer as
   // Src. If Src is not a trivial GEP too, don't combine
@@ -1640,7 +1639,6 @@ static bool shouldMergeGEPs(GEPOperator &GEP, GEPOperator &Src) {
     return false;
   return true;
 }
-
 
 Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
   if (!isa<VectorType>(Inst.getType()))
@@ -2116,7 +2114,6 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   return nullptr;
 }
 
-
 Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   Value *PtrOp = GEP.getOperand(0);
   SmallVector<Value *, 8> Indices(GEP.indices());
@@ -2337,7 +2334,6 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   // We do not handle pointer-vector geps here.
   if (GEPType->isVectorTy())
     return nullptr;
-
 
   if (!GEP.isInBounds()) {
     unsigned IdxWidth =

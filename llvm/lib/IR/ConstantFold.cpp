@@ -111,7 +111,6 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
   if (SrcTy == DestTy)
     return V; // no-op cast
 
-
   // Handle casts from one vector constant to another.  We know that the src
   // and dest type have the same size (otherwise its an illegal cast).
   if (VectorType *DestPTy = dyn_cast<VectorType>(DestTy)) {

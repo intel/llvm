@@ -1633,7 +1633,6 @@ public:
   /// The lifetime of the object must be guaranteed to extend as long as the
   /// LLVMContext is used by compilation.
   void setOptPassGate(OptPassGate &);
-
 };
 
 } // end namespace llvm

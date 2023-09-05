@@ -429,25 +429,16 @@ bool ModuleSanitizerCoverage::instrumentModule(
 
   // Loads.
   SanCovLoadFunction[0] = M.getOrInsertFunction(SanCovLoad1, VoidTy, PtrTy);
-  SanCovLoadFunction[1] =
-      M.getOrInsertFunction(SanCovLoad2, VoidTy, PtrTy);
-  SanCovLoadFunction[2] =
-      M.getOrInsertFunction(SanCovLoad4, VoidTy, PtrTy);
-  SanCovLoadFunction[3] =
-      M.getOrInsertFunction(SanCovLoad8, VoidTy, PtrTy);
-  SanCovLoadFunction[4] =
-      M.getOrInsertFunction(SanCovLoad16, VoidTy, PtrTy);
+  SanCovLoadFunction[1] = M.getOrInsertFunction(SanCovLoad2, VoidTy, PtrTy);
+  SanCovLoadFunction[2] = M.getOrInsertFunction(SanCovLoad4, VoidTy, PtrTy);
+  SanCovLoadFunction[3] = M.getOrInsertFunction(SanCovLoad8, VoidTy, PtrTy);
+  SanCovLoadFunction[4] = M.getOrInsertFunction(SanCovLoad16, VoidTy, PtrTy);
   // Stores.
-  SanCovStoreFunction[0] =
-      M.getOrInsertFunction(SanCovStore1, VoidTy, PtrTy);
-  SanCovStoreFunction[1] =
-      M.getOrInsertFunction(SanCovStore2, VoidTy, PtrTy);
-  SanCovStoreFunction[2] =
-      M.getOrInsertFunction(SanCovStore4, VoidTy, PtrTy);
-  SanCovStoreFunction[3] =
-      M.getOrInsertFunction(SanCovStore8, VoidTy, PtrTy);
-  SanCovStoreFunction[4] =
-      M.getOrInsertFunction(SanCovStore16, VoidTy, PtrTy);
+  SanCovStoreFunction[0] = M.getOrInsertFunction(SanCovStore1, VoidTy, PtrTy);
+  SanCovStoreFunction[1] = M.getOrInsertFunction(SanCovStore2, VoidTy, PtrTy);
+  SanCovStoreFunction[2] = M.getOrInsertFunction(SanCovStore4, VoidTy, PtrTy);
+  SanCovStoreFunction[3] = M.getOrInsertFunction(SanCovStore8, VoidTy, PtrTy);
+  SanCovStoreFunction[4] = M.getOrInsertFunction(SanCovStore16, VoidTy, PtrTy);
 
   {
     AttributeList AL;
@@ -499,16 +490,16 @@ bool ModuleSanitizerCoverage::instrumentModule(
   }
   if (Ctor && Options.PCTable) {
     auto SecStartEnd = CreateSecStartEnd(M, SanCovPCsSectionName, IntptrTy);
-    FunctionCallee InitFunction = declareSanitizerInitFunction(
-        M, SanCovPCsInitName, {PtrTy, PtrTy});
+    FunctionCallee InitFunction =
+        declareSanitizerInitFunction(M, SanCovPCsInitName, {PtrTy, PtrTy});
     IRBuilder<> IRBCtor(Ctor->getEntryBlock().getTerminator());
     IRBCtor.CreateCall(InitFunction, {SecStartEnd.first, SecStartEnd.second});
   }
 
   if (Ctor && Options.CollectControlFlow) {
     auto SecStartEnd = CreateSecStartEnd(M, SanCovCFsSectionName, IntptrTy);
-    FunctionCallee InitFunction = declareSanitizerInitFunction(
-        M, SanCovCFsInitName, {PtrTy, PtrTy});
+    FunctionCallee InitFunction =
+        declareSanitizerInitFunction(M, SanCovCFsInitName, {PtrTy, PtrTy});
     IRBuilder<> IRBCtor(Ctor->getEntryBlock().getTerminator());
     IRBCtor.CreateCall(InitFunction, {SecStartEnd.first, SecStartEnd.second});
   }
@@ -735,16 +726,16 @@ ModuleSanitizerCoverage::CreatePCArray(Function &F,
   for (size_t i = 0; i < N; i++) {
     if (&F.getEntryBlock() == AllBlocks[i]) {
       PCs.push_back((Constant *)IRB.CreatePointerCast(&F, PtrTy));
-      PCs.push_back((Constant *)IRB.CreateIntToPtr(
-          ConstantInt::get(IntptrTy, 1), PtrTy));
+      PCs.push_back(
+          (Constant *)IRB.CreateIntToPtr(ConstantInt::get(IntptrTy, 1), PtrTy));
     } else {
       PCs.push_back((Constant *)IRB.CreatePointerCast(
           BlockAddress::get(AllBlocks[i]), PtrTy));
       PCs.push_back(Constant::getNullValue(PtrTy));
     }
   }
-  auto *PCArray = CreateFunctionLocalArrayInSection(N * 2, F, PtrTy,
-                                                    SanCovPCsSectionName);
+  auto *PCArray =
+      CreateFunctionLocalArrayInSection(N * 2, F, PtrTy, SanCovPCsSectionName);
   PCArray->setInitializer(
       ConstantArray::get(ArrayType::get(PtrTy, N * 2), PCs));
   PCArray->setConstant(true);
@@ -1047,13 +1038,13 @@ void ModuleSanitizerCoverage::createFunctionControlFlow(Function &F) {
     if (&BB == &F.getEntryBlock())
       CFs.push_back((Constant *)IRB.CreatePointerCast(&F, PtrTy));
     else
-      CFs.push_back((Constant *)IRB.CreatePointerCast(BlockAddress::get(&BB),
-                                                      PtrTy));
+      CFs.push_back(
+          (Constant *)IRB.CreatePointerCast(BlockAddress::get(&BB), PtrTy));
 
     for (auto SuccBB : successors(&BB)) {
       assert(SuccBB != &F.getEntryBlock());
-      CFs.push_back((Constant *)IRB.CreatePointerCast(BlockAddress::get(SuccBB),
-                                                      PtrTy));
+      CFs.push_back(
+          (Constant *)IRB.CreatePointerCast(BlockAddress::get(SuccBB), PtrTy));
     }
 
     CFs.push_back((Constant *)Constant::getNullValue(PtrTy));
@@ -1067,8 +1058,7 @@ void ModuleSanitizerCoverage::createFunctionControlFlow(Function &F) {
         } else {
           auto CalledF = CB->getCalledFunction();
           if (CalledF && !CalledF->isIntrinsic())
-            CFs.push_back(
-                (Constant *)IRB.CreatePointerCast(CalledF, PtrTy));
+            CFs.push_back((Constant *)IRB.CreatePointerCast(CalledF, PtrTy));
         }
       }
     }
@@ -1076,8 +1066,8 @@ void ModuleSanitizerCoverage::createFunctionControlFlow(Function &F) {
     CFs.push_back((Constant *)Constant::getNullValue(PtrTy));
   }
 
-  FunctionCFsArray = CreateFunctionLocalArrayInSection(
-      CFs.size(), F, PtrTy, SanCovCFsSectionName);
+  FunctionCFsArray = CreateFunctionLocalArrayInSection(CFs.size(), F, PtrTy,
+                                                       SanCovCFsSectionName);
   FunctionCFsArray->setInitializer(
       ConstantArray::get(ArrayType::get(PtrTy, CFs.size()), CFs));
   FunctionCFsArray->setConstant(true);
