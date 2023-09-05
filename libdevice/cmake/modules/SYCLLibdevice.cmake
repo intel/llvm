@@ -152,6 +152,7 @@ set(imf_fallback_fp32_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.
                            imf/imf_fp32_dl.cpp)
 set(imf_fallback_fp64_deps device.h device_imf.hpp imf_half.hpp imf_rounding_op.hpp imf_impl_utils.hpp
                            imf_utils/double_convert.cpp
+                           imf_utils/fp64_round.cpp
                            imf/imf_inline_fp64.cpp
                            imf/imf_fp64_dl.cpp)
 set(imf_fallback_bf16_deps device.h device_imf.hpp imf_bf16.hpp

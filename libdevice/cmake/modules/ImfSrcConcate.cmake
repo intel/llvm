@@ -7,6 +7,7 @@ set(imf_fp32_fallback_src_list imf_utils/integer_misc.cpp
                                imf/imf_fp32_dl.cpp)
 
 set(imf_fp64_fallback_src_list imf_utils/double_convert.cpp
+                               imf_utils/fp64_round.cpp
                                imf/imf_inline_fp64.cpp
                                imf/imf_fp64_dl.cpp)
 

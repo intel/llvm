@@ -50,8 +50,8 @@ static UTy __handling_rounding(UTy sig, UTy fra, unsigned grs, int rd) {
 // Pre-assumption, x's exp >= y's exp.
 template <typename Ty> Ty __fp_add_sig_same(Ty x, Ty y, int rd) {
   typedef typename __iml_fp_config<Ty>::utype UTy;
-  UTy x_bit = __builtin_bit_cast(unsigned, x);
-  UTy y_bit = __builtin_bit_cast(unsigned, y);
+  UTy x_bit = __builtin_bit_cast(UTy, x);
+  UTy y_bit = __builtin_bit_cast(UTy, y);
   UTy x_exp = (x_bit >> (std::numeric_limits<Ty>::digits - 1)) &
               __iml_fp_config<Ty>::exp_mask;
   UTy y_exp = (y_bit >> (std::numeric_limits<Ty>::digits - 1)) &
@@ -189,8 +189,8 @@ template <typename Ty> Ty __fp_add_sig_diff(Ty x, Ty y, int rd) { return 0; }
 
 template <typename Ty> Ty __fp_add_sub_entry(Ty x, Ty y, int rd) {
   typedef typename __iml_fp_config<Ty>::utype UTy;
-  UTy x_bit = __builtin_bit_cast(unsigned, x);
-  UTy y_bit = __builtin_bit_cast(unsigned, y);
+  UTy x_bit = __builtin_bit_cast(UTy, x);
+  UTy y_bit = __builtin_bit_cast(UTy, y);
   UTy x_exp = (x_bit >> (std::numeric_limits<Ty>::digits - 1)) &
               __iml_fp_config<Ty>::exp_mask;
   UTy y_exp = (y_bit >> (std::numeric_limits<Ty>::digits - 1)) &
@@ -203,14 +203,14 @@ template <typename Ty> Ty __fp_add_sub_entry(Ty x, Ty y, int rd) {
   if (((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra != 0)) ||
       ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra != 0))) {
     temp = __iml_fp_config<Ty>::nan_bits;
-    return __builtin_bit_cast(float, temp);
+    return __builtin_bit_cast(Ty, temp);
   }
 
   if ((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra == 0)) {
     if ((y_exp == __iml_fp_config<Ty>::exp_mask) && (y_fra == 0)) {
       if (x_sig != y_sig) {
         temp = __iml_fp_config<Ty>::nan_bits;
-        return __builtin_bit_cast(float, temp);
+        return __builtin_bit_cast(Ty, temp);
       }
     }
     return x;
