@@ -1770,7 +1770,11 @@ BlockAddress *BlockAddress::get(Function *F, BasicBlock *BB) {
 }
 
 BlockAddress::BlockAddress(Function *F, BasicBlock *BB)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    : Constant(PointerType::get(F->getContext(), F->getAddressSpace()),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     : Constant(Type::getInt8PtrTy(F->getContext(), F->getAddressSpace()),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                Value::BlockAddressVal, &Op<0>(), 2) {
   setOperand(0, F);
   setOperand(1, BB);
@@ -2331,6 +2335,8 @@ bool ConstantExpr::isSupportedBinOp(unsigned Opcode) {
   case Instruction::FMul:
   case Instruction::FDiv:
   case Instruction::FRem:
+  case Instruction::And:
+  case Instruction::Or:
     return false;
   case Instruction::Add:
   case Instruction::Sub:
@@ -2338,8 +2344,6 @@ bool ConstantExpr::isSupportedBinOp(unsigned Opcode) {
   case Instruction::Shl:
   case Instruction::LShr:
   case Instruction::AShr:
-  case Instruction::And:
-  case Instruction::Or:
   case Instruction::Xor:
     return true;
   default:
@@ -2626,14 +2630,6 @@ Constant *ConstantExpr::getMul(Constant *C1, Constant *C2,
   unsigned Flags = (HasNUW ? OverflowingBinaryOperator::NoUnsignedWrap : 0) |
                    (HasNSW ? OverflowingBinaryOperator::NoSignedWrap   : 0);
   return get(Instruction::Mul, C1, C2, Flags);
-}
-
-Constant *ConstantExpr::getAnd(Constant *C1, Constant *C2) {
-  return get(Instruction::And, C1, C2);
-}
-
-Constant *ConstantExpr::getOr(Constant *C1, Constant *C2) {
-  return get(Instruction::Or, C1, C2);
 }
 
 Constant *ConstantExpr::getXor(Constant *C1, Constant *C2) {

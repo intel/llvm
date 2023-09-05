@@ -425,6 +425,10 @@ AlignTokenSequence(const FormatStyle &Style, unsigned Start, unsigned End,
           return true;
         }
 
+        // Continued template parameter.
+        if (Changes[ScopeStart - 1].Tok->is(TT_TemplateOpener))
+          return true;
+
         return false;
       };
 
@@ -590,14 +594,14 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
 
       // A new line starts, re-initialize line status tracking bools.
       // Keep the match state if a string literal is continued on this line.
-      if (i == 0 || !Changes[i].Tok->is(tok::string_literal) ||
-          !Changes[i - 1].Tok->is(tok::string_literal)) {
+      if (i == 0 || Changes[i].Tok->isNot(tok::string_literal) ||
+          Changes[i - 1].Tok->isNot(tok::string_literal)) {
         FoundMatchOnLine = false;
       }
       LineIsComment = true;
     }
 
-    if (!Changes[i].Tok->is(tok::comment))
+    if (Changes[i].Tok->isNot(tok::comment))
       LineIsComment = false;
 
     if (Changes[i].Tok->is(tok::comma)) {
@@ -731,10 +735,10 @@ void WhitespaceManager::alignConsecutiveMacros() {
       SpacesRequiredBefore = 0;
     }
 
-    if (!Current || !Current->is(tok::identifier))
+    if (!Current || Current->isNot(tok::identifier))
       return false;
 
-    if (!Current->Previous || !Current->Previous->is(tok::pp_define))
+    if (!Current->Previous || Current->Previous->isNot(tok::pp_define))
       return false;
 
     // For a macro function, 0 spaces are required between the
@@ -781,7 +785,7 @@ void WhitespaceManager::alignConsecutiveMacros() {
       LineIsComment = true;
     }
 
-    if (!Changes[I].Tok->is(tok::comment))
+    if (Changes[I].Tok->isNot(tok::comment))
       LineIsComment = false;
 
     if (!AlignMacrosMatches(Changes[I]))

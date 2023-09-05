@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @f() {
 entry:
-  %0 = load i64, i64 addrspace(1)* getelementptr (<3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, i64 0, i64 0), align 32
+  %0 = load i64, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32
   ; CHECK-OCL-IR: %[[#ID1:]] = call spir_func i64 @_Z13get_global_idj(i32 0)
 
   ; CHECK-SPV-IR: %[[#ID1:]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)

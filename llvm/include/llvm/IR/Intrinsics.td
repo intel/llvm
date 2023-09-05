@@ -876,9 +876,9 @@ def int_seh_scope_end : Intrinsic<[], [], [IntrNoMem]>;
 
 // Note: we treat stacksave/stackrestore as writemem because we don't otherwise
 // model their dependencies on allocas.
-def int_stacksave     : DefaultAttrsIntrinsic<[llvm_ptr_ty]>,
+def int_stacksave     : DefaultAttrsIntrinsic<[llvm_anyptr_ty]>,
                         ClangBuiltin<"__builtin_stack_save">;
-def int_stackrestore  : DefaultAttrsIntrinsic<[], [llvm_ptr_ty]>,
+def int_stackrestore  : DefaultAttrsIntrinsic<[], [llvm_anyptr_ty]>,
                         ClangBuiltin<"__builtin_stack_restore">;
 
 def int_get_dynamic_area_offset : DefaultAttrsIntrinsic<[llvm_anyint_ty]>;
@@ -1100,6 +1100,9 @@ let IntrProperties = [IntrInaccessibleMemOnly, IntrWillReturn] in {
   def int_get_fpenv     : DefaultAttrsIntrinsic<[llvm_anyint_ty], []>;
   def int_set_fpenv     : DefaultAttrsIntrinsic<[], [llvm_anyint_ty]>;
   def int_reset_fpenv   : DefaultAttrsIntrinsic<[], []>;
+  def int_get_fpmode    : DefaultAttrsIntrinsic<[llvm_anyint_ty], []>;
+  def int_set_fpmode    : DefaultAttrsIntrinsic<[], [llvm_anyint_ty]>;
+  def int_reset_fpmode  : DefaultAttrsIntrinsic<[], []>;
 }
 
 //===--------------- Floating Point Properties ----------------------------===//
@@ -2313,6 +2316,14 @@ def int_experimental_vp_splice:
              LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
              llvm_i32_ty, llvm_i32_ty],
             [IntrNoMem, ImmArg<ArgIndex<2>>]>;
+
+def int_vp_is_fpclass:
+      DefaultAttrsIntrinsic<[ LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>],
+                              [ llvm_anyvector_ty,
+                                llvm_i32_ty,
+                                LLVMScalarOrSameVectorWidth<0, llvm_i1_ty>,
+                                llvm_i32_ty],
+                              [IntrNoMem, IntrSpeculatable, ImmArg<ArgIndex<1>>]>;
 
 //===-------------------------- Masked Intrinsics -------------------------===//
 //

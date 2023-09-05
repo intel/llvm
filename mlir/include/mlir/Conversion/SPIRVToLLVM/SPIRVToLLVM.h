@@ -41,14 +41,14 @@ void encodeBindAttribute(ModuleOp module);
 /// Populates type conversions with additional SPIR-V types.
 void populateSPIRVToLLVMTypeConversion(
     LLVMTypeConverter &typeConverter,
-    mlir::spirv::ClientAPI clientAPIForAddressSpaceMapping =
-        mlir::spirv::ClientAPI::Unknown);
+    spirv::ClientAPI clientAPIForAddressSpaceMapping =
+        spirv::ClientAPI::Unknown);
 
 /// Populates the given list with patterns that convert from SPIR-V to LLVM.
 void populateSPIRVToLLVMConversionPatterns(
     LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
-    mlir::spirv::ClientAPI clientAPIForAddressSpaceMapping =
-        mlir::spirv::ClientAPI::Unknown);
+    spirv::ClientAPI clientAPIForAddressSpaceMapping =
+        spirv::ClientAPI::Unknown);
 
 /// Populates the given list with patterns for function conversion from SPIR-V
 /// to LLVM.

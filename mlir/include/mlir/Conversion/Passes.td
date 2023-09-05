@@ -23,6 +23,12 @@ def ConvertToLLVMPass : Pass<"convert-to-llvm"> {
     `ConvertToLLVMPatternInterface` dialect interface to delegate to dialects
     the injection of conversion patterns.
   }];
+
+  let constructor = "mlir::createConvertToLLVMPass()";
+  let options = [
+    ListOption<"filterDialects", "filter-dialects", "std::string",
+               "Test conversion patterns of only the specified dialects">,
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -181,8 +187,7 @@ def ConvertAsyncToLLVMPass : Pass<"convert-async-to-llvm", "ModuleOp"> {
 // BufferizationToMemRef
 //===----------------------------------------------------------------------===//
 
-def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref",
-                                        "mlir::ModuleOp"> {
+def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref"> {
   let summary = "Convert operations from the Bufferization dialect to the "
                 "MemRef dialect";
   let description = [{
@@ -190,12 +195,14 @@ def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref",
     This pass converts bufferization operations into memref operations.
 
     In the current state, this pass only transforms a `bufferization.clone`
-    operation into `memref.alloc` and `memref.copy` operations. This conversion
-    is needed, since some clone operations could remain after applying several
-    transformation processes. Currently, only `canonicalize` transforms clone
-    operations or even eliminates them. This can lead to errors if any clone op
-    survived after all conversion passes (starting from the bufferization
-    dialect) are performed.
+    operation into `memref.alloc` and `memref.copy` operations and
+    `bufferization.dealloc` operations (the same way as the
+    `-bufferization-lower-deallocations` pass). The conversion of `clone`
+    operations is needed, since some clone operations could remain after
+    applying several transformation processes. Currently, only `canonicalize`
+    transforms clone operations or even eliminates them. This can lead to errors
+    if any clone op survived after all conversion passes (starting from the
+    bufferization dialect) are performed.
 
     See:
     https://llvm.discourse.group/t/bufferization-error-related-to-memref-clone/4665
@@ -281,6 +288,37 @@ def ConvertControlFlowToLLVMPass : Pass<"convert-cf-to-llvm", "ModuleOp"> {
                    /*default=*/"true", "Generate LLVM IR using opaque pointers "
                    "instead of typed pointers">,
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// ControlFlowToSCF
+//===----------------------------------------------------------------------===//
+
+def LiftControlFlowToSCFPass : Pass<"lift-cf-to-scf"> {
+  let summary = "Lift ControlFlow dialect to SCF dialect";
+  let description = [{
+    Lifts ControlFlow operations to SCF dialect operations.
+
+    This pass is prefixed with "lift" instead of "convert" as it is not always
+    guaranteed to replace all ControlFlow ops.
+    If a region contains only a single kind of return-like operation, all
+    ControlFlow operations will be replaced successfully.
+    Otherwise a single ControlFlow switch branching to one block per return-like
+    operation kind remains.
+
+    This pass may need to create unreachable terminators in case of infinite
+    loops, which is only supported for 'func.func' for now. If you potentially
+    have infinite loops inside CFG regions not belonging to 'func.func',
+    consider using `transformCFGToSCF` function directly with corresponding
+    `CFGToSCFInterface::createUnreachableTerminator` implementation.
+  }];
+
+  let dependentDialects = ["scf::SCFDialect",
+                           "arith::ArithDialect",
+                           "ub::UBDialect",
+                           // TODO: This is only necessary until we have a
+                           //       ub.unreachable op.
+                           "func::FuncDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -708,7 +746,10 @@ def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv"> {
   let options = [
     Option<"boolNumBits", "bool-num-bits",
            "int", /*default=*/"8",
-           "The number of bits to store a boolean value">
+           "The number of bits to store a boolean value">,
+    Option<"use64bitIndex", "use-64bit-index",
+           "bool", /*default=*/"false",
+           "Use 64-bit integers to convert index types">
   ];
 }
 

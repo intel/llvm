@@ -7,11 +7,10 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: matrix
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST -DMANUAL_UNROLL
+// RUN: %{build} -mllvm -inline-threshold=5000 -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST -DMANUAL_UNROLL
 // RUN: %{run} %t.out
-// XFAIL: gpu
 
-// -mllvm -inline-threshold=2000 added as a workaround,
+// -mllvm -inline-threshold added as a workaround,
 // since IGC doesn't support some variants of IR for Joint Matrix currently
 
 #include <cstddef>

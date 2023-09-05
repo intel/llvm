@@ -19,12 +19,10 @@ define weak_odr dso_local spir_kernel void @_ZTS12WhileOneTest() #0 comdat !kern
 entry:
   %i = alloca i32, align 4
   %s = alloca i32, align 4
-  %0 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #2
-  store i32 0, i32* %i, align 4, !tbaa !7
-  %1 = bitcast i32* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #2
-  store i32 0, i32* %s, align 4, !tbaa !7
+  call void @llvm.lifetime.start.p0(i64 4, ptr %i) #2
+  store i32 0, ptr %i, align 4, !tbaa !7
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #2
+  store i32 0, ptr %s, align 4, !tbaa !7
   br label %while.cond
 
 ; CHECK-SPV-NOT: {{[0-9]+}} LoopControlINTEL
@@ -40,8 +38,8 @@ while.cond:                                       ; preds = %if.end, %entry
 ; CHECK-SPV-NOT: {{[0-9]+}} LoopMerge
 
 while.body:                                       ; preds = %while.cond
-  %2 = load i32, i32* %i, align 4, !tbaa !7
-  %cmp = icmp sge i32 %2, 16
+  %0 = load i32, ptr %i, align 4, !tbaa !7
+  %cmp = icmp sge i32 %0, 16
   br i1 %cmp, label %if.then, label %if.else
 
 if.then:                                          ; preds = %while.body
@@ -49,29 +47,27 @@ if.then:                                          ; preds = %while.body
   br label %while.end
 
 if.else:                                          ; preds = %while.body
-  %3 = load i32, i32* %i, align 4, !tbaa !7
-  %4 = load i32, i32* %s, align 4, !tbaa !7
-  %add = add nsw i32 %4, %3
-  store i32 %add, i32* %s, align 4, !tbaa !7
+  %1 = load i32, ptr %i, align 4, !tbaa !7
+  %2 = load i32, ptr %s, align 4, !tbaa !7
+  %add = add nsw i32 %2, %1
+  store i32 %add, ptr %s, align 4, !tbaa !7
   br label %if.end
 
 ; CHECK-REV-LLVM-NOT: br {{.*}}, !llvm.loop
 
 if.end:                                           ; preds = %if.else
 ; CHECK-REV-LLVM: if.end:
-  %5 = load i32, i32* %i, align 4, !tbaa !7
-  %inc = add nsw i32 %5, 1
-  store i32 %inc, i32* %i, align 4, !tbaa !7
+  %3 = load i32, ptr %i, align 4, !tbaa !7
+  %inc = add nsw i32 %3, 1
+  store i32 %inc, ptr %i, align 4, !tbaa !7
   br label %while.cond, !llvm.loop !9
 ; CHECK-REV-LLVM: br label %while.cond, !llvm.loop ![[MD_UNROLL:[0-9]+]]
 
 ; CHECK-REV-LLVM-NOT: br {{.*}}, !llvm.loop
 
 while.end:                                        ; preds = %if.then
-  %6 = bitcast i32* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %6) #2
-  %7 = bitcast i32* %i to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %7) #2
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #2
+  call void @llvm.lifetime.end.p0(i64 4, ptr %i) #2
   ret void
 }
 
@@ -82,10 +78,10 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: argmemonly nounwind
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 attributes #0 = { "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { argmemonly nounwind }

@@ -5,10 +5,6 @@
 // backend calls.
 // UNSUPPORTED: hip || (opencl && gpu)
 //
-// Temporarily disabled for OpenCL CPU while we wait for CPU driver bump. Same
-// applies to the FPGA emulator.
-// UNSUPPORTED: opencl
-//
 // Tests operator[] on device_global with device_image_scope.
 // NOTE: USE_DEVICE_IMAGE_SCOPE needs both kernels to be in the same image so
 //       we set -fsycl-device-code-split=per_source.

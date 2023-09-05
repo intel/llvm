@@ -4,9 +4,6 @@
 // https://github.com/intel/llvm/issues/7585 to fix the failure:
 // XFAIL: gpu
 
-// Missing GroupNonUniformArithmetic capability on CPU RT
-// XFAIL: cpu
-
 // This test verifies the correct work of SPIR-V 1.3 exclusive_scan() and
 // inclusive_scan() algoriths used with the operation MUL, bitwise OR, XOR, AND.
 

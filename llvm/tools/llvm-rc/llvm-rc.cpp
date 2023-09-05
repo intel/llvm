@@ -44,6 +44,7 @@
 
 using namespace llvm;
 using namespace llvm::rc;
+using namespace llvm::opt;
 
 namespace {
 
@@ -123,20 +124,30 @@ std::string createTempFile(const Twine &Prefix, StringRef Suffix) {
 }
 
 ErrorOr<std::string> findClang(const char *Argv0, StringRef Triple) {
-  StringRef Parent = llvm::sys::path::parent_path(Argv0);
+  // This just needs to be some symbol in the binary.
+  void *P = (void*) (intptr_t) findClang;
+  std::string MainExecPath = llvm::sys::fs::getMainExecutable(Argv0, P);
+  if (MainExecPath.empty())
+    MainExecPath = Argv0;
+
   ErrorOr<std::string> Path = std::error_code();
   std::string TargetClang = (Triple + "-clang").str();
   std::string VersionedClang = ("clang-" + Twine(LLVM_VERSION_MAJOR)).str();
-  if (!Parent.empty()) {
-    // First look for the tool with all potential names in the specific
-    // directory of Argv0, if known
-    for (const auto *Name :
-         {TargetClang.c_str(), VersionedClang.c_str(), "clang", "clang-cl"}) {
+  for (const auto *Name :
+       {TargetClang.c_str(), VersionedClang.c_str(), "clang", "clang-cl"}) {
+    for (const StringRef Parent :
+         {llvm::sys::path::parent_path(MainExecPath),
+          llvm::sys::path::parent_path(Argv0)}) {
+      // Look for various versions of "clang" first in the MainExecPath parent
+      // directory and then in the argv[0] parent directory.
+      // On Windows (but not Unix) argv[0] is overwritten with the eqiuvalent
+      // of MainExecPath by InitLLVM.
       Path = sys::findProgramByName(Name, Parent);
       if (Path)
         return Path;
     }
   }
+
   // If no parent directory known, or not found there, look everywhere in PATH
   for (const auto *Name : {"clang", "clang-cl"}) {
     Path = sys::findProgramByName(Name);
