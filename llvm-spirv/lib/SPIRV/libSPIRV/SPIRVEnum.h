@@ -501,6 +501,8 @@ template <> inline void SPIRVMap<Decoration, SPIRVCapVec>::init() {
                {CapabilityFPGALatencyControlINTEL});
   ADD_VEC_INIT(DecorationLatencyControlConstraintINTEL,
                {CapabilityFPGALatencyControlINTEL});
+  ADD_VEC_INIT(DecorationFPMaxErrorDecorationINTEL,
+               {CapabilityFPMaxErrorINTEL});
 }
 
 template <> inline void SPIRVMap<BuiltIn, SPIRVCapVec>::init() {
