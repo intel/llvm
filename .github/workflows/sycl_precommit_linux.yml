@@ -127,4 +127,4 @@ jobs:
 
       env: '{"LIT_FILTER":"Matrix/"}'
       # Use run_launcher to skip execution, making the tests compile-only.
-      extra_cmake_args: -DSYCL_E2E_TESTS_LIT_FLAGS="--param matrix=1;--param matrix-xmx8=1;--param run_launcher=/bin/true"
+      extra_cmake_args: -DSYCL_E2E_TESTS_LIT_FLAGS="--param;matrix=1;--param;matrix-xmx8=1;--param;run_launcher=/bin/true"
