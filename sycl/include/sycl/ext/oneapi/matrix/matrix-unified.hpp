@@ -67,7 +67,6 @@ struct joint_matrix {
   // combination of InstCombine + SROA + mem2reg can remove it
   joint_matrix(const joint_matrix &other) {
     spvm = other.spvm;
-    return *this;
   }
 
   joint_matrix &operator=(const joint_matrix &rhs) {
