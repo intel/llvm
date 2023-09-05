@@ -167,7 +167,7 @@ static llvm::function_ref<int64_t(int64_t)> getMirror(unsigned dimensions) {
 /// 3. Initialize the dimensions of the object with the values in builtin \p
 /// builtin.
 void rewriteND(Operation *op, spirv::BuiltIn builtin,
-               TypeConverter &typeConverter,
+               const TypeConverter &typeConverter,
                ConversionPatternRewriter &rewriter) {
   // This conversion is platform dependent
   const auto dimensions = getDimensions(op->getResultTypes()[0]);

@@ -9,7 +9,7 @@
 #ifndef MLIR_DIALECT_POLYGEIST_UTILS_ALIASUTILS_H
 #define MLIR_DIALECT_POLYGEIST_UTILS_ALIASUTILS_H
 
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 
 namespace mlir {
 class AliasAnalysis;

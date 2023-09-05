@@ -429,7 +429,9 @@ protected:
       if (!attr) {
         funcOp->emitError()
             << "Contains llvm.cconv attribute not of type LLVM::CConvAttr";
-        return nullptr;
+        return rewriter.notifyMatchFailure(
+            funcOp,
+            "Contains llvm.cconv attribute not of type LLVM::CConvAttr");
       }
       callingConvention = attr.getCallingConv();
     }
@@ -465,8 +467,7 @@ protected:
     }
     auto newFuncOp = rewriter.create<LLVM::LLVMFuncOp>(
         funcOp.getLoc(), funcOp.getName(), llvmType, linkage,
-        /*dsoLocal=*/false, callingConvention, /*comdat=*/nullptr,
-        attributes);
+        /*dsoLocal=*/false, callingConvention, /*comdat=*/nullptr, attributes);
     // If the memory attribute was created, add it to the function.
     if (memoryAttr)
       newFuncOp.setMemoryAttr(memoryAttr);

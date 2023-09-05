@@ -920,7 +920,7 @@ struct LLVMOpLowering : public ConversionPattern {
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    TypeConverter *converter = getTypeConverter();
+    const TypeConverter *converter = getTypeConverter();
     SmallVector<Type> convertedResultTypes;
     if (failed(converter->convertTypes(op->getResultTypes(),
                                        convertedResultTypes))) {
@@ -1047,7 +1047,7 @@ struct AsyncOpLoweringOld : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     }
 
     // Collect types for the outlined function inputs and outputs.
-    TypeConverter *converter = getTypeConverter();
+    const TypeConverter *converter = getTypeConverter();
     auto typesRange = llvm::map_range(functionInputs, [&](Value value) {
       return converter->convertType(value.getType());
     });
@@ -1265,7 +1265,7 @@ struct AsyncOpLowering : public ConvertOpToLLVMPattern<async::ExecuteOp> {
     }
 
     // Collect types for the outlined function inputs and outputs.
-    TypeConverter *converter = getTypeConverter();
+    const TypeConverter *converter = getTypeConverter();
     auto typesRange = llvm::map_range(functionInputs, [&](Value value) {
       return converter->convertType(value.getType());
     });
@@ -1424,7 +1424,7 @@ struct GlobalOpTypeConversion : public OpConversionPattern<LLVM::GlobalOp> {
   LogicalResult
   matchAndRewrite(LLVM::GlobalOp op, LLVM::GlobalOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    TypeConverter *converter = getTypeConverter();
+    const TypeConverter *converter = getTypeConverter();
     Type globalType = adaptor.getGlobalType();
     Type convertedType = converter->convertType(globalType);
     if (!convertedType)

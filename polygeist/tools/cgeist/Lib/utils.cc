@@ -51,8 +51,8 @@ Operation *replaceFuncByOperation(func::FuncOp F, llvm::StringRef OpName,
     return buildLinalgOp(OpName, B, Input, Output);
 
   // NOTE: The attributes of the provided FuncOp is ignored.
-  OperationState OpState(B.getUnknownLoc(), OpName, Input,
-                         F.getCallableResults(), {});
+  OperationState OpState(B.getUnknownLoc(), OpName, Input, F.getResultTypes(),
+                         {});
   return B.create(OpState);
 }
 

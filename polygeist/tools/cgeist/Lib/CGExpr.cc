@@ -1030,7 +1030,7 @@ MLIRScanner::VisitArraySubscriptExpr(clang::ArraySubscriptExpr *Expr) {
     llvm::dbgs() << "\n";
   });
 
-  assert(!Expr->getBase()->getType()->isVLSTBuiltinType() &&
+  assert(!Expr->getBase()->getType()->isSveVLSBuiltinType() &&
          "Not supported yet");
 
   if (Expr->getBase()->getType()->isVectorType())

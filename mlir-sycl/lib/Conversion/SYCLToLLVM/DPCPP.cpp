@@ -626,7 +626,7 @@ public:
 
   void rewrite(Op op, OpAdaptor adaptor,
                ConversionPatternRewriter &rewriter) const final {
-    LLVMTypeConverter *typeConverter =
+    const LLVMTypeConverter *typeConverter =
         ConvertOpToLLVMPattern<Op>::getTypeConverter();
     Type ET = typeConverter->convertType(op.getType().getElementType());
     // The constructor value corresponds with the value defined by the alloca
@@ -2466,7 +2466,7 @@ protected:
   void initialize(Value alloca, SYCLNDRangeConstructorOp op, OpAdaptor adaptor,
                   OpBuilder &builder) const final {
     Location loc = op.getLoc();
-    LLVMTypeConverter *typeConverter =
+    const LLVMTypeConverter *typeConverter =
         ConvertOpToLLVMPattern<SYCLNDRangeConstructorOp>::getTypeConverter();
     bool useOpaquePointers = typeConverter->useOpaquePointers();
     unsigned dimensions = getDimensions(op.getNDRange().getType());

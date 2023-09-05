@@ -15,7 +15,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/Utils/Utils.h"
-#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include <optional>
 
@@ -103,7 +103,7 @@ bool polygeist::isTailCall(CallOpInterface call) {
 
   Operation *nextOp = call->getNextNode();
   return (nextOp->hasTrait<OpTrait::IsTerminator>() ||
-          isRegionReturnLike(nextOp));
+          isa<RegionBranchTerminatorOpInterface>(nextOp));
 }
 
 unsigned polygeist::getGridDimension(FunctionOpInterface func) {

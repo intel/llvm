@@ -24,8 +24,9 @@ namespace {
 /// Returns the LLVM type of the global variable given the memref type `type`.
 ///
 /// Copied from `mlir/lib/Conversion/MemRefToLLVM/MemRefToLLVM.cpp`
-static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
-                                          LLVMTypeConverter &typeConverter) {
+static Type
+convertGlobalMemrefTypeToLLVM(MemRefType type,
+                              const LLVMTypeConverter &typeConverter) {
   // LLVM type for a global memref will be a multi-dimension array. For
   // declarations or uninitialized global memrefs, we can potentially flatten
   // this to a 1D array. However, for memref.global's with an initial value,
@@ -500,8 +501,9 @@ struct GetGlobalMemrefOpLoweringOld
 
 private:
   /// Returns the LLVM type of the global variable given the memref type `type`.
-  static Type convertGlobalMemrefTypeToLLVM(MemRefType type,
-                                            TypeConverter &typeConverter) {
+  static Type
+  convertGlobalMemrefTypeToLLVM(MemRefType type,
+                                const TypeConverter &typeConverter) {
     // LLVM type for a global memref will be a multi-dimension array. For
     // declarations or uninitialized global memrefs, we can potentially flatten
     // this to a 1D array. However, for memref.global's with an initial value,

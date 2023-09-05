@@ -137,7 +137,7 @@ inline bool canBeLoweredToBarePtr(mlir::MemRefType memRefType) {
                       mlir::ShapedType::isDynamic);
 }
 
-inline LLVM::LLVMFuncOp getFreeFn(LLVMTypeConverter &typeConverter,
+inline LLVM::LLVMFuncOp getFreeFn(const LLVMTypeConverter &typeConverter,
                                   ModuleOp module) {
   return typeConverter.getOptions().useGenericFunctions
              ? LLVM::lookupOrCreateGenericFreeFn(
@@ -146,7 +146,7 @@ inline LLVM::LLVMFuncOp getFreeFn(LLVMTypeConverter &typeConverter,
                                           typeConverter.useOpaquePointers());
 }
 
-inline LLVM::LLVMFuncOp getAllocFn(LLVMTypeConverter &typeConverter,
+inline LLVM::LLVMFuncOp getAllocFn(const LLVMTypeConverter &typeConverter,
                                    ModuleOp module, Type indexType) {
   return typeConverter.getOptions().useGenericFunctions
              ? LLVM::lookupOrCreateGenericAllocFn(

@@ -1619,7 +1619,7 @@ MLIRASTConsumer::getOrCreateLLVMGlobal(const clang::ValueDecl *FD,
     FD->dump();
   VD = VD->getCanonicalDecl();
 
-  auto Linkage = CGM.getLLVMLinkageVarDefinition(VD, /*isConstant*/ false);
+  auto Linkage = CGM.getLLVMLinkageVarDefinition(VD);
   LLVM::Linkage Lnk = getMLIRLinkage(Linkage);
   Type RT = getTypes().getMLIRType(FD->getType());
 
@@ -1758,7 +1758,7 @@ MLIRASTConsumer::getOrCreateGlobal(const clang::ValueDecl &VD,
       Builder.getIntegerAttr(Builder.getIntegerType(64), Align.value()));
 
   // Set the visibility.
-  switch (CGM.getLLVMLinkageVarDefinition(Var, IsConst)) {
+  switch (CGM.getLLVMLinkageVarDefinition(Var)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
   case llvm::GlobalValue::LinkageTypes::PrivateLinkage:
     SymbolTable::setSymbolVisibility(GlobalOp,
