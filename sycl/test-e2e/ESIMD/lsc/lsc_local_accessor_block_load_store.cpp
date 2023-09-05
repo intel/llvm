@@ -97,7 +97,8 @@ int main() {
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << ", Local memory size available : " << DeviceSLMSize << std::endl;
-  if (!isGPUDriverGE(Q, GPUDriverOS::LinuxAndWindows, "26690", "101.4576")) {
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
+                     "101.4576")) {
     std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
     return 0;
   }
