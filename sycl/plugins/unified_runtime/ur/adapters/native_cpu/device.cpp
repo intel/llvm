@@ -73,10 +73,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("0.0.0");
   case UR_DEVICE_INFO_VENDOR:
     return ReturnValue("Intel(R) Corporation");
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
+    // TODO : CHECK
+    return ReturnValue("0.0.0");
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     return ReturnValue(size_t{8192});
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
     return ReturnValue(size_t{8192});
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+    return ReturnValue(size_t(65536 /*todo: min if aspect::image*/));
+  case UR_DEVICE_INFO_MAX_SAMPLERS:
+    return ReturnValue(uint32_t{16 /*todo: min if aspect::image*/});
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(bool{1});
   case UR_DEVICE_INFO_EXTENSIONS:
@@ -114,6 +121,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     // Default minimum values required by the SYCL specification.
     return ReturnValue(size_t{2048});
+  case UR_DEVICE_INFO_HALF_FP_CONFIG: {
+    // todo:
+    ur_device_fp_capability_flags_t HalfFPValue = 0;
+    return ReturnValue(HalfFPValue);
+  }
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
+    // todo
+    ur_device_fp_capability_flags_t SingleFPValue = 0;
+    return ReturnValue(SingleFPValue);
+  }
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    ur_device_fp_capability_flags_t DoubleFPValue = 0;
+    return ReturnValue(DoubleFPValue);
+  }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
   case UR_DEVICE_INFO_PARTITION_TYPE:
@@ -191,6 +212,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
+    // TODO : CHECK
+    return ReturnValue(uint64_t{0});
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:

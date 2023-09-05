@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
