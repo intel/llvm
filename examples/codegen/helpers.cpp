@@ -24,7 +24,7 @@ std::string generate_plus_one_spv() {
     LLVMContext ctx;
     std::unique_ptr<Module> module =
         std::make_unique<Module>("code_generated", ctx);
-    module->setTargetTriple("spir-unknown-unknown");
+    module->setTargetTriple("spir64-unknown-unknown");
     IRBuilder<> builder(ctx);
 
     std::vector<Type *> args{Type::getInt32PtrTy(ctx, 1),
