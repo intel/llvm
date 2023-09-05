@@ -131,20 +131,20 @@ struct ur_mem_handle_t_ {
     struct SurfaceMem {
       hipArray *Array;
       hipSurfaceObject_t SurfObj;
-      ur_image_desc_t ImageInfo;
+      ur_image_desc_t ImageDesc;
       ur_image_format_t ImageFormat;
 
       hipArray *getArray() const noexcept { return Array; }
 
       hipSurfaceObject_t getSurface() const noexcept { return SurfObj; }
       ur_image_format_t getImageFormat() const noexcept { return ImageFormat; }
-      ur_mem_type_t getImageType() const noexcept { return ImageInfo.type; }
-      size_t getImageWidth() const noexcept { return ImageInfo.width; }
-      size_t getImageHeight() const noexcept { return ImageInfo.height; }
-      size_t getImageDepth() const noexcept { return ImageInfo.depth; }
-      size_t getImageRowPitch() const noexcept { return ImageInfo.rowPitch; }
+      ur_mem_type_t getImageType() const noexcept { return ImageDesc.type; }
+      size_t getImageWidth() const noexcept { return ImageDesc.width; }
+      size_t getImageHeight() const noexcept { return ImageDesc.height; }
+      size_t getImageDepth() const noexcept { return ImageDesc.depth; }
+      size_t getImageRowPitch() const noexcept { return ImageDesc.rowPitch; }
       size_t getImageSlicePitch() const noexcept {
-        return ImageInfo.slicePitch;
+        return ImageDesc.slicePitch;
       }
     } SurfaceMem;
   } Mem;
@@ -177,9 +177,9 @@ struct ur_mem_handle_t_ {
       : Context{Ctxt}, RefCount{1}, MemType{Type::Surface}, MemFlags{MemFlags} {
     Mem.SurfaceMem.Array = Array;
     Mem.SurfaceMem.SurfObj = Surf;
-    // disable pNext for ImageInfo
+    // disable pNext for ImageDesc
     ImageDesc.pNext = nullptr;
-    Mem.SurfaceMem.ImageInfo = ImageDesc;
+    Mem.SurfaceMem.ImageDesc = ImageDesc;
     Mem.SurfaceMem.ImageFormat = ImageFormat;
     urContextRetain(Context);
   }
