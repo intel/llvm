@@ -179,22 +179,17 @@ void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v) {
                          std::uniform_real_distribution<DType>>;
   distribution_t distribution(static_cast<DType>(0), static_cast<DType>(100));
 
-  for (int i = 0; i < v.size(); ++i) {
-    v[i] = sycl::vec<DType, NChannels>(distribution(generator));
+  assert(v.empty());
+  for (int i = 0; i < v.capacity(); ++i) {
+    v.emplace_back(distribution(generator));
   }
 }
 
-template <typename DType, int NChannels>
-std::conditional_t<NChannels == 1, DType, sycl::vec<DType, NChannels>>
-add_kernel(std::conditional_t<NChannels == 1, DType,
-                              sycl::vec<DType, NChannels>> &in_0,
-           std::conditional_t<NChannels == 1, DType,
-                              sycl::vec<DType, NChannels>> &in_1) {
-  if constexpr (NChannels == 1) {
+template <typename T, int NChannels> T add_kernel(T &in_0, T &in_1) {
+  if constexpr (std::is_scalar_v<T>) {
     return in_0 + in_1;
   } else {
-
-    sycl::vec<DType, NChannels> out;
+    T out;
     for (int i = 0; i < NChannels; ++i) {
       out[i] = in_0[i] + in_1[i];
     }
@@ -247,7 +242,6 @@ void run_ndim_test(sycl::range<NDims> global_size,
             size_t dim1 = it.get_global_id(1);
 
             if constexpr (NDims == 2) {
-
               if constexpr (NChannels > 1) {
                 VecType px1 = syclexp::read_image<VecType>(
                     handles.input_1, sycl::int2(dim0, dim1));
@@ -255,7 +249,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
                     handles.input_2, sycl::int2(dim0, dim1));
 
                 auto sum =
-                    VecType(util::add_kernel<DType, NChannels>(px1, px2));
+                    VecType(util::add_kernel<VecType, NChannels>(px1, px2));
                 syclexp::write_image<VecType>(
                     handles.output, sycl::int2(dim0, dim1), VecType(sum));
               } else {
@@ -278,7 +272,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
                     handles.input_2, sycl::int4(dim0, dim1, dim2, 0));
 
                 auto sum =
-                    VecType(util::add_kernel<DType, NChannels>(px1, px2));
+                    VecType(util::add_kernel<VecType, NChannels>(px1, px2));
                 syclexp::write_image<VecType>(handles.output,
                                               sycl::int4(dim0, dim1, dim2, 0),
                                               VecType(sum));
@@ -411,7 +405,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   printString("Populating staging buffer\n");
   // Populate staging memory
   using VecType = sycl::vec<DType, NChannels>;
-  std::vector<VecType> input_vector_0(num_elems);
+  std::vector<VecType> input_vector_0;
+  input_vector_0.reserve(num_elems);
   std::srand(seed);
   util::fill_rand(input_vector_0);
 
@@ -424,7 +419,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
   vkUnmapMemory(vk_device, inVkImgRes1.stagingMemory);
 
-  std::vector<VecType> input_vector_1(num_elems);
+  std::vector<VecType> input_vector_1;
+  input_vector_1.reserve(num_elems);
   std::srand(seed);
   util::fill_rand(input_vector_1);
 
