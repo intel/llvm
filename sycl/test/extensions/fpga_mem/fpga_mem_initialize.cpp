@@ -1,7 +1,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // expected-no-diagnostics
 
-// Test appropriate llvm.ptr.annotation is applied to fpga_mem at different scopes
+// Test initialization works
 
 #include "sycl/sycl.hpp"
 
