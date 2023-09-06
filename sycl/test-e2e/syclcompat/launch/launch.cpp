@@ -177,7 +177,7 @@ template <typename T> void test_basic_dt_launch() {
   T d_a = T(1);
   LaunchTestWithArgs<T> ltt;
 
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
   syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(ltt.range_1_,
@@ -196,7 +196,7 @@ template <typename T> void test_basic_dt_launch_q() {
   T d_a = T(1);
   LaunchTestWithArgs<T> ltt;
 
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
   syclcompat::launch<dynamic_local_mem_basicdt_kernel<T>>(
@@ -213,10 +213,10 @@ template <typename T> void test_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
-  T *d_a = (T *)syclcompat::malloc<T>(ltt.memsize_);
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_);
 
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.range_1_,
                                                         ltt.memsize_, d_a);
@@ -227,17 +227,17 @@ template <typename T> void test_arg_launch() {
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
                                                         ltt.memsize_, d_a);
 
-  syclcompat::free((void *)d_a);
+  syclcompat::free(d_a);
 }
 
 template <typename T> void test_arg_launch_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
-  T *d_a = (T *)syclcompat::malloc<T>(ltt.memsize_, ltt.in_order_q_);
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_, ltt.in_order_q_);
 
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
       ltt.range_1_, ltt.memsize_, ltt.in_order_q_, d_a);
@@ -248,27 +248,27 @@ template <typename T> void test_arg_launch_q() {
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(
       ltt.grid_, ltt.thread_, ltt.memsize_, ltt.in_order_q_, d_a);
 
-  syclcompat::free((void *)d_a, ltt.in_order_q_);
+  syclcompat::free(d_a, ltt.in_order_q_);
 }
 
 template <typename T> void test_local_mem_usage() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
   size_t num_elements = ltt.memsize_ / sizeof(T);
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_);
-  T *d_a = (T *)syclcompat::malloc<T>(num_elements);
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_);
 
   // d_a is the kernel output, no memcpy needed
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
                                                         ltt.memsize_, d_a);
 
-  syclcompat::memcpy((void *)h_a, (void *)d_a, ltt.memsize_);
-  syclcompat::free((void *)d_a);
+  syclcompat::memcpy(h_a, d_a, ltt.memsize_);
+  syclcompat::free(d_a);
 
   for (int i = 0; i < num_elements; i++) {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
@@ -280,21 +280,21 @@ template <typename T> void test_local_mem_usage_q() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   LaunchTestWithArgs<T> ltt;
-  if (ltt.skip) // Unsupported aspect
+  if (ltt.skip_) // Unsupported aspect
     return;
 
   size_t num_elements = ltt.memsize_ / sizeof(T);
   auto &q = ltt.in_order_q_;
 
   T *h_a = (T *)syclcompat::malloc_host(ltt.memsize_);
-  T *d_a = (T *)syclcompat::malloc<T>(num_elements, q);
+  T *d_a = (T *)syclcompat::malloc(ltt.memsize_, q);
 
   // d_a is the kernel output, no memcpy needed
   syclcompat::launch<dynamic_local_mem_typed_kernel<T>>(ltt.grid_, ltt.thread_,
                                                         ltt.memsize_, q, d_a);
 
-  syclcompat::memcpy((void *)h_a, (void *)d_a, ltt.memsize_, q);
-  syclcompat::free((void *)d_a, q);
+  syclcompat::memcpy(h_a, d_a, ltt.memsize_, q);
+  syclcompat::free(d_a, q);
 
   for (size_t i = 0; i < num_elements; i++) {
     assert(h_a[i] == static_cast<T>(num_elements - i - 1));
@@ -332,19 +332,12 @@ int main() {
   test_dynamic_mem_no_arg_launch();
   test_dynamic_mem_no_arg_launch_q();
 
-  using value_type_list_t =
-      std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-                 long long, unsigned long long, float, double, sycl::half>;
-
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_basic_dt_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_basic_dt_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_arg_launch);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_arg_launch_q);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_local_mem_usage);
-  INSTANTIATE_ALL_TYPES(value_type_list_t, test_local_mem_usage_q);
-
-  using memsize_type_list =
-      std::tuple<int, unsigned int, short, unsigned short, long, unsigned long>;
+  INSTANTIATE_ALL_TYPES(value_type_list, test_basic_dt_launch);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_basic_dt_launch_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_arg_launch);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_arg_launch_q);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_local_mem_usage);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_local_mem_usage_q);
 
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch);
   INSTANTIATE_ALL_TYPES(memsize_type_list, test_memsize_no_arg_launch_q);

@@ -107,16 +107,14 @@ void test_ids_query() {
 
   auto wgroup_checker = [&](std::vector<int> input) {
     for (int i = 0; i < input.size(); ++i) {
-      if (input[i] != i / threads.x)
-        assert(false); // FAIL();
+      assert(input[i] == i / threads.x);
     }
   };
   QueryLauncher<wgroup_id_x_query>(grid, threads).launch_dim3(wgroup_checker);
 
   auto local_checker = [&](std::vector<int> input) {
     for (int i = 0; i < input.size(); ++i) {
-      if (input[i] != i % threads.x)
-        assert(false); // FAIL();
+      assert(input[i] == i % threads.x);
     }
   };
   QueryLauncher<local_id_x_query>(grid, threads).launch_dim3(local_checker);

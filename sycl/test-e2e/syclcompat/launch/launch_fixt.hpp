@@ -76,23 +76,23 @@ struct LaunchTest {
 template <typename T> struct LaunchTestWithArgs : public LaunchTest {
   LaunchTestWithArgs()
       : LaunchTest(), memsize_{LOCAL_MEM_SIZE},
-        in_order_q_{{sycl::property::queue::in_order()}}, skip{false} {
-    set_up();
+        in_order_q_{{sycl::property::queue::in_order()}}, skip_{false} {
+    should_skip();
   }
 
-  void set_up() {
+  void should_skip() {
     if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
         std::is_same_v<T, double>) {
       std::cout << "  sycl::aspect::fp64 not supported by the SYCL device."
                 << std::endl;
-      skip = true;
+      skip_ = true;
     }
     if (!syclcompat::get_current_device().has(sycl::aspect::fp16) &&
         std::is_same_v<T, sycl::half>) {
 
       std::cout << "  sycl::aspect::fp16 not supported by the SYCL device."
                 << std::endl;
-      skip = true;
+      skip_ = true;
     }
   }
 
@@ -100,5 +100,8 @@ template <typename T> struct LaunchTestWithArgs : public LaunchTest {
 
   size_t const memsize_;
   sycl::queue const in_order_q_;
-  bool skip;
+  bool skip_;
 };
+
+using memsize_type_list =
+    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long>;
