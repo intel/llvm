@@ -40,10 +40,9 @@ This extension is written against the SYCL 2020 revision 7 specification. All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-This extension does not depend on other SYCL extensions, it is self-contained. Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_mem` extension.
+This extension does not depend on other SYCL extensions; it is self-contained. Below is a list of interactions with other SYCL extensions. These extensions don't have to be implemented to support the `sycl_ext_intel_fpga_datapath` extension.
 
 * link:sycl_ext_intel_fpga_mem.asciidoc[sycl_ext_intel_fpga_mem.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
-* link:sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global.asciidoc] as described in the <<Interactions with other SYCL extensions>> section below
 
 == Status
 Proposed
@@ -213,9 +212,7 @@ Returns a reference to the underlying `T`.
 
 Below are some non-obvious interactions between `fpga_datapath` and other SYCL extensions. 
 
-* The `fpga_datapath` variable can only have accesses from a single kernel. When a `device_global` is templated on a `fpga_datapath` type there may be accesses from multiple kernels to the variable. If this happens, the request to implement the variable in the datapath is ignored.
-
-* The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will be used by the compiler, and the rest will be ignored.
+* The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
 [source,c++]
 ----
 namespace intelexp = sycl::ext::intel::experimental;
