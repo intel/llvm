@@ -40,28 +40,30 @@
 #include <sycl/sycl.hpp>
 #include <syclcompat.hpp>
 
-#include <cmath>
-
 template <typename T> bool check(T x, float e[], int &index) {
-  float precison = 0.001f;
-  if ((std::abs(x.x() - e[index++]) < precison) &&
-      (std::abs(x.y() - e[index++]) < precison)) {
+  float precision = 0.001f;
+  if ((x.x() - e[index] < precision) && (x.x() - e[index] > -precision) &&
+      (x.y() - e[index + 1] < precision) &&
+      (x.y() - e[index + 1] > -precision)) {
+    index += 2;
     return true;
   }
   return false;
 }
 
 template <> bool check<float>(float x, float e[], int &index) {
-  float precison = 0.001f;
-  if (std::abs(x - e[index++]) < precison) {
+  float precision = 0.001f;
+  if ((x - e[index] < precision) && (x - e[index] > -precision)) {
+    index++;
     return true;
   }
   return false;
 }
 
 template <> bool check<double>(double x, float e[], int &index) {
-  float precison = 0.001f;
-  if (std::abs(x - e[index++]) < precison) {
+  float precision = 0.001f;
+  if ((x - e[index] < precision) && (x - e[index] > -precision)) {
+    index++;
     return true;
   }
   return false;
