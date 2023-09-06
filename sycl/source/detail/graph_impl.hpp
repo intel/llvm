@@ -695,11 +695,17 @@ public:
 
   // Returns the number of nodes in the Graph
   // @return Number of nodes in the Graph
-  size_t getNumberOfNodes() const {
+  size_t getNumberOfNodes() {
     size_t NumberOfNodes = 0;
-    for (const auto &Node : MRoots) {
-      NumberOfNodes += Node->depthSearchCount();
-    }
+    auto CountFunc = [&](std::shared_ptr<node_impl> &Node,
+                         std::deque<std::shared_ptr<node_impl>> &) {
+      if (!Node->MVisited) {
+        NumberOfNodes++;
+      }
+      return false;
+    };
+    searchDepthFirst(CountFunc);
+
     return NumberOfNodes;
   }
 

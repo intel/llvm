@@ -391,9 +391,19 @@ bool depthSearchSuccessorCheck(
 
 /// Submits four kernels with diamond dependency to the queue Q
 /// @param Q Queue to submit nodes to.
-void runKernels(queue Q) {
-  auto NodeA = Q.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+/// @param Dep Events to add as previous dependencies to the node group
+/// @return The event associated with the last kernel submitted
+sycl::event runKernels(queue Q, std::vector<sycl::event> Dep = {}) {
+  sycl::event NodeA;
+  if (Dep.size() > 0) {
+    NodeA = Q.submit([&](sycl::handler &cgh) {
+      cgh.depends_on(Dep);
+      cgh.single_task<TestKernel<>>([]() {});
+    });
+  } else {
+    NodeA = Q.submit(
+        [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  }
   auto NodeB = Q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(NodeA);
     cgh.single_task<TestKernel<>>([]() {});
@@ -406,6 +416,7 @@ void runKernels(queue Q) {
     cgh.depends_on({NodeB, NodeC});
     cgh.single_task<TestKernel<>>([]() {});
   });
+  return NodeD;
 }
 
 /// Submits four kernels without any additional dependencies the queue Q
@@ -2090,4 +2101,16 @@ TEST_F(CommandGraphTest, FillMemsetNodes) {
     EXPECT_NE(MemsetNodeAImpl, MemsetNodeBImpl);
     sycl::free(USMPtr, Queue);
   }
+}
+
+TEST_F(CommandGraphTest, GetNumberOfNodes) {
+  // Create graph made of nodes linked as a double diamond
+  Graph.begin_recording(Queue);
+  auto Event = runKernels(Queue);
+  runKernels(Queue, {Event});
+  Graph.end_recording(Queue);
+
+  // Check the number of nodes returned by getNumberOfNodes
+  auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);
+  EXPECT_EQ(GraphImpl->getNumberOfNodes(), 8lu);
 }
