@@ -20,8 +20,13 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
     ScopedContext Active(hProgram->getContext()->getDevice());
 
     hipFunction_t HIPFunc;
-    Result = UR_CHECK_ERROR(
-        hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName));
+    hipError_t KernelNameResult =
+        hipModuleGetFunction(&HIPFunc, hProgram->get(), pKernelName);
+    if (KernelNameResult == hipErrorNotFound) {
+      Result = UR_RESULT_ERROR_INVALID_KERNEL_NAME;
+    } else {
+      Result = UR_CHECK_ERROR(KernelNameResult);
+    }
 
     std::string KernelNameWoffset = std::string(pKernelName) + "_with_offset";
     hipFunction_t HIPFuncWithOffsetParam;
@@ -199,6 +204,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetInfo(ur_kernel_handle_t hKernel,
     return ReturnValue(hKernel->getProgram());
   case UR_KERNEL_INFO_ATTRIBUTES:
     return ReturnValue("");
+  case UR_KERNEL_INFO_NUM_REGS: {
+    int NumRegs = 0;
+    detail::ur::assertion(hipFuncGetAttribute(&NumRegs,
+                                              HIP_FUNC_ATTRIBUTE_NUM_REGS,
+                                              hKernel->get()) == hipSuccess);
+    return ReturnValue(static_cast<uint32_t>(NumRegs));
+  }
   default:
     break;
   }
@@ -318,5 +330,14 @@ urKernelSetExecInfo(ur_kernel_handle_t, ur_kernel_exec_info_t, size_t,
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
     ur_native_handle_t, ur_context_handle_t, ur_program_handle_t,
     const ur_kernel_native_properties_t *, ur_kernel_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    ur_kernel_handle_t hKernel, uint32_t count,
+    const ur_specialization_constant_info_t *pSpecConstants) {
+  std::ignore = hKernel;
+  std::ignore = count;
+  std::ignore = pSpecConstants;
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

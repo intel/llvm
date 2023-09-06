@@ -449,15 +449,19 @@ static ur_result_t commonEnqueueMemBufferCopyRect(
     size_t SrcSlicePitch, void *DstPtr, const hipMemoryType DstType,
     ur_rect_offset_t DstOffset, size_t DstRowPitch, size_t DstSlicePitch) {
 
-  assert(SrcType == hipMemoryTypeDevice || SrcType == hipMemoryTypeHost);
-  assert(DstType == hipMemoryTypeDevice || DstType == hipMemoryTypeHost);
+  UR_ASSERT(SrcType == hipMemoryTypeDevice || SrcType == hipMemoryTypeHost,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(DstType == hipMemoryTypeDevice || DstType == hipMemoryTypeHost,
+            UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   SrcRowPitch = (!SrcRowPitch) ? Region.width : SrcRowPitch;
-  SrcSlicePitch =
-      (!SrcSlicePitch) ? (Region.height * SrcRowPitch) : SrcSlicePitch;
+  SrcSlicePitch = (!SrcSlicePitch)
+                      ? ((Region.height + SrcOffset.x) * SrcRowPitch)
+                      : SrcSlicePitch;
   DstRowPitch = (!DstRowPitch) ? Region.width : DstRowPitch;
-  DstSlicePitch =
-      (!DstSlicePitch) ? (Region.height * DstRowPitch) : DstSlicePitch;
+  DstSlicePitch = (!DstSlicePitch)
+                      ? ((Region.height + DstOffset.x) * DstRowPitch)
+                      : DstSlicePitch;
 
   HIP_MEMCPY3D Params;
 
@@ -885,7 +889,6 @@ static ur_result_t commonEnqueueMemImageNDCopy(
     CpyDesc.Height = Region[1];
     CpyDesc.Depth = Region[2];
     return UR_CHECK_ERROR(hipDrvMemcpy3DAsync(&CpyDesc, HipStream));
-    return UR_RESULT_ERROR_UNKNOWN;
   }
 
   return UR_RESULT_ERROR_INVALID_VALUE;
