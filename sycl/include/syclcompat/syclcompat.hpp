@@ -25,5 +25,7 @@
 #include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
+#include <syclcompat/id_query.hpp>
 #include <syclcompat/kernel.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
