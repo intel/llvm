@@ -71,7 +71,7 @@ int getFuncAttrs() {
 
 #define DECLARE_MODULE_VAR(var) HMODULE var
 #define LOAD_LIB(lib) LoadLibraryA(lib)
-#define LOAD_FUNCTOR(module, ) GetProcAddress(M, FunctionName.c_str())
+#define LOAD_FUNCTOR(module, name) GetProcAddress(module, name)
 #define FREE_LIB(module) FreeLibrary(module)
 
 #else // LINUX
