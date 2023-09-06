@@ -109,9 +109,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
-  // Deprecated
-  // Implicit conversion
-  // expected-warning@+1 {{'annotated_ptr<void>' is deprecated}}
+  // Removed
+  // Assignment / implicit conversion
+  // expected-error@+1 {{no viable overloaded '='}}
   a1 = raw;
 
   // Property merge

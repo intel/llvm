@@ -260,12 +260,6 @@ public:
         "constructor");
   }
 
-  // Implicit constructor was allowed for 2024.0 release. Templated to avoid
-  // ambigious/deprecation diagnostic for explicit construction.
-  template <class = void>
-  [[deprecated]] annotated_ptr(T *Ptr) noexcept
-      : m_Ptr(global_pointer_t(Ptr)) {}
-
   // Constructs an annotated_ptr object from another annotated_ptr object.
   // The new property set contains all properties of the input
   // annotated_ptr object. The same property in `Props...` and `PropertyList2`
