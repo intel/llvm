@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
+// TODO: Reenable the test for Gen12 once driver issue is fixed
+// REQUIRES: gpu-intel-pvc
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
 

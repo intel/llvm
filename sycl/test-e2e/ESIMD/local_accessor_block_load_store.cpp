@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// TODO: Reenable the test for Gen12 once driver issue is fixed
+// REQUIRES: gpu-intel-pvc
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"

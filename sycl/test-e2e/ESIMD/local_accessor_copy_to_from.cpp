@@ -8,6 +8,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// TODO: Reenable the test for Gen12 once driver issue is fixed
+// REQUIRES: gpu-intel-pvc
 // The test checks functionality of the gather/scatter local
 // accessor-based ESIMD intrinsics.
 
