@@ -27,15 +27,15 @@ from templates import helper as th
 
 <%def name="member(iname, itype, loop)">
     %if iname == "pNext":
-        ${x}_print::printStruct(os, ${caller.body()});
+        printStruct(os, ${caller.body()});
     %elif th.type_traits.is_flags(itype):
-        ${x}_print::printFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
+        printFlag<${th.type_traits.get_flag_type(itype)}>(os, ${caller.body()});
     %elif not loop and th.type_traits.is_pointer(itype):
-        ${x}_print::printPtr(os, ${caller.body()});
+        printPtr(os, ${caller.body()});
     %elif loop and th.type_traits.is_pointer_to_pointer(itype):
-        ${x}_print::printPtr(os, ${caller.body()});
+        printPtr(os, ${caller.body()});
     %elif th.type_traits.is_handle(itype):
-        ${x}_print::printPtr(os, ${caller.body()});
+        printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
         os << reinterpret_cast<void*>(${caller.body()});
     %else:
@@ -83,7 +83,7 @@ def findMemberType(_item):
         os << "}";
     %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
-        ${x}_print::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
+        printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
     %elif th.type_traits.is_array(item['type']):
         os << ".${iname} = {";
         for(auto i = 0; i < ${th.type_traits.get_array_length(item['type'])}; i++){
@@ -97,7 +97,7 @@ def findMemberType(_item):
         os << "}";
     %elif typename is not None:
         os << ".${iname} = ";
-        ${x}_print::printTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
+        printTagged(os, ${deref}(params${access}${pname}), ${deref}(params${access}${prefix}${typename}), ${deref}(params${access}${prefix}${typename_size}));
     %else:
         os << ".${iname} = ";
         <%call expr="member(iname, itype, False)">
@@ -147,7 +147,6 @@ template <typename T> inline void printTagged(std::ostream &os, const void *ptr,
 %endif
 %endfor # obj in spec['objects']
 %endfor
-} // namespace ${x}_print
 
 %for spec in specs:
 %for obj in spec['objects']:
@@ -188,7 +187,6 @@ template <typename T> inline void printTagged(std::ostream &os, const void *ptr,
     }
     %endif
     %if obj.get('typed_etors', False) is True:
-    namespace ${x}_print {
     template <>
     inline void printTagged(std::ostream &os, const void *ptr, ${th.make_enum_name(n, tags, obj)} value, size_t size) {
         if (ptr == NULL) {
@@ -248,12 +246,11 @@ template <typename T> inline void printTagged(std::ostream &os, const void *ptr,
                     break;
         }
     }
-    }
+
     %elif "structure_type" in obj['name']:
-    namespace ${x}_print {
     inline void printStruct(std::ostream &os, const void *ptr) {
         if (ptr == NULL) {
-            ${x}_print::printPtr(os, ptr);
+            printPtr(os, ptr);
             return;
         }
 
@@ -266,7 +263,7 @@ template <typename T> inline void printTagged(std::ostream &os, const void *ptr,
                 %>
                 case ${ename}: {
                     const ${th.subt(n, tags, item['desc'])} *pstruct = (const ${th.subt(n, tags, item['desc'])} *)ptr;
-                    ${x}_print::printPtr(os, pstruct);
+                    printPtr(os, pstruct);
                 } break;
             %endfor
                 default:
@@ -274,10 +271,8 @@ template <typename T> inline void printTagged(std::ostream &os, const void *ptr,
                     break;
         }
     }
-    } // namespace ${x}_print
     %endif
 %if th.type_traits.is_flags(obj['name']):
-namespace ${x}_print {
 
 template<>
 inline void printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint32_t flag) {
@@ -310,7 +305,6 @@ inline void printFlag<${th.make_enum_name(n, tags, obj)}>(std::ostream &os, uint
         os << "0";
     }
 }
-} // namespace ${x}_print
 %endif
 ## STRUCT/UNION ###############################################################
 %elif re.match(r"struct", obj['type']):
@@ -332,7 +326,7 @@ inline std::ostream &operator<<(std::ostream &os, const ${obj['type']} ${th.make
 }
 %elif re.match(r"union", obj['type']) and obj['name']:
 <% tag = findUnionTag(obj) %>
-inline void ${x}_print::printUnion(
+inline void printUnion(
     std::ostream &os,
     const ${obj['type']} ${th.make_type_name(n, tags, obj)} params,
     const ${tag['type']} ${th.make_type_name(n, tags, tag)} tag
@@ -380,8 +374,6 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 
 %endfor
 %endfor
-
-namespace ${x}_print {
 
 template <typename T> inline void printPtr(std::ostream &os, const T *ptr) {
     if (ptr == nullptr) {
