@@ -299,8 +299,6 @@ void run_ndim_test(sycl::range<NDims> global_size,
 
     // Wait for kernel completion before destroying external objects
     q.wait_and_throw();
-
-    // cleanup_test(ctxt, dev, handles);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
@@ -357,6 +355,7 @@ struct vulkan_image_test_resources_t {
     VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
                                      0 /*memoryOffset*/));
   }
+
   ~vulkan_image_test_resources_t() {
     vkDestroyBuffer(vk_device, stagingBuffer, nullptr);
     vkDestroyImage(vk_device, vkImage, nullptr);
@@ -612,9 +611,6 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
 
   // Cleanup
-  /*destroy_vulkan_image_resources(inVkImgRes1);
-  destroy_vulkan_image_resources(inVkImgRes2);
-  destroy_vulkan_image_resources(outVkImgRes);*/
   vkDestroySemaphore(vk_device, syclWaitSemaphore, nullptr);
   vkDestroySemaphore(vk_device, syclDoneSemaphore, nullptr);
 
