@@ -120,9 +120,6 @@ public:
   void verify() {
     bool result = true;
     for (int i = 0; i < data_len_; ++i) {
-      std::cout << "device result:" << atom_arr_device_[i];
-      std::cout << " host result:" << atom_arr_host_[i] << std::endl;
-
       if (atom_arr_device_[i] != atom_arr_host_[i]) {
         std::cout << "-- Failure at " << i << std::endl << std::flush;
         result = false;
