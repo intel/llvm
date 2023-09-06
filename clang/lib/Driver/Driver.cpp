@@ -5316,8 +5316,9 @@ class OffloadingActionBuilder final {
         auto *SYCLLibClcInputAction =
             C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
         DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+        return true;
       }
-      return true;
+      return false;
     }
 
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
@@ -5731,7 +5732,7 @@ class OffloadingActionBuilder final {
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
         if (isSYCLNativeCPU) {
-          SYCLDeviceLibLinked = addSYCLNativeCPULibs(TC, DeviceLibs);
+          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, DeviceLibs);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(DeviceLibs, types::TY_LLVM_BC);
