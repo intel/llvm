@@ -5,6 +5,7 @@ get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 if(MLIR_INCLUDE_TESTS)
   set(test_libs
     MLIRPolygeistTestAnalysis
+    MLIRSYCLTestAnalysis
   )
 endif()
 

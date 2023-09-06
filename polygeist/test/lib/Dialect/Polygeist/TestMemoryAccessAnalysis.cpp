@@ -8,6 +8,7 @@
 
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/MemoryAccessAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -31,7 +32,8 @@ struct TestMemoryAccessAnalysisPass
     AnalysisManager am = mam;
     bool relaxedAliasing = true;
     auto &memAccessAnalysis =
-        am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+        am.getAnalysis<MemoryAccessAnalysis>().initialize<sycl::AliasAnalysis>(
+            relaxedAliasing);
 
     op->walk([&](Operation *op) {
       // Only operations with the "tag" attribute are interesting.

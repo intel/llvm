@@ -6,11 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLAccessorAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLAccessorAnalysis.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/ConstructorBaseAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
@@ -20,7 +21,7 @@
 #define DEBUG_TYPE "sycl-accessor-analysis"
 
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 
 //===----------------------------------------------------------------------===//
 // AccessorInformation
@@ -32,7 +33,7 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
   if (isLocal)
     os.indent(4) << "(local_accessor)\n";
 
-  if (info.isTop)
+  if (info.isTop())
     return os.indent(4) << "<TOP>\n";
   os.indent(4) << "Needs range: " << ((info.needsRange()) ? "Yes" : "No")
                << "\n";
@@ -78,7 +79,7 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
 
 const AccessorInformation
 AccessorInformation::join(const AccessorInformation &other,
-                          AliasAnalysis &aliasAnalysis) const {
+                          mlir::AliasAnalysis &aliasAnalysis) const {
   // Return top
   if (other.isLocal != isLocal)
     return AccessorInformation();
@@ -119,9 +120,10 @@ AccessorInformation::join(const AccessorInformation &other,
                              jointRange, jointNeedsOffset, jointOffset);
 }
 
-AliasResult AccessorInformation::alias(const AccessorInformation &other,
-                                       AliasAnalysis &aliasAnalysis) const {
-  if (isTop || other.isTop)
+AliasResult
+AccessorInformation::alias(const AccessorInformation &other,
+                           mlir::AliasAnalysis &aliasAnalysis) const {
+  if (isTop() || other.isTop())
     return AliasResult::MayAlias;
 
   // A local accessor cannot alias with another accessor unless they are aliased
@@ -252,92 +254,24 @@ AliasResult AccessorInformation::alias(const AccessorInformation &other,
 //===----------------------------------------------------------------------===//
 
 SYCLAccessorAnalysis::SYCLAccessorAnalysis(Operation *op, AnalysisManager &mgr)
-    : operation(op), am(mgr), aliasAnalysis(nullptr), idRangeAnalysis(op, mgr),
-      bufferAnalysis(op, mgr) {}
+    : ConstructorBaseAnalysis<SYCLAccessorAnalysis, AccessorInformation>(op,
+                                                                         mgr),
+      idRangeAnalysis(op, mgr), bufferAnalysis(op, mgr) {}
 
-SYCLAccessorAnalysis &
-SYCLAccessorAnalysis::initialize(bool useRelaxedAliasing) {
-
-  // Initialize the dataflow solver
-  aliasAnalysis = &am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis->addAnalysisImplementation(
-      sycl::AliasAnalysis(useRelaxedAliasing));
-
-  solver = std::make_unique<DataFlowSolverWrapper>(*aliasAnalysis);
-
-  // Populate the solver and run the analyses needed by this analysis.
-  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(*aliasAnalysis);
-
-  if (failed(solver->initializeAndRun(operation))) {
-    operation->emitError("Failed to run required dataflow analyses");
-    return *this;
-  }
-
+void SYCLAccessorAnalysis::finalizeInitialization(bool useRelaxedAliasing) {
   idRangeAnalysis.initialize(useRelaxedAliasing);
   bufferAnalysis.initialize(useRelaxedAliasing);
-
-  initialized = true;
-
-  return *this;
 }
 
 std::optional<AccessorInformation>
 SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
                                                              Value operand) {
-  assert(initialized &&
-         "Analysis only available after successful initialization");
-  assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
-         "Expecting an LLVM pointer");
-  assert(aliasAnalysis != nullptr && "Alias analysis not initialized");
-
-  const polygeist::ReachingDefinition *reachingDef =
-      solver->lookupState<polygeist::ReachingDefinition>(op);
-  assert(reachingDef && "expected a reaching definition");
-
-  auto mods = reachingDef->getModifiers(operand, *solver);
-  if (!mods || mods->empty())
-    return std::nullopt;
-
-  if (!llvm::all_of(*mods,
-                    [&](const Definition &def) { return isConstructor(def); }))
-    return std::nullopt;
-
-  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
-  if (pMods) {
-    if (!llvm::all_of(
-            *pMods, [&](const Definition &def) { return isConstructor(def); }))
-      return std::nullopt;
-  }
-
-  bool first = true;
-  AccessorInformation info;
-  for (const Definition &def : *mods) {
-    if (first) {
-      info = getInformation(def);
-      first = false;
-    } else {
-      info = info.join(getInformation(def), *aliasAnalysis);
-      if (info.isTopAccessor())
-        // Early return: As soon as joining of the different information has
-        // reached the top of the lattice, we can end the processing.
-        return info;
-    }
-  }
-
-  if (pMods) {
-    for (const Definition &def : *pMods) {
-      info = info.join(getInformation(def), *aliasAnalysis);
-      if (info.isTopAccessor())
-        // Early return: As soon as joining of the different information has
-        // reached the top of the lattice, we can end the processing.
-        return info;
-    }
-  }
-
-  return info;
+  return getInformationFromConstruction<sycl::AccessorType>(op, operand);
 }
 
-bool SYCLAccessorAnalysis::isConstructor(const Definition &def) {
+template <>
+bool SYCLAccessorAnalysis::isConstructorImpl<sycl::AccessorType>(
+    const polygeist::Definition &def) {
   if (!def.isOperation())
     return false;
 
@@ -349,8 +283,10 @@ bool SYCLAccessorAnalysis::isConstructor(const Definition &def) {
       constructor.getType().getValue());
 }
 
+template <>
 AccessorInformation
-SYCLAccessorAnalysis::getInformation(const Definition &def) {
+SYCLAccessorAnalysis::getInformationImpl<sycl::AccessorType>(
+    const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
   return TypeSwitch<Type, AccessorInformation>(constructor.getType().getValue())
@@ -444,5 +380,5 @@ SYCLAccessorAnalysis::getOperandInfo(sycl::SYCLHostConstructorOp constructor,
   return std::nullopt;
 }
 
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir

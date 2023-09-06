@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Pass/Pass.h"
 
@@ -24,8 +24,7 @@ struct TestIDAndRangeAnalysisPass
     Operation *op = getOperation();
     bool relaxedAliasing = true;
     auto &IDRangeAnalysis =
-        getAnalysis<polygeist::SYCLIDAndRangeAnalysis>().initialize(
-            relaxedAliasing);
+        getAnalysis<sycl::SYCLIDAndRangeAnalysis>().initialize(relaxedAliasing);
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");

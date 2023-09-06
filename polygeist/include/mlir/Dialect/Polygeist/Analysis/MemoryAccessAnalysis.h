@@ -14,13 +14,16 @@
 #ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 #define MLIR_DIALECT_POLYGEIST_ANALYSIS_MEMORYACCESSANALYSIS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Pass/AnalysisManager.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 #include <set>
 
@@ -437,7 +440,32 @@ public:
 
   /// Consumers of the analysis must call this member function immediately after
   /// construction.
-  MemoryAccessAnalysis &initialize(bool relaxedAliasing);
+  template <typename... Plugins>
+  MemoryAccessAnalysis &initialize(bool relaxedAliasing) {
+    AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
+    (aliasAnalysis.addAnalysisImplementation(Plugins(relaxedAliasing)), ...);
+
+    // Run the dataflow analysis we depend on.
+    DataFlowSolverWrapper solver(aliasAnalysis);
+    solver.load<dataflow::IntegerRangeAnalysis>();
+    solver.loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
+
+    if (failed(solver.initializeAndRun(operation))) {
+      operation->emitError("Failed to run required dataflow analysis");
+      return *this;
+    }
+
+    // Try to construct the memory access matrix and offset vector for affine
+    // memory operation of interest.
+    operation->walk<WalkOrder::PreOrder>([&](Operation *op) {
+      TypeSwitch<Operation *>(op)
+          .Case<affine::AffineStoreOp, affine::AffineLoadOp>(
+              [&](auto memoryOp) { build(memoryOp, solver); });
+    });
+
+    isInitialized = true;
+    return *this;
+  }
 
   bool isInvalidated(const AnalysisManager::PreservedAnalyses &pa);
 

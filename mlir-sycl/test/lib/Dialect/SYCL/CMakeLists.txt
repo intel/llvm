@@ -1,13 +1,14 @@
 if(MLIR_INCLUDE_TESTS)
-  add_mlir_library(MLIRPolygeistTestAnalysis
-    TestMemoryAccessAnalysis.cpp
-    TestReachingDefinitionsAnalysis.cpp
-    TestUniformityAnalysis.cpp
+  add_mlir_library(MLIRSYCLTestAnalysis
+    TestAccessorAnalysis.cpp
+    TestBufferAnalysis.cpp
+    TestIDAndRangeAnalysis.cpp
+    TestNDRangeAnalysis.cpp
 
     EXCLUDE_FROM_LIBMLIR
 
     ADDITIONAL_HEADER_DIRS
-    ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Polygeist
+    ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SYCL
     ${MLIR_MAIN_INCLUDE_DIR}/mlir/IR
 
     LINK_COMPONENTS
@@ -17,7 +18,6 @@ if(MLIR_INCLUDE_TESTS)
     MLIRAnalysis
     MLIRIR
     MLIRPass
-    MLIRPolygeistAnalysis
     MLIRSupport
     MLIRSYCLAnalysis
   )

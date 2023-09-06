@@ -1055,7 +1055,8 @@ void LoopInternalization::runOnGPUModule(gpu::GPUModuleOp gpuModule) {
   ModuleAnalysisManager mam(gpuModule, /*passInstrumentor=*/nullptr);
   AnalysisManager am = mam;
   auto &memAccessAnalysis =
-      am.getAnalysis<MemoryAccessAnalysis>().initialize(relaxedAliasing);
+      am.getAnalysis<MemoryAccessAnalysis>().initialize<sycl::AliasAnalysis>(
+          relaxedAliasing);
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
 

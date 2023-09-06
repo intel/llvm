@@ -1,10 +1,6 @@
 add_mlir_dialect_library(MLIRPolygeistAnalysis
   MemoryAccessAnalysis.cpp
   ReachingDefinitionAnalysis.cpp
-  SYCLAccessorAnalysis.cpp
-  SYCLBufferAnalysis.cpp
-  SYCLIDAndRangeAnalysis.cpp
-  SYCLNDRangeAnalysis.cpp
   UniformityAnalysis.cpp
   
   ADDITIONAL_HEADER_DIRS
@@ -14,7 +10,6 @@ add_mlir_dialect_library(MLIRPolygeistAnalysis
   MLIRPass
   MLIRAnalysis
   MLIRPolygeistUtils
-  MLIRSYCLAnalysis
   MLIRAffineAnalysis  
 )
 
