@@ -507,12 +507,12 @@ static void applyOptionsFromImage(std::string &CompileOpts,
   appendLinkOptionsFromImage(LinkOpts, Img);
 }
 
-static void applyCompileOptionsFromEnvironment(std::string &CompileOpts) {
+static void applyCompileOptionsFromEnvironment(std::string_view CompileOpts) {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
-  static const char *CompileOptsEnv =
+       std::string_view CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
-  if (CompileOptsEnv) {
+  if (!CompileOptsEnv.empty()) {
     CompileOpts = CompileOptsEnv;
   }
 }
@@ -526,11 +526,10 @@ static void applyLinkOptionsFromEnvironment(std::string &LinkOpts) {
   }
 }
 
-static void applyOptionsFromEnvironment(std::string &CompileOpts,
-                                        std::string &LinkOpts) {
+static void applyOptionsFromEnvironment(std::string_view CompileOpts) {
   // Build options are overridden if environment variables are present.
   applyCompileOptionsFromEnvironment(CompileOpts);
-  applyLinkOptionsFromEnvironment(LinkOpts);
+  //applyLinkOptionsFromEnvironment(LinkOpts);
 }
 
 std::pair<sycl::detail::pi::PiProgram, bool>
@@ -581,8 +580,13 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
+   auto begin = std::chrono::steady_clock::now();
+  applyOptionsFromEnvironment(std::string_view(CompileOpts.data(), CompileOpts.size()));
+   auto end = std::chrono::steady_clock::now();
+  // Timing instrumentation just to see if this part got faster.
+  // Obviously don't keep in production.
+  std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() << "ns\n";
 
-  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
 
   SerializedObj SpecConsts;
   if (Prg)
@@ -705,7 +709,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     CompileOpts = Prg->get_build_options();
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
-  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  applyOptionsFromEnvironment(std::string_view(CompileOpts.data(), CompileOpts.size()));
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
   auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
@@ -2261,7 +2265,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   std::string CompileOpts;
   std::string LinkOpts;
-  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
+  applyOptionsFromEnvironment(std::string_view(CompileOpts.data(), CompileOpts.size()));
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
