@@ -3100,6 +3100,12 @@ def fno_global_isel : Flag<["-"], "fno-global-isel">, Group<f_clang_Group>,
   HelpText<"Disables the global instruction selector">;
 def fno_experimental_isel : Flag<["-"], "fno-experimental-isel">, Group<f_clang_Group>,
   Alias<fno_global_isel>;
+def faltmathlib_EQ : Joined<["-"], "faltmathlib=">, Group<f_Group>,
+  Visibility<[ClangOption, CC1Option]>,
+    Values<"SVMLAltMathLibrary,TestAltMathLibrary,none">,
+    NormalizedValuesScope<"CodeGenOptions">,
+    NormalizedValues<["SVMLAltMathLibrary", "TestAltMathLibrary","NoAltMathLibrary"]>,
+    MarshallingInfoEnum<CodeGenOpts<"AltMathLib">, "NoAltMathLibrary">;
 def fveclib : Joined<["-"], "fveclib=">, Group<f_Group>,
   Visibility<[ClangOption, CC1Option]>,
     HelpText<"Use the given vector functions library">,
