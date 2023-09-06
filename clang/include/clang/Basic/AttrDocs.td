@@ -3452,8 +3452,7 @@ def SYCLIntelSpeculatedIterationsAttrDocs : Documentation {
 This attribute applies to a loop. Specifies the number of concurrent speculated
 iterations that will be in flight for a loop invocation (i.e. the exit
 condition for these iterations will not have been evaluated yet).
-Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
-used on the same loop in conjunction with disable_loop_pipelining.
+Parameter N is mandatory, and may either be 0, or a positive integer.
 
 .. code-block:: c++
 
