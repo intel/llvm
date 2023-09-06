@@ -7236,15 +7236,6 @@ defm enable_noundef_analysis : BoolOption<"",
   PosFlag<SetTrue, [], [ClangOption], "Enable">,
   NegFlag<SetFalse, [], [ClangOption], "Disable">,
   BothFlags<[], [ClangOption], " analyzing function argument and return types for mandatory definedness">>;
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-defm opaque_pointers : BoolOption<"",
-  "opaque-pointers",
-  CodeGenOpts<"OpaquePointers">,
-  DefaultTrue,
-  PosFlag<SetTrue, [], [ClangOption], "Enable">,
-  NegFlag<SetFalse, [], [ClangOption], "Disable">,
-  BothFlags<[], [ClangOption], " opaque pointers">>;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;

@@ -240,12 +240,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      // FIXME remove this when opaque pointers are supported for SPIR-V
-      if (!this->getToolChain().getTriple().isSPIR()) {
-        Opts.push_back("-opaque-pointers");
-      }
-#endif
     }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
