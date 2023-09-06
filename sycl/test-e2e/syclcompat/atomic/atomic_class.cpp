@@ -115,6 +115,13 @@ template <typename T> void test_atomic_class_value() {
 void test_default_constructor() { syclcompat::atomic<int> default_constructor; }
 
 int main() {
-  INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_class_value);
-  INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_class_ptr);
+  std::vector<sycl::memory_order> supported_memory_orders =
+      syclcompat::get_default_queue()
+          .get_device()
+          .get_info<sycl::info::device::atomic_memory_order_capabilities>();
+
+  if (is_supported(supported_memory_orders, sycl::memory_order::seq_cst)) {
+    INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_class_value);
+    INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_class_ptr);
+  }
 }
