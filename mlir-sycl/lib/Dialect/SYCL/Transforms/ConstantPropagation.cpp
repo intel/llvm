@@ -563,8 +563,8 @@ void ConstantSYCLGridArgs::RewriterBase::rewrite(Operation *op,
   TypeSwitch<const RewriterBase *>(this)
       .Case<NumWorkItemsRewriter, NumWorkGroupsRewriter, WorkGroupSizeRewriter,
             GlobalOffsetRewriter>([&](const auto *rewriter) {
-        return rewriter->rewrite(cast<typename std::remove_pointer_t<decltype(
-                                     rewriter)>::operation_type>(op),
+        return rewriter->rewrite(cast<typename std::remove_pointer_t<
+                                     decltype(rewriter)>::operation_type>(op),
                                  info, builder);
       });
 }
@@ -790,7 +790,7 @@ void ConstantSYCLGridArgs::rewrite(Operation *op, OpBuilder &builder) const {
 //===----------------------------------------------------------------------===//
 
 bool ConstantAccessorArg::isValidInfo(const AccessorInformation &info) {
-  return !info.needsRange() || info.hasConstantRange() ||
+  return !info.needsSubRange() || info.hasConstantSubRange() ||
          (info.hasBufferInformation() &&
           info.getBufferInfo().hasConstantSize()) ||
          !info.needsOffset() || info.hasConstantOffset();
@@ -823,8 +823,8 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
     llvm::dbgs() << "accessor at position #" << index << "\n";
   });
 
-  if (info.needsRange()) {
-    if (info.hasConstantRange()) {
+  if (info.needsSubRange()) {
+    if (info.hasConstantSubRange()) {
       ArrayRef<size_t> accessRange = info.getConstantRange();
       LLVM_DEBUG({
         llvm::dbgs().indent(4)

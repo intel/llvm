@@ -36,8 +36,8 @@ public:
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
                       bool hasOffset, llvm::ArrayRef<size_t> constOffset)
       : buffer{buf}, bufferInfo{bufInfo}, needRange{hasRange},
-        constantRange{constRange}, needOffset{hasOffset}, constantOffset{
-                                                              constOffset} {}
+        constantRange{constRange}, needOffset{hasOffset},
+        constantOffset{constOffset} {}
 
   AccessorInformation(bool hasRange, llvm::ArrayRef<size_t> constRange)
       : isLocal{true}, needRange{hasRange}, constantRange{constRange},
@@ -67,14 +67,14 @@ public:
 
   /// Returns false if the range can be omitted for this accessor, true
   /// otherwise.
-  bool needsRange() const { return needRange; }
+  bool needsSubRange() const { return needRange; }
 
   /// Returns true if the range of this accessor is known to be constant.
-  bool hasConstantRange() const { return !constantRange.empty(); }
+  bool hasConstantSubRange() const { return !constantRange.empty(); }
 
   /// Returns the constant values for the range of this accessor.
   ArrayRef<size_t> getConstantRange() const {
-    assert(hasConstantRange() && "Range not constant");
+    assert(hasConstantSubRange() && "Range not constant");
     return constantRange;
   }
 

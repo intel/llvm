@@ -35,10 +35,10 @@ raw_ostream &operator<<(raw_ostream &os, const AccessorInformation &info) {
 
   if (info.isTop())
     return os.indent(4) << "<TOP>\n";
-  os.indent(4) << "Needs range: " << ((info.needsRange()) ? "Yes" : "No")
+  os.indent(4) << "Needs range: " << ((info.needsSubRange()) ? "Yes" : "No")
                << "\n";
   os.indent(4) << "Range: ";
-  if (info.hasConstantRange()) {
+  if (info.hasConstantSubRange()) {
     os << "range{";
     llvm::interleaveComma(info.getConstantRange(), os);
     os << "}\n";
@@ -88,7 +88,7 @@ AccessorInformation::join(const AccessorInformation &other,
   // not needed, otherwise the conservative default is to assume the range is
   // needed.
   bool jointNeedsRange =
-      (needsRange() == other.needsRange()) ? needsRange() : true;
+      (needsSubRange() == other.needsSubRange()) ? needsSubRange() : true;
   SmallVector<size_t, 3> jointRange = (constantRange == other.constantRange)
                                           ? constantRange
                                           : SmallVector<size_t, 3>{};
@@ -143,16 +143,17 @@ AccessorInformation::alias(const AccessorInformation &other,
 
   if (isSameValue(getBuffer(), other.getBuffer())) {
     // Try to refine to must alias
-    if (!needsRange() && !other.needsRange())
+    if (!needsSubRange() && !other.needsSubRange())
       // If neither uses a range (and therefore also no offset), they must
       // alias.
       return AliasResult::MustAlias;
 
     // Both accessors defined on the same buffer.
-    if (!hasBufferInformation() || (needsRange() && !hasConstantRange()) ||
+    if (!hasBufferInformation() ||
+        (needsSubRange() && !hasConstantSubRange()) ||
         (needsOffset() && !hasConstantOffset()) ||
         !other.hasBufferInformation() ||
-        (other.needsRange() && !other.hasConstantRange()) ||
+        (other.needsSubRange() && !other.hasConstantSubRange()) ||
         (other.needsOffset() && !other.hasConstantOffset()))
       // Without definitive information about the underlying buffer and the
       // range & offset of the two accessors, they might be set up in way
@@ -165,7 +166,7 @@ AccessorInformation::alias(const AccessorInformation &other,
       // Assuming the thisInfo accessor covers the entire buffer (no range and
       // no offset), check whether the otherInfo accessor also covers the entire
       // buffer or not.
-      if (otherInfo.hasConstantRange() &&
+      if (otherInfo.hasConstantSubRange() &&
           thisInfo.getBufferInfo().hasConstantSize() &&
           SmallVector<size_t, 3>(otherInfo.getConstantRange()) ==
               SmallVector<size_t, 3>(
@@ -180,17 +181,17 @@ AccessorInformation::alias(const AccessorInformation &other,
       return AliasResult::MayAlias;
     };
 
-    if (!needsRange())
+    if (!needsSubRange())
       // This accessor covers the entire range of the buffer.
       return checkFullOverlap(*this, other);
 
-    if (!other.needsRange())
+    if (!other.needsSubRange())
       // The other accessor covers the entire range of the buffer.
       return checkFullOverlap(other, *this);
 
     // If control flow reaches this point, this and the other accessor both
     // require a range.
-    if (!hasConstantRange() || !other.hasConstantRange() ||
+    if (!hasConstantSubRange() || !other.hasConstantSubRange() ||
         (needsOffset() && !hasConstantOffset()) ||
         (other.needsOffset() && !other.hasConstantOffset()))
       // Not enough information to determine full or partial overlap, assume
