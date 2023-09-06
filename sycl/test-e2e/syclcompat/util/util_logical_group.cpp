@@ -61,17 +61,17 @@ void test_logical_group() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
-  sycl::queue *q_ct1 = dev_ct1.default_queue();
+  sycl::queue q_ct1 = *dev_ct1.default_queue();
   unsigned int result_host[4];
   unsigned int *result_device;
-  result_device = sycl::malloc_device<unsigned int>(4, *q_ct1);
-  q_ct1->parallel_for(
+  result_device = sycl::malloc_device<unsigned int>(4, q_ct1);
+  q_ct1.parallel_for(
       sycl::nd_range<3>(sycl::range<3>(1, 1, 52), sycl::range<3>(1, 1, 52)),
       [=](sycl::nd_item<3> item_ct1) [[intel::reqd_sub_group_size(32)]] {
         kernel(result_device, item_ct1);
       });
-  q_ct1->memcpy(result_host, result_device, sizeof(unsigned int) * 4).wait();
-  sycl::free(result_device, *q_ct1);
+  q_ct1.memcpy(result_host, result_device, sizeof(unsigned int) * 4).wait();
+  sycl::free(result_device, q_ct1);
 
   assert(result_host[0] == 4);
   assert(result_host[1] == 2);

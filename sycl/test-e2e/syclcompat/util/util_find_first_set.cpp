@@ -101,13 +101,13 @@ void test_find_first_set() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
-  sycl::queue *q_ct1 = dev_ct1.default_queue();
+  sycl::queue q_ct1 = *dev_ct1.default_queue();
   int *test_result, host_test_result = 0;
 
-  test_result = sycl::malloc_shared<int>(sizeof(int), *q_ct1);
+  test_result = sycl::malloc_shared<int>(sizeof(int), q_ct1);
   *test_result = 0;
 
-  q_ct1->parallel_for(
+  q_ct1.parallel_for(
       sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
       [=](sycl::nd_item<3> item_ct1) { find_first_set_test(test_result); });
 
