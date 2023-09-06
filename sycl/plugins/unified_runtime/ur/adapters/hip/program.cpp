@@ -139,7 +139,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
-  // Ignore unused parameter
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {
@@ -150,10 +149,11 @@ urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t,
     return ReturnValue(hProgram->BuildOptions.c_str());
   case UR_PROGRAM_BUILD_INFO_LOG:
     return ReturnValue(hProgram->InfoLog, hProgram->MAX_LOG_SIZE);
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
-    break;
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -176,8 +176,9 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(&hProgram->BinarySizeInBytes, 1);
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
+  case UR_PROGRAM_INFO_NUM_KERNELS:
   case UR_PROGRAM_INFO_KERNEL_NAMES:
-    return getKernelNames(hProgram);
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }
