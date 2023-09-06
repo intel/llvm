@@ -208,10 +208,10 @@ namespace sycl::ext::oneapi::experimental::property{
   template<sycl::memory_scope Scope>
   struct access_scope {};
 
-  inline constexpr auto access_scope_local = 
+  inline constexpr auto access_scope_work_group = 
                                     access_scope<memory_scope_work_group>;
 
-  inline constexpr auto access_scope_private = 
+  inline constexpr auto access_scope_work_item = 
                                     access_scope<memory_scope_work_item>;
 
 } // namespace sycl::ext::oneapi::experimental::property
@@ -227,11 +227,11 @@ the property is specified on an accessor) or in any kernel in the graph (in case
 the property is specified on a buffer or an USM pointer).
 
 More concretely, the two shortcuts express the following semantics:
-* `access_scope_local`: Applying this specialization asserts that each element 
-in the buffer or allocated device memory is accessed by no more than one
+* `access_scope_work_group`: Applying this specialization asserts that each
+element in the buffer or allocated device memory is accessed by no more than one
 work-group.
-* `access_scope_private`: Applying this specialization asserts that each element 
-in the buffer or allocated device memory is accessed by no more than one
+* `access_scope_work_item`: Applying this specialization asserts that each
+element in the buffer or allocated device memory is accessed by no more than one
 work-item.
 
 Implementations may treat specializations of the access scope property as a
@@ -478,31 +478,31 @@ properties must be combined as follows:
 |None
 |None
 
-|Local
-|Local
+|Work Group
+|Work Group
 
-|Private
-|Private
+|Work Item
+|Work Item
 
-.3+.^|Local
+.3+.^|Work Group
 |None
-|Local
+|Work Group
 
-|Local
-|Local
+|Work Group
+|Work Group
 
-|Private
+|Work Item
 |*Error*
 
-.3+.^|Private
+.3+.^|Work Item
 |None
-|Private
+|Work Item
 
-|Local
+|Work Group
 |*Error*
 
-|Private
-|Private
+|Work Item
+|Work Item
 |===
 
 In case different internalization targets are used for accessors to the same
@@ -516,16 +516,16 @@ buffer, the following (commutative and associative) rules are followed:
 |_Any_
 |None
 
-.2+.^|Local
-|Local
-|Local
+.2+.^|Work Group
+|Work Group
+|Work Group
 
-|Private
+|Work Item
 |None
 
-|Private
-|Private
-|Private
+|Work Item
+|Work Item
+|Work Item
 |===
 
 If no work-group size is specified or two accessors specify different
@@ -569,13 +569,13 @@ int main() {
     // Internalization specified on the buffer
     buffer<int> bTmp2{
         range{dataSize},
-        {sycl::ext::oneapi::experimental::property::access_scope_private{},
+        {sycl::ext::oneapi::experimental::property::access_scope_work_item{},
           sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
           no_init}};
     // Internalization specified on the buffer
     buffer<int> bTmp3{
         range{dataSize},
-        {sycl::ext::oneapi::experimental::property::access_scope_private{},
+        {sycl::ext::oneapi::experimental::property::access_scope_work_item{},
           sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
           no_init}};
     buffer<int> bOut{out, range{dataSize}};
@@ -592,8 +592,8 @@ int main() {
       auto accIn1 = bIn1.get_access(cgh);
       auto accIn2 = bIn2.get_access(cgh);
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::oneapi::experimental::property::access_scope_private{}
+      auto accTmp1 = bTmp1.get_access(cgh,
+            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
             sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
             no_init);
       cgh.parallel_for<AddKernel>(dataSize, AddKernel{accIn1, accIn2, accTmp1});
@@ -601,8 +601,8 @@ int main() {
 
     q.submit([&](handler &cgh) {
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::oneapi::experimental::property::access_scope_private{}
+      auto accTmp1 = bTmp1.get_access(cgh,
+            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
             sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
             no_init);
       auto accIn3 = bIn3.get_access(cgh);
@@ -613,8 +613,8 @@ int main() {
 
     q.submit([&](handler &cgh) {
       // Internalization specified on each accessor.
-      auto accTmp1 = bTmp1.get_access(
-          cgh, sycl::ext::oneapi::experimental::property::access_scope_private{}
+      auto accTmp1 = bTmp1.get_access(cgh,
+            sycl::ext::oneapi::experimental::property::access_scope_work_item{}
             sycl::ext::oneapi::experimental::property::fusion_internal_memory{},
             no_init);
       auto accTmp3 = bTmp3.get_access(cgh);
@@ -674,7 +674,7 @@ int main() {
   // Specify internalization for an USM pointer
   dTmp = malloc_device<int>(
       q, dataSize,
-      {sycl_ext::property::access_scope_private{},
+      {sycl_ext::property::access_scope_work_item{},
         sycl_ext::property::fusion_internal_memory{}, no_init});
 
   // This explicit memory operation is compatible with fusion, as it can be
