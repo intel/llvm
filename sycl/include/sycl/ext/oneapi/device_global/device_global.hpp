@@ -93,6 +93,11 @@ protected:
   const T *get_ptr() const noexcept { return &val; }
 
 public:
+#if __cplusplus >= 202002L
+  template <typename... Args>
+  consteval explicit device_global_base(Args&&... args) : val{args...} {}
+#endif // __cplusplus >= 202002L 
+
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
   get_multi_ptr() noexcept {
