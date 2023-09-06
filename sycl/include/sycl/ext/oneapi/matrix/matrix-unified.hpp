@@ -323,6 +323,34 @@ joint_matrix_load(Group sg,
 #endif // defined(__SYCL_DEVICE_ONLY__)
 }
 
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          use Use1, use Use2, layout Layout>
+void joint_matrix_copy(
+    Group sg, joint_matrix<Group, T1, Use1, Rows, Cols, Layout> &src,
+    joint_matrix<Group, T2, Use2, Rows, Cols, Layout> &dest) {
+#if defined(__SYCL_DEVICE_ONLY__)
+#if defined(__NVPTX__)
+  // cuda code
+#else
+  using storage_element_type =
+      typename oneapi::detail::jm_type_interpretation_helper_trait<
+          T2>::storage_element_type;
+  auto wi_data_c = sycl::ext::intel::experimental::matrix::get_wi_data(sg, src);
+  auto wi_data_d =
+      sycl::ext::intel::experimental::matrix::get_wi_data(sg, dest);
+  for (int i = 0; i < wi_data_c.length(); i++) {
+    wi_data_d[i] = static_cast<storage_element_type>(wi_data_c[i]);
+  }
+#endif // defined(__NVPTX__)
+#else
+  std::ignore = sg;
+  std::ignore = dest;
+  std::ignore = src;
+  throw runtime_error("joint matrix is not supported on host device.",
+                      PI_ERROR_INVALID_DEVICE);
+#endif // defined(__SYCL_DEVICE_ONLY__)
+}
+
 template <typename Group, typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 inline __SYCL_ALWAYS_INLINE void joint_matrix_store(
