@@ -4,8 +4,7 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %s -o %t-main.bc
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %p/Inputs/devirt_single_hybrid_foo.ll -o %t-foo.bc
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %p/Inputs/devirt_single_hybrid_bar.ll -o %t-bar.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t-main.bc %t-foo.bc %t-bar.bc -pass-remarks=. -o %t \
-; RUN:   -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t-main.bc %t-foo.bc %t-bar.bc -pass-remarks=. -o %t \
 ; RUN:   -whole-program-visibility \
 ; RUN:    -r=%t-foo.bc,_Z3fooP1A,pl \
 ; RUN:    -r=%t-main.bc,main,plx \

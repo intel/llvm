@@ -126,4 +126,15 @@ puts           |check|    |check|
 fputs          |check|    |check|
 fclose         |check|    |check|
 fopen          |check|    |check|
+fread          |check|    |check|
+=============  =========  ============
+
+stdio.h
+--------
+
+=============  =========  ============
+Function Name  Available  RPC Required
+=============  =========  ============
+clock          |check|
+nanosleep      |check|
 =============  =========  ============

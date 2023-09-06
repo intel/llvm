@@ -153,9 +153,9 @@ TEST(DataflowAnalysisTest, NonConvergingAnalysis) {
 
 // Regression test for joins of bool-typed lvalue expressions. The first loop
 // results in two passes through the code that follows. Each pass results in a
-// different `ReferenceValue` for the pointee of `v`. Then, the second loop
+// different `StorageLocation` for the pointee of `v`. Then, the second loop
 // causes a join at the loop head where the two environments map expresssion
-// `*v` to different `ReferenceValue`s.
+// `*v` to different `StorageLocation`s.
 //
 // An earlier version crashed for this condition (for boolean-typed lvalues), so
 // this test only verifies that the analysis runs successfully, without
@@ -1611,5 +1611,22 @@ TEST_F(TopTest, TopUnusedBeforeLoopHeadJoinsToTop) {
             << debugString(FooVal2->getKind());
 
       });
+}
+
+TEST_F(TopTest, ForRangeStmtConverges) {
+  std::string Code = R"(
+    void target(bool Foo) {
+      int Ints[10];
+      bool B = false;
+      for (int I : Ints)
+        B = true;
+    }
+  )";
+  runDataflow(Code,
+              [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &,
+                 const AnalysisOutputs &) {
+                // No additional expectations. We're only checking that the
+                // analysis converged.
+              });
 }
 } // namespace

@@ -1,10 +1,10 @@
-//===--------- enqueue.cpp - HIP Adapter -----------------------------===//
+//===--------- enqueue.cpp - HIP Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 #include "context.hpp"
@@ -252,7 +252,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ur_device_handle_t Dev = hQueue->getDevice();
+    ScopedContext Active(Dev);
+    ur_context_handle_t Ctx = hQueue->getContext();
 
     uint32_t StreamToken;
     ur_stream_quard Guard;
@@ -260,6 +262,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
     hipFunction_t HIPFunc = hKernel->get();
 
+    hipDevice_t HIPDev = Dev->get();
+    for (const void *P : hKernel->getPtrArgs()) {
+      auto [Addr, Size] = Ctx->getUSMMapping(P);
+      if (!Addr)
+        continue;
+      if (hipMemPrefetchAsync(Addr, Size, HIPDev, HIPStream) != hipSuccess)
+        return UR_RESULT_ERROR_INVALID_KERNEL_ARGS;
+    }
     Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                phEventWaitList);
 
@@ -301,7 +311,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       int DeviceMaxLocalMem = 0;
       Result = UR_CHECK_ERROR(hipDeviceGetAttribute(
           &DeviceMaxLocalMem, hipDeviceAttributeMaxSharedMemoryPerBlock,
-          hQueue->getDevice()->get()));
+          HIPDev));
 
       static const int EnvVal = std::atoi(LocalMemSzPtr);
       if (EnvVal <= 0 || EnvVal > DeviceMaxLocalMem) {
@@ -1307,6 +1317,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 #if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
+  ur_device_handle_t Device = hQueue->getContext()->getDevice();
+
+  // If the device does not support managed memory access, we can't set
+  // mem_advise.
+  if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    setErrorMessage("mem_advise ignored as device does not support "
+                    " managed memory access",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  hipPointerAttribute_t attribs;
+  // TODO: hipPointerGetAttributes will fail if pMem is non-HIP allocated
+  // memory, as it is neither registered as host memory, nor into the address
+  // space for the current device, meaning the pMem ptr points to a
+  // system-allocated memory. This means we may need to check system-alloacted
+  // memory and handle the failure more gracefully.
+  UR_CHECK_ERROR(hipPointerGetAttributes(&attribs, pMem));
+  // async prefetch requires USM pointer (or hip SVM) to work.
+  if (!attribs.isManaged) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,

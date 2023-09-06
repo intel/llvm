@@ -1,10 +1,10 @@
-//===--------- usm.cpp - HIP Adapter ------------------------------===//
+//===--------- usm.cpp - HIP Adapter --------------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <cassert>
 
@@ -28,14 +28,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ScopedContext Active(hContext->getDevice());
     Result = UR_CHECK_ERROR(hipHostMalloc(ppMem, size));
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
   if (Result == UR_RESULT_SUCCESS) {
     assert((!pUSMDesc || pUSMDesc->align == 0 ||
             reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+    hContext->addUSMMapping(*ppMem, size);
   }
-
   return Result;
 }
 
@@ -53,14 +53,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ScopedContext Active(hContext->getDevice());
     Result = UR_CHECK_ERROR(hipMalloc(ppMem, size));
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
 
   if (Result == UR_RESULT_SUCCESS) {
     assert((!pUSMDesc || pUSMDesc->align == 0 ||
             reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+    hContext->addUSMMapping(*ppMem, size);
   }
-
   return Result;
 }
 
@@ -84,8 +84,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
   if (Result == UR_RESULT_SUCCESS) {
     assert((!pUSMDesc || pUSMDesc->align == 0 ||
             reinterpret_cast<std::uintptr_t>(*ppMem) % pUSMDesc->align == 0));
+    hContext->addUSMMapping(*ppMem, size);
   }
-
   return Result;
 }
 
@@ -109,8 +109,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
       Result = UR_CHECK_ERROR(hipFreeHost(pMem));
     }
   } catch (ur_result_t Error) {
-    Result = Error;
+    return Error;
   }
+  hContext->removeUSMMapping(pMem);
   return Result;
 }
 

@@ -2364,8 +2364,10 @@ Error BitcodeReader::parseTypeTableBody() {
                                     //          [pointee type, address space]
       if (Record.empty())
         return error("Invalid pointer record");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue()))
         Context.setOpaquePointers(false);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddressSpace = 0;
       if (Record.size() == 2)
         AddressSpace = Record[1];
@@ -3217,7 +3219,7 @@ Error BitcodeReader::parseConstants() {
                      Opc == Instruction::LShr ||
                      Opc == Instruction::AShr) {
             if (Record[3] & (1 << bitc::PEO_EXACT))
-              Flags |= SDivOperator::IsExact;
+              Flags |= PossiblyExactOperator::IsExact;
           }
         }
         V = BitcodeConstant::create(Alloc, CurTy, {(uint8_t)Opc, Flags},

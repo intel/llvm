@@ -1459,6 +1459,51 @@ SDValue SelectionDAG::getZExtOrTrunc(SDValue Op, const SDLoc &DL, EVT VT) {
     getNode(ISD::TRUNCATE, DL, VT, Op);
 }
 
+SDValue SelectionDAG::getBitcastedAnyExtOrTrunc(SDValue Op, const SDLoc &DL,
+                                                 EVT VT) {
+  assert(!VT.isVector());
+  auto Type = Op.getValueType();
+  SDValue DestOp;
+  if (Type == VT)
+    return Op;
+  auto Size = Op.getValueSizeInBits();
+  DestOp = getBitcast(MVT::getIntegerVT(Size), Op);
+  if (DestOp.getValueType() == VT)
+    return DestOp;
+
+  return getAnyExtOrTrunc(DestOp, DL, VT);
+}
+
+SDValue SelectionDAG::getBitcastedSExtOrTrunc(SDValue Op, const SDLoc &DL,
+                                               EVT VT) {
+  assert(!VT.isVector());
+  auto Type = Op.getValueType();
+  SDValue DestOp;
+  if (Type == VT)
+    return Op;
+  auto Size = Op.getValueSizeInBits();
+  DestOp = getBitcast(MVT::getIntegerVT(Size), Op);
+  if (DestOp.getValueType() == VT)
+    return DestOp;
+
+  return getSExtOrTrunc(DestOp, DL, VT);
+}
+
+SDValue SelectionDAG::getBitcastedZExtOrTrunc(SDValue Op, const SDLoc &DL,
+                                               EVT VT) {
+  assert(!VT.isVector());
+  auto Type = Op.getValueType();
+  SDValue DestOp;
+  if (Type == VT)
+    return Op;
+  auto Size = Op.getValueSizeInBits();
+  DestOp = getBitcast(MVT::getIntegerVT(Size), Op);
+  if (DestOp.getValueType() == VT)
+    return DestOp;
+
+  return getZExtOrTrunc(DestOp, DL, VT);
+}
+
 SDValue SelectionDAG::getBoolExtOrTrunc(SDValue Op, const SDLoc &SL, EVT VT,
                                         EVT OpVT) {
   if (VT.bitsLE(Op.getValueType()))
@@ -1592,7 +1637,8 @@ SDValue SelectionDAG::getConstant(const ConstantInt &Val, const SDLoc &DL,
     unsigned ViaEltSizeInBits = ViaEltVT.getSizeInBits();
 
     // For scalable vectors, try to use a SPLAT_VECTOR_PARTS node.
-    if (VT.isScalableVector()) {
+    if (VT.isScalableVector() ||
+        TLI->isOperationLegal(ISD::SPLAT_VECTOR, VT)) {
       assert(EltVT.getSizeInBits() % ViaEltSizeInBits == 0 &&
              "Can only handle an even split!");
       unsigned Parts = EltVT.getSizeInBits() / ViaEltSizeInBits;
@@ -1933,6 +1979,9 @@ SDValue SelectionDAG::getVScale(const SDLoc &DL, EVT VT, APInt MulImm,
   assert(MulImm.getBitWidth() == VT.getSizeInBits() &&
          "APInt size does not match type size!");
 
+  if (MulImm == 0)
+    return getConstant(0, DL, VT);
+
   if (ConstantFold) {
     const MachineFunction &MF = getMachineFunction();
     const Function &F = MF.getFunction();
@@ -2103,11 +2152,8 @@ SDValue SelectionDAG::getVectorShuffle(EVT VT, const SDLoc &dl, SDValue N1,
       if (Splat && UndefElements.none()) {
         // Splat of <x, x, ..., x>, return <x, x, ..., x>, provided that the
         // number of elements match or the value splatted is a zero constant.
-        if (SameNumElts)
+        if (SameNumElts || isNullConstant(Splat))
           return N1;
-        if (auto *C = dyn_cast<ConstantSDNode>(Splat))
-          if (C->isZero())
-            return N1;
       }
 
       // If the shuffle itself creates a splat, build the vector directly.
@@ -3037,6 +3083,15 @@ KnownBits SelectionDAG::computeKnownBits(SDValue Op, const APInt &DemandedElts,
     // Implicitly truncate the bits to match the official semantics of
     // SPLAT_VECTOR.
     Known = computeKnownBits(SrcOp, Depth + 1).trunc(BitWidth);
+    break;
+  }
+  case ISD::SPLAT_VECTOR_PARTS: {
+    unsigned ScalarSize = Op.getOperand(0).getScalarValueSizeInBits();
+    assert(ScalarSize * Op.getNumOperands() == BitWidth &&
+           "Expected SPLAT_VECTOR_PARTS scalars to cover element width");
+    for (auto [I, SrcOp] : enumerate(Op->ops())) {
+      Known.insertBits(computeKnownBits(SrcOp, Depth + 1), ScalarSize * I);
+    }
     break;
   }
   case ISD::BUILD_VECTOR:
@@ -4051,8 +4106,10 @@ bool SelectionDAG::isKnownToBeAPowerOfTwo(SDValue Val, unsigned Depth) const {
   unsigned BitWidth = OpVT.getScalarSizeInBits();
 
   // Is the constant a known power of 2?
-  if (ConstantSDNode *Const = dyn_cast<ConstantSDNode>(Val))
-    return Const->getAPIntValue().zextOrTrunc(BitWidth).isPowerOf2();
+  if (ISD::matchUnaryPredicate(Val, [BitWidth](ConstantSDNode *C) {
+        return C->getAPIntValue().zextOrTrunc(BitWidth).isPowerOf2();
+      }))
+    return true;
 
   // A left-shift of a constant one will have exactly one bit set because
   // shifting the bit off the end is undefined.
@@ -4060,6 +4117,8 @@ bool SelectionDAG::isKnownToBeAPowerOfTwo(SDValue Val, unsigned Depth) const {
     auto *C = isConstOrConstSplat(Val.getOperand(0));
     if (C && C->getAPIntValue() == 1)
       return true;
+    return isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1) &&
+           isKnownNeverZero(Val, Depth);
   }
 
   // Similarly, a logical right-shift of a constant sign-bit will have exactly
@@ -4068,7 +4127,12 @@ bool SelectionDAG::isKnownToBeAPowerOfTwo(SDValue Val, unsigned Depth) const {
     auto *C = isConstOrConstSplat(Val.getOperand(0));
     if (C && C->getAPIntValue().isSignMask())
       return true;
+    return isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1) &&
+           isKnownNeverZero(Val, Depth);
   }
+
+  if (Val.getOpcode() == ISD::ROTL || Val.getOpcode() == ISD::ROTR)
+    return isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1);
 
   // Are all operands of a build vector constant powers of two?
   if (Val.getOpcode() == ISD::BUILD_VECTOR)
@@ -4090,6 +4154,34 @@ bool SelectionDAG::isKnownToBeAPowerOfTwo(SDValue Val, unsigned Depth) const {
       getTargetLoweringInfo().isVScaleKnownToBeAPowerOfTwo() &&
       isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1))
     return true;
+
+  if (Val.getOpcode() == ISD::SMIN || Val.getOpcode() == ISD::SMAX ||
+      Val.getOpcode() == ISD::UMIN || Val.getOpcode() == ISD::UMAX)
+    return isKnownToBeAPowerOfTwo(Val.getOperand(1), Depth + 1) &&
+           isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1);
+
+  if (Val.getOpcode() == ISD::SELECT || Val.getOpcode() == ISD::VSELECT)
+    return isKnownToBeAPowerOfTwo(Val.getOperand(2), Depth + 1) &&
+           isKnownToBeAPowerOfTwo(Val.getOperand(1), Depth + 1);
+
+  if (Val.getOpcode() == ISD::AND) {
+    // Looking for `x & -x` pattern:
+    // If x == 0:
+    //    x & -x -> 0
+    // If x != 0:
+    //    x & -x -> non-zero pow2
+    // so if we find the pattern return whether we know `x` is non-zero.
+    for (unsigned OpIdx = 0; OpIdx < 2; ++OpIdx) {
+      SDValue NegOp = Val.getOperand(OpIdx);
+      if (NegOp.getOpcode() == ISD::SUB &&
+          NegOp.getOperand(1) == Val.getOperand(1 - OpIdx) &&
+          isNullOrNullSplat(NegOp.getOperand(0)))
+        return isKnownNeverZero(Val.getOperand(1 - OpIdx), Depth);
+    }
+  }
+
+  if (Val.getOpcode() == ISD::ZERO_EXTEND)
+    return isKnownToBeAPowerOfTwo(Val.getOperand(0), Depth + 1);
 
   // More could be done here, though the above checks are enough
   // to handle some common cases.
@@ -5094,21 +5186,29 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
            isKnownNeverZero(Op.getOperand(2), Depth + 1);
 
-  case ISD::SHL:
+  case ISD::SHL: {
     if (Op->getFlags().hasNoSignedWrap() || Op->getFlags().hasNoUnsignedWrap())
       return isKnownNeverZero(Op.getOperand(0), Depth + 1);
-
-    // 1 << X is never zero. TODO: This can be expanded if we can bound X.
-    // The expression is really !Known.One[BitWidth-MaxLog2(Known):0].isZero()
-    if (computeKnownBits(Op.getOperand(0), Depth + 1).One[0])
+    KnownBits ValKnown = computeKnownBits(Op.getOperand(0), Depth + 1);
+    // 1 << X is never zero.
+    if (ValKnown.One[0])
+      return true;
+    // If max shift cnt of known ones is non-zero, result is non-zero.
+    APInt MaxCnt = computeKnownBits(Op.getOperand(1), Depth + 1).getMaxValue();
+    if (MaxCnt.ult(ValKnown.getBitWidth()) &&
+        !ValKnown.One.shl(MaxCnt).isZero())
       return true;
     break;
-
+  }
   case ISD::UADDSAT:
   case ISD::UMAX:
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) ||
            isKnownNeverZero(Op.getOperand(0), Depth + 1);
 
+    // TODO for smin/smax: If either operand is known negative/positive
+    // respectively we don't need the other to be known at all.
+  case ISD::SMAX:
+  case ISD::SMIN:
   case ISD::UMIN:
     return isKnownNeverZero(Op.getOperand(1), Depth + 1) &&
            isKnownNeverZero(Op.getOperand(0), Depth + 1);
@@ -5122,16 +5222,19 @@ bool SelectionDAG::isKnownNeverZero(SDValue Op, unsigned Depth) const {
     return isKnownNeverZero(Op.getOperand(0), Depth + 1);
 
   case ISD::SRA:
-  case ISD::SRL:
+  case ISD::SRL: {
     if (Op->getFlags().hasExact())
       return isKnownNeverZero(Op.getOperand(0), Depth + 1);
-    // Signed >> X is never zero. TODO: This can be expanded if we can bound X.
-    // The expression is really
-    // !Known.One[SignBit:SignBit-(BitWidth-MaxLog2(Known))].isZero()
-    if (computeKnownBits(Op.getOperand(0), Depth + 1).isNegative())
+    KnownBits ValKnown = computeKnownBits(Op.getOperand(0), Depth + 1);
+    if (ValKnown.isNegative())
+      return true;
+    // If max shift cnt of known ones is non-zero, result is non-zero.
+    APInt MaxCnt = computeKnownBits(Op.getOperand(1), Depth + 1).getMaxValue();
+    if (MaxCnt.ult(ValKnown.getBitWidth()) &&
+        !ValKnown.One.lshr(MaxCnt).isZero())
       return true;
     break;
-
+  }
   case ISD::UDIV:
   case ISD::SDIV:
     // div exact can only produce a zero if the dividend is zero.
@@ -5415,24 +5518,6 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   if (ConstantSDNode *C = dyn_cast<ConstantSDNode>(N1)) {
     const APInt &Val = C->getAPIntValue();
     switch (Opcode) {
-    default: break;
-    case ISD::SIGN_EXTEND:
-      return getConstant(Val.sextOrTrunc(VT.getSizeInBits()), DL, VT,
-                         C->isTargetOpcode(), C->isOpaque());
-    case ISD::TRUNCATE:
-      if (C->isOpaque())
-        break;
-      [[fallthrough]];
-    case ISD::ZERO_EXTEND:
-      return getConstant(Val.zextOrTrunc(VT.getSizeInBits()), DL, VT,
-                         C->isTargetOpcode(), C->isOpaque());
-    case ISD::ANY_EXTEND:
-      // Some targets like RISCV prefer to sign extend some types.
-      if (TLI->isSExtCheaperThanZExt(N1.getValueType(), VT))
-        return getConstant(Val.sextOrTrunc(VT.getSizeInBits()), DL, VT,
-                           C->isTargetOpcode(), C->isOpaque());
-      return getConstant(Val.zextOrTrunc(VT.getSizeInBits()), DL, VT,
-                         C->isTargetOpcode(), C->isOpaque());
     case ISD::UINT_TO_FP:
     case ISD::SINT_TO_FP: {
       APFloat apf(EVTToAPFloatSemantics(VT),
@@ -5452,26 +5537,6 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
       if (VT == MVT::f128 && C->getValueType(0) == MVT::i128)
         return getConstantFP(APFloat(APFloat::IEEEquad(), Val), DL, VT);
       break;
-    case ISD::ABS:
-      return getConstant(Val.abs(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
-    case ISD::BITREVERSE:
-      return getConstant(Val.reverseBits(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
-    case ISD::BSWAP:
-      return getConstant(Val.byteSwap(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
-    case ISD::CTPOP:
-      return getConstant(Val.popcount(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
-    case ISD::CTLZ:
-    case ISD::CTLZ_ZERO_UNDEF:
-      return getConstant(Val.countl_zero(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
-    case ISD::CTTZ:
-    case ISD::CTTZ_ZERO_UNDEF:
-      return getConstant(Val.countr_zero(), DL, VT, C->isTargetOpcode(),
-                         C->isOpaque());
     case ISD::FP16_TO_FP:
     case ISD::BF16_TO_FP: {
       bool Ignored;
@@ -5497,38 +5562,6 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
   if (ConstantFPSDNode *C = dyn_cast<ConstantFPSDNode>(N1)) {
     APFloat V = C->getValueAPF();    // make copy
     switch (Opcode) {
-    case ISD::FNEG:
-      V.changeSign();
-      return getConstantFP(V, DL, VT);
-    case ISD::FABS:
-      V.clearSign();
-      return getConstantFP(V, DL, VT);
-    case ISD::FCEIL: {
-      APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardPositive);
-      if (fs == APFloat::opOK || fs == APFloat::opInexact)
-        return getConstantFP(V, DL, VT);
-      break;
-    }
-    case ISD::FTRUNC: {
-      APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardZero);
-      if (fs == APFloat::opOK || fs == APFloat::opInexact)
-        return getConstantFP(V, DL, VT);
-      break;
-    }
-    case ISD::FFLOOR: {
-      APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardNegative);
-      if (fs == APFloat::opOK || fs == APFloat::opInexact)
-        return getConstantFP(V, DL, VT);
-      break;
-    }
-    case ISD::FP_EXTEND: {
-      bool ignored;
-      // This can return overflow, underflow, or inexact; we don't care.
-      // FIXME need to be more flexible about rounding mode.
-      (void)V.convert(EVTToAPFloatSemantics(VT),
-                      APFloat::rmNearestTiesToEven, &ignored);
-      return getConstantFP(V, DL, VT);
-    }
     case ISD::FP_TO_SINT:
     case ISD::FP_TO_UINT: {
       bool ignored;
@@ -6037,6 +6070,98 @@ SDValue SelectionDAG::FoldConstantArithmetic(unsigned Opcode, const SDLoc &DL,
 
   if (isUndef(Opcode, Ops))
     return getUNDEF(VT);
+
+  // Handle unary special cases.
+  if (NumOps == 1) {
+    SDValue N1 = Ops[0];
+
+    // Constant fold unary operations with an integer constant operand. Even
+    // opaque constant will be folded, because the folding of unary operations
+    // doesn't create new constants with different values. Nevertheless, the
+    // opaque flag is preserved during folding to prevent future folding with
+    // other constants.
+    if (auto *C = dyn_cast<ConstantSDNode>(N1)) {
+      const APInt &Val = C->getAPIntValue();
+      switch (Opcode) {
+      case ISD::SIGN_EXTEND:
+        return getConstant(Val.sextOrTrunc(VT.getSizeInBits()), DL, VT,
+                           C->isTargetOpcode(), C->isOpaque());
+      case ISD::TRUNCATE:
+        if (C->isOpaque())
+          break;
+        [[fallthrough]];
+      case ISD::ZERO_EXTEND:
+        return getConstant(Val.zextOrTrunc(VT.getSizeInBits()), DL, VT,
+                           C->isTargetOpcode(), C->isOpaque());
+      case ISD::ANY_EXTEND:
+        // Some targets like RISCV prefer to sign extend some types.
+        if (TLI->isSExtCheaperThanZExt(N1.getValueType(), VT))
+          return getConstant(Val.sextOrTrunc(VT.getSizeInBits()), DL, VT,
+                             C->isTargetOpcode(), C->isOpaque());
+        return getConstant(Val.zextOrTrunc(VT.getSizeInBits()), DL, VT,
+                           C->isTargetOpcode(), C->isOpaque());
+      case ISD::ABS:
+        return getConstant(Val.abs(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      case ISD::BITREVERSE:
+        return getConstant(Val.reverseBits(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      case ISD::BSWAP:
+        return getConstant(Val.byteSwap(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      case ISD::CTPOP:
+        return getConstant(Val.popcount(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      case ISD::CTLZ:
+      case ISD::CTLZ_ZERO_UNDEF:
+        return getConstant(Val.countl_zero(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      case ISD::CTTZ:
+      case ISD::CTTZ_ZERO_UNDEF:
+        return getConstant(Val.countr_zero(), DL, VT, C->isTargetOpcode(),
+                           C->isOpaque());
+      }
+    }
+
+    // Constant fold unary operations with a floating point constant operand.
+    if (auto *C = dyn_cast<ConstantFPSDNode>(N1)) {
+      APFloat V = C->getValueAPF(); // make copy
+      switch (Opcode) {
+      case ISD::FNEG:
+        V.changeSign();
+        return getConstantFP(V, DL, VT);
+      case ISD::FABS:
+        V.clearSign();
+        return getConstantFP(V, DL, VT);
+      case ISD::FCEIL: {
+        APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardPositive);
+        if (fs == APFloat::opOK || fs == APFloat::opInexact)
+          return getConstantFP(V, DL, VT);
+        return SDValue();
+      }
+      case ISD::FTRUNC: {
+        APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardZero);
+        if (fs == APFloat::opOK || fs == APFloat::opInexact)
+          return getConstantFP(V, DL, VT);
+        return SDValue();
+      }
+      case ISD::FFLOOR: {
+        APFloat::opStatus fs = V.roundToIntegral(APFloat::rmTowardNegative);
+        if (fs == APFloat::opOK || fs == APFloat::opInexact)
+          return getConstantFP(V, DL, VT);
+        return SDValue();
+      }
+      case ISD::FP_EXTEND: {
+        bool ignored;
+        // This can return overflow, underflow, or inexact; we don't care.
+        // FIXME need to be more flexible about rounding mode.
+        (void)V.convert(EVTToAPFloatSemantics(VT), APFloat::rmNearestTiesToEven,
+                        &ignored);
+        return getConstantFP(V, DL, VT);
+      }
+      }
+    }
+  }
 
   // Handle binops special cases.
   if (NumOps == 2) {
@@ -7946,8 +8071,6 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
   // FIXME: pass in SDLoc
   CLI.setDebugLoc(dl).setChain(Chain);
 
-  ConstantSDNode *ConstantSrc = dyn_cast<ConstantSDNode>(Src);
-  const bool SrcIsZero = ConstantSrc && ConstantSrc->isZero();
   const char *BzeroName = getTargetLoweringInfo().getLibcallName(RTLIB::BZERO);
 
   // Helper function to create an Entry from Node and Type.
@@ -7959,7 +8082,7 @@ SDValue SelectionDAG::getMemset(SDValue Chain, const SDLoc &dl, SDValue Dst,
   };
 
   // If zeroing out and bzero is present, use it.
-  if (SrcIsZero && BzeroName) {
+  if (isNullConstant(Src) && BzeroName) {
     TargetLowering::ArgListTy Args;
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Args.push_back(CreateEntry(Dst, PointerType::getUnqual(Ctx)));

@@ -43,6 +43,7 @@
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/SaveAndRestore.h"
 #include "llvm/Support/Threading.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <optional>
 #include <tuple>
@@ -140,6 +141,11 @@ struct AsmPrinterOptions {
       llvm::cl::desc("Elide ElementsAttrs with \"...\" that have "
                      "more elements than the given upper limit")};
 
+  llvm::cl::opt<unsigned> elideResourceStringsIfLarger{
+      "mlir-elide-resource-strings-if-larger",
+      llvm::cl::desc(
+          "Elide printing value of resources if string is too long in chars.")};
+
   llvm::cl::opt<bool> printDebugInfoOpt{
       "mlir-print-debuginfo", llvm::cl::init(false),
       llvm::cl::desc("Print debug info in MLIR output")};
@@ -191,6 +197,8 @@ OpPrintingFlags::OpPrintingFlags()
     return;
   if (clOptions->elideElementsAttrIfLarger.getNumOccurrences())
     elementsAttrElementLimit = clOptions->elideElementsAttrIfLarger;
+  if (clOptions->elideResourceStringsIfLarger.getNumOccurrences())
+    resourceStringCharLimit = clOptions->elideResourceStringsIfLarger;
   printDebugInfoFlag = clOptions->printDebugInfoOpt;
   printDebugInfoPrettyFormFlag = clOptions->printPrettyDebugInfoOpt;
   printGenericOpFormFlag = clOptions->printGenericOpFormOpt;
@@ -260,6 +268,11 @@ bool OpPrintingFlags::shouldElideElementsAttr(ElementsAttr attr) const {
 /// Return the size limit for printing large ElementsAttr.
 std::optional<int64_t> OpPrintingFlags::getLargeElementsAttrLimit() const {
   return elementsAttrElementLimit;
+}
+
+/// Return the size limit for printing large ElementsAttr.
+std::optional<uint64_t> OpPrintingFlags::getLargeResourceStringLimit() const {
+  return resourceStringCharLimit;
 }
 
 /// Return if debug information should be printed.
@@ -1043,6 +1056,12 @@ std::pair<size_t, size_t> AliasInitializer::visitImpl(
 
 void AliasInitializer::markAliasNonDeferrable(size_t aliasIndex) {
   auto it = std::next(aliases.begin(), aliasIndex);
+
+  // If already marked non-deferrable stop the recursion.
+  // All children should already be marked non-deferrable as well.
+  if (!it->second.canBeDeferred)
+    return;
+
   it->second.canBeDeferred = false;
 
   // Propagate the non-deferrable flag to any child aliases.
@@ -3080,16 +3099,19 @@ private:
     using ValueFn = function_ref<void(raw_ostream &)>;
     using PrintFn = function_ref<void(StringRef, ValueFn)>;
 
-    ResourceBuilder(OperationPrinter &p, PrintFn printFn)
-        : p(p), printFn(printFn) {}
+    ResourceBuilder(PrintFn printFn) : printFn(printFn) {}
     ~ResourceBuilder() override = default;
 
     void buildBool(StringRef key, bool data) final {
-      printFn(key, [&](raw_ostream &os) { p.os << (data ? "true" : "false"); });
+      printFn(key, [&](raw_ostream &os) { os << (data ? "true" : "false"); });
     }
 
     void buildString(StringRef key, StringRef data) final {
-      printFn(key, [&](raw_ostream &os) { p.printEscapedString(data); });
+      printFn(key, [&](raw_ostream &os) {
+        os << "\"";
+        llvm::printEscapedString(data, os);
+        os << "\"";
+      });
     }
 
     void buildBlob(StringRef key, ArrayRef<char> data,
@@ -3105,7 +3127,6 @@ private:
     }
 
   private:
-    OperationPrinter &p;
     PrintFn printFn;
   };
 
@@ -3176,28 +3197,46 @@ void OperationPrinter::printResourceFileMetadata(
     auto printFn = [&](StringRef key, ResourceBuilder::ValueFn valueFn) {
       checkAddMetadataDict();
 
-      // Emit the top-level resource entry if we haven't yet.
-      if (!std::exchange(hadResource, true)) {
-        if (needResourceComma)
+      auto printFormatting = [&]() {
+        // Emit the top-level resource entry if we haven't yet.
+        if (!std::exchange(hadResource, true)) {
+          if (needResourceComma)
+            os << "," << newLine;
+          os << "  " << dictName << "_resources: {" << newLine;
+        }
+        // Emit the parent resource entry if we haven't yet.
+        if (!std::exchange(hadEntry, true)) {
+          if (needEntryComma)
+            os << "," << newLine;
+          os << "    " << name << ": {" << newLine;
+        } else {
           os << "," << newLine;
-        os << "  " << dictName << "_resources: {" << newLine;
-      }
-      // Emit the parent resource entry if we haven't yet.
-      if (!std::exchange(hadEntry, true)) {
-        if (needEntryComma)
-          os << "," << newLine;
-        os << "    " << name << ": {" << newLine;
-      } else {
-        os << "," << newLine;
-      }
+        }
+      };
 
-      os << "      " << key << ": ";
-      valueFn(os);
+      std::optional<uint64_t> charLimit =
+          printerFlags.getLargeResourceStringLimit();
+      if (charLimit.has_value()) {
+        std::string resourceStr;
+        llvm::raw_string_ostream ss(resourceStr);
+        valueFn(ss);
+
+        // Only print entry if it's string is small enough
+        if (resourceStr.size() > charLimit.value())
+          return;
+
+        printFormatting();
+        os << "      " << key << ": " << resourceStr;
+      } else {
+        printFormatting();
+        os << "      " << key << ": ";
+        valueFn(os);
+      }
     };
-    ResourceBuilder entryBuilder(*this, printFn);
+    ResourceBuilder entryBuilder(printFn);
     provider.buildResources(op, providerArgs..., entryBuilder);
 
-    needEntryComma = hadEntry;
+    needEntryComma |= hadEntry;
     if (hadEntry)
       os << newLine << "    }";
   };

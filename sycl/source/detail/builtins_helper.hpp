@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#pragma once
+
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/exception.hpp>
@@ -258,7 +260,7 @@ template <int N> struct helper {
   inline void run_1v_2p(Res &r, Op op, T1 x, T2 y) {
     helper<N - 1>().run_1v_2p(r, op, x, y);
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T2>::type::element_type temp;
+    typename std::remove_pointer<T2>::type::element_type temp{};
     r.template swizzle<N>() = op(x.template swizzle<N>(), &temp);
     y->template swizzle<N>() = temp;
   }
@@ -267,7 +269,7 @@ template <int N> struct helper {
   inline void run_1v_2v_3p(Res &r, Op op, T1 x, T2 y, T3 z) {
     helper<N - 1>().run_1v_2v_3p(r, op, x, y, z);
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T3>::type::element_type temp;
+    typename std::remove_pointer<T3>::type::element_type temp{};
     r.template swizzle<N>() =
         op(x.template swizzle<N>(), y.template swizzle<N>(), &temp);
     z->template swizzle<N>() = temp;
@@ -329,7 +331,7 @@ template <> struct helper<0> {
   template <typename Res, typename Op, typename T1, typename T2>
   inline void run_1v_2p(Res &r, Op op, T1 x, T2 y) {
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T2>::type::element_type temp;
+    typename std::remove_pointer<T2>::type::element_type temp{};
     r.template swizzle<0>() = op(x.template swizzle<0>(), &temp);
     y->template swizzle<0>() = temp;
   }
@@ -337,7 +339,7 @@ template <> struct helper<0> {
   template <typename Res, typename Op, typename T1, typename T2, typename T3>
   inline void run_1v_2v_3p(Res &r, Op op, T1 x, T2 y, T3 z) {
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T3>::type::element_type temp;
+    typename std::remove_pointer<T3>::type::element_type temp{};
     r.template swizzle<0>() =
         op(x.template swizzle<0>(), y.template swizzle<0>(), &temp);
     z->template swizzle<0>() = temp;
