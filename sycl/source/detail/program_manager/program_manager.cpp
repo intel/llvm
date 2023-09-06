@@ -580,7 +580,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
-  
+
   applyOptionsFromEnvironment(
       std::string_view(CompileOpts.data(), CompileOpts.size()));
 
