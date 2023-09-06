@@ -545,6 +545,7 @@ SubGroup/broadcast_fp16.cpp
 SubGroup/generic_reduce.cpp
 SubGroup/generic-shuffle.cpp
 SubGroup/load_store.cpp
+SubGroup/scan_spirv13.cpp
 SubGroup/shuffle.cpp
 SubGroup/sub_group_as.cpp
 SubGroup/sub_group_as_vec.cpp

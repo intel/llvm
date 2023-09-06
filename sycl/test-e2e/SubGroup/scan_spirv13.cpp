@@ -1,9 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/7585 to fix the failure:
-// XFAIL: gpu
-
 // This test verifies the correct work of SPIR-V 1.3 exclusive_scan() and
 // inclusive_scan() algoriths used with the operation MUL, bitwise OR, XOR, AND.
 
