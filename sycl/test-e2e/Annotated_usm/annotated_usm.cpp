@@ -10,12 +10,15 @@
 
 using namespace sycl::ext::oneapi::experimental;
 using namespace sycl::ext::intel::experimental;
+
 using alloc = sycl::usm::alloc;
 
 constexpr int N = 10;
 
 void TestUsmKind(sycl::queue &q) {
   const sycl::context &Ctx = q.get_context();
+  auto dev = q.get_device();
+
   // the USM kind is specified in the function name
   properties P1{conduit, stable};
   auto APtr1 = malloc_device_annotated<int>(N, q, P1);
@@ -27,8 +30,10 @@ void TestUsmKind(sycl::queue &q) {
   auto APtr3 = malloc_host_annotated<int>(N, q);
   assert(sycl::get_pointer_type(APtr3.get(), Ctx) == alloc::host);
 
-  auto APtr4 = malloc_shared_annotated(N, q);
-  assert(sycl::get_pointer_type(APtr4.get(), Ctx) == alloc::shared);
+  if (dev.has(aspect::usm_shared_allocations)) {
+    auto APtr4 = malloc_shared_annotated(N, q);
+    assert(sycl::get_pointer_type(APtr4.get(), Ctx) == alloc::shared);
+  }
 
   // the USM kind is specified in the propList
   properties P2{conduit, cache_config{large_slm}};
