@@ -3359,9 +3359,9 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``max_interleaving``,
-``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
+function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
+``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
+``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3427,8 +3427,7 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and shall be non-negative integer. Can be used on the
-same loop in conjunction with disable_loop_pipelining.
+Parameter N is mandatory, and shall be non-negative integer.
 
 .. code-block:: c++
 
@@ -3452,7 +3451,8 @@ def SYCLIntelSpeculatedIterationsAttrDocs : Documentation {
 This attribute applies to a loop. Specifies the number of concurrent speculated
 iterations that will be in flight for a loop invocation (i.e. the exit
 condition for these iterations will not have been evaluated yet).
-Parameter N is mandatory, and may either be 0, or a positive integer.
+Parameter N is mandatory, and may either be 0, or a positive integer. Cannot be
+used on the same loop in conjunction with disable_loop_pipelining.
 
 .. code-block:: c++
 
