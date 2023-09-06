@@ -213,6 +213,7 @@ Returns a reference to the underlying `T`.
 Below are some non-obvious interactions between `fpga_datapath` and other SYCL extensions. 
 
 * The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
+
 [source,c++]
 ----
 namespace intelexp = sycl::ext::intel::experimental;
