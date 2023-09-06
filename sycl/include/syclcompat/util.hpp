@@ -44,7 +44,9 @@
 namespace syclcompat {
 
 namespace detail {
-template <typename T> struct DataType { using T2 = T; };
+template <typename T> struct DataType {
+  using T2 = T;
+};
 template <typename T> struct DataType<sycl::vec<T, 2>> {
   using T2 = sycl::ext::oneapi::experimental::complex<T>;
 };
