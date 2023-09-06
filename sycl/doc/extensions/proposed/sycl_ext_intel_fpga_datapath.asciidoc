@@ -74,18 +74,18 @@ struct MyClass {
   bool x;
 };
 
-using namespace sycl::ext::intel::experimental;
+namespace intelexp = sycl::ext::intel::experimental;
 
 sycl::queue q;
 q.single_task([=] {
-  fpga_datapath<int[4]> fd1{1, 3, 5, 7};
-  fpga_datapath<MyClass> fd2;
+  intelexp::fpga_datapath<int[4]> fd1{1, 3, 5, 7};
+  intelexp::fpga_datapath<MyClass> fd2;
   fm2.get().x = fm1[0];
 });
 ----
 
 Above we see an example that declares `fpga_datapath` variables `fd1`, `fd2`, and accesses them. 
-`fd1` creates an allocation on the device that is private to the kernel and contains an array of four `int`s that is initialized to `{1, 3, 5, 7}`. `fd2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized.
+`fd1` creates an allocation on the device that is private to the kernel and contains an array of four ``int``'s that is initialized to `{1, 3, 5, 7}`. `fd2` creates an allocation on the device that is private to the kernel and contains an object of type `MyClass` that is default-initialized.
 
 `fpga_datapath` has reference wrapper-like semantics, and is implicitly convertible to the wrapped type. Of note,
 because {cpp} doesn't allow for overloading of the "dot operator", a `get()`
@@ -218,21 +218,20 @@ Below are some non-obvious interactions between `fpga_datapath` and other SYCL e
 * The `fpga_datapath` and `fpga_mem` are tempate classes that have conflicting requirements on how a variable should be implemented, on or off the datapath. In situations where an object of one of these classes is templated on another, the most specific template will used by the compiler, and the rest will be ignored.
 [source,c++]
 ----
-using namespace sycl::ext::intel;
-using namespace sycl::ext::intel::experimental;
+namespace intelexp = sycl::ext::intel::experimental;
 
 // 10 integers will be implemented on the datapath
 // `fpga_mem` is ignored.
-fpga_mem<fpga_datapath<int[10]>> dm1;
+intelexp::fpga_mem<intelexp::fpga_datapath<int[10]>> dm1;
 
 class foo {
-  fpga_mem<int[5]> a;
-  fpga_datapath<int[4]> b;
+  intelexp::fpga_mem<int[5]> a;
+  intelexp::fpga_datapath<int[4]> b;
   int[3] c;
 }
 
 // 5 integers of `a` will be implemented in a memory off the datapath
 // 4 integers of `b` will be implemented on the datapath
 // 3 integers of `c` will be implemented in a memory off the datapath
-fpga_mem<foo> dm1;
+intelexp::fpga_mem<foo> dm1;
 ----
