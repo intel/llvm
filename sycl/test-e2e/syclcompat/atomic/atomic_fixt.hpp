@@ -45,6 +45,20 @@ bool is_supported(std::vector<sycl::memory_order> capabilities,
          capabilities.end();
 }
 
+template <typename T> bool should_skip(const sycl::device &dev) {
+  if constexpr (sizeof(T) == 8) {
+    if (!dev.has(sycl::aspect::atomic64)) {
+      return true;
+    }
+  }
+  if constexpr (std::is_same_v<T, double> || std::is_same_v<T, double *>) {
+    if (!dev.has(sycl::aspect::fp64)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 template <auto F, typename T> class AtomicLauncher {
 protected:
   syclcompat::dim3 grid_;
@@ -53,17 +67,11 @@ protected:
   sycl::queue q_;
   bool skip_;
 
-  bool should_skip() {
-    if (!q_.get_device().has(sycl::aspect::fp64) &&
-        (std::is_same_v<T, double> || std::is_same_v<T, double *>))
-      return true;
-    return false;
-  }
-
 public:
   AtomicLauncher(syclcompat::dim3 grid, syclcompat::dim3 threads,
                  sycl::queue q = syclcompat::get_default_queue())
-      : grid_{grid}, threads_{threads}, q_{q}, skip_{should_skip()} {
+      : grid_{grid}, threads_{threads}, q_{q},
+        skip_{should_skip<T>(q.get_device())} {
     data_ = (T *)syclcompat::malloc(sizeof(T));
   };
   ~AtomicLauncher() { syclcompat::free(data_); }
@@ -88,11 +96,24 @@ protected:
   size_t data_len_;
   T *atom_arr_device_;
   T *atom_arr_host_;
+  bool skip_;
+
+  void verify() {
+    bool result = true;
+    for (int i = 0; i < data_len_; ++i) {
+      if (atom_arr_device_[i] != atom_arr_host_[i]) {
+        std::cout << "-- Failure at " << i << std::endl << std::flush;
+        result = false;
+      }
+    }
+    assert(result);
+  }
 
 public:
   AtomicClassLauncher(const syclcompat::dim3 &grid,
                       const syclcompat::dim3 &threads, const size_t data_len)
-      : grid_{grid}, threads_{threads}, data_len_{data_len} {
+      : grid_{grid}, threads_{threads}, data_len_{data_len},
+        skip_{should_skip<T>(syclcompat::get_current_device())} {
     atom_arr_device_ = syclcompat::malloc_shared<T>(data_len_);
     atom_arr_host_ = syclcompat::malloc_shared<T>(data_len_);
 
@@ -107,25 +128,13 @@ public:
   }
 
   template <auto Kernel, auto HostFunc> void launch_test() {
-    if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
-        (std::is_same_v<T, double> || std::is_same_v<T, double *>))
+    if (skip_)
       return; // skip
     syclcompat::launch<Kernel>(grid_, threads_, atom_arr_device_);
     HostFunc(atom_arr_host_);
     syclcompat::wait();
 
     verify();
-  }
-
-  void verify() {
-    bool result = true;
-    for (int i = 0; i < data_len_; ++i) {
-      if (atom_arr_device_[i] != atom_arr_host_[i]) {
-        std::cout << "-- Failure at " << i << std::endl << std::flush;
-        result = false;
-      }
-    }
-    assert(result);
   }
 };
 
@@ -157,9 +166,8 @@ public:
   }
 
   template <auto Kernel, auto HostFunc> void launch_test() {
-    if (!syclcompat::get_current_device().has(sycl::aspect::fp64) &&
-        (std::is_same_v<T, double> || std::is_same_v<T, double *>))
-      return; // skip
+    if (this->skip_)
+      return;
     syclcompat::launch<Kernel>(this->grid_, this->threads_,
                                this->atom_arr_device_, atom_arr_shared_in_);
     HostFunc(this->atom_arr_host_, atom_arr_shared_in_);

@@ -40,7 +40,7 @@
 
 #include <syclcompat/atomic.hpp>
 
-#include "atomic_memory_order.hpp"
+#include "atomic_fixt.hpp"
 
 using namespace sycl;
 
