@@ -259,6 +259,7 @@ typedef enum ur_structure_type_t {
     UR_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR = 0x2003,          ///< ::ur_exp_file_descriptor_t
     UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE = 0x2004,             ///< ::ur_exp_win32_handle_t
     UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES = 0x2005, ///< ::ur_exp_layered_image_properties_t
+    UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES = 0x2006,       ///< ::ur_exp_sampler_addr_modes_t
     /// @cond
     UR_STRUCTURE_TYPE_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -7036,6 +7037,22 @@ typedef struct ur_exp_sampler_mip_properties_t {
     ur_sampler_filter_mode_t mipFilterMode; ///< [in] mipmap filter mode used for filtering between mipmap levels
 
 } ur_exp_sampler_mip_properties_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Describes unique sampler addressing mode per dimension
+///
+/// @details
+///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
+///       as part of a `pNext` chain.
+typedef struct ur_exp_sampler_addr_modes_t {
+    ur_structure_type_t stype;              ///< [in] type of this structure, must be
+                                            ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
+    void *pNext;                            ///< [in,out][optional] pointer to extension-specific structure
+    ur_sampler_addressing_mode_t addrModeX; ///< [in] Specify the addressing mode of the x-dimension.
+    ur_sampler_addressing_mode_t addrModeY; ///< [in] Specify the addressing mode of the y-dimension.
+    ur_sampler_addressing_mode_t addrModeZ; ///< [in] Specify the addressing mode of the z-dimension.
+
+} ur_exp_sampler_addr_modes_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes an interop memory resource descriptor

@@ -432,6 +432,8 @@ inline std::ostream &operator<<(std::ostream &os,
 inline std::ostream &
 operator<<(std::ostream &os,
            const struct ur_exp_sampler_mip_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params);
 inline std::ostream &operator<<(std::ostream &os,
                                 const struct ur_exp_interop_mem_desc_t params);
 inline std::ostream &
@@ -1333,6 +1335,10 @@ inline std::ostream &operator<<(std::ostream &os,
     case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES";
         break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES:
+        os << "UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1585,6 +1591,12 @@ inline void serializeStruct(std::ostream &os, const void *ptr) {
     case UR_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES: {
         const ur_exp_layered_image_properties_t *pstruct =
             (const ur_exp_layered_image_properties_t *)ptr;
+        ur_params::serializePtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES: {
+        const ur_exp_sampler_addr_modes_t *pstruct =
+            (const ur_exp_sampler_addr_modes_t *)ptr;
         ur_params::serializePtr(os, pstruct);
     } break;
     default:
@@ -9875,6 +9887,37 @@ operator<<(std::ostream &os,
     os << ".mipFilterMode = ";
 
     os << (params.mipFilterMode);
+
+    os << "}";
+    return os;
+}
+inline std::ostream &
+operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params) {
+    os << "(struct ur_exp_sampler_addr_modes_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur_params::serializeStruct(os, (params.pNext));
+
+    os << ", ";
+    os << ".addrModeX = ";
+
+    os << (params.addrModeX);
+
+    os << ", ";
+    os << ".addrModeY = ";
+
+    os << (params.addrModeY);
+
+    os << ", ";
+    os << ".addrModeZ = ";
+
+    os << (params.addrModeZ);
 
     os << "}";
     return os;
