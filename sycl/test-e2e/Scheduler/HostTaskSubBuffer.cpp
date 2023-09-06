@@ -1,15 +1,20 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_HOST_UNIFIED_MEMORY=1 env SYCL_PI_TRACE=2  %{run} %t.out | FileCheck %s
 
+// CHECK: == fills completed
 // CHECK: piEnqueueMemBufferMap
 // CHECK: piEnqueueMemBufferMap
-// CHECK: piEnqueueMemUnmap
-// CHECK: piEnqueueMemUnmap
+// CHECK-NEXT: <unknown> :
+// CHECK-NEXT: pi_mem :
+// CHECK-NEXT: <unknown> :
+// CHECK-NEXT: <unknown> : 3
 
-/*
-
-
-*/
+// CHECK: == between host accesses
+// CHECK: piEnqueueMemBufferMap
+// CHECK-NEXT: <unknown> :
+// CHECK-NEXT: pi_mem :
+// CHECK-NEXT: <unknown> :
+// CHECK-NEXT: <unknown> : 3
 
 #include <sycl/sycl.hpp>
 
@@ -31,6 +36,9 @@ int main(int argc, const char **argv) {
       cgh.fill<double>(acc_buf_y, -1.0);
     });
 
+    q.wait();
+    std::cout << "== fills completed" << std::endl;
+
     sycl::buffer<double, 1> buf_b_sub(buf_b, 0, buf_b.get_range());
 
     q.submit([&](sycl::handler &cgh) {
@@ -39,8 +47,9 @@ int main(int argc, const char **argv) {
 
       cgh.host_task([=]() { acc_buf_y[0] = 1.0 - acc_b_sub[0]; });
     });
-
     q.wait();
+
+    std::cout << "== between host accesses" << std::endl;
 
     q.submit([&](sycl::handler &cgh) {
       auto acc_buf_y = buf_y.get_host_access(cgh, sycl::read_only);
@@ -48,7 +57,6 @@ int main(int argc, const char **argv) {
 
       cgh.host_task([=]() { acc_b_sub[0] = 1.0 + acc_buf_y[0]; });
     });
-
     q.wait();
   }
 
