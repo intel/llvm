@@ -4,30 +4,30 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
 
   auto S1 = add_node(SubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 3.14f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 3; });
   });
 
   add_node(
       SubGraph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, S1);
-        CGH.parallel_for(N, [=](id<1> it) { X[it] += 0.5f; });
+        CGH.parallel_for(N, [=](id<1> it) { X[it] += 2; });
       },
       S1);
 
   auto ExecSubGraph = SubGraph.finalize();
 
   auto G1 = add_node(Graph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2; });
   });
 
   auto G2 = add_node(
@@ -42,15 +42,14 @@ int main() {
       Graph, Queue,
       [&](handler &CGH) {
         depends_on_helper(CGH, G2);
-        CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] *= -1.0f; });
+        CGH.parallel_for(range<1>{N}, [=](id<1> it) { X[it] *= -1; });
       },
       G2);
 
   auto ExecGraph = Graph.finalize();
 
-  auto Event1 = Queue.submit([&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] = 1.f; });
-  });
+  auto Event1 = Queue.submit(
+      [&](handler &CGH) { CGH.parallel_for(N, [=](id<1> it) { X[it] = 1; }); });
 
   auto Event2 = Queue.submit([&](handler &CGH) {
     CGH.depends_on(Event1);
@@ -62,10 +61,10 @@ int main() {
     CGH.ext_oneapi_graph(ExecGraph);
   });
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), X, N * sizeof(float), Event3).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), X, N * sizeof(int), Event3).wait();
 
-  const float ref = ((1.f * 3.14f + 0.5f) * 2.0f * 3.14f + 0.5f) * -1.f;
+  const int ref = ((1 * 3 + 2) * 2 * 3 + 2) * -1;
   for (size_t i = 0; i < N; i++) {
     assert(Output[i] == ref);
   }

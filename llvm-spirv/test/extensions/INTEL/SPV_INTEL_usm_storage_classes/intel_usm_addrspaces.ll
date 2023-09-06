@@ -40,87 +40,81 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @_ZTSZ4mainE11fake_kernel() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZ4mainE3$_0.anon", align 1
-  %1 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #4
-  %2 = addrspacecast %"class._ZTSZ4mainE3$_0.anon"* %0 to %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZ4mainE3$_0.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #4
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse nounwind
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this) #2 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr addrspace(4) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %"class._ZTSZ4mainE3$_0.anon" addrspace(4)*, align 8
-  store %"class._ZTSZ4mainE3$_0.anon" addrspace(4)* %this, %"class._ZTSZ4mainE3$_0.anon" addrspace(4)** %this.addr, align 8, !tbaa !5
+  %this.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %this, ptr %this.addr, align 8, !tbaa !5
   call spir_func void @_Z6usagesv()
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind
 define spir_func void @_Z6usagesv() #3 {
 entry:
 ; CHECK-LLVM: %DEVICE = alloca ptr addrspace(5), align 8
 ; CHECK-LLVM-NO-USM: %DEVICE = alloca ptr addrspace(1), align 8
-  %DEVICE = alloca i32 addrspace(5)*, align 8
+  %DEVICE = alloca ptr addrspace(5), align 8
 
 ; CHECK-LLVM: %HOST = alloca ptr addrspace(6), align 8
 ; CHECK-LLVM-NO-USM: %HOST = alloca ptr addrspace(1), align 8
-  %HOST = alloca i32 addrspace(6)*, align 8
+  %HOST = alloca ptr addrspace(6), align 8
 
 ; CHECK-LLVM: bitcast ptr %DEVICE to ptr
 ; CHECK-LLVM-NO-USM: bitcast ptr %DEVICE to ptr
-  %0 = bitcast i32 addrspace(5)** %DEVICE to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %0) #4
+  call void @llvm.lifetime.start.p0(i64 8, ptr %DEVICE) #4
 
 ; CHECK-LLVM: bitcast ptr %HOST to ptr
 ; CHECK-LLVM-NO-USM: bitcast ptr %HOST to ptr
-  %1 = bitcast i32 addrspace(6)** %HOST to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* %1) #4
+  call void @llvm.lifetime.start.p0(i64 8, ptr %HOST) #4
 
 ; CHECK-LLVM: %[[DLOAD_E:[0-9]+]] = load ptr addrspace(5), ptr %DEVICE, align 8
 ; CHECK-LLVM-NO-USM: %[[DLOAD_NE:[0-9]+]] = load ptr addrspace(1), ptr %DEVICE, align 8
-  %2 = load i32 addrspace(5)*, i32 addrspace(5)** %DEVICE, align 8, !tbaa !5
+  %0 = load ptr addrspace(5), ptr %DEVICE, align 8, !tbaa !5
 
 ; CHECK-LLVM: addrspacecast ptr addrspace(5) %[[DLOAD_E]] to ptr addrspace(4)
 ; CHECK-LLVM-NO-USM: addrspacecast ptr addrspace(1) %[[DLOAD_NE]] to ptr addrspace(4)
-  %3 = addrspacecast i32 addrspace(5)* %2 to i32 addrspace(4)*
-  call spir_func void @_Z3fooPi(i32 addrspace(4)* %3)
+  %1 = addrspacecast ptr addrspace(5) %0 to ptr addrspace(4)
+  call spir_func void @_Z3fooPi(ptr addrspace(4) %1)
 
 ; CHECK-LLVM: %[[HLOAD_E:[0-9]+]] = load ptr addrspace(6), ptr %HOST, align 8
 ; CHECK-LLVM-NO-USM: %[[HLOAD_NE:[0-9]+]] = load ptr addrspace(1), ptr %HOST, align 8
-  %4 = load i32 addrspace(6)*, i32 addrspace(6)** %HOST, align 8, !tbaa !5
+  %2 = load ptr addrspace(6), ptr %HOST, align 8, !tbaa !5
 
 ; CHECK-LLVM: addrspacecast ptr addrspace(6) %[[HLOAD_E]] to ptr addrspace(4)
 ; CHECK-LLVM-NO-USM: addrspacecast ptr addrspace(1) %[[HLOAD_NE]] to ptr addrspace(4)
-  %5 = addrspacecast i32 addrspace(6)* %4 to i32 addrspace(4)*
-  call spir_func void @_Z3fooPi(i32 addrspace(4)* %5)
+  %3 = addrspacecast ptr addrspace(6) %2 to ptr addrspace(4)
+  call spir_func void @_Z3fooPi(ptr addrspace(4) %3)
 
 ; CHECK-LLVM: bitcast ptr %HOST to ptr
 ; CHECK-LLVM-NO-USM: bitcast ptr %HOST to ptr
-  %6 = bitcast i32 addrspace(6)** %HOST to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %6) #4
+  call void @llvm.lifetime.end.p0(i64 8, ptr %HOST) #4
 
 ; CHECK-LLVM: bitcast ptr %DEVICE to ptr
 ; CHECK-LLVM-NO-USM: bitcast ptr %DEVICE to ptr
-  %7 = bitcast i32 addrspace(5)** %DEVICE to i8*
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* %7) #4
+  call void @llvm.lifetime.end.p0(i64 8, ptr %DEVICE) #4
 
   ret void
 }
 
 ; Function Attrs: norecurse nounwind
-define spir_func void @_Z3fooPi(i32 addrspace(4)* %Data) #3 {
+define spir_func void @_Z3fooPi(ptr addrspace(4) %Data) #3 {
 entry:
-  %Data.addr = alloca i32 addrspace(4)*, align 8
-  store i32 addrspace(4)* %Data, i32 addrspace(4)** %Data.addr, align 8, !tbaa !5
+  %Data.addr = alloca ptr addrspace(4), align 8
+  store ptr addrspace(4) %Data, ptr %Data.addr, align 8, !tbaa !5
   ret void
 }
 
@@ -129,17 +123,17 @@ entry:
 ; CHECK-SPIRV-NO-EXT-NOT: GenericCastToPtr {{[0-9]+}} [[CAST_TO1:[0-9]+]] [[CAST_FROM1]]
 ; CHECL-SPIRV: Store [[DEVICE_ARG1]] [[CAST_TO1]] {{[0-9]+}} {{[0-9]+}}
 ; Function Attrs: norecurse nounwind
-define spir_func void @_Z3booPii(i32 addrspace(1)* %arg_glob, i32 addrspace(5)* %arg_dev) #3 !kernel_arg_addr_space !9 {
+define spir_func void @_Z3booPii(ptr addrspace(1) %arg_glob, ptr addrspace(5) %arg_dev) #3 !kernel_arg_addr_space !9 {
 entry:
-  %arg_glob.addr = alloca i32 addrspace(1)*, align 4
-  %arg_dev.addr = alloca i32 addrspace(5)*, align 4
-  store i32 addrspace(1)* %arg_glob, i32 addrspace(1)** %arg_glob.addr, align 4
-  store i32 addrspace(5)* %arg_dev, i32 addrspace(5)** %arg_dev.addr, align 4
-  %0 = load i32 addrspace(1)*, i32 addrspace(1)** %arg_glob.addr, align 4
+  %arg_glob.addr = alloca ptr addrspace(1), align 4
+  %arg_dev.addr = alloca ptr addrspace(5), align 4
+  store ptr addrspace(1) %arg_glob, ptr %arg_glob.addr, align 4
+  store ptr addrspace(5) %arg_dev, ptr %arg_dev.addr, align 4
+  %0 = load ptr addrspace(1), ptr %arg_glob.addr, align 4
 ; CHECK-LLVM: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr addrspace(5)
 ; CHECK-LLVM-NO-USM-NOT: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr addrspace(5)
-  %1 = addrspacecast i32 addrspace(1)* %0 to i32 addrspace(5)*
-  store i32 addrspace(5)* %1, i32 addrspace(5)** %arg_dev.addr, align 4
+  %1 = addrspacecast ptr addrspace(1) %0 to ptr addrspace(5)
+  store ptr addrspace(5) %1, ptr %arg_dev.addr, align 4
   ret void
 }
 
@@ -148,17 +142,17 @@ entry:
 ; CHECK-SPIRV-NO-EXT-NOT: GenericCastToPtr {{[0-9]+}} [[CAST_TO2:[0-9]+]] [[CAST_FROM2]]
 ; CHECL-SPIRV: Store [[HOST_ARG1]] [[CAST_TO2]] {{[0-9]+}} {{[0-9]+}}
 ; Function Attrs: norecurse nounwind
-define spir_func void @_Z3gooPii(i32 addrspace(1)* %arg_glob, i32 addrspace(6)* %arg_host) #3 !kernel_arg_addr_space !10 {
+define spir_func void @_Z3gooPii(ptr addrspace(1) %arg_glob, ptr addrspace(6) %arg_host) #3 !kernel_arg_addr_space !10 {
 entry:
-  %arg_glob.addr = alloca i32 addrspace(1)*, align 4
-  %arg_host.addr = alloca i32 addrspace(6)*, align 4
-  store i32 addrspace(1)* %arg_glob, i32 addrspace(1)** %arg_glob.addr, align 4
-  store i32 addrspace(6)* %arg_host, i32 addrspace(6)** %arg_host.addr, align 4
-  %0 = load i32 addrspace(1)*, i32 addrspace(1)** %arg_glob.addr, align 4
+  %arg_glob.addr = alloca ptr addrspace(1), align 4
+  %arg_host.addr = alloca ptr addrspace(6), align 4
+  store ptr addrspace(1) %arg_glob, ptr %arg_glob.addr, align 4
+  store ptr addrspace(6) %arg_host, ptr %arg_host.addr, align 4
+  %0 = load ptr addrspace(1), ptr %arg_glob.addr, align 4
 ; CHECK-LLVM: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr addrspace(6)
 ; CHECK-LLVM-NO-USM-NOT: addrspacecast ptr addrspace(1) %{{[0-9]+}} to ptr addrspace(6)
-  %1 = addrspacecast i32 addrspace(1)* %0 to i32 addrspace(6)*
-  store i32 addrspace(6)* %1, i32 addrspace(6)** %arg_host.addr, align 4
+  %1 = addrspacecast ptr addrspace(1) %0 to ptr addrspace(6)
+  store ptr addrspace(6) %1, ptr %arg_host.addr, align 4
   ret void
 }
 
@@ -167,17 +161,17 @@ entry:
 ; CHECK-SPIRV-NO-EXT-NOT: PtrCastToGeneric {{[0-9]+}} [[CAST_TO3:[0-9]+]] [[CAST_FROM3]]
 ; CHECL-SPIRV: Store [[GLOB_ARG3]] [[CAST_TO3]] {{[0-9]+}} {{[0-9]+}}
 ; Function Attrs: norecurse nounwind
-define spir_func void @_Z3zooPii(i32 addrspace(1)* %arg_glob, i32 addrspace(5)* %arg_dev) #3 !kernel_arg_addr_space !9 {
+define spir_func void @_Z3zooPii(ptr addrspace(1) %arg_glob, ptr addrspace(5) %arg_dev) #3 !kernel_arg_addr_space !9 {
 entry:
-  %arg_glob.addr = alloca i32 addrspace(1)*, align 4
-  %arg_dev.addr = alloca i32 addrspace(5)*, align 4
-  store i32 addrspace(1)* %arg_glob, i32 addrspace(1)** %arg_glob.addr, align 4
-  store i32 addrspace(5)* %arg_dev, i32 addrspace(5)** %arg_dev.addr, align 4
-  %0 = load i32 addrspace(5)*, i32 addrspace(5)** %arg_dev.addr, align 4
+  %arg_glob.addr = alloca ptr addrspace(1), align 4
+  %arg_dev.addr = alloca ptr addrspace(5), align 4
+  store ptr addrspace(1) %arg_glob, ptr %arg_glob.addr, align 4
+  store ptr addrspace(5) %arg_dev, ptr %arg_dev.addr, align 4
+  %0 = load ptr addrspace(5), ptr %arg_dev.addr, align 4
 ; CHECK-LLVM: addrspacecast ptr addrspace(5) %{{[0-9]+}} to ptr addrspace(1)
 ; CHECK-LLVM-NO-USM-NOT: addrspacecast ptr addrspace(5) %{{[0-9]+}} to ptr addrspace(1)
-  %1 = addrspacecast i32 addrspace(5)* %0 to i32 addrspace(1)*
-  store i32 addrspace(1)* %1, i32 addrspace(1)** %arg_glob.addr, align 4
+  %1 = addrspacecast ptr addrspace(5) %0 to ptr addrspace(1)
+  store ptr addrspace(1) %1, ptr %arg_glob.addr, align 4
   ret void
 }
 
@@ -186,17 +180,17 @@ entry:
 ; CHECK-SPIRV-NO-EXT-NOT: PtrCastToGeneric {{[0-9]+}} [[CAST_TO4:[0-9]+]] [[CAST_FROM4]]
 ; CHECL-SPIRV: Store [[GLOB_ARG4]] [[CAST_TO4]] {{[0-9]+}} {{[0-9]+}}
 ; Function Attrs: norecurse nounwind
-define spir_func void @_Z3mooPii(i32 addrspace(1)* %arg_glob, i32 addrspace(6)* %arg_host) #3 !kernel_arg_addr_space !10 {
+define spir_func void @_Z3mooPii(ptr addrspace(1) %arg_glob, ptr addrspace(6) %arg_host) #3 !kernel_arg_addr_space !10 {
 entry:
-  %arg_glob.addr = alloca i32 addrspace(1)*, align 4
-  %arg_host.addr = alloca i32 addrspace(6)*, align 4
-  store i32 addrspace(1)* %arg_glob, i32 addrspace(1)** %arg_glob.addr, align 4
-  store i32 addrspace(6)* %arg_host, i32 addrspace(6)** %arg_host.addr, align 4
-  %0 = load i32 addrspace(6)*, i32 addrspace(6)** %arg_host.addr, align 4
+  %arg_glob.addr = alloca ptr addrspace(1), align 4
+  %arg_host.addr = alloca ptr addrspace(6), align 4
+  store ptr addrspace(1) %arg_glob, ptr %arg_glob.addr, align 4
+  store ptr addrspace(6) %arg_host, ptr %arg_host.addr, align 4
+  %0 = load ptr addrspace(6), ptr %arg_host.addr, align 4
 ; CHECK-LLVM: addrspacecast ptr addrspace(6) %{{[0-9]+}} to ptr addrspace(1)
 ; CHECK-LLVM-NO-USM-NOT: addrspacecast ptr addrspace(6) %{{[0-9]+}} to ptr addrspace(1)
-  %1 = addrspacecast i32 addrspace(6)* %0 to i32 addrspace(1)*
-  store i32 addrspace(1)* %1, i32 addrspace(1)** %arg_glob.addr, align 4
+  %1 = addrspacecast ptr addrspace(6) %0 to ptr addrspace(1)
+  store ptr addrspace(1) %1, ptr %arg_glob.addr, align 4
   ret void
 }
 

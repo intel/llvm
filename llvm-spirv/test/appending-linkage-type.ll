@@ -11,9 +11,9 @@ target triple = "spir64-unknown-unknown"
 %union.int_double = type { i64 }
 
 @_c0 = internal addrspace(1) constant %union.int_double { i64 4607182418800017408 }, align 8 #0
-@._c0.ref = internal constant %union.int_double addrspace(1)* @_c0 #0
+@._c0.ref = internal constant ptr addrspace(1) @_c0 #0
 ; CHECK-LLVM: @llvm.compiler.used = appending global
-@llvm.compiler.used = appending global [1 x i8*] [i8* bitcast (%union.int_double addrspace(1)** @._c0.ref to i8*)] #0
+@llvm.compiler.used = appending global [1 x ptr] [ptr @._c0.ref] #0
 
 attributes #0 = { "VCGlobalVariable" }
 

@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
@@ -7,7 +7,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-%struct.S = type { i32* }
+%struct.S = type { ptr }
 
 @.str = private unnamed_addr constant [114 x i8] c"{5825}{5826:\22testmem\22}{5828:42}{5827:\2241\22}{5829:3}{5831}{5830}{5832:2}{5834:str1,\22str2\22}{5835:\221\22,3,\222\22}{5836:24}\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [14 x i8] c"<invalid loc>\00", section "llvm.metadata"
@@ -15,16 +15,13 @@ target triple = "spir64-unknown-unknown"
 define dso_local noundef i32 @main() {
   %1 = alloca i32, align 4
   %2 = alloca %struct.S, align 8
-  store i32 0, i32* %1, align 4
-  %3 = getelementptr inbounds %struct.S, %struct.S* %2, i32 0, i32 0
-  %4 = bitcast i32** %3 to i8*
-  %5 = call i8* @llvm.ptr.annotation.p0i8(i8* %4, i8* getelementptr inbounds ([114 x i8], [114 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([14 x i8], [14 x i8]* @.str.1, i32 0, i32 0), i32 3, i8* null)
-  %6 = bitcast i8* %5 to i32**
-  %7 = load i32*, i32** %6, align 8
+  store i32 0, ptr %1, align 4
+  %3 = call ptr @llvm.ptr.annotation.p0(ptr %2, ptr @.str, ptr @.str.1, i32 3, ptr null)
+  %4 = load ptr, ptr %3, align 8
   ret i32 0
 }
 
-declare i8* @llvm.ptr.annotation.p0i8(i8*, i8*, i8*, i32, i8*)
+declare ptr @llvm.ptr.annotation.p0(ptr, ptr, ptr, i32, ptr)
 
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 RegisterINTEL
 ; CHECK-SPIRV-DAG: MemberDecorate {{[0-9]+}} 0 MemoryINTEL "testmem"

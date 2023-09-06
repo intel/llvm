@@ -12,16 +12,16 @@
 // RUN: llvm-readobj --string-dump=.tgtsym %t.fat.o | FileCheck %s
 
 // CHECK: String dump of section '.tgtsym':
-// CHECK-DAG: openmp-x86_64-pc-linux-gnu-.foo
-// CHECK-DAG: openmp-x86_64-pc-linux-gnu-.bar
-// CHECK-DAG: sycl-spir64----.foo
-// CHECK-DAG: sycl-spir64----.bar
+// CHECK-DAG: openmp-x86_64-pc-linux-gnu.foo
+// CHECK-DAG: openmp-x86_64-pc-linux-gnu.bar
+// CHECK-DAG: sycl-spir64.foo
+// CHECK-DAG: sycl-spir64.bar
 // CHECK-NOT: undefined_func
 // CHECK-NOT: static_func
 // CHECK-NOT: static_used
-// CHECK-NOT: sycl-spir64----.llvm.used
-// CHECK-NOT: sycl-spir64----.llvm.compiler.used
-// CHECK-NOT: sycl-spir64----.const_as
+// CHECK-NOT: sycl-spir64.llvm.used
+// CHECK-NOT: sycl-spir64.llvm.compiler.used
+// CHECK-NOT: sycl-spir64.const_as
 
 // RUN: clang-offload-bundler --add-target-symbols-to-bundled-object=false -type=o -targets=host-%itanium_abi_triple,openmp-x86_64-pc-linux-gnu,sycl-spir64 -input=%t.o -input=%t.tgt1 -input=%t.tgt2 -output=%t.fat.no.tgtsym.o
 // RUN: llvm-readobj --string-dump=.tgtsym %t.fat.no.tgtsym.o | FileCheck %s --check-prefix CHECK-NO-TGTSYM

@@ -38,7 +38,7 @@ source_filename = "test/DebugInfo/Generic/func-using-decl.ll"
 define dso_local i32 @main() #0 !dbg !14 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !17
 }
 

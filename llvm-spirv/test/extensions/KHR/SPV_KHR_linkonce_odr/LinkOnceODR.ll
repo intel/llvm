@@ -33,9 +33,9 @@ entry:
 define linkonce_odr dso_local spir_func i32 @square(i32 %in) {
 entry:
   %in.addr = alloca i32, align 4
-  store i32 %in, i32* %in.addr, align 4
-  %0 = load i32, i32* %in.addr, align 4
-  %1 = load i32, i32* %in.addr, align 4
+  store i32 %in, ptr %in.addr, align 4
+  %0 = load i32, ptr %in.addr, align 4
+  %1 = load i32, ptr %in.addr, align 4
   %mul = mul nsw i32 %0, %1
   ret i32 %mul
 }

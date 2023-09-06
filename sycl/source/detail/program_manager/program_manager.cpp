@@ -2540,8 +2540,7 @@ checkDevSupportDeviceRequirements(const device &Dev,
     // necessarily have to be the same uint64_t (but should fit in an
     // uint64_t).
     if (ReqdWGSizeAllDimsTotal >
-            Dev.get_info<info::device::max_work_group_size>() ||
-        ReqdWGSizeAllDimsTotal > std::numeric_limits<size_t>::max())
+        Dev.get_info<info::device::max_work_group_size>())
       return sycl::exception(sycl::errc::kernel_not_supported,
                              "Required work-group size " +
                                  std::to_string(ReqdWGSizeAllDimsTotal) +

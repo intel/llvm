@@ -4,7 +4,7 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   using T = int;
 
@@ -25,24 +25,29 @@ int main() {
     ReferenceB[j] = DataA[(j - OffsetDst) + OffsetSrc];
   }
 
-  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
-
   buffer BufferA{DataA};
   BufferA.set_write_back(false);
   buffer BufferB{DataB};
   BufferB.set_write_back(false);
 
-  // Copy from A to B
-  auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
-    auto AccA = BufferA.get_access<access::mode::read_write>(
-        CGH, range<1>(Size - OffsetSrc), id<1>(OffsetSrc));
-    auto AccB = BufferB.get_access<access::mode::read_write>(
-        CGH, range<1>(Size - OffsetDst), id<1>(OffsetDst));
-    CGH.copy(AccA, AccB);
-  });
+  {
+    exp_ext::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-  auto GraphExec = Graph.finalize();
-  Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); }).wait();
+    // Copy from A to B
+    auto NodeA = add_node(Graph, Queue, [&](handler &CGH) {
+      auto AccA = BufferA.get_access<access::mode::read_write>(
+          CGH, range<1>(Size - OffsetSrc), id<1>(OffsetSrc));
+      auto AccB = BufferB.get_access<access::mode::read_write>(
+          CGH, range<1>(Size - OffsetDst), id<1>(OffsetDst));
+      CGH.copy(AccA, AccB);
+    });
+
+    auto GraphExec = Graph.finalize();
+    Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(GraphExec); }).wait();
+  }
 
   host_accessor HostAccA(BufferA);
   host_accessor HostAccB(BufferB);

@@ -73,23 +73,12 @@ jobs:
       sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
-
-  test_matrix:
-    if: github.repository == 'intel/llvm'
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      lts_config: "win_l0_gen12"
-
   windows_default:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    needs: test_matrix
     with:
       retention-days: 90
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
-
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
