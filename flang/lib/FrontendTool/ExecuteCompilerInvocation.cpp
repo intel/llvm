@@ -135,8 +135,9 @@ bool executeCompilerInvocation(CompilerInstance *flang) {
     clang::driver::getDriverOptTable().printHelp(
         llvm::outs(), "flang-new -fc1 [options] file...",
         "LLVM 'Flang' Compiler",
-        /*ShowHidden=*/false, /*ShowAllAliases=*/false,
-        llvm::opt::Visibility(clang::driver::options::FC1Option));
+        /*Include=*/clang::driver::options::FC1Option,
+        /*Exclude=*/llvm::opt::DriverFlag::HelpHidden,
+        /*ShowAllAliases=*/false);
     return true;
   }
 

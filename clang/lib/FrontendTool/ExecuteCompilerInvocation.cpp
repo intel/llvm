@@ -201,8 +201,8 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
     driver::getDriverOptTable().printHelp(
         llvm::outs(), "clang -cc1 [options] file...",
         "LLVM 'Clang' Compiler: http://clang.llvm.org",
-        /*ShowHidden=*/false, /*ShowAllAliases=*/false,
-        llvm::opt::Visibility(driver::options::CC1Option));
+        /*Include=*/driver::options::CC1Option,
+        /*Exclude=*/0, /*ShowAllAliases=*/false);
     return true;
   }
 

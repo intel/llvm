@@ -40,24 +40,25 @@ struct DocumentedGroup : Documentation {
   Record *Group;
 };
 
-static bool hasFlag(const Record *Option, StringRef OptionFlag,
-                    StringRef FlagsField) {
-  for (const Record *Flag : Option->getValueAsListOfDefs(FlagsField))
+static bool hasFlag(const Record *Option, StringRef OptionFlag) {
+  for (const Record *Flag : Option->getValueAsListOfDefs("Flags"))
     if (Flag->getName() == OptionFlag)
       return true;
   if (const DefInit *DI = dyn_cast<DefInit>(Option->getValueInit("Group")))
-    for (const Record *Flag : DI->getDef()->getValueAsListOfDefs(FlagsField))
+    for (const Record *Flag : DI->getDef()->getValueAsListOfDefs("Flags"))
       if (Flag->getName() == OptionFlag)
         return true;
   return false;
 }
 
 static bool isOptionVisible(const Record *Option, const Record *DocInfo) {
-  for (StringRef IgnoredFlag : DocInfo->getValueAsListOfStrings("IgnoreFlags"))
-    if (hasFlag(Option, IgnoredFlag, "Flags"))
+  for (StringRef Exclusion : DocInfo->getValueAsListOfStrings("ExcludedFlags"))
+    if (hasFlag(Option, Exclusion))
       return false;
-  for (StringRef Mask : DocInfo->getValueAsListOfStrings("VisibilityMask"))
-    if (hasFlag(Option, Mask, "Visibility"))
+  if (!DocInfo->getValue("IncludedFlags"))
+    return true;
+  for (StringRef Inclusion : DocInfo->getValueAsListOfStrings("IncludedFlags"))
+    if (hasFlag(Option, Inclusion))
       return true;
   return false;
 }

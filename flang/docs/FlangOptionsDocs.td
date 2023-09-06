@@ -25,8 +25,11 @@ Introduction
 }];
 
   string Program = "flang";
-  list<string> VisibilityMask = ["FlangOption"];
-  list<string> IgnoreFlags = ["HelpHidden", "Unsupported", "Ignored"];
+
+  list<string> ExcludedFlags = ["HelpHidden", "NoDriverOption",
+                                "CLOption", "Unsupported", "Ignored"];
+  list<string> IncludedFlags = ["FlangOption"];
+
 }
 
 

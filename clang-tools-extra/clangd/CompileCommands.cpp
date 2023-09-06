@@ -237,8 +237,14 @@ void CommandMangler::operator()(tooling::CompileCommand &Command,
   llvm::opt::InputArgList ArgList;
   ArgList = OptTable.ParseArgs(
       llvm::ArrayRef(OriginalArgs).drop_front(), IgnoredCount, IgnoredCount,
-      llvm::opt::Visibility(IsCLMode ? driver::options::CLOption
-                                     : driver::options::ClangOption));
+      /*FlagsToInclude=*/
+      IsCLMode ? (driver::options::CLOption | driver::options::CoreOption |
+                  driver::options::CLDXCOption)
+               : /*everything*/ 0,
+      /*FlagsToExclude=*/driver::options::NoDriverOption |
+          (IsCLMode
+               ? 0
+               : (driver::options::CLOption | driver::options::CLDXCOption)));
 
   llvm::SmallVector<unsigned, 1> IndicesToDrop;
   // Having multiple architecture options (e.g. when building fat binaries)
@@ -435,13 +441,23 @@ DriverMode getDriverMode(const std::vector<std::string> &Args) {
 
 // Returns the set of DriverModes where an option may be used.
 unsigned char getModes(const llvm::opt::Option &Opt) {
+  // Why is this so complicated?!
+  // Reference is clang::driver::Driver::getIncludeExcludeOptionFlagMasks()
   unsigned char Result = DM_None;
-  if (Opt.hasVisibilityFlag(driver::options::ClangOption))
-    Result |= DM_GCC;
-  if (Opt.hasVisibilityFlag(driver::options::CC1Option))
+  if (Opt.hasFlag(driver::options::CC1Option))
     Result |= DM_CC1;
-  if (Opt.hasVisibilityFlag(driver::options::CLOption))
-    Result |= DM_CL;
+  if (!Opt.hasFlag(driver::options::NoDriverOption)) {
+    if (Opt.hasFlag(driver::options::CLOption)) {
+      Result |= DM_CL;
+    } else if (Opt.hasFlag(driver::options::CLDXCOption)) {
+      Result |= DM_CL;
+    } else {
+      Result |= DM_GCC;
+      if (Opt.hasFlag(driver::options::CoreOption)) {
+        Result |= DM_CL;
+      }
+    }
+  }
   return Result;
 }
 
