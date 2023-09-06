@@ -56,7 +56,8 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                         ext::intel::experimental::matrix::layout::packed>
                sub_b;
            joint_matrix<sub_group, int32_t, use::accumulator, TM, TN> sub_c;
-           joint_matrix<sub_group, float, use::a, TM, TK, layout::row_major> sub_d;
+           joint_matrix<sub_group, float, use::a, TM, TK, layout::row_major>
+               sub_d;
 
            joint_matrix_fill(sg, sub_c, 0);
            for (int k = 0; k < K / TK; k += 1) {
