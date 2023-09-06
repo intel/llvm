@@ -29,8 +29,9 @@ TEST_P(urProgramGetInfoTest, Success) {
 
 TEST_P(urProgramGetInfoTest, InvalidNullHandleProgram) {
     uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urProgramGetInfo(nullptr, UR_PROGRAM_INFO_REFERENCE_COUNT,
-                                    sizeof(ref_count), &ref_count, nullptr));
+    ASSERT_EQ_RESULT(urProgramGetInfo(nullptr, UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                      sizeof(ref_count), &ref_count, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 }
 
 TEST_P(urProgramGetInfoTest, InvalidEnumeration) {
