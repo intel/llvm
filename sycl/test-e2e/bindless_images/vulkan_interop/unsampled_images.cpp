@@ -300,7 +300,7 @@ void run_ndim_test(sycl::range<NDims> global_size,
     // Wait for kernel completion before destroying external objects
     q.wait_and_throw();
 
-    cleanup_test(ctxt, dev, handles);
+    // cleanup_test(ctxt, dev, handles);
   } catch (sycl::exception e) {
     std::cerr << "\tKernel submission failed! " << e.what() << std::endl;
     exit(-1);
@@ -332,42 +332,38 @@ struct vulkan_image_test_resources_t {
   VkDeviceMemory imageMemory;
   VkBuffer stagingBuffer;
   VkDeviceMemory stagingMemory;
-};
 
-vulkan_image_test_resources_t
-create_vulkan_image_resources(VkImageType imgType, VkFormat format,
-                              VkExtent3D ext, const size_t imageSizeBytes) {
-  auto vulkanImage = vkutil::createImage(imgType, format, ext,
-                                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                             VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                             VK_IMAGE_USAGE_STORAGE_BIT);
-  auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
-      vulkanImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-  auto imageMem =
-      vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
-  VK_CHECK_CALL(
-      vkBindImageMemory(vk_device, vulkanImage, imageMem, 0 /*memoryOffset*/));
+  vulkan_image_test_resources_t(VkImageType imgType, VkFormat format,
+                                VkExtent3D ext, const size_t imageSizeBytes) {
+    vkImage = vkutil::createImage(imgType, format, ext,
+                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                      VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                      VK_IMAGE_USAGE_STORAGE_BIT);
+    auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
+        vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    imageMemory =
+        vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
+    VK_CHECK_CALL(
+        vkBindImageMemory(vk_device, vkImage, imageMemory, 0 /*memoryOffset*/));
 
-  auto stagingBuf = vkutil::createBuffer(imageSizeBytes,
+    stagingBuffer = vkutil::createBuffer(imageSizeBytes,
                                          VK_BUFFER_USAGE_TRANSFER_SRC_BIT |
                                              VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-  auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
-      stagingBuf, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                      VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-  auto stagingMem = vkutil::allocateDeviceMemory(
-      imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
-  VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuf, stagingMem,
-                                   0 /*memoryOffset*/));
-
-  return {vulkanImage, imageMem, stagingBuf, stagingMem};
-}
-
-void destroy_vulkan_image_resources(vulkan_image_test_resources_t &vitr) {
-  vkDestroyBuffer(vk_device, vitr.stagingBuffer, nullptr);
-  vkDestroyImage(vk_device, vitr.vkImage, nullptr);
-  vkFreeMemory(vk_device, vitr.stagingMemory, nullptr);
-  vkFreeMemory(vk_device, vitr.imageMemory, nullptr);
-}
+    auto inputStagingMemoryTypeIndex = vkutil::getBufferMemoryTypeIndex(
+        stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                           VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    stagingMemory = vkutil::allocateDeviceMemory(
+        imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
+    VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
+                                     0 /*memoryOffset*/));
+  }
+  ~vulkan_image_test_resources_t() {
+    vkDestroyBuffer(vk_device, stagingBuffer, nullptr);
+    vkDestroyImage(vk_device, vkImage, nullptr);
+    vkFreeMemory(vk_device, stagingMemory, nullptr);
+    vkFreeMemory(vk_device, imageMemory, nullptr);
+  }
+};
 
 template <int NDims, typename DType, int NChannels,
           sycl::image_channel_type CType, sycl::image_channel_order COrder,
@@ -395,11 +391,11 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   VkFormat format = util::to_vulkan_format(COrder, CType);
   const size_t imageSizeBytes = num_elems * NChannels * sizeof(DType);
 
-  auto inVkImgRes1 = create_vulkan_image_resources(
+  vulkan_image_test_resources_t inVkImgRes1(
       imgType, format, {width, height, depth}, imageSizeBytes);
-  auto inVkImgRes2 = create_vulkan_image_resources(
+  vulkan_image_test_resources_t inVkImgRes2(
       imgType, format, {width, height, depth}, imageSizeBytes);
-  auto outVkImgRes = create_vulkan_image_resources(
+  vulkan_image_test_resources_t outVkImgRes(
       imgType, format, {width, height, depth}, imageSizeBytes);
 
   printString("Populating staging buffer\n");
@@ -616,9 +612,9 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   }
 
   // Cleanup
-  destroy_vulkan_image_resources(inVkImgRes1);
+  /*destroy_vulkan_image_resources(inVkImgRes1);
   destroy_vulkan_image_resources(inVkImgRes2);
-  destroy_vulkan_image_resources(outVkImgRes);
+  destroy_vulkan_image_resources(outVkImgRes);*/
   vkDestroySemaphore(vk_device, syclWaitSemaphore, nullptr);
   vkDestroySemaphore(vk_device, syclDoneSemaphore, nullptr);
 
