@@ -13,7 +13,9 @@
 #include "../graph_common.hpp"
 
 int main() {
-  property_list Properties{property::queue::in_order()};
+  property_list Properties{
+      property::queue::in_order{},
+      sycl::ext::intel::property::queue::no_immediate_command_list{}};
   queue Queue{Properties};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};

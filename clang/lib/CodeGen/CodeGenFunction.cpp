@@ -574,13 +574,13 @@ llvm::ConstantInt *
 CodeGenFunction::getUBSanFunctionTypeHash(QualType Ty) const {
   // Remove any (C++17) exception specifications, to allow calling e.g. a
   // noexcept function through a non-noexcept pointer.
-  if (!isa<FunctionNoProtoType>(Ty))
+  if (!Ty->isFunctionNoProtoType())
     Ty = getContext().getFunctionTypeWithExceptionSpec(Ty, EST_None);
   std::string Mangled;
   llvm::raw_string_ostream Out(Mangled);
   CGM.getCXXABI().getMangleContext().mangleTypeName(Ty, Out, false);
-  return llvm::ConstantInt::get(CGM.Int32Ty,
-                                static_cast<uint32_t>(llvm::xxHash64(Mangled)));
+  return llvm::ConstantInt::get(
+      CGM.Int32Ty, static_cast<uint32_t>(llvm::xxh3_64bits(Mangled)));
 }
 
 void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
@@ -1722,16 +1722,16 @@ void CodeGenFunction::GenerateCode(GlobalDecl GD, llvm::Function *Fn,
     // The lambda static invoker function is special, because it forwards or
     // clones the body of the function call operator (but is actually static).
     EmitLambdaStaticInvokeBody(cast<CXXMethodDecl>(FD));
-
   } else if (isa<CXXMethodDecl>(FD) &&
              isLambdaCallOperator(cast<CXXMethodDecl>(FD)) &&
+             !FnInfo.isDelegateCall() &&
              cast<CXXMethodDecl>(FD)->getParent()->getLambdaStaticInvoker() &&
-             hasInAllocaArg(cast<CXXMethodDecl>(FD)
-                                ->getParent()
-                                ->getLambdaStaticInvoker()) &&
-             !FnInfo.isDelegateCall()) {
+             hasInAllocaArg(cast<CXXMethodDecl>(FD))) {
     // If emitting a lambda with static invoker on X86 Windows, change
     // the call operator body.
+    // Make sure that this is a call operator with an inalloca arg and check
+    // for delegate call to make sure this is the original call op and not the
+    // new forwarding function for the static invoker.
     EmitLambdaInAllocaCallOpBody(cast<CXXMethodDecl>(FD));
   } else if (FD->isDefaulted() && isa<CXXMethodDecl>(FD) &&
              (cast<CXXMethodDecl>(FD)->isCopyAssignmentOperator() ||
@@ -2321,8 +2321,12 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
                                NullConstant, Twine());
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Address SrcPtr(NullVariable, Builder.getInt8Ty(), NullAlign);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Address SrcPtr(Builder.CreateBitCast(NullVariable, Builder.getInt8PtrTy()),
                    Builder.getInt8Ty(), NullAlign);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     if (vla) return emitNonZeroVLAInit(*this, Ty, DestPtr, SrcPtr, SizeVal);
 
@@ -2789,7 +2793,7 @@ void CodeGenFunction::EmitVarAnnotations(const VarDecl *D, llvm::Value *V) {
   // FIXME We create a new bitcast for every annotation because that's what
   // llvm-gcc was doing.
   unsigned AS = V->getType()->getPointerAddressSpace();
-  llvm::Type *I8PtrTy = Builder.getInt8PtrTy(AS);
+  llvm::Type *I8PtrTy = Builder.getPtrTy(AS);
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
     EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
                                         {I8PtrTy, CGM.ConstGlobalsPtrTy}),
@@ -3060,8 +3064,15 @@ llvm::Value *CodeGenFunction::FormX86ResolverCondition(
     const MultiVersionResolverOption &RO) {
   llvm::Value *Condition = nullptr;
 
-  if (!RO.Conditions.Architecture.empty())
-    Condition = EmitX86CpuIs(RO.Conditions.Architecture);
+  if (!RO.Conditions.Architecture.empty()) {
+    StringRef Arch = RO.Conditions.Architecture;
+    // If arch= specifies an x86-64 micro-architecture level, test the feature
+    // with __builtin_cpu_supports, otherwise use __builtin_cpu_is.
+    if (Arch.starts_with("x86-64"))
+      Condition = EmitX86CpuSupports({Arch});
+    else
+      Condition = EmitX86CpuIs(Arch);
+  }
 
   if (!RO.Conditions.Features.empty()) {
     llvm::Value *FeatureCond = EmitX86CpuSupports(RO.Conditions.Features);

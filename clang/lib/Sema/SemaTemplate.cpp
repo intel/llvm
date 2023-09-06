@@ -23,6 +23,7 @@
 #include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
+#include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Stack.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/DeclSpec.h"
@@ -593,7 +594,7 @@ bool Sema::LookupTemplateName(LookupResult &Found,
       //     postfix-expression and does not name a class template, the name
       //     found in the class of the object expression is used, otherwise
       FoundOuter.clear();
-    } else if (!Found.isSuppressingDiagnostics()) {
+    } else if (!Found.isSuppressingAmbiguousDiagnostics()) {
       //   - if the name found is a class template, it must refer to the same
       //     entity as the one found in the class of the object expression,
       //     otherwise the program is ill-formed.
@@ -1256,9 +1257,13 @@ bool Sema::AttachTypeConstraint(NestedNameSpecifierLoc NS,
   if (ImmediatelyDeclaredConstraint.isInvalid())
     return true;
 
-  ConstrainedParameter->setTypeConstraint(NS, NameInfo,
-                                          /*FoundDecl=*/NamedConcept,
-                                          NamedConcept, ArgsAsWritten,
+  auto *CL = ConceptReference::Create(Context, /*NNS=*/NS,
+                                      /*TemplateKWLoc=*/SourceLocation{},
+                                      /*ConceptNameInfo=*/NameInfo,
+                                      /*FoundDecl=*/NamedConcept,
+                                      /*NamedConcept=*/NamedConcept,
+                                      /*ArgsWritten=*/ArgsAsWritten);
+  ConstrainedParameter->setTypeConstraint(CL,
                                           ImmediatelyDeclaredConstraint.get());
   return false;
 }
@@ -2570,12 +2575,47 @@ private:
 };
 }
 
+FunctionTemplateDecl *Sema::DeclareImplicitDeductionGuideFromInitList(
+    TemplateDecl *Template, MutableArrayRef<QualType> ParamTypes,
+    SourceLocation Loc) {
+  if (CXXRecordDecl *DefRecord =
+          cast<CXXRecordDecl>(Template->getTemplatedDecl())->getDefinition()) {
+    if (TemplateDecl *DescribedTemplate =
+            DefRecord->getDescribedClassTemplate())
+      Template = DescribedTemplate;
+  }
+
+  DeclContext *DC = Template->getDeclContext();
+  if (DC->isDependentContext())
+    return nullptr;
+
+  ConvertConstructorToDeductionGuideTransform Transform(
+      *this, cast<ClassTemplateDecl>(Template));
+  if (!isCompleteType(Loc, Transform.DeducedType))
+    return nullptr;
+
+  // In case we were expanding a pack when we attempted to declare deduction
+  // guides, turn off pack expansion for everything we're about to do.
+  ArgumentPackSubstitutionIndexRAII SubstIndex(*this,
+                                               /*NewSubstitutionIndex=*/-1);
+  // Create a template instantiation record to track the "instantiation" of
+  // constructors into deduction guides.
+  InstantiatingTemplate BuildingDeductionGuides(
+      *this, Loc, Template,
+      Sema::InstantiatingTemplate::BuildingDeductionGuidesTag{});
+  if (BuildingDeductionGuides.isInvalid())
+    return nullptr;
+
+  return cast<FunctionTemplateDecl>(
+      Transform.buildSimpleDeductionGuide(ParamTypes));
+}
+
 void Sema::DeclareImplicitDeductionGuides(TemplateDecl *Template,
                                           SourceLocation Loc) {
   if (CXXRecordDecl *DefRecord =
           cast<CXXRecordDecl>(Template->getTemplatedDecl())->getDefinition()) {
-    TemplateDecl *DescribedTemplate = DefRecord->getDescribedClassTemplate();
-    Template = DescribedTemplate ? DescribedTemplate : Template;
+    if (TemplateDecl *DescribedTemplate = DefRecord->getDescribedClassTemplate())
+      Template = DescribedTemplate;
   }
 
   DeclContext *DC = Template->getDeclContext();
@@ -2599,9 +2639,9 @@ void Sema::DeclareImplicitDeductionGuides(TemplateDecl *Template,
   ArgumentPackSubstitutionIndexRAII SubstIndex(*this, -1);
   // Create a template instantiation record to track the "instantiation" of
   // constructors into deduction guides.
-  // FIXME: Add a kind for this to give more meaningful diagnostics. But can
-  // this substitution process actually fail?
-  InstantiatingTemplate BuildingDeductionGuides(*this, Loc, Template);
+  InstantiatingTemplate BuildingDeductionGuides(
+      *this, Loc, Template,
+      Sema::InstantiatingTemplate::BuildingDeductionGuidesTag{});
   if (BuildingDeductionGuides.isInvalid())
     return;
 
@@ -2656,7 +2696,7 @@ void Sema::DeclareImplicitDeductionGuides(TemplateDecl *Template,
       cast<FunctionTemplateDecl>(
           Transform.buildSimpleDeductionGuide(Transform.DeducedType))
           ->getTemplatedDecl())
-      ->setIsCopyDeductionCandidate();
+      ->setDeductionCandidateKind(DeductionCandidate::Copy);
 }
 
 /// Diagnose the presence of a default template argument on a
@@ -4906,13 +4946,13 @@ Sema::CheckConceptTemplateId(const CXXScopeSpec &SS,
                       TemplateArgs->getRAngleLoc()),
           Satisfaction))
     return ExprError();
-
-  return ConceptSpecializationExpr::Create(
+  auto *CL = ConceptReference::Create(
       Context,
       SS.isSet() ? SS.getWithLocInContext(Context) : NestedNameSpecifierLoc{},
       TemplateKWLoc, ConceptNameInfo, FoundDecl, NamedConcept,
-      ASTTemplateArgumentListInfo::Create(Context, *TemplateArgs), CSD,
-      AreArgsDependent ? nullptr : &Satisfaction);
+      ASTTemplateArgumentListInfo::Create(Context, *TemplateArgs));
+  return ConceptSpecializationExpr::Create(
+      Context, CL, CSD, AreArgsDependent ? nullptr : &Satisfaction);
 }
 
 ExprResult Sema::BuildTemplateIdExpr(const CXXScopeSpec &SS,
@@ -11342,6 +11382,7 @@ void Sema::MarkAsLateParsedTemplate(FunctionDecl *FD, Decl *FnD,
   // Take tokens to avoid allocations
   LPT->Toks.swap(Toks);
   LPT->D = FnD;
+  LPT->FPO = getCurFPFeatures();
   LateParsedTemplateMap.insert(std::make_pair(FD, std::move(LPT)));
 
   FD->setLateTemplateParsed(true);

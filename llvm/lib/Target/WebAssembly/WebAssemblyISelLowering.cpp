@@ -14,10 +14,10 @@
 #include "WebAssemblyISelLowering.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "Utils/WebAssemblyTypeUtilities.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySubtarget.h"
 #include "WebAssemblyTargetMachine.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/CallingConvLower.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -32,6 +32,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/KnownBits.h"
@@ -125,8 +126,8 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
       setOperationAction(Op, T, Expand);
     // Note supported floating-point library function operators that otherwise
     // default to expand.
-    for (auto Op :
-         {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT, ISD::FRINT})
+    for (auto Op : {ISD::FCEIL, ISD::FFLOOR, ISD::FTRUNC, ISD::FNEARBYINT,
+                    ISD::FRINT, ISD::FROUNDEVEN})
       setOperationAction(Op, T, Legal);
     // Support minimum and maximum, which otherwise default to expand.
     setOperationAction(ISD::FMINIMUM, T, Legal);
@@ -247,7 +248,7 @@ WebAssemblyTargetLowering::WebAssemblyTargetLowering(
 
     // Expand float operations supported for scalars but not SIMD
     for (auto Op : {ISD::FCOPYSIGN, ISD::FLOG, ISD::FLOG2, ISD::FLOG10,
-                    ISD::FEXP, ISD::FEXP2, ISD::FRINT})
+                    ISD::FEXP, ISD::FEXP2})
       for (auto T : {MVT::v4f32, MVT::v2f64})
         setOperationAction(Op, T, Expand);
 
@@ -831,6 +832,30 @@ bool WebAssemblyTargetLowering::isOffsetFoldingLegal(
   // Wasm doesn't support function addresses with offsets
   const GlobalValue *GV = GA->getGlobal();
   return isa<Function>(GV) ? false : TargetLowering::isOffsetFoldingLegal(GA);
+}
+
+bool WebAssemblyTargetLowering::shouldSinkOperands(
+    Instruction *I, SmallVectorImpl<Use *> &Ops) const {
+  using namespace llvm::PatternMatch;
+
+  if (!I->getType()->isVectorTy() || !I->isShift())
+    return false;
+
+  Value *V = I->getOperand(1);
+  // We dont need to sink constant splat.
+  if (dyn_cast<Constant>(V))
+    return false;
+
+  if (match(V, m_Shuffle(m_InsertElt(m_Value(), m_Value(), m_ZeroInt()),
+                         m_Value(), m_ZeroMask()))) {
+    // Sink insert
+    Ops.push_back(&cast<Instruction>(V)->getOperandUse(0));
+    // Sink shuffle
+    Ops.push_back(&I->getOperandUse(1));
+    return true;
+  }
+
+  return false;
 }
 
 EVT WebAssemblyTargetLowering::getSetCCResultType(const DataLayout &DL,
@@ -2809,7 +2834,8 @@ static SDValue performSETCCCombine(SDNode *N,
       int Intrin = isNullConstant(RHS) ? Intrinsic::wasm_anytrue
                                        : Intrinsic::wasm_alltrue;
       unsigned NumElts = FromVT.getVectorNumElements();
-      assert(NumElts == 2 || NumElts == 4 || NumElts == 8 || NumElts == 16);
+      if (NumElts != 2 && NumElts != 4 && NumElts != 8 && NumElts != 16)
+        return SDValue();
       EVT Width = MVT::getIntegerVT(128 / NumElts);
       SDValue Ret = DAG.getZExtOrTrunc(
           DAG.getNode(

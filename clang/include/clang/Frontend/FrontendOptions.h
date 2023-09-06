@@ -283,6 +283,9 @@ public:
   /// print the supported cpus for the current target
   unsigned PrintSupportedCPUs : 1;
 
+  /// Print the supported extensions for the current target.
+  unsigned PrintSupportedExtensions : 1;
+
   /// Show the -version text.
   unsigned ShowVersion : 1;
 
@@ -455,6 +458,12 @@ public:
   // A comma seperated list of files providing a list of APIs to
   // ignore when extracting documentation.
   std::vector<std::string> ExtractAPIIgnoresFileList;
+
+  // Currently this is only used as part of the `-emit-symbol-graph`
+  // action.
+  // Location of output directory where symbol graph information would
+  // be dumped
+  std::string SymbolGraphOutputDir;
 
   /// Args to pass to the plugins
   std::map<std::string, std::vector<std::string>> PluginArgs;

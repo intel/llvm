@@ -10,7 +10,7 @@
 // RUN: %{run} %t.out
 
 // Temporarily disabled until the failure is addressed.
-// UNSUPPORTED: gpu-intel-pvc || (level_zero && windows)
+// UNSUPPORTED: (level_zero && windows)
 
 #include "copy2d_common.hpp"
 

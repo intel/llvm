@@ -27,7 +27,8 @@ void run_some_kernel(queue Queue, float *Data) {
 
 int main() {
 
-  queue Queue{default_selector_v};
+  queue Queue{default_selector_v,
+              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 

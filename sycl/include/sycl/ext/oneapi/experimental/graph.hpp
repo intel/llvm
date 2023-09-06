@@ -8,14 +8,17 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/impl_utils.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/context.hpp>                // for context
+#include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
+#include <sycl/device.hpp>                 // for device
+#include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
+#include <sycl/property_list.hpp>              // for property_list
 
-#include <functional>
-#include <memory>
-#include <vector>
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <type_traits> // for true_type
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -31,17 +34,17 @@ namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
 // for throwing errors when these features are used with graphs.
 enum class UnsupportedGraphFeatures {
-  sycl_reductions,
-  sycl_specialization_constants,
-  sycl_kernel_bundle,
-  sycl_ext_oneapi_kernel_properties,
-  sycl_ext_oneapi_enqueue_barrier,
-  sycl_ext_oneapi_memcpy2d,
-  sycl_ext_oneapi_device_global,
-  sycl_ext_oneapi_bindless_images
+  sycl_reductions = 0,
+  sycl_specialization_constants = 1,
+  sycl_kernel_bundle = 2,
+  sycl_ext_oneapi_kernel_properties = 3,
+  sycl_ext_oneapi_enqueue_barrier = 4,
+  sycl_ext_oneapi_memcpy2d = 5,
+  sycl_ext_oneapi_device_global = 6,
+  sycl_ext_oneapi_bindless_images = 7
 };
 
-constexpr const char *
+inline const char *
 UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
   using UGF = UnsupportedGraphFeatures;
   switch (Feature) {
@@ -61,9 +64,10 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
-  default:
-    return {};
   }
+
+  assert(false && "Unhandled graphs feature");
+  return {};
 }
 
 class node_impl;
@@ -113,19 +117,6 @@ class assume_buffer_outlives_graph
 public:
   assume_buffer_outlives_graph() = default;
 };
-
-/// Property passed to command_graph constructor to allow buffers created with
-/// host pointers. Passing this property represents a promise from the user that
-/// the host data will outlive the buffer and by extension any graph that it is
-/// used in.
-///
-class assume_data_outlives_buffer
-    : public ::sycl::detail::DataLessProperty<
-          ::sycl::detail::GraphAssumeDataOutlivesBuffer> {
-public:
-  assume_data_outlives_buffer() = default;
-};
-
 } // namespace graph
 
 namespace node {
@@ -281,7 +272,6 @@ protected:
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
 
-  int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
 } // namespace detail

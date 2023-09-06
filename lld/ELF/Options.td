@@ -36,9 +36,14 @@ multiclass B<string name, string help1, string help2> {
 
 defm auxiliary: Eq<"auxiliary", "Set DT_AUXILIARY field to the specified name">;
 
+def be8: F<"be8">, HelpText<"write a Big Endian ELF file using BE8 format (AArch32 only)">;
+
 def Bno_symbolic: F<"Bno-symbolic">, HelpText<"Don't bind default visibility defined symbols locally for -shared (default)">;
 
 def Bsymbolic: F<"Bsymbolic">, HelpText<"Bind default visibility defined symbols locally for -shared">;
+
+def Bsymbolic_non_weak: F<"Bsymbolic-non-weak">,
+  HelpText<"Bind default visibility defined STB_GLOBAL symbols locally for -shared">;
 
 def Bsymbolic_functions: F<"Bsymbolic-functions">,
   HelpText<"Bind default visibility defined function symbols locally for -shared">;
@@ -563,6 +568,9 @@ def: JoinedOrSeparate<["-"], "u">, Alias<undefined>, HelpText<"Alias for --undef
 def: Flag<["-"], "V">, Alias<v>, HelpText<"Alias for -v">;
 
 // LTO-related options.
+
+def lto: JJ<"lto=">, HelpText<"Set LTO backend">,
+                 MetaVarName<"[full,thin]">;
 def lto_aa_pipeline: JJ<"lto-aa-pipeline=">,
   HelpText<"AA pipeline to run during LTO. Used in conjunction with -lto-newpm-passes">;
 def lto_debug_pass_manager: FF<"lto-debug-pass-manager">,
@@ -629,6 +637,10 @@ def thinlto_object_suffix_replace_eq: JJ<"thinlto-object-suffix-replace=">;
 def thinlto_prefix_replace_eq: JJ<"thinlto-prefix-replace=">;
 def thinlto_single_module_eq: JJ<"thinlto-single-module=">,
   HelpText<"Specify a single module to compile in ThinLTO mode, for debugging only">;
+
+defm fat_lto_objects: BB<"fat-lto-objects",
+    "Use the .llvm.lto section, which contains LLVM bitcode, in fat LTO object files to perform LTO.",
+    "Ignore the .llvm.lto section in relocatable object files (default).">;
 
 def: J<"plugin-opt=O">, Alias<lto_O>, HelpText<"Alias for --lto-O">;
 def: F<"plugin-opt=debug-pass-manager">,

@@ -176,6 +176,12 @@ def SDTFPToIntSatOp : SDTypeProfile<1, 2, [    // fp_to_[su]int_sat
 def SDTFPExpOp : SDTypeProfile<1, 2, [      // ldexp
   SDTCisSameAs<0, 1>, SDTCisFP<0>, SDTCisInt<2>
 ]>;
+def SDTGetFPStateOp : SDTypeProfile<1, 0, [ // get_fpenv, get_fpmode
+  SDTCisInt<0>
+]>;
+def SDTSetFPStateOp : SDTypeProfile<0, 1, [ // set_fpenv, set_fpmode
+  SDTCisInt<0>
+]>;
 def SDTExtInreg : SDTypeProfile<1, 2, [     // sext_inreg
   SDTCisSameAs<0, 1>, SDTCisInt<0>, SDTCisVT<2, OtherVT>,
   SDTCisVTSmallerThanOp<2, 1>
@@ -474,6 +480,8 @@ def vecreduce_umin  : SDNode<"ISD::VECREDUCE_UMIN", SDTVecReduce>;
 def vecreduce_fadd  : SDNode<"ISD::VECREDUCE_FADD", SDTFPVecReduce>;
 def vecreduce_fmin  : SDNode<"ISD::VECREDUCE_FMIN", SDTFPVecReduce>;
 def vecreduce_fmax  : SDNode<"ISD::VECREDUCE_FMAX", SDTFPVecReduce>;
+def vecreduce_fminimum : SDNode<"ISD::VECREDUCE_FMINIMUM", SDTFPVecReduce>;
+def vecreduce_fmaximum : SDNode<"ISD::VECREDUCE_FMAXIMUM", SDTFPVecReduce>;
 
 def fadd       : SDNode<"ISD::FADD"       , SDTFPBinOp, [SDNPCommutative]>;
 def fsub       : SDNode<"ISD::FSUB"       , SDTFPBinOp>;
@@ -607,6 +615,10 @@ def strict_uint_to_fp : SDNode<"ISD::STRICT_UINT_TO_FP",
                                SDTIntToFPOp, [SDNPHasChain]>;
 def strict_fsetcc  : SDNode<"ISD::STRICT_FSETCC",  SDTSetCC, [SDNPHasChain]>;
 def strict_fsetccs : SDNode<"ISD::STRICT_FSETCCS", SDTSetCC, [SDNPHasChain]>;
+
+def get_fpmode     : SDNode<"ISD::GET_FPMODE", SDTGetFPStateOp, [SDNPHasChain]>;
+def set_fpmode     : SDNode<"ISD::SET_FPMODE", SDTSetFPStateOp, [SDNPHasChain]>;
+def reset_fpmode   : SDNode<"ISD::RESET_FPMODE", SDTNone, [SDNPHasChain]>;
 
 def setcc      : SDNode<"ISD::SETCC"      , SDTSetCC>;
 def select     : SDNode<"ISD::SELECT"     , SDTSelect>;
@@ -1886,10 +1898,11 @@ class Pat<dag pattern, dag result> : Pattern<pattern, [result]>;
 //
 
 // Complex patterns, e.g. X86 addressing mode, requires pattern matching code
-// in C++. NumOperands is the number of operands returned by the select function;
-// SelectFunc is the name of the function used to pattern match the max. pattern;
-// RootNodes are the list of possible root nodes of the sub-dags to match.
-// e.g. X86 addressing mode - def addr : ComplexPattern<4, "SelectAddr", [add]>;
+// in C++. Ty is the type of return value; NumOperands is the number of operands
+// returned by the select function; SelectFunc is the name of the function used
+// to pattern match the max. pattern; RootNodes are the list of possible root nodes
+// of the sub-dags to match.
+// e.g. X86 addressing mode - def addr : ComplexPattern<iPTR, 4, "SelectAddr", [add]>;
 //
 class ComplexPattern<ValueType ty, int numops, string fn,
                      list<SDNode> roots = [], list<SDNodeProperty> props = [],

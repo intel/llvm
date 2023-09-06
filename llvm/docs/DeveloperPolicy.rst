@@ -201,6 +201,11 @@ features added.  Some tips for getting your testcase approved:
   entire failing program into ``llvm/test`` as this creates a *time-to-test*
   burden on all developers. Please keep them short.
 
+* Avoid adding links to resources that are not available to the entire
+  community, such as links to private bug trackers, internal corporate
+  documentation, etc. Instead, add sufficient comments to the test to provide
+  the context behind such links.
+
 Note that llvm/test and clang/test are designed for regression and small feature
 tests only. More extensive test cases (e.g., entire applications, benchmarks,
 etc) should be added to the ``llvm-test`` test suite.  The llvm-test suite is
@@ -255,6 +260,11 @@ committed to the main development branch are:
    where "reasonable" depends on the contributor's judgement and the scope of
    the change (more invasive changes require more testing). A reasonable subset
    might be something like "``llvm-test/MultiSource/Benchmarks``".
+
+#. Ensure that links in source code and test files point to publicly available
+   resources and are used primarily to add additional information rather than
+   to supply critical context. The surrounding comments should be sufficient
+   to provide the context behind such links.
 
 Additionally, the committer is responsible for addressing any problems found in
 the future that the change is responsible for.  For example:
@@ -336,8 +346,6 @@ Below are some guidelines about the format of the message itself:
   code snippets and gory details should be left to bug comments, web
   review or the mailing list.
 
-* If the patch fixes a bug in GitHub Issues, please include the PR# in the message.
-
 * Text formatting and spelling should follow the same rules as documentation
   and in-code comments, ex. capitalization, full stop, etc.
 
@@ -347,7 +355,17 @@ Below are some guidelines about the format of the message itself:
   caused PR#".
 
 * If the patch has been reviewed, add a link to its review page, as shown
-  `here <https://www.llvm.org/docs/Phabricator.html#committing-a-change>`_.
+  `here <https://www.llvm.org/docs/Phabricator.html#committing-a-change>`__.
+  If the patch fixes a bug in GitHub Issues, we encourage adding a reference to
+  the issue being closed, as described
+  `here <https://llvm.org/docs/BugLifeCycle.html#resolving-closing-bugs>`__.
+
+* It is also acceptable to add other metadata to the commit message to automate
+  processes, including for downstream consumers. This metadata can include
+  links to resources that are not available to the entire community. However,
+  such links and/or metadata should not be used in place of making the commit
+  message self-explanatory. Note that such non-public links should not be
+  included in the submitted code.
 
 For minor violations of these recommendations, the community normally favors
 reminding the contributor of this policy over reverting. Minor corrections and
@@ -633,7 +651,7 @@ for llvm users and not imposing a big burden on llvm developers:
   expected, but no promises are made.
 
 C API Changes
-----------------
+-------------
 
 * Stability Guarantees: The C API is, in general, a "best effort" for stability.
   This means that we make every attempt to keep the C API stable, but that
@@ -1150,18 +1168,6 @@ is great for contributors and users of the project.  For more information about
 the Apache 2.0 License, please see the `Apache License FAQ
 <http://www.apache.org/foundation/license-faq.html>`_, maintained by the
 Apache Project.
-
-
-.. note::
-
-   The LLVM Project includes some really old subprojects (dragonegg,
-   llvm-gcc-4.0, and llvm-gcc-4.2), which are licensed under **GPL
-   licenses**.  This code is not actively maintained - it does not even
-   build successfully.  This code is cleanly separated into distinct SVN
-   repositories from the rest of LLVM, and the LICENSE.txt files specifically
-   indicate that they contain GPL code.  When LLVM transitions from SVN to Git,
-   we plan to drop these code bases from the new repository structure.
-
 
 .. _patent license:
 

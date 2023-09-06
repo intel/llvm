@@ -256,7 +256,6 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   Args.AddAllArgs(CmdArgs, options::OPT_T_Group);
-  Args.AddAllArgs(CmdArgs, options::OPT_e);
   Args.AddAllArgs(CmdArgs, options::OPT_s);
   Args.AddAllArgs(CmdArgs, options::OPT_t);
   Args.AddAllArgs(CmdArgs, options::OPT_Z_Flag);
@@ -306,9 +305,9 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-lm");
     }
     if (NeedsSanitizerDeps)
-      linkSanitizerRuntimeDeps(ToolChain, CmdArgs);
+      linkSanitizerRuntimeDeps(ToolChain, Args, CmdArgs);
     if (NeedsXRayDeps)
-      linkXRayRuntimeDeps(ToolChain, CmdArgs);
+      linkXRayRuntimeDeps(ToolChain, Args, CmdArgs);
     if (Args.hasArg(options::OPT_pthread))
       CmdArgs.push_back("-lpthread");
     CmdArgs.push_back("-lc");

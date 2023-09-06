@@ -22,6 +22,7 @@
 #include "llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ThreadPool.h"
+#include <variant>
 
 namespace llvm {
 namespace orc {
@@ -306,7 +307,7 @@ public:
           JITTargetMachineBuilder JTMB)>;
 
   using ProcessSymbolsJITDylibSetupFunction =
-      std::function<Error(JITDylib &JD)>;
+      unique_function<Expected<JITDylibSP>(LLJIT &J)>;
 
   using PlatformSetupFunction = unique_function<Expected<JITDylibSP>(LLJIT &J)>;
 

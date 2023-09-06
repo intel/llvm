@@ -15,6 +15,7 @@
 #include <__config>
 #include <__fwd/array.h>
 #include <__fwd/get.h>
+#include <__fwd/pair.h>
 #include <__fwd/subrange.h>
 #include <__fwd/tuple.h>
 #include <__tuple/pair_like.h>
@@ -54,6 +55,9 @@
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -684,14 +688,9 @@ struct common_type<pair<_T1, _T2>, pair<_U1, _U2>> {
 };
 #endif // _LIBCPP_STD_VER >= 23
 
-template <class _T1, class _T2>
+template <class _T1, class _T2, __enable_if_t<__is_swappable<_T1>::value && __is_swappable<_T2>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
-typename enable_if
-<
-    __is_swappable<_T1>::value &&
-    __is_swappable<_T2>::value,
-    void
->::type
+void
 swap(pair<_T1, _T2>& __x, pair<_T1, _T2>& __y)
                      _NOEXCEPT_((__is_nothrow_swappable<_T1>::value &&
                                  __is_nothrow_swappable<_T2>::value))
@@ -892,5 +891,7 @@ constexpr _T1 const && get(pair<_T2, _T1> const&& __p) _NOEXCEPT
 #endif // _LIBCPP_STD_VER >= 14
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___UTILITY_PAIR_H

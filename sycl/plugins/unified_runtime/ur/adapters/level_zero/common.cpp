@@ -1,10 +1,10 @@
-//===--------- common.cpp - Level Zero Adapter -----------------------===//
+//===--------- common.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 #include "usm.hpp"
@@ -259,7 +259,11 @@ ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
   return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
 }
 
-template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
+template <> ze_structure_type_t getZeStructureType<ze_pci_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_PCI_EXT_PROPERTIES;
+}
+
+template <> zes_structure_type_t getZesStructureType<ze_pci_address_ext_t>() {
   return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
 }
 

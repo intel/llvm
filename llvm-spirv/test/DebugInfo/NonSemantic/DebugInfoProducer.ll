@@ -13,7 +13,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV-200
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM-200
 
@@ -21,7 +21,7 @@
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -spirv-text -o %t.spt
 ; RUN: FileCheck %s --input-file %t.spt --check-prefix CHECK-SPIRV-100
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix CHECK-LLVM-100
 
 ; ModuleID = 's.bc'
@@ -33,7 +33,7 @@ target triple = "spir"
 define i32 @main() #0 !dbg !8 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !13
 }
 

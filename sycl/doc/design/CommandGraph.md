@@ -37,14 +37,14 @@ with the following entry-points:
 | `urCommandBufferFinalizeExp`                 | No more commands can be appended, makes command-buffer ready to enqueue on a command-queue. |
 | `urCommandBufferAppendKernelLaunchExp`       | Append a kernel execution command to command-buffer. |
 | `urCommandBufferAppendUSMMemcpyExp`          | Append a USM memcpy command to the command-buffer. |
-| `urCommandBufferAppendUSMFillExp`          | Append a USM fill command to the command-buffer. |
+| `urCommandBufferAppendUSMFillExp`            | Append a USM fill command to the command-buffer. |
 | `urCommandBufferAppendMemBufferCopyExp`      | Append a mem buffer copy command to the command-buffer. |
 | `urCommandBufferAppendMemBufferWriteExp`     | Append a memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadExp`      | Append a memory read command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferCopyRectExp`  | Append a rectangular memory copy command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferWriteRectExp` | Append a rectangular memory write command to a command-buffer object. |
 | `urCommandBufferAppendMemBufferReadRectExp`  | Append a rectangular memory read command to a command-buffer object. |
-| `urCommandBufferAppendMemBufferFillExp`  | Append a memory fill command to a command-buffer object. |
+| `urCommandBufferAppendMemBufferFillExp`      | Append a memory fill command to a command-buffer object. |
 | `urCommandBufferEnqueueExp`                  | Submit command-buffer to a command-queue for execution. |
 
 See the [UR EXP-COMMAND-BUFFER](https://oneapi-src.github.io/unified-runtime/core/EXP-COMMAND-BUFFER.html)
@@ -118,17 +118,15 @@ with the existing behaviour of the handler with normal queue submissions.
 
 ## Memory handling: Buffer and Accessor
 
-There is no extra support for Graph-specific USM allocations in the current
+There is no extra support for graph-specific USM allocations in the current
 proposal. Memory operations will be supported subsequently by the current
 implementation starting with `memcpy`.
 
-Buffers and accessors are supported in a command-graph. The following restrictions
-are required to adapt buffers and their lifetime to a lazy work execution model:
-
-- The lifetime of a buffer with host data will be extended by copying the underlying
-data.
-- Host accessors on buffers that are currently used by a command-graph are prohibited.
-- Copy-back behavior on destruction of a buffer is prohibited.
+Buffers and accessors are supported in a command-graph. There are
+[spec restrictions](../extensions/proposed/sycl_ext_oneapi_graph.asciidoc#storage-lifetimes)
+on buffer usage in a graph so that their lifetime semantics are compatible with
+a lazy work execution model. However these changes to storage lifetimes have not
+yet been implemented.
 
 ## Backend Implementation
 
@@ -168,18 +166,7 @@ created on UR command-buffer enqueue.
 There is also a *WaitEvent* used by the `ur_exp_command_buffer_handle_t` class
 in the prefix to wait on any dependencies passed in the enqueue wait-list.
 
-```mermaid
-flowchart TB
-    subgraph Suffix
-    id1[Signal the UR command-buffer SignalEvent]
-    end
-    subgraph User Added Commands
-    id2[Command 1] -.-  id3[Command N]
-    end
-    subgraph Prefix
-    id4[Reset SignalEvent] ~~~ id5[Barrier waiting on WaitEvent]
-    end
-```
+![L0 command-buffer diagram](images/L0_UR_command-buffer.svg)
 
 For a call to `urCommandBufferEnqueueExp` with an `event_list` *EL*,
 command-buffer *CB*, and return event *RE* our implementation has to submit two
@@ -189,15 +176,13 @@ after *CB*. These two new command-lists are retrieved from the UR queue, which
 will likely reuse existing command-lists and only create a new one in the worst
 case.
 
-```mermaid
-flowchart TB
-    subgraph L0 Command-list created on urCommandBufferEnqueueExp to execution before CB
-    id1[Barrier on EL that signals CB WaitEvent when completed]
-    end
-    subgraph L0 Command-list created on urCommandBufferEnqueueExp to execution after CB
-    id2[Barrier on CB SignalEvent that signals RE when completed]
-    end
-```
+The L0 command-list created on `urCommandBufferEnqueueExp` to execute **before**
+*CB* contains a single command. This command is a barrier on *EL* that signals
+*CB*'s *WaitEvent* when completed.
+
+The L0 command-list created on `urCommandBufferEnqueueExp` to execute **after**
+*CB* also contains a single command. This command is a barrier on *CB*'s
+*SignalEvent* that signals *RE* when completed.
 
 #### Drawbacks
 

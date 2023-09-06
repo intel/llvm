@@ -1797,6 +1797,10 @@ unsigned IRTranslator::getSimpleIntrinsicOpcode(Intrinsic::ID ID) {
       return TargetOpcode::G_VECREDUCE_FMIN;
     case Intrinsic::vector_reduce_fmax:
       return TargetOpcode::G_VECREDUCE_FMAX;
+    case Intrinsic::vector_reduce_fminimum:
+      return TargetOpcode::G_VECREDUCE_FMINIMUM;
+    case Intrinsic::vector_reduce_fmaximum:
+      return TargetOpcode::G_VECREDUCE_FMAXIMUM;
     case Intrinsic::vector_reduce_add:
       return TargetOpcode::G_VECREDUCE_ADD;
     case Intrinsic::vector_reduce_mul:
@@ -1939,6 +1943,8 @@ bool IRTranslator::translateIfEntryValueArgument(
   if (!PhysReg)
     return false;
 
+  // Append an op deref to account for the fact that this is a dbg_declare.
+  Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
   MF->setVariableDbgInfo(DebugInst.getVariable(), Expr, *PhysReg,
                          DebugInst.getDebugLoc());
   return true;
@@ -2175,6 +2181,13 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
                             getOrCreateVReg(*CI.getArgOperand(0)),
                             MachineInstr::copyFlagsFromInstruction(CI));
     return true;
+  case Intrinsic::frexp: {
+    ArrayRef<Register> VRegs = getOrCreateVRegs(CI);
+    MIRBuilder.buildFFrexp(VRegs[0], VRegs[1],
+                           getOrCreateVReg(*CI.getArgOperand(0)),
+                           MachineInstr::copyFlagsFromInstruction(CI));
+    return true;
+  }
   case Intrinsic::memcpy_inline:
     return translateMemFunc(CI, MIRBuilder, TargetOpcode::G_MEMCPY_INLINE);
   case Intrinsic::memcpy:
@@ -2222,31 +2235,12 @@ bool IRTranslator::translateKnownIntrinsic(const CallInst &CI, Intrinsic::ID ID,
     return true;
   }
   case Intrinsic::stacksave: {
-    // Save the stack pointer to the location provided by the intrinsic.
-    Register Reg = getOrCreateVReg(CI);
-    Register StackPtr = MF->getSubtarget()
-                            .getTargetLowering()
-                            ->getStackPointerRegisterToSaveRestore();
-
-    // If the target doesn't specify a stack pointer, then fall back.
-    if (!StackPtr)
-      return false;
-
-    MIRBuilder.buildCopy(Reg, StackPtr);
+    MIRBuilder.buildInstr(TargetOpcode::G_STACKSAVE, {getOrCreateVReg(CI)}, {});
     return true;
   }
   case Intrinsic::stackrestore: {
-    // Restore the stack pointer from the location provided by the intrinsic.
-    Register Reg = getOrCreateVReg(*CI.getArgOperand(0));
-    Register StackPtr = MF->getSubtarget()
-                            .getTargetLowering()
-                            ->getStackPointerRegisterToSaveRestore();
-
-    // If the target doesn't specify a stack pointer, then fall back.
-    if (!StackPtr)
-      return false;
-
-    MIRBuilder.buildCopy(StackPtr, Reg);
+    MIRBuilder.buildInstr(TargetOpcode::G_STACKRESTORE, {},
+                          {getOrCreateVReg(*CI.getArgOperand(0))});
     return true;
   }
   case Intrinsic::cttz:
@@ -2526,8 +2520,7 @@ bool IRTranslator::translateCall(const User &U, MachineIRBuilder &MIRBuilder) {
 
   // Ignore the callsite attributes. Backend code is most likely not expecting
   // an intrinsic to sometimes have side effects and sometimes not.
-  MachineInstrBuilder MIB =
-      MIRBuilder.buildIntrinsic(ID, ResultRegs, !F->doesNotAccessMemory());
+  MachineInstrBuilder MIB = MIRBuilder.buildIntrinsic(ID, ResultRegs);
   if (isa<FPMathOperator>(CI))
     MIB->copyIRFlags(CI);
 
@@ -2861,7 +2854,7 @@ bool IRTranslator::translateVAArg(const User &U, MachineIRBuilder &MIRBuilder) {
 }
 
 bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuilder) {
-    if (!MF->getTarget().Options.TrapUnreachable)
+  if (!MF->getTarget().Options.TrapUnreachable)
     return true;
 
   auto &UI = cast<UnreachableInst>(U);
@@ -2878,7 +2871,7 @@ bool IRTranslator::translateUnreachable(const User &U, MachineIRBuilder &MIRBuil
     }
   }
 
-  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>(), true);
+  MIRBuilder.buildIntrinsic(Intrinsic::trap, ArrayRef<Register>());
   return true;
 }
 

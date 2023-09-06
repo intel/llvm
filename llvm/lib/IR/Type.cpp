@@ -57,11 +57,13 @@ bool Type::isIntegerTy(unsigned Bitwidth) const {
   return isIntegerTy() && cast<IntegerType>(this)->getBitWidth() == Bitwidth;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 bool Type::isOpaquePointerTy() const {
   if (auto *PTy = dyn_cast<PointerType>(this))
     return PTy->isOpaque();
   return false;
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 bool Type::isScalableTy() const {
   if (const auto *STy = dyn_cast<StructType>(this)) {
@@ -260,6 +262,7 @@ IntegerType *Type::getIntNTy(LLVMContext &C, unsigned N) {
   return IntegerType::get(C, N);
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType *Type::getHalfPtrTy(LLVMContext &C, unsigned AS) {
   return getHalfTy(C)->getPointerTo(AS);
 }
@@ -304,7 +307,11 @@ PointerType *Type::getInt1PtrTy(LLVMContext &C, unsigned AS) {
   return getInt1Ty(C)->getPointerTo(AS);
 }
 
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType *Type::getInt8PtrTy(LLVMContext &C, unsigned AS) {
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  return PointerType::get(C, AS);
+#else //INTEL_SYCL_OPAQUEPOINTER_READY
   return getInt8Ty(C)->getPointerTo(AS);
 }
 
@@ -318,6 +325,7 @@ PointerType *Type::getInt32PtrTy(LLVMContext &C, unsigned AS) {
 
 PointerType *Type::getInt64PtrTy(LLVMContext &C, unsigned AS) {
   return getInt64Ty(C)->getPointerTo(AS);
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 Type *Type::getWasm_ExternrefTy(LLVMContext &C) {
@@ -797,7 +805,10 @@ ScalableVectorType *ScalableVectorType::get(Type *ElementType,
 PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   assert(EltTy && "Can't get a pointer to <null> type!");
   assert(isValidElementType(EltTy) && "Invalid type for pointer element!");
-
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  // Automatically convert typed pointers to opaque pointers.
+  return get(EltTy->getContext(), AddressSpace);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   LLVMContextImpl *CImpl = EltTy->getContext().pImpl;
 
   // Automatically convert typed pointers to opaque pointers.
@@ -810,12 +821,15 @@ PointerType *PointerType::get(Type *EltTy, unsigned AddressSpace) {
   if (!Entry)
     Entry = new (CImpl->Alloc) PointerType(EltTy, AddressSpace);
   return Entry;
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
   LLVMContextImpl *CImpl = C.pImpl;
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   assert(CImpl->getOpaquePointers() &&
          "Can only create opaque pointers in opaque pointer mode");
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Since AddressSpace #0 is the common case, we special case it.
   PointerType *&Entry = AddressSpace == 0 ? CImpl->AS0PointerType
@@ -826,15 +840,21 @@ PointerType *PointerType::get(LLVMContext &C, unsigned AddressSpace) {
   return Entry;
 }
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 PointerType::PointerType(Type *E, unsigned AddrSpace)
   : Type(E->getContext(), PointerTyID), PointeeTy(E) {
   ContainedTys = &PointeeTy;
   NumContainedTys = 1;
   setSubclassData(AddrSpace);
 }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 PointerType::PointerType(LLVMContext &C, unsigned AddrSpace)
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    : Type(C, PointerTyID) {
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     : Type(C, PointerTyID), PointeeTy(nullptr) {
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   setSubclassData(AddrSpace);
 }
 
@@ -916,7 +936,11 @@ static TargetTypeInfo getTargetTypeInfo(const TargetExtType *Ty) {
   LLVMContext &C = Ty->getContext();
   StringRef Name = Ty->getName();
   if (Name.startswith("spirv."))
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    return TargetTypeInfo(PointerType::get(C, 0), TargetExtType::HasZeroInit,
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
     return TargetTypeInfo(Type::getInt8PtrTy(C, 0), TargetExtType::HasZeroInit,
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                           TargetExtType::CanBeGlobal);
 
   // Opaque types in the AArch64 name space.

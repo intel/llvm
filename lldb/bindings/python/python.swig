@@ -52,10 +52,6 @@ except ImportError:
     # Relative import should work if we are being loaded by Python.
     from . import $module"
 %enddef
-// These versions will not generate working python modules, so error out early.
-#if SWIG_VERSION >= 0x030009 && SWIG_VERSION < 0x030011
-#error Swig versions 3.0.9 and 3.0.10 are incompatible with lldb.
-#endif
 
 // The name of the module to be created.
 %module(docstring=DOCSTRING, moduleimport=MODULEIMPORT) lldb
@@ -110,6 +106,21 @@ def lldb_iter(obj, getsize, getelem):
     elem = getattr(obj, getelem)
     for i in range(size()):
         yield elem(i)
+
+def __int__(self):
+  pass
+
+def __hex__(self):
+  pass
+
+def __oct__(self):
+  pass
+
+def __len__(self):
+  pass
+
+def __iter__(self):
+  pass
 %}
 
 %include <std_string.i>

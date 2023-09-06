@@ -116,12 +116,6 @@ public:
     InsertPt = IP;
   }
 
-  /// Insert and return the specified instruction.
-  VPInstruction *insert(VPInstruction *I) const {
-    BB->insert(I, InsertPt);
-    return I;
-  }
-
   /// Create an N-ary operation with \p Opcode, \p Operands and set \p Inst as
   /// its underlying Instruction.
   VPValue *createNaryOp(unsigned Opcode, ArrayRef<VPValue *> Operands,
@@ -357,7 +351,7 @@ public:
   /// for vectorizing the epilogue. Returns VectorizationFactor::Disabled if
   /// epilogue vectorization is not supported for the loop.
   VectorizationFactor
-  selectEpilogueVectorizationFactor(const ElementCount MaxVF);
+  selectEpilogueVectorizationFactor(const ElementCount MaxVF, unsigned IC);
 
 protected:
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
@@ -377,8 +371,7 @@ private:
   /// returned VPlan is valid for. If no VPlan can be built for the input range,
   /// set the largest included VF to the maximum VF for which no plan could be
   /// built.
-  std::optional<VPlanPtr> tryToBuildVPlanWithVPRecipes(
-      VFRange &Range, SmallPtrSetImpl<Instruction *> &DeadInstructions);
+  VPlanPtr tryToBuildVPlanWithVPRecipes(VFRange &Range);
 
   /// Build VPlans for power-of-2 VF's between \p MinVF and \p MaxVF inclusive,
   /// according to the information gathered by Legal when it checked if it is

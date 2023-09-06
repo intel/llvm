@@ -2,10 +2,8 @@
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers=0 %t.spv -o %t.rev.bc
 ; RUN: spirv-val %t.spv
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
-; RUN: llvm-spirv -r %t.spv -o - -emit-opaque-pointers | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s --check-prefix=CHECK-LLVM-OPAQUE
 
 ; CHECK-SPIRV: Decorate [[#NonConstMemset:]] LinkageAttributes "spirv.llvm_memset_p3_i32"
 ; CHECK-SPIRV: TypeInt [[Int8:[0-9]+]] 8 0
@@ -61,42 +59,35 @@ target triple = "spir"
 
 %struct.S1 = type { i32, i32, i32 }
 
-; CHECK-LLVM: internal unnamed_addr addrspace(2) constant [12 x i8] zeroinitializer
-; CHECK-LLVM: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
+; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [12 x i8] zeroinitializer
+; CHECK-LLVM-OPAQUE: internal unnamed_addr addrspace(2) constant [4 x i8] c"\15\15\15\15"
 
 ; Function Attrs: nounwind
 define spir_func void @_Z5foo11v(ptr addrspace(4) noalias nocapture sret(%struct.S1) %agg.result, i32 %s1, i64 %s2, i8 %v) #0 {
   %x = alloca [4 x i8]
   tail call void @llvm.memset.p4.i32(ptr addrspace(4) align 4 %agg.result, i8 0, i32 12, i1 false)
-; CHECK-LLVM: call void @llvm.memcpy.p4i8.p2i8.i32(i8 addrspace(4)* align 4 %1, i8 addrspace(2)* align 4 %2, i32 12, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p4.p2.i32(ptr addrspace(4) align 4 %1, ptr addrspace(2) align 4 %2, i32 12, i1 false)
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 21, i32 4, i1 false)
-; CHECK-LLVM: call void @llvm.memcpy.p0i8.p2i8.i32(i8* align 4 %3, i8 addrspace(2)* align 4 %4, i32 4, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memcpy.p0.p2.i32(ptr align 4 %3, ptr addrspace(2) align 4 %4, i32 4, i1 false)
 
   ; non-const value
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 %v, i32 3, i1 false)
-; CHECK-LLVM: call void @llvm.memset.p0a4i8.i32([4 x i8]* %x, i8 %v, i32 3, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memset.p0.i32(ptr %x, i8 %v, i32 3, i1 false)
 
   ; non-const value and size
   tail call void @llvm.memset.p0.i32(ptr align 4 %x, i8 %v, i32 %s1, i1 false)
-; CHECK-LLVM: call void @llvm.memset.p0a4i8.i32([4 x i8]* %x, i8 %v, i32 %s1, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memset.p0.i32(ptr %x, i8 %v, i32 %s1, i1 false)
 
   ; Address spaces, non-const value and size
   %a = addrspacecast ptr addrspace(4) %agg.result to ptr addrspace(3)
   tail call void @llvm.memset.p3.i32(ptr addrspace(3) align 4 %a, i8 %v, i32 %s1, i1 false)
-; CHECK-LLVM: call void @llvm.memset.p3s_struct.S1s.i32(%struct.S1 addrspace(3)* %a, i8 %v, i32 %s1, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memset.p3.i32(ptr addrspace(3) %a, i8 %v, i32 %s1, i1 false)
   %b = addrspacecast ptr addrspace(4) %agg.result to ptr addrspace(1)
   tail call void @llvm.memset.p1.i64(ptr addrspace(1) align 4 %b, i8 %v, i64 %s2, i1 false)
-; CHECK-LLVM: call void @llvm.memset.p1s_struct.S1s.i64(%struct.S1 addrspace(1)* %b, i8 %v, i64 %s2, i1 false)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memset.p1.i64(ptr addrspace(1) %b, i8 %v, i64 %s2, i1 false)
 
   ; Volatile
   tail call void @llvm.memset.p1.i64(ptr addrspace(1) align 4 %b, i8 %v, i64 %s2, i1 true)
-; CHECK-LLVM: call void @llvm.memset.p1s_struct.S1s.i64(%struct.S1 addrspace(1)* %b, i8 %v, i64 %s2, i1 true)
 ; CHECK-LLVM-OPAQUE: call void @llvm.memset.p1.i64(ptr addrspace(1) %b, i8 %v, i64 %s2, i1 true)
   ret void
 }

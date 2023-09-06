@@ -1,28 +1,31 @@
 //
 // NOTE: this test requires gpu-sm80
 //
+// DEFINE: %{compile} = mlir-opt %s \
+// DEFINE:   --sparse-compiler="enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71
+// DEFINE: %{run} = mlir-cpu-runner \
+// DEFINE:   --shared-libs=%mlir_cuda_runtime \
+// DEFINE:   --shared-libs=%mlir_c_runner_utils \
+// DEFINE:   --e main --entry-point-result=void \
+// DEFINE: | FileCheck %s
+//
 // with RT lib (SoA COO):
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="enable-runtime-library=true enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71"  \
-// RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%mlir_cuda_runtime \
-// RUN:   --shared-libs=%mlir_c_runner_utils \
-// RUN:   --e main --entry-point-result=void \
-// RUN: | FileCheck %s
+// RUN: %{compile} enable-runtime-library=true"  | %{run}
+// RUN: %{compile} enable-runtime-library=true gpu-data-transfer-strategy=pinned-dma" | %{run}
+// Tracker #64316
+// RUNNOT: %{compile} enable-runtime-library=true gpu-data-transfer-strategy=zero-copy"  | %{run}
 //
 // without RT lib (AoS COO): note, may fall back to CPU
 //
-// RUN: mlir-opt %s \
-// RUN:   --sparse-compiler="enable-runtime-library=false enable-gpu-libgen gpu-triple=nvptx64-nvidia-cuda gpu-chip=sm_80 gpu-features=+ptx71"  \
-// RUN: | mlir-cpu-runner \
-// RUN:   --shared-libs=%mlir_cuda_runtime \
-// RUN:   --shared-libs=%mlir_c_runner_utils \
-// RUN:   --e main --entry-point-result=void \
-// RUN: | FileCheck %s
+// RUN: %{compile} enable-runtime-library=false"  | %{run}
+// RUN: %{compile} enable-runtime-library=false gpu-data-transfer-strategy=pinned-dma" | %{run}
+// Tracker #64316
+// RUNNOT: %{compile} enable-runtime-library=false gpu-data-transfer-strategy=zero-copy"  | %{run}
+//
 
 #SortedCOO = #sparse_tensor.encoding<{
-  lvlTypes = [ "compressed-nu", "singleton" ]
+  lvlTypes = [ "compressed_nu", "singleton" ]
 }>
 
 #CSR = #sparse_tensor.encoding<{
@@ -32,6 +35,9 @@
 }>
 
 module {
+  llvm.func @mgpuCreateSparseEnv()
+  llvm.func @mgpuDestroySparseEnv()
+
   // Compute matrix vector y = Ax on COO with default index coordinates.
   func.func @matvecCOO(%A: tensor<?x?xf64, #SortedCOO>, %x: tensor<?xf64>, %y_in: tensor<?xf64>) -> tensor<?xf64> {
     %y_out = linalg.matvec
@@ -49,6 +55,7 @@ module {
   }
 
   func.func @main() {
+    llvm.call @mgpuCreateSparseEnv() : () -> ()
     %f0 = arith.constant 0.0 : f64
     %f1 = arith.constant 1.0 : f64
     %c0 = arith.constant 0 : index
@@ -122,6 +129,8 @@ module {
     // Release the resources.
     bufferization.dealloc_tensor %Acoo : tensor<?x?xf64, #SortedCOO>
     bufferization.dealloc_tensor %Acsr : tensor<?x?xf64, #CSR>
+
+    llvm.call @mgpuDestroySparseEnv() : () -> ()
     return
   }
 }

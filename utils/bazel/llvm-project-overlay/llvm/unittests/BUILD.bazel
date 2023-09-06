@@ -294,7 +294,10 @@ cc_test(
         ],
         allow_empty = False,
     ),
-    args = ["--gtest_filter=-ObjectLinkingLayerTest.TestSetProcessAllSections"],
+    args = [
+        # keep one-per-line
+        "--gtest_filter=-ObjectLinkingLayerTest.TestSetProcessAllSections",
+    ],
     deps = [
         "//llvm:AllTargetsAsmParsers",
         "//llvm:AllTargetsCodeGens",
@@ -396,6 +399,7 @@ cc_test(
         "//llvm:Support",
         "//llvm:TargetParser",
         "//llvm:TransformUtils",
+        "//third-party/unittest:gmock",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
@@ -626,7 +630,10 @@ cc_test(
             "Support/ParallelTest.cpp",
         ],
     ),
-    args = ["--gtest_filter=-ProgramTest.CreateProcessTrailingSlash"],
+    args = [
+        # keep one-per-line
+        "--gtest_filter=-ProgramTest.CreateProcessTrailingSlash",
+    ],
     copts = [
         "$(STACK_FRAME_UNLIMITED)",
     ],
@@ -697,6 +704,7 @@ cc_test(
     copts = [
         "$(STACK_FRAME_UNLIMITED)",
     ],
+    features = ["-layering_check"],  # #include "AArch64GenInstrInfo.inc"
     deps = [
         "//llvm:AArch64CodeGen",
         "//llvm:AArch64UtilsAndDesc",
@@ -706,6 +714,7 @@ cc_test(
         "//llvm:Core",
         "//llvm:MC",
         "//llvm:Support",
+        "//llvm:Target",
         "//third-party/unittest:gtest",
         "//third-party/unittest:gtest_main",
     ],
@@ -768,6 +777,7 @@ cc_test(
     ) + [
         "tools/llvm-exegesis/Common/AssemblerUtils.h",
     ],
+    includes = ["tools/llvm-exegesis"],
     deps = [
         "//llvm:AllTargetsCodeGens",
         "//llvm:AllTargetsDisassemblers",

@@ -12,7 +12,7 @@ int GetUnsupportedBackend(const sycl::device &Dev) {
   // 0 does not prevent another device to be picked as a second choice
   return Dev.get_info<
              ext::oneapi::experimental::info::device::graph_support>() ==
-         ext::oneapi::experimental::info::graph_support_level::unsupported;
+         ext::oneapi::experimental::graph_support_level::unsupported;
 }
 
 int main() {
@@ -20,7 +20,7 @@ int main() {
   queue Queue{Dev};
 
   if (Dev.get_info<ext::oneapi::experimental::info::device::graph_support>() !=
-      ext::oneapi::experimental::info::graph_support_level::unsupported)
+      ext::oneapi::experimental::graph_support_level::unsupported)
     return 0;
 
   std::error_code ExceptionCode = make_error_code(sycl::errc::success);

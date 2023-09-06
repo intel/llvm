@@ -1,14 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple i686-pc-cygwin -O2 %t.ll -o - | FileCheck %s
 
 ; RUNx: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUNx: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUNx: llc -mtriple i686-pc-cygwin -O2 %t.ll -o - | FileCheck %s
 
 ; RUNx: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUNx: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUNx: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUNx: llc -mtriple i686-pc-cygwin -O2 %t.ll -o - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -32,11 +32,11 @@ declare void @llvm.dbg.value(metadata, metadata, metadata) #0
 ; Function Attrs: nounwind ssp
 define i32 @bar() #1 !dbg !8 {
 entry:
-  %0 = load i32, i32* @i, align 4, !dbg !11
+  %0 = load i32, ptr @i, align 4, !dbg !11
   tail call void @llvm.dbg.value(metadata i32 %0, metadata !13, metadata !24), !dbg !25
   tail call void @llvm.dbg.declare(metadata !5, metadata !18, metadata !24), !dbg !26
   %1 = mul nsw i32 %0, %0, !dbg !27
-  store i32 %1, i32* @i, align 4, !dbg !11
+  store i32 %1, ptr @i, align 4, !dbg !11
   ret i32 %1, !dbg !28
 }
 

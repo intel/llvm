@@ -124,8 +124,7 @@ public:
   ///     multiple architectures).
   Module(
       const FileSpec &file_spec, const ArchSpec &arch,
-      const ConstString *object_name = nullptr,
-      lldb::offset_t object_offset = 0,
+      ConstString object_name = ConstString(), lldb::offset_t object_offset = 0,
       const llvm::sys::TimePoint<> &object_mod_time = llvm::sys::TimePoint<>());
 
   Module(const ModuleSpec &module_spec);
@@ -563,7 +562,7 @@ public:
   bool IsLoadedInTarget(Target *target);
 
   bool LoadScriptingResourceInTarget(Target *target, Status &error,
-                                     Stream *feedback_stream = nullptr);
+                                     Stream &feedback_stream);
 
   /// Get the number of compile units for this module.
   ///

@@ -8,14 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.h> // for pi_int32
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                   // for pi_int32
 
-#include <array>
-#include <cassert>
-#include <memory>
-#include <string>
+#include <array>       // for array
+#include <cassert>     // for assert
+#include <cstddef>     // for size_t
+#include <string>      // for allocator, operator+
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_sequence, make_i...
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument.
@@ -368,15 +370,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
     LinearIndex = LinearIndex * Range[I] + Index[I];
   return LinearIndex;
 }
-
-// Kernel set ID, used to group kernels (represented by OSModule & kernel name
-// pairs) into disjoint sets based on the kernel distribution among device
-// images.
-using KernelSetId = size_t;
-// Kernel set ID for kernels contained within the SPIR-V file specified via
-// environment.
-constexpr KernelSetId SpvFileKSId = 0;
-constexpr KernelSetId LastKSId = SpvFileKSId;
 
 template <typename T> struct InlineVariableHelper {
   static constexpr T value{};

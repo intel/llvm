@@ -69,15 +69,30 @@ public:
   virtual bool applyValidRelocs(MutableArrayRef<char> Data, uint64_t BaseOffset,
                                 bool IsLittleEndian) = 0;
 
-  /// Returns all valid functions address ranges(i.e., those ranges
-  /// which points to sections with code).
-  virtual RangesTy &getValidAddressRanges() = 0;
-
   /// Erases all data.
   virtual void clear() = 0;
 };
 
 using Offset2UnitMap = DenseMap<uint64_t, CompileUnit *>;
+
+struct DebugDieValuePool {
+  DenseMap<uint64_t, uint64_t> DieValueMap;
+  SmallVector<uint64_t> DieValues;
+
+  uint64_t getValueIndex(uint64_t Value) {
+    DenseMap<uint64_t, uint64_t>::iterator It = DieValueMap.find(Value);
+    if (It == DieValueMap.end()) {
+      It = DieValueMap.insert(std::make_pair(Value, DieValues.size())).first;
+      DieValues.push_back(Value);
+    }
+    return It->second;
+  }
+
+  void clear() {
+    DieValueMap.clear();
+    DieValues.clear();
+  }
+};
 
 /// DwarfEmitter presents interface to generate all debug info tables.
 class DwarfEmitter {
@@ -97,6 +112,11 @@ public:
 
   /// Emit the string table described by \p Pool into .debug_str table.
   virtual void emitStrings(const NonRelocatableStringpool &Pool) = 0;
+
+  /// Emit the debug string offset table described by \p StringOffsets into the
+  /// .debug_str_offsets table.
+  virtual void emitStringOffsets(const SmallVector<uint64_t> &StringOffsets,
+                                 uint16_t TargetDWARFVersion) = 0;
 
   /// Emit the string table described by \p Pool into .debug_line_str table.
   virtual void emitLineStrings(const NonRelocatableStringpool &Pool) = 0;
@@ -125,10 +145,9 @@ public:
   virtual MCSymbol *emitDwarfDebugRangeListHeader(const CompileUnit &Unit) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) fragment.
-  virtual void
-  emitDwarfDebugRangeListFragment(const CompileUnit &Unit,
-                                  const AddressRanges &LinkedRanges,
-                                  PatchLocation Patch) = 0;
+  virtual void emitDwarfDebugRangeListFragment(
+      const CompileUnit &Unit, const AddressRanges &LinkedRanges,
+      PatchLocation Patch, DebugDieValuePool &AddrPool) = 0;
 
   /// Emit debug ranges (.debug_ranges, .debug_rnglists) footer.
   virtual void emitDwarfDebugRangeListFooter(const CompileUnit &Unit,
@@ -141,11 +160,22 @@ public:
   virtual void emitDwarfDebugLocListFragment(
       const CompileUnit &Unit,
       const DWARFLocationExpressionsVector &LinkedLocationExpression,
-      PatchLocation Patch) = 0;
+      PatchLocation Patch, DebugDieValuePool &AddrPool) = 0;
 
   /// Emit debug locations (.debug_loc, .debug_loclists) footer.
   virtual void emitDwarfDebugLocListFooter(const CompileUnit &Unit,
                                            MCSymbol *EndLabel) = 0;
+
+  /// Emit .debug_addr header.
+  virtual MCSymbol *emitDwarfDebugAddrsHeader(const CompileUnit &Unit) = 0;
+
+  /// Emit the addresses described by \p Addrs into the .debug_addr section.
+  virtual void emitDwarfDebugAddrs(const SmallVector<uint64_t> &Addrs,
+                                   uint8_t AddrSize) = 0;
+
+  /// Emit .debug_addr footer.
+  virtual void emitDwarfDebugAddrsFooter(const CompileUnit &Unit,
+                                         MCSymbol *EndLabel) = 0;
 
   /// Emit .debug_aranges entries for \p Unit
   virtual void
@@ -215,6 +245,9 @@ public:
   /// Returns size of generated .debug_loclists section.
   virtual uint64_t getLocListsSectionSize() const = 0;
 
+  /// Returns size of generated .debug_addr section.
+  virtual uint64_t getDebugAddrSectionSize() const = 0;
+
   /// Dump the file to the disk.
   virtual void finish() = 0;
 
@@ -237,9 +270,11 @@ using UnitListTy = std::vector<std::unique_ptr<CompileUnit>>;
 /// and its address map.
 class DWARFFile {
 public:
+  using UnloadCallbackTy = std::function<void(StringRef FileName)>;
   DWARFFile(StringRef Name, std::unique_ptr<DWARFContext> Dwarf,
             std::unique_ptr<AddressesMap> Addresses,
-            const std::vector<std::string> &Warnings)
+            const std::vector<std::string> &Warnings,
+            UnloadCallbackTy = nullptr)
       : FileName(Name), Dwarf(std::move(Dwarf)),
         Addresses(std::move(Addresses)), Warnings(Warnings) {}
 
@@ -305,7 +340,7 @@ public:
     Pub,       ///< .debug_pubnames, .debug_pubtypes
     DebugNames ///< .debug_names.
   };
-  typedef std::function<void(const DWARFFile &File)> inputVerificationHandler;
+  typedef std::function<void(const DWARFFile &File, llvm::StringRef Output)> inputVerificationHandler;
   typedef std::function<ErrorOr<DWARFFile &>(StringRef ContainerName,
                                              StringRef Path)>
       objFileLoader;
@@ -359,8 +394,7 @@ public:
 
   /// Add kind of accelerator tables to be generated.
   void addAccelTableKind(AccelTableKind Kind) {
-    assert(std::find(Options.AccelTables.begin(), Options.AccelTables.end(),
-                     Kind) == Options.AccelTables.end());
+    assert(!llvm::is_contained(Options.AccelTables, Kind));
     Options.AccelTables.emplace_back(Kind);
   }
 
@@ -544,10 +578,9 @@ private:
   /// keep. Store that information in \p CU's DIEInfo.
   ///
   /// The return value indicates whether the DIE is incomplete.
-  void lookForDIEsToKeep(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const UnitListTy &Units, const DWARFDie &DIE,
-                         const DWARFFile &File, CompileUnit &CU,
-                         unsigned Flags);
+  void lookForDIEsToKeep(AddressesMap &RelocMgr, const UnitListTy &Units,
+                         const DWARFDie &DIE, const DWARFFile &File,
+                         CompileUnit &CU, unsigned Flags);
 
   /// Check whether specified \p CUDie is a Clang module reference.
   /// if \p Quiet is false then display error messages.
@@ -581,27 +614,29 @@ private:
                         DeclContextTree &ODRContexts,
                         OffsetsStringPool &DebugStrPool,
                         OffsetsStringPool &DebugLineStrPool,
+                        DebugDieValuePool &StringOffsetPool,
                         unsigned Indent = 0);
 
-  unsigned shouldKeepDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                         const DWARFDie &DIE, const DWARFFile &File,
-                         CompileUnit &Unit, CompileUnit::DIEInfo &MyInfo,
-                         unsigned Flags);
+  unsigned shouldKeepDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                         const DWARFFile &File, CompileUnit &Unit,
+                         CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
   /// This function checks whether variable has DWARF expression containing
   /// operation referencing live address(f.e. DW_OP_addr, DW_OP_addrx...).
-  /// \returns relocation adjustment value if live address is referenced.
-  std::optional<int64_t> getVariableRelocAdjustment(AddressesMap &RelocMgr,
-                                                    const DWARFDie &DIE);
+  /// \returns first is true if the expression has an operation referencing an
+  /// address.
+  ///          second is the relocation adjustment value if the live address is
+  ///          referenced.
+  std::pair<bool, std::optional<int64_t>>
+  getVariableRelocAdjustment(AddressesMap &RelocMgr, const DWARFDie &DIE);
 
   /// Check if a variable describing DIE should be kept.
   /// \returns updated TraversalFlags.
   unsigned shouldKeepVariableDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
                                  CompileUnit::DIEInfo &MyInfo, unsigned Flags);
 
-  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, RangesTy &Ranges,
-                                   const DWARFDie &DIE, const DWARFFile &File,
-                                   CompileUnit &Unit,
+  unsigned shouldKeepSubprogramDIE(AddressesMap &RelocMgr, const DWARFDie &DIE,
+                                   const DWARFFile &File, CompileUnit &Unit,
                                    CompileUnit::DIEInfo &MyInfo,
                                    unsigned Flags);
 
@@ -627,6 +662,8 @@ private:
     DWARFFile &ObjFile;
     OffsetsStringPool &DebugStrPool;
     OffsetsStringPool &DebugLineStrPool;
+    DebugDieValuePool &StringOffsetPool;
+    DebugDieValuePool AddrPool;
 
     /// Allocator used for all the DIEValue objects.
     BumpPtrAllocator &DIEAlloc;
@@ -644,10 +681,12 @@ private:
               BumpPtrAllocator &DIEAlloc,
               std::vector<std::unique_ptr<CompileUnit>> &CompileUnits,
               bool Update, OffsetsStringPool &DebugStrPool,
-              OffsetsStringPool &DebugLineStrPool)
+              OffsetsStringPool &DebugLineStrPool,
+              DebugDieValuePool &StringOffsetPool)
         : Linker(Linker), Emitter(Emitter), ObjFile(ObjFile),
           DebugStrPool(DebugStrPool), DebugLineStrPool(DebugLineStrPool),
-          DIEAlloc(DIEAlloc), CompileUnits(CompileUnits), Update(Update) {}
+          StringOffsetPool(StringOffsetPool), DIEAlloc(DIEAlloc),
+          CompileUnits(CompileUnits), Update(Update) {}
 
     /// Recursively clone \p InputDIE into an tree of DIE objects
     /// where useless (as decided by lookForDIEsToKeep()) bits have been
@@ -669,6 +708,19 @@ private:
     /// nothing to clone/emit.
     uint64_t cloneAllCompileUnits(DWARFContext &DwarfContext,
                                   const DWARFFile &File, bool IsLittleEndian);
+
+    /// Emit the .debug_addr section for the \p Unit.
+    void emitDebugAddrSection(CompileUnit &Unit,
+                              const uint16_t DwarfVersion) const;
+
+    using ExpressionHandlerRef = function_ref<void(
+        SmallVectorImpl<uint8_t> &, SmallVectorImpl<uint8_t> &,
+        int64_t AddrRelocAdjustment)>;
+
+    /// Compute and emit debug locations (.debug_loc, .debug_loclists)
+    /// for \p Unit, patch the attributes referencing it.
+    void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
+                               ExpressionHandlerRef ExprHandler);
 
   private:
     using AttributeSpec = DWARFAbbreviationDeclaration::AttributeSpec;
@@ -694,6 +746,9 @@ private:
 
       /// Is this DIE only a declaration?
       bool IsDeclaration = false;
+
+      /// Is there a DW_AT_str_offsets_base in the CU?
+      bool AttrStrOffsetBaseSeen = false;
 
       AttributesInfo() = default;
     };
@@ -783,23 +838,14 @@ private:
 
   /// Compute and emit debug ranges(.debug_aranges, .debug_ranges,
   /// .debug_rnglists) for \p Unit, patch the attributes referencing it.
-  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File) const;
-
-  using ExpressionHandlerRef =
-      function_ref<void(SmallVectorImpl<uint8_t> &, SmallVectorImpl<uint8_t> &,
-                        int64_t AddrRelocAdjustment)>;
-
-  /// Compute and emit debug locations (.debug_loc, .debug_loclists)
-  /// for \p Unit, patch the attributes referencing it.
-  void generateUnitLocations(CompileUnit &Unit, const DWARFFile &File,
-                             ExpressionHandlerRef ExprHandler) const;
+  void generateUnitRanges(CompileUnit &Unit, const DWARFFile &File,
+                          DebugDieValuePool &AddrPool) const;
 
   /// Emit the accelerator entries for \p Unit.
   void emitAcceleratorEntriesForUnit(CompileUnit &Unit);
 
   /// Patch the frame info for an object file and emit it.
-  void patchFrameInfoForObject(const DWARFFile &, RangesTy &Ranges,
-                               DWARFContext &, unsigned AddressSize);
+  void patchFrameInfoForObject(LinkContext &Context);
 
   /// FoldingSet that uniques the abbreviations.
   FoldingSet<DIEAbbrev> AbbreviationsSet;

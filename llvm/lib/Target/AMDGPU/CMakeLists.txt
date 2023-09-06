@@ -18,11 +18,11 @@ tablegen(LLVM AMDGPUGenSubtargetInfo.inc -gen-subtarget)
 set(LLVM_TARGET_DEFINITIONS AMDGPUGISel.td)
 tablegen(LLVM AMDGPUGenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM AMDGPUGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPUPreLegalizerCombinerHelper")
+              -combiners="AMDGPUPreLegalizerCombiner")
 tablegen(LLVM AMDGPUGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPUPostLegalizerCombinerHelper")
+              -combiners="AMDGPUPostLegalizerCombiner")
 tablegen(LLVM AMDGPUGenRegBankGICombiner.inc -gen-global-isel-combiner
-              -combiners="AMDGPURegBankCombinerHelper")
+              -combiners="AMDGPURegBankCombiner")
 
 set(LLVM_TARGET_DEFINITIONS R600.td)
 tablegen(LLVM R600GenAsmWriter.inc -gen-asm-writer)
@@ -107,6 +107,7 @@ add_llvm_target(AMDGPUCodeGen
   GCNMinRegStrategy.cpp
   GCNNSAReassign.cpp
   GCNPreRAOptimizations.cpp
+  GCNPreRALongBranchReg.cpp
   GCNRegPressure.cpp
   GCNRewritePartialRegUses.cpp
   GCNSchedStrategy.cpp
@@ -144,6 +145,7 @@ add_llvm_target(AMDGPUCodeGen
   SILoadStoreOptimizer.cpp
   SILowerControlFlow.cpp
   SILowerI1Copies.cpp
+  SILowerWWMCopies.cpp
   SILowerSGPRSpills.cpp
   SIMachineFunctionInfo.cpp
   SIMachineScheduler.cpp

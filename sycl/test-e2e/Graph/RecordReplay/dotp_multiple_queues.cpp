@@ -12,9 +12,11 @@
 
 int main() {
 
-  property_list properties{property::queue::in_order()};
-  queue QueueA{properties};
-  queue QueueB{QueueA.get_context(), QueueA.get_device(), properties};
+  property_list Properties{
+      property::queue::in_order{},
+      sycl::ext::intel::property::queue::no_immediate_command_list{}};
+  queue QueueA{Properties};
+  queue QueueB{QueueA.get_context(), QueueA.get_device(), Properties};
 
   exp_ext::command_graph Graph{QueueA.get_context(), QueueA.get_device()};
 

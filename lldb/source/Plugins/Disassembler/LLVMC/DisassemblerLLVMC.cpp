@@ -18,6 +18,7 @@
 #include "llvm/MC/MCDisassembler/MCRelocationInfo.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstPrinter.h"
+#include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -59,8 +60,8 @@ public:
 
   uint64_t GetMCInst(const uint8_t *opcode_data, size_t opcode_data_len,
                      lldb::addr_t pc, llvm::MCInst &mc_inst) const;
-  void PrintMCInst(llvm::MCInst &mc_inst, std::string &inst_string,
-                   std::string &comments_string);
+  void PrintMCInst(llvm::MCInst &mc_inst, lldb::addr_t pc,
+                   std::string &inst_string, std::string &comments_string);
   void SetStyle(bool use_hex_immed, HexImmediateStyle hex_style);
   bool CanBranch(llvm::MCInst &mc_inst) const;
   bool HasDelaySlot(llvm::MCInst &mc_inst) const;
@@ -75,7 +76,8 @@ private:
                    std::unique_ptr<llvm::MCAsmInfo> &&asm_info_up,
                    std::unique_ptr<llvm::MCContext> &&context_up,
                    std::unique_ptr<llvm::MCDisassembler> &&disasm_up,
-                   std::unique_ptr<llvm::MCInstPrinter> &&instr_printer_up);
+                   std::unique_ptr<llvm::MCInstPrinter> &&instr_printer_up,
+                   std::unique_ptr<llvm::MCInstrAnalysis> &&instr_analysis_up);
 
   std::unique_ptr<llvm::MCInstrInfo> m_instr_info_up;
   std::unique_ptr<llvm::MCRegisterInfo> m_reg_info_up;
@@ -84,6 +86,7 @@ private:
   std::unique_ptr<llvm::MCContext> m_context_up;
   std::unique_ptr<llvm::MCDisassembler> m_disasm_up;
   std::unique_ptr<llvm::MCInstPrinter> m_instr_printer_up;
+  std::unique_ptr<llvm::MCInstrAnalysis> m_instr_analysis_up;
 };
 
 namespace x86 {
@@ -604,7 +607,7 @@ public:
 
         if (inst_size > 0) {
           mc_disasm_ptr->SetStyle(use_hex_immediates, hex_style);
-          mc_disasm_ptr->PrintMCInst(inst, out_string, comment_string);
+          mc_disasm_ptr->PrintMCInst(inst, pc, out_string, comment_string);
 
           if (!comment_string.empty()) {
             AppendComment(comment_string);
@@ -1287,11 +1290,17 @@ DisassemblerLLVMC::MCDisasmInstance::Create(const char *triple, const char *cpu,
   if (!instr_printer_up)
     return Instance();
 
-  return Instance(
-      new MCDisasmInstance(std::move(instr_info_up), std::move(reg_info_up),
-                           std::move(subtarget_info_up), std::move(asm_info_up),
-                           std::move(context_up), std::move(disasm_up),
-                           std::move(instr_printer_up)));
+  instr_printer_up->setPrintBranchImmAsAddress(true);
+
+  // Not all targets may have registered createMCInstrAnalysis().
+  std::unique_ptr<llvm::MCInstrAnalysis> instr_analysis_up(
+      curr_target->createMCInstrAnalysis(instr_info_up.get()));
+
+  return Instance(new MCDisasmInstance(
+      std::move(instr_info_up), std::move(reg_info_up),
+      std::move(subtarget_info_up), std::move(asm_info_up),
+      std::move(context_up), std::move(disasm_up), std::move(instr_printer_up),
+      std::move(instr_analysis_up)));
 }
 
 DisassemblerLLVMC::MCDisasmInstance::MCDisasmInstance(
@@ -1301,13 +1310,15 @@ DisassemblerLLVMC::MCDisasmInstance::MCDisasmInstance(
     std::unique_ptr<llvm::MCAsmInfo> &&asm_info_up,
     std::unique_ptr<llvm::MCContext> &&context_up,
     std::unique_ptr<llvm::MCDisassembler> &&disasm_up,
-    std::unique_ptr<llvm::MCInstPrinter> &&instr_printer_up)
+    std::unique_ptr<llvm::MCInstPrinter> &&instr_printer_up,
+    std::unique_ptr<llvm::MCInstrAnalysis> &&instr_analysis_up)
     : m_instr_info_up(std::move(instr_info_up)),
       m_reg_info_up(std::move(reg_info_up)),
       m_subtarget_info_up(std::move(subtarget_info_up)),
       m_asm_info_up(std::move(asm_info_up)),
       m_context_up(std::move(context_up)), m_disasm_up(std::move(disasm_up)),
-      m_instr_printer_up(std::move(instr_printer_up)) {
+      m_instr_printer_up(std::move(instr_printer_up)),
+      m_instr_analysis_up(std::move(instr_analysis_up)) {
   assert(m_instr_info_up && m_reg_info_up && m_subtarget_info_up &&
          m_asm_info_up && m_context_up && m_disasm_up && m_instr_printer_up);
 }
@@ -1328,13 +1339,13 @@ uint64_t DisassemblerLLVMC::MCDisasmInstance::GetMCInst(
 }
 
 void DisassemblerLLVMC::MCDisasmInstance::PrintMCInst(
-    llvm::MCInst &mc_inst, std::string &inst_string,
+    llvm::MCInst &mc_inst, lldb::addr_t pc, std::string &inst_string,
     std::string &comments_string) {
   llvm::raw_string_ostream inst_stream(inst_string);
   llvm::raw_string_ostream comments_stream(comments_string);
 
   m_instr_printer_up->setCommentStream(comments_stream);
-  m_instr_printer_up->printInst(&mc_inst, 0, llvm::StringRef(),
+  m_instr_printer_up->printInst(&mc_inst, pc, llvm::StringRef(),
                                 *m_subtarget_info_up, inst_stream);
   m_instr_printer_up->setCommentStream(llvm::nulls());
   comments_stream.flush();
@@ -1365,6 +1376,8 @@ void DisassemblerLLVMC::MCDisasmInstance::SetStyle(
 
 bool DisassemblerLLVMC::MCDisasmInstance::CanBranch(
     llvm::MCInst &mc_inst) const {
+  if (m_instr_analysis_up)
+    return m_instr_analysis_up->mayAffectControlFlow(mc_inst, *m_reg_info_up);
   return m_instr_info_up->get(mc_inst.getOpcode())
       .mayAffectControlFlow(mc_inst, *m_reg_info_up);
 }
@@ -1375,6 +1388,8 @@ bool DisassemblerLLVMC::MCDisasmInstance::HasDelaySlot(
 }
 
 bool DisassemblerLLVMC::MCDisasmInstance::IsCall(llvm::MCInst &mc_inst) const {
+  if (m_instr_analysis_up)
+    return m_instr_analysis_up->isCall(mc_inst);
   return m_instr_info_up->get(mc_inst.getOpcode()).isCall();
 }
 

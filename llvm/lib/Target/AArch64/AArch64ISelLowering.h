@@ -165,9 +165,6 @@ enum NodeType : unsigned {
   // Floating point comparison
   FCMP,
 
-  // Scalar extract
-  EXTR,
-
   // Scalar-to-vector duplication
   DUP,
   DUPLANE8,
@@ -217,6 +214,9 @@ enum NodeType : unsigned {
   SQSHLU_I,
   SRSHR_I,
   URSHR_I,
+
+  // Vector narrowing shift by immediate (bottom)
+  RSHRNB_I,
 
   // Vector shift by constant and insert
   VSLI,
@@ -505,8 +505,8 @@ enum Rounding {
 const unsigned RoundingBitsPos = 22;
 
 // Registers used to pass function arguments.
-const ArrayRef<MCPhysReg> getGPRArgRegs();
-const ArrayRef<MCPhysReg> getFPRArgRegs();
+ArrayRef<MCPhysReg> getGPRArgRegs();
+ArrayRef<MCPhysReg> getFPRArgRegs();
 
 } // namespace AArch64
 
@@ -650,6 +650,12 @@ public:
                             unsigned Factor) const override;
   bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
                              unsigned Factor) const override;
+
+  bool lowerDeinterleaveIntrinsicToLoad(IntrinsicInst *DI,
+                                        LoadInst *LI) const override;
+
+  bool lowerInterleaveIntrinsicToStore(IntrinsicInst *II,
+                                       StoreInst *SI) const override;
 
   bool isLegalAddImmediate(int64_t) const override;
   bool isLegalICmpImmediate(int64_t) const override;

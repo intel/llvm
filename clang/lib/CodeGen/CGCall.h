@@ -108,10 +108,12 @@ public:
             SpecialKind(reinterpret_cast<uintptr_t>(functionPtr))) {
     AbstractInfo = abstractInfo;
     assert(functionPtr && "configuring callee without function pointer");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     assert(functionPtr->getType()->isPointerTy());
     assert(functionPtr->getType()->isOpaquePointerTy() ||
            functionPtr->getType()->getNonOpaquePointerElementType()
                ->isFunctionTy());
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   static CGCallee forBuiltin(unsigned builtinID,
@@ -259,7 +261,7 @@ public:
 /// arguments in a call.
 class CallArgList : public SmallVector<CallArg, 8> {
 public:
-  CallArgList() : StackBase(nullptr) {}
+  CallArgList() = default;
 
   struct Writeback {
     /// The original argument.  Note that the argument l-value
@@ -281,6 +283,11 @@ public:
     llvm::Instruction *IsActiveIP;
   };
 
+  struct EndLifetimeInfo {
+    llvm::Value *Addr;
+    llvm::Value *Size;
+  };
+
   void add(RValue rvalue, QualType type) { push_back(CallArg(rvalue, type)); }
 
   void addUncopiedAggregate(LValue LV, QualType type) {
@@ -297,6 +304,9 @@ public:
     CleanupsToDeactivate.insert(CleanupsToDeactivate.end(),
                                 other.CleanupsToDeactivate.begin(),
                                 other.CleanupsToDeactivate.end());
+    LifetimeCleanups.insert(LifetimeCleanups.end(),
+                            other.LifetimeCleanups.begin(),
+                            other.LifetimeCleanups.end());
     assert(!(StackBase && other.StackBase) && "can't merge stackbases");
     if (!StackBase)
       StackBase = other.StackBase;
@@ -336,6 +346,14 @@ public:
   /// memory.
   bool isUsingInAlloca() const { return StackBase; }
 
+  void addLifetimeCleanup(EndLifetimeInfo Info) {
+    LifetimeCleanups.push_back(Info);
+  }
+
+  ArrayRef<EndLifetimeInfo> getLifetimeCleanups() const {
+    return LifetimeCleanups;
+  }
+
 private:
   SmallVector<Writeback, 1> Writebacks;
 
@@ -344,8 +362,12 @@ private:
   /// occurs.
   SmallVector<CallArgCleanup, 1> CleanupsToDeactivate;
 
+  /// Lifetime information needed to call llvm.lifetime.end for any temporary
+  /// argument allocas.
+  SmallVector<EndLifetimeInfo, 2> LifetimeCleanups;
+
   /// The stacksave call.  It dominates all of the argument evaluation.
-  llvm::CallInst *StackBase;
+  llvm::CallInst *StackBase = nullptr;
 };
 
 /// FunctionArgList - Type for representing both the decl and type

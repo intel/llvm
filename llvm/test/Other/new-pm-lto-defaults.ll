@@ -103,8 +103,8 @@
 ; CHECK-O23SZ-NEXT: Running pass: GVNPass on foo
 ; CHECK-O23SZ-NEXT: Running analysis: MemoryDependenceAnalysis on foo
 ; CHECK-O23SZ-NEXT: Running pass: MemCpyOptPass on foo
-; CHECK-O23SZ-NEXT: Running pass: DSEPass on foo
 ; CHECK-O23SZ-NEXT: Running analysis: PostDominatorTreeAnalysis on foo
+; CHECK-O23SZ-NEXT: Running pass: DSEPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: MoveAutoInitPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: MergedLoadStoreMotionPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: LoopSimplifyPass on foo
@@ -128,8 +128,11 @@
 ; CHECK-O3-NEXT: Running pass: SLPVectorizerPass on foo
 ; CHECK-OS-NEXT: Running pass: SLPVectorizerPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: VectorCombinePass on foo
-; CHECK-O23SZ-NEXT: Running pass: AlignmentFromAssumptionsPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: InstCombinePass on foo
+; CHECK-O23SZ-NEXT: Running pass: LoopSimplifyPass
+; CHECK-O23SZ-NEXT: Running pass: LCSSAPass
+; CHECK-O23SZ-NEXT: Running pass: LICMPass
+; CHECK-O23SZ-NEXT: Running pass: AlignmentFromAssumptionsPass on foo
 ; CHECK-EP-Peephole-NEXT: Running pass: NoOpFunctionPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: JumpThreadingPass on foo
 ; CHECK-O23SZ-NEXT: Running pass: LowerTypeTestsPass

@@ -178,6 +178,14 @@ CreateFrontendAction(CompilerInstance &CI) {
   }
 #endif
 
+  // Wrap the base FE action in an extract api action to generate
+  // symbol graph as a biproduct of comilation ( enabled with
+  // --emit-symbol-graph option )
+  if (!FEOpts.SymbolGraphOutputDir.empty()) {
+    CI.getCodeGenOpts().ClearASTBeforeBackend = false;
+    Act = std::make_unique<WrappingExtractAPIAction>(std::move(Act));
+  }
+
   // If there are any AST files to merge, create a frontend action
   // adaptor to perform the merge.
   if (!FEOpts.ASTMergeFiles.empty())
@@ -193,8 +201,8 @@ bool ExecuteCompilerInvocation(CompilerInstance *Clang) {
     driver::getDriverOptTable().printHelp(
         llvm::outs(), "clang -cc1 [options] file...",
         "LLVM 'Clang' Compiler: http://clang.llvm.org",
-        /*Include=*/driver::options::CC1Option,
-        /*Exclude=*/0, /*ShowAllAliases=*/false);
+        /*ShowHidden=*/false, /*ShowAllAliases=*/false,
+        llvm::opt::Visibility(driver::options::CC1Option));
     return true;
   }
 

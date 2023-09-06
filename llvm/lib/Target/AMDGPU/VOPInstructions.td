@@ -791,8 +791,8 @@ class VOP_DPP_Pseudo <string OpName, VOPProfile P, list<dag> pattern=[],
   string AsmOperands = asmOps;
 
   let AsmMatchConverter = !if(P.HasModifiers, "cvtDPP", "");
-  let SubtargetPredicate = !if(P.HasExt64BitDPP, Has64BitDPP, HasDPP);
-  let AssemblerPredicate = !if(P.HasExt64BitDPP, Has64BitDPP, HasDPP);
+  let SubtargetPredicate = !if(P.HasExt64BitDPP, HasDPALU_DPP, HasDPP);
+  let AssemblerPredicate = !if(P.HasExt64BitDPP, HasDPALU_DPP, HasDPP);
   let AsmVariantName = !if(P.HasExtDPP, AMDGPUAsmVariants.DPP,
                                         AMDGPUAsmVariants.Disable);
   let Constraints = !if(P.NumSrcArgs, P.TieRegDPP # " = $vdst", "");
@@ -862,8 +862,8 @@ class VOP_DPP_Base <string OpName, VOPProfile P,
   let Size = 8;
 
   let AsmMatchConverter = !if(P.HasModifiers, "cvtDPP", "");
-  let SubtargetPredicate = !if(P.HasExt64BitDPP, Has64BitDPP, HasDPP);
-  let AssemblerPredicate = !if(P.HasExt64BitDPP, Has64BitDPP, HasDPP);
+  let SubtargetPredicate = !if(P.HasExt64BitDPP, HasDPALU_DPP, HasDPP);
+  let AssemblerPredicate = !if(P.HasExt64BitDPP, HasDPALU_DPP, HasDPP);
   let AsmVariantName = !if(P.HasExtDPP, AMDGPUAsmVariants.DPP,
                                         AMDGPUAsmVariants.Disable);
   let Constraints = !if(P.NumSrcArgs, P.TieRegDPP # " = $vdst", "");
@@ -1487,7 +1487,7 @@ include "VOP3PInstructions.td"
 include "VOPDInstructions.td"
 
 class ClassPat<Instruction inst, ValueType vt> : GCNPat <
-  (is_fpclass (vt (VOP3Mods vt:$src0, i32:$src0_mods)), (i32 timm:$mask)),
+  (is_fpclass (vt (VOP3ModsNonCanonicalizing vt:$src0, i32:$src0_mods)), (i32 timm:$mask)),
   (inst i32:$src0_mods, vt:$src0, (V_MOV_B32_e32 timm:$mask))
 >;
 

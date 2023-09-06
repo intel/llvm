@@ -326,7 +326,7 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"asind", {{"x", SameFloating}}, SameFloating},
     {"asinh", {{"x", SameFloating}}, SameFloating},
     {"associated",
-        {{"pointer", AnyPointer, Rank::known, Optionality::required,
+        {{"pointer", AnyPointer, Rank::anyOrAssumedRank, Optionality::required,
              common::Intent::In, {ArgFlag::canBeNull}},
             {"target", Addressable, Rank::known, Optionality::optional,
                 common::Intent::In, {ArgFlag::canBeNull}}},
@@ -777,6 +777,8 @@ static const IntrinsicInterface genericIntrinsicFunction[]{
     {"selected_char_kind", {{"name", DefaultChar, Rank::scalar}}, DefaultInt,
         Rank::scalar, IntrinsicClass::transformationalFunction},
     {"selected_int_kind", {{"r", AnyInt, Rank::scalar}}, DefaultInt,
+        Rank::scalar, IntrinsicClass::transformationalFunction},
+    {"selected_logical_kind", {{"bits", AnyInt, Rank::scalar}}, DefaultInt,
         Rank::scalar, IntrinsicClass::transformationalFunction},
     {"selected_real_kind",
         {{"p", AnyInt, Rank::scalar},
@@ -1966,15 +1968,22 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
         if (!knownArg) {
           knownArg = arg;
         }
-        argOk = rank == knownArg->Rank();
+        argOk = !isAssumedRank && rank == knownArg->Rank();
         break;
       case Rank::anyOrAssumedRank:
       case Rank::arrayOrAssumedRank:
+        if (isAssumedRank) {
+          argOk = true;
+          break;
+        }
         if (d.rank == Rank::arrayOrAssumedRank && rank == 0) {
           argOk = false;
           break;
         }
-        if (!dimArg && rank > 0 && !isAssumedRank &&
+        if (!knownArg) {
+          knownArg = arg;
+        }
+        if (!dimArg && rank > 0 &&
             (std::strcmp(name, "shape") == 0 ||
                 std::strcmp(name, "size") == 0 ||
                 std::strcmp(name, "ubound") == 0)) {
@@ -2212,7 +2221,7 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
       if (dummy[*dimArg].optionality == Optionality::required) {
         if (const Symbol *whole{
                 UnwrapWholeSymbolOrComponentDataRef(actualForDummy[*dimArg])}) {
-          if (IsOptional(*whole) || IsAllocatableOrPointer(*whole)) {
+          if (IsOptional(*whole) || IsAllocatableOrObjectPointer(whole)) {
             if (rank == Rank::scalarIfDim || arrayRank.value_or(-1) == 1) {
               messages.Say(
                   "The actual argument for DIM= is optional, pointer, or allocatable, and it is assumed to be present and equal to 1 at execution time"_port_en_US);
@@ -2313,17 +2322,17 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
             }
           }
         }
-        auto dc{characteristics::DummyArgument::FromActual(
-            std::move(kw), *expr, context)};
-        if (!dc) {
-          common::die("INTERNAL: could not characterize intrinsic function "
-                      "actual argument '%s'",
+        if (auto dc{characteristics::DummyArgument::FromActual(
+                std::move(kw), *expr, context)}) {
+          dummyArgs.emplace_back(std::move(*dc));
+          if (d.typePattern.kindCode == KindCode::same && !sameDummyArg) {
+            sameDummyArg = j;
+          }
+        } else { // error recovery
+          messages.Say(
+              "Could not characterize intrinsic function actual argument '%s'"_err_en_US,
               expr->AsFortran().c_str());
           return std::nullopt;
-        }
-        dummyArgs.emplace_back(std::move(*dc));
-        if (d.typePattern.kindCode == KindCode::same && !sameDummyArg) {
-          sameDummyArg = j;
         }
       } else {
         CHECK(arg->GetAssumedTypeDummy());
@@ -2361,6 +2370,10 @@ std::optional<SpecificCall> IntrinsicInterface::Match(
     attrs.set(characteristics::Procedure::Attr::Elemental);
   }
   if (call.isSubroutineCall) {
+    if (intrinsicClass == IntrinsicClass::pureSubroutine /* MOVE_ALLOC */ ||
+        intrinsicClass == IntrinsicClass::elementalSubroutine /* MVBITS */) {
+      attrs.set(characteristics::Procedure::Attr::Pure);
+    }
     return SpecificCall{
         SpecificIntrinsic{
             name, characteristics::Procedure{std::move(dummyArgs), attrs}},
@@ -3012,7 +3025,7 @@ static bool ApplySpecificChecks(SpecificCall &call, FoldingContext &context) {
           }
           if (!ok) {
             context.messages().Say(at,
-                "Arguments of OPERATION= procedure of REDUCE() must be both scalar of the same type as ARRAY=, and neither allocatable, pointer, polymorphic, or optional"_err_en_US);
+                "Arguments of OPERATION= procedure of REDUCE() must be both scalar of the same type as ARRAY=, and neither allocatable, pointer, polymorphic, nor optional"_err_en_US);
           } else if (data[0]->attrs.test(characteristics::DummyDataObject::
                              Attr::Asynchronous) !=
                   data[1]->attrs.test(

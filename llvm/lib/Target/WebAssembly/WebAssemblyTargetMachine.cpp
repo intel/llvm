@@ -14,12 +14,12 @@
 #include "WebAssemblyTargetMachine.h"
 #include "MCTargetDesc/WebAssemblyMCTargetDesc.h"
 #include "TargetInfo/WebAssemblyTargetInfo.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyISelLowering.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblyTargetObjectFile.h"
 #include "WebAssemblyTargetTransformInfo.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/CodeGen/MIRParser/MIParser.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/Passes.h"
@@ -96,13 +96,6 @@ static Reloc::Model getEffectiveRelocModel(std::optional<Reloc::Model> RM,
     // Default to static relocation model.  This should always be more optimial
     // than PIC since the static linker can determine all global addresses and
     // assume direct function calls.
-    return Reloc::Static;
-  }
-
-  if (!TT.isOSEmscripten()) {
-    // Relocation modes other than static are currently implemented in a way
-    // that only works for Emscripten, so disable them if we aren't targeting
-    // Emscripten.
     return Reloc::Static;
   }
 

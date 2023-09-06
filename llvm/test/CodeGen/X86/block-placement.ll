@@ -1,5 +1,7 @@
+; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
 ; RUN: llc -mtriple=i686-linux -pre-RA-sched=source < %s | FileCheck %s
 ; RUN: opt -disable-output -passes=debugify < %s
+; end
 
 declare void @error(i32 %i, i32 %a, i32 %b)
 

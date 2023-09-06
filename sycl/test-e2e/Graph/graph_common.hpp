@@ -276,29 +276,6 @@ add_kernels_usm(exp_ext::command_graph<exp_ext::graph_state::modifiable> Graph,
   return ExitNode;
 }
 
-/* Single use thread barrier which makes threads wait until defined number of
- * threads reach it.
- * std:barrier should be used instead once compiler is moved to C++20 standard.
- */
-class Barrier {
-public:
-  Barrier() = delete;
-  explicit Barrier(std::size_t count) : threadNum(count) {}
-  void wait() {
-    std::unique_lock<std::mutex> lock(mutex);
-    if (--threadNum == 0) {
-      cv.notify_all();
-    } else {
-      cv.wait(lock, [this] { return threadNum == 0; });
-    }
-  }
-
-private:
-  std::mutex mutex;
-  std::condition_variable cv;
-  std::size_t threadNum;
-};
-
 /// Adds a common series of nodes to a graph forming a diamond dependency
 /// structure using USM pointers for the inputs. Can be used for either Explicit
 /// or Record and Replay with the choice being dictated by defining one of
@@ -432,3 +409,26 @@ constexpr float Gamma = 3.0f;
 float dotp_reference_result(size_t N) {
   return N * (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
 }
+
+/* Single use thread barrier which makes threads wait until defined number of
+ * threads reach it.
+ * std:barrier should be used instead once compiler is moved to C++20 standard.
+ */
+class Barrier {
+public:
+  Barrier() = delete;
+  explicit Barrier(std::size_t count) : threadNum(count) {}
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (--threadNum == 0) {
+      cv.notify_all();
+    } else {
+      cv.wait(lock, [this] { return threadNum == 0; });
+    }
+  }
+
+private:
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::size_t threadNum;
+};

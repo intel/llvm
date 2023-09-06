@@ -27,7 +27,11 @@ namespace interp {
 class Block;
 class DeadBlock;
 class Pointer;
+class Context;
 enum PrimType : unsigned;
+
+class Pointer;
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Pointer &P);
 
 /// A pointer to a memory block, live or dead.
 ///
@@ -76,6 +80,16 @@ public:
 
   /// Converts the pointer to an APValue.
   APValue toAPValue() const;
+
+  /// Converts the pointer to a string usable in diagnostics.
+  std::string toDiagnosticString(const ASTContext &Ctx) const;
+
+  unsigned getIntegerRepresentation() const {
+    return reinterpret_cast<uintptr_t>(Pointee) + Offset;
+  }
+
+  /// Converts the pointer to an APValue that is an rvalue.
+  APValue toRValue(const Context &Ctx) const;
 
   /// Offsets a pointer inside an array.
   Pointer atIndex(unsigned Idx) const {
@@ -247,9 +261,11 @@ public:
   }
 
   /// Returns the record descriptor of a class.
-  Record *getRecord() const { return getFieldDesc()->ElemRecord; }
+  const Record *getRecord() const { return getFieldDesc()->ElemRecord; }
   /// Returns the element record type, if this is a non-primive array.
-  Record *getElemRecord() const { return getFieldDesc()->ElemDesc->ElemRecord; }
+  const Record *getElemRecord() const {
+    return getFieldDesc()->ElemDesc->ElemRecord;
+  }
   /// Returns the field information.
   const FieldDecl *getField() const { return getFieldDesc()->asFieldDecl(); }
 
@@ -323,7 +339,8 @@ public:
 
   /// Dereferences a primitive element.
   template <typename T> T &elem(unsigned I) const {
-    return reinterpret_cast<T *>(Pointee->rawData())[I];
+    assert(I < getNumElems());
+    return reinterpret_cast<T *>(Pointee->data() + sizeof(InitMap *))[I];
   }
 
   /// Initializes a field.
@@ -340,7 +357,17 @@ public:
 
   /// Prints the pointer.
   void print(llvm::raw_ostream &OS) const {
-    OS << Pointee << " {" << Base << ", " << Offset << ", ";
+    OS << Pointee << " {";
+    if (Base == RootPtrMark)
+      OS << "rootptr, ";
+    else
+      OS << Base << ", ";
+
+    if (Offset == PastEndMark)
+      OS << "pastend, ";
+    else
+      OS << Offset << ", ";
+
     if (Pointee)
       OS << Pointee->getSize();
     else

@@ -1,6 +1,7 @@
 include "config/public_api.td"
 
 include "spec/stdc.td"
+include "spec/posix.td"
 include "spec/gpu_ext.td"
 
 def StringAPI : PublicAPI<"string.h"> {
@@ -9,6 +10,9 @@ def StringAPI : PublicAPI<"string.h"> {
 
 def StdlibAPI : PublicAPI<"stdlib.h"> {
   let Types = [
+    "div_t",
+    "ldiv_t",
+    "lldiv_t",
     "size_t",
     "__atexithandler_t",
   ];
@@ -26,4 +30,16 @@ def StdIOAPI : PublicAPI<"stdio.h"> {
     SimpleMacroDef<"EOF", "-1">,
   ];
   let Types = ["size_t", "FILE"];
+}
+
+def IntTypesAPI : PublicAPI<"inttypes.h"> {
+  let Types = ["imaxdiv_t"];
+}
+
+def TimeAPI : PublicAPI<"time.h"> {
+  let Types = [
+    "clock_t",
+    "time_t",
+    "struct timespec",
+  ];
 }

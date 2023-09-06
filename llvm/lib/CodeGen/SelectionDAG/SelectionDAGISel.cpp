@@ -1357,6 +1357,8 @@ static bool processIfEntryValueDbgDeclare(FunctionLoweringInfo &FuncInfo,
   // Find the corresponding livein physical register to this argument.
   for (auto [PhysReg, VirtReg] : FuncInfo.RegInfo->liveins())
     if (VirtReg == ArgVReg) {
+      // Append an op deref to account for the fact that this is a dbg_declare.
+      Expr = DIExpression::append(Expr, dwarf::DW_OP_deref);
       FuncInfo.MF->setVariableDbgInfo(Var, Expr, PhysReg, DbgLoc);
       LLVM_DEBUG(dbgs() << "processDbgDeclare: setVariableDbgInfo Var=" << *Var
                         << ", Expr=" << *Expr << ",  MCRegister=" << PhysReg
@@ -2639,8 +2641,11 @@ LLVM_ATTRIBUTE_ALWAYS_INLINE static bool CheckChildSame(
 /// CheckPatternPredicate - Implements OP_CheckPatternPredicate.
 LLVM_ATTRIBUTE_ALWAYS_INLINE static bool
 CheckPatternPredicate(const unsigned char *MatcherTable, unsigned &MatcherIndex,
-                      const SelectionDAGISel &SDISel) {
-  return SDISel.CheckPatternPredicate(MatcherTable[MatcherIndex++]);
+                      const SelectionDAGISel &SDISel, bool TwoBytePredNo) {
+  unsigned PredNo = MatcherTable[MatcherIndex++];
+  if (TwoBytePredNo)
+    PredNo |= MatcherTable[MatcherIndex++] << 8;
+  return SDISel.CheckPatternPredicate(PredNo);
 }
 
 /// CheckNodePredicate - Implements OP_CheckNodePredicate.
@@ -2788,7 +2793,10 @@ static unsigned IsPredicateKnownToFail(const unsigned char *Table,
                         Table[Index-1] - SelectionDAGISel::OPC_CheckChild0Same);
     return Index;
   case SelectionDAGISel::OPC_CheckPatternPredicate:
-    Result = !::CheckPatternPredicate(Table, Index, SDISel);
+  case SelectionDAGISel::OPC_CheckPatternPredicate2:
+    Result = !::CheckPatternPredicate(
+        Table, Index, SDISel,
+        Table[Index - 1] == SelectionDAGISel::OPC_CheckPatternPredicate2);
     return Index;
   case SelectionDAGISel::OPC_CheckPredicate:
     Result = !::CheckNodePredicate(Table, Index, SDISel, N.getNode());
@@ -3198,7 +3206,10 @@ void SelectionDAGISel::SelectCodeCommon(SDNode *NodeToMatch,
       continue;
 
     case OPC_CheckPatternPredicate:
-      if (!::CheckPatternPredicate(MatcherTable, MatcherIndex, *this)) break;
+    case OPC_CheckPatternPredicate2:
+      if (!::CheckPatternPredicate(MatcherTable, MatcherIndex, *this,
+                                   Opcode == OPC_CheckPatternPredicate2))
+        break;
       continue;
     case OPC_CheckPredicate:
       if (!::CheckNodePredicate(MatcherTable, MatcherIndex, *this,

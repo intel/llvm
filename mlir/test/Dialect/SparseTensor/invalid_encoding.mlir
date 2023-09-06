@@ -69,3 +69,33 @@ func.func private @tensor_invalid_key(%arg0: tensor<16x32xf32, #a>) -> ()
   dimSlices = [ (-1, ?, 1), (?, 4, 2) ] // expected-error{{expect positive value or ? for slice offset/size/stride}}
 }>
 func.func private @sparse_slice(tensor<?x?xf64, #CSR_SLICE>)
+
+// -----
+
+// expected-error@+2 {{Level-rank mismatch between forward-declarations and specifiers. Declared 3 level-variables; but got 2 level-specifiers.}}
+#TooManyLvlDecl = #sparse_tensor.encoding<{
+  map = {l0, l1, l2} (d0, d1) -> (l0 = d0 : dense, l1 = d1 : compressed)
+}>
+func.func private @too_many_lvl_decl(%arg0: tensor<?x?xf64, #TooManyLvlDecl>) {
+  return
+}
+
+// -----
+
+// expected-error@+2 {{use of undeclared identifier 'l1'}}
+#TooFewLvlDecl = #sparse_tensor.encoding<{
+  map = {l0} (d0, d1) -> (l0 = d0 : dense, l1 = d1 : compressed)
+}>
+func.func private @too_few_lvl_decl(%arg0: tensor<?x?xf64, #TooFewLvlDecl>) {
+  return
+}
+
+// -----
+
+// expected-error@+2 {{Level-variable ordering mismatch. The variable 'l0' was forward-declared as the 1st level; but is bound by the 0th specification.}}
+#WrongOrderLvlDecl = #sparse_tensor.encoding<{
+  map = {l1, l0} (d0, d1) -> (l0 = d0 : dense, l1 = d1 : compressed)
+}>
+func.func private @wrong_order_lvl_decl(%arg0: tensor<?x?xf64, #WrongOrderLvlDecl>) {
+  return
+}

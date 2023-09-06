@@ -440,8 +440,9 @@ MachineInstr &TargetInstrInfo::duplicate(MachineBasicBlock &MBB,
 // If the COPY instruction in MI can be folded to a stack operation, return
 // the register class to use.
 static const TargetRegisterClass *canFoldCopy(const MachineInstr &MI,
+                                              const TargetInstrInfo &TII,
                                               unsigned FoldIdx) {
-  assert(MI.isCopy() && "MI must be a COPY instruction");
+  assert(TII.isCopyInstr(MI) && "MI must be a COPY instruction");
   if (MI.getNumOperands() != 2)
     return nullptr;
   assert(FoldIdx<2 && "FoldIdx refers no nonexistent operand");
@@ -630,10 +631,10 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
   }
 
   // Straight COPY may fold as load/store.
-  if (!MI.isCopy() || Ops.size() != 1)
+  if (!isCopyInstr(MI) || Ops.size() != 1)
     return nullptr;
 
-  const TargetRegisterClass *RC = canFoldCopy(MI, Ops[0]);
+  const TargetRegisterClass *RC = canFoldCopy(MI, *this, Ops[0]);
   if (!RC)
     return nullptr;
 
@@ -694,6 +695,60 @@ MachineInstr *TargetInstrInfo::foldMemoryOperand(MachineInstr &MI,
     }
   }
   return NewMI;
+}
+
+/// transferImplicitOperands - MI is a pseudo-instruction, and the lowered
+/// replacement instructions immediately precede it.  Copy any implicit
+/// operands from MI to the replacement instruction.
+static void transferImplicitOperands(MachineInstr *MI,
+                                     const TargetRegisterInfo *TRI) {
+  MachineBasicBlock::iterator CopyMI = MI;
+  --CopyMI;
+
+  Register DstReg = MI->getOperand(0).getReg();
+  for (const MachineOperand &MO : MI->implicit_operands()) {
+    CopyMI->addOperand(MO);
+
+    // Be conservative about preserving kills when subregister defs are
+    // involved. If there was implicit kill of a super-register overlapping the
+    // copy result, we would kill the subregisters previous copies defined.
+
+    if (MO.isKill() && TRI->regsOverlap(DstReg, MO.getReg()))
+      CopyMI->getOperand(CopyMI->getNumOperands() - 1).setIsKill(false);
+  }
+}
+
+void TargetInstrInfo::lowerCopy(MachineInstr *MI,
+                                const TargetRegisterInfo *TRI) const {
+  if (MI->allDefsAreDead()) {
+    MI->setDesc(get(TargetOpcode::KILL));
+    return;
+  }
+
+  MachineOperand &DstMO = MI->getOperand(0);
+  MachineOperand &SrcMO = MI->getOperand(1);
+
+  bool IdentityCopy = (SrcMO.getReg() == DstMO.getReg());
+  if (IdentityCopy || SrcMO.isUndef()) {
+    // No need to insert an identity copy instruction, but replace with a KILL
+    // if liveness is changed.
+    if (SrcMO.isUndef() || MI->getNumOperands() > 2) {
+      // We must make sure the super-register gets killed. Replace the
+      // instruction with KILL.
+      MI->setDesc(get(TargetOpcode::KILL));
+      return;
+    }
+    // Vanilla identity copy.
+    MI->eraseFromParent();
+    return;
+  }
+
+  copyPhysReg(*MI->getParent(), MI, MI->getDebugLoc(), DstMO.getReg(),
+              SrcMO.getReg(), SrcMO.isKill());
+
+  if (MI->getNumOperands() > 2)
+    transferImplicitOperands(MI, TRI);
+  MI->eraseFromParent();
 }
 
 bool TargetInstrInfo::hasReassociableOperands(
@@ -1063,7 +1118,7 @@ MachineTraceStrategy TargetInstrInfo::getMachineCombinerTraceStrategy() const {
   return MachineTraceStrategy::TS_MinInstrCount;
 }
 
-bool TargetInstrInfo::isReallyTriviallyReMaterializableGeneric(
+bool TargetInstrInfo::isReallyTriviallyReMaterializable(
     const MachineInstr &MI) const {
   const MachineFunction &MF = *MI.getMF();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -1318,6 +1373,26 @@ bool TargetInstrInfo::hasLowDefLatency(const TargetSchedModel &SchedModel,
   return (DefCycle != -1 && DefCycle <= 1);
 }
 
+bool TargetInstrInfo::isFunctionSafeToSplit(const MachineFunction &MF) const {
+  // TODO: We don't split functions where a section attribute has been set
+  // since the split part may not be placed in a contiguous region. It may also
+  // be more beneficial to augment the linker to ensure contiguous layout of
+  // split functions within the same section as specified by the attribute.
+  if (MF.getFunction().hasSection() ||
+      MF.getFunction().hasFnAttribute("implicit-section-name"))
+    return false;
+
+  // We don't want to proceed further for cold functions
+  // or functions of unknown hotness. Lukewarm functions have no prefix.
+  std::optional<StringRef> SectionPrefix = MF.getFunction().getSectionPrefix();
+  if (SectionPrefix &&
+      (*SectionPrefix == "unlikely" || *SectionPrefix == "unknown")) {
+    return false;
+  }
+
+  return true;
+}
+
 std::optional<ParamLoadedValue>
 TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
                                      Register Reg) const {
@@ -1393,6 +1468,22 @@ TargetInstrInfo::describeLoadedValue(const MachineInstr &MI,
   }
 
   return std::nullopt;
+}
+
+// Get the call frame size just before MI.
+unsigned TargetInstrInfo::getCallFrameSizeAt(MachineInstr &MI) const {
+  // Search backwards from MI for the most recent call frame instruction.
+  MachineBasicBlock *MBB = MI.getParent();
+  for (auto &AdjI : reverse(make_range(MBB->instr_begin(), MI.getIterator()))) {
+    if (AdjI.getOpcode() == getCallFrameSetupOpcode())
+      return getFrameTotalSize(AdjI);
+    if (AdjI.getOpcode() == getCallFrameDestroyOpcode())
+      return 0;
+  }
+
+  // If none was found, use the call frame size from the start of the basic
+  // block.
+  return MBB->getCallFrameSize();
 }
 
 /// Both DefMI and UseMI must be valid.  By default, call directly to the

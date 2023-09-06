@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "lldb/API/SBTarget.h"
+#include "lldb/Symbol/LocateSymbolFile.h"
 #include "lldb/Utility/Instrumentation.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/lldb-public.h"
@@ -1117,8 +1118,8 @@ bool SBTarget::FindBreakpointsByName(const char *name,
     llvm::Expected<std::vector<BreakpointSP>> expected_vector =
         target_sp->GetBreakpointList().FindBreakpointsByName(name);
     if (!expected_vector) {
-      LLDB_LOG(GetLog(LLDBLog::Breakpoints), "invalid breakpoint name: {}",
-               llvm::toString(expected_vector.takeError()));
+      LLDB_LOG_ERROR(GetLog(LLDBLog::Breakpoints), expected_vector.takeError(),
+                     "invalid breakpoint name: {0}");
       return false;
     }
     for (BreakpointSP bkpt_sp : *expected_vector) {
@@ -1477,28 +1478,29 @@ lldb::SBModule SBTarget::AddModule(const char *path, const char *triple,
                                    const char *uuid_cstr, const char *symfile) {
   LLDB_INSTRUMENT_VA(this, path, triple, uuid_cstr, symfile);
 
-  lldb::SBModule sb_module;
   TargetSP target_sp(GetSP());
-  if (target_sp) {
-    ModuleSpec module_spec;
-    if (path)
-      module_spec.GetFileSpec().SetFile(path, FileSpec::Style::native);
+  if (!target_sp)
+    return {};
 
-    if (uuid_cstr)
-      module_spec.GetUUID().SetFromStringRef(uuid_cstr);
+  ModuleSpec module_spec;
+  if (path)
+    module_spec.GetFileSpec().SetFile(path, FileSpec::Style::native);
 
-    if (triple)
-      module_spec.GetArchitecture() = Platform::GetAugmentedArchSpec(
-          target_sp->GetPlatform().get(), triple);
-    else
-      module_spec.GetArchitecture() = target_sp->GetArchitecture();
+  if (uuid_cstr)
+    module_spec.GetUUID().SetFromStringRef(uuid_cstr);
 
-    if (symfile)
-      module_spec.GetSymbolFileSpec().SetFile(symfile, FileSpec::Style::native);
+  if (triple)
+    module_spec.GetArchitecture() =
+        Platform::GetAugmentedArchSpec(target_sp->GetPlatform().get(), triple);
+  else
+    module_spec.GetArchitecture() = target_sp->GetArchitecture();
 
-    sb_module.SetSP(target_sp->GetOrCreateModule(module_spec, true /* notify */));
-  }
-  return sb_module;
+  if (symfile)
+    module_spec.GetSymbolFileSpec().SetFile(symfile, FileSpec::Style::native);
+
+  SBModuleSpec sb_modulespec(module_spec);
+
+  return AddModule(sb_modulespec);
 }
 
 lldb::SBModule SBTarget::AddModule(const SBModuleSpec &module_spec) {
@@ -1506,9 +1508,26 @@ lldb::SBModule SBTarget::AddModule(const SBModuleSpec &module_spec) {
 
   lldb::SBModule sb_module;
   TargetSP target_sp(GetSP());
-  if (target_sp)
+  if (target_sp) {
     sb_module.SetSP(target_sp->GetOrCreateModule(*module_spec.m_opaque_up,
                                                  true /* notify */));
+    if (!sb_module.IsValid() && module_spec.m_opaque_up->GetUUID().IsValid()) {
+      Status error;
+      if (Symbols::DownloadObjectAndSymbolFile(*module_spec.m_opaque_up, error,
+                                               /* force_lookup */ true)) {
+        if (FileSystem::Instance().Exists(
+                module_spec.m_opaque_up->GetFileSpec())) {
+          sb_module.SetSP(target_sp->GetOrCreateModule(*module_spec.m_opaque_up,
+                                                       true /* notify */));
+        }
+      }
+    }
+  }
+  // If the target hasn't initialized any architecture yet, use the
+  // binary's architecture.
+  if (sb_module.IsValid() && !target_sp->GetArchitecture().IsValid() &&
+      sb_module.GetSP()->GetArchitecture().IsValid())
+    target_sp->SetArchitecture(sb_module.GetSP()->GetArchitecture());
   return sb_module;
 }
 
@@ -1591,7 +1610,7 @@ const char *SBTarget::GetTriple() {
 
 const char *SBTarget::GetABIName() {
   LLDB_INSTRUMENT_VA(this);
-  
+
   TargetSP target_sp(GetSP());
   if (!target_sp)
     return nullptr;

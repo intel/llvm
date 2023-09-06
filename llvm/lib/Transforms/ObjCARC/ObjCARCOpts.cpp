@@ -933,8 +933,13 @@ void ObjCARCOpt::OptimizeIndividualCallImpl(Function &F, Instruction *Inst,
     if (IsNullOrUndef(CI->getArgOperand(0))) {
       Changed = true;
       new StoreInst(ConstantInt::getTrue(CI->getContext()),
-                    UndefValue::get(Type::getInt1PtrTy(CI->getContext())), CI);
-      Value *NewValue = UndefValue::get(CI->getType());
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+                    PoisonValue::get(Type::getInt1PtrTy(CI->getContext())), CI);
+#else
+                    PoisonValue::get(PointerType::getUnqual(CI->getContext())),
+                    CI);
+#endif
+      Value *NewValue = PoisonValue::get(CI->getType());
       LLVM_DEBUG(
           dbgs() << "A null pointer-to-weak-pointer is undefined behavior."
                     "\nOld = "
@@ -952,9 +957,14 @@ void ObjCARCOpt::OptimizeIndividualCallImpl(Function &F, Instruction *Inst,
         IsNullOrUndef(CI->getArgOperand(1))) {
       Changed = true;
       new StoreInst(ConstantInt::getTrue(CI->getContext()),
-                    UndefValue::get(Type::getInt1PtrTy(CI->getContext())), CI);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+                    PoisonValue::get(Type::getInt1PtrTy(CI->getContext())), CI);
+#else
+                    PoisonValue::get(PointerType::getUnqual(CI->getContext())),
+                    CI);
+#endif
 
-      Value *NewValue = UndefValue::get(CI->getType());
+      Value *NewValue = PoisonValue::get(CI->getType());
       LLVM_DEBUG(
           dbgs() << "A null pointer-to-weak-pointer is undefined behavior."
                     "\nOld = "

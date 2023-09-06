@@ -222,9 +222,11 @@ static bool sinkInstruction(
   // order. No need to stable sort as the block numbers are a total ordering.
   SmallVector<BasicBlock *, 2> SortedBBsToSinkInto;
   llvm::append_range(SortedBBsToSinkInto, BBsToSinkInto);
-  llvm::sort(SortedBBsToSinkInto, [&](BasicBlock *A, BasicBlock *B) {
-    return LoopBlockNumber.find(A)->second < LoopBlockNumber.find(B)->second;
-  });
+  if (SortedBBsToSinkInto.size() > 1) {
+    llvm::sort(SortedBBsToSinkInto, [&](BasicBlock *A, BasicBlock *B) {
+      return LoopBlockNumber.find(A)->second < LoopBlockNumber.find(B)->second;
+    });
+  }
 
   BasicBlock *MoveBB = *SortedBBsToSinkInto.begin();
   // FIXME: Optimize the efficiency for cloned value replacement. The current
@@ -252,9 +254,11 @@ static bool sinkInstruction(
       }
     }
 
-    // Replaces uses of I with IC in N
+    // Replaces uses of I with IC in N, except PHI-use which is being taken
+    // care of by defs in PHI's incoming blocks.
     I.replaceUsesWithIf(IC, [N](Use &U) {
-      return cast<Instruction>(U.getUser())->getParent() == N;
+      Instruction *UIToReplace = cast<Instruction>(U.getUser());
+      return UIToReplace->getParent() == N && !isa<PHINode>(UIToReplace);
     });
     // Replaces uses of I with IC in blocks dominated by N
     replaceDominatedUsesWith(&I, IC, DT, N);

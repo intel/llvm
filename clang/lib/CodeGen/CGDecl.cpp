@@ -203,7 +203,7 @@ void CodeGenFunction::EmitVarDecl(const VarDecl &D) {
       return;
 
     llvm::GlobalValue::LinkageTypes Linkage =
-        CGM.getLLVMLinkageVarDefinition(&D, /*IsConstant=*/false);
+        CGM.getLLVMLinkageVarDefinition(&D);
 
     // FIXME: We need to force the emission/use of a guard variable for
     // some variables even if we can constant-evaluate them because
@@ -430,7 +430,8 @@ CodeGenFunction::AddInitializerToStaticVarDecl(const VarDecl &D,
   bool NeedsDtor =
       D.needsDestruction(getContext()) == QualType::DK_cxx_destructor;
 
-  GV->setConstant(CGM.isTypeConstant(D.getType(), true, !NeedsDtor));
+  GV->setConstant(
+      D.getType().isConstantStorage(getContext(), true, !NeedsDtor));
   GV->setInitializer(Init);
 
   emitter.finalize(GV);
@@ -504,6 +505,9 @@ void CodeGenFunction::EmitStaticVarDecl(const VarDecl &D,
   if (D.hasAttr<RetainAttr>())
     CGM.addUsedGlobal(var);
   else if (D.hasAttr<UsedAttr>())
+    CGM.addUsedOrCompilerUsedGlobal(var);
+
+  if (CGM.getCodeGenOpts().KeepPersistentStorageVariables)
     CGM.addUsedOrCompilerUsedGlobal(var);
 
   // We may have to cast the constant because of the initializer
@@ -612,8 +616,17 @@ namespace {
     bool isRedundantBeforeReturn() override { return true; }
     void Emit(CodeGenFunction &CGF, Flags flags) override {
       llvm::Value *V = CGF.Builder.CreateLoad(Stack);
-      llvm::Function *F = CGF.CGM.getIntrinsic(llvm::Intrinsic::stackrestore);
-      CGF.Builder.CreateCall(F, V);
+      CGF.Builder.CreateStackRestore(V);
+    }
+  };
+
+  struct KmpcAllocFree final : EHScopeStack::Cleanup {
+    std::pair<llvm::Value *, llvm::Value *> AddrSizePair;
+    KmpcAllocFree(const std::pair<llvm::Value *, llvm::Value *> &AddrSizePair)
+        : AddrSizePair(AddrSizePair) {}
+    void Emit(CodeGenFunction &CGF, Flags EmissionFlags) override {
+      auto &RT = CGF.CGM.getOpenMPRuntime();
+      RT.getKmpcFreeShared(CGF, AddrSizePair);
     }
   };
 
@@ -1539,7 +1552,8 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
       if ((!getLangOpts().OpenCL ||
            Ty.getAddressSpace() == LangAS::opencl_constant) &&
           (CGM.getCodeGenOpts().MergeAllConstants && !NRVO &&
-           !isEscapingByRef && CGM.isTypeConstant(Ty, true, !NeedsDtor))) {
+           !isEscapingByRef &&
+           Ty.isConstantStorage(getContext(), true, !NeedsDtor))) {
         EmitStaticVarDecl(D, llvm::GlobalValue::InternalLinkage);
 
         // Signal this condition to later callbacks.
@@ -1573,8 +1587,7 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
           // applied.
           llvm::Value *Zero = Builder.getFalse();
           Address NRVOFlag =
-              CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo",
-                               /*ArraySize=*/nullptr, &AllocaAddr);
+              CreateTempAlloca(Zero->getType(), CharUnits::One(), "nrvo");
           EnsureInsertPoint();
           Builder.CreateStore(Zero, NRVOFlag);
 
@@ -1636,28 +1649,59 @@ CodeGenFunction::EmitAutoVarAlloca(const VarDecl &D) {
   } else {
     EnsureInsertPoint();
 
-    if (!DidCallStackSave) {
-      // Save the stack.
-      Address Stack =
-        CreateTempAlloca(Int8PtrTy, getPointerAlign(), "saved_stack");
+    // Delayed globalization for variable length declarations. This ensures that
+    // the expression representing the length has been emitted and can be used
+    // by the definition of the VLA. Since this is an escaped declaration, in
+    // OpenMP we have to use a call to __kmpc_alloc_shared(). The matching
+    // deallocation call to __kmpc_free_shared() is emitted later.
+    bool VarAllocated = false;
+    if (getLangOpts().OpenMPIsTargetDevice) {
+      auto &RT = CGM.getOpenMPRuntime();
+      if (RT.isDelayedVariableLengthDecl(*this, &D)) {
+        // Emit call to __kmpc_alloc_shared() instead of the alloca.
+        std::pair<llvm::Value *, llvm::Value *> AddrSizePair =
+            RT.getKmpcAllocShared(*this, &D);
 
-      llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::stacksave);
-      llvm::Value *V = Builder.CreateCall(F);
-      Builder.CreateStore(V, Stack);
+        // Save the address of the allocation:
+        LValue Base = MakeAddrLValue(AddrSizePair.first, D.getType(),
+                                     CGM.getContext().getDeclAlign(&D),
+                                     AlignmentSource::Decl);
+        address = Base.getAddress(*this);
 
-      DidCallStackSave = true;
+        // Push a cleanup block to emit the call to __kmpc_free_shared in the
+        // appropriate location at the end of the scope of the
+        // __kmpc_alloc_shared functions:
+        pushKmpcAllocFree(NormalCleanup, AddrSizePair);
 
-      // Push a cleanup block and restore the stack there.
-      // FIXME: in general circumstances, this should be an EH cleanup.
-      pushStackRestore(NormalCleanup, Stack);
+        // Mark variable as allocated:
+        VarAllocated = true;
+      }
     }
 
-    auto VlaSize = getVLASize(Ty);
-    llvm::Type *llvmTy = ConvertTypeForMem(VlaSize.Type);
+    if (!VarAllocated) {
+      if (!DidCallStackSave) {
+        // Save the stack.
+        Address Stack =
+            CreateDefaultAlignTempAlloca(AllocaInt8PtrTy, "saved_stack");
 
-    // Allocate memory for the array.
-    address = CreateTempAlloca(llvmTy, alignment, "vla", VlaSize.NumElts,
-                               &AllocaAddr);
+        llvm::Value *V = Builder.CreateStackSave();
+        assert(V->getType() == AllocaInt8PtrTy);
+        Builder.CreateStore(V, Stack);
+
+        DidCallStackSave = true;
+
+        // Push a cleanup block and restore the stack there.
+        // FIXME: in general circumstances, this should be an EH cleanup.
+        pushStackRestore(NormalCleanup, Stack);
+      }
+
+      auto VlaSize = getVLASize(Ty);
+      llvm::Type *llvmTy = ConvertTypeForMem(VlaSize.Type);
+
+      // Allocate memory for the array.
+      address = CreateTempAlloca(llvmTy, alignment, "vla", VlaSize.NumElts,
+                                 &AllocaAddr);
+    }
 
     // If we have debug info enabled, properly describe the VLA dimensions for
     // this type by registering the vla size expression for each of the
@@ -2220,6 +2264,11 @@ void CodeGenFunction::pushStackRestore(CleanupKind Kind, Address SPMem) {
   EHStack.pushCleanup<CallStackRestore>(Kind, SPMem);
 }
 
+void CodeGenFunction::pushKmpcAllocFree(
+    CleanupKind Kind, std::pair<llvm::Value *, llvm::Value *> AddrSizePair) {
+  EHStack.pushCleanup<KmpcAllocFree>(Kind, AddrSizePair);
+}
+
 void CodeGenFunction::pushLifetimeExtendedDestroy(CleanupKind cleanupKind,
                                                   Address addr, QualType type,
                                                   Destroyer *destroyer,
@@ -2532,7 +2581,10 @@ void CodeGenFunction::EmitParmDecl(const VarDecl &D, ParamValue Arg,
   assert((isa<ParmVarDecl>(D) || isa<ImplicitParamDecl>(D)) &&
          "Invalid argument to EmitParmDecl");
 
-  Arg.getAnyValue()->setName(D.getName());
+  // Set the name of the parameter's initial value to make IR easier to
+  // read. Don't modify the names of globals.
+  if (!isa<llvm::GlobalValue>(Arg.getAnyValue()))
+    Arg.getAnyValue()->setName(D.getName());
 
   QualType Ty = D.getType();
 

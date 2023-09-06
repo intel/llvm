@@ -15,14 +15,21 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/device.hpp>
-#include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
+#include <sycl/backend_types.hpp>         // for backend
+#include <sycl/context.hpp>               // for context
+#include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
+#include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
+#include <sycl/detail/pi.hpp>             // for assertion, PiDevice, PiPro...
+#include <sycl/device.hpp>                // for device
+#include <sycl/event.hpp>                 // for event
+#include <sycl/handler.hpp>               // for buffer
+#include <sycl/kernel.hpp>                // for kernel
+#include <sycl/kernel_bundle.hpp>         // for kernel_bundle
+#include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
+#include <sycl/platform.hpp>              // for platform
+#include <sycl/queue.hpp>                 // for queue
+
+#include <vector> // for vector
 
 namespace sycl {
 inline namespace _V1 {

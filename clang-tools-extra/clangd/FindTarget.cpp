@@ -347,6 +347,10 @@ public:
       void VisitCXXDeleteExpr(const CXXDeleteExpr *CDE) {
         Outer.add(CDE->getOperatorDelete(), Flags);
       }
+      void
+      VisitCXXRewrittenBinaryOperator(const CXXRewrittenBinaryOperator *RBO) {
+        Outer.add(RBO->getDecomposedForm().InnerBinOp, Flags);
+      }
     };
     Visitor(*this, Flags).Visit(S);
   }
@@ -704,8 +708,23 @@ llvm::SmallVector<ReferenceLoc> refInDecl(const Decl *D,
                                   {OCID->getClassInterface()}});
       Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
                                   OCID->getCategoryNameLoc(),
-                                  /*IsDecl=*/true,
+                                  /*IsDecl=*/false,
                                   {OCID->getCategoryDecl()}});
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  OCID->getCategoryNameLoc(),
+                                  /*IsDecl=*/true,
+                                  {OCID}});
+    }
+
+    void VisitObjCImplementationDecl(const ObjCImplementationDecl *OIMD) {
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  OIMD->getLocation(),
+                                  /*IsDecl=*/false,
+                                  {OIMD->getClassInterface()}});
+      Refs.push_back(ReferenceLoc{NestedNameSpecifierLoc(),
+                                  OIMD->getLocation(),
+                                  /*IsDecl=*/true,
+                                  {OIMD}});
     }
   };
 
@@ -722,13 +741,6 @@ llvm::SmallVector<ReferenceLoc> refInStmt(const Stmt *S,
     const HeuristicResolver *Resolver;
     // FIXME: handle more complicated cases: more ObjC, designated initializers.
     llvm::SmallVector<ReferenceLoc> Refs;
-
-    void VisitConceptSpecializationExpr(const ConceptSpecializationExpr *E) {
-      Refs.push_back(ReferenceLoc{E->getNestedNameSpecifierLoc(),
-                                  E->getConceptNameLoc(),
-                                  /*IsDecl=*/false,
-                                  {E->getNamedConcept()}});
-    }
 
     void VisitDeclRefExpr(const DeclRefExpr *E) {
       Refs.push_back(ReferenceLoc{E->getQualifierLoc(),
@@ -1044,15 +1056,12 @@ public:
     return RecursiveASTVisitor::TraverseConstructorInitializer(Init);
   }
 
-  bool TraverseTypeConstraint(const TypeConstraint *TC) {
-    // We want to handle all ConceptReferences but RAV is missing a
-    // polymorphic Visit or Traverse method for it, so we handle
-    // TypeConstraints specially here.
-    Out(ReferenceLoc{TC->getNestedNameSpecifierLoc(),
-                     TC->getConceptNameLoc(),
+  bool VisitConceptReference(ConceptReference *ConceptRef) {
+    Out(ReferenceLoc{ConceptRef->getNestedNameSpecifierLoc(),
+                     ConceptRef->getConceptNameLoc(),
                      /*IsDecl=*/false,
-                     {TC->getNamedConcept()}});
-    return RecursiveASTVisitor::TraverseTypeConstraint(TC);
+                     {ConceptRef->getNamedConcept()}});
+    return true;
   }
 
 private:

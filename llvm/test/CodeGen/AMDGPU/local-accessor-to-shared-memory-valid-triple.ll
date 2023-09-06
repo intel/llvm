@@ -1,8 +1,8 @@
 ; This test checks that the Local Accessor to Shared Memory pass runs with the
 ; `amdgcn-amd-amdhsa` triple and does not if the option is not present.
 ; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-; RUN: llc -opaque-pointers -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
-; RUN: llc -opaque-pointers -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
+; RUN: llc -mtriple=amdgcn-amd-amdhsa < %s | FileCheck --check-prefix=CHECK-OPT %s
 ; end
 
 ; ModuleID = 'local-accessor-to-shared-memory-valid-triple.ll'
@@ -17,9 +17,9 @@ target triple = "amdgcn-amd-amdhsa"
 ; CHECK-OPT-NEXT: .size: 4
 ; CHECK-OPT-NEXT: .value_kind:     by_value
 ; Function Attrs: noinline
-define amdgpu_kernel void @_ZTS14example_kernel(i32 addrspace(3)* %a) {
+define amdgpu_kernel void @_ZTS14example_kernel(ptr addrspace(3) %a) {
 entry:
-  %0 = load i32, i32 addrspace(3)* %a
+  %0 = load i32, ptr addrspace(3) %a
   ret void
 }
 
@@ -27,7 +27,7 @@ entry:
 !llvm.ident = !{!7, !8}
 !llvm.module.flags = !{!9, !10}
 
-!0 = distinct !{void (i32 addrspace(3)*)* @_ZTS14example_kernel, !"kernel", i32 1}
+!0 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !1 = !{null, !"align", i32 8}
 !2 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !3 = !{null, !"align", i32 16}

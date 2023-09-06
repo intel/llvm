@@ -1,10 +1,10 @@
-//===--------- image.cpp - CUDA Adapter ------------------------------===//
+//===--------- image.cpp - CUDA Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <cuda.h>
 
@@ -71,10 +71,13 @@ urToCudaImageChannelFormat(ur_image_channel_type_t image_channel_type,
     PixelTypeSizeBytes = SIZE;                                                 \
     break;                                                                     \
   }
+// These new formats were brought in in CUDA 11.5
+#if CUDA_VERSION >= 11050
     CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT8, CU_AD_FORMAT_UNORM_INT8X1, 1)
+    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
+#endif
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8, CU_AD_FORMAT_UNSIGNED_INT8, 1)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8, CU_AD_FORMAT_SIGNED_INT8, 1)
-    CASE(UR_IMAGE_CHANNEL_TYPE_UNORM_INT16, CU_AD_FORMAT_UNORM_INT16X1, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16, CU_AD_FORMAT_UNSIGNED_INT16, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16, CU_AD_FORMAT_SIGNED_INT16, 2)
     CASE(UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, CU_AD_FORMAT_HALF, 2)
@@ -121,10 +124,12 @@ cudaToUrImageChannelFormat(CUarray_format cuda_format,
                                   UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT);
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_FLOAT,
                                   UR_IMAGE_CHANNEL_TYPE_FLOAT);
+#if CUDA_VERSION >= 11050
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT8X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT8);
     CUDA_TO_UR_IMAGE_CHANNEL_TYPE(CU_AD_FORMAT_UNORM_INT16X1,
                                   UR_IMAGE_CHANNEL_TYPE_UNORM_INT16);
+#endif
 #undef MAP
   default:
     return UR_RESULT_ERROR_IMAGE_FORMAT_NOT_SUPPORTED;

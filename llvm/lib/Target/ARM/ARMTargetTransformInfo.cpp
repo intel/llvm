@@ -26,10 +26,10 @@
 #include "llvm/IR/IntrinsicsARM.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Type.h"
-#include "llvm/MC/SubtargetFeature.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/KnownBits.h"
 #include "llvm/Target/TargetMachine.h"
+#include "llvm/TargetParser/SubtargetFeature.h"
 #include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
@@ -205,6 +205,8 @@ ARMTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
           ConstantAsMetadata::get(ConstantInt::get(IntTy32, 0)),
           ConstantAsMetadata::get(ConstantInt::get(IntTy32, 0x10000))};
       II.setMetadata(LLVMContext::MD_range, MDNode::get(II.getContext(), M));
+      II.setMetadata(LLVMContext::MD_noundef,
+                     MDNode::get(II.getContext(), std::nullopt));
       return &II;
     }
     break;
@@ -1211,7 +1213,7 @@ InstructionCost ARMTTIImpl::getShuffleCost(TTI::ShuffleKind Kind,
                                            TTI::TargetCostKind CostKind,
                                            int Index, VectorType *SubTp,
                                            ArrayRef<const Value *> Args) {
-  Kind = improveShuffleKindFromMask(Kind, Mask);
+  Kind = improveShuffleKindFromMask(Kind, Mask, Tp, Index, SubTp);
   if (ST->hasNEON()) {
     if (Kind == TTI::SK_Broadcast) {
       static const CostTblEntry NEONDupTbl[] = {
