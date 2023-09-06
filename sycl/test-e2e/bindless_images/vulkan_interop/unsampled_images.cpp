@@ -705,12 +705,12 @@ int main() {
     return EXIT_FAILURE;
   }
 
-  auto exit_value = run_all();
+  auto run_ok = run_all();
 
   if (vkutil::cleanup() != VK_SUCCESS) {
     std::cerr << "Cleanup failed!\n";
     return EXIT_FAILURE;
   }
 
-  return !exit_value;
+  return run_ok ? EXIT_SUCCESS : EXIT_FAILURE;
 }
