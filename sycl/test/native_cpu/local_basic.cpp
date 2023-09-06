@@ -7,8 +7,8 @@ using namespace sycl;
 
 class Test;
 constexpr sycl::access::mode sycl_write = sycl::access::mode::write;
-int test(queue q) {
-  constexpr unsigned N = 20;
+int test(queue q, const unsigned localSize) {
+  const unsigned N = localSize;
   constexpr unsigned NumG = 2;
   range<1> localR{N};
   range<1> globalR{NumG * N};
@@ -18,7 +18,6 @@ int test(queue q) {
     local_accessor<int, 1> local_acc1(localR, h);
     local_accessor<int, 1> local_acc2(localR, h);
     h.parallel_for<Test>(nd_range<1>{globalR, localR}, [=](nd_item<1> it) {
-      // first we write to lo local_accessor, then to the global accessor.
       auto lID = it.get_local_id(0);
       auto gID = it.get_global_id(0);
       local_acc1[lID] = gID;
@@ -38,7 +37,7 @@ int test(queue q) {
 
 int main() {
   queue q;
-  auto res1 = test(q);
-  auto res2 = test(q);
+  auto res1 = test(q, 10);
+  auto res2 = test(q, 20);
   return res1 || res2;
 }

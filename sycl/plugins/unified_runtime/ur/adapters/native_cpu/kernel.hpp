@@ -66,11 +66,8 @@ private:
     if(reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
-    if(_localMemPool){
-      _localMemPool = realloc(_localMemPool, reqSize);
-    } else {
-      _localMemPool = malloc(reqSize);
-    }
+    // realloc handles nullptr case
+    _localMemPool = realloc(_localMemPool, reqSize);
     _localMemPoolSize = reqSize;
   }
   void *_localMemPool = nullptr;
