@@ -165,10 +165,10 @@ namespace sycl::ext::intel::experimental {
 
     // Access the underlying data
     operator T &() noexcept;
-    operator const T &() const noexcept;
+    constexpr operator const T &() const noexcept;
 
     T &get() noexcept;
-    const T &get() const noexcept;
+    constexpr const T &get() const noexcept;
 
     // Enable assignments from underlying type
     fpga_mem &operator=(const T &) noexcept;
@@ -209,7 +209,7 @@ a|
 [source,c++]
 ----
 operator T&() noexcept;
-operator const T&() const noexcept;
+constexpr operator const T&() const noexcept;
 ----
 |
 Implicit conversion to a reference to the underlying `T`.
@@ -219,7 +219,7 @@ a|
 [source,c++]
 ----
 T& get() noexcept;
-const T& get() const noexcept;
+constexpr const T& get() const noexcept;
 ----
 |
 Returns a reference to the underlying `T`.
