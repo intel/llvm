@@ -30,12 +30,8 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// RUN: %clangxx -fPIC -shared -fsycl -fsycl-targets=%{sycl_triple} %S/Inputs/kernel_module.cpp -o %t.input
-// RUN: %clangxx -DTEST_SHARED_LIB='"%t.input"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.input %s -o %t.out
-// RUN: %{run} %t.out
-
-#ifdef WIN32
-#include <libloaderapi.h>
+#ifdef _WIN32
+#include <windows.h>
 #else
 #include <dlfcn.h>
 #endif
