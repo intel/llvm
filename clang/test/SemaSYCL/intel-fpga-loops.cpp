@@ -155,10 +155,10 @@ void goo() {
   // expected-error@+1 {{'loop_coalesce' attribute requires a positive integral compile time constant expression}}
   [[intel::loop_coalesce(0)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute requires integer constant between 0 and 1 inclusive}}
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(-1)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
-  // expected-error@+1 {{'max_interleaving' attribute requires integer constant between 0 and 1 inclusive}}
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(2)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
   // expected-error@+1 {{'speculated_iterations' attribute requires a non-negative integral compile time constant expression}}
@@ -489,11 +489,11 @@ void max_concurrency_dependent() {
 template <int A, int B, int C, int D>
 void max_interleaving_dependent() {
   int a[10];
-  // expected-error@+1 {{'max_interleaving' attribute requires integer constant between 0 and 1 inclusive}}
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(A)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
-  // expected-error@+1 {{'max_interleaving' attribute requires integer constant between 0 and 1 inclusive}}
+  // expected-error@+1 {{'max_interleaving' attribute requires integer constant value 0 or 1}}
   [[intel::max_interleaving(B)]] for (int i = 0; i != 10; ++i)
       a[i] = 0;
 
