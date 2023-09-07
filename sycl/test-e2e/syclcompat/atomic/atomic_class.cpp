@@ -123,6 +123,8 @@ int main() {
           .get_info<sycl::info::device::atomic_memory_order_capabilities>();
 
   if (is_supported(supported_memory_orders, sycl::memory_order::seq_cst)) {
+    test_default_constructor();
+
     INSTANTIATE_ALL_TYPES(atomic_value_type_list, test_atomic_class_value);
     INSTANTIATE_ALL_TYPES(atomic_ptr_type_list, test_atomic_class_ptr);
   }
