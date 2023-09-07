@@ -6,9 +6,16 @@
 set(UMF_SOURCES
     src/memory_pool.c
     src/memory_provider.c
-    src/memory_tracker.cpp
+    src/memory_tracker.c
     src/memory_provider_get_last_failed.cpp
+    src/critnib/critnib.c
 )
+
+if(MSVC)
+    set(UMF_SOURCES ${UMF_SOURCES} src/utils/utils_windows.cpp src/memory_tracker_windows.cpp)
+else()
+    set(UMF_SOURCES ${UMF_SOURCES} src/utils/utils_posix.c)
+endif()
 
 if(UMF_BUILD_SHARED_LIBRARY)
     message(WARNING "Unified Malloc Framework is still an early work in progress."
