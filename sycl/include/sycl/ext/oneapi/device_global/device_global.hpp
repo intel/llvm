@@ -90,7 +90,7 @@ class device_global_base<
 protected:
   T val{};
   T *get_ptr() noexcept { return &val; }
-  const T *get_ptr() const noexcept { return &val; }
+  constexpr const T *get_ptr() const noexcept { return &val; }
 
 public:
 #if __cplusplus >= 202002L
@@ -155,7 +155,9 @@ public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
 
-  device_global() = default;
+  // Inherit the base class' constructors
+  using detail::device_global_base<T,
+                            detail::properties_t<Props...>>::device_global_base;
 
   device_global(const device_global &) = delete;
   device_global(const device_global &&) = delete;
@@ -167,7 +169,7 @@ public:
     return *this->get_ptr();
   }
 
-  const T &get() const noexcept {
+  constexpr const T &get() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("get()")
     return *this->get_ptr();
   }
@@ -177,7 +179,7 @@ public:
     return get();
   }
 
-  operator const T &() const noexcept {
+  constexpr operator const T &() const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Implicit conversion of device_global to T")
     return get();
   }
@@ -197,9 +199,9 @@ public:
   }
 
   template <class RelayT = T>
-  const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
-  operator[](std::ptrdiff_t idx) const noexcept {
+  constexpr const std::remove_reference_t<
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
+      &operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
