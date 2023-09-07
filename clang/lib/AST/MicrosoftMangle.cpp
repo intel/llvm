@@ -2907,7 +2907,11 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
       // where device code is compiled with the same
       // target triple (eg for Windows) as host code.
       // FIXME: 1.) provide mangling if needed
-      //        2.) check if other conventions can get here.
+      //        2.) check if other conventions need to be handled.
+      if (!getASTContext().getLangOpts().SYCLIsNativeCPU)
+      // Currently we only allow this convention in
+      // SYCLNativeCPU and raise the usual error otherwise.
+        llvm_unreachable("Unsupported CC for mangling");
       break;
   }
 }
