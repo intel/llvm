@@ -4525,6 +4525,26 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (patternSize == 0 || size == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (patternSize > size) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if ((patternSize & (patternSize - 1)) != 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (size % patternSize != 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+
+        if (offset % patternSize != 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     ur_result_t result =
@@ -4583,6 +4603,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (region.width == 0 || region.height == 0 || region.depth == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
@@ -4644,6 +4668,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
         }
+
+        if (region.width == 0 || region.height == 0 || region.depth == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     ur_result_t result = pfnMemImageWrite(
@@ -4703,6 +4731,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
 
         if (phEventWaitList != NULL && numEventsInWaitList == 0) {
             return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (region.width == 0 || region.height == 0 || region.depth == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
         }
     }
 
