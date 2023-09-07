@@ -8,6 +8,7 @@
 
 #include "program.hpp"
 #include "ur_level_zero.hpp"
+#include <utility>
 
 extern "C" {
 // Check to see if a Level Zero module has any unresolved symbols.
@@ -140,46 +141,54 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
   ZeModuleDesc.pBuildFlags = Options;
   ZeModuleDesc.pConstants = Shim.ze();
 
-  ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
-  ze_context_handle_t ZeContext = Program->Context->ZeContext;
-  ze_module_handle_t ZeModule = nullptr;
-
   ur_result_t Result = UR_RESULT_SUCCESS;
-  Program->State = ur_program_handle_t_::Exe;
-  ze_result_t ZeResult =
-      ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                       &ZeModule, &Program->ZeBuildLog));
-  if (ZeResult != ZE_RESULT_SUCCESS) {
-    // We adjust ur_program below to avoid attempting to release zeModule when
-    // RT calls urProgramRelease().
-    Program->State = ur_program_handle_t_::Invalid;
-    Result = ze2urResult(ZeResult);
-    if (ZeModule) {
-      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
-      ZeModule = nullptr;
-    }
-  } else {
-    // The call to zeModuleCreate does not report an error if there are
-    // unresolved symbols because it thinks these could be resolved later via a
-    // call to zeModuleDynamicLink.  However, modules created with
-    // urProgramBuild are supposed to be fully linked and ready to use.
-    // Therefore, do an extra check now for unresolved symbols.
-    ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+  for (auto Device : Context->Devices) {
+    // ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
+    ze_device_handle_t ZeDevice = Device->ZeDevice;
+    ze_context_handle_t ZeContext = Program->Context->ZeContext;
+    ze_module_handle_t ZeModule = nullptr;
+
+    Program->State = ur_program_handle_t_::Exe;
+    ze_result_t ZeResult =
+        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                         &ZeModule, &Program->ZeBuildLog));
+
     if (ZeResult != ZE_RESULT_SUCCESS) {
+      // We adjust ur_program below to avoid attempting to release zeModule when
+      // RT calls urProgramRelease().
       Program->State = ur_program_handle_t_::Invalid;
-      Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
-                   ? UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
-                   : ze2urResult(ZeResult);
+      Result = ze2urResult(ZeResult);
       if (ZeModule) {
         ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
         ZeModule = nullptr;
       }
+      break;
+    } else {
+      // The call to zeModuleCreate does not report an error if there are
+      // unresolved symbols because it thinks these could be resolved later via
+      // a call to zeModuleDynamicLink.  However, modules created with
+      // urProgramBuild are supposed to be fully linked and ready to use.
+      // Therefore, do an extra check now for unresolved symbols.
+      ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
+      if (ZeResult != ZE_RESULT_SUCCESS) {
+        Program->State = ur_program_handle_t_::Invalid;
+        Result = (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE)
+                     ? UR_RESULT_ERROR_PROGRAM_BUILD_FAILURE
+                     : ze2urResult(ZeResult);
+        if (ZeModule) {
+          ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+          ZeModule = nullptr;
+        }
+      }
     }
+
+    Program->ZeModuleMap.insert(std::make_pair(ZeDevice, ZeModule));
   }
 
   // We no longer need the IL / native code.
   Program->Code.reset();
-  Program->ZeModule = ZeModule;
+  Program->ZeModule = Program->ZeModuleMap.begin()->second;
+
   return Result;
 }
 
@@ -196,8 +205,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
   // It's only valid to compile a program created from IL (we don't support
   // programs created from source code).
   //
-  // The OpenCL spec says that the header parameters are ignored when compiling
-  // IL programs, so we don't validate them.
+  // The OpenCL spec says that the header parameters are ignored when
+  // compiling IL programs, so we don't validate them.
   if (Program->State != ur_program_handle_t_::IL)
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
@@ -241,17 +250,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
 
   ur_result_t UrResult = UR_RESULT_SUCCESS;
   try {
-    // Acquire a "shared" lock on each of the input programs, and also validate
-    // that they are all in Object state.
+    // Acquire a "shared" lock on each of the input programs, and also
+    // validate that they are all in Object state.
     //
     // There is no danger of deadlock here even if two threads call
-    // urProgramLink simultaneously with the same input programs in a different
-    // order.  If we were acquiring these with "exclusive" access, this could
-    // lead to a classic lock ordering deadlock.  However, there is no such
-    // deadlock potential with "shared" access.  There could also be a deadlock
-    // potential if there was some other code that holds more than one of these
-    // locks simultaneously with "exclusive" access.  However, there is no such
-    // code like that, so this is also not a danger.
+    // urProgramLink simultaneously with the same input programs in a
+    // different order.  If we were acquiring these with "exclusive" access,
+    // this could lead to a classic lock ordering deadlock.  However, there is
+    // no such deadlock potential with "shared" access.  There could also be a
+    // deadlock potential if there was some other code that holds more than
+    // one of these locks simultaneously with "exclusive" access.  However,
+    // there is no such code like that, so this is also not a danger.
     std::vector<std::shared_lock<ur_shared_mutex>> Guards(Count);
     for (uint32_t I = 0; I < Count; I++) {
       std::shared_lock<ur_shared_mutex> Guard(Programs[I]->Mutex);
@@ -263,11 +272,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
 
     // Previous calls to urProgramCompile did not actually compile the SPIR-V.
     // Instead, we postpone compilation until this point, when all the modules
-    // are linked together.  By doing compilation and linking together, the JIT
-    // compiler is able see all modules and do cross-module optimizations.
+    // are linked together.  By doing compilation and linking together, the
+    // JIT compiler is able see all modules and do cross-module optimizations.
     //
-    // Construct a ze_module_program_exp_desc_t which contains information about
-    // all of the modules that will be linked together.
+    // Construct a ze_module_program_exp_desc_t which contains information
+    // about all of the modules that will be linked together.
     ZeStruct<ze_module_program_exp_desc_t> ZeExtModuleDesc;
     std::vector<size_t> CodeSizes(Count);
     std::vector<const uint8_t *> CodeBufs(Count);
@@ -306,15 +315,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ZeModuleDesc.pInputModule = reinterpret_cast<const uint8_t *>(1);
     ZeModuleDesc.inputSize = 1;
 
-    // We need a Level Zero extension to compile multiple programs together into
-    // a single Level Zero module.  However, we don't need that extension if
-    // there happens to be only one input program.
+    // We need a Level Zero extension to compile multiple programs together
+    // into a single Level Zero module.  However, we don't need that extension
+    // if there happens to be only one input program.
     //
     // The "|| (NumInputPrograms == 1)" term is a workaround for a bug in the
     // Level Zero driver.  The driver's "ze_module_program_exp_desc_t"
     // extension should work even in the case when there is just one input
-    // module.  However, there is currently a bug in the driver that leads to a
-    // crash.  As a workaround, do not use the extension when there is one
+    // module.  However, there is currently a bug in the driver that leads to
+    // a crash.  As a workaround, do not use the extension when there is one
     // input module.
     //
     // TODO: Remove this workaround when the driver is fixed.
@@ -333,48 +342,60 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
       }
     }
 
-    // Call the Level Zero API to compile, link, and create the module.
-    ze_device_handle_t ZeDevice = Context->Devices[0]->ZeDevice;
-    ze_context_handle_t ZeContext = Context->ZeContext;
-    ze_module_handle_t ZeModule = nullptr;
-    ze_module_build_log_handle_t ZeBuildLog = nullptr;
-    ze_result_t ZeResult =
-        ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
-                                         &ZeModule, &ZeBuildLog));
+    std::unordered_map<ze_device_handle_t, ze_module_handle_t> ZeModuleMap;
+    std::unordered_map<ze_device_handle_t, ze_module_build_log_handle_t>
+        ZeBuildLogMap;
 
-    // We still create a ur_program_handle_t_ object even if there is a
-    // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
-    // is no build log created for other errors, so we don't create an object.
-    UrResult = ze2urResult(ZeResult);
-    if (ZeResult != ZE_RESULT_SUCCESS &&
-        ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
-      return ze2urResult(ZeResult);
-    }
+    for (auto Device : Context->Devices) {
+      // Call the Level Zero API to compile, link, and create the module.
+      ze_device_handle_t ZeDevice = Device->ZeDevice;
+      ze_context_handle_t ZeContext = Context->ZeContext;
+      ze_module_handle_t ZeModule = nullptr;
+      ze_module_build_log_handle_t ZeBuildLog = nullptr;
+      ze_result_t ZeResult =
+          ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
+                                           &ZeModule, &ZeBuildLog));
 
-    // The call to zeModuleCreate does not report an error if there are
-    // unresolved symbols because it thinks these could be resolved later via a
-    // call to zeModuleDynamicLink.  However, modules created with piProgramLink
-    // are supposed to be fully linked and ready to use.  Therefore, do an extra
-    // check now for unresolved symbols.  Note that we still create a
-    // ur_program_handle_t_ if there are unresolved symbols because the
-    // ZeBuildLog tells which symbols are unresolved.
-    if (ZeResult == ZE_RESULT_SUCCESS) {
-      ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
-      if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
-        UrResult =
-            UR_RESULT_ERROR_UNKNOWN; // TODO:
-                                     // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
-      } else if (ZeResult != ZE_RESULT_SUCCESS) {
+      // We still create a ur_program_handle_t_ object even if there is a
+      // BUILD_FAILURE because we need the object to hold the ZeBuildLog.  There
+      // is no build log created for other errors, so we don't create an object.
+      UrResult = ze2urResult(ZeResult);
+      if (ZeResult != ZE_RESULT_SUCCESS &&
+          ZeResult != ZE_RESULT_ERROR_MODULE_BUILD_FAILURE) {
         return ze2urResult(ZeResult);
       }
+
+      // The call to zeModuleCreate does not report an error if there are
+      // unresolved symbols because it thinks these could be resolved later via
+      // a call to zeModuleDynamicLink.  However, modules created with
+      // piProgramLink are supposed to be fully linked and ready to use.
+      // Therefore, do an extra check now for unresolved symbols.  Note that we
+      // still create a ur_program_handle_t_ if there are unresolved symbols
+      // because the ZeBuildLog tells which symbols are unresolved.
+      if (ZeResult == ZE_RESULT_SUCCESS) {
+        ZeResult = checkUnresolvedSymbols(ZeModule, &ZeBuildLog);
+        if (ZeResult == ZE_RESULT_ERROR_MODULE_LINK_FAILURE) {
+          UrResult =
+              UR_RESULT_ERROR_UNKNOWN; // TODO:
+                                       // UR_RESULT_ERROR_PROGRAM_LINK_FAILURE;
+        } else if (ZeResult != ZE_RESULT_SUCCESS) {
+          return ze2urResult(ZeResult);
+        }
+      }
+
+      ZeModuleMap.insert(std::make_pair(ZeDevice, ZeModule));
+      ZeBuildLogMap.insert(std::make_pair(ZeDevice, ZeBuildLog));
     }
 
     ur_program_handle_t_::state State = (UrResult == UR_RESULT_SUCCESS)
                                             ? ur_program_handle_t_::Exe
                                             : ur_program_handle_t_::Invalid;
     ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(State, Context, ZeModule, ZeBuildLog);
+        new ur_program_handle_t_(State, Context, ZeModuleMap.begin()->second,
+                                 ZeBuildLogMap.begin()->second);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
+    (*Program)->ZeModuleMap = ZeModuleMap;
+    (*Program)->ZeBuildLogMap = ZeBuildLogMap;
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
@@ -434,11 +455,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
         Program, ///< [in] handle of the program to search for function in.
                  ///< The program must already be built to the specified
                  ///< device, or otherwise
-                 ///< ::UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is returned.
+                 ///< ::UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE is
+                 ///< returned.
     const char *FunctionName, ///< [in] A null-terminates string denoting the
                               ///< mangled function name.
-    void **FunctionPointerRet ///< [out] Returns the pointer to the function if
-                              ///< it is found in the program.
+    void **FunctionPointerRet ///< [out] Returns the pointer to the function
+                              ///< if it is found in the program.
 ) {
   std::ignore = Device;
 
@@ -608,13 +630,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
     ur_program_handle_t Program, ///< [in] handle of the Program object
     ur_device_handle_t Device,   ///< [in] handle of the Device object
     ur_program_build_info_t
-        PropName,    ///< [in] name of the Program build info to query
-    size_t PropSize, ///< [in] size of the Program build info property.
-    void *PropValue, ///< [in,out][optional] value of the Program build
-                     ///< property. If propSize is not equal to or greater than
-                     ///< the real number of bytes needed to return the info
-                     ///< then the ::UR_RESULT_ERROR_INVALID_SIZE error is
-                     ///< returned and pKernelInfo is not used.
+        PropName,       ///< [in] name of the Program build info to query
+    size_t PropSize,    ///< [in] size of the Program build info property.
+    void *PropValue,    ///< [in,out][optional] value of the Program build
+                        ///< property. If propSize is not equal to or greater
+                        ///< than the real number of bytes needed to return the
+                        ///< info then the ::UR_RESULT_ERROR_INVALID_SIZE error
+                        ///< is returned and pKernelInfo is not used.
     size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
                         ///< bytes of data being queried by propName.
 ) {
@@ -645,23 +667,26 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
     }
 
     // Next check if there is a Level Zero build log.
-    if (Program->ZeBuildLog) {
+    if (Program->ZeBuildLogMap.find(Device->ZeDevice) !=
+        Program->ZeBuildLogMap.end()) {
+      ze_module_build_log_handle_t ZeBuildLog =
+          Program->ZeBuildLogMap.begin()->second;
       size_t LogSize = PropSize;
       ZE2UR_CALL(zeModuleBuildLogGetString,
-                 (Program->ZeBuildLog, &LogSize, ur_cast<char *>(PropValue)));
+                 (ZeBuildLog, &LogSize, ur_cast<char *>(PropValue)));
       if (PropSizeRet) {
         *PropSizeRet = LogSize;
       }
       if (PropValue) {
-        // When the program build fails in urProgramBuild(), we delayed cleaning
-        // up the build log because RT later calls this routine to get the
-        // failed build log.
-        // To avoid memory leaks, we should clean up the failed build log here
-        // because RT does not create sycl::program when urProgramBuild() fails,
-        // thus it won't call urProgramRelease() to clean up the build log.
+        // When the program build fails in urProgramBuild(), we delayed
+        // cleaning up the build log because RT later calls this routine to
+        // get the failed build log. To avoid memory leaks, we should clean up
+        // the failed build log here because RT does not create sycl::program
+        // when urProgramBuild() fails, thus it won't call urProgramRelease()
+        // to clean up the build log.
         if (Program->State == ur_program_handle_t_::Invalid) {
-          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
-          Program->ZeBuildLog = nullptr;
+          ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
+          Program->ZeBuildLogMap.erase(Device->ZeDevice);
         }
       }
       return UR_RESULT_SUCCESS;
@@ -747,12 +772,14 @@ ur_program_handle_t_::~ur_program_handle_t_() {
   // According to Level Zero Specification, all kernels and build logs
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
-  if (ZeBuildLog) {
-    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
+  for (auto &ZeBuildLogPair : this->ZeBuildLogMap) {
+    ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLogPair.second));
   }
 
   if (ZeModule && OwnZeModule) {
-    ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
+    for (auto &ZeModulePair : this->ZeModuleMap) {
+      ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModulePair.second));
+    }
   }
 }
 
@@ -766,8 +793,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
   std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
 
   // Remember the value of this specialization constant until the program is
-  // built.  Note that we only save the pointer to the buffer that contains the
-  // value.  The caller is responsible for maintaining storage for this buffer.
+  // built.  Note that we only save the pointer to the buffer that contains
+  // the value.  The caller is responsible for maintaining storage for this
+  // buffer.
   //
   // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
   // SpecID.

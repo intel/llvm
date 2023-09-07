@@ -12,6 +12,11 @@
 #include <unordered_set>
 
 struct ur_kernel_handle_t_ : _ur_object {
+  ur_kernel_handle_t_(bool OwnZeHandle, ur_program_handle_t Program)
+      : Program{Program}, SubmissionsCount{0}, MemAllocs{} {
+    OwnNativeHandle = OwnZeHandle;
+  }
+
   ur_kernel_handle_t_(ze_kernel_handle_t Kernel, bool OwnZeHandle,
                       ur_program_handle_t Program)
       : Program{Program}, ZeKernel{Kernel}, SubmissionsCount{0}, MemAllocs{} {
@@ -32,6 +37,8 @@ struct ur_kernel_handle_t_ : _ur_object {
 
   // Level Zero function handle.
   ze_kernel_handle_t ZeKernel;
+
+  std::unordered_map<ze_device_handle_t, ze_kernel_handle_t> ZeKernelMap;
 
   // Counter to track the number of submissions of the kernel.
   // When this value is zero, it means that kernel is not submitted for an

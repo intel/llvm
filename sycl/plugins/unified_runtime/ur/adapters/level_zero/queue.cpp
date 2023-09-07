@@ -279,7 +279,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *Queue ///< [out] pointer to handle of queue object created
 ) {
-  Context->Devices[0] = Device;
+
+  ze_device_handle_t rootdevice = nullptr;
+  zeDeviceGetRootDevice(Device->ZeDevice, &rootdevice);
+
+  // fprintf(stderr, "%s %s %d Context->Devices[0] %lx Device %lx rootdevice %lx
+  // ZeDevice %lx\n",
+  //   __FILE__, __FUNCTION__, __LINE__,
+  //     (unsigned long int)Context->Devices[0],
+  //     (unsigned long int)Device,
+  //     (unsigned long int)rootdevice,
+  //     (unsigned long int)Device->ZeDevice);
+  // Context->Devices[0] = Device;
 
   ur_queue_flags_t Flags{};
   if (Props) {

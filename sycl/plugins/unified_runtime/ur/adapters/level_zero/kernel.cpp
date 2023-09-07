@@ -39,6 +39,50 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  // fprintf(stderr, "JAIME %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+  auto ZeDevice = Queue->Device->ZeDevice;
+  auto It = Kernel->ZeKernelMap.find(ZeDevice);
+
+  ze_device_handle_t RootDevice = nullptr;
+  if (It == Kernel->ZeKernelMap.end()) {
+
+    ZE2UR_CALL(zeDeviceGetRootDevice, (ZeDevice, &RootDevice));
+    It = Kernel->ZeKernelMap.find(RootDevice);
+
+    if (It == Kernel->ZeKernelMap.end()) {
+      return UR_RESULT_ERROR_UNKNOWN;
+    }
+  }
+
+  auto ZeKernel = It->second;
+
+  // fprintf(stderr, "JAIME %s %s %d rootdevice %lx ZeDevice %lx ZeKernel
+  // %lx\n",
+  // __FILE__, __FUNCTION__, __LINE__,
+  // (unsigned long int)RootDevice,
+  // (unsigned long int)ZeDevice,
+  // (unsigned long int)ZeKernel);
+
+  // uint32_t count = 0;
+  // zeDeviceGetSubDevices(ZeDevice, &count, nullptr);
+  // fprintf(stderr, "JAIME %s %s %d count %d\n",__FILE__, __FUNCTION__,
+  // __LINE__, count);
+
+  // std::vector<ze_device_handle_t> sub(count);
+  // zeDeviceGetSubDevices(ZeDevice, &count, sub.data());
+  // for (auto d: sub) {
+  //   fprintf(stderr, "JAIME %s %s %d sub %lx\n",
+  //   __FILE__, __FUNCTION__, __LINE__,
+  //   (unsigned long int)d);
+  // }
+
+  // fprintf(stderr, "JAIME %s %s %d Queue->Device %lx ZeDevice %lx ZeKernel
+  // %lx\n",
+  //   __FILE__, __FUNCTION__, __LINE__,
+  //   (unsigned long int)Queue->Device,
+  //   (unsigned long int)ZeDevice,
+  //   (unsigned long int)ZeKernel);
+
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
@@ -53,6 +97,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                 GlobalWorkOffset[2]));
   }
 
+  // fprintf(stderr, "JAIME %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+
   // If there are any pending arguments set them now.
   for (auto &Arg : Kernel->PendingArguments) {
     // The ArgValue may be a NULL pointer in which case a NULL value is used for
@@ -63,7 +109,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                         Queue->Device));
     }
     ZE2UR_CALL(zeKernelSetArgumentValue,
-               (Kernel->ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
+               (ZeKernel, Arg.Index, Arg.Size, ZeHandlePtr));
   }
   Kernel->PendingArguments.clear();
 
@@ -97,7 +143,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
     if (SuggestGroupSize) {
       ZE2UR_CALL(zeKernelSuggestGroupSize,
-                 (Kernel->ZeKernel, GlobalWorkSize[0], GlobalWorkSize[1],
+                 (ZeKernel, GlobalWorkSize[0], GlobalWorkSize[1],
                   GlobalWorkSize[2], &WG[0], &WG[1], &WG[2]));
     } else {
       for (int I : {0, 1, 2}) {
@@ -173,7 +219,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
   }
 
-  ZE2UR_CALL(zeKernelSetGroupSize, (Kernel->ZeKernel, WG[0], WG[1], WG[2]));
+  ZE2UR_CALL(zeKernelSetGroupSize, (ZeKernel, WG[0], WG[1], WG[2]));
 
   bool UseCopyEngine = false;
   _ur_ze_event_list_t TmpWaitList;
@@ -225,18 +271,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     Queue->CaptureIndirectAccesses();
     // Add the command to the command list, which implies submission.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*Event)->WaitList.Length,
-                (*Event)->WaitList.ZeEventList));
+               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
+                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   } else {
     // Add the command to the command list for later submission.
     // No lock is needed here, unlike the immediate commandlist case above,
     // because the kernels are not actually submitted yet. Kernels will be
     // submitted only when the comamndlist is closed. Then, a lock is held.
     ZE2UR_CALL(zeCommandListAppendLaunchKernel,
-               (CommandList->first, Kernel->ZeKernel, &ZeThreadGroupDimensions,
-                ZeEvent, (*Event)->WaitList.Length,
-                (*Event)->WaitList.ZeEventList));
+               (CommandList->first, ZeKernel, &ZeThreadGroupDimensions, ZeEvent,
+                (*Event)->WaitList.Length, (*Event)->WaitList.ZeEventList));
   }
 
   urPrint("calling zeCommandListAppendLaunchKernel() with"
@@ -359,22 +403,58 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelCreate(
     return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
   }
 
-  ZeStruct<ze_kernel_desc_t> ZeKernelDesc;
-  ZeKernelDesc.flags = 0;
-  ZeKernelDesc.pKernelName = KernelName;
-
-  ze_kernel_handle_t ZeKernel;
-  ZE2UR_CALL(zeKernelCreate, (Program->ZeModule, &ZeKernelDesc, &ZeKernel));
-
   try {
-    ur_kernel_handle_t_ *UrKernel =
-        new ur_kernel_handle_t_(ZeKernel, true, Program);
+    ur_kernel_handle_t_ *UrKernel = new ur_kernel_handle_t_(true, Program);
     *RetKernel = reinterpret_cast<ur_kernel_handle_t>(UrKernel);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+
+  for (auto It : Program->ZeModuleMap) {
+    auto ZeModule = It.second;
+    ZeStruct<ze_kernel_desc_t> ZeKernelDesc;
+    ZeKernelDesc.flags = 0;
+    ZeKernelDesc.pKernelName = KernelName;
+
+    ze_kernel_handle_t ZeKernel;
+    ZE2UR_CALL(zeKernelCreate, (ZeModule, &ZeKernelDesc, &ZeKernel));
+
+    auto ZeDevice = It.first;
+    (*RetKernel)->ZeKernelMap[ZeDevice] = ZeKernel;
+
+    // ze_device_handle_t rootdevice = nullptr;
+    // zeDeviceGetRootDevice(ZeDevice, &rootdevice);
+
+    // fprintf(stderr, "JAIME %s %s %d rootdevice %lx ZeDevice %lx Kernel %lx
+    // ZeKernel %lx (*RetKernel)->ZeKernelMap.size %zd\n",
+    // __FILE__, __FUNCTION__, __LINE__,
+    // (unsigned long int)rootdevice,
+    // (unsigned long int)ZeDevice,
+    // (unsigned long int)(*RetKernel),
+    // (unsigned long int)ZeKernel,
+    // (*RetKernel)->ZeKernelMap.size());
+
+    // {
+    //   uint32_t count = 0;
+    //   zeDeviceGetSubDevices(ZeDevice, &count, nullptr);
+    //   fprintf(stderr, "JAIME %s %s %d count %d\n",__FILE__, __FUNCTION__,
+    //   __LINE__, count);
+    //     std::vector<ze_device_handle_t> sub(count);
+    //   zeDeviceGetSubDevices(ZeDevice, &count, sub.data());
+    //   for (auto d: sub) {
+    //     ze_device_handle_t rootdevice = nullptr;
+    //     zeDeviceGetRootDevice(d, &rootdevice);
+    //     fprintf(stderr, "JAIME %s %s %d rootdevice %lx sub %lx\n",
+    //     __FILE__, __FUNCTION__, __LINE__,
+    //     (unsigned long int)rootdevice,
+    //     (unsigned long int)d);
+    //   }
+    // }
+  }
+
+  (*RetKernel)->ZeKernel = (*RetKernel)->ZeKernelMap.begin()->second;
 
   UR_CALL((*RetKernel)->initialize());
 
@@ -404,9 +484,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     PArgValue = nullptr;
   }
 
+  // fprintf(stderr, "JAIME %s %s %d Kernel->ZeKernelMap.size %zd\n",
+  //   __FILE__, __FUNCTION__, __LINE__, Kernel->ZeKernelMap.size());
+
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  ZE2UR_CALL(zeKernelSetArgumentValue,
-             (Kernel->ZeKernel, ArgIndex, ArgSize, PArgValue));
+  for (auto It : Kernel->ZeKernelMap) {
+    auto ZeKernel = It.second;
+    // fprintf(stderr, "JAIME %s %s %d Kernel %lx ZeKernel %lx\n",
+    //   __FILE__, __FUNCTION__, __LINE__,
+    //   (unsigned long int)Kernel,
+    //   (unsigned long int)ZeKernel);
+    ZE2UR_CALL(zeKernelSetArgumentValue,
+               (ZeKernel, ArgIndex, ArgSize, PArgValue));
+  }
+
+  // fprintf(stderr, "JAIME %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
 
   return UR_RESULT_SUCCESS;
 }
@@ -592,10 +684,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelRelease(
 
   auto KernelProgram = Kernel->Program;
   if (Kernel->OwnNativeHandle) {
-    auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (Kernel->ZeKernel));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      return ze2urResult(ZeResult);
+    // fprintf(stderr, "JAIME %s %s %d Kernel %lx ZeKernel %lx\n",
+    // __FILE__, __FUNCTION__, __LINE__,
+    // (unsigned long int)Kernel,
+    // (unsigned long int)(Kernel->ZeKernel));
+
+    for (auto &ZeKernelIt : Kernel->ZeKernelMap) {
+      auto ZeResult = ZE_CALL_NOCHECK(zeKernelDestroy, (ZeKernelIt.second));
+      // Gracefully handle the case that L0 was already unloaded.
+      if (ZeResult && ZeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        return ze2urResult(ZeResult);
+    }
   }
   if (IndirectAccessTrackingEnabled) {
     UR_CALL(urContextRelease(KernelProgram->Context));
@@ -636,33 +735,37 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
   std::ignore = Properties;
 
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
-      *(static_cast<const ur_bool_t *>(PropValue)) == true) {
-    // The whole point for users really was to not need to know anything
-    // about the types of allocations kernel uses. So in DPC++ we always
-    // just set all 3 modes for each kernel.
-    ze_kernel_indirect_access_flags_t IndirectFlags =
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-    ZE2UR_CALL(zeKernelSetIndirectAccess, (Kernel->ZeKernel, IndirectFlags));
-  } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
-    ze_cache_config_flag_t ZeCacheConfig{};
-    auto CacheConfig =
-        *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
-    if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
-      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
-      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
-      ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
-    else
-      // Unexpected cache configuration value.
+  for (auto It : Kernel->ZeKernelMap) {
+    auto ZeKernel = It.second;
+
+    if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
+        *(static_cast<const ur_bool_t *>(PropValue)) == true) {
+      // The whole point for users really was to not need to know anything
+      // about the types of allocations kernel uses. So in DPC++ we always
+      // just set all 3 modes for each kernel.
+      ze_kernel_indirect_access_flags_t IndirectFlags =
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
+      ZE2UR_CALL(zeKernelSetIndirectAccess, (ZeKernel, IndirectFlags));
+    } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+      ze_cache_config_flag_t ZeCacheConfig{};
+      auto CacheConfig =
+          *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
+      if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
+        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
+      else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
+        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
+      else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
+        ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
+      else
+        // Unexpected cache configuration value.
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
+    } else {
+      urPrint("urKernelSetExecInfo: unsupported ParamName\n");
       return UR_RESULT_ERROR_INVALID_VALUE;
-    ZE2UR_CALL(zeKernelSetCacheConfig, (Kernel->ZeKernel, ZeCacheConfig););
-  } else {
-    urPrint("urKernelSetExecInfo: unsupported ParamName\n");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
 
   return UR_RESULT_SUCCESS;
