@@ -322,10 +322,11 @@ void shutdown() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
-  Handler->MXPTIRegistry.Inst.reset(nullptr);
   Handler->unloadPlugins();
   if (Handler->MPlugins.Inst)
     Handler->MPlugins.Inst.reset(nullptr);
+
+  Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
   delete Handler;
