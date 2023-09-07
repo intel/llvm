@@ -75,7 +75,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
              // If no rounding to tf32 function is called, joint_matrix_mad
              // function will work on truncated floats.
              joint_matrix_apply(sg, sub_a,
-                                [=](float x) { x = round_to_tf32(x); });
+                                [=](float &x) { x = round_to_tf32(x); });
              auto wi_data_b =
                  sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_b);
              for (int i = 0; i < wi_data_b.length(); i++) {
@@ -85,7 +85,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
            }
            auto wi_slice_a =
                sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_a);
-           joint_matrix_apply(sg, sub_a, [=](float x) { x *= 2; });
+           joint_matrix_apply(sg, sub_a, [=](float &x) { x *= 2; });
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
