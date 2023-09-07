@@ -607,11 +607,11 @@ public:
   /// Set the corresponding device arch value for the current bundling action.
   /// This is used for specific bundles used for SYCL AOT when generating full
   /// device files that are bundled with the host object.
-  void setDeviceArch(StringRef Arch) { DeviceArch = Arch; }
+  void setDeviceArch(std::string Arch) { DeviceArch = Arch; }
 
-  StringRef getDeviceArch() const { return DeviceArch; }
+  std::string getDeviceArch() const { return DeviceArch; }
 private:
-  StringRef DeviceArch;
+  std::string DeviceArch;
 };
 
 class OffloadUnbundlingJobAction final : public JobAction {
@@ -638,10 +638,19 @@ public:
           DependentOffloadKind(DependentOffloadKind) {}
   };
 
+  /// Allow for a complete override of the target to unbundle.
+  /// This is used for specific unbundles used for SYCL AOT when generating full
+  /// device files that are bundled with the host object.
+  void setTargetString(std::string Target) { TargetString = Target; }
+
+  std::string getTargetString() const { return TargetString; }
+
 private:
   /// Container that keeps information about each dependence of this unbundling
   /// action.
   SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
+
+  std::string TargetString;
 
 public:
   // Offloading unbundling doesn't change the type of output.

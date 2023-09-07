@@ -9177,12 +9177,12 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     Triples += '-';
     // Incoming DeviceArch is set, break down the Current triple and add the
     // device arch value to it.
-    if (CurKind != Action::OFK_Host &&
-        !OffloadBundler->getDeviceArch().empty()) {
+    StringRef DeviceArch(OffloadBundler->getDeviceArch());
+    if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {
       llvm::Triple T(CurTC->getTriple());
       SmallString<128> ArchName(CurTC->getArchName());
       ArchName += "_";
-      ArchName += OffloadBundler->getDeviceArch();
+      ArchName += DeviceArch.data();
       T.setArchName(ArchName);
       Triples += T.normalize();
     } else {
@@ -9212,7 +9212,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       }
       Triples += GPUArchName.str();
     }
-    llvm::errs() << "  Unbundle Triples = " << Triples << '\n';
   }
   // If we see we are bundling for FPGA using -fintelfpga, add the
   // dependency bundle
@@ -9256,10 +9255,6 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
       UB += CurTC->getInputFilename(Inputs[I]);
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
-    llvm::errs() << "  Input" << I << " is " << UB << '\n';
-  }
-  for (auto *Input : JA.getInputs()) {
-    llvm::errs() << "  JA input " << Input << '\n';
   }
 
   // For -fintelfpga, when bundling objects we also want to bundle up the
@@ -9439,7 +9434,16 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += '-';
     Triples += types::getTypeName(types::TY_FPGA_Dependencies);
   }
-  CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  std::string TargetString(UA.getTargetString());
+  if (!TargetString.empty()) {
+    // The target string was provided, we will override the defaults and use
+    // the string provided.
+    SmallString<128> TSTriple("-targets=");
+    TSTriple += TargetString;
+    CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
+  } else {
+    CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  }
 
   // Get bundled file command.
   CmdArgs.push_back(
