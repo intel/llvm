@@ -1,6 +1,3 @@
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
 // Test not intended to run on PVC
 // UNSUPPORTED: gpu-intel-pvc
 //
@@ -20,6 +17,7 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include "../../invoke_simd_utils.hpp"
 #include "Inputs/common.hpp"
 
 int main(void) {
@@ -27,6 +25,12 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+
+  if (!isGPUDriverGE(q, GPUDriverOS::LinuxAndWindows, "26690", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
+    return 0;
+  }
+
   bool passed = true;
 
   // simd_size 8

@@ -2804,6 +2804,11 @@ def fno_global_isel : Flag<["-"], "fno-global-isel">, Group<f_clang_Group>,
   HelpText<"Disables the global instruction selector">;
 def fno_experimental_isel : Flag<["-"], "fno-experimental-isel">, Group<f_clang_Group>,
   Alias<fno_global_isel>;
+def faltmathlib_EQ : Joined<["-"], "faltmathlib=">, Group<f_Group>, Flags<[CC1Option]>,
+    Values<"SVMLAltMathLibrary,TestAltMathLibrary,none">,
+    NormalizedValuesScope<"CodeGenOptions">,
+    NormalizedValues<["SVMLAltMathLibrary", "TestAltMathLibrary","NoAltMathLibrary"]>,
+    MarshallingInfoEnum<CodeGenOpts<"AltMathLib">, "NoAltMathLibrary">;
 def fveclib : Joined<["-"], "fveclib=">, Group<f_Group>, Flags<[CC1Option]>,
     HelpText<"Use the given vector functions library">,
     Values<"Accelerate,libmvec,MASSV,SVML,SLEEF,Darwin_libsystem_m,ArmPL,none">,
@@ -3372,6 +3377,9 @@ def fsycl_max_parallel_jobs_EQ : Joined<["-"], "fsycl-max-parallel-link-jobs=">,
   HelpText<"Experimental feature: Controls the maximum parallelism of actions performed "
   "on SYCL device code post-link, i.e. the generation of SPIR-V device images "
   "or AOT compilation of each device image.">;
+def fsycl_preserve_device_nonsemantic_metadata : Flag<["-"], "fsycl-preserve-device-nonsemantic-metadata">,
+  Flags<[CoreOption, HelpHidden]>, HelpText<"Preserve non-semantic "
+  "metadata in SPIR-V device images.">;
 def ftarget_compile_fast : Flag<["-"], "ftarget-compile-fast">,
   Flags<[CoreOption]>, HelpText<"Experimental feature: Reduce target "
   "compilation time, with potential runtime performance trade-off.">;
@@ -6610,15 +6618,6 @@ defm enable_noundef_analysis : BoolOption<"",
   PosFlag<SetTrue, [], [ClangOption], "Enable">,
   NegFlag<SetFalse, [], [ClangOption], "Disable">,
   BothFlags<[], [ClangOption], " analyzing function argument and return types for mandatory definedness">>;
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-defm opaque_pointers : BoolOption<"",
-  "opaque-pointers",
-  CodeGenOpts<"OpaquePointers">,
-  DefaultTrue,
-  PosFlag<SetTrue, [], [ClangOption], "Enable">,
-  NegFlag<SetFalse, [], [ClangOption], "Disable">,
-  BothFlags<[], [ClangOption], " opaque pointers">>;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 def discard_value_names : Flag<["-"], "discard-value-names">,
   HelpText<"Discard value names in LLVM IR">,
   MarshallingInfoFlag<CodeGenOpts<"DiscardValueNames">>;

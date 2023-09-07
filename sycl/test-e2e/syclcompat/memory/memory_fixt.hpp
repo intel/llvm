@@ -24,10 +24,11 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>
+#include <syclcompat/launch.hpp>
 #include <syclcompat/memory.hpp>
 
-#define WG_SIZE 256
-#define NUM_WG 32
+constexpr size_t WG_SIZE = 256;
+constexpr size_t NUM_WG = 32;
 
 // Fixture to set up & launch a kernel to depend on, or
 // a host_task which depends on something else
@@ -159,4 +160,30 @@ template <typename T> struct USMTest {
   T *d_A;
   size_t size_;
   bool skip;
+};
+
+template <auto F> class LocalMemTest {
+public:
+  LocalMemTest(syclcompat::dim3 grid, syclcompat::dim3 threads)
+      : grid_{grid}, threads_{threads}, size_{grid_.size() * threads_.size()},
+        host_data_(size_) {
+    data_ = (int *)syclcompat::malloc(size_ * sizeof(int));
+  };
+  ~LocalMemTest() { syclcompat::free(data_); };
+
+  template <typename Lambda, typename... Args>
+  void launch_test(Lambda checker, Args... args) {
+    syclcompat::launch<F>(grid_, threads_, data_, args...);
+    syclcompat::memcpy(host_data_.data(), data_, size_ * sizeof(int));
+    checker(host_data_);
+  }
+
+private:
+  syclcompat::dim3 grid_;
+  syclcompat::dim3 threads_;
+  size_t size_;
+  sycl::queue q_;
+  int *data_;
+  std::vector<int> host_data_;
+  using CheckLambda = std::function<void(std::vector<int>)>;
 };

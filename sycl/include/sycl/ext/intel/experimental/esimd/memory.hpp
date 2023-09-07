@@ -109,11 +109,11 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// @return the vector value read from memory.
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
           uint8_t numDst, uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1,
-          int n1, typename T2, int n2, typename T3, int n3, int N = 16>
+          int n1, typename T2, int n2, typename T3, int n3>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
 raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
           __ESIMD_NS::simd<T3, n3> msgSrc1, uint32_t exDesc, uint32_t msgDesc,
-          __ESIMD_NS::simd_mask<N> mask = 1) {
+          __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -127,7 +127,7 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
 
-  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, N>(
+  return __esimd_raw_sends2<ElemT1, n1, ElemT2, n2, ElemT3, n3, execSize>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, numDst, sfid, exDesc,
       msgDesc, msgSrc0.data(), msgSrc1.data(), msgDst.data());
 }
@@ -192,10 +192,11 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
 /// @return the vector value read from memory
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numDst,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
-          typename T2, int n2, int N = 16>
+          typename T2, int n2>
 __ESIMD_API __ESIMD_NS::simd<T1, n1>
 raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
-         uint32_t exDesc, uint32_t msgDesc, __ESIMD_NS::simd_mask<N> mask = 1) {
+         uint32_t exDesc, uint32_t msgDesc,
+         __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send rspVar");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -205,7 +206,7 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgDst, __ESIMD_NS::simd<T2, n2> msgSrc0,
   using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, N>(
+  return __esimd_raw_send2<ElemT1, n1, ElemT2, n2, execSize>(
       modifier, execSize, mask.data(), numSrc0, numDst, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgDst.data());
 }
@@ -268,11 +269,11 @@ raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0, __ESIMD_NS::simd<T2, n2> msgSrc1,
 /// to on).
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t numSrc1,
           uint8_t isEOT = 0, uint8_t isSendc = 0, typename T1, int n1,
-          typename T2, int n2, int N = 16>
+          typename T2, int n2>
 __ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
                            __ESIMD_NS::simd<T2, n2> msgSrc1, uint32_t exDesc,
                            uint32_t msgDesc,
-                           __ESIMD_NS::simd_mask<N> mask = 1) {
+                           __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   constexpr unsigned _Width2 = n2 * sizeof(T2);
@@ -282,7 +283,7 @@ __ESIMD_API void raw_sends(__ESIMD_NS::simd<T1, n1> msgSrc0,
   using ElemT2 = __ESIMD_DNS::__raw_t<T2>;
 
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, N>(
+  __esimd_raw_sends2_noresult<ElemT1, n1, ElemT2, n2, execSize>(
       modifier, execSize, mask.data(), numSrc0, numSrc1, sfid, exDesc, msgDesc,
       msgSrc0.data(), msgSrc1.data());
 }
@@ -335,16 +336,17 @@ raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc, uint32_t msgDesc,
 /// @param mask is the predicate to specify enabled channels (optional - default
 /// to on).
 template <uint8_t execSize, uint8_t sfid, uint8_t numSrc0, uint8_t isEOT = 0,
-          uint8_t isSendc = 0, typename T1, int n1, int N = 16>
+          uint8_t isSendc = 0, typename T1, int n1>
 __ESIMD_API void raw_send(__ESIMD_NS::simd<T1, n1> msgSrc0, uint32_t exDesc,
-                          uint32_t msgDesc, __ESIMD_NS::simd_mask<N> mask = 1) {
+                          uint32_t msgDesc,
+                          __ESIMD_NS::simd_mask<execSize> mask = 1) {
   constexpr unsigned _Width1 = n1 * sizeof(T1);
   static_assert(_Width1 % 32 == 0, "Invalid size for raw send msgSrc0");
   using ElemT1 = __ESIMD_DNS::__raw_t<T1>;
   constexpr uint8_t modifier = ((isEOT & 0x1) << 1) | (isSendc & 0x1);
-  __esimd_raw_send2_noresult<ElemT1, n1, N>(modifier, execSize, mask.data(),
-                                            numSrc0, sfid, exDesc, msgDesc,
-                                            msgSrc0.data());
+  __esimd_raw_send2_noresult<ElemT1, n1, execSize>(
+      modifier, execSize, mask.data(), numSrc0, sfid, exDesc, msgDesc,
+      msgSrc0.data());
 }
 
 /// @} sycl_esimd_raw_send
