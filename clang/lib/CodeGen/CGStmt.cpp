@@ -409,6 +409,8 @@ void CodeGenFunction::EmitStmt(const Stmt *S, ArrayRef<const Attr *> Attrs) {
   case Stmt::OMPDispatchDirectiveClass:
     llvm_unreachable("Dispatch directive not supported yet.");
     break;
+  case Stmt::OMPScopeDirectiveClass:
+    llvm_unreachable("scope not supported with FE outlining");
   case Stmt::OMPMaskedDirectiveClass:
     EmitOMPMaskedDirective(cast<OMPMaskedDirective>(*S));
     break;
@@ -2196,15 +2198,9 @@ std::pair<llvm::Value*, llvm::Type *> CodeGenFunction::EmitAsmInputLValue(
         getTargetHooks().isScalarizableAsmOperand(*this, Ty)) {
       Ty = llvm::IntegerType::get(getLLVMContext(), Size);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       return {
           Builder.CreateLoad(InputValue.getAddress(*this).withElementType(Ty)),
           nullptr};
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      return {Builder.CreateLoad(Builder.CreateElementBitCast(
-                  InputValue.getAddress(*this), Ty)),
-              nullptr};
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     }
   }
 
@@ -2404,12 +2400,7 @@ EmitAsmStores(CodeGenFunction &CGF, const AsmStmt &S,
     // ResultTypeRequiresCast.size() elements of RegResults.
     if ((i < ResultTypeRequiresCast.size()) && ResultTypeRequiresCast[i]) {
       unsigned Size = CGF.getContext().getTypeSize(ResultRegQualTys[i]);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Address A = Dest.getAddress(CGF).withElementType(ResultRegTypes[i]);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Address A =
-          Builder.CreateElementBitCast(Dest.getAddress(CGF), ResultRegTypes[i]);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       if (CGF.getTargetHooks().isScalarizableAsmOperand(CGF, TruncTy)) {
         Builder.CreateStore(Tmp, A);
         continue;
@@ -2589,12 +2580,7 @@ void CodeGenFunction::EmitAsmStmt(const AsmStmt &S) {
       // Otherwise there will be a mis-match if the matrix is also an
       // input-argument which is represented as vector.
       if (isa<MatrixType>(OutExpr->getType().getCanonicalType()))
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
         DestAddr = DestAddr.withElementType(ConvertType(OutExpr->getType()));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-        DestAddr = Builder.CreateElementBitCast(
-            DestAddr, ConvertType(OutExpr->getType()));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
       ArgTypes.push_back(DestAddr.getType());
       ArgElemTypes.push_back(DestAddr.getElementType());
