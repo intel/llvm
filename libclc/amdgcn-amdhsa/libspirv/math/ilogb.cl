@@ -8,7 +8,7 @@
 
 #include <clcmacro.h>
 #include <spirv/spirv.h>
- 
+
 int __ocml_ilogb_f32(float);
 _CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __ocml_ilogb_f32, float)
 

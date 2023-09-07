@@ -5,10 +5,10 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
- 
+
 #include <clcmacro.h>
 #include <spirv/spirv.h>
- 
+
 #define __CLC_FUNCTION __spirv_ocl_rsqrt
 #define __CLC_BUILTIN __ocml_rsqrt
 

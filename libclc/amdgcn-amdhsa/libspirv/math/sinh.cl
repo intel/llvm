@@ -8,7 +8,7 @@
 
 #include <clcmacro.h>
 #include <spirv/spirv.h>
- 
+
 #define __CLC_FUNCTION __spirv_ocl_sinh
 #define __CLC_BUILTIN __ocml_sinh
 
@@ -28,4 +28,3 @@ half __ocml_sinh_f16(half);
 #endif // cl_khr_fp16
 
 #include <math/unary_builtin.inc>
-

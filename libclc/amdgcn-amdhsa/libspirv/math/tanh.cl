@@ -8,7 +8,7 @@
 
 #include <clcmacro.h>
 #include <spirv/spirv.h>
- 
+
 #define __CLC_FUNCTION __spirv_ocl_tanh
 #define __CLC_BUILTIN __ocml_tanh
 
