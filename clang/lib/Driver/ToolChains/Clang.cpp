@@ -9159,7 +9159,49 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
                    ? Action::GetOffloadKindName(Action::OFK_SYCL)
                    : Action::GetOffloadKindName(CurKind);
     Triples += '-';
-    Triples += CurTC->getTriple().normalize();
+    // Incoming DeviceArch is set, break down the Current triple and add the
+    // device arch value to it.
+    std::string DeviceArch;
+    if (CurKind == Action::OFK_SYCL &&
+        CurTC->getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen &&
+        TCArgs.hasArg(options::OPT_ftarget_device_link)) {
+      ArgStringList TargetArgs;
+      const toolchains::SYCLToolChain &TC =
+          static_cast<const toolchains::SYCLToolChain &>(*CurTC);
+      TC.TranslateBackendTargetArgs(TC.getTriple(), C.getInputArgs(),
+                                    TargetArgs);
+      for (auto Cur = TargetArgs.begin(), Prev = Cur++; Cur != TargetArgs.end();
+           Cur++, Prev++) {
+        std::string PrevArg(*Prev);
+        std::string CurArg(*Cur);
+        auto replacechar = [](std::string Arg) -> std::string {
+          int Len = Arg.size();
+          for (int I = 0; I < Len; I++) {
+            if (Arg[I] == '-' || Arg[I] == ',' || Arg[I] == ':')
+              Arg[I] = '_';
+            else if (Arg[I] == '*')
+              Arg[I] = 'x';
+          }
+          return Arg;
+        };
+        if (PrevArg.compare("-device") == 0) {
+          // Previous arg is -device, the current arg is considered for the
+          // string to return.
+          // Do some simple conversions to make a valid string.
+          DeviceArch = std::string(replacechar(CurArg));
+        }
+      }
+    }
+    if (CurKind != Action::OFK_Host && !DeviceArch.empty()) {
+      llvm::Triple T(CurTC->getTriple());
+      SmallString<128> ArchName(CurTC->getArchName());
+      ArchName += "_";
+      ArchName += DeviceArch.data();
+      T.setArchName(ArchName);
+      Triples += T.normalize();
+    } else {
+      Triples += CurTC->getTriple().normalize();
+    }
     if ((CurKind == Action::OFK_HIP || CurKind == Action::OFK_OpenMP ||
          CurKind == Action::OFK_Cuda || CurKind == Action::OFK_SYCL) &&
         !StringRef(CurDep->getOffloadingArch()).empty() &&
@@ -9228,6 +9270,7 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     }
     CmdArgs.push_back(TCArgs.MakeArgString(UB));
   }
+
   // For -fintelfpga, when bundling objects we also want to bundle up the
   // named dependency file.
   if (IsFPGADepBundle) {
@@ -9405,7 +9448,16 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     Triples += '-';
     Triples += types::getTypeName(types::TY_FPGA_Dependencies);
   }
-  CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  std::string TargetString(UA.getTargetString());
+  if (!TargetString.empty()) {
+    // The target string was provided, we will override the defaults and use
+    // the string provided.
+    SmallString<128> TSTriple("-targets=");
+    TSTriple += TargetString;
+    CmdArgs.push_back(TCArgs.MakeArgString(TSTriple));
+  } else {
+    CmdArgs.push_back(TCArgs.MakeArgString(Triples));
+  }
 
   // Get bundled file command.
   CmdArgs.push_back(
