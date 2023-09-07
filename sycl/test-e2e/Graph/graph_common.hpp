@@ -401,13 +401,13 @@ auto add_empty_node(
 }
 
 // Values for dotp tests
-constexpr float Alpha = 1.0f;
-constexpr float Beta = 2.0f;
-constexpr float Gamma = 3.0f;
+constexpr int Alpha = 1;
+constexpr int Beta = 2;
+constexpr int Gamma = 3;
 
 // Reference function for dotp
-float dotp_reference_result(size_t N) {
-  return N * (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
+int dotp_reference_result(size_t N) {
+  return N * (Alpha * 1 + Beta * 2) * (Gamma * 3 + Beta * 2);
 }
 
 /* Single use thread barrier which makes threads wait until defined number of

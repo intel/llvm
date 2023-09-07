@@ -1862,11 +1862,6 @@ private:
       return C;
 
     llvm::Type *origPtrTy = C->getType();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    unsigned AS = origPtrTy->getPointerAddressSpace();
-    llvm::Type *charPtrTy = CGM.Int8Ty->getPointerTo(AS);
-    C = llvm::ConstantExpr::getBitCast(C, charPtrTy);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     C = llvm::ConstantExpr::getGetElementPtr(CGM.Int8Ty, C, getOffset());
     C = llvm::ConstantExpr::getPointerCast(C, origPtrTy);
     return C;
@@ -1976,20 +1971,8 @@ ConstantLValueEmitter::tryEmitBase(const APValue::LValueBase &base) {
   }
 
   // Handle typeid(T).
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   if (TypeInfoLValue TI = base.dyn_cast<TypeInfoLValue>())
     return CGM.GetAddrOfRTTIDescriptor(QualType(TI.getType(), 0));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  if (TypeInfoLValue TI = base.dyn_cast<TypeInfoLValue>()) {
-    llvm::Type *StdTypeInfoPtrTy =
-        CGM.getTypes().ConvertType(base.getTypeInfoType())->getPointerTo();
-    llvm::Constant *TypeInfo =
-        CGM.GetAddrOfRTTIDescriptor(QualType(TI.getType(), 0));
-    if (TypeInfo->getType() != StdTypeInfoPtrTy)
-      TypeInfo = llvm::ConstantExpr::getBitCast(TypeInfo, StdTypeInfoPtrTy);
-    return TypeInfo;
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Otherwise, it must be an expression.
   return Visit(base.get<const Expr*>());
