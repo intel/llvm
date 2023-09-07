@@ -23,6 +23,14 @@
 #include <variant>
 
 namespace sycl {
+
+// device_copyable trait
+template <typename T, typename PropertyList>
+struct is_device_copyable<
+  ext::oneapi::experimental::annotated_ptr<T, PropertyList>,
+  std::enable_if_t<!std::is_trivially_copyable_v<ext::oneapi::experimental::annotated_ptr<T, PropertyList>>>>
+  : is_device_copyable<T> {};
+
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
@@ -184,13 +192,6 @@ class annotated_ptr {
   static_assert(is_property_list<PropertyListT>::value,
                 "Property list is invalid.");
 };
-
-// device_copyable trait
-template <typename T, typename... Props>
-struct is_device_copyable<
-  annotated_arg<T, detail::properties_t<Props...>>,
-  std::enable_if_t<!std::is_trivially_copyable_v<annotated_arg<T, detail::properties_t<Props...>>>>>
-  : is_device_copyable<T> {};
 
 template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
