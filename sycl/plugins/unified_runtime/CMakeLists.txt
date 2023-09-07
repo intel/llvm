@@ -288,9 +288,10 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
     INCLUDE_DIRS
     ${sycl_inc_dir}
     LIBRARIES
-    UnifiedRuntime-Headers
-    Threads::Threads
-    sycl
+      UnifiedRuntime-Headers
+      Threads::Threads
+      sycl
+      OpenCL-Headers
   )
 
   set_target_properties("ur_adapter_native_cpu" PROPERTIES

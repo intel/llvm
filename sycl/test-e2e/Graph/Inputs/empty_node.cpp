@@ -11,7 +11,7 @@ int main() {
                                MyProperties};
 
   const size_t N = 10;
-  float *Arr = malloc_device<float>(N, Queue);
+  int *Arr = malloc_device<int>(N, Queue);
 
   auto Start = add_empty_node(Graph, Queue);
 
@@ -47,11 +47,11 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  std::vector<float> HostData(N);
-  Queue.memcpy(HostData.data(), Arr, N * sizeof(float)).wait();
+  std::vector<int> HostData(N);
+  Queue.memcpy(HostData.data(), Arr, N * sizeof(int)).wait();
 
   for (int i = 0; i < N; i++)
-    assert(HostData[i] == 1.f);
+    assert(HostData[i] == 1);
 
   sycl::free(Arr, Queue);
 
