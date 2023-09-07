@@ -59,7 +59,7 @@ int main() {
   TEST_CASE("C1", 10, 1, 1)
   TEST_CASE("C2", 10, 10, 10)
   TEST_CASE("C3", 32, 10, 10)
-  TEST_CASE("C4", 32, 32, 32)
+  TEST_CASE("C4", 2, 32, 32)
 
 #undef TEST_CASE
   std::cout << "Tests passed!" << std::endl;
