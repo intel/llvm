@@ -19,8 +19,9 @@ using nativecpu_task_t = std::function<nativecpu_kernel_t>;
 
 struct local_arg_info_t {
   uint32_t argIndex;
-  size_t argSize; 
-  local_arg_info_t(uint32_t argIndex, size_t argSize) : argIndex(argIndex), argSize(argSize) {}
+  size_t argSize;
+  local_arg_info_t(uint32_t argIndex, size_t argSize)
+      : argIndex(argIndex), argSize(argSize) {}
 };
 
 struct ur_kernel_handle_t_ : RefCounted {
@@ -37,8 +38,9 @@ struct ur_kernel_handle_t_ : RefCounted {
   void handleLocalArgs() {
     updateMemPool();
     size_t offset = 0;
-    for(auto& entry : _localArgInfo) {
-      _args[entry.argIndex].MPtr = reinterpret_cast<char*>(_localMemPool) + offset;
+    for (auto &entry : _localArgInfo) {
+      _args[entry.argIndex].MPtr =
+          reinterpret_cast<char *>(_localMemPool) + offset;
       // update offset in the memory pool
       // Todo: update this offset computation when we have work-group
       // level parallelism.
@@ -47,23 +49,24 @@ struct ur_kernel_handle_t_ : RefCounted {
   }
 
   ~ur_kernel_handle_t_() {
-    if(_localMemPool) {
+    if (_localMemPool) {
       free(_localMemPool);
-    } 
+    }
   }
+
 private:
   void updateMemPool() {
     // compute requested size.
-    // Todo: currently we execute only one work-group at a time, so for each local
-    // arg we can allocate just 1 * argSize local arg. When we implement work-group
-    // level parallelism we should allocate N * argSize where N is the number
-    // of work groups being executed in parallel (e.g. number of threads in the thread
-    // pool).
+    // Todo: currently we execute only one work-group at a time, so for each
+    // local arg we can allocate just 1 * argSize local arg. When we implement
+    // work-group level parallelism we should allocate N * argSize where N is
+    // the number of work groups being executed in parallel (e.g. number of
+    // threads in the thread pool).
     size_t reqSize = 0;
-    for(auto& entry : _localArgInfo) {
+    for (auto &entry : _localArgInfo) {
       reqSize += entry.argSize;
     }
-    if(reqSize == 0 || reqSize == _localMemPoolSize) {
+    if (reqSize == 0 || reqSize == _localMemPoolSize) {
       return;
     }
     // realloc handles nullptr case

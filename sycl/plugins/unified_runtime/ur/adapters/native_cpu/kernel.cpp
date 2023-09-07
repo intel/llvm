@@ -56,8 +56,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
     const ur_kernel_arg_local_properties_t *pProperties) {
   std::ignore = pProperties;
   // emplace a placeholder kernel arg, gets replaced with a pointer to the
-  // memory pool before enqueueing the kernel. 
-  hKernel->_args.emplace_back(nullptr); 
+  // memory pool before enqueueing the kernel.
+  hKernel->_args.emplace_back(nullptr);
   hKernel->_localArgInfo.emplace_back(argIndex, argSize);
   return UR_RESULT_SUCCESS;
 }
