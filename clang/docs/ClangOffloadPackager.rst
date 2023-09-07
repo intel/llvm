@@ -97,6 +97,8 @@ the following values for the :ref:`offload kind<table-offload_kind>` and the
     +---------------+-------+---------------------------------------+
     | IMG_PTX       | 0x05  | The image is a CUDA PTX file          |
     +---------------+-------+---------------------------------------+
+    | IMG_SPV       | 0x06  | The image is a SPIR-V file            |
+    +---------------+-------+---------------------------------------+
 
 .. table:: Offload Kind
     :name: table-offload_kind

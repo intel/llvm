@@ -134,3 +134,13 @@ def sycl_device_lib_EQ : CommaJoined<["-"], "sycl-device-libraries=">,
 def sycl_device_library_location_EQ : Joined<["-"],
   "sycl-device-library-location=">, Flags<[WrapperOnlyOption]>,
   HelpText<"Location of SYCL device library files">;
+
+// Special option to pass in sycl-post-link options
+def sycl_post_link_options_EQ : Joined<["-"], "sycl-post-link-options=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that will control sycl-post-link step">;
+
+// Special option to pass in llvm-spirv options
+def llvm_spirv_options_EQ : Joined<["-"], "llvm-spirv-options=">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Options that will control llvm-spirv step">;
