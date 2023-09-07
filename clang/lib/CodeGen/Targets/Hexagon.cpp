@@ -234,11 +234,7 @@ Address HexagonABIInfo::EmitVAArgForHexagon(CodeGenFunction &CGF,
   // FIXME: Need to handle alignment
   llvm::Type *BP = CGF.Int8PtrTy;
   CGBuilderTy &Builder = CGF.Builder;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address VAListAddrAsBPP = VAListAddr.withElementType(BP);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Address VAListAddrAsBPP = Builder.CreateElementBitCast(VAListAddr, BP, "ap");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *Addr = Builder.CreateLoad(VAListAddrAsBPP, "ap.cur");
   // Handle address alignment for type alignment > 32 bits
   uint64_t TyAlign = CGF.getContext().getTypeAlign(Ty) / 8;

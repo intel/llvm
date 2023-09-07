@@ -519,10 +519,6 @@ ENUM_CODEGENOPT(ZeroCallUsedRegs, llvm::ZeroCallUsedRegs::ZeroCallUsedRegsKind,
 /// checksum calculations or not.
 CODEGENOPT(SYCLUseMainFileName, 1, 0)
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-/// Whether to use opaque pointers.
-CODEGENOPT(OpaquePointers, 1, 0)
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 /// Modify C++ ABI to returning `this` pointer from constructors and
 /// non-deleting destructors. (No effect on Microsoft ABI.)
