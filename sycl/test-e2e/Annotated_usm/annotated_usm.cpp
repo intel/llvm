@@ -30,9 +30,10 @@ void TestUsmKind(sycl::queue &q) {
   auto APtr3 = malloc_host_annotated<int>(N, q);
   assert(sycl::get_pointer_type(APtr3.get(), Ctx) == alloc::host);
 
-  if (dev.has(aspect::usm_shared_allocations)) {
+  if (dev.has(sycl::aspect::usm_shared_allocations)) {
     auto APtr4 = malloc_shared_annotated(N, q);
     assert(sycl::get_pointer_type(APtr4.get(), Ctx) == alloc::shared);
+    free(APtr4, q);
   }
 
   // the USM kind is specified in the propList
@@ -48,7 +49,6 @@ void TestUsmKind(sycl::queue &q) {
   free(APtr1, q);
   free(APtr2, q);
   free(APtr3, q);
-  free(APtr4, q);
   free(APtr5, q);
   free(APtr6, q);
 }
@@ -99,8 +99,7 @@ void TestAlign(sycl::queue &q) {
   // The raw pointer of APtr8 is 56-byte
   // aligned (if this alignment is supported by the implementation)
   auto APtr8 = aligned_alloc_device_annotated<int>(7, N, q, P10);
-  // assert((APtr6.get() & ) == 0);
-  std::cout << APtr8.get() << std::endl;
+  assert(((uintptr_t)APtr8.get() % 56) == 0);
 
   free(APtr1, q);
   free(APtr2, q);
