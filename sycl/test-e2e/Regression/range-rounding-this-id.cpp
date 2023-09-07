@@ -47,11 +47,11 @@ template <int D> void test(queue &q) {
 
 int main() {
   queue q;
-  // CHECK: parallel_for range adjusted from 3 to 32
+  // CHECK: parallel_for range adjusted at dim 0 from 3 to 32
   test<1>(q);
-  // CHECK: parallel_for range adjusted from 3 to 32
+  // CHECK: parallel_for range adjusted at dim 0 from 3 to 32
   test<2>(q);
-  // CHECK: parallel_for range adjusted from 3 to 32
+  // CHECK: parallel_for range adjusted at dim 0 from 3 to 32
   test<3>(q);
   if (n_fail == 0)
     std::cout << "pass\n";

@@ -1,5 +1,5 @@
-// RUN: %{build} -fno-sycl-id-queries-fit-in-int -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t.out
+// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out
 
 #include <numeric>
 #include <sycl/sycl.hpp>

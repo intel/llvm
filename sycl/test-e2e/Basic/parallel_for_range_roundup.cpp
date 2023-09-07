@@ -190,22 +190,22 @@ int main() {
   return 0;
 }
 
-// CHECK:       parallel_for range adjusted from 1500 to 1504
+// CHECK:       parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Size seen by user = 1500
 // CHECK-NEXT:  Counter = 1500
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Size seen by user = 1500
 // CHECK-NEXT:  Counter = 15000
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Size seen by user = 1500
 // CHECK-NEXT:  Counter = 150000
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Counter = 1500
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Counter = 15000
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Counter = 150000
-// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  parallel_for range adjusted at dim 0 from 1500 to 1504
 // CHECK-NEXT:  Counter = 150000
 // CHECK-NEXT:  Size seen by user = 256
 // CHECK-NEXT:  Counter = 256

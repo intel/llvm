@@ -1070,6 +1070,81 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
+  template <int Dims> bool adjustRange(range<Dims> &NewRange) {
+    // Disable the rounding-up optimizations under these conditions:
+    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
+    // 2. The kernel is provided via an interoperability method (this uses a
+    // different code path).
+    // 3. The range is already a multiple of the rounding factor.
+    //
+    // Cases 2 and 3 could be supported with extra effort.
+    // As an optimization for the common case it is an
+    // implementation choice to not support those scenarios.
+    // Note that "this_item" is a free function, i.e. not tied to any
+    // specific id or item. When concurrent parallel_fors are executing
+    // on a device it is difficult to tell which parallel_for the call is
+    // being made from. One could replicate portions of the
+    // call-graph to make this_item calls kernel-specific but this is
+    // not considered worthwhile.
+
+    // Perform range rounding if rounding-up is enabled
+    // and there are sufficient work-items to need rounding
+    // and the user-specified range is not a multiple of a "good" value.
+    if (this->DisableRangeRounding())
+      return false;
+
+    // Range should be a multiple of this for reasonable performance.
+    size_t MinFactorX = 16;
+    // Range should be a multiple of this for improved performance.
+    size_t GoodFactor = 32;
+    // Range should be at least this to make rounding worthwhile.
+    size_t MinRangeX = 1024;
+
+    // Check if rounding parameters have been set through environment:
+    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
+    this->GetRangeRoundingSettings(MinFactorX, GoodFactor, MinRangeX);
+
+    // In SYCL, each dimension of a global range size is specified by
+    // a size_t, which can be up to 64 bits.  All backends should be
+    // able to accept a kernel launch with a 32-bit global range size
+    // (i.e. do not throw an error).  The OpenCL CPU backend will
+    // accept every 64-bit global range, but the GPU backends will not
+    // generally accept every 64-bit global range.  So, when we get a
+    // non-32-bit global range, we wrap the old kernel in a new kernel
+    // that has each work item peform multiple invocations the old
+    // kernel in a 32-bit global range.
+    auto Dev = detail::getDeviceFromHandler(*this);
+    auto MaxNWGs = Dev.get_info<
+        ext::oneapi::experimental::info::device::max_work_groups<Dims>>();
+    auto M = (std::numeric_limits<int32_t>::max)();
+    range<Dims> MaxRange;
+    for (int i = 0; i < Dims; ++i) {
+      MaxRange[i] = MaxNWGs[i] * GoodFactor;
+      if (MaxRange[i] > M) {
+        MaxRange[i] = M;
+        MaxRange[i] = (MaxRange[i] / GoodFactor) * GoodFactor;
+      }
+    }
+
+    bool did_adjust = false;
+    auto adjust = [&](int dim, size_t value) {
+      if (this->RangeRoundingTrace())
+        std::cout << "parallel_for range adjusted at dim " << dim << " from "
+                  << NewRange[dim] << " to " << value << std::endl;
+      NewRange[dim] = value;
+      did_adjust = true;
+    };
+
+    if (NewRange[0] % MinFactorX != 0 && NewRange[0] >= MinRangeX)
+      adjust(0, ((NewRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
+
+    for (int i = 0; i < Dims; ++i)
+      if (NewRange[i] > MaxRange[i])
+        adjust(i, MaxRange[i]);
+
+    return did_adjust;
+  }
+
   /// Defines and invokes a SYCL kernel function for the specified range.
   ///
   /// The SYCL kernel function is defined as a lambda function or a named
@@ -1118,63 +1193,9 @@ private:
     auto OldRange = NumWorkItems;
     auto NewRange = NumWorkItems;
 
-    // In SYCL, each dimension of a global range size is specified by
-    // a size_t, which can be up to 64 bits.  All backends should be
-    // able to accept a kernel launch with a 32-bit global range size
-    // (i.e. do not throw an error).  The OpenCL CPU backend will
-    // accept every 64-bit global range, but the GPU backends will not
-    // generally accept every 64-bit global range.  So, when we get a
-    // non-32-bit global range, we wrap the old kernel in a new kernel
-    // that has each work item peform multiple invocations the old
-    // kernel in a 32-bit global range.
-    for (int i = 0; i < Dims; ++i)
-      if (NewRange[i] > std::numeric_limits<uint32_t>::max())
-        NewRange[i] = std::numeric_limits<uint32_t>::max();
+    bool did_adjust = adjustRange(NewRange);
 
-    // Range should be a multiple of this for reasonable performance.
-    size_t MinFactorX = 16;
-    // Range should be a multiple of this for improved performance.
-    size_t GoodFactorX = 32;
-    // Range should be at least this to make rounding worthwhile.
-    size_t MinRangeX = 1024;
-
-    // Check if rounding parameters have been set through environment:
-    // SYCL_PARALLEL_FOR_RANGE_ROUNDING_PARAMS=MinRound:PreferredRound:MinRange
-    this->GetRangeRoundingSettings(MinFactorX, GoodFactorX, MinRangeX);
-
-    // Disable the rounding-up optimizations under these conditions:
-    // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The kernel is provided via an interoperability method (this uses a
-    // different code path).
-    // 3. The range is already a multiple of the rounding factor.
-    //
-    // Cases 2 and 3 could be supported with extra effort.
-    // As an optimization for the common case it is an
-    // implementation choice to not support those scenarios.
-    // Note that "this_item" is a free function, i.e. not tied to any
-    // specific id or item. When concurrent parallel_fors are executing
-    // on a device it is difficult to tell which parallel_for the call is
-    // being made from. One could replicate portions of the
-    // call-graph to make this_item calls kernel-specific but this is
-    // not considered worthwhile.
-
-    // Perform range rounding if rounding-up is enabled
-    // and there are sufficient work-items to need rounding
-    // and the user-specified range is not a multiple of a "good" value.
-    if (!this->DisableRangeRounding() && (NumWorkItems[0] >= MinRangeX) &&
-        (NumWorkItems[0] % MinFactorX != 0)) {
-      // It is sufficient to round up just the first dimension.
-      // Multiplying the rounded-up value of the first dimension
-      // by the values of the remaining dimensions (if any)
-      // will yield a rounded-up value for the total range.
-      size_t NewValX =
-          ((NumWorkItems[0] + GoodFactorX - 1) / GoodFactorX) * GoodFactorX;
-      if (this->RangeRoundingTrace())
-        std::cout << "parallel_for range adjusted from " << NumWorkItems[0]
-                  << " to " << NewValX << std::endl;
-
-      NewRange.set_range_dim0(NewValX);
-
+    if (did_adjust) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
