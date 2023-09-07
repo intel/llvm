@@ -70,17 +70,9 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     std::call_once(
         InitFlag,
         [](ur_result_t &Result) {
-          Result = UR_CHECK_ERROR(cuInit(0));
-          if (Result != UR_RESULT_SUCCESS) {
-            NumPlatforms = 0;
-            return;
-          }
+          UR_CHECK_ERROR(cuInit(0));
           int NumDevices = 0;
-          Result = UR_CHECK_ERROR(cuDeviceGetCount(&NumDevices));
-          if (NumDevices == 0) {
-            NumPlatforms = 0;
-            return;
-          }
+          UR_CHECK_ERROR(cuDeviceGetCount(&NumDevices));
           try {
             // make one platform per device
             NumPlatforms = NumDevices;
@@ -88,17 +80,16 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
             for (int i = 0; i < NumDevices; ++i) {
               CUdevice Device;
-              Result = UR_CHECK_ERROR(cuDeviceGet(&Device, i));
+              UR_CHECK_ERROR(cuDeviceGet(&Device, i));
               CUcontext Context;
-              Result =
-                  UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Context, Device));
+              UR_CHECK_ERROR(cuDevicePrimaryCtxRetain(&Context, Device));
 
               ScopedContext active(Context);
               CUevent EvBase;
-              Result = UR_CHECK_ERROR(cuEventCreate(&EvBase, CU_EVENT_DEFAULT));
+              UR_CHECK_ERROR(cuEventCreate(&EvBase, CU_EVENT_DEFAULT));
 
               // Use default stream to record base event counter
-              Result = UR_CHECK_ERROR(cuEventRecord(EvBase, 0));
+              UR_CHECK_ERROR(cuEventRecord(EvBase, 0));
 
               Platforms[i].Devices.emplace_back(new ur_device_handle_t_{
                   Device, Context, EvBase, &Platforms[i]});
@@ -138,6 +129,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               Platforms[i].Devices.clear();
             }
             Platforms.clear();
+            Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
             throw;
           }
         },

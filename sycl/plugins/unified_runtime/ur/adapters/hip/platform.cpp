@@ -69,7 +69,8 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             return;
           }
           int NumDevices = 0;
-          Err = UR_CHECK_ERROR(hipGetDeviceCount(&NumDevices));
+          Err = UR_RESULT_SUCCESS;
+          UR_CHECK_ERROR(hipGetDeviceCount(&NumDevices));
           if (NumDevices == 0) {
             NumPlatforms = 0;
             return;
@@ -81,9 +82,9 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
 
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
-              Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              UR_CHECK_ERROR(hipDeviceGet(&Device, i));
               hipCtx_t Context;
-              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
+              UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
                   new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
             }
@@ -100,6 +101,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
               PlatformIds[i].Devices.clear();
             }
             PlatformIds.clear();
+            Err = UR_RESULT_ERROR_UNKNOWN;
             throw;
           }
         },
