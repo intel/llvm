@@ -588,8 +588,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
                             imageSizeBytes, 0 /*flags*/,
                             (void **)&outputStagingData));
   for (int i = 0; i < num_elems; ++i) {
-    VecType expected = input_vector_0[i];
-    expected += input_vector_1[i];
+    VecType expected = input_vector_0[i] + input_vector_1[i];
     for (int j = 0; j < NChannels; ++j) {
       // Use helper function to determine if data is accepted
       // For integers, exact results are expected
