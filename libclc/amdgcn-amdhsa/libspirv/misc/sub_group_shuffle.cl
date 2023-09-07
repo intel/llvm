@@ -11,8 +11,6 @@
 #define SELF __spirv_SubgroupLocalInvocationId();
 #define SUBGROUP_SIZE __spirv_SubgroupMaxSize()
 
-#pragma OPENCL EXTENSION cl_khr_fp16 : enable
-
 // Shuffle
 // int __spirv_SubgroupShuffleINTEL<int>(int, unsigned int)
 _CLC_DEF int
@@ -35,7 +33,12 @@ __AMDGCN_CLC_SUBGROUP_SUB_I32(char, a);
 __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned char, h);
 __AMDGCN_CLC_SUBGROUP_SUB_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_SUB_I32(unsigned short, t);
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 __AMDGCN_CLC_SUBGROUP_SUB_I32(half, v);
+#endif // cl_khr_fp16
+
 #undef __AMDGCN_CLC_SUBGROUP_SUB_I32
 
 // 32-bit types.
@@ -296,7 +299,12 @@ __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(char, a);
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned char, h);
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(short, s);
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(unsigned short, t);
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
 __AMDGCN_CLC_SUBGROUP_UP_SUB_I32(half, v);
+#endif // cl_khr_fp16
+
 #undef __AMDGCN_CLC_SUBGROUP_UP_SUB_I32
 
 // 32-bit types.
