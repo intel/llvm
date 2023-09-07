@@ -118,7 +118,7 @@ namespace {
 
 // Default filename used for profile generation.
 std::string getDefaultProfileGenName() {
-  return DebugInfoCorrelate ? "default_%p.proflite" : "default_%m.profraw";
+  return DebugInfoCorrelate ? "default_%m.proflite" : "default_%m.profraw";
 }
 
 class EmitAssemblyHelper {
@@ -304,6 +304,18 @@ static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
   case CodeGenOptions::ArmPL:
     TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::ArmPL,
                                              TargetTriple);
+    break;
+  default:
+    break;
+  }
+  switch (CodeGenOpts.getAltMathLib()) {
+  case CodeGenOptions::TestAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::TestAltMathLibrary);
+    break;
+  case CodeGenOptions::SVMLAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::SVMLAltMathLibrary);
     break;
   default:
     break;
@@ -784,7 +796,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         CodeGenOpts.InstrProfileOutput.empty() ? getDefaultProfileGenName()
                                                : CodeGenOpts.InstrProfileOutput,
         "", "", CodeGenOpts.MemoryProfileUsePath, nullptr, PGOOptions::IRInstr,
-        PGOOptions::NoCSAction, CodeGenOpts.DebugInfoForProfiling);
+        PGOOptions::NoCSAction, CodeGenOpts.DebugInfoForProfiling,
+        /*PseudoProbeForProfiling=*/false, CodeGenOpts.AtomicProfileUpdate);
   else if (CodeGenOpts.hasProfileIRUse()) {
     // -fprofile-use.
     auto CSAction = CodeGenOpts.hasProfileCSIRUse() ? PGOOptions::CSIRUse
@@ -1427,7 +1440,7 @@ void clang::EmbedObject(llvm::Module *M, const CodeGenOptions &CGOpts,
   for (StringRef OffloadObject : CGOpts.OffloadObjects) {
     llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ObjectOrErr =
         llvm::MemoryBuffer::getFileOrSTDIN(OffloadObject);
-    if (std::error_code EC = ObjectOrErr.getError()) {
+    if (ObjectOrErr.getError()) {
       auto DiagID = Diags.getCustomDiagID(DiagnosticsEngine::Error,
                                           "could not open '%0' for embedding");
       Diags.Report(DiagID) << OffloadObject;

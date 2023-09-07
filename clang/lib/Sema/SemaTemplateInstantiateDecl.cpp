@@ -3222,7 +3222,6 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
     FunctionTemplate->setAccess(Method->getAccess());
 
   SemaRef.CheckOverrideControl(Method);
-  SemaRef.CheckVirtualSYCLAddIRAttributesFunctionAttr(Method);
 
   // If a function is defined as defaulted or deleted, mark it as such now.
   if (D->isExplicitlyDefaulted()) {
@@ -5547,6 +5546,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     } IR{*this, PatternRec, NewRec};
 
     TypeSourceInfo *NewSI = IR.TransformType(Function->getTypeSourceInfo());
+    assert(NewSI && "Type Transform failed?");
     Function->setType(NewSI->getType());
     Function->setTypeSourceInfo(NewSI);
 
@@ -5841,7 +5841,7 @@ void Sema::BuildVariableInstantiation(
   // will have been deferred.
   if (!NewVar->isInvalidDecl() &&
       NewVar->getDeclContext()->isFunctionOrMethod() &&
-      OldVar->getType()->isDependentType())
+      OldVar->getType()->isDependentType() && !OldVar->isImplicit())
     DiagnoseUnusedDecl(NewVar);
 }
 

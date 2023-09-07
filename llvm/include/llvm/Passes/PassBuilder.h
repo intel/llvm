@@ -568,7 +568,8 @@ public:
 
   /// Add PGOInstrumenation passes for O0 only.
   void addPGOInstrPassesForO0(ModulePassManager &MPM, bool RunProfileGen,
-                              bool IsCS, std::string ProfileFile,
+                              bool IsCS, bool AtomicCounterUpdate,
+                              std::string ProfileFile,
                               std::string ProfileRemappingFile,
                               IntrusiveRefCntPtr<vfs::FileSystem> FS);
 
@@ -636,7 +637,8 @@ private:
                                 ArrayRef<PipelineElement> Pipeline);
 
   void addPGOInstrPasses(ModulePassManager &MPM, OptimizationLevel Level,
-                         bool RunProfileGen, bool IsCS, std::string ProfileFile,
+                         bool RunProfileGen, bool IsCS,
+                         bool AtomicCounterUpdate, std::string ProfileFile,
                          std::string ProfileRemappingFile,
                          ThinOrFullLTOPhase LTOPhase,
                          IntrusiveRefCntPtr<vfs::FileSystem> FS);

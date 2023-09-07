@@ -2,6 +2,8 @@
 
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 
+#include <condition_variable> // std::conditional_variable
+#include <mutex>              // std::mutex, std::unique_lock
 #include <numeric>
 
 // Test constants.
@@ -399,11 +401,34 @@ auto add_empty_node(
 }
 
 // Values for dotp tests
-constexpr float Alpha = 1.0f;
-constexpr float Beta = 2.0f;
-constexpr float Gamma = 3.0f;
+constexpr int Alpha = 1;
+constexpr int Beta = 2;
+constexpr int Gamma = 3;
 
 // Reference function for dotp
-float dotp_reference_result(size_t N) {
-  return N * (Alpha * 1.0f + Beta * 2.0f) * (Gamma * 3.0f + Beta * 2.0f);
+int dotp_reference_result(size_t N) {
+  return N * (Alpha * 1 + Beta * 2) * (Gamma * 3 + Beta * 2);
 }
+
+/* Single use thread barrier which makes threads wait until defined number of
+ * threads reach it.
+ * std:barrier should be used instead once compiler is moved to C++20 standard.
+ */
+class Barrier {
+public:
+  Barrier() = delete;
+  explicit Barrier(std::size_t count) : threadNum(count) {}
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    if (--threadNum == 0) {
+      cv.notify_all();
+    } else {
+      cv.wait(lock, [this] { return threadNum == 0; });
+    }
+  }
+
+private:
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::size_t threadNum;
+};

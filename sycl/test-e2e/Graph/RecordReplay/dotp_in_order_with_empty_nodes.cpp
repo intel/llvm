@@ -13,25 +13,27 @@
 #include "../graph_common.hpp"
 
 int main() {
-  property_list Properties{property::queue::in_order()};
+  property_list Properties{
+      property::queue::in_order{},
+      sycl::ext::intel::property::queue::no_immediate_command_list{}};
   queue Queue{Properties};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  float *Dotp = malloc_device<float>(1, Queue);
+  int *Dotp = malloc_device<int>(1, Queue);
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
-  float *Y = malloc_device<float>(N, Queue);
-  float *Z = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
+  int *Y = malloc_device<int>(N, Queue);
+  int *Z = malloc_device<int>(N, Queue);
 
   Graph.begin_recording(Queue);
 
   auto InitEvent = Queue.submit([&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      X[it] = 1.0f;
-      Y[it] = 2.0f;
-      Z[it] = 3.0f;
+      X[it] = 1;
+      Y[it] = 2;
+      Z[it] = 3;
     });
   });
 
@@ -63,8 +65,8 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  float Output;
-  Queue.memcpy(&Output, Dotp, sizeof(float)).wait();
+  int Output;
+  Queue.memcpy(&Output, Dotp, sizeof(int)).wait();
 
   assert(Output == dotp_reference_result(N));
 

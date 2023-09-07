@@ -4,14 +4,14 @@
 #include "../graph_common.hpp"
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   auto MyProperties = property_list{exp_ext::property::graph::no_cycle_check()};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device(),
                                MyProperties};
 
   const size_t N = 10;
-  float *Arr = malloc_device<float>(N, Queue);
+  int *Arr = malloc_device<int>(N, Queue);
 
   auto Start = add_empty_node(Graph, Queue);
 
@@ -47,11 +47,11 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  std::vector<float> HostData(N);
-  Queue.memcpy(HostData.data(), Arr, N * sizeof(float)).wait();
+  std::vector<int> HostData(N);
+  Queue.memcpy(HostData.data(), Arr, N * sizeof(int)).wait();
 
   for (int i = 0; i < N; i++)
-    assert(HostData[i] == 1.f);
+    assert(HostData[i] == 1);
 
   sycl::free(Arr, Queue);
 

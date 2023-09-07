@@ -42,6 +42,7 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
+* [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
 ## Usage
 
@@ -50,7 +51,7 @@ through the main header, `syclcompat.hpp`. Note that `syclcompat.hpp` does not
 import the <sycl/sycl.hpp> header.
 
 ``` cpp
-#include <sycl/syclcompat.hpp>
+#include <syclcompat.hpp>
 ```
 
 This document presents the public API under the [Features](#features) section,
@@ -265,7 +266,7 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
 Then, `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A, 
+syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A,
                               d_B, d_C, n);
 ```
 
@@ -768,8 +769,8 @@ The exposed functionalities include creation and destruction of queues, through
 `syclcompat::create_queue` and `syclcompat::destroy_queue`, and providing the
 ability to wait for submitted kernels using `syclcompat::wait` or
 `syclcompat::wait_and_throw`. Any async errors will be output to `stderr` if
-`print_on_async_exceptions`. Synchronous exceptions have to be managed by users
-independently of what is set in this parameter.
+`print_on_async_exceptions`, and will have the default behavior otherwise, which calls `std:terminate`. Synchronous exceptions have to be managed
+by users independently of what is set in this parameter.
 
 Devices are managed through a helper class, `device_ext`. The `device_ext` class
 associates a vector of `sycl::queues` with its `sycl::device`. The `device_ext`
@@ -1159,7 +1160,7 @@ using this library:
 #include <cassert>
 #include <iostream>
 
-#include <sycl/syclcompat.hpp>
+#include <syclcompat.hpp>
 #include <sycl/sycl.hpp>
 
 /**

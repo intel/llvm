@@ -1,5 +1,5 @@
-; RUN: llc -opaque-pointers -mtriple=x86_64-unknown-unknown < %s | FileCheck %s --check-prefix=X64
-; RUN: llc -opaque-pointers -mtriple=i386-unknown-unknown < %s | FileCheck %s   --check-prefix=X86
+; RUN: llc -mtriple=x86_64-unknown-unknown < %s | FileCheck %s --check-prefix=X64
+; RUN: llc -mtriple=i386-unknown-unknown < %s | FileCheck %s   --check-prefix=X86
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; foo

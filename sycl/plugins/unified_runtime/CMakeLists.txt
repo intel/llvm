@@ -255,6 +255,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/ur.hpp"
       "ur/adapters/native_cpu/adapter.cpp"
+      "ur/adapters/native_cpu/command_buffer.cpp"
       "ur/adapters/native_cpu/common.cpp"
       "ur/adapters/native_cpu/common.hpp"
       "ur/adapters/native_cpu/context.cpp"
@@ -263,6 +264,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/device.hpp"
       "ur/adapters/native_cpu/enqueue.cpp"
       "ur/adapters/native_cpu/event.cpp"
+      "ur/adapters/native_cpu/image.cpp"
       "ur/adapters/native_cpu/kernel.cpp"
       "ur/adapters/native_cpu/kernel.hpp"
       "ur/adapters/native_cpu/memory.cpp"
@@ -283,6 +285,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       UnifiedRuntime-Headers
       Threads::Threads
       sycl
+      OpenCL-Headers
   )
 
   set_target_properties("ur_adapter_native_cpu" PROPERTIES

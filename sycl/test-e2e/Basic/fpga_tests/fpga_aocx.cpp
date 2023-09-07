@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: opencl-aot, accelerator
+// REQUIRES: opencl-aot, accelerator, TEMPORARY_DISABLED
 
 /// E2E test for AOCX creation/use/run for FPGA
 // Produce an archive with device (AOCX) image. To avoid appending objects to

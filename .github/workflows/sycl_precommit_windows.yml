@@ -15,6 +15,13 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
+    - '.github/workflows/sycl_precommit_linux.yml'
+    - '.github/workflows/sycl_linux_build_and_test.yml'
+    - '.github/workflows/sycl_linux_build.yml'
+    - '.github/workflows/sycl_linux_run_tests.yml'
+    - '.github/workflows/sycl_precommit_aws.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 permissions:
   contents: read
@@ -52,23 +59,14 @@ jobs:
       with:
         path: src
 
-  # This job generates matrix of tests for SYCL End-to-End tests
-  test_matrix:
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "win_l0_gen12"
-
   windows_default:
     name: Windows
-    needs: [lint, test_matrix, detect_changes]
+    needs: [lint, detect_changes]
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
       && github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
       build_ref: ${{ github.sha }}
       changes: ${{ needs.detect_changes.outputs.filters }}

@@ -40,9 +40,9 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: noinline nounwind optnone uwtable mustprogress
 define dso_local void @_Z3foov() #0 !dbg !11 {
 entry:
-  %0 = load i32, i32* @_ZN5Outer5Inner6globalE, align 4, !dbg !14
+  %0 = load i32, ptr @_ZN5Outer5Inner6globalE, align 4, !dbg !14
   %inc = add nsw i32 %0, 1, !dbg !14
-  store i32 %inc, i32* @_ZN5Outer5Inner6globalE, align 4, !dbg !14
+  store i32 %inc, ptr @_ZN5Outer5Inner6globalE, align 4, !dbg !14
   ret void, !dbg !15
 }
 

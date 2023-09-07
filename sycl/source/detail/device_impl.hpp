@@ -270,7 +270,7 @@ private:
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;
   mutable std::once_flag MDeviceNameFlag;
-  mutable ext::oneapi::experimental::architecture MDeviceArch;
+  mutable ext::oneapi::experimental::architecture MDeviceArch{};
   mutable std::once_flag MDeviceArchFlag;
   std::pair<uint64_t, uint64_t> MDeviceHostBaseTime;
 }; // class device_impl

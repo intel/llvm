@@ -4,13 +4,13 @@
 
 namespace {
 // Calculates reference result at index i
-float reference(size_t i) {
-  float x = static_cast<float>(i);
-  float y = static_cast<float>(i);
-  float z = static_cast<float>(i);
+int reference(size_t i) {
+  int x = static_cast<int>(i);
+  int y = static_cast<int>(i);
+  int z = static_cast<int>(i);
 
-  x = x * 2.0f + 0.5f;  // XSubSubGraph
-  y = y * 3.0f + 0.14f; // YSubSubGraph
+  x = x * 2 + 0.5f;  // XSubSubGraph
+  y = y * 3 + 0.14f; // YSubSubGraph
 
   // SubGraph
   x = -x;
@@ -24,7 +24,7 @@ float reference(size_t i) {
 } // namespace
 
 int main() {
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph SubGraph{Queue.get_context(), Queue.get_device()};
@@ -32,13 +32,13 @@ int main() {
   exp_ext::command_graph YSubSubGraph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *X = malloc_device<float>(N, Queue);
-  float *Y = malloc_device<float>(N, Queue);
-  float *Z = malloc_device<float>(N, Queue);
+  int *X = malloc_device<int>(N, Queue);
+  int *Y = malloc_device<int>(N, Queue);
+  int *Z = malloc_device<int>(N, Queue);
 
   // XSubSubGraph is a multiply-add operation on USM allocation X
   auto XSS1 = add_node(XSubSubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { X[it] *= 2; });
   });
 
   add_node(
@@ -53,7 +53,7 @@ int main() {
 
   // YSubSubGraph is a multiply-add operation on USM allocation Y
   auto YSS1 = add_node(YSubSubGraph, Queue, [&](handler &CGH) {
-    CGH.parallel_for(N, [=](id<1> it) { Y[it] *= 3.0f; });
+    CGH.parallel_for(N, [=](id<1> it) { Y[it] *= 3; });
   });
 
   add_node(
@@ -70,8 +70,8 @@ int main() {
   // the results
   auto S1 = add_node(SubGraph, Queue, [&](handler &CGH) {
     CGH.parallel_for(N, [=](id<1> it) {
-      X[it] = static_cast<float>(it);
-      Y[it] = static_cast<float>(it);
+      X[it] = static_cast<int>(it);
+      Y[it] = static_cast<int>(it);
     });
   });
 
@@ -108,7 +108,7 @@ int main() {
   // does a multiply add with X & Y allocation results.
   auto G1 = add_node(Graph, Queue, [&](handler &CGH) {
     CGH.parallel_for(range<1>{N},
-                     [=](id<1> it) { Z[it] = static_cast<float>(it); });
+                     [=](id<1> it) { Z[it] = static_cast<int>(it); });
   });
 
   auto G2 = add_node(Graph, Queue,
@@ -127,11 +127,11 @@ int main() {
 
   auto E = Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), Z, N * sizeof(float), E).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), Z, N * sizeof(int), E).wait();
 
   for (size_t i = 0; i < N; i++) {
-    float ref = reference(i);
+    int ref = reference(i);
     assert(Output[i] == ref);
   }
 
