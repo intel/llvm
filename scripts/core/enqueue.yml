@@ -571,6 +571,11 @@ returns:
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
     - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`patternSize == 0 || size == 0`"
+        - "`patternSize > size`"
+        - "`(patternSize & (patternSize - 1)) != 0`"
+        - "`size % patternSize != 0`"
+        - "`offset % patternSize != 0`"
         - "If `offset + size` results in an out-of-bounds access."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
@@ -629,6 +634,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -686,6 +693,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
@@ -735,6 +744,8 @@ returns:
         - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
         - "If event objects in phEventWaitList are not valid events."
     - $X_RESULT_ERROR_INVALID_MEM_OBJECT
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`region.width == 0 || region.height == 0 || region.depth == 0`"
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
