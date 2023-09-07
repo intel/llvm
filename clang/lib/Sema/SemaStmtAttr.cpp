@@ -139,8 +139,7 @@ Sema::BuildSYCLIntelMaxInterleavingAttr(const AttributeCommonInfo &CI,
 
     // This attribute accepts values 0 and 1 only.
     if (ArgVal < 0 || ArgVal > 1) {
-      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid)
-          << CI;
+      Diag(E->getBeginLoc(), diag::err_attribute_argument_is_not_valid) << CI;
       return nullptr;
     }
   }
