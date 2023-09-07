@@ -885,29 +885,29 @@ column in the table below.
 [frame="none",options="header"]
 |======================
 | A type | B type | C and D type | M | N | K | device
-| `matrix_type::uint8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | `architecture::intel_gpu_pvc`
-| | | | |8||`architecture::intel_gpu_dg2_g10,
+.2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32
+|`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-| `matrix_type::uint8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | `architecture::intel_gpu_pvc`
-| | | | |8||`architecture::intel_gpu_dg2_g10,
+.2+| `matrix_type::uint8`  .2+| `matrix_type::int8` .2+|
+`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-| `matrix_type::int8`  | `matrix_type::uint8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | `architecture::intel_gpu_pvc`
-| | | | |8||`architecture::intel_gpu_dg2_g10,
+.2+| `matrix_type::int8`  .2+| `matrix_type::uint8` .2+|
+`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-| `matrix_type::int8`  | `matrix_type::int8` |
-`matrix_type::int32`  |  +<=+ 8 |  16 |  32 | `architecture::intel_gpu_pvc`
-| | | | |8||`architecture::intel_gpu_dg2_g10,
+.2+| `matrix_type::int8`  .2+| `matrix_type::int8` .2+|
+`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-|  `matrix_type::fp16`       |  `matrix_type::fp16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | `architecture::intel_gpu_pvc`
-| | | | |8|| `architecture::intel_gpu_dg2_g10,
+.2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc`|8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-|  `matrix_type::bf16`       |  `matrix_type::bf16`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  16 | `architecture::intel_gpu_pvc`
-| | | | |8|| `architecture::intel_gpu_dg2_g10,
+.2+|  `matrix_type::bf16`       .2+|  `matrix_type::bf16`   .2+|
+`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
+`architecture::intel_gpu_pvc` |8| `architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 |======================
 
