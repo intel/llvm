@@ -1464,8 +1464,8 @@ Value MLIRScanner::GetAddressOfBaseClass(
       if (!PT)
         Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, NT, Val);
       else {
-        if (Val.getType() != NT)
-          Val = Builder.create<LLVM::BitcastOp>(Loc, PT, Val);
+        if (Opt.getAddressSpace() != PT.getAddressSpace())
+          Val = Builder.create<LLVM::AddrSpaceCastOp>(Loc, PT, Val);
       }
     } else {
       assert(isa<MemRefType>(Val.getType()) &&

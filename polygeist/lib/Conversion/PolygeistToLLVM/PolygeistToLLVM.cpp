@@ -776,6 +776,11 @@ struct BarePointer2MemrefOpLowering
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(op.getType()))
       return failure();
+    assert(cast<LLVM::LLVMPointerType>(adaptor.getSource().getType())
+                   .getAddressSpace() ==
+               cast<MemRefType>(op.getType()).getMemorySpaceAsInt() &&
+           "Expecting Pointer2MemrefOp source and result types to have the "
+           "same address space");
 
     const auto convertedType = getTypeConverter()->convertType(op.getType());
     if (!convertedType)
