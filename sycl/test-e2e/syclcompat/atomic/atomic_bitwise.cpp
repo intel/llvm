@@ -30,6 +30,9 @@
 //
 // ===----------------------------------------------------------------------===//
 
+// FIXME: This isn't entirely true, it's not supported in hardware without
+// seq_acq but the assertion is done at compile-time for AMDGPU, which causes CI
+// to fail. The same applies to each test within this directory
 // UNSUPPORTED: hip
 
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out

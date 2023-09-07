@@ -30,7 +30,7 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// UNSUPPORTED: hip
+// UNSUPPORTED: hip || (windows && level_zero)
 
 // RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
 // RUN: %{run} %t.out
