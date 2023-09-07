@@ -185,6 +185,13 @@ class annotated_ptr {
                 "Property list is invalid.");
 };
 
+// device_copyable trait
+template <typename T, typename... Props>
+struct is_device_copyable<
+  annotated_arg<T, detail::properties_t<Props...>>,
+  std::enable_if_t<!std::is_trivially_copyable_v<annotated_arg<T, detail::properties_t<Props...>>>>>
+  : is_device_copyable<T> {};
+
 template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
 __SYCL_TYPE(annotated_ptr) annotated_ptr<T, detail::properties_t<Props...>> {

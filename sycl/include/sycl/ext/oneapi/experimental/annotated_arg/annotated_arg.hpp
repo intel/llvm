@@ -51,6 +51,13 @@ class annotated_arg {
                 "Property list is invalid.");
 };
 
+// device_copyable trait
+template <typename T, typename... Props>
+struct is_device_copyable<
+  annotated_arg<T, detail::properties_t<Props...>>,
+  std::enable_if_t<!std::is_trivially_copyable_v<annotated_arg<T, detail::properties_t<Props...>>>>>
+  : is_device_copyable<T> {};
+
 // Partial specialization for pointer type
 template <typename T, typename... Props>
 class __SYCL_SPECIAL_CLASS
