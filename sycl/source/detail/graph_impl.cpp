@@ -204,8 +204,8 @@ graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   Deps.insert(Deps.end(), MExtraDependencies.begin(), MExtraDependencies.end());
 
   // TODO: Encapsulate in separate function to avoid duplication
-  if (!Dep.empty()) {
-    for (auto &N : Dep) {
+  if (!Deps.empty()) {
+    for (auto &N : Deps) {
       N->registerSuccessor(NodeImpl, N); // register successor
       this->removeRoot(NodeImpl);        // remove receiver from root node
                                          // list
@@ -225,14 +225,17 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
   (void)Args;
   sycl::handler Handler{Impl};
   CGF(Handler);
-  Handler.finalize();
 
+  // We need to check for this exception condition before actually trying to
+  // finalize the barrier node
   if (Handler.MCGType == sycl::detail::CG::Barrier) {
     throw sycl::exception(
         make_error_code(errc::invalid),
         "The sycl_ext_oneapi_enqueue_barrier feature is not available with "
         "SYCL Graph Explicit API. Please use empty nodes instead.");
   }
+
+  Handler.finalize();
 
   // If the handler recorded a subgraph return that here as the relevant nodes
   // have already been added. The node returned here is an empty node with

@@ -746,6 +746,11 @@ private:
   std::shared_ptr<node_impl>
   addNodesToExits(const std::list<std::shared_ptr<node_impl>> &NodeList);
 
+  /// Traverse the graph recursively to get the events associated with the
+  /// output nodes of this graph.
+  /// @return vector of events associated to exit nodes.
+  std::vector<sycl::detail::EventImplPtr> getExitNodesEventsImpl();
+
   /// Context associated with this graph.
   sycl::context MContext;
   /// Device associated with this graph. All graph nodes will execute on
