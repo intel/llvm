@@ -23,7 +23,7 @@ static enum umf_result_t nullAlloc(void *provider, size_t size,
     (void)provider;
     (void)size;
     (void)alignment;
-    (void)ptr;
+    *ptr = NULL;
     return UMF_RESULT_SUCCESS;
 }
 
