@@ -24,6 +24,14 @@ int main() {
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
   queue Queue;
 
+  auto sgsizes =
+      Queue.get_device().get_info<sycl::info::device::sub_group_sizes>();
+  if (std::find(sgsizes.begin(), sgsizes.end(), 32) == sgsizes.end()) {
+    std::cout << "test skipped due to missing support for sub-group size 32."
+              << std::endl;
+    return 0;
+  }
+
   try {
     nd_range<1> NdRange(global_size, local_size);
     int Res = 0;

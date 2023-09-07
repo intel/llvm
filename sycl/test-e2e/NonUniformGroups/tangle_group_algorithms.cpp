@@ -21,6 +21,7 @@ int main() {
   if (std::find(SGSizes.begin(), SGSizes.end(), SGSize) == SGSizes.end()) {
     std::cout << "Test skipped due to missing support for sub-group size 32."
               << std::endl;
+    return 0;
   }
 
   sycl::buffer<size_t, 1> TmpBuf{sycl::range{SGSize}};
