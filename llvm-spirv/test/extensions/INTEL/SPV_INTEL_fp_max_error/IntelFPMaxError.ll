@@ -118,7 +118,7 @@
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-define void @test_fp_max_error_decoration(float %f1, float %f2, float %f3) {
+define void @test_fp_max_error_decoration(float %f1, float %f2, float %f3, i32 %f4) {
 entry:
 ; CHECK-LLVM-NOT: fadd float %f1, %f2, !fpbuiltin-max-error
 ; CHECK-LLVM-NOT: fsub float %f1, %f2, !fpbuiltin-max-error
@@ -187,11 +187,11 @@ entry:
   %t29 = call float @llvm.fpbuiltin.erfc.f32(float %f1) #2
 
 ; CHECK-LLVM: call spir_func float @_Z5atan2ff(float %f1, float %f2) #[[#AT4:]]
-; CHECK-LLVM: call spir_func float @_Z5ldexpff(float %f1, float %f2) #[[#AT4]]
+; CHECK-LLVM: call spir_func float @_Z5ldexpfi(float %f1, i32 %f4) #[[#AT4]]
 ; CHECK-LLVM: call spir_func float @_Z3powff(float %f1, float %f2) #[[#AT4]]
 ; CHECK-LLVM: call spir_func float @_Z5hypotff(float %f1, float %f2) #[[#AT4]]
   %t30 = call float @llvm.fpbuiltin.atan2.f32(float %f1, float %f2) #3
-  %t31 = call float @llvm.fpbuiltin.ldexp.f32(float %f1, float %f2) #3
+  %t31 = call float @llvm.fpbuiltin.ldexp.f32(float %f1, i32 %f4) #3
   %t32 = call float @llvm.fpbuiltin.pow.f32(float %f1, float %f2) #3
   %t33 = call float @llvm.fpbuiltin.hypot.f32(float %f1, float %f2) #3
   
@@ -235,7 +235,7 @@ declare float @llvm.fpbuiltin.erfc.f32(float)
 declare float @llvm.fpbuiltin.atan2.f32(float, float)
 declare float @llvm.fpbuiltin.hypot.f32(float, float)
 declare float @llvm.fpbuiltin.pow.f32(float, float)
-declare float @llvm.fpbuiltin.ldexp.f32(float, float)
+declare float @llvm.fpbuiltin.ldexp.f32(float, i32)
 
 ; CHECK-LLVM: attributes #[[#AT3]] = {{{.*}} "fpbuiltin-max-error"="2.5{{0+}}" {{.*}}}
 ; CHECK-LLVM: attributes #[[#AT4]] = {{{.*}} "fpbuiltin-max-error"="4.0{{0+}}" {{.*}}}
