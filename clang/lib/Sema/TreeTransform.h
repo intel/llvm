@@ -6888,6 +6888,7 @@ QualType TreeTransform<Derived>::TransformAutoType(TypeLocBuilder &TLB,
   AutoTypeLoc NewTL = TLB.push<AutoTypeLoc>(Result);
   NewTL.setNameLoc(TL.getNameLoc());
   NewTL.setRParenLoc(TL.getRParenLoc());
+  NewTL.setConceptReference(nullptr);
 
   if (T->isConstrained()) {
     DeclarationNameInfo DNI = DeclarationNameInfo(
@@ -12434,7 +12435,7 @@ TreeTransform<Derived>::TransformCXXNullPtrLiteralExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXThisExpr(CXXThisExpr *E) {
-  QualType T = getSema().getCurrentThisType();
+  QualType T = getDerived().TransformType(E->getType());
 
   if (!getDerived().AlwaysRebuild() && T == E->getType()) {
     // Mark it referenced in the new context regardless.

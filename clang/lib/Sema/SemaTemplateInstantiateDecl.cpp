@@ -2910,6 +2910,9 @@ Decl *TemplateDeclInstantiator::VisitCXXMethodDecl(
       cast<Decl>(Owner)->isDefinedOutsideFunctionOrMethod());
   LocalInstantiationScope Scope(SemaRef, MergeWithParentScope);
 
+  Sema::LambdaScopeForCallOperatorInstantiationRAII LambdaScope(
+      SemaRef, const_cast<CXXMethodDecl *>(D), TemplateArgs, Scope);
+
   // Instantiate enclosing template arguments for friends.
   SmallVector<TemplateParameterList *, 4> TempParamLists;
   unsigned NumTempParamLists = 0;
