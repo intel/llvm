@@ -1,10 +1,10 @@
 // This test ensures the native-cpu device generates the expected kernel names,
 // and that the MS mangler doesn't assert on the code below.
 
-// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc   -aux-triple x86_64-pc-windows-msvc   -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s 
-// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -aux-triple x86_64-pc-windows-msvc   -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s 
-// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc   -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s 
+// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc   -aux-triple x86_64-pc-windows-msvc   -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -aux-triple x86_64-pc-windows-msvc   -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s
+// RUN: %clang_cc1 -triple x86_64-pc-windows-msvc   -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s
 // Todo: check other cpus
 
 // Ensure match with
