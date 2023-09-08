@@ -1,17 +1,7 @@
 #define TM 8
 #define TK 16
 
-#define BF16_EPSILON 0.00781250
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-private:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
+class matrix;
 
 template <typename T1, typename T2, size_t M, size_t N, size_t K>
 void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
@@ -23,15 +13,22 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
+#ifndef SG_SZ
+  size_t SG_SZ = get_wg_size<matrix>(q);
+#endif
+  std::cout << "WG Size = " << SG_SZ << "\n";
+
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
      auto accA = bufA.get_access<access::mode::read_write>(cgh);
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
-     cgh.parallel_for<class imatrix>(
+     cgh.parallel_for<class matrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
-         [=](nd_item<2> spmd_item) [[intel::reqd_sub_group_size(SG_SZ)]]
-
+         [=](nd_item<2> spmd_item)
+#ifdef SG_SZ
+             [[intel::reqd_sub_group_size(SG_SZ)]]
+#endif
          {
            // The submatrix API has to be accessed by all the workitems in a
            // subgroup these functions will be called once by the subgroup no
@@ -84,13 +81,6 @@ bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
 
 void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
                          int K) {
