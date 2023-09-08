@@ -14621,15 +14621,8 @@ void SITargetLowering::emitExpandAtomicRMW(AtomicRMWInst *AI) const {
   Builder.CreateCondBr(IsShared, SharedBB, CheckPrivateBB);
 
   Builder.SetInsertPoint(SharedBB);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *CastToLocal = Builder.CreateAddrSpaceCast(
       Addr, PointerType::get(Ctx, AMDGPUAS::LOCAL_ADDRESS));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  PointerType *PtrTy = cast<PointerType>(Addr->getType());
-  Value *CastToLocal = Builder.CreateAddrSpaceCast(
-      Addr,
-      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::LOCAL_ADDRESS));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *LoadedShared = CreateNewAtomicRMW(Builder, CastToLocal, Val);
   Builder.CreateBr(PhiBB);
 
@@ -14639,14 +14632,8 @@ void SITargetLowering::emitExpandAtomicRMW(AtomicRMWInst *AI) const {
   Builder.CreateCondBr(IsPrivate, PrivateBB, GlobalBB);
 
   Builder.SetInsertPoint(PrivateBB);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *CastToPrivate = Builder.CreateAddrSpaceCast(
       Addr, PointerType::get(Ctx, AMDGPUAS::PRIVATE_ADDRESS));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *CastToPrivate = Builder.CreateAddrSpaceCast(
-      Addr,
-      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::PRIVATE_ADDRESS));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *LoadedPrivate =
       Builder.CreateLoad(ValTy, CastToPrivate, "loaded.private");
   Value *NewVal = Builder.CreateFAdd(LoadedPrivate, Val, "val.new");
@@ -14654,14 +14641,8 @@ void SITargetLowering::emitExpandAtomicRMW(AtomicRMWInst *AI) const {
   Builder.CreateBr(PhiBB);
 
   Builder.SetInsertPoint(GlobalBB);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *CastToGlobal = Builder.CreateAddrSpaceCast(
       Addr, PointerType::get(Ctx, AMDGPUAS::GLOBAL_ADDRESS));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *CastToGlobal = Builder.CreateAddrSpaceCast(
-      Addr,
-      PointerType::getWithSamePointeeType(PtrTy, AMDGPUAS::GLOBAL_ADDRESS));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   Value *LoadedGlobal = CreateNewAtomicRMW(Builder, CastToGlobal, Val);
   Builder.CreateBr(PhiBB);
 

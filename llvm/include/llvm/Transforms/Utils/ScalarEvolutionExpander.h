@@ -435,13 +435,7 @@ private:
 
   /// Expand a SCEVAddExpr with a pointer type into a GEP instead of using
   /// ptrtoint+arithmetic+inttoptr.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Value *expandAddToGEP(const SCEV *Op, Type *Ty, Value *V);
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *expandAddToGEP(const SCEV *const *op_begin, const SCEV *const *op_end,
-                        PointerType *PTy, Type *Ty, Value *V);
-  Value *expandAddToGEP(const SCEV *Op, PointerType *PTy, Type *Ty, Value *V);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   /// Find a previous Value in ExprValueMap for expand.
   /// DropPoisonGeneratingInsts is populated with instructions for which

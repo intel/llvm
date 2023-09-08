@@ -373,23 +373,8 @@ std::unique_ptr<DiagnosticHandler> LLVMContext::getDiagnosticHandler() {
   return std::move(pImpl->DiagHandler);
 }
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-bool LLVMContext::hasSetOpaquePointersValue() const {
-  return pImpl->hasOpaquePointersValue();
-}
-#endif
 void LLVMContext::setOpaquePointers(bool Enable) const {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   assert(Enable && "Cannot disable opaque pointers");
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  pImpl->setOpaquePointers(Enable);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
-bool LLVMContext::supportsTypedPointers() const {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  return false;
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  return !pImpl->getOpaquePointers();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-}
+bool LLVMContext::supportsTypedPointers() const { return false; }
