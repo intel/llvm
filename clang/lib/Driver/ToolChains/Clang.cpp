@@ -9933,6 +9933,21 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.MakeArgString("--out-file-list=" + OutputFileName));
     ForeachArgs.push_back(
         TCArgs.MakeArgString("--out-replace=" + OutputFileName));
+    // If fsycl-dump-device-code is passed, put the output files from llvm-spirv
+    // into the path provided in fsycl-dump-device-code.
+    if (C.getDriver().isDumpDeviceCodeEnabled()) {
+      SmallString<128> OutFileDir;
+      Arg *DumpDeviceCodePath = C.getArgs().getLastArg(options::OPT_fsycl_dump_device_code_EQ);
+      OutFileDir = (DumpDeviceCodePath ? DumpDeviceCodePath->getValue() : "");
+    // If the output directory path is empty, put the llvm-spirv output in the current directory.
+    if (OutFileDir.empty())
+      llvm::sys::path::native(OutFileDir = "./");
+    else
+      OutFileDir.append(llvm::sys::path::get_separator());
+    ForeachArgs.push_back(
+        C.getArgs().MakeArgString("--out-dir=" + OutFileDir));
+  }
+
     StringRef ParallelJobs =
         TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
     if (!ParallelJobs.empty())

@@ -94,6 +94,8 @@ class Driver {
     SaveTempsObj
   } SaveTemps;
 
+  bool DumpDeviceCode = false;
+
   enum BitcodeEmbedMode {
     EmbedNone,
     EmbedMarker,
@@ -422,6 +424,7 @@ public:
   void setInstalledDir(StringRef Value) { InstalledDir = std::string(Value); }
 
   bool isSaveTempsEnabled() const { return SaveTemps != SaveTempsNone; }
+  bool isDumpDeviceCodeEnabled() const { return DumpDeviceCode; }
   bool isSaveTempsObj() const { return SaveTemps == SaveTempsObj; }
 
   bool embedBitcodeEnabled() const { return BitcodeEmbed != EmbedNone; }

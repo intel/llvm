@@ -4749,6 +4749,8 @@ def save_temps_EQ : Joined<["-", "--"], "save-temps=">, Flags<[CC1Option, FlangO
 def save_temps : Flag<["-", "--"], "save-temps">, Flags<[FlangOption, FC1Option, NoXarchOption]>,
   Alias<save_temps_EQ>, AliasArgs<["cwd"]>,
   HelpText<"Save intermediate compilation results">;
+def fsycl_dump_device_code_EQ : Joined<["-", "--"], "fsycl-dump-device-code=">, Flags<[CC1Option, FlangOption, FC1Option, NoXarchOption]>,
+  HelpText<"Dump device code into the given directory.">;
 def save_stats_EQ : Joined<["-", "--"], "save-stats=">, Flags<[NoXarchOption]>,
   HelpText<"Save llvm statistics.">;
 def save_stats : Flag<["-", "--"], "save-stats">, Flags<[NoXarchOption]>,
