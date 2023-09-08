@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -Xclang -opaque-pointers -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // TODO Running existing tests in opaque pointer mode should be supported by the
