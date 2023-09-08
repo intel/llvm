@@ -42,6 +42,7 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
+* [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
 
 ## Usage
 
@@ -265,7 +266,7 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
 Then, `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A, 
+syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A,
                               d_B, d_C, n);
 ```
 

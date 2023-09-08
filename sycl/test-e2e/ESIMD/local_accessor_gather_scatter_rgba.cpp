@@ -5,9 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// https://github.com/intel/llvm/issues/10369
-// UNSUPPORTED: gpu
-//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // UNSUPPORTED: esimd_emulator
@@ -187,6 +184,12 @@ int main(void) {
   auto dev = q.get_device();
   std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
             << "\n";
+
+  if (!isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
+                     "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
+    return 0;
+  }
 
   bool passed = true;
   passed &= test<int, 8>(q);
