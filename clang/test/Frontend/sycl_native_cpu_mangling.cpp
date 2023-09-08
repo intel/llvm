@@ -7,9 +7,6 @@
 // RUN: %clang_cc1 -triple x86_64-pc-windows-msvc   -aux-triple x86_64-unknown-linux-gnu -fsycl-is-device -fsycl-is-native-cpu -emit-llvm -o - -x c++ %s | FileCheck %s
 // Todo: check other cpus
 
-// Ensure match with
-// RUN: %clangxx -fsycl-device-only  -fsycl-targets=spir64 -S -emit-llvm  -o - %s | FileCheck %s
-
 struct __nativecpu_state {};
 
 template <typename KernelName, typename KernelType, typename... Props>
