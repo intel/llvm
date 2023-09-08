@@ -14,7 +14,7 @@
  *
  *  SYCLcompat API
  *
- *  kernel_function_lin.cpp
+ *  kernel_function.cpp
  *
  *  Description:
  *    kernel_function header API tests
@@ -30,13 +30,12 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// REQUIRES: linux
-
-// RUN: %clangxx -fPIC -shared -fsycl -fsycl-targets=%{sycl_triple} %S/Inputs/kernel_module_lin.cpp -o %t.so
-// RUN: %clangxx -DTEST_SHARED_LIB='"%t.so"' -ldl -fsycl -fsycl-targets=%{sycl_triple} %t.so %s -o %t.out
-// RUN: %{run} %t.out
-
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
+
 #include <iostream>
 #include <string>
 
@@ -64,7 +63,23 @@ int getFuncAttrs() {
   return threadPerBlock;
 }
 
-void kernel_functor_ptr() {
+#ifdef WIN32
+
+#define DECLARE_MODULE_VAR(var) HMODULE var
+#define LOAD_LIB(lib) LoadLibraryA(lib)
+#define LOAD_FUNCTOR(module, name) GetProcAddress(module, name)
+#define FREE_LIB(module) FreeLibrary(module)
+
+#else // LINUX
+
+#define DECLARE_MODULE_VAR(var) void *var
+#define LOAD_LIB(lib) dlopen(lib, RTLD_LAZY)
+#define LOAD_FUNCTOR(module, name) dlsym(module, name)
+#define FREE_LIB(module) dlclose(module)
+
+#endif
+
+void test_kernel_functor_ptr() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
@@ -74,10 +89,9 @@ void kernel_functor_ptr() {
   assert(getTemplateFuncAttrs<int>() == Size);
   assert(getFuncAttrs() == Size);
 
-  void *M;
-  syclcompat::kernel_functor F;
+  DECLARE_MODULE_VAR(M);
+  M = LOAD_LIB(TEST_SHARED_LIB);
 
-  M = dlopen(TEST_SHARED_LIB, RTLD_LAZY);
   if (M == NULL) {
     std::cout << "Could not load the library" << std::endl;
     std::cout << "  " << TEST_SHARED_LIB << std::endl << std::flush;
@@ -85,10 +99,12 @@ void kernel_functor_ptr() {
   }
 
   std::string FunctionName = "foo_wrapper";
-  F = (syclcompat::kernel_functor)dlsym(M, FunctionName.c_str());
+  syclcompat::kernel_functor F;
+  F = (syclcompat::kernel_functor)LOAD_FUNCTOR(M, FunctionName.c_str());
+
   if (F == NULL) {
     std::cout << "Could not load function pointer" << std::endl << std::flush;
-    dlclose(M);
+    FREE_LIB(M);
     assert(false); // FAIL
   }
 
@@ -111,11 +127,11 @@ void kernel_functor_ptr() {
   }
 
   sycl::free(dev, *q_ct1);
-  dlclose(M);
+  FREE_LIB(M);
 }
 
 int main() {
-  kernel_functor_ptr();
+  test_kernel_functor_ptr();
 
   return 0;
 }
