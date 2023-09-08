@@ -36,6 +36,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <functional>
@@ -197,7 +198,7 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 }
 
 // Todo: add support for more SPIRV builtins here
-static const std::pair<StringRef, std::pair<StringRef, unsigned int> >
+static const std::pair<StringRef, std::pair<StringRef, unsigned int>>
     BuiltinNamesMap[] = {
         {"_Z28__spirv_GlobalInvocationId_xv",
          {"__dpcpp_nativecpu_global_id", 0}},
@@ -232,6 +233,30 @@ static const std::pair<StringRef, std::pair<StringRef, unsigned int> >
         {"_Z21__spirv_WorkgroupId_xv", {"__dpcpp_nativecpu_get_wg_id", 0}},
         {"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
         {"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
+
+// Helper macros for constructing builtin names
+#define GENMS1(builtin_str) "?" builtin_str "@@YA_KXZ"
+#define GENMS_xyz(b_str)                                                       \
+  GENMS1(#b_str "_x"), GENMS1(#b_str "_y"), GENMS1(#b_str "_z")
+
+// List of builtin names for Visual Studio in same order as in map above.
+// Needs to be kept consistent.
+// todo: check if builtins could be compiled with MS mangling instead to avoid
+// this list.
+static const StringRef WindowsBuiltinNames[] = {
+    GENMS_xyz(__spirv_GlobalInvocationId), GENMS_xyz(__spirv_GlobalSize),
+    GENMS_xyz(__spirv_GlobalOffset),       GENMS_xyz(__spirv_LocalInvocationId),
+    GENMS_xyz(__spirv_NumWorkgroups),      GENMS_xyz(__spirv_WorkgroupSize),
+    GENMS_xyz(__spirv_WorkgroupId)};
+
+#define __GET_DIMENSION(a) (sizeof(a) / sizeof(a[0]))
+static_assert(__GET_DIMENSION(WindowsBuiltinNames) ==
+              __GET_DIMENSION(WindowsBuiltinNames));
+
+static inline bool IsForVisualStudio(StringRef triple_str) {
+  llvm::Triple triple(triple_str);
+  return triple.isKnownWindowsMSVCEnvironment();
+}
 
 Function *getReplaceFunc(const Module &M, StringRef Name) {
   Function *F = M.getFunction(Name);
@@ -280,10 +305,15 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     emitSubkernelForKernel(NewK, NativeCPUArgDescType, StatePtrType);
   }
 
+  const bool VisualStudioMangling = IsForVisualStudio(M.getTargetTriple());
+  size_t VSi = 0;
+
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
   for (const auto &Entry : BuiltinNamesMap) {
-    auto *Glob = M.getFunction(Entry.first);
+    auto *Glob = M.getFunction(VisualStudioMangling ? WindowsBuiltinNames[VSi]
+                                                    : Entry.first);
+    VSi++;
     if (!Glob)
       continue;
     auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
