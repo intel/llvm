@@ -507,6 +507,7 @@ to perform these optimizations.
 
 
 ## Properties on a non-global pointer type variable
+
 Applying properties on a non-global pointer type variable can be done with
 `__bultin_intel_sycl_ptr_annotation` builtin function. Comparing to
 `add_ir_annotations_member`, this builtin function is more flexible as
