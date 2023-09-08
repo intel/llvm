@@ -34,7 +34,3 @@ inline void check(float *h_data, float *h_ref, size_t size) {
     assert(diff <= 1.e-6);
   }
 }
-
-using value_type_list =
-    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-               long long, unsigned long long, float, double, sycl::half>;

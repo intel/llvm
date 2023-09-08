@@ -123,8 +123,9 @@ public:
   /// and then used by addAltMathFunctionsFromLib for populating the tables of
   /// math function implementations.
   enum AltMathLibrary {
-    NoAltMathLibrary,  // Don't use any alternate math library
-    TestAltMathLibrary // Use a fake alternate math library for testing
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // Intel SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   TargetLibraryInfoImpl();

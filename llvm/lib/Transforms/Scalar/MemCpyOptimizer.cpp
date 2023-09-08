@@ -1958,33 +1958,15 @@ bool MemCpyOptPass::processByValArgument(CallBase &CB, unsigned ArgNo) {
   //    foo(*a)
   // It would be invalid to transform the second memcpy into foo(*b).
   if (writtenBetween(MSSA, BAA, MemoryLocation::getForSource(MDep),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY 
                      MSSA->getMemoryAccess(MDep), CallAccess))
-#else
-                     MSSA->getMemoryAccess(MDep), MSSA->getMemoryAccess(&CB)))
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return false;
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *TmpCast = MDep->getSource();
-  if (MDep->getSource()->getType() != ByValArg->getType()) {
-    BitCastInst *TmpBitCast = new BitCastInst(MDep->getSource(), ByValArg->getType(),
-                                              "tmpcast", &CB);
-    // Set the tmpcast's DebugLoc to MDep's
-    TmpBitCast->setDebugLoc(MDep->getDebugLoc());
-    TmpCast = TmpBitCast;
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   LLVM_DEBUG(dbgs() << "MemCpyOptPass: Forwarding memcpy to byval:\n"
                     << "  " << *MDep << "\n"
                     << "  " << CB << "\n");
 
   // Otherwise we're good!  Update the byval argument.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   CB.setArgOperand(ArgNo, MDep->getSource());
-#else
-  CB.setArgOperand(ArgNo, TmpCast);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   ++NumMemCpyInstr;
   return true;
 }

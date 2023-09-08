@@ -6060,6 +6060,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_faltmathlib_EQ)) {
+    StringRef Name = A->getValue();
+    A->render(Args, CmdArgs);
+  }
+
   if (Args.hasFlag(options::OPT_fmerge_all_constants,
                    options::OPT_fno_merge_all_constants, false))
     CmdArgs.push_back("-fmerge-all-constants");
@@ -7571,14 +7576,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fpch_debuginfo, options::OPT_fno_pch_debuginfo,
                    false))
     CmdArgs.push_back("-fmodules-debuginfo");
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
-    CmdArgs.push_back("-no-opaque-pointers");
-  else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
-           !SPIRV_ENABLE_OPAQUE_POINTERS)
-    CmdArgs.push_back("-no-opaque-pointers");
-#endif
 
   ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, Inputs, CmdArgs, rewriteKind);
   RenderObjCOptions(TC, D, RawTriple, Args, Runtime, rewriteKind != RK_None,
@@ -9839,7 +9836,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
             .equals_insensitive("spirv") &&
         !TCArgs.hasArg(options::OPT_fsycl_device_only);
-    if (CreatingSyclSPIRVFatObj)
+    bool ShouldPreserveMetadataInFinalImage =
+        TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+    bool ShouldPreserveMetadata =
+        CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+    if (ShouldPreserveMetadata)
       TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
     // Disable all the extensions by default
@@ -9884,7 +9885,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
                 ",+SPV_INTEL_tensor_float32_conversion";
-    if (CreatingSyclSPIRVFatObj)
+    if (ShouldPreserveMetadata)
       ExtArg += ",+SPV_KHR_non_semantic_info";
 
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));

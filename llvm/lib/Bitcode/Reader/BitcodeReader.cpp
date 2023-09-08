@@ -1374,18 +1374,6 @@ unsigned BitcodeReader::getVirtualTypeID(Type *Ty,
            "Incorrect cached contained type IDs");
     return It->second;
   }
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-#ifndef NDEBUG
-  if (!Ty->isOpaquePointerTy()) {
-    assert(Ty->getNumContainedTypes() == ChildTypeIDs.size() &&
-           "Wrong number of contained types");
-    for (auto Pair : zip(Ty->subtypes(), ChildTypeIDs)) {
-      assert(std::get<0>(Pair) == getTypeByID(std::get<1>(Pair)) &&
-             "Incorrect contained type ID");
-    }
-  }
-#endif
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   unsigned TypeID = TypeList.size();
   TypeList.push_back(Ty);
@@ -2364,10 +2352,6 @@ Error BitcodeReader::parseTypeTableBody() {
                                     //          [pointee type, address space]
       if (Record.empty())
         return error("Invalid pointer record");
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue()))
-        Context.setOpaquePointers(false);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddressSpace = 0;
       if (Record.size() == 2)
         AddressSpace = Record[1];
@@ -2382,13 +2366,6 @@ Error BitcodeReader::parseTypeTableBody() {
     case bitc::TYPE_CODE_OPAQUE_POINTER: { // OPAQUE_POINTER: [addrspace]
       if (Record.size() != 1)
         return error("Invalid opaque pointer record");
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      if (LLVM_UNLIKELY(!Context.hasSetOpaquePointersValue())) {
-        Context.setOpaquePointers(true);
-      } else if (Context.supportsTypedPointers())
-        return error(
-            "Opaque pointers are only supported in -opaque-pointers mode");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       unsigned AddressSpace = Record[0];
       ResultTy = PointerType::get(Context, AddressSpace);
       break;
