@@ -5458,9 +5458,10 @@ class OffloadingActionBuilder final {
             } else {
               FullDeviceLinkAction = FullLinkObject;
 
-              ActionList DeviceCodeAndSYCLLibs{FullDeviceLinkAction, LinkSYCLLibs};
-              JobAction *LinkDeviceCode =
-                  C.MakeAction<LinkJobAction>(DeviceCodeAndSYCLLibs, types::TY_LLVM_BC);
+              ActionList DeviceCodeAndSYCLLibs{FullDeviceLinkAction,
+                                               LinkSYCLLibs};
+              JobAction *LinkDeviceCode = C.MakeAction<LinkJobAction>(
+                  DeviceCodeAndSYCLLibs, types::TY_LLVM_BC);
 
               if (FullDeviceLinkAction->getType() == types::TY_Tempfilelist) {
                 // If our compiler input outputs a temp file list (eg. fat
