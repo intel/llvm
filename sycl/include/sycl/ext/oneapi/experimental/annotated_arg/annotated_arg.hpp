@@ -24,7 +24,8 @@ namespace sycl {
 template <typename T, typename PropertyList>
 struct is_device_copyable<
   ext::oneapi::experimental::annotated_arg<T, PropertyList>,
-  std::enable_if_t<!std::is_trivially_copyable_v<ext::oneapi::experimental::annotated_arg<T, PropertyList>>>>
+  std::enable_if_t<!std::is_trivially_copyable_v<
+    ext::oneapi::experimental::annotated_arg<T, PropertyList>>>>
   : is_device_copyable<T> {};
 
 inline namespace _V1 {
