@@ -1130,8 +1130,7 @@ static bool shouldUseZeroOffsetLdSt(SDValue N) {
 bool ARMDAGToDAGISel::SelectThumbAddrModeRRSext(SDValue N, SDValue &Base,
                                                 SDValue &Offset) {
   if (N.getOpcode() != ISD::ADD && !CurDAG->isBaseWithConstantOffset(N)) {
-    ConstantSDNode *NC = dyn_cast<ConstantSDNode>(N);
-    if (!NC || !NC->isZero())
+    if (!isNullConstant(N))
       return false;
 
     Base = Offset = N;
@@ -3559,8 +3558,7 @@ void ARMDAGToDAGISel::SelectCMPZ(SDNode *N, bool &SwitchEQNEToPLMI) {
     return;
 
   SDValue Zero = N->getOperand(1);
-  if (!isa<ConstantSDNode>(Zero) || !cast<ConstantSDNode>(Zero)->isZero() ||
-      And->getOpcode() != ISD::AND)
+  if (!isNullConstant(Zero) || And->getOpcode() != ISD::AND)
     return;
   SDValue X = And.getOperand(0);
   auto C = dyn_cast<ConstantSDNode>(And.getOperand(1));
@@ -3701,7 +3699,8 @@ void ARMDAGToDAGISel::Select(SDNode *N) {
   case ISD::Constant: {
     unsigned Val = cast<ConstantSDNode>(N)->getZExtValue();
     // If we can't materialize the constant we need to use a literal pool
-    if (ConstantMaterializationCost(Val, Subtarget) > 2) {
+    if (ConstantMaterializationCost(Val, Subtarget) > 2 &&
+        !Subtarget->genExecuteOnly()) {
       SDValue CPIdx = CurDAG->getTargetConstantPool(
           ConstantInt::get(Type::getInt32Ty(*CurDAG->getContext()), Val),
           TLI->getPointerTy(CurDAG->getDataLayout()));

@@ -8,14 +8,14 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/types.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
+#include <sycl/types.hpp>                                // for is_device_c...
 
-#include <tuple>
-#include <type_traits>
+#include <tuple>       // for tuple, tupl...
+#include <type_traits> // for enable_if_t
+#include <variant>     // for tuple
 
 namespace sycl {
 inline namespace _V1 {

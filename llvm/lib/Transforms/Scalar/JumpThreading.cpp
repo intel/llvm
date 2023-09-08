@@ -246,7 +246,7 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
                                          FunctionAnalysisManager &AM) {
   auto &TTI = AM.getResult<TargetIRAnalysis>(F);
   // Jump Threading has no sense for the targets with divergent CF
-  if (TTI.hasBranchDivergence())
+  if (TTI.hasBranchDivergence(&F))
     return PreservedAnalyses::all();
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   auto &LVI = AM.getResult<LazyValueAnalysis>(F);
@@ -1899,7 +1899,7 @@ bool JumpThreadingPass::maybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB) {
     return false;
 
   const Instruction *TI = SinglePred->getTerminator();
-  if (TI->isExceptionalTerminator() || TI->getNumSuccessors() != 1 ||
+  if (TI->isSpecialTerminator() || TI->getNumSuccessors() != 1 ||
       SinglePred == BB || hasAddressTakenAndUsed(BB))
     return false;
 

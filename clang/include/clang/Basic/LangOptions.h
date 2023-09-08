@@ -522,6 +522,10 @@ public:
   using FPAccuracyFuncMapTy = std::map<std::string, std::string>;
   FPAccuracyFuncMapTy FPAccuracyFuncMap;
 
+  // Indicates whether we should keep all nullptr checks for pointers
+  // received as a result of a standard operator new (-fcheck-new)
+  bool CheckNew = false;
+
   LangOptions();
 
   /// Set language defaults for the given input language and
@@ -608,7 +612,7 @@ public:
   /// Returns true if functions without prototypes or functions with an
   /// identifier list (aka K&R C functions) are not allowed.
   bool requiresStrictPrototypes() const {
-    return CPlusPlus || C2x || DisableKNRFunctions;
+    return CPlusPlus || C23 || DisableKNRFunctions;
   }
 
   /// Returns true if implicit function declarations are allowed in the current
@@ -621,7 +625,7 @@ public:
   bool isImplicitIntRequired() const { return !CPlusPlus && !C99; }
 
   /// Returns true if implicit int is supported at all.
-  bool isImplicitIntAllowed() const { return !CPlusPlus && !C2x; }
+  bool isImplicitIntAllowed() const { return !CPlusPlus && !C23; }
 
   /// Check if return address signing is enabled.
   bool hasSignReturnAddress() const {
@@ -777,7 +781,7 @@ public:
   RoundingMode getRoundingMode() const {
     RoundingMode RM = getConstRoundingMode();
     if (RM == RoundingMode::Dynamic) {
-      // C2x: 7.6.2p3  If the FE_DYNAMIC mode is specified and FENV_ACCESS is
+      // C23: 7.6.2p3  If the FE_DYNAMIC mode is specified and FENV_ACCESS is
       // "off", the translator may assume that the default rounding mode is in
       // effect.
       if (!getAllowFEnvAccess() && !getRoundingMath())

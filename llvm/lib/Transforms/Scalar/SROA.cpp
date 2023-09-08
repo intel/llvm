@@ -1169,16 +1169,24 @@ private:
       std::tie(UsedI, I) = Uses.pop_back_val();
 
       if (LoadInst *LI = dyn_cast<LoadInst>(I)) {
-        Size =
-            std::max(Size, DL.getTypeStoreSize(LI->getType()).getFixedValue());
+        TypeSize LoadSize = DL.getTypeStoreSize(LI->getType());
+        if (LoadSize.isScalable()) {
+          PI.setAborted(LI);
+          return nullptr;
+        }
+        Size = std::max(Size, LoadSize.getFixedValue());
         continue;
       }
       if (StoreInst *SI = dyn_cast<StoreInst>(I)) {
         Value *Op = SI->getOperand(0);
         if (Op == UsedI)
           return SI;
-        Size =
-            std::max(Size, DL.getTypeStoreSize(Op->getType()).getFixedValue());
+        TypeSize StoreSize = DL.getTypeStoreSize(Op->getType());
+        if (StoreSize.isScalable()) {
+          PI.setAborted(SI);
+          return nullptr;
+        }
+        Size = std::max(Size, StoreSize.getFixedValue());
         continue;
       }
 
@@ -1627,18 +1635,19 @@ static void speculateSelectInstLoads(SelectInst &SI, LoadInst &LI,
   assert(LI.isSimple() && "We only speculate simple loads");
 
   IRB.SetInsertPoint(&LI);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
+  if (auto *TypedPtrTy = LI.getPointerOperandType();
+      !TypedPtrTy->isOpaquePointerTy() && SI.getType() != TypedPtrTy) {
+    TV = IRB.CreateBitOrPointerCast(TV, TypedPtrTy, "");
+    FV = IRB.CreateBitOrPointerCast(FV, TypedPtrTy, "");
+  }
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // Fix for typed pointers
   auto *LoadPtrType = LI.getPointerOperandType();
   if (LoadPtrType != TV->getType())
     TV = IRB.CreateBitCast(TV, LoadPtrType);
   if (LoadPtrType != FV->getType())
     FV = IRB.CreateBitCast(FV, LoadPtrType);
-
-  if (auto *TypedPtrTy = LI.getPointerOperandType();
-      !TypedPtrTy->isOpaquePointerTy() && SI.getType() != TypedPtrTy) {
-    TV = IRB.CreateBitOrPointerCast(TV, TypedPtrTy, "");
-    FV = IRB.CreateBitOrPointerCast(FV, TypedPtrTy, "");
-  }
 
   LoadInst *TL =
       IRB.CreateAlignedLoad(LI.getType(), TV, LI.getAlign(),
@@ -1708,11 +1717,13 @@ static void rewriteMemOpOfSelect(SelectInst &SI, T &I,
     }
     CondMemOp.insertBefore(NewMemOpBB->getTerminator());
     Value *Ptr = SI.getOperand(1 + SuccIdx);
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     if (auto *PtrTy = Ptr->getType();
         !PtrTy->isOpaquePointerTy() &&
         PtrTy != CondMemOp.getPointerOperandType())
       Ptr = BitCastInst::CreatePointerBitCastOrAddrSpaceCast(
           Ptr, CondMemOp.getPointerOperandType(), "", &CondMemOp);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     CondMemOp.setOperand(I.getPointerOperandIndex(), Ptr);
     if (isa<LoadInst>(I)) {
       CondMemOp.setName(I.getName() + (IsThen ? ".then" : ".else") + ".val");
@@ -2728,10 +2739,13 @@ class llvm::sroa::AllocaSliceRewriter
     if (!IsVolatile || AddrSpace == NewAI.getType()->getPointerAddressSpace())
       return &NewAI;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+    Type *AccessTy = IRB.getPtrTy(AddrSpace);
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
     Type *AccessTy = NewAI.getAllocatedType()->getPointerTo(AddrSpace);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return IRB.CreateAddrSpaceCast(&NewAI, AccessTy);
   }
-
 public:
   AllocaSliceRewriter(const DataLayout &DL, AllocaSlices &AS, SROAPass &Pass,
                       AllocaInst &OldAI, AllocaInst &NewAI,
@@ -4507,7 +4521,7 @@ bool SROAPass::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
     for (;;) {
       auto *PartTy = Type::getIntNTy(LI->getContext(), PartSize * 8);
       auto AS = LI->getPointerAddressSpace();
-      auto *PartPtrTy = PartTy->getPointerTo(AS);
+      auto *PartPtrTy = LI->getPointerOperandType();
       LoadInst *PLoad = IRB.CreateAlignedLoad(
           PartTy,
           getAdjustedPtr(IRB, DL, BasePtr,
@@ -4562,8 +4576,7 @@ bool SROAPass::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
       for (int Idx = 0, Size = SplitLoads.size(); Idx < Size; ++Idx) {
         LoadInst *PLoad = SplitLoads[Idx];
         uint64_t PartOffset = Idx == 0 ? 0 : Offsets.Splits[Idx - 1];
-        auto *PartPtrTy =
-            PLoad->getType()->getPointerTo(SI->getPointerAddressSpace());
+        auto *PartPtrTy = SI->getPointerOperandType();
 
         auto AS = SI->getPointerAddressSpace();
         StoreInst *PStore = IRB.CreateAlignedStore(
@@ -4643,8 +4656,8 @@ bool SROAPass::presplitLoadsAndStores(AllocaInst &AI, AllocaSlices &AS) {
     int Idx = 0, Size = Offsets.Splits.size();
     for (;;) {
       auto *PartTy = Type::getIntNTy(Ty->getContext(), PartSize * 8);
-      auto *LoadPartPtrTy = PartTy->getPointerTo(LI->getPointerAddressSpace());
-      auto *StorePartPtrTy = PartTy->getPointerTo(SI->getPointerAddressSpace());
+      auto *LoadPartPtrTy = LI->getPointerOperandType();
+      auto *StorePartPtrTy = SI->getPointerOperandType();
 
       // Either lookup a split load or create one.
       LoadInst *PLoad;

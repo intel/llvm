@@ -1546,7 +1546,8 @@ ExprResult Parser::ParseLambdaExpressionAfterIntroducer(
   TemplateParamScope.Exit();
   LambdaScope.Exit();
 
-  if (!Stmt.isInvalid() && !TrailingReturnType.isInvalid())
+  if (!Stmt.isInvalid() && !TrailingReturnType.isInvalid() &&
+      !D.isInvalidType())
     return Actions.ActOnLambdaExpr(LambdaBeginLoc, Stmt.get(), getCurScope());
 
   Actions.ActOnLambdaError(LambdaBeginLoc, getCurScope());
@@ -3114,10 +3115,9 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, ParsedType ObjectType,
     }
 
     // Note that this is a destructor name.
-    ParsedType Ty = Actions.getDestructorName(TildeLoc, *ClassName,
-                                              ClassNameLoc, getCurScope(),
-                                              SS, ObjectType,
-                                              EnteringContext);
+    ParsedType Ty =
+        Actions.getDestructorName(*ClassName, ClassNameLoc, getCurScope(), SS,
+                                  ObjectType, EnteringContext);
     if (!Ty)
       return true;
 
@@ -3231,7 +3231,7 @@ Parser::ParseCXXNewExpression(bool UseGlobal, SourceLocation Start) {
     // A new-type-id is a simplified type-id, where essentially the
     // direct-declarator is replaced by a direct-new-declarator.
     MaybeParseGNUAttributes(DeclaratorInfo);
-    if (ParseCXXTypeSpecifierSeq(DS))
+    if (ParseCXXTypeSpecifierSeq(DS, DeclaratorContext::CXXNew))
       DeclaratorInfo.setInvalidType(true);
     else {
       DeclaratorInfo.SetSourceRange(DS.getSourceRange());

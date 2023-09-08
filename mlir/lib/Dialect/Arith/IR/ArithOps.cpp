@@ -8,10 +8,12 @@
 
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <utility>
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/CommonFolders.h"
+#include "mlir/Dialect/UB/IR/UBOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -25,6 +27,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
 using namespace mlir::arith;
@@ -33,18 +36,29 @@ using namespace mlir::arith;
 // Pattern helpers
 //===----------------------------------------------------------------------===//
 
+static IntegerAttr
+applyToIntegerAttrs(PatternRewriter &builder, Value res, Attribute lhs,
+                    Attribute rhs,
+                    function_ref<int64_t(int64_t, int64_t)> binFn) {
+  return builder.getIntegerAttr(res.getType(),
+                                binFn(llvm::cast<IntegerAttr>(lhs).getInt(),
+                                      llvm::cast<IntegerAttr>(rhs).getInt()));
+}
+
 static IntegerAttr addIntegerAttrs(PatternRewriter &builder, Value res,
                                    Attribute lhs, Attribute rhs) {
-  return builder.getIntegerAttr(res.getType(),
-                                llvm::cast<IntegerAttr>(lhs).getInt() +
-                                    llvm::cast<IntegerAttr>(rhs).getInt());
+  return applyToIntegerAttrs(builder, res, lhs, rhs, std::plus<int64_t>());
 }
 
 static IntegerAttr subIntegerAttrs(PatternRewriter &builder, Value res,
                                    Attribute lhs, Attribute rhs) {
-  return builder.getIntegerAttr(res.getType(),
-                                llvm::cast<IntegerAttr>(lhs).getInt() -
-                                    llvm::cast<IntegerAttr>(rhs).getInt());
+  return applyToIntegerAttrs(builder, res, lhs, rhs, std::minus<int64_t>());
+}
+
+static IntegerAttr mulIntegerAttrs(PatternRewriter &builder, Value res,
+                                   Attribute lhs, Attribute rhs) {
+  return applyToIntegerAttrs(builder, res, lhs, rhs,
+                             std::multiplies<int64_t>());
 }
 
 /// Invert an integer comparison predicate.
@@ -117,13 +131,10 @@ namespace {
 /// Return the type of the same shape (scalar, vector or tensor) containing i1.
 static Type getI1SameShape(Type type) {
   auto i1Type = IntegerType::get(type.getContext(), 1);
-  if (auto tensorType = llvm::dyn_cast<RankedTensorType>(type))
-    return RankedTensorType::get(tensorType.getShape(), i1Type);
+  if (auto shapedType = llvm::dyn_cast<ShapedType>(type))
+    return shapedType.cloneWith(std::nullopt, i1Type);
   if (llvm::isa<UnrankedTensorType>(type))
     return UnrankedTensorType::get(i1Type);
-  if (auto vectorType = llvm::dyn_cast<VectorType>(type))
-    return VectorType::get(vectorType.getShape(), i1Type,
-                           vectorType.getNumScalableDims());
   return i1Type;
 }
 
@@ -379,6 +390,11 @@ OpFoldResult arith::MulIOp::fold(FoldAdaptor adaptor) {
   return constFoldBinaryOp<IntegerAttr>(
       adaptor.getOperands(),
       [](const APInt &a, const APInt &b) { return a * b; });
+}
+
+void arith::MulIOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                                MLIRContext *context) {
+  patterns.add<MulIMulIConstant>(context);
 }
 
 //===----------------------------------------------------------------------===//
@@ -1132,9 +1148,21 @@ static Type getTypeIfLikeOrMemRef(Type type) {
                            type_list<ElementTypes...>());
 }
 
+/// Return false if both types are ranked tensor with mismatching encoding.
+static bool hasSameEncoding(Type typeA, Type typeB) {
+  auto rankedTensorA = dyn_cast<RankedTensorType>(typeA);
+  auto rankedTensorB = dyn_cast<RankedTensorType>(typeB);
+  if (!rankedTensorA || !rankedTensorB)
+    return true;
+  return rankedTensorA.getEncoding() == rankedTensorB.getEncoding();
+}
+
 static bool areValidCastInputsAndOutputs(TypeRange inputs, TypeRange outputs) {
-  return inputs.size() == 1 && outputs.size() == 1 &&
-         succeeded(verifyCompatibleShapes(inputs.front(), outputs.front()));
+  if (inputs.size() != 1 || outputs.size() != 1)
+    return false;
+  if (!hasSameEncoding(inputs.front(), outputs.front()))
+    return false;
+  return succeeded(verifyCompatibleShapes(inputs.front(), outputs.front()));
 }
 
 //===----------------------------------------------------------------------===//
@@ -2167,6 +2195,13 @@ OpFoldResult arith::SelectOp::fold(FoldAdaptor adaptor) {
   if (matchPattern(condition, m_Zero()))
     return falseVal;
 
+  // If either operand is fully poisoned, return the other.
+  if (isa_and_nonnull<ub::PoisonAttr>(adaptor.getTrueValue()))
+    return falseVal;
+
+  if (isa_and_nonnull<ub::PoisonAttr>(adaptor.getFalseValue()))
+    return trueVal;
+
   // select %x, true, false => %x
   if (getType().isInteger(1) && matchPattern(getTrueValue(), m_One()) &&
       matchPattern(getFalseValue(), m_Zero()))
@@ -2332,13 +2367,17 @@ OpFoldResult arith::ShRSIOp::fold(FoldAdaptor adaptor) {
 
 /// Returns the identity value attribute associated with an AtomicRMWKind op.
 TypedAttr mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
-                                            OpBuilder &builder, Location loc) {
+                                            OpBuilder &builder, Location loc,
+                                            bool useOnlyFiniteValue) {
   switch (kind) {
-  case AtomicRMWKind::maxf:
-    return builder.getFloatAttr(
-        resultType,
-        APFloat::getInf(llvm::cast<FloatType>(resultType).getFloatSemantics(),
-                        /*Negative=*/true));
+  case AtomicRMWKind::maxf: {
+    const llvm::fltSemantics &semantic =
+        llvm::cast<FloatType>(resultType).getFloatSemantics();
+    APFloat identity = useOnlyFiniteValue
+                           ? APFloat::getSmallest(semantic, /*Negative=*/true)
+                           : APFloat::getInf(semantic, /*Negative=*/true);
+    return builder.getFloatAttr(resultType, identity);
+  }
   case AtomicRMWKind::addf:
   case AtomicRMWKind::addi:
   case AtomicRMWKind::maxu:
@@ -2352,11 +2391,15 @@ TypedAttr mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
     return builder.getIntegerAttr(
         resultType, APInt::getSignedMinValue(
                         llvm::cast<IntegerType>(resultType).getWidth()));
-  case AtomicRMWKind::minf:
-    return builder.getFloatAttr(
-        resultType,
-        APFloat::getInf(llvm::cast<FloatType>(resultType).getFloatSemantics(),
-                        /*Negative=*/false));
+  case AtomicRMWKind::minf: {
+    const llvm::fltSemantics &semantic =
+        llvm::cast<FloatType>(resultType).getFloatSemantics();
+    APFloat identity = useOnlyFiniteValue
+                           ? APFloat::getLargest(semantic, /*Negative=*/false)
+                           : APFloat::getInf(semantic, /*Negative=*/false);
+
+    return builder.getFloatAttr(resultType, identity);
+  }
   case AtomicRMWKind::mins:
     return builder.getIntegerAttr(
         resultType, APInt::getSignedMaxValue(
@@ -2377,10 +2420,53 @@ TypedAttr mlir::arith::getIdentityValueAttr(AtomicRMWKind kind, Type resultType,
   return nullptr;
 }
 
+/// Return the identity numeric value associated to the give op.
+std::optional<TypedAttr> mlir::arith::getNeutralElement(Operation *op) {
+  std::optional<AtomicRMWKind> maybeKind =
+      llvm::TypeSwitch<Operation *, std::optional<AtomicRMWKind>>(op)
+          // Floating-point operations.
+          .Case([](arith::AddFOp op) { return AtomicRMWKind::addf; })
+          .Case([](arith::MulFOp op) { return AtomicRMWKind::mulf; })
+          .Case([](arith::MaxFOp op) { return AtomicRMWKind::maxf; })
+          .Case([](arith::MinFOp op) { return AtomicRMWKind::minf; })
+          // Integer operations.
+          .Case([](arith::AddIOp op) { return AtomicRMWKind::addi; })
+          .Case([](arith::OrIOp op) { return AtomicRMWKind::ori; })
+          .Case([](arith::XOrIOp op) { return AtomicRMWKind::ori; })
+          .Case([](arith::AndIOp op) { return AtomicRMWKind::andi; })
+          .Case([](arith::MaxUIOp op) { return AtomicRMWKind::maxu; })
+          .Case([](arith::MinUIOp op) { return AtomicRMWKind::minu; })
+          .Case([](arith::MaxSIOp op) { return AtomicRMWKind::maxs; })
+          .Case([](arith::MinSIOp op) { return AtomicRMWKind::mins; })
+          .Case([](arith::MulIOp op) { return AtomicRMWKind::muli; })
+          .Default([](Operation *op) { return std::nullopt; });
+  if (!maybeKind) {
+    op->emitError() << "Unknown neutral element for: " << *op;
+    return std::nullopt;
+  }
+
+  bool useOnlyFiniteValue = false;
+  auto fmfOpInterface = dyn_cast<ArithFastMathInterface>(op);
+  if (fmfOpInterface) {
+    arith::FastMathFlagsAttr fmfAttr = fmfOpInterface.getFastMathFlagsAttr();
+    useOnlyFiniteValue =
+        bitEnumContainsAny(fmfAttr.getValue(), arith::FastMathFlags::ninf);
+  }
+
+  // Builder only used as helper for attribute creation.
+  OpBuilder b(op->getContext());
+  Type resultType = op->getResult(0).getType();
+
+  return getIdentityValueAttr(*maybeKind, resultType, b, op->getLoc(),
+                              useOnlyFiniteValue);
+}
+
 /// Returns the identity value associated with an AtomicRMWKind op.
 Value mlir::arith::getIdentityValue(AtomicRMWKind op, Type resultType,
-                                    OpBuilder &builder, Location loc) {
-  auto attr = getIdentityValueAttr(op, resultType, builder, loc);
+                                    OpBuilder &builder, Location loc,
+                                    bool useOnlyFiniteValue) {
+  auto attr =
+      getIdentityValueAttr(op, resultType, builder, loc, useOnlyFiniteValue);
   return builder.create<arith::ConstantOp>(loc, attr);
 }
 

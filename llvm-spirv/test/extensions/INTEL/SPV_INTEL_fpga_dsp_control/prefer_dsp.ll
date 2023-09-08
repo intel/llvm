@@ -19,14 +19,14 @@
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc -o %t.negative.spv
 ; RUN: llvm-spirv %t.negative.spv --to-text -o %t.negative.spt
 ; RUN: FileCheck < %t.negative.spt %s --check-prefix=CHECK-SPIRV-NEG
 
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.negative.spv -o %t.negative.rev.bc
+; RUN: llvm-spirv -r %t.negative.spv -o %t.negative.rev.bc
 ; RUN: llvm-dis < %t.negative.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM-NEG
 
 ; CHECK-SPIRV: Capability FPGADSPControlINTEL
@@ -57,29 +57,29 @@ define dso_local i32 @main() #0 {
 entry:
   %retval = alloca i32, align 4
   %agg.tmp = alloca %class.anon, align 1
-  store i32 0, i32* %retval, align 4
-  call spir_func void @"_Z25math_prefer_dsp_propagateIZ4mainE3$_0EvT_"(%class.anon* byval(%class.anon) align 1 %agg.tmp)
+  store i32 0, ptr %retval, align 4
+  call spir_func void @"_Z25math_prefer_dsp_propagateIZ4mainE3$_0EvT_"(ptr byval(%class.anon) align 1 %agg.tmp)
   ret i32 0
 }
 
 ; Function Attrs: noinline optnone mustprogress
-define internal spir_func void @"_Z25math_prefer_dsp_propagateIZ4mainE3$_0EvT_"(%class.anon* byval(%class.anon) align 1 %f) #1 !prefer_dsp !3 {
+define internal spir_func void @"_Z25math_prefer_dsp_propagateIZ4mainE3$_0EvT_"(ptr byval(%class.anon) align 1 %f) #1 !prefer_dsp !3 {
 entry:
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* nonnull dereferenceable(1) %f)
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr nonnull dereferenceable(1) %f)
   ret void
 }
 
 ; Function Attrs: noinline nounwind optnone mustprogress
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* nonnull dereferenceable(1) %this) #2 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr nonnull dereferenceable(1) %this) #2 align 2 {
 entry:
-  %this.addr = alloca %class.anon*, align 8
+  %this.addr = alloca ptr, align 8
   %a = alloca i32, align 4
-  store %class.anon* %this, %class.anon** %this.addr, align 8
-  %this1 = load %class.anon*, %class.anon** %this.addr, align 8
-  store i32 0, i32* %a, align 4
-  %0 = load i32, i32* %a, align 4
+  store ptr %this, ptr %this.addr, align 8
+  %this1 = load ptr, ptr %this.addr, align 8
+  store i32 0, ptr %a, align 4
+  %0 = load i32, ptr %a, align 4
   %add = add nsw i32 %0, 1
-  store i32 %add, i32* %a, align 4
+  store i32 %add, ptr %a, align 4
   ret void
 }
 

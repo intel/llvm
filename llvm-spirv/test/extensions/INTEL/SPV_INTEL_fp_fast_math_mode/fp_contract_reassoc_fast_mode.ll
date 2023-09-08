@@ -2,7 +2,7 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV-OFF
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_fp_fast_math_mode -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV-ON
 ; RUN: llvm-spirv  --spirv-ext=+SPV_INTEL_fp_fast_math_mode %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
  
 ; CHECK-SPIRV-ON: 2 Capability FPFastMathModeINTEL
 ; CHECK-SPIRV-ON: 3 Name [[mu:[0-9]+]] "mul"
@@ -27,16 +27,16 @@ define spir_kernel void @test(float %a, float %b) #0 !kernel_arg_addr_space !3 !
 entry:
   %a.addr = alloca float, align 4
   %b.addr = alloca float, align 4
-  store float %a, float* %a.addr, align 4
-  store float %b, float* %b.addr, align 4
-  %0 = load float, float* %a.addr, align 4
-  %1 = load float, float* %a.addr, align 4
+  store float %a, ptr %a.addr, align 4
+  store float %b, ptr %b.addr, align 4
+  %0 = load float, ptr %a.addr, align 4
+  %1 = load float, ptr %a.addr, align 4
   %mul = fmul contract float %0, %1
-  store float %mul, float* %b.addr, align 4
-  %2 = load float, float* %b.addr, align 4
-  %3 = load float, float* %b.addr, align 4
+  store float %mul, ptr %b.addr, align 4
+  %2 = load float, ptr %b.addr, align 4
+  %3 = load float, ptr %b.addr, align 4
   %sub = fsub reassoc float %2, %3
-  store float %sub, float* %b.addr, align 4
+  store float %sub, ptr %b.addr, align 4
   ret void
 }
 

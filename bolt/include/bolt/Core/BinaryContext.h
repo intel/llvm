@@ -13,6 +13,7 @@
 #ifndef BOLT_CORE_BINARY_CONTEXT_H
 #define BOLT_CORE_BINARY_CONTEXT_H
 
+#include "bolt/Core/AddressMap.h"
 #include "bolt/Core/BinaryData.h"
 #include "bolt/Core/BinarySection.h"
 #include "bolt/Core/DebugData.h"
@@ -29,7 +30,6 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
-#include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/MC/MCSectionELF.h"
 #include "llvm/MC/MCSectionMachO.h"
 #include "llvm/MC/MCStreamer.h"
@@ -221,6 +221,9 @@ class BinaryContext {
 
   bool ContainsDwarf5{false};
   bool ContainsDwarfLegacy{false};
+
+  /// Mapping from input to output addresses.
+  std::optional<AddressMap> IOAddressMap;
 
   /// Preprocess DWO debug information.
   void preprocessDWODebugInfo();
@@ -639,9 +642,22 @@ public:
   /// Total hotness score according to profiling data for this binary.
   uint64_t TotalScore{0};
 
-  /// Binary-wide stats for macro-fusion.
-  uint64_t MissedMacroFusionPairs{0};
-  uint64_t MissedMacroFusionExecCount{0};
+  /// Binary-wide aggregated stats.
+  struct BinaryStats {
+    /// Stats for macro-fusion.
+    uint64_t MissedMacroFusionPairs{0};
+    uint64_t MissedMacroFusionExecCount{0};
+
+    /// Stats for stale profile matching:
+    ///   the total number of basic blocks in the profile
+    uint32_t NumStaleBlocks{0};
+    ///   the number of matched basic blocks
+    uint32_t NumMatchedBlocks{0};
+    ///   the total count of samples in the profile
+    uint64_t StaleSampleCount{0};
+    ///   the count of matched samples
+    uint64_t MatchedSampleCount{0};
+  } Stats;
 
   // Address of the first allocated segment.
   uint64_t FirstAllocAddress{std::numeric_limits<uint64_t>::max()};
@@ -673,19 +689,9 @@ public:
   /// List of functions that always trap.
   std::vector<const BinaryFunction *> TrappedFunctions;
 
-  /// Map SDT locations to SDT markers info
-  std::unordered_map<uint64_t, SDTMarkerInfo> SDTMarkers;
-
-  /// Map linux kernel program locations/instructions to their pointers in
-  /// special linux kernel sections
-  std::unordered_map<uint64_t, std::vector<LKInstructionMarkerInfo>> LKMarkers;
-
   /// List of external addresses in the code that are not a function start
   /// and are referenced from BinaryFunction.
   std::list<std::pair<BinaryFunction *, uint64_t>> InterproceduralReferences;
-
-  /// PseudoProbe decoder
-  MCPseudoProbeDecoder ProbeDecoder;
 
   /// DWARF encoding. Available encoding types defined in BinaryFormat/Dwarf.h
   /// enum Constants, e.g. DW_EH_PE_omit.
@@ -1340,6 +1346,12 @@ public:
         /* IncrementalLinkerCompatible */ false,
         /* DWARFMustBeAtTheEnd */ false));
     return Streamer;
+  }
+
+  void setIOAddressMap(AddressMap Map) { IOAddressMap = std::move(Map); }
+  const AddressMap &getIOAddressMap() const {
+    assert(IOAddressMap && "Address map not set yet");
+    return *IOAddressMap;
   }
 };
 

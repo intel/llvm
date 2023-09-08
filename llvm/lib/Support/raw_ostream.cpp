@@ -845,8 +845,7 @@ size_t raw_fd_ostream::preferred_buffer_size() const {
   if (IsWindowsConsole)
     return 0;
   return raw_ostream::preferred_buffer_size();
-#elif !defined(__minix)
-  // Minix has no st_blksize.
+#else
   assert(FD >= 0 && "File not yet open!");
   struct stat statbuf;
   if (fstat(FD, &statbuf) != 0)
@@ -859,8 +858,6 @@ size_t raw_fd_ostream::preferred_buffer_size() const {
     return 0;
   // Return the preferred block size.
   return statbuf.st_blksize;
-#else
-  return raw_ostream::preferred_buffer_size();
 #endif
 }
 
@@ -1007,7 +1004,7 @@ Error llvm::writeToOutput(StringRef OutputFileName,
     return Write(Out);
   }
 
-  unsigned Mode = sys::fs::all_read | sys::fs::all_write | sys::fs::all_exe;
+  unsigned Mode = sys::fs::all_read | sys::fs::all_write;
   Expected<sys::fs::TempFile> Temp =
       sys::fs::TempFile::create(OutputFileName + ".temp-stream-%%%%%%", Mode);
   if (!Temp)

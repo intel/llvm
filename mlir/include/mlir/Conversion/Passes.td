@@ -11,6 +11,26 @@
 
 include "mlir/Pass/PassBase.td"
 
+
+//===----------------------------------------------------------------------===//
+// ToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertToLLVMPass : Pass<"convert-to-llvm"> {
+  let summary = "Convert to LLVM via dialect interfaces found in the input IR";
+  let description = [{
+    This is a generic pass to convert to LLVM, it uses the
+    `ConvertToLLVMPatternInterface` dialect interface to delegate to dialects
+    the injection of conversion patterns.
+  }];
+
+  let constructor = "mlir::createConvertToLLVMPass()";
+  let options = [
+    ListOption<"filterDialects", "filter-dialects", "std::string",
+               "Test conversion patterns of only the specified dialects">,
+  ];
+}
+
 //===----------------------------------------------------------------------===//
 // AffineToStandard
 //===----------------------------------------------------------------------===//
@@ -175,12 +195,14 @@ def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref"> {
     This pass converts bufferization operations into memref operations.
 
     In the current state, this pass only transforms a `bufferization.clone`
-    operation into `memref.alloc` and `memref.copy` operations. This conversion
-    is needed, since some clone operations could remain after applying several
-    transformation processes. Currently, only `canonicalize` transforms clone
-    operations or even eliminates them. This can lead to errors if any clone op
-    survived after all conversion passes (starting from the bufferization
-    dialect) are performed.
+    operation into `memref.alloc` and `memref.copy` operations and
+    `bufferization.dealloc` operations (the same way as the
+    `-bufferization-lower-deallocations` pass). The conversion of `clone`
+    operations is needed, since some clone operations could remain after
+    applying several transformation processes. Currently, only `canonicalize`
+    transforms clone operations or even eliminates them. This can lead to errors
+    if any clone op survived after all conversion passes (starting from the
+    bufferization dialect) are performed.
 
     See:
     https://llvm.discourse.group/t/bufferization-error-related-to-memref-clone/4665
@@ -195,7 +217,10 @@ def ConvertBufferizationToMemRef : Pass<"convert-bufferization-to-memref"> {
 
   }];
   let constructor = "mlir::createBufferizationToMemRefPass()";
-  let dependentDialects = ["arith::ArithDialect", "memref::MemRefDialect"];
+  let dependentDialects = [
+    "arith::ArithDialect", "memref::MemRefDialect", "scf::SCFDialect",
+    "func::FuncDialect"
+  ];
 }
 
 //===----------------------------------------------------------------------===//
@@ -263,6 +288,37 @@ def ConvertControlFlowToLLVMPass : Pass<"convert-cf-to-llvm", "ModuleOp"> {
                    /*default=*/"true", "Generate LLVM IR using opaque pointers "
                    "instead of typed pointers">,
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// ControlFlowToSCF
+//===----------------------------------------------------------------------===//
+
+def LiftControlFlowToSCFPass : Pass<"lift-cf-to-scf"> {
+  let summary = "Lift ControlFlow dialect to SCF dialect";
+  let description = [{
+    Lifts ControlFlow operations to SCF dialect operations.
+
+    This pass is prefixed with "lift" instead of "convert" as it is not always
+    guaranteed to replace all ControlFlow ops.
+    If a region contains only a single kind of return-like operation, all
+    ControlFlow operations will be replaced successfully.
+    Otherwise a single ControlFlow switch branching to one block per return-like
+    operation kind remains.
+
+    This pass may need to create unreachable terminators in case of infinite
+    loops, which is only supported for 'func.func' for now. If you potentially
+    have infinite loops inside CFG regions not belonging to 'func.func',
+    consider using `transformCFGToSCF` function directly with corresponding
+    `CFGToSCFInterface::createUnreachableTerminator` implementation.
+  }];
+
+  let dependentDialects = ["scf::SCFDialect",
+                           "arith::ArithDialect",
+                           "ub::UBDialect",
+                           // TODO: This is only necessary until we have a
+                           //       ub.unreachable op.
+                           "func::FuncDialect"];
 }
 
 //===----------------------------------------------------------------------===//
@@ -555,21 +611,6 @@ def ConvertIndexToLLVMPass : Pass<"convert-index-to-llvm"> {
 }
 
 //===----------------------------------------------------------------------===//
-// LinalgToLLVM
-//===----------------------------------------------------------------------===//
-
-def ConvertLinalgToLLVMPass : Pass<"convert-linalg-to-llvm", "ModuleOp"> {
-  let summary = "Convert the operations from the linalg dialect into the LLVM "
-                "dialect";
-  let dependentDialects = ["scf::SCFDialect", "LLVM::LLVMDialect"];
-  let options = [
-     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-                /*default=*/"true", "Generate LLVM IR using opaque pointers "
-                "instead of typed pointers">
-  ];
-}
-
-//===----------------------------------------------------------------------===//
 // LinalgToStandard
 //===----------------------------------------------------------------------===//
 
@@ -705,8 +746,26 @@ def ConvertMemRefToSPIRV : Pass<"convert-memref-to-spirv"> {
   let options = [
     Option<"boolNumBits", "bool-num-bits",
            "int", /*default=*/"8",
-           "The number of bits to store a boolean value">
+           "The number of bits to store a boolean value">,
+    Option<"use64bitIndex", "use-64bit-index",
+           "bool", /*default=*/"false",
+           "Use 64-bit integers to convert index types">
   ];
+}
+
+//===----------------------------------------------------------------------===//
+// NVVMToLLVM
+//===----------------------------------------------------------------------===//
+
+def ConvertNVVMToLLVMPass : Pass<"convert-nvvm-to-llvm"> {
+  let summary = "Convert NVVM dialect to LLVM dialect";
+  let description = [{
+    This pass generates inline assembly for the NVVM ops which is not 
+    implemented in LLVM core.
+  }];
+  let dependentDialects = [
+    "NVVM::NVVMDialect",
+  ];  
 }
 
 //===----------------------------------------------------------------------===//
@@ -896,7 +955,17 @@ def ConvertSPIRVToLLVMPass : Pass<"convert-spirv-to-llvm", "ModuleOp"> {
   let options = [
     Option<"useOpaquePointers", "use-opaque-pointers", "bool",
                  /*default=*/"true", "Generate LLVM IR using opaque pointers "
-                 "instead of typed pointers">
+                 "instead of typed pointers">,
+    Option<"clientAPI", "client-api", "::mlir::spirv::ClientAPI",
+	   /*default=*/"::mlir::spirv::ClientAPI::Unknown",
+	   "Derive StorageClass to address space mapping from the client API",
+	   [{::llvm::cl::values(
+	     clEnumValN(::mlir::spirv::ClientAPI::Unknown, "Unknown", "Unknown (default)"),
+	     clEnumValN(::mlir::spirv::ClientAPI::Metal, "Metal", "Metal"),
+	     clEnumValN(::mlir::spirv::ClientAPI::OpenCL, "OpenCL", "OpenCL"),
+	     clEnumValN(::mlir::spirv::ClientAPI::Vulkan, "Vulkan", "Vulkan"),
+	     clEnumValN(::mlir::spirv::ClientAPI::WebGPU, "WebGPU", "WebGPU")
+	   )}]>,
   ];
 }
 
@@ -1019,6 +1088,35 @@ def TosaToTensor : Pass<"tosa-to-tensor"> {
 }
 
 //===----------------------------------------------------------------------===//
+// UBToLLVM
+//===----------------------------------------------------------------------===//
+
+def UBToLLVMConversionPass : Pass<"convert-ub-to-llvm"> {
+  let summary = "Convert UB dialect to LLVM dialect";
+  let description = [{
+    This pass converts supported UB ops to LLVM dialect instructions.
+  }];
+  let dependentDialects = ["LLVM::LLVMDialect"];
+  let options = [
+    Option<"indexBitwidth", "index-bitwidth", "unsigned",
+           /*default=kDeriveIndexBitwidthFromDataLayout*/"0",
+           "Bitwidth of the index type, 0 to use size of machine word">,
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// UBToSPIRV
+//===----------------------------------------------------------------------===//
+
+def UBToSPIRVConversionPass : Pass<"convert-ub-to-spirv"> {
+  let summary = "Convert UB dialect to SPIR-V dialect";
+  let description = [{
+    This pass converts supported UB ops to SPIR-V dialect ops.
+  }];
+  let dependentDialects = ["spirv::SPIRVDialect"];
+}
+
+//===----------------------------------------------------------------------===//
 // VectorToGPU
 //===----------------------------------------------------------------------===//
 
@@ -1058,6 +1156,36 @@ def ConvertVectorToSCF : Pass<"convert-vector-to-scf"> {
            "Target vector rank to which transfer ops should be lowered">,
     Option<"lowerTensors", "lower-tensors", "bool", /*default=*/"false",
            "Lower transfer ops that operate on tensors">
+  ];
+}
+
+//===----------------------------------------------------------------------===//
+// VectorToArmSME
+//===----------------------------------------------------------------------===//
+
+def ConvertVectorToArmSME : Pass<"convert-vector-to-arm-sme"> {
+  let summary = "Lower the operations from the vector dialect into the ArmSME "
+                "dialect";
+  let description = [{
+    Pass that converts vector dialect operations into equivalent ArmSME dialect
+    operations.
+  }];
+  let dependentDialects = ["arm_sme::ArmSMEDialect"];
+}
+
+//===----------------------------------------------------------------------===//
+// ArmSMEToSCF
+//===----------------------------------------------------------------------===//
+
+def ConvertArmSMEToSCF : Pass<"convert-arm-sme-to-scf"> {
+  let summary = "Lower the operations from the ArmSME dialect into the SCF "
+                "dialect";
+  let constructor = "mlir::createConvertArmSMEToSCFPass()";
+  let dependentDialects = [
+    "scf::SCFDialect",
+    "arith::ArithDialect",
+    "vector::VectorDialect",
+    "arm_sme::ArmSMEDialect"
   ];
 }
 

@@ -453,6 +453,8 @@ public:
     return hasCachedLinkage();
   }
 
+  bool isPlaceholderVar(const LangOptions &LangOpts) const;
+
   /// Looks through UsingDecls and ObjCCompatibleAliasDecls for
   /// the underlying named decl.
   NamedDecl *getUnderlyingDecl() {
@@ -3181,6 +3183,8 @@ public:
   // Implement isa/cast/dyncast/etc.
   static bool classof(const Decl *D) { return classofKind(D->getKind()); }
   static bool classofKind(Kind K) { return K >= firstField && K <= lastField; }
+
+  void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 };
 
 /// An instance of this object exists for each enum constant
@@ -3726,6 +3730,7 @@ public:
     return getExtInfo()->TemplParamLists[i];
   }
 
+  using TypeDecl::printName;
   void printName(raw_ostream &OS, const PrintingPolicy &Policy) const override;
 
   void setTemplateParameterListsInfo(ASTContext &Context,

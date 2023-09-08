@@ -11,14 +11,11 @@
 
 #include "src/__support/CPP/type_traits.h"
 #include "src/__support/GPU/utils.h"
-#include "src/__support/macros/attributes.h"
+#include "src/__support/macros/attributes.h" // LIBC_INLINE
 #include "src/__support/macros/properties/architectures.h"
 
 namespace __llvm_libc {
 namespace rpc {
-
-/// Maximum amount of data a single lane can use.
-constexpr uint64_t MAX_LANE_SIZE = 64;
 
 /// Suspend the thread briefly to assist the thread scheduler during busy loops.
 LIBC_INLINE void sleep_briefly() {
@@ -26,6 +23,8 @@ LIBC_INLINE void sleep_briefly() {
   LIBC_INLINE_ASM("nanosleep.u32 64;" ::: "memory");
 #elif defined(LIBC_TARGET_ARCH_IS_AMDGPU)
   __builtin_amdgcn_s_sleep(2);
+#elif defined(LIBC_TARGET_ARCH_IS_X86)
+  __builtin_ia32_pause();
 #else
   // Simply do nothing if sleeping isn't supported on this platform.
 #endif
@@ -51,7 +50,8 @@ LIBC_INLINE constexpr bool is_process_gpu() {
 }
 
 /// Return \p val aligned "upwards" according to \p align.
-template <typename V, typename A> LIBC_INLINE V align_up(V val, A align) {
+template <typename V, typename A>
+LIBC_INLINE constexpr V align_up(V val, A align) {
   return ((val + V(align) - 1) / V(align)) * V(align);
 }
 
@@ -63,11 +63,6 @@ template <typename V> LIBC_INLINE V &lane_value(V *val, uint32_t id) {
   if constexpr (is_process_gpu())
     return *val;
   return val[id];
-}
-
-/// Helper to get the maximum value.
-template <typename T> LIBC_INLINE const T &max(const T &x, const T &y) {
-  return x < y ? y : x;
 }
 
 /// Advance the \p p by \p bytes.

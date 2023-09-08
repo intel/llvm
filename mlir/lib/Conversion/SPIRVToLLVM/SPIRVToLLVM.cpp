@@ -30,6 +30,12 @@
 using namespace mlir;
 
 //===----------------------------------------------------------------------===//
+// Constants
+//===----------------------------------------------------------------------===//
+
+constexpr unsigned defaultAddressSpace = 0;
+
+//===----------------------------------------------------------------------===//
 // Utility functions
 //===----------------------------------------------------------------------===//
 
@@ -49,6 +55,17 @@ static bool isUnsignedIntegerOrVector(Type type) {
   if (auto vecType = dyn_cast<VectorType>(type))
     return vecType.getElementType().isUnsignedInteger();
   return false;
+}
+
+/// Returns the width of an integer or of the element type of an integer vector,
+/// if applicable.
+static std::optional<uint64_t> getIntegerOrVectorElementWidth(Type type) {
+  if (auto intType = dyn_cast<IntegerType>(type))
+    return intType.getWidth();
+  if (auto vecType = dyn_cast<VectorType>(type))
+    if (auto intType = dyn_cast<IntegerType>(vecType.getElementType()))
+      return intType.getWidth();
+  return std::nullopt;
 }
 
 /// Returns the bit width of integer, float or vector of float or integer values
@@ -260,12 +277,49 @@ static std::optional<Type> convertArrayType(spirv::ArrayType type,
   return LLVM::LLVMArrayType::get(llvmElementType, numElements);
 }
 
+static unsigned mapToOpenCLAddressSpace(spirv::StorageClass storageClass) {
+  // Based on
+  // https://registry.khronos.org/SPIR-V/specs/unified1/OpenCL.ExtendedInstructionSet.100.html#_binary_form
+  // and clang/lib/Basic/Targets/SPIR.h.
+  switch (storageClass) {
+#define STORAGE_SPACE_MAP(storage, space)                                      \
+  case spirv::StorageClass::storage:                                           \
+    return space;
+    STORAGE_SPACE_MAP(Function, 0)
+    STORAGE_SPACE_MAP(CrossWorkgroup, 1)
+    STORAGE_SPACE_MAP(Input, 1)
+    STORAGE_SPACE_MAP(UniformConstant, 2)
+    STORAGE_SPACE_MAP(Workgroup, 3)
+    STORAGE_SPACE_MAP(Generic, 4)
+    STORAGE_SPACE_MAP(DeviceOnlyINTEL, 5)
+    STORAGE_SPACE_MAP(HostOnlyINTEL, 6)
+#undef STORAGE_SPACE_MAP
+  default:
+    return defaultAddressSpace;
+  }
+}
+
+static unsigned mapToAddressSpace(spirv::ClientAPI clientAPI,
+                                  spirv::StorageClass storageClass) {
+  switch (clientAPI) {
+#define CLIENT_MAP(client, storage)                                            \
+  case spirv::ClientAPI::client:                                               \
+    return mapTo##client##AddressSpace(storage);
+    CLIENT_MAP(OpenCL, storageClass)
+#undef CLIENT_MAP
+  default:
+    return defaultAddressSpace;
+  }
+}
+
 /// Converts SPIR-V pointer type to LLVM pointer. Pointer's storage class is not
 /// modelled at the moment.
 static Type convertPointerType(spirv::PointerType type,
-                               LLVMTypeConverter &converter) {
+                               LLVMTypeConverter &converter,
+                               spirv::ClientAPI clientAPI) {
   auto pointeeType = converter.convertType(type.getPointeeType());
-  return converter.getPointerType(pointeeType);
+  unsigned addressSpace = mapToAddressSpace(clientAPI, type.getStorageClass());
+  return converter.getPointerType(pointeeType, addressSpace);
 }
 
 /// Converts SPIR-V runtime array to LLVM array. Since LLVM allows indexing over
@@ -542,10 +596,12 @@ public:
   matchAndRewrite(spirv::BranchConditionalOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     // If branch weights exist, map them to 32-bit integer vector.
-    ElementsAttr branchWeights = nullptr;
+    DenseI32ArrayAttr branchWeights = nullptr;
     if (auto weights = op.getBranchWeights()) {
-      VectorType weightType = VectorType::get(2, rewriter.getI32Type());
-      branchWeights = DenseElementsAttr::get(weightType, weights->getValue());
+      SmallVector<int32_t> weightValues;
+      for (auto weight : weights->getAsRange<IntegerAttr>())
+        weightValues.push_back(weight.getInt());
+      branchWeights = DenseI32ArrayAttr::get(getContext(), weightValues);
     }
 
     rewriter.replaceOpWithNewOp<LLVM::CondBrOp>(
@@ -721,7 +777,11 @@ public:
 class GlobalVariablePattern
     : public SPIRVToLLVMConversion<spirv::GlobalVariableOp> {
 public:
-  using SPIRVToLLVMConversion<spirv::GlobalVariableOp>::SPIRVToLLVMConversion;
+  template <typename... Args>
+  GlobalVariablePattern(spirv::ClientAPI clientAPI, Args &&...args)
+      : SPIRVToLLVMConversion<spirv::GlobalVariableOp>(
+            std::forward<Args>(args)...),
+        clientAPI(clientAPI) {}
 
   LogicalResult
   matchAndRewrite(spirv::GlobalVariableOp op, OpAdaptor adaptor,
@@ -766,7 +826,7 @@ public:
                        : LLVM::Linkage::External;
     auto newGlobalOp = rewriter.replaceOpWithNewOp<LLVM::GlobalOp>(
         op, dstType, isConstant, linkage, op.getSymName(), Attribute(),
-        /*alignment=*/0);
+        /*alignment=*/0, mapToAddressSpace(clientAPI, storageClass));
 
     // Attach location attribute if applicable
     if (op.getLocationAttr())
@@ -774,6 +834,9 @@ public:
 
     return success();
   }
+
+private:
+  spirv::ClientAPI clientAPI;
 };
 
 /// Converts SPIR-V cast ops that do not have straightforward LLVM
@@ -1183,15 +1246,30 @@ public:
       return success();
     }
 
+    std::optional<uint64_t> dstTypeWidth =
+        getIntegerOrVectorElementWidth(dstType);
+    std::optional<uint64_t> op2TypeWidth =
+        getIntegerOrVectorElementWidth(op2Type);
+
+    if (!dstTypeWidth || !op2TypeWidth)
+      return failure();
+
     Location loc = operation.getLoc();
     Value extended;
-    if (isUnsignedIntegerOrVector(op2Type)) {
-      extended = rewriter.template create<LLVM::ZExtOp>(loc, dstType,
-                                                        adaptor.getOperand2());
+    if (op2TypeWidth < dstTypeWidth) {
+      if (isUnsignedIntegerOrVector(op2Type)) {
+        extended = rewriter.template create<LLVM::ZExtOp>(
+            loc, dstType, adaptor.getOperand2());
+      } else {
+        extended = rewriter.template create<LLVM::SExtOp>(
+            loc, dstType, adaptor.getOperand2());
+      }
+    } else if (op2TypeWidth == dstTypeWidth) {
+      extended = adaptor.getOperand2();
     } else {
-      extended = rewriter.template create<LLVM::SExtOp>(loc, dstType,
-                                                        adaptor.getOperand2());
+      return failure();
     }
+
     Value result = rewriter.template create<LLVMOp>(
         loc, dstType, adaptor.getOperand1(), extended);
     rewriter.replaceOp(operation, result);
@@ -1466,12 +1544,13 @@ public:
 // Pattern population
 //===----------------------------------------------------------------------===//
 
-void mlir::populateSPIRVToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
+void mlir::populateSPIRVToLLVMTypeConversion(LLVMTypeConverter &typeConverter,
+                                             spirv::ClientAPI clientAPI) {
   typeConverter.addConversion([&](spirv::ArrayType type) {
     return convertArrayType(type, typeConverter);
   });
-  typeConverter.addConversion([&](spirv::PointerType type) {
-    return convertPointerType(type, typeConverter);
+  typeConverter.addConversion([&, clientAPI](spirv::PointerType type) {
+    return convertPointerType(type, typeConverter, clientAPI);
   });
   typeConverter.addConversion([&](spirv::RuntimeArrayType type) {
     return convertRuntimeArrayType(type, typeConverter);
@@ -1482,7 +1561,8 @@ void mlir::populateSPIRVToLLVMTypeConversion(LLVMTypeConverter &typeConverter) {
 }
 
 void mlir::populateSPIRVToLLVMConversionPatterns(
-    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns) {
+    LLVMTypeConverter &typeConverter, RewritePatternSet &patterns,
+    spirv::ClientAPI clientAPI) {
   patterns.add<
       // Arithmetic ops
       DirectConversionPattern<spirv::IAddOp, LLVM::AddOp>,
@@ -1577,9 +1657,8 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
       NotPattern<spirv::LogicalNotOp>,
 
       // Memory ops
-      AccessChainPattern, AddressOfPattern, GlobalVariablePattern,
-      LoadStorePattern<spirv::LoadOp>, LoadStorePattern<spirv::StoreOp>,
-      VariablePattern,
+      AccessChainPattern, AddressOfPattern, LoadStorePattern<spirv::LoadOp>,
+      LoadStorePattern<spirv::StoreOp>, VariablePattern,
 
       // Miscellaneous ops
       CompositeExtractPattern, CompositeInsertPattern,
@@ -1594,6 +1673,9 @@ void mlir::populateSPIRVToLLVMConversionPatterns(
 
       // Return ops
       ReturnPattern, ReturnValuePattern>(patterns.getContext(), typeConverter);
+
+  patterns.add<GlobalVariablePattern>(clientAPI, patterns.getContext(),
+                                      typeConverter);
 }
 
 void mlir::populateSPIRVToLLVMFunctionConversionPatterns(

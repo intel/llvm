@@ -176,6 +176,36 @@ def LoopPipelineOp : Op<Transform_Dialect, "loop.pipeline",
   }];
 }
 
+def LoopPromoteIfOneIterationOp : Op<Transform_Dialect,
+    "loop.promote_if_one_iteration", [
+        DeclareOpInterfaceMethods<MemoryEffectsOpInterface>,
+        TransformOpInterface, TransformEachOpTrait]> {
+  let summary = "Promote loop if it has one iteration";
+  let description = [{
+    Promotes the given target loop op if it has a single iteration. I.e., the
+    loop op is removed and only the body remains.
+
+    #### Return modes
+
+    This transform fails if the target is mapped to ops that are loops. Ops are
+    considered loops if they implement the `LoopLikeOpInterface`. Otherwise,
+    this transform always succeeds. The transform consumes the target handle and
+    modifies the payload.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target);
+  let results = (outs);
+  let assemblyFormat = "$target attr-dict `:` type($target)";
+
+  let extraClassDeclaration = [{
+    ::mlir::DiagnosedSilenceableFailure applyToOne(
+        ::mlir::transform::TransformRewriter &rewriter,
+        ::mlir::LoopLikeOpInterface target,
+        ::mlir::transform::ApplyToEachResultList &results,
+        ::mlir::transform::TransformState &state);
+  }];
+}
+
 def LoopUnrollOp : Op<Transform_Dialect, "loop.unroll",
     [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
      TransformOpInterface, TransformEachOpTrait]> {
@@ -278,6 +308,41 @@ def TakeAssumedBranchOp : Op<Transform_Dialect, "scf.take_assumed_branch", [
         ::mlir::transform::ApplyToEachResultList &results,
         ::mlir::transform::TransformState &state);
   }];
+}
+
+def LoopFuseSibling : Op<Transform_Dialect, "loop.fuse_sibling",
+  [FunctionalStyleTransformOpTrait, MemoryEffectsOpInterface,
+   DeclareOpInterfaceMethods<TransformOpInterface>]> {
+  let summary = "Fuse a loop into another loop, assuming the fusion is legal.";
+
+  let description = [{
+    Fuses the `target` loop into the `source` loop assuming they are
+    independent of each other. It is the responsibility of the user to ensure
+    that the given two loops are independent of each other, this operation will
+    not performa any legality checks and will simply fuse the two given loops.
+
+    Currently, the only fusion supported is when both `target` and `source`
+    are `scf.forall` operations. For `scf.forall` fusion, the bounds and the
+    mapping must match, otherwise a silencable failure is produced.
+
+    The input handles `target` and `source` must map to exactly one operation,
+    a definite failure is produced otherwise.
+
+    #### Return modes
+
+    This operation consumes the `target` and `source` handles and produces the
+    `fused_loop` handle, which points to the fused loop.
+  }];
+
+  let arguments = (ins TransformHandleTypeInterface:$target,
+                       TransformHandleTypeInterface:$source);
+  let results = (outs TransformHandleTypeInterface:$fused_loop);
+  let assemblyFormat = "$target `into` $source attr-dict "
+                       " `:` functional-type(operands, results)";
+
+  let builders = [
+    OpBuilder<(ins "Value":$loop, "Value":$fused_loop)>
+  ];
 }
 
 #endif // SCF_TRANSFORM_OPS

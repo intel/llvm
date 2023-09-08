@@ -111,6 +111,7 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
   if (SrcTy == DestTy)
     return V; // no-op cast
 
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   // Check to see if we are casting a pointer to an aggregate to a pointer to
   // the first element.  If so, return the appropriate GEP instruction.
   if (PointerType *PTy = dyn_cast<PointerType>(V->getType()))
@@ -133,6 +134,7 @@ static Constant *FoldBitCast(Constant *V, Type *DestTy) {
           return ConstantExpr::getInBoundsGetElementPtr(
               PTy->getNonOpaquePointerElementType(), V, IdxList);
       }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Handle casts from one vector constant to another.  We know that the src
   // and dest type have the same size (otherwise its an illegal cast).
@@ -236,35 +238,6 @@ static Constant *ExtractConstantBytes(Constant *C, unsigned ByteStart,
 
   switch (CE->getOpcode()) {
   default: return nullptr;
-  case Instruction::Or: {
-    Constant *RHS = ExtractConstantBytes(CE->getOperand(1), ByteStart,ByteSize);
-    if (!RHS)
-      return nullptr;
-
-    // X | -1 -> -1.
-    if (ConstantInt *RHSC = dyn_cast<ConstantInt>(RHS))
-      if (RHSC->isMinusOne())
-        return RHSC;
-
-    Constant *LHS = ExtractConstantBytes(CE->getOperand(0), ByteStart,ByteSize);
-    if (!LHS)
-      return nullptr;
-    return ConstantExpr::getOr(LHS, RHS);
-  }
-  case Instruction::And: {
-    Constant *RHS = ExtractConstantBytes(CE->getOperand(1), ByteStart,ByteSize);
-    if (!RHS)
-      return nullptr;
-
-    // X & 0 -> 0.
-    if (RHS->isNullValue())
-      return RHS;
-
-    Constant *LHS = ExtractConstantBytes(CE->getOperand(0), ByteStart,ByteSize);
-    if (!LHS)
-      return nullptr;
-    return ConstantExpr::getAnd(LHS, RHS);
-  }
   case Instruction::LShr: {
     ConstantInt *Amt = dyn_cast<ConstantInt>(CE->getOperand(1));
     if (!Amt)
@@ -1107,7 +1080,9 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
   } else if (isa<ConstantInt>(C1)) {
     // If C1 is a ConstantInt and C2 is not, swap the operands.
     if (Instruction::isCommutative(Opcode))
-      return ConstantExpr::get(Opcode, C2, C1);
+      return ConstantExpr::isDesirableBinOp(Opcode)
+                 ? ConstantExpr::get(Opcode, C2, C1)
+                 : ConstantFoldBinaryInstruction(Opcode, C2, C1);
   }
 
   if (ConstantInt *CI1 = dyn_cast<ConstantInt>(C1)) {
@@ -1264,8 +1239,6 @@ Constant *llvm::ConstantFoldBinaryInstruction(unsigned Opcode, Constant *C1,
     case Instruction::Add:
     case Instruction::Sub:
       return ConstantExpr::getXor(C1, C2);
-    case Instruction::Mul:
-      return ConstantExpr::getAnd(C1, C2);
     case Instruction::Shl:
     case Instruction::LShr:
     case Instruction::AShr:
@@ -2022,8 +1995,13 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
                                           ArrayRef<Value *> Idxs) {
   if (Idxs.empty()) return C;
 
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  Type *GEPTy = GetElementPtrInst::getGEPReturnType(
+      C, ArrayRef((Value *const *)Idxs.data(), Idxs.size()));
+#else // INTEL_SYCL_OPAQUEPOINTER_READY
   Type *GEPTy = GetElementPtrInst::getGEPReturnType(
       PointeeTy, C, ArrayRef((Value *const *)Idxs.data(), Idxs.size()));
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (isa<PoisonValue>(C))
     return PoisonValue::get(GEPTy);
@@ -2033,11 +2011,12 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     return InBounds ? PoisonValue::get(GEPTy) : UndefValue::get(GEPTy);
 
   auto IsNoOp = [&]() {
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // For non-opaque pointers having multiple indices will change the result
     // type of the GEP.
     if (!C->getType()->getScalarType()->isOpaquePointerTy() && Idxs.size() != 1)
       return false;
-
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     // Avoid losing inrange information.
     if (InRangeIndex)
       return false;
@@ -2090,7 +2069,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
     if (auto *GEP = dyn_cast<GEPOperator>(CE))
       if (Constant *C = foldGEPOfGEP(GEP, PointeeTy, InBounds, Idxs))
         return C;
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
     // Attempt to fold casts to the same type away.  For example, folding:
     //
     //   i32* getelementptr ([2 x i32]* bitcast ([3 x i32]* %X to [2 x i32]*),
@@ -2119,6 +2098,7 @@ Constant *llvm::ConstantFoldGetElementPtr(Type *PointeeTy, Constant *C,
                                                 Idxs, InBounds, InRangeIndex);
       }
     }
+#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   }
 
   // Check to see if any array indices are not within the corresponding

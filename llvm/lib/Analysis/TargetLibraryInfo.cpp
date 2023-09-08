@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/Analysis/TargetLibraryInfo.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Support/CommandLine.h"
@@ -23,6 +24,8 @@ static cl::opt<TargetLibraryInfoImpl::AltMathLibrary> ClAltMathLibrary(
     cl::init(TargetLibraryInfoImpl::NoAltMathLibrary),
     cl::values(clEnumValN(TargetLibraryInfoImpl::NoAltMathLibrary, "none",
                           "No alternate math library"),
+               clEnumValN(TargetLibraryInfoImpl::SVMLAltMathLibrary, "svml",
+                          "Intel SVML library"),
                clEnumValN(TargetLibraryInfoImpl::TestAltMathLibrary, "test",
                           "Fake library used for testing")));
 
@@ -42,7 +45,9 @@ static cl::opt<TargetLibraryInfoImpl::VectorLibrary> ClVectorLibrary(
                clEnumValN(TargetLibraryInfoImpl::SVML, "SVML",
                           "Intel SVML library"),
                clEnumValN(TargetLibraryInfoImpl::SLEEFGNUABI, "sleefgnuabi",
-                          "SIMD Library for Evaluating Elementary Functions")));
+                          "SIMD Library for Evaluating Elementary Functions"),
+               clEnumValN(TargetLibraryInfoImpl::ArmPL, "ArmPL",
+                          "Arm Performance Libraries")));
 
 StringLiteral const TargetLibraryInfoImpl::StandardNames[LibFunc::NumLibFuncs] =
     {
@@ -210,6 +215,7 @@ static void initialize(TargetLibraryInfoImpl &TLI, const Triple &T,
     TLI.setAvailable(LibFunc_getchar_unlocked);
     TLI.setAvailable(LibFunc_putc_unlocked);
     TLI.setAvailable(LibFunc_putchar_unlocked);
+    TLI.setUnavailable(LibFunc_memrchr);
 
     if (T.isMacOSXVersionLT(10, 5)) {
       TLI.setUnavailable(LibFunc_memset_pattern4);
@@ -955,16 +961,26 @@ static StringRef sanitizeFunctionName(StringRef funcName) {
   return GlobalValue::dropLLVMManglingEscape(funcName);
 }
 
+static DenseMap<StringRef, LibFunc>
+buildIndexMap(ArrayRef<StringLiteral> StandardNames) {
+  DenseMap<StringRef, LibFunc> Indices;
+  unsigned Idx = 0;
+  Indices.reserve(LibFunc::NumLibFuncs);
+  for (const auto &Func : StandardNames)
+    Indices[Func] = static_cast<LibFunc>(Idx++);
+  return Indices;
+}
+
 bool TargetLibraryInfoImpl::getLibFunc(StringRef funcName, LibFunc &F) const {
   funcName = sanitizeFunctionName(funcName);
   if (funcName.empty())
     return false;
 
-  const auto *Start = std::begin(StandardNames);
-  const auto *End = std::end(StandardNames);
-  const auto *I = std::lower_bound(Start, End, funcName);
-  if (I != End && *I == funcName) {
-    F = (LibFunc)(I - Start);
+  static const DenseMap<StringRef, LibFunc> Indices =
+      buildIndexMap(StandardNames);
+
+  if (auto Loc = Indices.find(funcName); Loc != Indices.end()) {
+    F = Loc->second;
     return true;
   }
   return false;
@@ -1186,6 +1202,14 @@ void TargetLibraryInfoImpl::addAltMathFunctionsFromLib(
     addAltMathFunctions(AltMathFuncs);
     break;
   }
+  case SVMLAltMathLibrary: {
+    const AltMathDesc AltMathFuncs[] = {
+#define TLI_DEFINE_SVML_ALTMATHFUNCS
+#include "llvm/Analysis/AltMathLibFuncs.def"
+    };
+    addAltMathFunctions(AltMathFuncs);
+    break;
+  }
   case NoAltMathLibrary:
     break;
   }
@@ -1301,6 +1325,23 @@ void TargetLibraryInfoImpl::addVectorizableFunctionsFromVecLib(
       addVectorizableFunctions(VecFuncs_VF2);
       addVectorizableFunctions(VecFuncs_VF4);
       addVectorizableFunctions(VecFuncs_VFScalable);
+      break;
+    }
+    break;
+  }
+  case ArmPL: {
+    const VecDesc VecFuncs[] = {
+#define TLI_DEFINE_ARMPL_VECFUNCS
+#define TLI_DEFINE_VECFUNC(SCAL, VEC, VF, MASK) {SCAL, VEC, VF, MASK},
+#include "llvm/Analysis/VecFuncs.def"
+    };
+
+    switch (TargetTriple.getArch()) {
+    default:
+      break;
+    case llvm::Triple::aarch64:
+    case llvm::Triple::aarch64_be:
+      addVectorizableFunctions(VecFuncs);
       break;
     }
     break;

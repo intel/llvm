@@ -538,6 +538,10 @@ void MachineLICMBase::HoistRegionPostRA() {
         PhysRegDefs.set(*AI);
     }
 
+    // Funclet entry blocks will clobber all registers
+    if (const uint32_t *Mask = BB->getBeginClobberMask(TRI))
+      PhysRegClobbers.setBitsNotInMask(Mask);
+
     SpeculationState = SpeculateUnknown;
     for (MachineInstr &MI : *BB)
       ProcessMI(&MI, PhysRegDefs, PhysRegClobbers, StoredFIs, Candidates);
@@ -603,7 +607,7 @@ void MachineLICMBase::AddToLiveIns(MCRegister Reg) {
       for (MachineOperand &MO : MI.all_uses()) {
         if (!MO.getReg())
           continue;
-        if (MO.getReg() == Reg || TRI->isSuperRegister(Reg, MO.getReg()))
+        if (TRI->isSuperRegisterEq(Reg, MO.getReg()))
           MO.setIsKill(false);
       }
     }

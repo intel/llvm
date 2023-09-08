@@ -824,6 +824,14 @@ public:
   // Return true if the target wants to transform Op(Splat(X)) -> Splat(Op(X))
   virtual bool preferScalarizeSplat(SDNode *N) const { return true; }
 
+  // Return true if the target wants to transform:
+  // (TruncVT truncate(sext_in_reg(VT X, ExtVT))
+  //  -> (TruncVT sext_in_reg(truncate(VT X), ExtVT))
+  // Some targets might prefer pre-sextinreg to improve truncation/saturation.
+  virtual bool preferSextInRegOfTruncate(EVT TruncVT, EVT VT, EVT ExtVT) const {
+    return true;
+  }
+
   /// Return true if the target wants to use the optimization that
   /// turns ext(promotableInst1(...(promotableInstN(load)))) into
   /// promotedInst1(...(promotedInstN(ext(load)))).
@@ -2547,6 +2555,13 @@ protected:
     setOperationAction(Opc, OrigVT, Promote);
     AddPromotedToType(Opc, OrigVT, DestVT);
   }
+  void setOperationPromotedToType(ArrayRef<unsigned> Ops, MVT OrigVT,
+                                  MVT DestVT) {
+    for (auto Op : Ops) {
+      setOperationAction(Op, OrigVT, Promote);
+      AddPromotedToType(Op, OrigVT, DestVT);
+    }
+  }
 
   /// Targets should invoke this method for each target independent node that
   /// they want to provide a custom DAG combiner for by implementing the
@@ -2969,6 +2984,28 @@ public:
   /// \p Factor is the interleave factor.
   virtual bool lowerInterleavedStore(StoreInst *SI, ShuffleVectorInst *SVI,
                                      unsigned Factor) const {
+    return false;
+  }
+
+  /// Lower a deinterleave intrinsic to a target specific load intrinsic.
+  /// Return true on success. Currently only supports
+  /// llvm.experimental.vector.deinterleave2
+  ///
+  /// \p DI is the deinterleave intrinsic.
+  /// \p LI is the accompanying load instruction
+  virtual bool lowerDeinterleaveIntrinsicToLoad(IntrinsicInst *DI,
+                                                LoadInst *LI) const {
+    return false;
+  }
+
+  /// Lower an interleave intrinsic to a target specific store intrinsic.
+  /// Return true on success. Currently only supports
+  /// llvm.experimental.vector.interleave2
+  ///
+  /// \p II is the interleave intrinsic.
+  /// \p SI is the accompanying store instruction
+  virtual bool lowerInterleaveIntrinsicToStore(IntrinsicInst *II,
+                                               StoreInst *SI) const {
     return false;
   }
 
@@ -3981,7 +4018,8 @@ public:
   /// Returns true if the given Opc is considered a canonical constant for the
   /// target, which should not be transformed back into a BUILD_VECTOR.
   virtual bool isTargetCanonicalConstantNode(SDValue Op) const {
-    return Op.getOpcode() == ISD::SPLAT_VECTOR;
+    return Op.getOpcode() == ISD::SPLAT_VECTOR ||
+           Op.getOpcode() == ISD::SPLAT_VECTOR_PARTS;
   }
 
   struct DAGCombinerInfo {
@@ -5277,6 +5315,11 @@ public:
   // fact that this can be implemented as a ctlz/srl pair, so that the dag
   // combiner can fold the new nodes.
   SDValue lowerCmpEqZeroToCtlzSrl(SDValue Op, SelectionDAG &DAG) const;
+
+  // Return true if `X & Y eq/ne 0` is preferable to `X & Y ne/eq Y`
+  virtual bool isXAndYEqZeroPreferableToXAndYEqY(ISD::CondCode, EVT) const {
+    return true;
+  }
 
 private:
   SDValue foldSetCCWithAnd(EVT VT, SDValue N0, SDValue N1, ISD::CondCode Cond,

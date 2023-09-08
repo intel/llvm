@@ -85,25 +85,12 @@ OffloadTargetInfo::OffloadTargetInfo(const StringRef Target,
   if (clang::StringToCudaArch(TripleOrGPU.second) != clang::CudaArch::UNKNOWN) {
     auto KindTriple = TripleOrGPU.first.split('-');
     this->OffloadKind = KindTriple.first;
-
-    // Enforce optional env field to standardize bundles
-    llvm::Triple t = llvm::Triple(KindTriple.second);
-    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
-                                t.getOSName(), t.getEnvironmentName());
-
-    if (TripleOrGPU.second.empty())
-      this->TargetID = "";
-    else
-      this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
+    this->Triple = llvm::Triple(KindTriple.second);
+    this->TargetID = Target.substr(Target.find(TripleOrGPU.second));
   } else {
     auto KindTriple = TargetFeatures.first.split('-');
     this->OffloadKind = KindTriple.first;
-
-    // Enforce optional env field to standardize bundles
-    llvm::Triple t = llvm::Triple(KindTriple.second);
-    this->Triple = llvm::Triple(t.getArchName(), t.getVendorName(),
-                                t.getOSName(), t.getEnvironmentName());
-
+    this->Triple = llvm::Triple(KindTriple.second);
     this->TargetID = "";
   }
 }
@@ -1228,9 +1215,9 @@ public:
               : Archive::K_GNU;
 
       // And write archive to the output.
-      Expected<std::unique_ptr<MemoryBuffer>> NewAr =
-          writeArchiveToBuffer(ArMembers, /*WriteSymtab=*/true, ArKind,
-                               /*Deterministic=*/true, /*Thin=*/false);
+      Expected<std::unique_ptr<MemoryBuffer>> NewAr = writeArchiveToBuffer(
+          ArMembers, SymtabWritingMode::NormalSymtab, ArKind,
+          /*Deterministic=*/true, /*Thin=*/false);
       if (!NewAr)
         return NewAr.takeError();
       OS << NewAr.get()->getBuffer();
@@ -1590,34 +1577,34 @@ Error OffloadBundler::UnbundleFiles() {
   return Error::success();
 }
 
-// Unbundle the files. Return false if an error was found.
+// Unbundle the files. Return true if an error was found.
 Expected<bool>
 clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
   // Open Input file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
       MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames.front());
   if (std::error_code EC = CodeOrErr.getError())
-    return false;
+    return createFileError(BundlerConfig.InputFileNames.front(), EC);
   MemoryBuffer &Input = *CodeOrErr.get();
 
   // Select the right files handler.
   Expected<std::unique_ptr<FileHandler>> FileHandlerOrErr =
       CreateFileHandler(Input, BundlerConfig);
   if (!FileHandlerOrErr)
-    return false;
+    return FileHandlerOrErr.takeError();
 
   std::unique_ptr<FileHandler> &FH = *FileHandlerOrErr;
 
   // Quit if we don't have a handler.
   if (!FH)
-    return false;
+    return true;
 
   // Seed temporary filename generation with the stem of the input file.
   FH->SetTempFileNameBase(llvm::sys::path::stem(BundlerConfig.InputFileNames.front()));
 
   // Read the header of the bundled file.
   if (Error Err = FH->ReadHeader(Input))
-    return false;
+    return std::move(Err);
 
   StringRef triple = BundlerConfig.TargetNames.front();
 
@@ -1628,15 +1615,13 @@ clang::CheckBundledSection(const OffloadBundlerConfig &BundlerConfig) {
     Expected<std::optional<StringRef>> CurTripleOrErr =
         FH->ReadBundleStart(Input);
     if (!CurTripleOrErr)
-      return false;
+      return CurTripleOrErr.takeError();
 
     // We don't have more bundles.
     if (!*CurTripleOrErr)
       break;
 
-    StringRef CurTriple = **CurTripleOrErr;
-    if (OffloadTargetInfo(CurTriple, BundlerConfig).Triple.str() ==
-        OffloadTargetInfo(triple, BundlerConfig).Triple.str()) {
+    if (*CurTripleOrErr == triple) {
       found = true;
       break;
     }
@@ -1824,8 +1809,9 @@ Error OffloadBundler::UnbundleArchive() {
         OutputArchivesMap.find(Target);
     if (CurArchiveMembers != OutputArchivesMap.end()) {
       if (Error WriteErr = writeArchive(FileName, CurArchiveMembers->getValue(),
-                                        true, getDefaultArchiveKindForHost(),
-                                        true, false, nullptr))
+                                        SymtabWritingMode::NormalSymtab,
+                                        getDefaultArchiveKindForHost(), true,
+                                        false, nullptr))
         return WriteErr;
     } else if (!BundlerConfig.AllowMissingBundles) {
       std::string ErrMsg =
@@ -1839,9 +1825,9 @@ Error OffloadBundler::UnbundleArchive() {
              // the missing input file.
       std::vector<llvm::NewArchiveMember> EmptyArchive;
       EmptyArchive.clear();
-      if (Error WriteErr = writeArchive(FileName, EmptyArchive, true,
-                                        getDefaultArchiveKindForHost(), true,
-                                        false, nullptr))
+      if (Error WriteErr = writeArchive(
+              FileName, EmptyArchive, SymtabWritingMode::NormalSymtab,
+              getDefaultArchiveKindForHost(), true, false, nullptr))
         return WriteErr;
     }
   }

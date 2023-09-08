@@ -37,7 +37,11 @@ using namespace llvm;
 // Construct the lowerer base class and initialize its members.
 coro::LowererBase::LowererBase(Module &M)
     : TheModule(M), Context(M.getContext()),
-      Int8Ptr(Type::getInt8PtrTy(Context)),
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+      Int8Ptr(PointerType::get(Context, 0)),
+#else  // INTEL_SYCL_OPAQUEPOINTER_READY
+      Int8Ptr(Type::getInt8PtrTy(Context, 0)),
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       ResumeFnType(FunctionType::get(Type::getVoidTy(Context), Int8Ptr,
                                      /*isVarArg=*/false)),
       NullPtr(ConstantPointerNull::get(Int8Ptr)) {}
@@ -137,8 +141,9 @@ void coro::replaceCoroFree(CoroIdInst *CoroId, bool Elide) {
     return;
 
   Value *Replacement =
-      Elide ? ConstantPointerNull::get(Type::getInt8PtrTy(CoroId->getContext()))
-            : CoroFrees.front()->getFrame();
+      Elide
+          ? ConstantPointerNull::get(PointerType::get(CoroId->getContext(), 0))
+          : CoroFrees.front()->getFrame();
 
   for (CoroFreeInst *CF : CoroFrees) {
     CF->replaceAllUsesWith(Replacement);
@@ -267,7 +272,7 @@ void coro::Shape::buildFrom(Function &F) {
   if (!CoroBegin) {
     // Replace coro.frame which are supposed to be lowered to the result of
     // coro.begin with undef.
-    auto *Undef = UndefValue::get(Type::getInt8PtrTy(F.getContext()));
+    auto *Undef = UndefValue::get(PointerType::get(F.getContext(), 0));
     for (CoroFrameInst *CF : CoroFrames) {
       CF->replaceAllUsesWith(Undef);
       CF->eraseFromParent();
@@ -596,7 +601,7 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
   auto *AsyncFuncPtrAddr = dyn_cast<GlobalVariable>(V->stripPointerCasts());
   if (!AsyncFuncPtrAddr)
     fail(I, "llvm.coro.id.async async function pointer not a global", V);
-
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
   if (AsyncFuncPtrAddr->getType()->isOpaquePointerTy())
     return;
 
@@ -610,6 +615,7 @@ static void checkAsyncFuncPointer(const Instruction *I, Value *V) {
          "llvm.coro.id.async async function pointer argument's type is not "
          "<{i32, i32}>",
          V);
+#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 }
 
 void CoroIdAsyncInst::checkWellFormed() const {
@@ -625,19 +631,15 @@ void CoroIdAsyncInst::checkWellFormed() const {
 static void checkAsyncContextProjectFunction(const Instruction *I,
                                              Function *F) {
   auto *FunTy = cast<FunctionType>(F->getValueType());
-  Type *Int8Ty = Type::getInt8Ty(F->getContext());
-  auto *RetPtrTy = dyn_cast<PointerType>(FunTy->getReturnType());
-  if (!RetPtrTy || !RetPtrTy->isOpaqueOrPointeeTypeMatches(Int8Ty))
+  if (!FunTy->getReturnType()->isPointerTy())
     fail(I,
          "llvm.coro.suspend.async resume function projection function must "
-         "return an i8* type",
+         "return a ptr type",
          F);
-  if (FunTy->getNumParams() != 1 || !FunTy->getParamType(0)->isPointerTy() ||
-      !cast<PointerType>(FunTy->getParamType(0))
-           ->isOpaqueOrPointeeTypeMatches(Int8Ty))
+  if (FunTy->getNumParams() != 1 || !FunTy->getParamType(0)->isPointerTy())
     fail(I,
          "llvm.coro.suspend.async resume function projection function must "
-         "take one i8* type as parameter",
+         "take one ptr type as parameter",
          F);
 }
 

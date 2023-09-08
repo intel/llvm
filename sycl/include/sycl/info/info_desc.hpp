@@ -8,8 +8,14 @@
 
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/pi.h> // for PI_DEVICE_AFFINITY_DOMAIN_L...
+
+// FIXME: .def files included to this file use all sorts of SYCL objects like
+// id, range, traits, etc. We have to include some headers before including .def
+// files.
 #include <sycl/aspects.hpp>
-#include <sycl/detail/pi.h>
+#include <sycl/detail/type_traits.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/range.hpp>
 
@@ -185,14 +191,14 @@ template <typename T, T param> struct compatibility_param_traits {};
   } /*namespace info */                                                        \
   } /*namespace Namespace */
 
-namespace ext::oneapi::experimental::info {
+namespace ext::oneapi::experimental {
 
-enum class graph_support_level { unsupported = 0, native, emulated };
+enum class graph_support_level { unsupported = 0, native = 1, emulated = 2 };
 
-namespace device {
+namespace info::device {
 template <int Dimensions> struct max_work_groups;
-} // namespace device
-} // namespace ext::oneapi::experimental::info
+} // namespace info::device
+} // namespace ext::oneapi::experimental
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>

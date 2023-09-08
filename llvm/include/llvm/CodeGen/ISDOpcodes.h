@@ -872,6 +872,7 @@ enum NodeType {
   ///  2 Round to +inf
   ///  3 Round to -inf
   ///  4 Round to nearest, ties to zero
+  ///  Other values are target dependent.
   /// Result is rounding mode and chain. Input is a chain.
   GET_ROUNDING,
 
@@ -931,6 +932,12 @@ enum NodeType {
   FPOWI,
   /// FLDEXP - ldexp, inspired by libm (op0 * 2**op1).
   FLDEXP,
+
+  /// FFREXP - frexp, extract fractional and exponent component of a
+  /// floating-point value. Returns the two components as separate return
+  /// values.
+  FFREXP,
+
   FLOG,
   FLOG2,
   FLOG10,
@@ -997,6 +1004,19 @@ enum NodeType {
   /// chain, the second is a pointer to memory, where FP environment is loaded
   /// from. The result is a token chain.
   SET_FPENV_MEM,
+
+  /// Reads the current dynamic floating-point control modes. The operand is
+  /// a token chain.
+  GET_FPMODE,
+
+  /// Sets the current dynamic floating-point control modes. The first operand
+  /// is a token chain, the second is control modes set represented as integer
+  /// value.
+  SET_FPMODE,
+
+  /// Sets default dynamic floating-point control modes. The operand is a
+  /// token chain.
+  RESET_FPMODE,
 
   /// LOAD and STORE have token chains as their first operand, then the same
   /// operands as an LLVM load/store instruction, then an offset node that

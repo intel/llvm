@@ -1,4 +1,4 @@
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
 ; RUN: verify-uselistorder %s
 
 ; CHECK: @a = global [4 x ptr] [ptr no_cfi @f1, ptr @f1, ptr @f2, ptr no_cfi @f2]

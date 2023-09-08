@@ -2,9 +2,9 @@
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.out.bc
+; RUN: llvm-spirv -r %t.spv -o %t.out.bc
 ; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-OCL-IR
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
+; RUN: llvm-spirv -r %t.spv --spirv-target-env=SPV-IR -o %t.out.bc
 ; RUN: llvm-dis %t.out.bc -o - | FileCheck %s --check-prefix=CHECK-SPV-IR
 
 ; Check that produced builtin-call-based SPV-IR is recognized by the translator
@@ -21,7 +21,7 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @f() {
 entry:
-  %0 = load i64, i64 addrspace(1)* getelementptr (<3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInGlobalInvocationId, i64 0, i64 0), align 32
+  %0 = load i64, ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId, align 32
   ; CHECK-OCL-IR: %[[#ID1:]] = call spir_func i64 @_Z13get_global_idj(i32 0)
 
   ; CHECK-SPV-IR: %[[#ID1:]] = call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)

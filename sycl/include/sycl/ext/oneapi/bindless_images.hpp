@@ -8,12 +8,21 @@
 
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/context.hpp>                               // for context
+#include <sycl/detail/export.hpp>                         // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                               // for pi_uint64
+#include <sycl/device.hpp>                                // for device
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_desc...
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>    // for interop_me...
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>     // for image_mem_...
+#include <sycl/ext/oneapi/bindless_images_sampler.hpp>    // for bindless_i...
+#include <sycl/image.hpp>                                 // for image_chan...
+#include <sycl/queue.hpp>                                 // for queue
+#include <sycl/range.hpp>                                 // for range
 
-#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
-#include <sycl/ext/oneapi/bindless_images_interop.hpp>
-#include <sycl/ext/oneapi/bindless_images_memory.hpp>
-#include <sycl/ext/oneapi/bindless_images_sampler.hpp>
+#include <assert.h>    // for assert
+#include <stddef.h>    // for size_t
+#include <type_traits> // for is_scalar
 
 namespace sycl {
 inline namespace _V1 {
@@ -600,6 +609,28 @@ template <typename CoordT> constexpr size_t coord_size() {
     return CoordT::size();
   }
 }
+
+// bit_cast Color to a type the NVPTX backend is known to accept
+template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
+  constexpr size_t dataSize = sizeof(DataT);
+  static_assert(
+      dataSize == 1 || dataSize == 2 || dataSize == 4 || dataSize == 8 ||
+          dataSize == 16,
+      "Expected input data type to be of size 1, 2, 4, 8, or 16 bytes.");
+
+  if constexpr (dataSize == 1) {
+    return sycl::bit_cast<uint8_t>(Color);
+  } else if constexpr (dataSize == 2) {
+    return sycl::bit_cast<uint16_t>(Color);
+  } else if constexpr (dataSize == 4) {
+    return sycl::bit_cast<uint32_t>(Color);
+  } else if constexpr (dataSize == 8) {
+    return sycl::bit_cast<sycl::vec<uint32_t, 2>>(Color);
+  } else { // dataSize == 16
+    return sycl::bit_cast<sycl::vec<uint32_t, 4>>(Color);
+  }
+}
+
 } // namespace detail
 
 /**
@@ -761,8 +792,8 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  __invoke__ImageWrite<uint64_t, CoordT, DataT>(
-      (uint64_t)imageHandle.raw_handle, Coords, Color);
+  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, Coords,
+                       detail::convert_color_nvptx(Color));
 #else
   // TODO: add SPIRV part for unsampled image write
 #endif

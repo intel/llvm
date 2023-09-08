@@ -111,8 +111,23 @@ static_assert(c.a == 100, "");
 static_assert(c.b == 200, "");
 
 constexpr C c2 = C().get();
-static_assert(c.a == 100, "");
-static_assert(c.b == 200, "");
+static_assert(c2.a == 100, "");
+static_assert(c2.b == 200, "");
+
+
+/// A global, composite temporary variable.
+constexpr const C &c3 = C().get();
+
+/// Same, but with a bitfield.
+class D {
+public:
+  unsigned a : 4;
+  constexpr D() : a(15) {}
+  constexpr D get() const {
+    return *this;
+  }
+};
+constexpr const D &d4 = D().get();
 
 constexpr int getB() {
   C c;
@@ -311,16 +326,38 @@ namespace InitializerTemporaries {
     int Pos = 0;
 
     {
-      auto T = Test(Arr, Pos);
+      Test(Arr, Pos);
       // End of scope, should destroy Test.
     }
 
     return Arr[Index];
   }
-
   static_assert(T(0) == 1);
   static_assert(T(1) == 2);
   static_assert(T(2) == 3);
+
+  // Invalid destructor.
+  struct S {
+    constexpr S() {}
+    constexpr ~S() noexcept(false) { throw 12; } // expected-error {{cannot use 'throw'}} \
+                                                 // expected-error {{never produces a constant expression}} \
+                                                 // expected-note 2{{subexpression not valid}} \
+                                                 // ref-error {{cannot use 'throw'}} \
+                                                 // ref-error {{never produces a constant expression}} \
+                                                 // ref-note 2{{subexpression not valid}}
+  };
+
+  constexpr int f() {
+    S{}; // ref-note {{in call to 'S{}.~S()'}}
+    /// FIXME: Wrong source location below.
+    return 12; // expected-note {{in call to '&S{}->~S()'}}
+  }
+  static_assert(f() == 12); // expected-error {{not an integral constant expression}} \
+                            // expected-note {{in call to 'f()'}} \
+                            // ref-error {{not an integral constant expression}} \
+                            // ref-note {{in call to 'f()'}}
+
+
 #endif
 }
 
@@ -404,7 +441,7 @@ namespace DeriveFailures {
   static_assert(D.Val == 0, ""); // ref-error {{not an integral constant expression}} \
                                  // ref-note {{initializer of 'D' is not a constant expression}} \
                                  // expected-error {{not an integral constant expression}} \
-                                 // expected-note {{read of object outside its lifetime}}
+                                 // expected-note {{read of uninitialized object}}
 #endif
 
   struct AnotherBase {
@@ -467,7 +504,7 @@ namespace DeclRefs {
   constexpr A a{10}; // expected-error {{must be initialized by a constant expression}}
   static_assert(a.m == 10, "");
   static_assert(a.f == 10, ""); // expected-error {{not an integral constant expression}} \
-                                // expected-note {{read of object outside its lifetime}}
+                                // expected-note {{read of uninitialized object}}
 
   class Foo {
   public:
@@ -566,6 +603,26 @@ namespace Destructors {
     return i;
   }
   static_assert(test() == 1);
+
+  struct S {
+    constexpr S() {}
+    constexpr ~S() { // expected-error {{never produces a constant expression}} \
+                     // ref-error {{never produces a constant expression}}
+      int i = 1 / 0; // expected-warning {{division by zero}} \
+                     // expected-note 2{{division by zero}} \
+                     // ref-warning {{division by zero}} \
+                     // ref-note 2{{division by zero}}
+    }
+  };
+  constexpr int testS() {
+    S{}; // ref-note {{in call to 'S{}.~S()'}}
+    return 1; // expected-note {{in call to '&S{}->~S()'}}
+              // FIXME: ^ Wrong line
+  }
+  static_assert(testS() == 1); // expected-error {{not an integral constant expression}} \
+                               // expected-note {{in call to 'testS()'}} \
+                               // ref-error {{not an integral constant expression}} \
+                               // ref-note {{in call to 'testS()'}}
 }
 
 
@@ -689,5 +746,93 @@ namespace CtorDtor {
                                 // ref-note {{initializer of 'D2' is not a constant expression}}
 
 }
+
+namespace VirtualFunctionPointers {
+  struct S {
+    virtual constexpr int func() const { return 1; }
+  };
+
+  struct Middle : S {
+    constexpr Middle(int i) : i(i) {}
+    int i;
+  };
+
+  struct Other {
+    constexpr Other(int k) : k(k) {}
+    int k;
+  };
+
+  struct S2 : Middle, Other {
+    int j;
+    constexpr S2(int i, int j, int k) : Middle(i), Other(k), j(j) {}
+    virtual constexpr int func() const { return i + j + k  + S::func(); }
+  };
+
+  constexpr S s;
+  constexpr decltype(&S::func) foo = &S::func;
+  constexpr int value = (s.*foo)();
+  static_assert(value == 1);
+
+
+  constexpr S2 s2(1, 2, 3);
+  static_assert(s2.i == 1);
+  static_assert(s2.j == 2);
+  static_assert(s2.k == 3);
+
+  constexpr int value2 = s2.func();
+  constexpr int value3 = (s2.*foo)();
+  static_assert(value3 == 7);
+
+  constexpr int dynamicDispatch(const S &s) {
+    constexpr decltype(&S::func) SFunc = &S::func;
+
+    return (s.*SFunc)();
+  }
+
+  static_assert(dynamicDispatch(s) == 1);
+  static_assert(dynamicDispatch(s2) == 7);
+};
+
 };
 #endif
+
+namespace CompositeDefaultArgs {
+  struct Foo {
+    int a;
+    int b;
+    constexpr Foo() : a(12), b(13) {}
+  };
+
+  class Bar {
+  public:
+    bool B = false;
+
+    constexpr int someFunc(Foo F = Foo()) {
+      this->B = true;
+      return 5;
+    }
+  };
+
+  constexpr bool testMe() {
+    Bar B;
+    B.someFunc();
+    return B.B;
+  }
+  static_assert(testMe(), "");
+}
+
+constexpr bool BPand(BoolPair bp) {
+  return bp.first && bp.second;
+}
+static_assert(BPand(BoolPair{true, false}) == false, "");
+
+namespace TemporaryObjectExpr {
+  struct F {
+    int a;
+    constexpr F() : a(12) {}
+  };
+  constexpr int foo(F f) {
+    return 0;
+  }
+  static_assert(foo(F()) == 0, "");
+}

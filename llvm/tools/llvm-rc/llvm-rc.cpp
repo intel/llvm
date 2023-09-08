@@ -21,6 +21,7 @@
 #include "llvm/Object/WindowsResource.h"
 #include "llvm/Option/Arg.h"
 #include "llvm/Option/ArgList.h"
+#include "llvm/Option/OptTable.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -43,6 +44,7 @@
 
 using namespace llvm;
 using namespace llvm::rc;
+using namespace llvm::opt;
 
 namespace {
 
@@ -50,9 +52,7 @@ namespace {
 
 enum ID {
   OPT_INVALID = 0, // This is not a correct option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  OPT_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -66,13 +66,7 @@ namespace rc_opt {
 #undef PREFIX
 
 static constexpr opt::OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {                                                                            \
-      PREFIX,      NAME,      HELPTEXT,                                        \
-      METAVAR,     OPT_##ID,  opt::Option::KIND##Class,                        \
-      PARAM,       FLAGS,     OPT_##GROUP,                                     \
-      OPT_##ALIAS, ALIASARGS, VALUES},
+#define OPTION(...) LLVM_CONSTRUCT_OPT_INFO(__VA_ARGS__),
 #include "Opts.inc"
 #undef OPTION
 };
@@ -85,9 +79,7 @@ public:
 
 enum Windres_ID {
   WINDRES_INVALID = 0, // This is not a correct option ID.
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  WINDRES_##ID,
+#define OPTION(...) LLVM_MAKE_OPT_ID_WITH_ID_PREFIX(WINDRES_, __VA_ARGS__),
 #include "WindresOpts.inc"
 #undef OPTION
 };
@@ -101,12 +93,8 @@ namespace windres_opt {
 #undef PREFIX
 
 static constexpr opt::OptTable::Info InfoTable[] = {
-#define OPTION(PREFIX, NAME, ID, KIND, GROUP, ALIAS, ALIASARGS, FLAGS, PARAM,  \
-               HELPTEXT, METAVAR, VALUES)                                      \
-  {PREFIX,          NAME,         HELPTEXT,                                    \
-   METAVAR,         WINDRES_##ID, opt::Option::KIND##Class,                    \
-   PARAM,           FLAGS,        WINDRES_##GROUP,                             \
-   WINDRES_##ALIAS, ALIASARGS,    VALUES},
+#define OPTION(...)                                                            \
+  LLVM_CONSTRUCT_OPT_INFO_WITH_ID_PREFIX(WINDRES_, __VA_ARGS__),
 #include "WindresOpts.inc"
 #undef OPTION
 };
@@ -136,20 +124,30 @@ std::string createTempFile(const Twine &Prefix, StringRef Suffix) {
 }
 
 ErrorOr<std::string> findClang(const char *Argv0, StringRef Triple) {
-  StringRef Parent = llvm::sys::path::parent_path(Argv0);
+  // This just needs to be some symbol in the binary.
+  void *P = (void*) (intptr_t) findClang;
+  std::string MainExecPath = llvm::sys::fs::getMainExecutable(Argv0, P);
+  if (MainExecPath.empty())
+    MainExecPath = Argv0;
+
   ErrorOr<std::string> Path = std::error_code();
   std::string TargetClang = (Triple + "-clang").str();
   std::string VersionedClang = ("clang-" + Twine(LLVM_VERSION_MAJOR)).str();
-  if (!Parent.empty()) {
-    // First look for the tool with all potential names in the specific
-    // directory of Argv0, if known
-    for (const auto *Name :
-         {TargetClang.c_str(), VersionedClang.c_str(), "clang", "clang-cl"}) {
+  for (const auto *Name :
+       {TargetClang.c_str(), VersionedClang.c_str(), "clang", "clang-cl"}) {
+    for (const StringRef Parent :
+         {llvm::sys::path::parent_path(MainExecPath),
+          llvm::sys::path::parent_path(Argv0)}) {
+      // Look for various versions of "clang" first in the MainExecPath parent
+      // directory and then in the argv[0] parent directory.
+      // On Windows (but not Unix) argv[0] is overwritten with the eqiuvalent
+      // of MainExecPath by InitLLVM.
       Path = sys::findProgramByName(Name, Parent);
       if (Path)
         return Path;
     }
   }
+
   // If no parent directory known, or not found there, look everywhere in PATH
   for (const auto *Name : {"clang", "clang-cl"}) {
     Path = sys::findProgramByName(Name);
@@ -521,7 +519,8 @@ RcOptions parseRcOptions(ArrayRef<const char *> ArgsArr,
 
   // The tool prints nothing when invoked with no command-line arguments.
   if (InputArgs.hasArg(OPT_help)) {
-    T.printHelp(outs(), "rc [options] file...", "Resource Converter", false);
+    T.printHelp(outs(), "llvm-rc [options] file...", "LLVM Resource Converter",
+                false);
     exit(0);
   }
 
