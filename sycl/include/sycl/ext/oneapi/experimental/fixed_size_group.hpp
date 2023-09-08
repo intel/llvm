@@ -37,7 +37,6 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                         fixed_size_group<PartitionSize, Group>>
 get_fixed_size_group(Group group);
 
-
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group {
 public:
   using id_type = id<1>;
