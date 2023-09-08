@@ -555,6 +555,12 @@ SubGroup/sub_group_as.cpp
 SubGroup/sub_group_as_vec.cpp
 SubGroup/sub_group_by_value_semantics.cpp
 SubGroupMask/Basic.cpp
+syclcompat/atomic/atomic_arith.cpp
+syclcompat/atomic/atomic_bitwise.cpp
+syclcompat/atomic/atomic_class.cpp
+syclcompat/atomic/atomic_comp_exchange.cpp
+syclcompat/atomic/atomic_memory_acq_rel.cpp
+syclcompat/atomic/atomic_minmax.cpp
 syclcompat/memory/local_memory.cpp
 syclcompat/memory/memory_management_test1.cpp
 syclcompat/memory/memory_management_test3.cpp
