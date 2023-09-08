@@ -311,9 +311,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
       return UR_RESULT_ERROR_OUT_OF_RESOURCES;
     }
   }
-  default:
+  case UR_QUEUE_INFO_DEVICE_DEFAULT:
+  case UR_QUEUE_INFO_SIZE:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_ERROR_INVALID_ENUMERATION;
 }

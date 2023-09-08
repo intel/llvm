@@ -219,7 +219,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventSetCallback(ur_event_handle_t,
                                                        ur_execution_info_t,
                                                        ur_event_callback_t,
                                                        void *) {
-  detail::ur::die("Event Callback not implemented in CUDA adapter");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

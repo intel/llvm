@@ -93,3 +93,14 @@ urSamplerRelease(ur_sampler_handle_t hSampler) {
 
   return UR_RESULT_SUCCESS;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urSamplerGetNativeHandle(ur_sampler_handle_t, ur_native_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
+    ur_native_handle_t, ur_context_handle_t,
+    const ur_sampler_native_properties_t *, ur_sampler_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

@@ -40,7 +40,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnGet = urPlatformGet;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetInfo = urPlatformGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urPlatformGetNativeHandle;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
   return UR_RESULT_SUCCESS;
 }
@@ -132,9 +132,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetSamplerProcAddrTable(
     return result;
   }
   pDdiTable->pfnCreate = urSamplerCreate;
-  pDdiTable->pfnCreateWithNativeHandle = nullptr;
+  pDdiTable->pfnCreateWithNativeHandle = urSamplerCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urSamplerGetInfo;
-  pDdiTable->pfnGetNativeHandle = nullptr;
+  pDdiTable->pfnGetNativeHandle = urSamplerGetNativeHandle;
   pDdiTable->pfnRelease = urSamplerRelease;
   pDdiTable->pfnRetain = urSamplerRetain;
   return UR_RESULT_SUCCESS;
