@@ -410,7 +410,7 @@ struct kernel{
 Illustrating this with properties from our previous example:
 
 ```
-struct kernel{
+struct kernel {
   int *ptr
 #ifdef __SYCL_DEVICE_ONLY__
   [[__sycl_detail__::add_ir_annotations_member(
