@@ -30,7 +30,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(ur_mem_handle_t hMem) {
       return UR_RESULT_SUCCESS;
     }
 
-    ScopedContext Active(uniqueMemObj->getContext()->getDevice());
+    ScopedDevice Active(uniqueMemObj->getContext()->getDevice());
 
     if (hMem->MemType == ur_mem_handle_t_::Type::Buffer) {
       switch (uniqueMemObj->Mem.BufferMem.MemAllocMode) {
@@ -101,7 +101,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   ur_mem_handle_t RetMemObj = nullptr;
 
   try {
-    ScopedContext Active(hContext->getDevice());
+    ScopedDevice Active(hContext->getDevice());
     void *Ptr;
     auto pHost = pProperties ? pProperties->pHost : nullptr;
     ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
@@ -218,7 +218,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
 
   std::unique_ptr<ur_mem_handle_t_> RetMemObj{nullptr};
   try {
-    ScopedContext Active(Context->getDevice());
+    ScopedDevice Active(Context->getDevice());
 
     RetMemObj = std::unique_ptr<ur_mem_handle_t_>{new ur_mem_handle_t_{
         Context, hBuffer, flags, AllocMode, Ptr, HostPtr, pRegion->size}};
@@ -247,7 +247,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
 
   UrReturnHelper ReturnValue(propSize, pMemInfo, pPropSizeRet);
 
-  ScopedContext Active(hMemory->getContext()->getDevice());
+  ScopedDevice Active(hMemory->getContext()->getDevice());
 
   switch (MemInfoType) {
   case UR_MEM_INFO_SIZE: {
@@ -425,7 +425,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   size_t ImageSizeBytes = PixelSizeBytes * pImageDesc->width *
                           pImageDesc->height * pImageDesc->depth;
 
-  ScopedContext Active(hContext->getDevice());
+  ScopedDevice Active(hContext->getDevice());
   hipArray *ImageArray;
   Result = UR_CHECK_ERROR(hipArray3DCreate(
       reinterpret_cast<hipCUarray *>(&ImageArray), &ArrayDesc));
