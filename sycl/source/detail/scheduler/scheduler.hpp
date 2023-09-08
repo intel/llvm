@@ -457,7 +457,7 @@ public:
 
   Scheduler();
   ~Scheduler();
-  void releaseResources();
+  void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
 
   void enqueueCommandForCG(EventImplPtr NewEvent,
