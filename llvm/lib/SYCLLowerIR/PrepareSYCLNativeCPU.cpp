@@ -197,8 +197,8 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
 }
 
 // Todo: add support for more SPIRV builtins here
-static const std::map<std::string, std::pair<std::string, unsigned int>>
-    BuiltinNamesMap{
+static const std::pair<StringRef, std::pair<StringRef, unsigned int> >
+    BuiltinNamesMap[] = {
         {"_Z28__spirv_GlobalInvocationId_xv",
          {"__dpcpp_nativecpu_global_id", 0}},
         {"_Z28__spirv_GlobalInvocationId_yv",
