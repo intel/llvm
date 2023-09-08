@@ -2029,12 +2029,8 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
     // registers the usual way.
     SmallVector<EVT, 1> PtrValueVTs;
     ComputeValueVTs(TLI, DL,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                     PointerType::get(F->getContext(),
-#else
-                    F->getReturnType()->getPointerTo(
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-                        DAG.getDataLayout().getAllocaAddrSpace()),
+                                     DAG.getDataLayout().getAllocaAddrSpace()),
                     PtrValueVTs);
 
     SDValue RetPtr =
@@ -2779,11 +2775,7 @@ void SelectionDAGBuilder::visitSPDescriptorParent(StackProtectorDescriptor &SPD,
   SDValue StackSlotPtr = DAG.getFrameIndex(FI, PtrTy);
   const Module &M = *ParentBB->getParent()->getFunction().getParent();
   Align Align =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       DAG.getDataLayout().getPrefTypeAlign(PointerType::get(M.getContext(), 0));
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-      DAG.getDataLayout().getPrefTypeAlign(Type::getInt8PtrTy(M.getContext()));
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Generate code to load the content of the guard slot.
   SDValue GuardVal = DAG.getLoad(
@@ -10442,12 +10434,8 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
     // The instruction result is the result of loading from the
     // hidden sret parameter.
     SmallVector<EVT, 1> PVTs;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Type *PtrRetTy =
         PointerType::get(OrigRetTy->getContext(), DL.getAllocaAddrSpace());
-#else 
-    Type *PtrRetTy = OrigRetTy->getPointerTo(DL.getAllocaAddrSpace());
-#endif
 
     ComputeValueVTs(*this, DL, PtrRetTy, PVTs);
     assert(PVTs.size() == 1 && "Pointers should fit in one register");
@@ -10775,11 +10763,7 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
     // Put in an sret pointer parameter before all the other parameters.
     SmallVector<EVT, 1> ValueVTs;
     ComputeValueVTs(*TLI, DAG.getDataLayout(),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                     PointerType::get(F.getContext(),
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-                    F.getReturnType()->getPointerTo(
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
                                      DAG.getDataLayout().getAllocaAddrSpace()),
                     ValueVTs);
 
@@ -10973,12 +10957,8 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
     // from the sret argument into it.
     SmallVector<EVT, 1> ValueVTs;
     ComputeValueVTs(*TLI, DAG.getDataLayout(),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                     PointerType::get(F.getContext(),
-#else
-                    F.getReturnType()->getPointerTo(
-#endif
-                        DAG.getDataLayout().getAllocaAddrSpace()),
+                                     DAG.getDataLayout().getAllocaAddrSpace()),
                     ValueVTs);
     MVT VT = ValueVTs[0].getSimpleVT();
     MVT RegVT = TLI->getRegisterType(*CurDAG->getContext(), VT);

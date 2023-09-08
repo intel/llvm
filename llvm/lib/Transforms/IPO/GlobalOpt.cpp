@@ -1125,10 +1125,6 @@ optimizeOnceStoredGlobal(GlobalVariable *GV, Value *StoredOnceVal,
           nullptr /* F */,
           GV->getInitializer()->getType()->getPointerAddressSpace())) {
     if (Constant *SOVC = dyn_cast<Constant>(StoredOnceVal)) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-      if (GV->getInitializer()->getType() != SOVC->getType())
-        SOVC = ConstantExpr::getBitCast(SOVC, GV->getInitializer()->getType());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       // Optimize away any trapping uses of the loaded value.
       if (OptimizeAwayTrappingUsesOfLoads(GV, SOVC, DL, GetTLI))
         return true;
@@ -2096,11 +2092,7 @@ static void setUsedInitializer(GlobalVariable &V,
 
   // Type of pointer to the array of pointers.
   PointerType *PtrTy =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       PointerType::get(V.getContext(), VEPT->getAddressSpace());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Type::getInt8PtrTy(V.getContext(), VEPT->getAddressSpace());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   SmallVector<Constant *, 8> UsedArray;
   for (GlobalValue *GV : Init) {
