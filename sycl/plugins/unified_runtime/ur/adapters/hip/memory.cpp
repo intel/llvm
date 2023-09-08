@@ -376,7 +376,7 @@ ur_buffer_::allocateMemObjOnDeviceIfNeeded(ur_device_handle_t hDevice) {
   ScopedDevice Active(hDevice);
   ur_lock LockGuard(MemoryAllocationMutex);
 
-  hipDeviceptr_t &DevPtr = getNativePtr(hDevice);
+  hipDeviceptr_t &DevPtr = getPtr(hDevice);
 
   // Allocation has already been made
   if (DevPtr != ur_buffer_::native_type{0}) {

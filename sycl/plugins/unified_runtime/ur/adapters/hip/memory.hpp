@@ -22,6 +22,84 @@
 /// ur_mem_handle_t then it will write to LastEventWritingToMemObj. Then all
 /// subsequent operations that want to read from the ur_mem_handle_t must wait
 /// on the event referring to the last write.
+///
+/// Since urMemBufferCreate/urMemImageCreate do not take a queue or device
+/// object, only a ur_context_handle_t, at mem obj creation we don't know which
+/// device we must make a native image/allocation on. Therefore no allocations
+/// are made at urMemBufferCreate/urMemImageCreate. Instead device
+/// images/allocations are made lazily. These allocations are made with
+/// allocateMemObjOnDeviceIfNeeded which should be called either at:
+///
+///   1. urEnqueueMem(Buffer|Image)Write(Rect)
+///       - in the case of a buffer/image that is initialized with host data.
+///   2. urKernelSetArgMemObj
+///       - in the case of an uninitialized buffer/image.
+///       - in the case where a memObj has already been initialized using
+///         urEnqueueMem(Buffer|Image)Write but needs to make an additional
+///         allocation on a different device in the context.
+///
+/// Memory migration between native allocations for devices in the same
+/// ur_context_handle_t will occur at:
+///
+///   1. urEnqueueKernelLaunch
+///   2. urEnqueueMem(Buffer|Image)Read(Rect)
+///
+/// Migrations will occur in both cases if the most recent version of data
+/// is on a different device, marked by LastEventWritingToMemObj->getDevice().
+///
+/// Example trace:
+/// ~~~~~~~~~~~~~~
+///
+/// =====> urContextCreate([device0, device1], ...) // associated with [q0, q1]
+///             -> OUT: hContext
+///
+/// =====> urMemBufferCreate(hContext,...);
+///             -> No native allocations made
+///             -> OUT: hBuffer
+///
+/// =====> urEnqueueMemBufferWrite(q0, hBuffer,...);
+///             -> Allocation made on q0 ie device0
+///             -> New allocation initialized with host data.
+///
+/// =====> urKernelSetArgMemObj(hKernel0, hBuffer, ...);
+///             -> ur_kernel_handle_t associated with a ur_program_handle_t,
+///                which is in turn unique to a device. So we can set the kernel
+///                arg with the ptr of the device specific allocation.
+///             -> hKernel0->getProgram()->getDevice() == device0
+///             -> allocateMemObjOnDeviceIfNeeded(device0);
+///                   -> Native allocation already made on device0, continue.
+///
+/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
+///             -> Suppose that hKernel0 writes to hBuffer.
+///             -> Call hBuffer->setLastEventWritingToMemObj with return event
+///                from this operation
+///             -> Enqueue native kernel launch
+///
+/// =====> urKernelSetArgMemObj(hKernel1, hBuffer, ...);
+///             -> hKernel1->getProgram()->getDevice() == device1
+///             -> allocateMemObjOnDeviceIfNeeded(device1);
+///                   -> No native allocation on device1
+///                   -> Make native allocation on device1
+///
+/// =====> urEnqueueKernelLaunch(q1, hKernel1, ...);
+///             -> Suppose hKernel1 wants to read from hBuffer and not write.
+///             -> migrateMemoryToDeviceIfNeeded(device1);
+///                   -> hBuffer->LastEventWritingToMemObj is not nullptr
+///                   -> Check if memory has been migrated to device1 since the
+///                      last write
+///                        -> Hasn't been migrated
+///                   -> Wait on LastEventWritingToMemObj.
+///                   -> Migrate memory from device0's native allocation to
+///                      device1's native allocation.
+///             -> Enqueue native kernel launch
+///
+/// =====> urEnqueueKernelLaunch(q0, hKernel0, ...);
+///             -> migrateMemoryToDeviceIfNeeded(device0);
+///                   -> hBuffer->LastEventWritingToMemObj refers to an event
+///                      from q0
+///                        -> Migration not necessary
+///             -> Enqueue native kernel launch
+///
 struct ur_mem_handle_t_ {
 
   using ur_context = ur_context_handle_t_ *;
@@ -88,6 +166,26 @@ struct ur_mem_handle_t_ {
     urContextRetain(Context);
     urDeviceRetain(Device);
   };
+
+  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
+    assert(NewEvent && "Invalid event!");
+    // We only need this functionality for multi device context
+    if (Context->NumDevices == 1) {
+      return;
+    }
+    if (LastEventWritingToMemObj != nullptr) {
+      urEventRelease(LastEventWritingToMemObj);
+    }
+    urEventRetain(NewEvent);
+    LastEventWritingToMemObj = NewEvent;
+    for (auto i = 0u; i < Context->NumDevices; ++i) {
+      if (i == NewEvent->getDevice()->getIndex()) {
+        HaveMigratedToDeviceSinceLastWrite[i] = true;
+      } else {
+        HaveMigratedToDeviceSinceLastWrite[i] = false;
+      }
+    }
+  }
 };
 
 // Handle for plain, pointer-based HIP allocations.
@@ -226,11 +324,6 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
     return MapFlags;
   }
 
-  native_type &getNativePtr(ur_device_handle_t hDevice) noexcept {
-    assert(hDevice != nullptr);
-    return Ptrs[hDevice->getIndex()];
-  }
-
   ur_result_t clear() override {
     if (isSubBuffer()) {
       return UR_RESULT_SUCCESS;
@@ -262,22 +355,6 @@ struct ur_buffer_ final : ur_mem_handle_t_ {
   struct {
     size_t Origin; // only valid if Parent != nullptr
   } SubBuffer;
-
-  void setLastEventWritingToMemObj(ur_event_handle_t NewEvent) {
-    assert(NewEvent && "Invalid event!");
-    if (LastEventWritingToMemObj != nullptr) {
-      urEventRelease(LastEventWritingToMemObj);
-    }
-    urEventRetain(NewEvent);
-    LastEventWritingToMemObj = NewEvent;
-    for (auto i = 0u; i < Context->NumDevices; ++i) {
-      if (i == NewEvent->getDevice()->getIndex()) {
-        HaveMigratedToDeviceSinceLastWrite[i] = true;
-      } else {
-        HaveMigratedToDeviceSinceLastWrite[i] = false;
-      }
-    }
-  }
 };
 
 // Handler data for image object (i.e. surface/textures)
