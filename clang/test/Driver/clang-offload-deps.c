@@ -1,8 +1,5 @@
 // REQUIRES: x86-registered-target
 
-// FIXME: enable opaque pointers support
-// UNSUPPORTED: enable-opaque-pointers
-
 //
 // Check help message.
 //
@@ -31,14 +28,14 @@
 // RUN: llvm-dis -o - %t.deps.spir64 | FileCheck %s --check-prefixes=CHECK-DEPS-SPIR64 -DSPIRTriple=spir64
 
 // CHECK-DEPS-X86_64: target triple = "x86_64-pc-linux-gnu"
-// CHECK-DEPS-X86_64: @bar = external global i8*
-// CHECK-DEPS-X86_64: @foo = external global i8*
-// CHECK-DEPS-X86_64: @offload.symbols = hidden local_unnamed_addr global [2 x i8*] [i8* bitcast (i8** @bar to i8*), i8* bitcast (i8** @foo to i8*)]
+// CHECK-DEPS-X86_64: @bar = external global ptr
+// CHECK-DEPS-X86_64: @foo = external global ptr
+// CHECK-DEPS-X86_64: @offload.symbols = hidden local_unnamed_addr global [2 x ptr] [ptr @bar, ptr @foo]
 
 // CHECK-DEPS-SPIR64: target triple = "[[SPIRTriple]]"
-// CHECK-DEPS-SPIR64: @bar = external global i8*
-// CHECK-DEPS-SPIR64: @foo = external global i8*
-// CHECK-DEPS-SPIR64: @llvm.used = appending global [2 x i8*] [i8* bitcast (i8** @bar to i8*), i8* bitcast (i8** @foo to i8*)], section "llvm.metadata"
+// CHECK-DEPS-SPIR64: @bar = external global ptr
+// CHECK-DEPS-SPIR64: @foo = external global ptr
+// CHECK-DEPS-SPIR64: @llvm.used = appending global [2 x ptr] [ptr @bar, ptr @foo], section "llvm.metadata"
 
 //
 // Check that input with no .tgtsym section is handled correctly.
