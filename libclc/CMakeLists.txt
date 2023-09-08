@@ -415,6 +415,18 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 endif()
                 list( APPEND flags ${CL_3_0_EXTENSIONS})
 
+		# Add platform specific flags
+		if(WIN32)
+			list(APPEND flags -D_WIN32)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+			list(APPEND flags -D__APPLE__)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+			list(APPEND flags -D__unix__ -D__linux__)
+		else()
+			# Assume some UNIX system otherwise
+			list(APPEND flags -D__unix__)
+		endif()
+
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}
 			TARGET_ENV libspirv
