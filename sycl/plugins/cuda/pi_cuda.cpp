@@ -1225,7 +1225,7 @@ pi_result piPluginInit(pi_plugin *PluginInit) {
 #define _PI_API(api)                                                           \
   (PluginInit->PiFunctionTable).api = (decltype(&::api))(&api);
 #include <sycl/detail/pi.def>
-#undef _PI_API  
+#undef _PI_API
   return PI_SUCCESS;
 }
 

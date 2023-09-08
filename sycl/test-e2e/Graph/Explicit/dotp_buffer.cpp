@@ -86,8 +86,8 @@ int main() {
     Queue.ext_oneapi_graph(ExecGraph).wait();
   }
 
-    host_accessor HostAcc(DotpBuf);
-    assert(HostAcc[0] == dotp_reference_result(N));
+  host_accessor HostAcc(DotpBuf);
+  assert(HostAcc[0] == dotp_reference_result(N));
 
-    return 0;
+  return 0;
 }
