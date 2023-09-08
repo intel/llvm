@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 6 specification.  All
+This extension is written against the SYCL 2020 revision 7 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -55,12 +55,32 @@ not rely on APIs defined in this specification.*
 This extension adds a way to conditionally select code based on whether the
 caller runs on a device or runs on the host.  This allows an application to
 call some common function from either host or device, and then select one path
-or another for each case.  The `+__SYCL_DEVICE_ONLY__+` macro from the core
-SYCL specification provides this same ability, but the new API in this
-extension provides a solution that works even in a 1-pass implementation of
-SYCL.  In such an implementation, the preprocessor runs only once, so there is
-no way to define the `+__SYCL_DEVICE_ONLY__+` macro differently for the host
-and device compilations.
+or another for each case.  This extension is an improvement over the
+`+__SYCL_DEVICE_ONLY__+` macro, which provides similar functionality, for two
+reasons.  First, this extension is implementable in a 1-pass compiler, which is
+not the case for the macro.  In such an implementation, the preprocessor runs
+only once, so there is no way to define the `+__SYCL_DEVICE_ONLY__+` macro
+differently for the host and device compilations.  This is an important
+improvement because the SYCL specification is expected to be implementable in a
+1-pass compiler.
+
+This extension is also an improvement over the macro even in a multi-pass
+compiler because it avoids problematic scenarios that can lead to compilation
+failures.  For example, applications can use the macro such that the set of
+variables captured by the kernel lambda is different depending on whether the
+macro is defined.  In a typical multi-pass compiler, this causes the host and
+device compiler passes to disagree on the set of kernel arguments, which
+typically leads to either a compile time or runtime failure.  The extension
+defined in this document does not have this problem because it is impossible to
+use in a way that causes the compiler passes to see different lambda captures.
+
+Another advantage of this extension is that it prevents the application from
+defining data differently for the host and device, which is an advantage
+because the host and device must agree on the size and alignment of any data
+that is shared.  In the rare case that the application needs to treat data
+differently on the host and device, it can define the data consistently and
+then use this extension to interpret the data differently.  This technique is
+demonstrated in the Examples section below.
 
 The goal of this extension is to provide a better alternative to the
 `+__SYCL_DEVICE_ONLY__+` macro, adopt it into a future version of the SYCL
@@ -169,3 +189,69 @@ it calls) may legally use C++ features that are forbidden in device code.
 The same is true for the `otherwise` clause when `if_device` is called from
 device code.  The `fn` object is not called in this case, and the call to `fn`
 is ignored when the compiler identifies device code.
+
+
+== Examples
+
+In rare cases, an application may want to interpret data differently on host
+vs. device.  The example below demonstrates a technique where the data is
+declared via a union and interpreted differently on the host and device.  With
+this technique, the data is guaranteed to have the same size and alignment
+requirements on host and device, which allows it to be safely shared.
+
+On implementations that support the use of `std::variant` and `std::get` in
+device code, the application can use these modern C++ mechanisms in place of
+the union.
+
+```
+namespace syclex = sycl::ext::oneapi::experimental;
+
+struct host_data {
+  /* ... */
+};
+
+struct device_data {
+  /* ... */
+};
+
+class fancy {
+  union {
+    host_data host;
+    device_data device;
+  };
+
+ public:
+  fancy() {
+    // Initialize the data differently on host vs. device
+    syclex::if_device([&] {
+      device = /* ... */;
+    }).otherwise([&] {
+      host = /* ... */;
+    });
+  }
+
+  float compute() const {
+    float res;
+
+    // Interpret the data differently on host vs. device
+    syclex::if_device([&] {
+      res = device /* ... */;
+    }).otherwise([&] {
+      res = host /* ... */;
+    });
+
+    return res;
+  }
+};
+
+int main() {
+  sycl::queue q;
+
+  fancy f;
+  f.compute();
+
+  q.single_task([=] {
+    f.compute();
+  }).wait();
+}
+```

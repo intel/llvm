@@ -8,14 +8,10 @@ This document describes the design for the DPC++ implementation of the
 
 ## Phased implementation
 
-Although the main motivation for the "if\_device" extension is to enable a
-1-pass compiler, it can still be implemented in our existing multi-pass
-compiler.  This is useful because it allows us to gain experience using this
-extension even before we implement the 1-pass compiler.
-
-This document, therefore, describes two implementations.  The first is a
-trivial implementation that works in the current multi-pass compiler.  The
-other is the design that we will ultimately use in the 1-pass compiler.
+This document presents two designs for the "if\_device" extension.  The first
+is a trivial implementation that works in a multi-pass compiler like DPC++.
+The second is a hypothetical implementation that could work in a 1-pass
+compiler.
 
 
 ## Multi-pass compiler implementation
@@ -171,7 +167,7 @@ the bodies of functions marked "sycl-call-if-on-device" are deleted.
 
 Alternatively, the IR pass could use metadata from the CFE to identify host vs.
 device code, rather than repeating the static call tree traversal here.  These
-details will be resolved later as part of the 1-pass compiler design.
+details could be resolved later as part of a 1-pass compiler design.
 
 Up until this point, it was important to prevent inlining of the functions
 marked "sycl-call-if-on-host" and "sycl-call-if-on-device".  Once the IR is
