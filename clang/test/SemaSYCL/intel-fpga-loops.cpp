@@ -372,9 +372,11 @@ void loop_attrs_compatibility() {
   // no diagnostics are expected
   [[intel::disable_loop_pipelining]] [[intel::loop_coalesce]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
-  // expected-error@+2 {{'max_interleaving' and 'disable_loop_pipelining' attributes are not compatible}}
-  // expected-note@+1 {{conflicting attribute is here}}
+  // no diagnostics are expected
   [[intel::disable_loop_pipelining]] [[intel::max_interleaving(0)]] for (int i = 0; i != 10; ++i)
+    a[i] = 0;
+  // no diagnostics are expected
+  [[intel::max_interleaving(1)]] [[intel::disable_loop_pipelining]] for (int i = 0; i != 10; ++i)
     a[i] = 0;
   // expected-error@+2 {{'max_concurrency' and 'disable_loop_pipelining' attributes are not compatible}}
   // expected-note@+1 {{conflicting attribute is here}}

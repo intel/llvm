@@ -327,7 +327,7 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
   constexpr access::address_space ToAS = deduce_AS<ToT>::value;
   constexpr access::address_space FromAS = deduce_AS<FromT>::value;
   if constexpr (FromAS == access::address_space::generic_space) {
-#if defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__SYCL_NATIVE_CPU__)
     // TODO: NVPTX and AMDGCN backends do not currently support the
     //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
     //       we do C-style casting. This may produce warnings when targetting
