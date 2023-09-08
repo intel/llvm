@@ -511,8 +511,7 @@ to perform these optimizations.
 Applying properties on a non-global pointer type variable can be done with
 `__bultin_intel_sycl_ptr_annotation` builtin function. Comparing to
 `add_ir_annotations_member`, this builtin function is more flexible as
-it can decorate any pointer variable in the kernel.
-
+it can decorate any pointer variable in a kernel.
 
 An example of this is the proposed `annotated_ptr` class.
 
