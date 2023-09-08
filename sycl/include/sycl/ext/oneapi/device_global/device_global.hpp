@@ -60,7 +60,7 @@ protected:
   mutable pointer_t usmptr{};
 
   pointer_t get_ptr() noexcept { return usmptr; }
-  const pointer_t get_ptr() const noexcept { return usmptr; }
+  constexpr pointer_t get_ptr() const noexcept { return usmptr; }
 
 public:
   template <access::decorated IsDecorated>
@@ -93,10 +93,10 @@ protected:
   constexpr const T *get_ptr() const noexcept { return &val; }
 
 public:
-#if __cplusplus >= 202002L
+#if __cpp_consteval
   template <typename... Args>
   consteval explicit device_global_base(Args&&... args) : val{args...} {}
-#endif // __cplusplus >= 202002L 
+#endif // __cpp_consteval
 
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
@@ -145,10 +145,11 @@ class
 public:
   using element_type = std::remove_extent_t<T>;
 
+#if !__cpp_consteval
   static_assert(std::is_trivially_default_constructible_v<T>,
                 "Type T must be trivially default constructable (until C++20 "
                 "consteval is supported and enabled.)");
-
+#endif // !__cpp_consteval
   static_assert(std::is_trivially_destructible_v<T>,
                 "Type T must be trivially destructible.");
 

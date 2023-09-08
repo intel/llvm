@@ -18,6 +18,26 @@ static_assert(dg_int_arr[0] == 5);
 static_assert(dg_int_arr[1] == 2);
 static_assert(dg_int_arr[2] == 3);
 
+// Constant char and array of char device_globals
+constexpr device_global<char, decltype(properties(device_image_scope))>
+    dg_char{'f'};
+constexpr device_global<char[3], decltype(properties(device_image_scope))>
+    dg_char_arr{'d', '4', 'S'};
+static_assert(dg_char == 'f');
+static_assert(dg_char_arr[0] == 'd');
+static_assert(dg_char_arr[1] == '4');
+static_assert(dg_char_arr[2] == 'S');
+
+// Multidimensional array of integers
+constexpr device_global<int[3][2], decltype(properties(device_image_scope))>
+    dg_multi_dim_arr{3, 4, 5, 6, 7, 8};
+static_assert(dg_multi_dim_arr[0][0] == 3);
+static_assert(dg_multi_dim_arr[0][1] == 4);
+static_assert(dg_multi_dim_arr[1][0] == 5);
+static_assert(dg_multi_dim_arr[1][1] == 6);
+static_assert(dg_multi_dim_arr[2][0] == 7);
+static_assert(dg_multi_dim_arr[2][1] == 8);
+
 // Constant float and array of float device_globals
 constexpr device_global<float, decltype(properties(device_image_scope))>
    dg_float{4.5};
@@ -78,3 +98,13 @@ static_assert(dg_struct_arr[1].field4[0] == 1);
 static_assert(dg_struct_arr[1].field4[1] == 2);
 static_assert(dg_struct_arr[1].field4[2] == 3);
 static_assert(dg_struct_arr[1].field4[3] == 4);
+
+// Test struct with constexpr constructor
+struct TestStruct2 {
+   int value;
+   constexpr TestStruct2(int val) : value(val) {}; 
+};
+constexpr TestStruct2 TS3{4};
+constexpr device_global<TestStruct2, decltype(properties(device_image_scope))>
+    dg_constexpr_constructor_struct{TS3};
+static_assert(dg_constexpr_constructor_struct.get().value == 4);
