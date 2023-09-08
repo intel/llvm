@@ -229,45 +229,6 @@ inline size_t combine_align(size_t alignA, size_t alignB) {
                      : (alignB == 0 ? alignA : std::lcm(alignA, alignB));
 }
 
-// When allocating USM device memory, the device must have
-// aspect::usm_device_allocations
-inline void check_device_aspect(const device &syclDevice) {
-  if (!syclDevice.has(aspect::usm_device_allocations)) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Can not allocate USM device memroy if the device does not have "
-        "aspect::usm_device_allocations.");
-  }
-}
-
-// When allocating USM shared memory, the device must have
-// aspect::usm_shared_allocations
-inline void check_shared_aspect(const device &syclDevice) {
-  if (!syclDevice.has(aspect::usm_shared_allocations)) {
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Can not allocate USM device memroy if the device does not have "
-        "aspect::usm_shared_allocations.");
-  }
-}
-
-// When allocating USM host memory, at least one device in the allocation
-// context must have aspect::usm_host_allocations
-inline void check_host_aspect(const context &syclContext) {
-  std::vector<device> devs = syclContext.get_devices();
-  if (devs.size() > 0 &&
-      std::none_of(devs.begin(), devs.end(), [](const device &d) {
-        return d.has(aspect::usm_host_allocations);
-      })) {
-
-    throw sycl::exception(
-        sycl::make_error_code(sycl::errc::feature_not_supported),
-        "Can not allocate USM device memroy if none of the devices in the "
-        "allocation context have "
-        "aspect::usm_host_allocations.");
-  }
-}
-
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext

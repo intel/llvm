@@ -51,19 +51,16 @@ aligned_alloc_annotated(size_t alignment, size_t numBytes,
     rawPtr = sycl::aligned_alloc_device(
         combine_align(alignment, alignFromPropList), numBytes, syclDevice,
         syclContext, usmPropList);
-    check_device_aspect(syclDevice);
     break;
   case alloc::host:
     rawPtr =
         sycl::aligned_alloc_host(combine_align(alignment, alignFromPropList),
                                  numBytes, syclContext, usmPropList);
-    check_host_aspect(syclContext);
     break;
   case alloc::shared:
     rawPtr = sycl::aligned_alloc_shared(
         combine_align(alignment, alignFromPropList), numBytes, syclDevice,
         syclContext, usmPropList);
-    check_shared_aspect(syclDevice);
     break;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -173,7 +170,8 @@ malloc_annotated(size_t numBytes, const device &syclDevice,
 
   constexpr alloc usmKind = GetUsmKindFromPropList<propertyListA>::value;
   static_assert(usmKind != alloc::unknown,
-                "USM kind is missing in the input property list.");
+                "USM kind is not specified. Please specify it in the arguments "
+                "or in the input property list.");
   return malloc_annotated(numBytes, syclDevice, syclContext, usmKind, propList);
 }
 
