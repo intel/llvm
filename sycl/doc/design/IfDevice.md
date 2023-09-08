@@ -110,7 +110,7 @@ class call_if_on_device_helper {
  public:
   template<typename T>
   void otherwise(T &&fn) {
-    call_if_on_device(fn);
+    call_if_on_device(std::forward<T>(fn));
   }
 };
 
@@ -118,7 +118,7 @@ class call_if_on_host_helper {
  public:
   template<typename T>
   void otherwise(T &&fn) {
-    call_if_on_host(fn);
+    call_if_on_host(std::forward<T>(fn));
   }
 };
 
@@ -126,13 +126,13 @@ class call_if_on_host_helper {
 
 template<typename T>
 static auto if_device(T &&fn) {
-  detail::call_if_on_device(fn);
+  detail::call_if_on_device(std::forward<T>(fn));
   return detail::call_if_on_host_helper{};
 }
 
 template<typename T>
 static auto if_host(T &&fn) {
-  detail::call_if_on_host(fn);
+  detail::call_if_on_host(std::forward<T>(fn));
   return detail::call_if_on_device_helper{};
 }
 
