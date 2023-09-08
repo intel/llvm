@@ -93,7 +93,6 @@ template <int N> struct PropertyMetaInfo<alignment_key::value_t<N>> {
 
 } // namespace detail
 
-
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
