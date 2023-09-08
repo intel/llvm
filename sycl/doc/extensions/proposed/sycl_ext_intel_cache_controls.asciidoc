@@ -98,68 +98,78 @@ Below is a list of new compile-time constant properties supported with
 ```c++
 namespace sycl::ext::intel::experimental {
 
-enum cache_control_read_type {
-    read_cached, read_uncached, read_streaming, invalidate_after_read, read_const_cached};
-
-enum cache_control_write_typeType {
-    write_const_uncached, write_streaming, write_through, write_back};
-
-struct cache_control_read {
-  template<enum cache_control_read_type, int L>
-  using value_t = property_value<cache_control_read, enum Control, std::integral_constant<int, L>>;
+enum class cache_control_read_type : /* unspecified */ {
+    cached,
+    uncached,
+    streaming,
+    invalidate_after_read,
+    const_cached
 };
 
-struct cache_control_write_type {
-  template<enum cache_control_types_write, int L>
-  using value_t = property_value<cache_control_write_type, enum Control, std::integral_constant<int, L>>;
+enum class cache_control_write_type : /* unspecified */ {
+    uncached,
+    streaming,
+    write_through,
+    write_back
+};
+
+struct cache_control_read_key {
+  template<cache_control_read_type C, int L>
+  using value_t = property_value<cache_control_read, C, std::integral_constant<int, L>>;
+};
+
+struct cache_control_write_key {
+  template<cache_control_write_type C, int L>
+  using value_t = property_value<cache_control_write, C, std::integral_constant<int, L>>;
 };
 
 template<cache_control_read_type C, int L>
-inline constexpr cache_control_read::value_t<C, K> read_control;
+inline constexpr cache_control_read_key::value_t<C, L> cache_control_read;
 
 template<cache_control_write_typeType C, int L>
-inline constexpr cache_control_write_type::value_t<C, K> write_control;
+inline constexpr cache_control_write_key::value_t<C, L> cache_control_write;
 
 template<>
-struct is_property<cache_control_read> : std::true_type {};
+struct is_property_key<cache_control_read_key> : std::true_type {};
 
 template<>
-struct is_property<cache_control_write_type> : std::true_type {};
+struct is_property_key<cache_control_write_key> : std::true_type {};
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
-  cache_control_read, annotated_ptr<T, PropertyListT>> : std::true_type {};
+  cache_control_read_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 
 template<typename T, typename PropertyListT>
 struct is_property_key_of<
-  cache_control_write_type, annotated_ptr<T, PropertyListT>> : std::true_type {};
+  cache_control_write_key, annotated_ptr<T, PropertyListT>> : std::true_type {};
 
 template<int L>
-inline constexpr cache_control_read::value_t<cache_control_read_type::read_cached, L> cache_control_read_cached;
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::cached, L>
+cache_control_read_cached;
 
 template<int L>
-inline constexpr cache_control_read::value_t<cache_control_read_type::read_uncached, L> cache_control_read_uncached;
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::uncached, L> cache_control_read_uncached;
 
 template<int L>
-inline constexpr cache_control_read::value_t<cache_control_read_type::read_streaming, L> cache_control_read_streaming;
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::streaming, L> cache_control_read_streaming;
 
 template<int L>
-inline constexpr cache_control_read::value_t<cache_control_read_type::invalidate_after_read, L> cache_control_invalidate_after_read;
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::invalidate_after_read, L> cache_control_invalidate_after_read;
 
 template<int L>
-inline constexpr cache_control_read::value_t<cache_control_read_type::read_const_cached, L> cache_control_read_const_cached;
+inline constexpr cache_control_read_key::value_t<cache_control_read_type::const_cached, L> cache_control_read_const_cached;
 
 template<int L>
-inline constexpr cache_control_write::value_t<cache_control_write_type::write_const_uncached, L> cache_control_write_const_uncached;
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::uncached, L> cache_control_write_uncached;
 
 template<int L>
-inline constexpr cache_control_write::value_t<cache_control_write_type::write_streaming, L> cache_control_write_streaming;
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_streaming, L> cache_control_write_streaming;
 
 template<int L>
-inline constexpr cache_control_write::value_t<cache_control_write_type::write_through, L> cache_control_write_through;
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_through, L> cache_control_write_through;
 
 template<int L>
-inline constexpr cache_control_write::value_t<cache_control_write_type::write_back, L> cache_control_write_back;
+inline constexpr cache_control_write_key::value_t<cache_control_write_type::write_back, L> cache_control_write_back;
 
 } // namespace sycl::ext::intel::experimental
 ```
@@ -187,61 +197,100 @@ loading or storing to memory through the annotated_ptr. These properties can
 affect the performance of device code, but they do not change the semantics.
 
 --
-[options="header"]
+[options="header", cols="2,1"]
 |====
 | Property | Description
-|`cache_control_read<read_cached, L>`
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::cached, L>
+----
 |
 This property requests that loads from memory through the `annotated_ptr`
 may cache the data at level L in the memory hierarchy.
-|`cache_control_read<read_uncached, L>`
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::uncached, L>
+----
 |
 This property requests that loads from memory through the `annotated_ptr`
 should not cache the data at level L in the memory hierarchy.
-|`cache_control_read<read_streaming, L>`
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::streaming, L>
+----
 |
 This property requests that loads from memory through the `annotated_ptr`
 should cache the data at cache level L. The eviction policy is to give
 lower priority to data cached using this property versus the Cached
 property.
-|`cache_control_write<write_uncached, L>`
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::uncached, L>
+----
 |
 This property requests that writes to memory through the `annotated_ptr`
 should not cache the data at level L in the memory hierarchy.
-|`cache_control_write<write_through, L>`
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::write_through, L>
+----
 |
 This property requests that writes to memory through the `annotated_ptr`
 should immediately write the data to the next-level cache after L
 and mark the cache line at level L as "not dirty".
-|`cache_control_write<write_back, L>`
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::write_back, L>
+----
 |
 This property requests that writes to memory through the `annotated_ptr`
 should write the data into the cache at level L and mark the cache line as
 "dirty". Upon eviction, "dirty" data will be written into the cache at
 level higher than L.
-|`cache_control_write<write_streaming, L>`
+a|
+[source]
+----
+cache_control_write<cache_control_write_type::streaming, L>
+----
 |
-This property is the same as `WriteThrough`, but requests use of a
+This property is the same as `write_through`, but requests use of a
 policy that gives lower priority to data in the cache present
-via a `Streaming` cache control.
+via a `streaming` cache control.
 |====
 --
 
 ==== Assertions by the application
-These properties are assertions by the application, promising that the application accesses memory in a certain way. Care must be taken when using these properties because they can lead to undefined behavior if they are misused.
+These properties are assertions by the application, promising that the
+application accesses memory in a certain way. Care must be taken when
+using these properties because they can lead to undefined behavior if
+they are misused.
 
 --
-[options="header"]
+[options="header", cols="3,1"]
 |====
 | Property | Description
-|`cache_control_read<invalidate_after_read, L>`
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::invalidate_after_read, L>
+----
 |
 This property asserts that the cache line into which data is loaded
 from memory through the `annotated_ptr` will not be read again
 until it is overwritten. Therefore the load operation can invalidate
 the cache line and discard "dirty" data. If the assertion is violated 
 (i.e., the cache line is read again) then the behavior is undefined.
-|`cache_control_read<read_const_cached, L>`
+a|
+[source]
+----
+cache_control_read<cache_control_read_type::const_cached, L>
+----
 |
 This property asserts that the cache line containing the data
 loaded from memory through the `annotated_ptr` will not be written
@@ -253,6 +302,6 @@ is undefined.
 
 == Implementation notes
 
-It is intended that the SYCL cache control properties will be used by the compiler
-to generate SPIR-V cache control operations.
+It is intended that the SYCL cache control properties will be used by the
+compiler to generate SPIR-V cache control operations.
 
