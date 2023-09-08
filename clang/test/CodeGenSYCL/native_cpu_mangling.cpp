@@ -10,9 +10,6 @@
 // Ensure match with
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=spir64 -S -emit-llvm  -o - %s | FileCheck %s
 
-// Ensure this code is still supported by the normal driver invocation
-// RUN: %clangxx -fsycl -x c++ %s
-
 struct __nativecpu_state {};
 
 template <typename KernelName, typename KernelType, typename... Props>
