@@ -54,7 +54,7 @@ not rely on APIs defined in this specification.*
 == Backend support status
 
 The APIs in this extension may be used only on a device that has
-aspect::ext_oneapi_non_uniform_groups. The application must check that the
+`aspect::ext_oneapi_non_uniform_groups`. The application must check that the
 device has this aspect before submitting a kernel using any of the APIs in this
 extension. If the application fails to do this, the implementation throws a
 synchronous exception with the `errc::kernel_not_supported` error code when the
