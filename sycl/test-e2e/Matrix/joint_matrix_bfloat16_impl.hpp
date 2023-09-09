@@ -13,10 +13,8 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
   buffer<float, 2> bufC((float *)C.get_data(), range<2>(M, N));
 
   queue q;
-#ifndef SG_SZ
-  size_t SG_SZ = get_wg_size<matrix>(q);
-#endif
-  std::cout << "WG Size = " << SG_SZ << "\n";
+  size_t wg_size = get_wg_size<matrix>(q);
+  std::cout << "WG Size = " << wg_size << "\n";
 
   q.submit([&](handler &cgh) {
      auto accC = bufC.get_access<access::mode::read_write>(cgh);
@@ -24,7 +22,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
      auto accB = bufB.get_access<access::mode::read_write>(cgh);
 
      cgh.parallel_for<class matrix>(
-         nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
+         nd_range<2>({NDRangeM, NDRangeN * wg_size}, {1, 1 * wg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
              [[intel::reqd_sub_group_size(SG_SZ)]]
@@ -50,7 +48,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
            joint_matrix_load(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / wg_size * TN,
                N, layout::row_major);
            for (int k = 0; k < K / TK; k += 1) { //
              joint_matrix_load(
@@ -61,14 +59,14 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
              joint_matrix_load(
                  sg, sub_b,
                  accB.template get_multi_ptr<access::decorated::no>() +
-                     (k * TK / 2) * (N * 2) + sg_starty / SG_SZ * TN * 2,
+                     (k * TK / 2) * (N * 2) + sg_starty / wg_size * TN * 2,
                  N * 2);
              sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
            }
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
-                   (sg_startx * TM) * N + sg_starty / SG_SZ * TN,
+                   (sg_startx * TM) * N + sg_starty / wg_size * TN,
                N, layout::row_major);
          }); // parallel for
    }).wait();
