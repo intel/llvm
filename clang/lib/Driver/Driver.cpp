@@ -5665,29 +5665,6 @@ class OffloadingActionBuilder final {
           }
         }
       }
-      for (auto &SAI : SYCLAOTInputs) {
-        // Extract binary file name
-        std::string FN(SAI.second);
-        const char *FNStr = Args.MakeArgString(FN);
-        Arg *myArg = Args.MakeSeparateArg(
-            nullptr, C.getDriver().getOpts().getOption(options::OPT_INPUT),
-            FNStr);
-        auto *SYCLAdd =
-            C.MakeAction<InputAction>(*myArg, types::TY_SYCL_FATBIN);
-        auto *DeviceWrappingAction =
-            C.MakeAction<OffloadWrapperJobAction>(SYCLAdd, types::TY_Object);
-
-        // Extract the target triple for this binary
-        llvm::Triple TT(SAI.first);
-        // Extract the toolchain for this target triple
-        auto SYCLDeviceTC = llvm::find_if(
-            ToolChains, [&](auto &TC) { return TC->getTriple() == TT; });
-        assert(SYCLDeviceTC != ToolChains.end() &&
-               "No toolchain found for this AOT input");
-
-        DA.add(*DeviceWrappingAction, **SYCLDeviceTC,
-               /*BoundArch=*/nullptr, Action::OFK_SYCL);
-      }
     }
 
     // Return whether to use native bfloat16 library.
@@ -6048,6 +6025,29 @@ class OffloadingActionBuilder final {
           continue;
         ActionList AL;
         appendSYCLDeviceLink(LI, TC, DA, AL, BoundArch);
+      }
+      for (auto &SAI : SYCLAOTInputs) {
+        // Extract binary file name
+        std::string FN(SAI.second);
+        const char *FNStr = Args.MakeArgString(FN);
+        Arg *myArg = Args.MakeSeparateArg(
+            nullptr, C.getDriver().getOpts().getOption(options::OPT_INPUT),
+            FNStr);
+        auto *SYCLAdd =
+            C.MakeAction<InputAction>(*myArg, types::TY_SYCL_FATBIN);
+        auto *DeviceWrappingAction =
+            C.MakeAction<OffloadWrapperJobAction>(SYCLAdd, types::TY_Object);
+
+        // Extract the target triple for this binary
+        llvm::Triple TT(SAI.first);
+        // Extract the toolchain for this target triple
+        auto SYCLDeviceTC = llvm::find_if(
+            ToolChains, [&](auto &TC) { return TC->getTriple() == TT; });
+        assert(SYCLDeviceTC != ToolChains.end() &&
+               "No toolchain found for this AOT input");
+
+        DA.add(*DeviceWrappingAction, **SYCLDeviceTC,
+               /*BoundArch=*/nullptr, Action::OFK_SYCL);
       }
     }
 
