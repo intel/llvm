@@ -6320,6 +6320,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-mms-bitfields");
   }
 
+  if (Triple.isWindowsGNUEnvironment()) {
+    Args.addOptOutFlag(CmdArgs, options::OPT_fauto_import,
+                       options::OPT_fno_auto_import);
+  }
+
   // Non-PIC code defaults to -fdirect-access-external-data while PIC code
   // defaults to -fno-direct-access-external-data. Pass the option if different
   // from the default.
@@ -6584,8 +6589,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
                                options::OPT_fno_split_machine_functions)) {
     if (!A->getOption().matches(options::OPT_fno_split_machine_functions)) {
-      // This codegen pass is only available on x86-elf targets.
-      if (Triple.isX86() && Triple.isOSBinFormatELF())
+      // This codegen pass is only available on x86 and AArch64 ELF targets.
+      if ((Triple.isX86() || Triple.isAArch64()) && Triple.isOSBinFormatELF())
         A->render(Args, CmdArgs);
       else
         D.Diag(diag::err_drv_unsupported_opt_for_target)
