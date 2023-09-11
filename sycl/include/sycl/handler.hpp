@@ -320,16 +320,16 @@ checkValueRange(const T &V) {
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
-  range<Dims> OldRange;
-  range<Dims> NewRange;
+  range<Dims> UserRange;
+  range<Dims> RoundedRange;
   bool Done = false;
 
 public:
-  RoundedRangeIDGenerator(const id<Dims> &Id, const range<Dims> &OldRange,
-                          const range<Dims> &NewRange)
-      : Id(Id), OldRange(OldRange), NewRange(NewRange) {
+  RoundedRangeIDGenerator(const id<Dims> &Id, const range<Dims> &UserRange,
+                          const range<Dims> &RoundedRange)
+      : Id(Id), UserRange(UserRange), RoundedRange(RoundedRange) {
     for (int i = 0; i < Dims; ++i)
-      if (Id[i] >= OldRange[i])
+      if (Id[i] >= UserRange[i])
         Done = true;
   }
 
@@ -337,9 +337,9 @@ public:
 
   void updateId() {
     for (int i = 0; i < Dims; ++i) {
-      Id[i] += NewRange[i];
-      if (Id[i] >= OldRange[i])
-        Id[i] %= OldRange[i];
+      Id[i] += RoundedRange[i];
+      if (Id[i] >= UserRange[i])
+        Id[i] %= UserRange[i];
       else
         return;
     }
@@ -351,13 +351,13 @@ public:
   template <typename KernelType> auto getItem() {
     if constexpr (std::is_invocable_v<KernelType, item<Dims>> ||
                   std::is_invocable_v<KernelType, item<Dims>, kernel_handler>)
-      return detail::Builder::createItem<Dims, true>(OldRange, getId(), {});
+      return detail::Builder::createItem<Dims, true>(UserRange, getId(), {});
     else {
       static_assert(std::is_invocable_v<KernelType, item<Dims, false>> ||
                         std::is_invocable_v<KernelType, item<Dims, false>,
                                             kernel_handler>,
                     "Kernel must be invocable with an item!");
-      return detail::Builder::createItem<Dims, false>(OldRange, getId());
+      return detail::Builder::createItem<Dims, false>(UserRange, getId());
     }
   }
 };
@@ -365,11 +365,11 @@ public:
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
 public:
-  range<Dims> OldRange;
+  range<Dims> UserRange;
   KernelType KernelFunc;
   void operator()(item<Dims> it) const {
-    auto NewRange = it.get_range();
-    for (RoundedRangeIDGenerator gen(it.get_id(), OldRange, NewRange); gen;
+    auto RoundedRange = it.get_range();
+    for (RoundedRangeIDGenerator gen(it.get_id(), UserRange, RoundedRange); gen;
          gen.updateId())
       KernelFunc(gen.template getItem<KernelType>());
   }
@@ -378,11 +378,11 @@ public:
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernelWithKH {
 public:
-  range<Dims> OldRange;
+  range<Dims> UserRange;
   KernelType KernelFunc;
   void operator()(item<Dims> it, kernel_handler KH) const {
-    auto NewRange = it.get_range();
-    for (RoundedRangeIDGenerator gen(it.get_id(), OldRange, NewRange); gen;
+    auto RoundedRange = it.get_range();
+    for (RoundedRangeIDGenerator gen(it.get_id(), UserRange, RoundedRange); gen;
          gen.updateId())
       KernelFunc(gen.template getItem<KernelType>(), KH);
   }
@@ -1095,7 +1095,7 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-  template <int Dims> bool adjustRange(range<Dims> &NewRange) {
+  template <int Dims> bool adjustRange(range<Dims> &RoundedRange) {
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
     // 2. The kernel is provided via an interoperability method (this uses a
@@ -1151,24 +1151,24 @@ private:
     auto adjust = [&](int dim, size_t value) {
       if (this->RangeRoundingTrace())
         std::cout << "parallel_for range adjusted at dim " << dim << " from "
-                  << NewRange[dim] << " to " << value << std::endl;
-      NewRange[dim] = value;
+                  << RoundedRange[dim] << " to " << value << std::endl;
+      RoundedRange[dim] = value;
       did_adjust = true;
     };
 
     // Perform range rounding if there are sufficient work-items to
     // need rounding and the user-specified range is not a multiple of
     // a "good" value.
-    if (NewRange[0] % MinFactorX != 0 && NewRange[0] >= MinRangeX) {
+    if (RoundedRange[0] % MinFactorX != 0 && RoundedRange[0] >= MinRangeX) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension
       // by the values of the remaining dimensions (if any)
       // will yield a rounded-up value for the total range.
-      adjust(0, ((NewRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
+      adjust(0, ((RoundedRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
     }
 
     for (int i = 0; i < Dims; ++i)
-      if (NewRange[i] > MaxRange[i])
+      if (RoundedRange[i] > MaxRange[i])
         adjust(i, MaxRange[i]);
 
     return did_adjust;
@@ -1223,16 +1223,16 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
-    auto OldRange = NumWorkItems;
-    auto NewRange = NumWorkItems;
+    auto UserRange = NumWorkItems;
+    auto RoundedRange = NumWorkItems;
 
-    bool did_adjust = adjustRange(NewRange);
+    bool did_adjust = adjustRange(RoundedRange);
 
     if (did_adjust) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
-              KernelFunc, OldRange);
+              KernelFunc, UserRange);
 
       using KName = std::conditional_t<std::is_same<KernelType, NameT>::value,
                                        decltype(Wrapper), NameWT>;
@@ -1240,8 +1240,8 @@ private:
       kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      detail::checkValueRange<Dims>(NewRange);
-      MNDRDesc.set(NewRange);
+      detail::checkValueRange<Dims>(RoundedRange);
+      MNDRDesc.set(RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
@@ -3372,9 +3372,9 @@ private:
             std::enable_if_t<detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> OldRange) {
+                                   range<Dims> UserRange) {
     return detail::RoundedRangeKernelWithKH<TransformedArgType, Dims,
-                                            KernelType>{OldRange, KernelFunc};
+                                            KernelType>{UserRange, KernelFunc};
   }
 
   template <typename WrapperT, typename TransformedArgType, int Dims,
@@ -3382,9 +3382,9 @@ private:
             std::enable_if_t<!detail::KernelLambdaHasKernelHandlerArgT<
                 KernelType, TransformedArgType>::value> * = nullptr>
   auto getRangeRoundedKernelLambda(KernelType KernelFunc,
-                                   range<Dims> OldRange) {
+                                   range<Dims> UserRange) {
     return detail::RoundedRangeKernel<TransformedArgType, Dims, KernelType>{
-        OldRange, KernelFunc};
+        UserRange, KernelFunc};
   }
 
   const std::shared_ptr<detail::context_impl> &getContextImplPtr() const;
