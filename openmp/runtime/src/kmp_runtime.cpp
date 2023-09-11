@@ -178,7 +178,12 @@ int __kmp_get_global_thread_id() {
       if (stack_diff <= stack_size) {
         /* The only way we can be closer than the allocated */
         /* stack size is if we are running on this thread. */
-        KMP_DEBUG_ASSERT(__kmp_gtid_get_specific() == i);
+        // __kmp_gtid_get_specific can return negative value because this
+        // function can be called by thread destructor. However, before the
+        // thread destructor is called, the value of the corresponding
+        // thread-specific data will be reset to NULL.
+        KMP_DEBUG_ASSERT(__kmp_gtid_get_specific() < 0 ||
+                         __kmp_gtid_get_specific() == i);
         return i;
       }
     }
@@ -194,6 +199,12 @@ int __kmp_get_global_thread_id() {
 
   /* if we havn't been assigned a gtid, then return code */
   if (i < 0)
+    return i;
+
+  // other_threads[i] can be nullptr at this point because the corresponding
+  // thread could have already been destructed. It can happen when this function
+  // is called in end library routine.
+  if (!TCR_SYNC_PTR(other_threads[i]))
     return i;
 
   /* dynamically updated stack window for uber threads to avoid get_specific

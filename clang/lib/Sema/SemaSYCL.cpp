@@ -4089,7 +4089,7 @@ void Sema::copySYCLKernelAttrs(CXXMethodDecl *CallOperator) {
   FunctionDecl *KernelBody = nullptr;
 
   CallGraph SYCLCG;
-  SYCLCG.addToCallGraph(getASTContext().getTranslationUnitDecl());
+  SYCLCG.addToCallGraph(CallOperator);
   while (!WorkList.empty()) {
     FunctionDecl *FD = WorkList.back().first;
     FunctionDecl *ParentFD = WorkList.back().second;

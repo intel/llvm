@@ -2083,7 +2083,7 @@ protected:
     // given operation.
     if (Dialect *dialect = name.getDialect()) {
       dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
-          *dialect, ConcreteType::getInterfaceID(),
+          *dialect, name.getTypeID(), ConcreteType::getInterfaceID(),
           llvm::getTypeName<ConcreteType>());
     }
 #endif
