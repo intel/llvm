@@ -93,10 +93,11 @@ inline T atomic_fetch_add(T *addr, arith_t<T> operand,
 }
 
 /// Atomically subtract the value operand from the value at the addr and
-/// assign the result to the value at addr. \param [in, out] addr The pointer
-/// to the data. \param operand The value to subtract from the value at \p
-/// addr \param memoryOrder The memory ordering used. \returns The value at
-/// the \p addr before the call.
+/// assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand The value to subtract from the value at \p addr.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -109,10 +110,11 @@ inline T atomic_fetch_sub(T *addr, arith_t<T> operand) {
 }
 
 /// Atomically subtract the value operand from the value at the addr and
-/// assign the result to the value at addr. \param [in, out] addr The pointer
-/// to the data. \param operand The value to subtract from the value at \p
-/// addr \param memoryOrder The memory ordering used. \returns The value at
-/// the \p addr before the call.
+/// assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand The value to subtract from the value at \p addr.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -138,10 +140,12 @@ inline T atomic_fetch_sub(T *addr, arith_t<T> operand,
 }
 
 /// Atomically perform a bitwise AND between the value operand and the value
-/// at the addr and assign the result to the value at addr. \param [in, out]
-/// addr The pointer to the data. \param operand The value to use in bitwise
-/// AND operation with the value at the \p addr. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// at the addr and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand The value to use in bitwise AND operation with the value at
+/// the \p addr.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -154,10 +158,12 @@ inline T atomic_fetch_and(T *addr, T operand) {
 }
 
 /// Atomically perform a bitwise AND between the value operand and the value
-/// at the addr and assign the result to the value at addr. \param [in, out]
-/// addr The pointer to the data. \param operand The value to use in bitwise
-/// AND operation with the value at the \p addr. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// at the addr and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand The value to use in bitwise AND operation with the value at
+/// the \p addr.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -278,9 +284,10 @@ inline T atomic_fetch_xor(T *addr, T operand, sycl::memory_order memoryOrder) {
 }
 
 /// Atomically calculate the minimum of the value at addr and the value
-/// operand and assign the result to the value at addr. \param [in, out] addr
-/// The pointer to the data. \param operand. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// operand and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand. \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -293,9 +300,11 @@ inline T atomic_fetch_min(T *addr, T operand) {
 }
 
 /// Atomically calculate the minimum of the value at addr and the value
-/// operand and assign the result to the value at addr. \param [in, out] addr
-/// The pointer to the data. \param operand. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// operand and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -320,9 +329,11 @@ inline T atomic_fetch_min(T *addr, T operand, sycl::memory_order memoryOrder) {
 }
 
 /// Atomically calculate the maximum of the value at addr and the value
-/// operand and assign the result to the value at addr. \param [in, out] addr
-/// The pointer to the data. \param operand. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// operand and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -335,9 +346,11 @@ inline T atomic_fetch_max(T *addr, T operand) {
 }
 
 /// Atomically calculate the maximum of the value at addr and the value
-/// operand and assign the result to the value at addr. \param [in, out] addr
-/// The pointer to the data. \param operand. \param memoryOrder The memory
-/// ordering used. \returns The value at the \p addr before the call.
+/// operand and assign the result to the value at addr.
+/// \param [in, out] addr The pointer to the data.
+/// \param operand.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
@@ -420,9 +433,9 @@ inline unsigned int atomic_fetch_compare_inc(unsigned int *addr,
 
 /// Atomically exchange the value at the address addr with the value operand.
 /// \param [in, out] addr The pointer to the data.
-/// \param operand The value to be exchanged with the value pointed by \p
-/// addr. \param memoryOrder The memory ordering used. \returns The value at
-/// the \p addr before the call.
+/// \param operand The value to be exchanged with the value pointed by \p addr.
+/// \param memoryOrder The memory ordering used.
+/// \returns The value at the \p addr before the call.
 template <typename T,
           sycl::access::address_space addressSpace =
               sycl::access::address_space::global_space,
