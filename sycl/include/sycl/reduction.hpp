@@ -1350,6 +1350,7 @@ struct NDRangeReduction<
           return;
 
         // Signal this work-group has finished after all values are reduced
+        workGroupBarrier();
         if (LID == 0) {
           auto NFinished =
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1359,7 +1360,6 @@ struct NDRangeReduction<
               ++NFinished == static_cast<int>(NWorkGroups);
         }
 
-        workGroupBarrier();
         if (DoReducePartialSumsInLastWG[0]) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
@@ -1562,6 +1562,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       }
 
       // Signal this work-group has finished after all values are reduced
+      workGroupBarrier();
       if (LID == 0) {
         auto NFinished =
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1571,7 +1572,6 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
             ++NFinished == NWorkGroups && NWorkGroups > 1;
       }
 
-      workGroupBarrier();
       if (DoReducePartialSumsInLastWG[0]) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
