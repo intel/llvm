@@ -4800,7 +4800,7 @@ class OffloadingActionBuilder final {
 
     /// List of SYCL Final Device binaries that should be unbundled as a final
     /// device binary and not further processed.
-    SmallVector<std::pair<Action *, SmallVector<std::string, 4>>>
+    SmallVector<std::pair<Action *, SmallVector<std::string, 4>>, 4>
         SYCLFinalDeviceList;
 
     /// SYCL ahead of time compilation inputs
@@ -5248,17 +5248,23 @@ class OffloadingActionBuilder final {
         }
       };
 
+      // List of device specific libraries to be fed into llvm-link.
       ActionList DeviceLibs;
+
+      // List of device specific library 'objects' (FPGA AOCO libraries) that
+      // are fed directly to the FPGA offline compiler.
       ActionList DeviceLibObjects;
+
+      // List of device objects that go through the device link step.
       ActionList LinkObjects;
       auto TT = TC->getTriple();
-      auto isNVPTX = TT.isNVPTX();
-      auto isAMDGCN = TT.isAMDGCN();
-      auto isSPIR = TT.isSPIR();
-      bool isSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
+      auto IsNVPTX = TT.isNVPTX();
+      auto IsAMDGCN = TT.isAMDGCN();
+      auto IsSPIR = TT.isSPIR();
+      bool IsSpirvAOT = TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga ||
                         TT.getSubArch() == llvm::Triple::SPIRSubArch_gen ||
                         TT.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-      const bool isSYCLNativeCPU =
+      const bool IsSYCLNativeCPU =
           TC->getAuxTriple() &&
           driver::isSYCLNativeCPU(TT, *TC->getAuxTriple());
       for (const auto &Input : LI) {
@@ -5294,7 +5300,7 @@ class OffloadingActionBuilder final {
         } else if (!types::isFPGA(Input->getType())) {
           // No need for any conversion if we are coming in from the
           // clang-offload-deps or regular compilation path.
-          if (isNVPTX || isAMDGCN || ContainsOffloadDepsAction(Input) ||
+          if (IsNVPTX || IsAMDGCN || ContainsOffloadDepsAction(Input) ||
               ContainsCompileOrAssembleAction(Input)) {
             LinkObjects.push_back(Input);
             continue;
@@ -5426,17 +5432,17 @@ class OffloadingActionBuilder final {
         // device libraries are only needed when current toolchain is using
         // AOT compilation.
         bool SYCLDeviceLibLinked = false;
-        if (isSPIR || isNVPTX) {
+        if (IsSPIR || IsNVPTX) {
           bool UseJitLink =
-              isSPIR &&
+              IsSPIR &&
               Args.hasFlag(options::OPT_fsycl_device_lib_jit_link,
                            options::OPT_fno_sycl_device_lib_jit_link, false);
-          bool UseAOTLink = isSPIR && (isSpirvAOT || !UseJitLink);
+          bool UseAOTLink = IsSPIR && (IsSpirvAOT || !UseJitLink);
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, DeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
         }
-        if (isSYCLNativeCPU) {
+        if (IsSYCLNativeCPU) {
           SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, DeviceLibs);
         }
         JobAction *LinkSYCLLibs =
@@ -5504,22 +5510,22 @@ class OffloadingActionBuilder final {
 
           // reflects whether current target is ahead-of-time and can't
           // support runtime setting of specialization constants
-          bool isAOT = isNVPTX || isAMDGCN || isSpirvAOT || isSYCLNativeCPU;
+          bool IsAOT = IsNVPTX || IsAMDGCN || IsSpirvAOT || IsSYCLNativeCPU;
 
           // post link is not optional - even if not splitting, always need to
           // process specialization constants
-          types::ID PostLinkOutType = isSPIR || isSYCLNativeCPU
+          types::ID PostLinkOutType = IsSPIR || IsSYCLNativeCPU
                                           ? types::TY_Tempfiletable
                                           : types::TY_LLVM_BC;
           auto createPostLinkAction = [&]() {
             // For SPIR-V targets, force TY_Tempfiletable.
             auto TypedPostLinkAction = C.MakeAction<SYCLPostLinkJobAction>(
                 FullDeviceLinkAction, PostLinkOutType, types::TY_Tempfiletable);
-            TypedPostLinkAction->setRTSetsSpecConstants(!isAOT);
+            TypedPostLinkAction->setRTSetsSpecConstants(!IsAOT);
             return TypedPostLinkAction;
           };
           Action *PostLinkAction = createPostLinkAction();
-          if (isSYCLNativeCPU) {
+          if (IsSYCLNativeCPU) {
             // for SYCL Native CPU, we just take the linked device
             // modules, lower them to an object file , and link it to the host
             // object file.
@@ -5533,7 +5539,7 @@ class OffloadingActionBuilder final {
             DA.add(*DeviceWrappingAction, *TC, BoundArch, Action::OFK_SYCL);
             continue;
           }
-          if (isNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
+          if (IsNVPTX && Args.hasArg(options::OPT_fsycl_embed_ir)) {
             // When compiling for Nvidia/CUDA devices and the user requested the
             // IR to be embedded in the application (via option), run the output
             // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
@@ -5555,7 +5561,7 @@ class OffloadingActionBuilder final {
             auto *TypedExtractIRFilesAction =
                 C.MakeAction<FileTableTformJobAction>(
                     PostLinkAction,
-                    isSPIR ? types::TY_Tempfilelist : PostLinkAction->getType(),
+                    IsSPIR ? types::TY_Tempfilelist : PostLinkAction->getType(),
                     types::TY_Tempfilelist);
             // single column w/o title fits TY_Tempfilelist format
             TypedExtractIRFilesAction->addExtractColumnTform(
@@ -5565,9 +5571,9 @@ class OffloadingActionBuilder final {
 
           Action *ExtractIRFilesAction = createExtractIRFilesAction();
 
-          if (isNVPTX || isAMDGCN) {
+          if (IsNVPTX || IsAMDGCN) {
             JobAction *FinAction =
-                isNVPTX ? finalizeNVPTXDependences(ExtractIRFilesAction,
+                IsNVPTX ? finalizeNVPTXDependences(ExtractIRFilesAction,
                                                    TC->getTriple())
                         : finalizeAMDGCNDependences(ExtractIRFilesAction,
                                                     TC->getTriple());
@@ -5602,7 +5608,7 @@ class OffloadingActionBuilder final {
                 ExtractIRFilesAction, types::TY_Tempfilelist);
 
             // After the Link, wrap the files before the final host link
-            if (isAOT) {
+            if (IsAOT) {
               types::ID OutType = types::TY_Tempfilelist;
               if (!DeviceCodeSplit) {
                 OutType = (TT.getSubArch() == llvm::Triple::SPIRSubArch_fpga)
@@ -5654,7 +5660,7 @@ class OffloadingActionBuilder final {
           auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
               WrapperInputs, types::TY_Object);
 
-          if (isSpirvAOT) {
+          if (IsSpirvAOT) {
             bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
                           BoundArch != nullptr);
             addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
