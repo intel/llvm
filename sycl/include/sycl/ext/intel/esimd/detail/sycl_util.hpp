@@ -63,6 +63,17 @@ constexpr bool accessor_mode_has_capability() {
          (Mode == sycl::access::mode::read);
 }
 
+template <typename T> struct local_accessor_access_mode {
+  static constexpr sycl::access::mode mode =
+      static_cast<sycl::access::mode>(-1);
+};
+
+template <typename DataT, int Dimensions>
+struct local_accessor_access_mode<local_accessor<DataT, Dimensions>> {
+  static constexpr sycl::access::mode mode =
+      sycl::detail::accessModeFromConstness<DataT>();
+};
+
 // Checks that given type is a SYCL accessor type with given capability and
 // target.
 template <typename T, accessor_mode_cap_val_t Capability,
@@ -74,12 +85,26 @@ struct is_sycl_accessor_with
               (is_sycl_accessor<T>::target == AccessTarget),
           std::true_type, std::false_type> {};
 
+template <typename T, accessor_mode_cap_val_t Capability>
+struct is_local_accessor_with
+    : public std::conditional_t<
+          sycl::detail::acc_properties::is_local_accessor_v<T> &&
+              accessor_mode_has_capability<local_accessor_access_mode<T>::mode,
+                                           Capability>(),
+          std::true_type, std::false_type> {};
+
+template <typename T, accessor_mode_cap_val_t Capability,
+          sycl::access::target AccessTarget>
+struct is_accessor_with
+    : public std::conditional_t<
+          detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value ||
+              detail::is_local_accessor_with<T, Capability>::value,
+          std::true_type, std::false_type> {};
+
 template <typename T, accessor_mode_cap_val_t Capability,
           sycl::access::target AccessTarget, typename RetT>
 using EnableIfAccessor = std::enable_if_t<
-    detail::is_sycl_accessor_with<T, Capability, AccessTarget>::value ||
-        sycl::detail::acc_properties::is_local_accessor_v<T>,
-    RetT>;
+    detail::is_accessor_with<T, Capability, AccessTarget>::value, RetT>;
 
 template <typename T, int Dimensions>
 __ESIMD_API uint32_t localAccessorToOffset(local_accessor<T, Dimensions> acc) {
