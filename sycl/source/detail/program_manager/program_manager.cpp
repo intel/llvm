@@ -506,8 +506,7 @@ applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (CompileOptsEnv) {
     CompileOpts = std::string_view(CompileOptsEnv);
-  }
-  else {
+  } else {
     CompileOpts = std::string_view{};
   }
   return CompileOpts;
@@ -610,7 +609,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
-   std::string CompileOptsString;
+  std::string CompileOptsString;
   if (!CompileOpts.empty())
     std::string CompileOptsString(CompileOpts);
   const PluginPtr &Plugin = ContextImpl->getPlugin();
