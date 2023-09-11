@@ -1142,11 +1142,9 @@ private:
     auto M = (std::numeric_limits<int32_t>::max)();
     range<Dims> MaxRange;
     for (int i = 0; i < Dims; ++i) {
-      MaxRange[i] = MaxNWGs[i] * GoodFactor;
-      if (MaxRange[i] > M) {
-        MaxRange[i] = M;
-        MaxRange[i] = (MaxRange[i] / GoodFactor) * GoodFactor;
-      }
+      auto desired_size = MaxNWGs[i] * GoodFactor;
+      MaxRange[i] =
+          desired_size <= M ? desired_size : (M / GoodFactor) * GoodFactor;
     }
 
     bool did_adjust = false;
