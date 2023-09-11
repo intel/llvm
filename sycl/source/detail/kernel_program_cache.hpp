@@ -75,7 +75,7 @@ public:
   using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
   using ProgramCacheKeyT =
       std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                std::pair<sycl::detail::pi::PiDevice, std::string>>;
+                std::pair<sycl::detail::pi::PiDevice, std::string_view>>;
   using CommonProgramKeyT =
       std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
 
@@ -96,7 +96,7 @@ public:
       ::boost::unordered_map<sycl::detail::pi::PiProgram, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
+      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string_view,
                  std::string>;
   using KernelFastCacheValT =
       std::tuple<sycl::detail::pi::PiKernel, std::mutex *,

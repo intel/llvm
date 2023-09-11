@@ -113,7 +113,7 @@ private:
   static void writeSourceItem(const std::string &FileName, const device &Device,
                               const RTDeviceBinaryImage &Img,
                               const SerializedObj &SpecConsts,
-                              const std::string &BuildOptionsString);
+                              const std::string_view BuildOptionsString);
 
   /* Check that cache item key sources are equal to the current program
    */
@@ -121,7 +121,7 @@ private:
                                   const device &Device,
                                   const RTDeviceBinaryImage &Img,
                                   const SerializedObj &SpecConsts,
-                                  const std::string &BuildOptionsString);
+                                  const std::string_view BuildOptionsString);
 
   /* Check if on-disk cache enabled.
    */
@@ -165,7 +165,7 @@ public:
   static std::string getCacheItemPath(const device &Device,
                                       const RTDeviceBinaryImage &Img,
                                       const SerializedObj &SpecConsts,
-                                      const std::string &BuildOptionsString);
+                                      const std::string_view BuildOptionsString);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is
@@ -174,14 +174,14 @@ public:
   static std::vector<std::vector<char>>
   getItemFromDisc(const device &Device, const RTDeviceBinaryImage &Img,
                   const SerializedObj &SpecConsts,
-                  const std::string &BuildOptionsString);
+                  const std::string_view BuildOptionsString);
 
   /* Stores build program in persisten cache
    */
   static void putItemToDisc(const device &Device,
                             const RTDeviceBinaryImage &Img,
                             const SerializedObj &SpecConsts,
-                            const std::string &BuildOptionsString,
+                            const std::string_view BuildOptionsString,
                             const sycl::detail::pi::PiProgram &NativePrg);
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/

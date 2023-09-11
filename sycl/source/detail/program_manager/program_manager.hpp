@@ -30,7 +30,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
 // +++ Entry points referenced by the offload wrapper object {
 
 /// Executed as a part of current module's (.exe, .dll) static initialization.
@@ -129,7 +128,7 @@ public:
   std::pair<sycl::detail::pi::PiProgram, bool>
   getOrCreatePIProgram(const RTDeviceBinaryImage &Img, const context &Context,
                        const device &Device,
-                       const std::string &CompileAndLinkOptions,
+                       const std::string_view CompileAndLinkOptions,
                        SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -312,8 +311,7 @@ private:
       std::unique_ptr<remove_pointer_t<sycl::detail::pi::PiProgram>,
                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
-                   const std::string &CompileOptions,
-                   const std::string &LinkOptions,
+                   const std::string_view CompileOptions,
                    const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
   /// Dumps image to current directory

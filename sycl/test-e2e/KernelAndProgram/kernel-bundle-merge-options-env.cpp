@@ -13,7 +13,7 @@
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}
+// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
 
 // CHECK: piProgramCompile(
 // CHECK-NEXT: <unknown>
@@ -21,8 +21,3 @@
 // CHECK-NEXT: <unknown>
 // CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
 
-// CHECK: piProgramLink(
-// CHECK-NEXT: <unknown>
-// CHECK-NEXT: <unknown>
-// CHECK-NEXT: <unknown>
-// CHECK: <const char *>:{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}

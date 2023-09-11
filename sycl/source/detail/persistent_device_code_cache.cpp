@@ -86,7 +86,7 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
  */
 void PersistentDeviceCodeCache::putItemToDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
+    const SerializedObj &SpecConsts, const std::string_view BuildOptionsString,
     const sycl::detail::pi::PiProgram &NativePrg) {
 
   if (!isImageCached(Img))
@@ -149,7 +149,7 @@ void PersistentDeviceCodeCache::putItemToDisc(
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
+    const SerializedObj &SpecConsts, const std::string_view BuildOptionsString) {
 
   if (!isImageCached(Img))
     return {};
@@ -249,7 +249,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
 void PersistentDeviceCodeCache::writeSourceItem(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
-    const std::string &BuildOptionsString) {
+    const std::string_view BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
 
   std::string DeviceString{getDeviceIDString(Device)};
@@ -281,7 +281,7 @@ void PersistentDeviceCodeCache::writeSourceItem(
 bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
     const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
-    const std::string &BuildOptionsString) {
+    const std::string_view BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
 
   std::string ImgString{(const char *)Img.getRawData().BinaryStart,
@@ -328,7 +328,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
  */
 std::string PersistentDeviceCodeCache::getCacheItemPath(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
+    const SerializedObj &SpecConsts, const std::string_view BuildOptionsString) {
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
     trace("Disable persistent cache due to unconfigured cache root.");
@@ -347,7 +347,7 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
   return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
          std::to_string(StringHasher(ImgString)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
-         std::to_string(StringHasher(BuildOptionsString));
+         std::to_string(StringHasher(std::string(BuildOptionsString)));
 }
 
 /* Returns true if persistent cache is enabled.
