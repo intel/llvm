@@ -1095,7 +1095,9 @@ private:
                            item<Dims>, LambdaArgType>>;
   };
 
-  template <int Dims> bool adjustRange(range<Dims> &RoundedRange) {
+  template <int Dims>
+  std::optional<range<Dims>> getRoundedRange(range<Dims> UserRange) {
+    range<Dims> RoundedRange = UserRange;
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
     // 2. The kernel is provided via an interoperability method (this uses a
@@ -1114,7 +1116,7 @@ private:
 
     // Perform range rounding if rounding-up is enabled.
     if (this->DisableRangeRounding())
-      return false;
+      return {};
 
     // Range should be a multiple of this for reasonable performance.
     size_t MinFactorX = 16;
@@ -1171,7 +1173,9 @@ private:
       if (RoundedRange[i] > MaxRange[i])
         adjust(i, MaxRange[i]);
 
-    return did_adjust;
+    if (!did_adjust)
+      return {};
+    return RoundedRange;
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range.
@@ -1188,11 +1192,11 @@ private:
   template <typename KernelName, typename KernelType, int Dims,
             typename PropertiesT =
                 ext::oneapi::experimental::detail::empty_properties_t>
-  void parallel_for_lambda_impl(range<Dims> NumWorkItems, PropertiesT Props,
+  void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
     throwOnLocalAccessorMisuse<KernelName, KernelType>();
-    if (!range_size_fits_in_size_t(NumWorkItems))
+    if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
                             "a range must fit within size_t");
@@ -1223,12 +1227,7 @@ private:
 #if !defined(__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__) &&                  \
     !defined(DPCPP_HOST_DEVICE_OPENMP) &&                                      \
     !defined(DPCPP_HOST_DEVICE_PERF_NATIVE) && SYCL_LANGUAGE_VERSION >= 202001
-    auto UserRange = NumWorkItems;
-    auto RoundedRange = NumWorkItems;
-
-    bool did_adjust = adjustRange(RoundedRange);
-
-    if (did_adjust) {
+    if (auto RoundedRange = getRoundedRange(UserRange)) {
       using NameWT = typename detail::get_kernel_wrapper_name_t<NameT>::name;
       auto Wrapper =
           getRangeRoundedKernelLambda<NameWT, TransformedArgType, Dims>(
@@ -1240,8 +1239,8 @@ private:
       kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      detail::checkValueRange<Dims>(RoundedRange);
-      MNDRDesc.set(RoundedRange);
+      detail::checkValueRange<Dims>(*RoundedRange);
+      MNDRDesc.set(*RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
           std::move(Wrapper));
       setType(detail::CG::Kernel);
@@ -1251,13 +1250,13 @@ private:
        // !DPCPP_HOST_DEVICE_OPENMP && !DPCPP_HOST_DEVICE_PERF_NATIVE &&
        // SYCL_LANGUAGE_VERSION >= 202001
     {
-      (void)NumWorkItems;
+      (void)UserRange;
       kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                   PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
       processProperties<PropertiesT>(Props);
-      detail::checkValueRange<Dims>(NumWorkItems);
-      MNDRDesc.set(std::move(NumWorkItems));
+      detail::checkValueRange<Dims>(UserRange);
+      MNDRDesc.set(std::move(UserRange));
       StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
           std::move(KernelFunc));
       setType(detail::CG::Kernel);
