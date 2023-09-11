@@ -9,8 +9,9 @@ using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 
 // Constant int and array of ints device_globals
+constexpr int int_var = 5;
 constexpr device_global<int, decltype(properties(device_image_scope))> 
-   dg_int{5};
+   dg_int{int_var};
 constexpr device_global<int[3], decltype(properties(device_image_scope))>
    dg_int_arr{5, 2, 3};
 static_assert(dg_int == 5);
