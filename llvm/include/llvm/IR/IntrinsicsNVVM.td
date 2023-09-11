@@ -1315,19 +1315,11 @@ let TargetPrefix = "nvvm" in {
 
   class SCOPED_ATOMIC_ld_impl<LLVMType elty>
         : Intrinsic<[elty],
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           [llvm_anyptr_ty],
-#else
-          [LLVMAnyPointerType<LLVMMatchType<0>>],
-#endif
           [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
   class SCOPED_ATOMIC_st_impl<LLVMType elty>
         : Intrinsic<[],
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
           [llvm_anyptr_ty, elty],
-#else
-          [LLVMAnyPointerType<LLVMMatchType<0>>, elty],
-#endif
           [IntrArgMemOnly, NoCapture<ArgIndex<0>>]>;
   class SCOPED_ATOMIC2_impl<LLVMType elty>
         : Intrinsic<[elty],
@@ -4789,11 +4781,7 @@ foreach layout_a = ["row", "col"] in {
 // SYCL
 def int_nvvm_implicit_offset :
   ClangBuiltin<"__builtin_ptx_implicit_offset">,
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Intrinsic<[llvm_ptr_ty], [],
-#else
-  Intrinsic<[LLVMPointerType<llvm_i32_ty>], [],
-#endif
   [IntrNoMem, IntrSpeculatable]>;
 
 // LDMATRIX

@@ -11,7 +11,7 @@ queue q;
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
 // CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
-// CHECK-NEXT: NestedNameSpecifier NamespaceNamespace {{.*}} 'sycl'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func1() {}
 
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
@@ -19,10 +19,10 @@ queue q;
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'fp16' 'sycl::aspect'
 // CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
-// CHECK-NEXT: NestedNameSpecifier NamespaceNamespace {{.*}} 'sycl'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
 // CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
-// CHECK-NEXT: NestedNameSpecifier NamespaceNamespace {{.*}} 'sycl'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
@@ -45,13 +45,13 @@ template <sycl::aspect Aspect>
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
 // CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
-// CHECK-NEXT: NestedNameSpecifier NamespaceNamespace {{.*}} 'sycl'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr {{.*}} Inherited
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
 // CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
-// CHECK-NEXT: NestedNameSpecifier NamespaceNamespace {{.*}} 'sycl'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func5();
 void func5() {}
 

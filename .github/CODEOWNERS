@@ -137,4 +137,3 @@ sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
 sycl/plugins/unified_runtime/ur/adapters/**/image.* @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
-

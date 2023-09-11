@@ -659,8 +659,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for unsampled image read
 #endif
@@ -695,8 +694,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for sampled image read
 #endif
@@ -727,8 +725,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadLod<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                         coords, level);
+  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
 #else
   // TODO: add SPIRV for mipmap level read
 #endif
@@ -762,8 +759,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadGrad<DataT, uint64_t, CoordT>(
-      imageHandle.raw_handle, coords, dX, dY);
+  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
 #else
   // TODO: add SPIRV part for mipmap grad read
 #endif
