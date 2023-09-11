@@ -200,61 +200,36 @@ Function *cloneFunctionAndAddParam(Function *OldF, Type *T) {
   return NewF;
 }
 
-// Todo: add support for more SPIRV builtins here
-static const std::pair<StringRef, std::pair<StringRef, unsigned int>>
-    BuiltinNamesMap[] = {
-        {"_Z28__spirv_GlobalInvocationId_xv",
-         {"__dpcpp_nativecpu_global_id", 0}},
-        {"_Z28__spirv_GlobalInvocationId_yv",
-         {"__dpcpp_nativecpu_global_id", 1}},
-        {"_Z28__spirv_GlobalInvocationId_zv",
-         {"__dpcpp_nativecpu_global_id", 2}},
-        {"_Z20__spirv_GlobalSize_xv", {"__dpcpp_nativecpu_global_range", 0}},
-        {"_Z20__spirv_GlobalSize_yv", {"__dpcpp_nativecpu_global_range", 1}},
-        {"_Z20__spirv_GlobalSize_zv", {"__dpcpp_nativecpu_global_range", 2}},
-        {"_Z22__spirv_GlobalOffset_xv",
-         {"__dpcpp_nativecpu_get_global_offset", 0}},
-        {"_Z22__spirv_GlobalOffset_yv",
-         {"__dpcpp_nativecpu_get_global_offset", 1}},
-        {"_Z22__spirv_GlobalOffset_zv",
-         {"__dpcpp_nativecpu_get_global_offset", 2}},
-        {"_Z27__spirv_LocalInvocationId_xv",
-         {"__dpcpp_nativecpu_get_local_id", 0}},
-        {"_Z27__spirv_LocalInvocationId_yv",
-         {"__dpcpp_nativecpu_get_local_id", 1}},
-        {"_Z27__spirv_LocalInvocationId_zv",
-         {"__dpcpp_nativecpu_get_local_id", 2}},
-        {"_Z23__spirv_NumWorkgroups_xv",
-         {"__dpcpp_nativecpu_get_num_groups", 0}},
-        {"_Z23__spirv_NumWorkgroups_yv",
-         {"__dpcpp_nativecpu_get_num_groups", 1}},
-        {"_Z23__spirv_NumWorkgroups_zv",
-         {"__dpcpp_nativecpu_get_num_groups", 2}},
-        {"_Z23__spirv_WorkgroupSize_xv", {"__dpcpp_nativecpu_get_wg_size", 0}},
-        {"_Z23__spirv_WorkgroupSize_yv", {"__dpcpp_nativecpu_get_wg_size", 1}},
-        {"_Z23__spirv_WorkgroupSize_zv", {"__dpcpp_nativecpu_get_wg_size", 2}},
-        {"_Z21__spirv_WorkgroupId_xv", {"__dpcpp_nativecpu_get_wg_id", 0}},
-        {"_Z21__spirv_WorkgroupId_yv", {"__dpcpp_nativecpu_get_wg_id", 1}},
-        {"_Z21__spirv_WorkgroupId_zv", {"__dpcpp_nativecpu_get_wg_id", 2}}};
-
-// Helper macros for constructing builtin names
+// Helper macros for constructing builtin MS names
 #define GENMS1(builtin_str) "?" builtin_str "@@YA_KXZ"
-#define GENMS_xyz(b_str)                                                       \
-  GENMS1(#b_str "_x"), GENMS1(#b_str "_y"), GENMS1(#b_str "_z")
 
-// List of builtin names for Visual Studio in same order as in map above.
-// Needs to be kept consistent.
-// todo: check if builtins could be compiled with MS mangling instead to avoid
-// this list.
-static const StringRef WindowsBuiltinNames[] = {
-    GENMS_xyz(__spirv_GlobalInvocationId), GENMS_xyz(__spirv_GlobalSize),
-    GENMS_xyz(__spirv_GlobalOffset),       GENMS_xyz(__spirv_LocalInvocationId),
-    GENMS_xyz(__spirv_NumWorkgroups),      GENMS_xyz(__spirv_WorkgroupSize),
-    GENMS_xyz(__spirv_WorkgroupId)};
+#define GEN_IT_proc(b_str, len) "_Z" #len b_str "v"
+#define GEN_p(b_str, len, ncpu_bstr, num)                                      \
+  {                                                                            \
+    {([]() { static_assert(sizeof(b_str) == len + 1); },                       \
+      GEN_IT_proc(b_str, len)),                                                \
+     GENMS1(b_str)},                                                           \
+    {                                                                          \
+      ncpu_bstr, num                                                           \
+    }                                                                          \
+  }
+#define GEN_xyz(b_name, len, ncpu_name)                                        \
+  GEN_p(#b_name "_x", len, #ncpu_name, 0),                                     \
+      GEN_p(#b_name "_y", len, #ncpu_name, 1),                                 \
+      GEN_p(#b_name "_z", len, #ncpu_name, 2)
 
-#define __GET_DIMENSION(a) (sizeof(a) / sizeof(a[0]))
-static_assert(__GET_DIMENSION(WindowsBuiltinNames) ==
-              __GET_DIMENSION(WindowsBuiltinNames));
+// Todo: add support for more SPIRV builtins here
+static const std::pair<std::pair<StringRef, StringRef>,
+                       std::pair<StringRef, unsigned int>>
+    BuiltinNamesMap[] = {
+        GEN_xyz(__spirv_GlobalInvocationId, 28, __dpcpp_nativecpu_global_id),
+        GEN_xyz(__spirv_GlobalSize, 20, __dpcpp_nativecpu_global_range),
+        GEN_xyz(__spirv_GlobalOffset, 22, __dpcpp_nativecpu_get_global_offset),
+        GEN_xyz(__spirv_LocalInvocationId, 27, __dpcpp_nativecpu_get_local_id),
+        GEN_xyz(__spirv_NumWorkgroups, 23, __dpcpp_nativecpu_get_num_groups),
+        GEN_xyz(__spirv_WorkgroupSize, 23, __dpcpp_nativecpu_get_wg_size),
+        GEN_xyz(__spirv_WorkgroupId, 21, __dpcpp_nativecpu_get_wg_id),
+};
 
 static inline bool IsForVisualStudio(StringRef triple_str) {
   llvm::Triple triple(triple_str);
@@ -309,14 +284,12 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   }
 
   const bool VisualStudioMangling = IsForVisualStudio(M.getTargetTriple());
-  size_t VSi = 0;
 
   // Then we iterate over all the supported builtins, find their uses and
   // replace them with calls to our Native CPU functions.
   for (const auto &Entry : BuiltinNamesMap) {
-    auto *Glob = M.getFunction(VisualStudioMangling ? WindowsBuiltinNames[VSi]
-                                                    : Entry.first);
-    VSi++;
+    auto *Glob = M.getFunction(VisualStudioMangling ? Entry.first.second
+                                                    : Entry.first.first);
     if (!Glob)
       continue;
     auto *ReplaceFunc = getReplaceFunc(M, Entry.second.first);
