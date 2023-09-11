@@ -21,10 +21,12 @@
 
 #if !defined(_WIN32)
 critnib *TRACKER = NULL;
-void __attribute__((constructor)) createLibTracker() {
+void __attribute__((constructor)) createLibTracker(void) {
     TRACKER = critnib_new();
 }
-void __attribute__((destructor)) deleteLibTracker() { critnib_delete(TRACKER); }
+void __attribute__((destructor)) deleteLibTracker(void) {
+    critnib_delete(TRACKER);
+}
 
 umf_memory_tracker_handle_t umfMemoryTrackerGet(void) {
     return (umf_memory_tracker_handle_t)TRACKER;
