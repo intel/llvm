@@ -63,8 +63,9 @@ int main(int argc, char *argv[]) {
   }
 
   queue q;
-  int B = 1000000;
-  size_t N = 4'294'967'311;
+  constexpr int B = 1000000;
+  // First prime bigger than UINT32_MAX
+  constexpr size_t N = 4'294'967'311;
   test_regular("regular range<1>", q, B, range(N));
   test_regular("regular range<2>", q, B, range(1, N));
   test_regular("regular range<3>", q, B, range(1, 1, N));
