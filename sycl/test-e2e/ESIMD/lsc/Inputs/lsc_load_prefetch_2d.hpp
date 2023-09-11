@@ -15,9 +15,7 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-using namespace sycl::ext::intel::esimd::detail;
 using namespace sycl::ext::intel::experimental::esimd;
-using namespace sycl::ext::intel::experimental::esimd::detail;
 
 template <int case_num, typename T, uint32_t Groups, uint32_t Threads,
           int BlockWidth, int BlockHeight = 1, int NBlocks = 1,
@@ -28,19 +26,26 @@ bool test(unsigned SurfaceWidth, unsigned SurfaceHeight, unsigned SurfacePitch,
           int X, int Y) {
 
   constexpr int N =
-      get_lsc_block_2d_data_size<T, NBlocks, BlockHeight, BlockWidth,
-                                 Transposed, Transformed>();
+      sycl::ext::intel::experimental::esimd::detail::get_lsc_block_2d_data_size<
+          T, NBlocks, BlockHeight, BlockWidth, Transposed, Transformed>();
   /* Due to store_2d a is subject to stricter restrictions:
    *   NBlocks always 1, no Transposed, no Transformed, max BlockHeight 8.
    * Series of 2d stores with height 1 are used to write loaded data to output
    * buffer. Also Transformed load_2d extends BlockWidth to the next power of 2
    * and rounds up BlockHeight.
    */
-  constexpr int SH = Transformed
-                         ? roundUpNextMultiple<BlockHeight, 4 / sizeof(T)>()
-                         : BlockHeight;
-  constexpr int SW = Transformed ? getNextPowerOf2<BlockWidth>() : BlockWidth;
-  constexpr int SN = get_lsc_block_2d_data_size<T, 1u, 1u, SW, false, false>();
+  constexpr int SH =
+      Transformed
+          ? sycl::ext::intel::experimental::esimd::detail::roundUpNextMultiple<
+                BlockHeight, 4 / sizeof(T)>()
+          : BlockHeight;
+  constexpr int SW =
+      Transformed
+          ? sycl::ext::intel::esimd::detail::getNextPowerOf2<BlockWidth>()
+          : BlockWidth;
+  constexpr int SN =
+      sycl::ext::intel::experimental::esimd::detail::get_lsc_block_2d_data_size<
+          T, 1u, 1u, SW, false, false>();
 
   std::cout << "N  = " << N << std::endl;
   std::cout << "SN = " << SN << std::endl;
