@@ -71,14 +71,14 @@ generateEAMTestKernelImage(std::string _cmplOptions) {
                  std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-  std::string _lnkOptions="";
+  std::string _lnkOptions = "";
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                   	      // Compile options
-	      _lnkOptions,                                     //Link options
+              _cmplOptions,                           // Compile options
+              _lnkOptions,                            // Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -117,7 +117,7 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   current_compile_options.clear();
   std::string expected_options = "";
   static sycl::unittest::PiImage DevImage =
-generateEAMTestKernelImage<EAMTestKernel1>(expected_options);
+      generateEAMTestKernelImage<EAMTestKernel1>(expected_options);
   static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
@@ -138,7 +138,7 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   const sycl::device Dev = Plt.get_devices()[0];
   current_compile_options.clear();
   std::string expected_compile_options_1 =
-                  "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt";
+      "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt";
   static sycl::unittest::PiImage DevImage_1 =
       generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1);
 
@@ -178,6 +178,5 @@ TEST(Link_Compile_Options, check_sycl_build) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});
   sycl::build(KernelBundle);
-  EXPECT_EQ(expected_compile_options,
-            current_build_opts);
+  EXPECT_EQ(expected_compile_options, current_build_opts);
 }
