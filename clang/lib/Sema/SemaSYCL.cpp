@@ -508,7 +508,8 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   if (!Callee->getIdentifier())
     return false;
 
-  if (LibdeviceCmathSet.count(Callee->getName().str()))
+  if (LibdeviceCmathSet.count(Callee->getName().str()) &&
+      SrcMgr.isInSystemHeader(Callee->getLocation()))
     return true;
 
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
