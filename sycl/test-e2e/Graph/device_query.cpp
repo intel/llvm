@@ -1,4 +1,4 @@
-// REQUIRES: level_zero, gpu
+// REQUIRES: cuda || level_zero, gpu
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -18,7 +18,7 @@ int main() {
 
   if ((Backend == backend::ext_oneapi_level_zero) ||
       (Backend == backend::ext_oneapi_cuda)) {
-    assert(SupportsGraphs == exp_ext::info::graph_support_level::native);
+    assert(SupportsGraphs == exp_ext::graph_support_level::native);
   } else {
     assert(SupportsGraphs == exp_ext::graph_support_level::unsupported);
   }
