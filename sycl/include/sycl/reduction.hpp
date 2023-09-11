@@ -1360,6 +1360,7 @@ struct NDRangeReduction<
               ++NFinished == static_cast<int>(NWorkGroups);
         }
 
+        workGroupBarrier();
         if (DoReducePartialSumsInLastWG[0]) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
@@ -1572,6 +1573,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
             ++NFinished == NWorkGroups && NWorkGroups > 1;
       }
 
+      workGroupBarrier();
       if (DoReducePartialSumsInLastWG[0]) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
