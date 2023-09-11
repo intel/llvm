@@ -494,7 +494,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   return Result;
 }
 
-/// \TODO Not implemented
 UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
     ur_mem_handle_t hMemory, ur_image_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropValueSizeRet) {
