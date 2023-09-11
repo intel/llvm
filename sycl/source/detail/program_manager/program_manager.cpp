@@ -507,6 +507,9 @@ applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
   if (CompileOptsEnv) {
     CompileOpts = std::string_view(CompileOptsEnv);
   }
+  else {
+    CompileOpts = std::string_view{};
+  }
   return CompileOpts;
 }
 
@@ -607,7 +610,9 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
-  std::string CompileOptsString(CompileOpts);
+   std::string CompileOptsString;
+  if (!CompileOpts.empty())
+    std::string CompileOptsString(CompileOpts);
   const PluginPtr &Plugin = ContextImpl->getPlugin();
   appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
   std::string_view CompileOptsupdated(CompileOptsString);
@@ -2260,8 +2265,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
-
-  std::string CompileOptsString(CompileOpts);
+  std::string CompileOptsString;
+  if (!CompileOpts.empty())
+    std::string CompileOptsString(CompileOpts);
   const PluginPtr &Plugin = ContextImpl->getPlugin();
   appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
   std::string_view CompileOptsUpdated(CompileOptsString);
