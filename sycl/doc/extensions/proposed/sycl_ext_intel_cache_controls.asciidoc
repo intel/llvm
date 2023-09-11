@@ -126,7 +126,7 @@ struct cache_control_write_key {
 template<cache_control_read_type C, int L>
 inline constexpr cache_control_read_key::value_t<C, L> cache_control_read;
 
-template<cache_control_write_typeType C, int L>
+template<cache_control_write_type C, int L>
 inline constexpr cache_control_write_key::value_t<C, L> cache_control_write;
 
 template<>
@@ -184,8 +184,8 @@ cache level. In order to specify the behavior for multiple cache levels,
 multiple properties should be specified.
 
 It is legal to specify several different cache control properties in the
-same `annotated_ptr`. However, all instances of cache_control_read_type must
-have different cache levels and all instances of cache_control_write_type
+same `annotated_ptr`. However, all instances of `cache_control_read_type` must
+have different cache levels and all instances of `cache_control_write_type`
 must have difference cache levels.
 
 The cache control properties are divided into two categories: those that
@@ -193,7 +193,7 @@ are hints and those that are assertions by the application.
 
 ==== Cache control hints
 These properties are hints requesting specific cache behavior when
-loading or storing to memory through the annotated_ptr. These properties can
+loading or storing to memory through the `annotated_ptr`. These properties can
 affect the performance of device code, but they do not change the semantics.
 
 --
@@ -207,7 +207,7 @@ cache_control_read<cache_control_read_type::cached, L>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
-may cache the data at level L in the memory hierarchy.
+may cache the data at level `L` in the memory hierarchy.
 a|
 [source]
 ----
@@ -215,7 +215,7 @@ cache_control_read<cache_control_read_type::uncached, L>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
-should not cache the data at level L in the memory hierarchy.
+should not cache the data at level `L` in the memory hierarchy.
 a|
 [source]
 ----
@@ -223,8 +223,8 @@ cache_control_read<cache_control_read_type::streaming, L>
 ----
 |
 This property requests that loads from memory through the `annotated_ptr`
-should cache the data at cache level L. The eviction policy is to give
-lower priority to data cached using this property versus the Cached
+should cache the data at cache level `L`. The eviction policy is to give
+lower priority to data cached using this property versus the `cached`
 property.
 a|
 [source]
@@ -233,7 +233,7 @@ cache_control_write<cache_control_write_type::uncached, L>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
-should not cache the data at level L in the memory hierarchy.
+should not cache the data at level `L` in the memory hierarchy.
 a|
 [source]
 ----
@@ -241,8 +241,8 @@ cache_control_write<cache_control_write_type::write_through, L>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
-should immediately write the data to the next-level cache after L
-and mark the cache line at level L as "not dirty".
+should immediately write the data to the next-level cache after `L`
+and mark the cache line at level `L` as "not dirty".
 a|
 [source]
 ----
@@ -250,9 +250,9 @@ cache_control_write<cache_control_write_type::write_back, L>
 ----
 |
 This property requests that writes to memory through the `annotated_ptr`
-should write the data into the cache at level L and mark the cache line as
+should write the data into the cache at level `L` and mark the cache line as
 "dirty". Upon eviction, "dirty" data will be written into the cache at
-level higher than L.
+level higher than `L`.
 a|
 [source]
 ----
@@ -303,5 +303,7 @@ is undefined.
 == Implementation notes
 
 It is intended that the SYCL cache control properties will be used by the
-compiler to generate SPIR-V cache control operations.
+compiler to generate SPIR-V cache control operations. Alternatively, the
+properties could be implemented by generating intrinsic function calls
+that match the cache control types.
 
