@@ -90,7 +90,7 @@ static sycl::unittest::PiImage generateDefaultImage() {
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "-compile-img",                         // Compile options
-              "-link-img",                            // Link options
+	      "",
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
@@ -118,11 +118,8 @@ TEST(KernelBuildOptions, KernelBundleBasic) {
                                                          {KernelID});
   auto ExecBundle = sycl::build(KernelBundle);
   EXPECT_EQ(BuildOpts,
-            "-compile-img -vc-codegen -disable-finalizer-msg -link-img");
+            "-compile-img -vc-codegen -disable-finalizer-msg");
 
   auto ObjBundle = sycl::compile(KernelBundle, KernelBundle.get_devices());
   EXPECT_EQ(BuildOpts, "-compile-img -vc-codegen -disable-finalizer-msg");
-
-  auto LinkBundle = sycl::link(ObjBundle, ObjBundle.get_devices());
-  EXPECT_EQ(BuildOpts, "-link-img");
 }

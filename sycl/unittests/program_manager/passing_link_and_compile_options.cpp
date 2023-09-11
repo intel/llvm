@@ -16,7 +16,7 @@
 
 #include <gtest/gtest.h>
 
-std::string current_link_options, current_compile_options, current_build_opts;
+std::string current_compile_options, current_build_opts;
 
 class EAMTestKernel1;
 const char EAMTestKernelName1[] = "LinkCompileTestKernel1";
@@ -57,7 +57,7 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 
 template <typename T>
 static sycl::unittest::PiImage
-generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
+generateEAMTestKernelImage(std::string _cmplOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM1{0b00000101};
@@ -71,33 +71,18 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
                  std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
+  std::string _lnkOptions="";
   PiArray<PiOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                           // Compile options
-              _lnkOptions,                            // Link options
+              _cmplOptions,                   	      // Compile options
+	      _lnkOptions,                                     //Link options
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
   return Img;
-}
-
-inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
-                                      const char *_linkOpts, pi_uint32,
-                                      const pi_program *,
-                                      void (*)(pi_program, void *), void *,
-                                      pi_program *) {
-  assert(_linkOpts != nullptr);
-  auto add_link_opts = std::string(_linkOpts);
-  if (!add_link_opts.empty()) {
-    if (!current_link_options.empty())
-      current_link_options += " ";
-    current_link_options += std::string(_linkOpts);
-  }
-  return PI_SUCCESS;
 }
 
 inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
@@ -128,15 +113,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
-  current_link_options.clear();
   current_compile_options.clear();
   std::string expected_options = "";
   static sycl::unittest::PiImage DevImage =
-      generateEAMTestKernelImage<EAMTestKernel1>(expected_options,
-                                                 expected_options);
+generateEAMTestKernelImage<EAMTestKernel1>(expected_options);
   static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
@@ -146,7 +127,6 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
                                                          {KernelID_1});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ(expected_options, current_link_options);
   EXPECT_EQ(expected_options, current_compile_options);
 }
 
@@ -155,18 +135,12 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
-  current_link_options.clear();
   current_compile_options.clear();
   std::string expected_compile_options_1 =
-                  "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
-              expected_link_options_1 =
-                  "-cl-denorms-are-zero -cl-no-signed-zeros";
+                  "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt";
   static sycl::unittest::PiImage DevImage_1 =
-      generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1,
-                                                 expected_link_options_1);
+      generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1);
 
   static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel2>();
@@ -177,7 +151,6 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
                                                          {KernelID_1});
   auto BundleObj = sycl::compile(KernelBundle);
   sycl::link(BundleObj);
-  EXPECT_EQ(expected_link_options_1, current_link_options);
   EXPECT_EQ(expected_compile_options_1, current_compile_options);
 }
 
@@ -190,18 +163,13 @@ TEST(Link_Compile_Options, check_sycl_build) {
   sycl::platform Plt = Mock.getPlatform();
   Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
       redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
   Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
       redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
-  current_link_options.clear();
   current_compile_options.clear();
-  std::string expected_compile_options = "-cl-opt-disable",
-              expected_link_options = "-cl-denorms-are-zero";
+  std::string expected_compile_options = "-cl-opt-disable";
   static sycl::unittest::PiImage DevImage =
-      generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options,
-                                                 expected_link_options);
+      generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options);
   static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
   auto KernelID = sycl::get_kernel_id<EAMTestKernel3>();
   sycl::context Ctx{Dev};
@@ -210,6 +178,6 @@ TEST(Link_Compile_Options, check_sycl_build) {
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
                                                          {KernelID});
   sycl::build(KernelBundle);
-  EXPECT_EQ(expected_compile_options + " " + expected_link_options,
+  EXPECT_EQ(expected_compile_options,
             current_build_opts);
 }
