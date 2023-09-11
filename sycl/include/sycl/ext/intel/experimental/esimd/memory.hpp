@@ -2376,13 +2376,15 @@ constexpr void check_lsc_block_2d_restrictions() {
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
-    static_assert(
-        __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
-        "Unsupported number of blocks");
-    if constexpr (IsStore)
+    if constexpr (IsStore) {
+      static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
       static_assert(BlockHeight <= 8, "Unsupported block height for store");
-    else
+    } else {
+      static_assert(
+          __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
+          "Unsupported number of blocks for 2D load/prefetch");
       static_assert(BlockHeight <= 32, "Unsupported block height for load");
+    }
     static_assert(BlockWidth * sizeof(T) >= 4 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
