@@ -320,6 +320,7 @@ checkValueRange(const T &V) {
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
+  id<Dims> InitId;
   range<Dims> UserRange;
   range<Dims> RoundedRange;
   bool Done = false;
@@ -327,7 +328,7 @@ template <int Dims> class RoundedRangeIDGenerator {
 public:
   RoundedRangeIDGenerator(const id<Dims> &Id, const range<Dims> &UserRange,
                           const range<Dims> &RoundedRange)
-      : Id(Id), UserRange(UserRange), RoundedRange(RoundedRange) {
+      : Id(Id), InitId(Id), UserRange(UserRange), RoundedRange(RoundedRange) {
     for (int i = 0; i < Dims; ++i)
       if (Id[i] >= UserRange[i])
         Done = true;
@@ -339,7 +340,7 @@ public:
     for (int i = 0; i < Dims; ++i) {
       Id[i] += RoundedRange[i];
       if (Id[i] >= UserRange[i])
-        Id[i] %= UserRange[i];
+        Id[i] = InitId[i];
       else
         return;
     }
@@ -361,6 +362,13 @@ public:
     }
   }
 };
+
+// TODO: The wrappers can be optimized further so that the body
+// essentially looks like this:
+//   for (auto z = it[2]; z < UserRange[2]; z += it.get_range(2))
+//     for (auto y = it[1]; y < UserRange[1]; y += it.get_range(1))
+//       for (auto x = it[0]; x < UserRange[0]; x += it.get_range(0))
+//         KernelFunc({x,y,z});
 
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
