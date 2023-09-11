@@ -18,8 +18,8 @@ device getDeviceFromHandler(handler &cgh) {
          "One of MQueue or MGraph should be nonnull!");
   if (cgh.MQueue)
     return cgh.MQueue->get_device();
-  else
-    return cgh.MGraph->getDevice();
+
+  return cgh.MGraph->getDevice();
 }
 
 // TODO: the following function to be removed during next ABI break window

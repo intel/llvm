@@ -396,15 +396,8 @@ using sycl::detail::queue_impl;
 template <typename T>
 static std::enable_if_t<std::is_unsigned_v<T>, bool>
 multiply_with_overflow_check(T &dst, T x, T y) {
-  if (y == 0) {
-    dst = 0;
-    return false;
-  }
-  if (x > (std::numeric_limits<T>::max)() / y) {
-    return true;
-  }
   dst = x * y;
-  return false;
+  return (y != 0) && (x > (std::numeric_limits<T>::max)() / y);
 }
 
 template <int Dims> bool range_size_fits_in_size_t(const range<Dims> &r) {
