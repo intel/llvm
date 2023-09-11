@@ -1112,9 +1112,7 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Perform range rounding if rounding-up is enabled
-    // and there are sufficient work-items to need rounding
-    // and the user-specified range is not a multiple of a "good" value.
+    // Perform range rounding if rounding-up is enabled.
     if (this->DisableRangeRounding())
       return false;
 
@@ -1160,8 +1158,16 @@ private:
       did_adjust = true;
     };
 
-    if (NewRange[0] % MinFactorX != 0 && NewRange[0] >= MinRangeX)
+    // Perform range rounding if there are sufficient work-items to
+    // need rounding and the user-specified range is not a multiple of
+    // a "good" value.
+    if (NewRange[0] % MinFactorX != 0 && NewRange[0] >= MinRangeX) {
+      // It is sufficient to round up just the first dimension.
+      // Multiplying the rounded-up value of the first dimension
+      // by the values of the remaining dimensions (if any)
+      // will yield a rounded-up value for the total range.
       adjust(0, ((NewRange[0] + GoodFactor - 1) / GoodFactor) * GoodFactor);
+    }
 
     for (int i = 0; i < Dims; ++i)
       if (NewRange[i] > MaxRange[i])
