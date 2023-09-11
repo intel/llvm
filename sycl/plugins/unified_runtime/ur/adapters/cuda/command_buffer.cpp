@@ -16,8 +16,8 @@
 
 ur_exp_command_buffer_handle_t_::ur_exp_command_buffer_handle_t_(
     ur_context_handle_t hContext, ur_device_handle_t hDevice)
-    : Context(hContext),
-      Device(hDevice), CudaGraph{nullptr}, CudaGraphExec{nullptr}, RefCount{1} {
+    : Context(hContext), Device(hDevice), CudaGraph{nullptr},
+      CudaGraphExec{nullptr}, RefCount{1} {
   urContextRetain(hContext);
   urDeviceRetain(hDevice);
 }
