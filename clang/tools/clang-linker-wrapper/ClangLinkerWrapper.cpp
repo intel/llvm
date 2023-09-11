@@ -478,7 +478,7 @@ Expected<StringRef> convertSPIRVToIR(StringRef Filename, const ArgList &Args) {
   CmdArgs.push_back(*TempFileOrErr);
   CmdArgs.push_back("-llvm-spirv-opts");
   CmdArgs.push_back("\"--spirv-preserve-auxdata");
-  CmdArgs.push_back(("--spirv-target-env=SPV-IR");
+  CmdArgs.push_back("--spirv-target-env=SPV-IR");
   CmdArgs.push_back("--spirv-builtin-format=global\"");
   if (Error Err = executeCommands(*SPIRVToIRWrapperPath, CmdArgs))
     return std::move(Err);
