@@ -27,7 +27,7 @@ target triple = "spir64-unknown-unknown"
 
 %struct.s = type opaque
 
-@i = common addrspace(1) global %struct.s* null, align 8, !dbg !0
+@i = common addrspace(1) global ptr null, align 8, !dbg !0
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!11, !12}

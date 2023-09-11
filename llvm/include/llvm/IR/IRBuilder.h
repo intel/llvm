@@ -140,10 +140,6 @@ public:
     ClearInsertionPoint();
   }
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    Value *getCastedInt8PtrValue(Value *Ptr);
-#endif
-
   /// Insert and return the specified instruction.
   template<typename InstTy>
   InstTy *Insert(InstTy *I, const Twine &Name = "") const {
@@ -562,11 +558,7 @@ public:
 
   /// Fetch the type representing a pointer to an 8-bit integer value.
   PointerType *getInt8PtrTy(unsigned AddrSpace = 0) {
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     return getPtrTy(AddrSpace);
-#else
-    return Type::getInt8PtrTy(Context, AddrSpace);
-#endif
   }
 
   /// Fetch the type of an integer with size at least as big as that of a
@@ -1029,6 +1021,19 @@ public:
                                Value *Idx, const Twine &Name = "") {
     return CreateIntrinsic(Intrinsic::vector_insert,
                            {DstType, SubVec->getType()}, {SrcVec, SubVec, Idx},
+                           nullptr, Name);
+  }
+
+  /// Create a call to llvm.stacksave
+  CallInst *CreateStackSave(const Twine &Name = "") {
+    const DataLayout &DL = BB->getModule()->getDataLayout();
+    return CreateIntrinsic(Intrinsic::stacksave, {DL.getAllocaPtrType(Context)},
+                           {}, nullptr, Name);
+  }
+
+  /// Create a call to llvm.stackrestore
+  CallInst *CreateStackRestore(Value *Ptr, const Twine &Name = "") {
+    return CreateIntrinsic(Intrinsic::stackrestore, {Ptr->getType()}, {Ptr},
                            nullptr, Name);
   }
 

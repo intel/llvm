@@ -341,7 +341,7 @@ public:
   ///   mpass1,fpass1,fpass2,mpass2,lpass1
   ///
   /// This pipeline uses only one pass manager: the top-level module manager.
-  /// fpass1,fpass2 and lpass1 are added into the the top-level module manager
+  /// fpass1,fpass2 and lpass1 are added into the top-level module manager
   /// using only adaptor passes. No nested function/loop pass managers are
   /// added. The purpose is to allow easy pass testing when the user
   /// specifically want the pass to run under a adaptor directly. This is
@@ -568,7 +568,8 @@ public:
 
   /// Add PGOInstrumenation passes for O0 only.
   void addPGOInstrPassesForO0(ModulePassManager &MPM, bool RunProfileGen,
-                              bool IsCS, std::string ProfileFile,
+                              bool IsCS, bool AtomicCounterUpdate,
+                              std::string ProfileFile,
                               std::string ProfileRemappingFile,
                               IntrusiveRefCntPtr<vfs::FileSystem> FS);
 
@@ -636,7 +637,8 @@ private:
                                 ArrayRef<PipelineElement> Pipeline);
 
   void addPGOInstrPasses(ModulePassManager &MPM, OptimizationLevel Level,
-                         bool RunProfileGen, bool IsCS, std::string ProfileFile,
+                         bool RunProfileGen, bool IsCS,
+                         bool AtomicCounterUpdate, std::string ProfileFile,
                          std::string ProfileRemappingFile,
                          ThinOrFullLTOPhase LTOPhase,
                          IntrusiveRefCntPtr<vfs::FileSystem> FS);

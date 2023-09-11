@@ -3549,14 +3549,14 @@ IsInitializerListConstructorConversion(Sema &S, Expr *From, QualType ToType,
   case OR_Success: {
     // Record the standard conversion we used and the conversion function.
     CXXConstructorDecl *Constructor = cast<CXXConstructorDecl>(Best->Function);
-    QualType ThisType = Constructor->getThisType();
+    QualType ThisType = Constructor->getThisObjectType();
     // Initializer lists don't have conversions as such.
     User.Before.setAsIdentityConversion();
     User.HadMultipleCandidates = HadMultipleCandidates;
     User.ConversionFunction = Constructor;
     User.FoundConversionFunction = Best->FoundDecl;
     User.After.setAsIdentityConversion();
-    User.After.setFromType(ThisType->castAs<PointerType>()->getPointeeType());
+    User.After.setFromType(ThisType);
     User.After.setAllToTypes(ToType);
     return Result;
   }
@@ -3736,7 +3736,6 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
       //   sequence converts the source type to the type required by
       //   the argument of the constructor.
       //
-      QualType ThisType = Constructor->getThisType();
       if (isa<InitListExpr>(From)) {
         // Initializer lists don't have conversions as such.
         User.Before.setAsIdentityConversion();
@@ -3752,7 +3751,7 @@ IsUserDefinedConversion(Sema &S, Expr *From, QualType ToType,
       User.ConversionFunction = Constructor;
       User.FoundConversionFunction = Best->FoundDecl;
       User.After.setAsIdentityConversion();
-      User.After.setFromType(ThisType->castAs<PointerType>()->getPointeeType());
+      User.After.setFromType(Constructor->getThisObjectType());
       User.After.setAllToTypes(ToType);
       return Result;
     }
@@ -5656,8 +5655,7 @@ Sema::PerformObjectArgumentInitialization(Expr *From,
                                           NamedDecl *FoundDecl,
                                           CXXMethodDecl *Method) {
   QualType FromRecordType, DestType;
-  QualType ImplicitParamRecordType  =
-    Method->getThisType()->castAs<PointerType>()->getPointeeType();
+  QualType ImplicitParamRecordType = Method->getThisObjectType();
 
   Expr::Classification FromClassification;
   if (const PointerType *PT = From->getType()->getAs<PointerType>()) {
@@ -12796,6 +12794,13 @@ Sema::resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &Pair) {
   DeclAccessPair DAP;
   SmallVector<FunctionDecl *, 2> AmbiguousDecls;
 
+  // Return positive for better, negative for worse, 0 for equal preference.
+  auto CheckCUDAPreference = [&](FunctionDecl *FD1, FunctionDecl *FD2) {
+    FunctionDecl *Caller = getCurFunctionDecl(/*AllowLambda=*/true);
+    return static_cast<int>(IdentifyCUDAPreference(Caller, FD1)) -
+           static_cast<int>(IdentifyCUDAPreference(Caller, FD2));
+  };
+
   auto CheckMoreConstrained = [&](FunctionDecl *FD1,
                                   FunctionDecl *FD2) -> std::optional<bool> {
     if (FunctionDecl *MF = FD1->getInstantiatedFromMemberFunction())
@@ -12826,9 +12831,31 @@ Sema::resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &Pair) {
     if (!checkAddressOfFunctionIsAvailable(FD))
       continue;
 
+    // If we found a better result, update Result.
+    auto FoundBetter = [&]() {
+      IsResultAmbiguous = false;
+      DAP = I.getPair();
+      Result = FD;
+    };
+
     // We have more than one result - see if it is more constrained than the
     // previous one.
     if (Result) {
+      // Check CUDA preference first. If the candidates have differennt CUDA
+      // preference, choose the one with higher CUDA preference. Otherwise,
+      // choose the one with more constraints.
+      if (getLangOpts().CUDA) {
+        int PreferenceByCUDA = CheckCUDAPreference(FD, Result);
+        // FD has different preference than Result.
+        if (PreferenceByCUDA != 0) {
+          // FD is more preferable than Result.
+          if (PreferenceByCUDA > 0)
+            FoundBetter();
+          continue;
+        }
+      }
+      // FD has the same CUDA prefernece than Result. Continue check
+      // constraints.
       std::optional<bool> MoreConstrainedThanPrevious =
           CheckMoreConstrained(FD, Result);
       if (!MoreConstrainedThanPrevious) {
@@ -12840,9 +12867,7 @@ Sema::resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &Pair) {
         continue;
       // FD is more constrained - replace Result with it.
     }
-    IsResultAmbiguous = false;
-    DAP = I.getPair();
-    Result = FD;
+    FoundBetter();
   }
 
   if (IsResultAmbiguous)
@@ -12852,9 +12877,15 @@ Sema::resolveAddressOfSingleOverloadCandidate(Expr *E, DeclAccessPair &Pair) {
     SmallVector<const Expr *, 1> ResultAC;
     // We skipped over some ambiguous declarations which might be ambiguous with
     // the selected result.
-    for (FunctionDecl *Skipped : AmbiguousDecls)
+    for (FunctionDecl *Skipped : AmbiguousDecls) {
+      // If skipped candidate has different CUDA preference than the result,
+      // there is no ambiguity. Otherwise check whether they have different
+      // constraints.
+      if (getLangOpts().CUDA && CheckCUDAPreference(Skipped, Result) != 0)
+        continue;
       if (!CheckMoreConstrained(Skipped, Result))
         return nullptr;
+    }
     Pair = DAP;
   }
   return Result;

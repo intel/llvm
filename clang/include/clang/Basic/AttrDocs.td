@@ -3359,9 +3359,9 @@ def SYCLIntelDisableLoopPipeliningAttrDocs : Documentation {
 This attribute applies to a loop or a function. Takes no arguments and
 disables pipelining of the loop or function data path, causing the loop
 or function to be executed serially. Cannot be used on the same loop or
-function, or in conjunction with ``max_interleaving``,
-``speculated_iterations``, ``max_concurrency``, ``initiation_interval``,
-``ivdep``, ``max_reinvocation_delay`` or ``enable_loop_pipelining`` attribute.
+function, or in conjunction with ``speculated_iterations``, ``max_concurrency``,
+``initiation_interval``, ``ivdep``, ``max_reinvocation_delay`` or
+``enable_loop_pipelining`` attribute.
 
 .. code-block:: c++
 
@@ -3427,14 +3427,13 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and shall be non-negative integer. Cannot be
-used on the same loop in conjunction with disable_loop_pipelining.
+Parameter N is mandatory, and may either be 0, or 1.
 
 .. code-block:: c++
 
   void foo() {
     int a[10];
-    [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+    [[intel::max_interleaving(1)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
   template<int N>
@@ -3623,8 +3622,8 @@ where the last N*2 are as described above.
 .. Note:: This attribute will only generate LLVM IR attributes in SYCL device
   code.
 
-.. Note:: This attribute is not currently allowed on virtual, overridden, final,
-  defaulted, and deleted functions.
+.. Note:: This attribute is not currently allowed on defaulted and deleted
+  functions.
 
 .. Note:: This attribute is intended as an internal implementation detail and is
   not intended to be used by external users.
@@ -4332,7 +4331,7 @@ On x86 targets, this attribute changes the calling convention to
 as possible in registers. It also tries to utilize registers for the
 return value whenever it is possible.
 
-.. _`__regcall`: https://software.intel.com/en-us/node/693069
+.. _`__regcall`: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/developer-guide-reference/2023-2/c-c-sycl-calling-conventions.html
   }];
 }
 
@@ -6461,6 +6460,10 @@ passing or returning arguments to the function.
 The user can call functions specified with the 'no_caller_saved_registers'
 attribute from an interrupt handler without saving and restoring all
 call-clobbered registers.
+
+Functions specified with the 'no_caller_saved_registers' attribute should only
+call other functions with the 'no_caller_saved_registers' attribute, or should be
+compiled with the '-mgeneral-regs-only' flag to avoid saving unused non-GPR registers.
 
 Note that 'no_caller_saved_registers' attribute is not a calling convention.
 In fact, it only overrides the decision of which registers should be saved by

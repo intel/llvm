@@ -70,6 +70,16 @@ const Formula &getFormula(const ValueDecl &D, const Environment &Env) {
   return cast<BoolValue>(Env.getValue(D))->formula();
 }
 
+TEST(TransferTest, CNotSupported) {
+  std::string Code = R"(
+    void target() {}
+  )";
+  ASSERT_THAT_ERROR(checkDataflowWithNoopAnalysis(
+                        Code, [](const auto &, auto &) {}, {BuiltinOptions{}},
+                        LangStandard::lang_c89),
+                    llvm::FailedWithMessage("Can only analyze C++"));
+}
+
 TEST(TransferTest, IntVarDeclNotTrackedWhenTransferDisabled) {
   std::string Code = R"(
     void target() {
@@ -1418,9 +1428,7 @@ TEST(TransferTest, BaseClassInitializer) {
       checkDataflow<NoopAnalysis>(
           AnalysisInputs<NoopAnalysis>(
               Code, cxxConstructorDecl(ofClass(hasName("B"))),
-              [](ASTContext &C, Environment &) {
-                return NoopAnalysis(C, /*ApplyBuiltinTransfer=*/true);
-              })
+              [](ASTContext &C, Environment &) { return NoopAnalysis(C); })
               .withASTBuildArgs(
                   {"-fsyntax-only", "-fno-delayed-template-parsing",
                    "-std=" + std::string(LangStandard::getLangStandardForKind(
@@ -2667,11 +2675,7 @@ TEST(TransferTest, CannotAnalyzeFunctionTemplate) {
     void target() {}
   )";
   ASSERT_THAT_ERROR(
-      checkDataflowWithNoopAnalysis(
-          Code,
-          [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
-             ASTContext &ASTCtx) {},
-          {BuiltinOptions()}),
+      checkDataflowWithNoopAnalysis(Code),
       llvm::FailedWithMessage("Cannot analyze templated declarations"));
 }
 
@@ -2683,11 +2687,7 @@ TEST(TransferTest, CannotAnalyzeMethodOfClassTemplate) {
     };
   )";
   ASSERT_THAT_ERROR(
-      checkDataflowWithNoopAnalysis(
-          Code,
-          [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
-             ASTContext &ASTCtx) {},
-          {BuiltinOptions()}),
+      checkDataflowWithNoopAnalysis(Code),
       llvm::FailedWithMessage("Cannot analyze templated declarations"));
 }
 
@@ -2870,11 +2870,11 @@ TEST(TransferTest, AggregateInitialization) {
 
           // Check that fields initialized in an initializer list are always
           // modeled in other instances of the same type.
-          const auto &OtherBVal =
-              getValueForDecl<RecordValue>(ASTCtx, Env, "OtherB");
-          EXPECT_THAT(OtherBVal.getChild(*BarDecl), NotNull());
-          EXPECT_THAT(OtherBVal.getChild(*BazDecl), NotNull());
-          EXPECT_THAT(OtherBVal.getChild(*QuxDecl), NotNull());
+          const auto &OtherBLoc =
+              getLocForDecl<RecordStorageLocation>(ASTCtx, Env, "OtherB");
+          EXPECT_THAT(OtherBLoc.getChild(*BarDecl), NotNull());
+          EXPECT_THAT(OtherBLoc.getChild(*BazDecl), NotNull());
+          EXPECT_THAT(OtherBLoc.getChild(*QuxDecl), NotNull());
         });
   }
 }
@@ -3834,6 +3834,52 @@ TEST(TransferTest, LoopWithStructReferenceAssignmentConverges) {
         EXPECT_NE(&LVal->getPointeeLoc(),
                   OuterEnv.getStorageLocation(*ValDecl));
       });
+}
+
+TEST(TransferTest, LoopDereferencingChangingPointerConverges) {
+  std::string Code = R"cc(
+    bool some_condition();
+
+    void target(int i1, int i2) {
+      int *p = &i1;
+      while (true) {
+        (void)*p;
+        if (some_condition())
+          p = &i1;
+        else
+          p = &i2;
+      }
+    }
+  )cc";
+  // FIXME: Implement pointer value widening to make analysis converge.
+  ASSERT_THAT_ERROR(
+      checkDataflowWithNoopAnalysis(Code),
+      llvm::FailedWithMessage("maximum number of iterations reached"));
+}
+
+TEST(TransferTest, LoopDereferencingChangingRecordPointerConverges) {
+  std::string Code = R"cc(
+    struct Lookup {
+      int x;
+    };
+
+    bool some_condition();
+
+    void target(Lookup l1, Lookup l2) {
+      Lookup *l = &l1;
+      while (true) {
+        (void)l->x;
+        if (some_condition())
+          l = &l1;
+        else
+          l = &l2;
+      }
+    }
+  )cc";
+  // FIXME: Implement pointer value widening to make analysis converge.
+  ASSERT_THAT_ERROR(
+      checkDataflowWithNoopAnalysis(Code),
+      llvm::FailedWithMessage("maximum number of iterations reached"));
 }
 
 TEST(TransferTest, DoesNotCrashOnUnionThisExpr) {
@@ -5547,6 +5593,59 @@ TEST(TransferTest, BuiltinFunctionModeled) {
 
         ASSERT_THAT(ImplicitCast, NotNull());
         EXPECT_THAT(Env.getValue(*ImplicitCast), IsNull());
+      });
+}
+
+// Check that a callee of a member operator call is modeled as a `PointerValue`.
+// Member operator calls are unusual in that their callee is a pointer that
+// stems from a `FunctionToPointerDecay`. In calls to non-operator non-static
+// member functions, the callee is a `MemberExpr` (which does not have pointer
+// type).
+// We want to make sure that we produce a pointer value for the callee in this
+// specific scenario and that its storage location is durable (for convergence).
+TEST(TransferTest, MemberOperatorCallModelsPointerForCallee) {
+  std::string Code = R"(
+    struct S {
+      bool operator!=(S s);
+    };
+    void target() {
+      S s;
+      (void)(s != s);
+      (void)(s != s);
+      // [[p]]
+    }
+  )";
+  runDataflow(
+      Code,
+      [](const llvm::StringMap<DataflowAnalysisState<NoopLattice>> &Results,
+         ASTContext &ASTCtx) {
+        using ast_matchers::selectFirst;
+        using ast_matchers::match;
+        using ast_matchers::traverse;
+        using ast_matchers::cxxOperatorCallExpr;
+
+        const Environment &Env = getEnvironmentAtAnnotation(Results, "p");
+
+        auto Matches = match(
+            traverse(TK_AsIs, cxxOperatorCallExpr().bind("call")), ASTCtx);
+
+        ASSERT_EQ(Matches.size(), 2UL);
+
+        auto *Call1 = Matches[0].getNodeAs<CXXOperatorCallExpr>("call");
+        auto *Call2 = Matches[1].getNodeAs<CXXOperatorCallExpr>("call");
+
+        ASSERT_THAT(Call1, NotNull());
+        ASSERT_THAT(Call2, NotNull());
+
+        EXPECT_EQ(cast<ImplicitCastExpr>(Call1->getCallee())->getCastKind(),
+                  CK_FunctionToPointerDecay);
+        EXPECT_EQ(cast<ImplicitCastExpr>(Call2->getCallee())->getCastKind(),
+                  CK_FunctionToPointerDecay);
+
+        auto *Ptr1 = cast<PointerValue>(Env.getValue(*Call1->getCallee()));
+        auto *Ptr2 = cast<PointerValue>(Env.getValue(*Call2->getCallee()));
+
+        ASSERT_EQ(&Ptr1->getPointeeLoc(), &Ptr2->getPointeeLoc());
       });
 }
 
