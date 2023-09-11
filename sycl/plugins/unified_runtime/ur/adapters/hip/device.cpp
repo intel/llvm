@@ -9,7 +9,6 @@
 #include "device.hpp"
 #include "context.hpp"
 #include "event.hpp"
-#include "memory.hpp"
 
 #include <sstream>
 
@@ -812,7 +811,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
-    return ReturnValue(ur_bool_t{false});
+    return ReturnValue(ur_bool_t{true});
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_GPU_EU_COUNT:
