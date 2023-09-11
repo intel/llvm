@@ -162,10 +162,10 @@ private:
 public:
   /* Get directory name for storing current cache item
    */
-  static std::string getCacheItemPath(const device &Device,
-                                      const RTDeviceBinaryImage &Img,
-                                      const SerializedObj &SpecConsts,
-                                      const std::string_view BuildOptionsString);
+  static std::string
+  getCacheItemPath(const device &Device, const RTDeviceBinaryImage &Img,
+                   const SerializedObj &SpecConsts,
+                   const std::string_view BuildOptionsString);
 
   /* Program binaries built for one or more devices are read from persistent
    * cache and returned in form of vector of programs. Each binary program is

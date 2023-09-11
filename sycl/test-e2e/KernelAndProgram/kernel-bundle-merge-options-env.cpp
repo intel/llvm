@@ -20,4 +20,3 @@
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
-

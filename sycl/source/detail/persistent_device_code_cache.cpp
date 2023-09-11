@@ -149,7 +149,8 @@ void PersistentDeviceCodeCache::putItemToDisc(
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string_view BuildOptionsString) {
+    const SerializedObj &SpecConsts,
+    const std::string_view BuildOptionsString) {
 
   if (!isImageCached(Img))
     return {};
@@ -328,7 +329,8 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
  */
 std::string PersistentDeviceCodeCache::getCacheItemPath(
     const device &Device, const RTDeviceBinaryImage &Img,
-    const SerializedObj &SpecConsts, const std::string_view BuildOptionsString) {
+    const SerializedObj &SpecConsts,
+    const std::string_view BuildOptionsString) {
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
     trace("Disable persistent cache due to unconfigured cache root.");

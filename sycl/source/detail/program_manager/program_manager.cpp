@@ -423,7 +423,7 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
   if (!CompileOptsEnv) {
     if (!CompileOpts.empty())
       CompileOpts += " ";
-     const char *TemporaryStr = Img.getCompileOptions();
+    const char *TemporaryStr = Img.getCompileOptions();
     if (TemporaryStr != nullptr)
       CompileOpts += std::string(TemporaryStr);
   }
@@ -496,15 +496,13 @@ static void appendCompileOptionsFromImage(std::string &CompileOpts,
         CompileOpts.erase(Pos, OptLen);
     }
   }
- 
 }
 
-
-
-static std::string_view applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
+static std::string_view
+applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
-   static const  char *CompileOptsEnv  =
+  static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
   if (CompileOptsEnv) {
     CompileOpts = std::string_view(CompileOptsEnv);
@@ -565,16 +563,18 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string_view CompileOpts;
- 
+
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
-  //auto begin = std::chrono::steady_clock::now();
+  // auto begin = std::chrono::steady_clock::now();
   CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
-  //auto end = std::chrono::steady_clock::now();
-  // Timing instrumentation just to see if this part got faster.
-  // Obviously don't keep in production.
-  //std::cout << std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() << "ns\n";
+  // auto end = std::chrono::steady_clock::now();
+  //  Timing instrumentation just to see if this part got faster.
+  //  Obviously don't keep in production.
+  // std::cout <<
+  // std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() <<
+  // "ns\n";
 
   SerializedObj SpecConsts;
   if (Prg)
@@ -607,18 +607,17 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
-   std::string CompileOptsString(CompileOpts);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
-    std:: string_view CompileOptsupdated (CompileOptsString);
+  std::string CompileOptsString(CompileOpts);
+  const PluginPtr &Plugin = ContextImpl->getPlugin();
+  appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
+  std::string_view CompileOptsupdated(CompileOptsString);
 
-
-  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg, CompileOptsupdated,
-                SpecConsts] {
+  auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg,
+                 CompileOptsupdated, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
 
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
-        Img, Context, Device, CompileOptsupdated , SpecConsts);
+        Img, Context, Device, CompileOptsupdated, SpecConsts);
 
     if (!DeviceCodeWasInCache) {
       if (Prg)
@@ -664,9 +663,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
 
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
-  auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOptsupdated));
+  auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
+                                 std::make_pair(PiDevice, CompileOptsupdated));
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -702,11 +700,11 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
   CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
-  
+
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
-  auto key = std::make_tuple(std::move(SpecConsts), PiDevice,
-                             CompileOpts, KernelName);
+  auto key =
+      std::make_tuple(std::move(SpecConsts), PiDevice, CompileOpts, KernelName);
   auto ret_tuple = Cache.tryToGetKernelFast(key);
   if (std::get<0>(ret_tuple))
     return ret_tuple;
@@ -1227,15 +1225,15 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
-ProgramManager::ProgramPtr ProgramManager::build(
-    ProgramPtr Program, const ContextImplPtr Context,
-    const std::string_view CompileOptions,
-    const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr
+ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
+                      const std::string_view CompileOptions,
+                      const sycl::detail::pi::PiDevice &Device,
+                      uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
-              << CompileOptions << ", "  << Device
-              << ")\n";
+              << CompileOptions << ", " << Device << ")\n";
   }
 
   // TODO: old sycl compiler always marks cassert fallback device library as
@@ -1266,31 +1264,30 @@ ProgramManager::ProgramPtr ProgramManager::build(
   static bool ForceLink = ForceLinkEnv && (*ForceLinkEnv == '1');
 
   const PluginPtr &Plugin = Context->getPlugin();
-  std::string CompileOptionsString (CompileOptions);
+  std::string CompileOptionsString(CompileOptions);
   if (LinkPrograms.empty() && !ForceLink) {
     sycl::detail::pi::PiResult Error =
         Plugin->call_nocheck<PiApiKind::piProgramBuild>(
-            Program.get(), /*num devices =*/1, &Device,  CompileOptionsString.c_str(),
-            nullptr, nullptr);
+            Program.get(), /*num devices =*/1, &Device,
+            CompileOptionsString.c_str(), nullptr, nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
     return Program;
   }
 
-
   // Include the main program and compile/link everything together
-  Plugin->call<PiApiKind::piProgramCompile>(Program.get(), /*num devices =*/1,
-                                            &Device,   CompileOptionsString.c_str(), 0,
-                                            nullptr, nullptr, nullptr, nullptr);
+  Plugin->call<PiApiKind::piProgramCompile>(
+      Program.get(), /*num devices =*/1, &Device, CompileOptionsString.c_str(),
+      0, nullptr, nullptr, nullptr, nullptr);
   LinkPrograms.push_back(Program.get());
 
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
   sycl::detail::pi::PiResult Error =
       Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          Context->getHandleRef(), /*num devices =*/1, &Device,
-          nullptr,LinkPrograms.size(), LinkPrograms.data(),
-          nullptr, nullptr, &LinkedProg);
+          Context->getHandleRef(), /*num devices =*/1, &Device, nullptr,
+          LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr,
+          &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
@@ -2118,8 +2115,9 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
   // TODO: Handle zero sized Device list.
-  std::string_view CompileOptions = applyCompileOptionsFromEnvironment(CompileOptions);
-  std::string CompileOptionsStr (CompileOptions);
+  std::string_view CompileOptions =
+      applyCompileOptionsFromEnvironment(CompileOptions);
+  std::string CompileOptionsStr(CompileOptions);
   appendCompileOptionsFromImage(
       CompileOptionsStr, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
   sycl::detail::pi::PiResult Error =
@@ -2255,27 +2253,27 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
+  std::string_view CompileOpts =
+      applyCompileOptionsFromEnvironment(CompileOpts);
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
 
   SerializedObj SpecConsts = InputImpl->get_spec_const_blob_ref();
 
-   std::string CompileOptsString(CompileOpts);
-   const PluginPtr &Plugin = ContextImpl->getPlugin();
-    appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
-    std::string_view CompileOptsUpdated(CompileOptsString);
-
+  std::string CompileOptsString(CompileOpts);
+  const PluginPtr &Plugin = ContextImpl->getPlugin();
+  appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
+  std::string_view CompileOptsUpdated(CompileOptsString);
 
   // TODO: Unify this code with getBuiltPIProgram
-  auto BuildF = [this, &Context, &Img, &Devs, CompileOptsUpdated,
-                 &InputImpl, SpecConsts,Plugin] {
+  auto BuildF = [this, &Context, &Img, &Devs, CompileOptsUpdated, &InputImpl,
+                 SpecConsts, Plugin] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    //const PluginPtr &Plugin = ContextImpl->getPlugin();
-   /* std::string CompileOptsString(CompileOpts);
-    appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);*/
-   
+    // const PluginPtr &Plugin = ContextImpl->getPlugin();
+    /* std::string CompileOptsString(CompileOpts);
+     appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);*/
+
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
             PI_DEVICE_BINARY_TYPE_SPIRV &&
@@ -2308,7 +2306,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl,CompileOptsUpdated,
+        build(std::move(ProgramManaged), ContextImpl, CompileOptsUpdated,
               getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
@@ -2331,9 +2329,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
-  auto CacheKey =
-      std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                     std::make_pair(PiDevice, CompileOptsUpdated));
+  auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
+                                 std::make_pair(PiDevice, CompileOptsUpdated));
 
   // CacheKey is captured by reference so when we overwrite it later we can
   // reuse this function.
