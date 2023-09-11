@@ -519,10 +519,6 @@ extern __DPCPP_SYCL_EXTERNAL void __assert_fail(const char *expr,
                                                 const char *file,
                                                 unsigned int line,
                                                 const char *func);
-extern __DPCPP_SYCL_EXTERNAL float frexpf(float x, int *exp);
-extern __DPCPP_SYCL_EXTERNAL float ldexpf(float x, int exp);
-extern __DPCPP_SYCL_EXTERNAL float hypotf(float x, float y);
-
 // MS UCRT supports most of the C standard library but <complex.h> is
 // an exception.
 extern __DPCPP_SYCL_EXTERNAL float cimagf(float __complex__ z);

@@ -34,6 +34,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <set>
 
 using namespace clang;
 using namespace std::placeholders;
@@ -66,6 +67,21 @@ static constexpr llvm::StringLiteral InitSpecConstantsBuffer =
 static constexpr llvm::StringLiteral FinalizeMethodName = "__finalize";
 static constexpr llvm::StringLiteral LibstdcxxFailedAssertion =
     "__failed_assertion";
+static std::set<std::string> LibdeviceCmathSet = {
+    "scalbnf",    "scalbn",    "logf",    "log",    "expf",       "exp",
+    "log10f",     "log10",     "modff",   "modf",   "exp2f",      "exp2",
+    "expm1f",     "expm1",     "ilogbf",  "ilogb",  "log1pf",     "log1p",
+    "log2f",      "log2",      "logbf",   "logb",   "sqrtf",      "sqrt",
+    "cbrtf",      "cbrt",      "erff",    "erf",    "erfcf",      "erfc",
+    "tgammaf",    "tgamma",    "lgammaf", "lgamma", "fmodf",      "fmod",
+    "remainderf", "remainder", "remquof", "remquo", "nextafterf", "nextafter",
+    "fdimf",      "fdim",      "fmaf",    "fma",    "sinf",       "sin",
+    "cosf",       "cos",       "tanf",    "tan",    "asinf",      "asin",
+    "acosf",      "acos",      "atanf",   "atan",   "powf",       "pow",
+    "atan2f",     "atan2",     "sinhf",   "sinh",   "coshf",      "cosh",
+    "tanhf",      "tanh",      "asinhf",  "asinh",  "acoshf",     "acosh",
+    "atanhf",     "atanh",     "frexpf",  "frexp",  "ldexpf",     "ldexp",
+    "hypotf",     "hypot"};
 constexpr unsigned MaxKernelArgsSize = 2048;
 
 static bool isSyclType(QualType Ty, SYCLTypeAttr::SYCLType TypeName) {
@@ -491,6 +507,9 @@ static bool isSYCLUndefinedAllowed(const FunctionDecl *Callee,
   // The check below requires declaration name, make sure we have it.
   if (!Callee->getIdentifier())
     return false;
+
+  if (LibdeviceCmathSet.count(Callee->getName().str()))
+    return true;
 
   // libstdc++-11 introduced an undefined function "void __failed_assertion()"
   // which may lead to SemaSYCL check failure. However, this undefined function
