@@ -1,6 +1,5 @@
 // RUN: %clang_cc1 -fsycl-is-host -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST
-// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -fno-gpu-rdc -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEV,CHECK-DEV-NORDC
-// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -fgpu-rdc -emit-llvm %s -o - | FileCheck %s -check-prefixes CHECK-DEV,CHECK-DEV-RDC
+// RUN: %clang_cc1 -fsycl-is-device -sycl-std=2020 -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEV
 
 // This tests
 // - if a dummy __host__ function (returning undef) is generated for every
@@ -64,8 +63,7 @@ __device__ int fun5() { return 5; }
 
 int fun6() { return 7; }
 
-// CHECK-DEV-RDC: define linkonce_odr{{ dso_local | }}noundef i32 @{{.*}}fun6{{.*}}()
-// CHECK-DEV-NORDC: define internal noundef i32 @{{.*}}fun6{{.*}}()
+// CHECK-DEV: define dso_local noundef i32 @{{.*}}fun6{{.*}}()
 // CHECK-DEV: ret i32 7
 
 __attribute((sycl_device)) void test() {
@@ -77,3 +75,4 @@ __attribute((sycl_device)) void test() {
   fun5();
   fun6();
 }
+
