@@ -1153,7 +1153,7 @@ private:
       } catch (sycl::exception &e) {
         id<Dims> Default;
         for (int i = 0; i < Dims; ++i)
-          Default[i] = (std::numeric_limits<int32_t>::max());
+          Default[i] = (std::numeric_limits<int32_t>::max)();
         return Default;
       }
     }();
