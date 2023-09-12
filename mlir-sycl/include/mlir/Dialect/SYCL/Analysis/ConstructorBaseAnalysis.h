@@ -149,8 +149,7 @@ private:
     if (!constructor)
       return false;
 
-    return isa<SYCLType...>(
-        constructor.getType().getValue());
+    return isa<SYCLType...>(constructor.getType().getValue());
   }
 
   template <typename... SYCLType>
