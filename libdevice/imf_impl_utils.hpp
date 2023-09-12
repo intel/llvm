@@ -33,12 +33,26 @@ template <> struct __iml_get_unsigned<long long> {
   using utype = uint64_t;
 };
 
+template <typename Ty> struct __iml_get_double_size_unsigned {};
+template <> struct __iml_get_double_size_unsigned<uint16_t> {
+  using utype = uint32_t;
+};
+
+template <> struct __iml_get_double_size_unsigned<uint32_t> {
+  using utype = uint64_t;
+};
+
+/* template <> struct __iml_get_double_size_unsigned<uint64_t> {
+  using utype = uint64_t;
+};*/
+
 template <typename Ty> struct __iml_fp_config {};
 
 template <> struct __iml_fp_config<float> {
   // signed/unsigned integral type with same size
   using utype = uint32_t;
   using stype = int32_t;
+  const static int32_t bias = 127;
   const static uint32_t exp_mask = 0xFF;
   const static uint32_t fra_mask = 0x7FFFFF;
   const static uint32_t nan_bits = 0x7FC00000;
@@ -51,6 +65,7 @@ template <> struct __iml_fp_config<float> {
 template <> struct __iml_fp_config<double> {
   using utype = uint64_t;
   using stype = int64_t;
+  const static int32_t bias = 1023;
   const static uint64_t exp_mask = 0x7FF;
   const static uint64_t fra_mask = 0xFFFFFFFFFFFFF;
   const static uint64_t nan_bits = 0x7FF8000000000000;
@@ -74,8 +89,7 @@ template <typename Ty> static size_t get_msb_pos(Ty x) {
 }
 
 // Pre-assumption, fra is not all zero bit from bit pos idx - 1 to 0
-template <typename Ty>
-static int get_leading_zeros_from(Ty fra, int idx) {
+template <typename Ty> static int get_leading_zeros_from(Ty fra, int idx) {
   Ty y = static_cast<Ty>(0x1) << (idx - 1);
   for (size_t i = 0; i < idx; ++i) {
     if ((fra & y) == y)

@@ -1900,4 +1900,28 @@ float __devicelib_imf_fsub_rz(float, float);
 
 DEVICE_EXTERN_C_INLINE
 float __imf_fsub_rz(float x, float y) { return __devicelib_imf_fsub_rz(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rd(float x, float y) { return __devicelib_imf_fmul_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rn(float x, float y) { return __devicelib_imf_fmul_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_ru(float x, float y) { return __devicelib_imf_fmul_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rz(float x, float y) { return __devicelib_imf_fmul_rz(x, y); }
 #endif // __LIBDEVICE_IMF_ENABLED__
