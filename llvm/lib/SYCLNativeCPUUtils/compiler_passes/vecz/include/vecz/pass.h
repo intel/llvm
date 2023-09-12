@@ -25,6 +25,7 @@
 #include <llvm/IR/PassManager.h>
 
 #include <cstdint>
+#include <optional>
 
 #include "vecz/vecz_choices.h"
 
@@ -64,6 +65,8 @@ struct VeczPassOptions {
   /// unknown)
   uint64_t local_size;
 };
+
+std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(llvm::Function &);
 
 /// @brief Analysis pass which determines on which functions @ref RunVeczPass
 /// should operate.
