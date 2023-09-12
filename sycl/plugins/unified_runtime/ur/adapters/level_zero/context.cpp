@@ -617,7 +617,6 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
       resetCommandLists(Queue);
     }
   }
-
   auto &CommandBatch =
       UseCopyEngine ? Queue->CopyCommandBatch : Queue->ComputeCommandBatch;
   // Handle batching of commands

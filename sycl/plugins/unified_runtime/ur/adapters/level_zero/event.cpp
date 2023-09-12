@@ -130,6 +130,57 @@ static const bool InOrderBarrierBySignal = [] {
   return (UrRet ? std::atoi(UrRet) : true);
 }();
 
+// If barrier event doesn't have level zero handle then create it and submit
+// commands to the queue to enforce this barrier using its wailist.
+// Queue and input event must be locked by the caller of this function.
+ur_result_t materializeBarrierEventIfNeeded(ur_event_handle_t BarrierEvent) {
+  assert(BarrierEvent->isBarrier());
+  auto Queue = BarrierEvent->UrQueue;
+
+  if (BarrierEvent->ZeEvent)
+    return UR_RESULT_SUCCESS;
+
+  bool ProfilingEnabled =
+      !Queue || (Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+  UR_CALL(CreateZeEventAndZePool(
+      Queue->Context, &BarrierEvent->ZeEvent, &BarrierEvent->ZeEventPool,
+      BarrierEvent->isHostVisible(), ProfilingEnabled));
+
+  // We materialized this event, so we have ownership over the ZeEvent now.
+  BarrierEvent->OwnNativeHandle = true;
+
+  // Get an arbitrary command-list in the queue.
+  ur_command_list_ptr_t CmdList;
+  UR_CALL(Queue->Context->getAvailableCommandList(
+      Queue, CmdList, false /*UseCopyEngine=*/, true /* AllowBatching */));
+
+  BarrierEvent->CommandList = CmdList;
+  CmdList->second.append(BarrierEvent);
+  BarrierEvent->RefCount.increment();
+
+  if (InOrderBarrierBySignal) {
+    if (BarrierEvent->WaitList.Length) {
+      ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                 (CmdList->first, BarrierEvent->WaitList.Length,
+                  BarrierEvent->WaitList.ZeEventList));
+    }
+    ZE2UR_CALL(zeCommandListAppendSignalEvent,
+               (CmdList->first, BarrierEvent->ZeEvent));
+  } else {
+    ZE2UR_CALL(zeCommandListAppendBarrier,
+               (CmdList->first, BarrierEvent->ZeEvent,
+                BarrierEvent->WaitList.Length,
+                BarrierEvent->WaitList.ZeEventList));
+  }
+
+  // Indicator for whether batching is allowed. This may be changed later in
+  // this function, but allow it by default.
+  bool OkToBatch = true;
+  UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
+
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
@@ -213,6 +264,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
     UR_CALL(urEventRetain(Queue->LastCommandEvent));
     *Event = Queue->LastCommandEvent;
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (Queue->isInOrderQueue()) {
+    // Retain the events as they will be owned by the result event.
+    _ur_ze_event_list_t TmpWaitList;
+    UR_CALL(TmpWaitList.createAndRetainUrZeEventList(
+        NumEventsInWaitList, EventWaitList, Queue, false));
+
+    UR_CALL(createEventAndAssociateQueue(
+        Queue, Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER,
+        Queue->CommandListMap.end(), IsInternal, /* EmptyZeEvent*/ true));
+
+    (*Event)->WaitList = TmpWaitList;
+    Queue->LastCommandEvent = *Event;
     return UR_RESULT_SUCCESS;
   }
 
@@ -365,6 +431,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetInfo(
         *PropValueSizeRet ///< [out][optional] bytes returned in event property
 ) {
   UrReturnHelper ReturnValue(PropValueSize, PropValue, PropValueSizeRet);
+
+  if (Event->isBarrier()) {
+    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> QueueLock(
+        Event->UrQueue->Mutex, Event->Mutex);
+    UR_CALL(materializeBarrierEventIfNeeded(Event));
+  }
 
   switch (PropName) {
   case UR_EVENT_INFO_COMMAND_QUEUE: {
@@ -530,7 +602,8 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
         UrQueue, &HostVisibleEvent, UR_EXT_COMMAND_TYPE_USER, CommandList,
-        /* IsInternal */ false, /* HostVisible */ true));
+        /* IsInternal */ false, /* EmptyZeEvent */ false,
+        /* HostVisible */ true));
 
     ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
                (CommandList->first, 1, &ZeEvent));
@@ -551,6 +624,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
                        ///< events to wait for completion
 ) {
   for (uint32_t I = 0; I < NumEvents; I++) {
+    if (EventWaitList[I]->isBarrier()) {
+      std::scoped_lock<ur_shared_mutex, ur_shared_mutex> QueueLock(
+          EventWaitList[I]->UrQueue->Mutex, EventWaitList[I]->Mutex);
+      UR_CALL(materializeBarrierEventIfNeeded(EventWaitList[I]));
+    }
     if (EventWaitList[I]->UrQueue->ZeEventsScope == OnDemandHostVisibleProxy) {
       // Make sure to add all host-visible "proxy" event signals if needed.
       // This ensures that all signalling commands are submitted below and
@@ -640,7 +718,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(
 UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(
     ur_event_handle_t Event ///< [in] handle of the event object
 ) {
-  Event->RefCountExternal--;
+  if (Event->UrQueue) {
+    std::scoped_lock<ur_shared_mutex> QueueLock(Event->UrQueue->Mutex);
+    // If delayed barrier is not last command event in the queue and its
+    // external ref count is zero it can't be materialized, so it's safe to
+    // consider it completed and cleanup.
+    if ((--Event->RefCountExternal == 0) && Event->isDelayedBarrier() &&
+        (Event != Event->UrQueue->LastCommandEvent))
+      UR_CALL(CleanupCompletedEvent(Event, true, true));
+  } else {
+    --Event->RefCountExternal;
+  }
   UR_CALL(urEventReleaseInternal(Event));
 
   return UR_RESULT_SUCCESS;
@@ -651,6 +739,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetNativeHandle(
     ur_native_handle_t
         *NativeEvent ///< [out] a pointer to the native handle of the event.
 ) {
+  if (Event->isBarrier()) {
+    std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(
+        Event->Mutex, Event->UrQueue->Mutex);
+    UR_CALL(materializeBarrierEventIfNeeded(Event));
+  }
+
   {
     std::shared_lock<ur_shared_mutex> Lock(Event->Mutex);
     auto *ZeEvent = ur_cast<ze_event_handle_t *>(NativeEvent);
@@ -676,7 +770,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urExtEventCreate(
     ur_event_handle_t
         *Event ///< [out] pointer to the handle of the event object created.
 ) {
-  UR_CALL(EventCreate(Context, nullptr, true, Event));
+  UR_CALL(EventCreate(Context, nullptr, true, false, Event));
 
   (*Event)->RefCountExternal++;
   ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
@@ -694,7 +788,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
   if (NativeEvent == nullptr) {
-    UR_CALL(EventCreate(Context, nullptr, true, Event));
+    UR_CALL(EventCreate(Context, nullptr, true, false, Event));
 
     (*Event)->RefCountExternal++;
     ZE2UR_CALL(zeEventHostSignal, ((*Event)->ZeEvent));
@@ -955,30 +1049,16 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
   return UR_RESULT_SUCCESS;
 }
 
-// Helper function for creating a PI event.
-// The "Queue" argument specifies the PI queue where a command is submitted.
-// The "HostVisible" argument specifies if event needs to be allocated from
-// a host-visible pool.
-//
-ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool HostVisible, ur_event_handle_t *RetEvent) {
-
-  bool ProfilingEnabled =
-      !Queue || (Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
-
-  if (auto CachedEvent =
-          Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
-    *RetEvent = CachedEvent;
-    return UR_RESULT_SUCCESS;
-  }
-
-  ze_event_handle_t ZeEvent;
-  ze_event_pool_handle_t ZeEventPool = {};
-
+// Helper to create level zero event and pool.
+// HostVisible parameter controls scope of the event.
+ur_result_t CreateZeEventAndZePool(ur_context_handle_t Context,
+                                   ze_event_handle_t *RetZeEvent,
+                                   ze_event_pool_handle_t *RetZeEventPool,
+                                   bool HostVisible, bool ProfilingEnabled) {
   size_t Index = 0;
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
-          ZeEventPool, Index, HostVisible, ProfilingEnabled))
+          *RetZeEventPool, Index, HostVisible, ProfilingEnabled))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
@@ -999,7 +1079,35 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
     ZeEventDesc.signal = 0;
   }
 
-  ZE2UR_CALL(zeEventCreate, (ZeEventPool, &ZeEventDesc, &ZeEvent));
+  ZE2UR_CALL(zeEventCreate, (*RetZeEventPool, &ZeEventDesc, RetZeEvent));
+  return UR_RESULT_SUCCESS;
+}
+
+// Helper function for creating a PI event.
+// The "Queue" argument specifies the PI queue where a command is submitted.
+// The "HostVisible" argument specifies if event needs to be allocated from
+// a host-visible pool.
+//
+ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
+                        bool HostVisible, bool EmptyZeEvent,
+                        ur_event_handle_t *RetEvent) {
+
+  ze_event_handle_t ZeEvent = nullptr;
+  ze_event_pool_handle_t ZeEventPool = {};
+  if (!EmptyZeEvent) {
+    bool ProfilingEnabled =
+        !Queue || (Queue->Properties & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0;
+
+    if (auto CachedEvent =
+            Context->getEventFromContextCache(HostVisible, ProfilingEnabled)) {
+      *RetEvent = CachedEvent;
+      return UR_RESULT_SUCCESS;
+    }
+
+    if (auto Res = CreateZeEventAndZePool(Context, &ZeEvent, &ZeEventPool,
+                                          HostVisible, ProfilingEnabled))
+      return Res;
+  }
 
   try {
     *RetEvent = new ur_event_handle_t_(
@@ -1093,19 +1201,22 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
     IncludeLastCommandEvent = false;
 
   try {
-    uint32_t TmpListLength = 0;
+    auto PutIntoList = [](ur_event_handle_t Event,
+                          std::list<ur_event_handle_t> &List) {
+      if (Event->isDelayedBarrier()) {
+        // If we have a barrier event which encapsulates waitlist then forward
+        // those events.
+        ur_event_handle_t *UrEvents = Event->WaitList.UrEventList;
+        List.insert(List.end(), UrEvents, UrEvents + Event->WaitList.Length);
+      } else {
+        List.push_back(Event);
+      }
+    };
+
+    std::list<ur_event_handle_t> FilteredList;
 
     if (IncludeLastCommandEvent) {
-      this->ZeEventList = new ze_event_handle_t[EventListLength + 1];
-      this->UrEventList = new ur_event_handle_t[EventListLength + 1];
-      std::shared_lock<ur_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
-      this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
-      this->UrEventList[0] = CurQueue->LastCommandEvent;
-      this->UrEventList[0]->RefCount.increment();
-      TmpListLength = 1;
-    } else if (EventListLength > 0) {
-      this->ZeEventList = new ze_event_handle_t[EventListLength];
-      this->UrEventList = new ur_event_handle_t[EventListLength];
+      PutIntoList(CurQueue->LastCommandEvent, FilteredList);
     }
 
     if (EventListLength > 0) {
@@ -1113,6 +1224,11 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         {
           std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
           if (EventList[I]->Completed)
+            continue;
+
+          // If we include last command event then we can skip all events from
+          // the same queue.
+          if (IncludeLastCommandEvent && (EventList[I]->UrQueue == CurQueue))
             continue;
 
           // Poll of the host-visible events.
@@ -1178,17 +1294,23 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
             CurQueue->executeAllOpenCommandLists();
           }
         }
-
-        std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
-        this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
-        this->UrEventList[TmpListLength] = EventList[I];
-        this->UrEventList[TmpListLength]->RefCount.increment();
-        TmpListLength += 1;
+        PutIntoList(EventList[I], FilteredList);
       }
     }
+    this->Length = FilteredList.size();
 
-    this->Length = TmpListLength;
+    if (this->Length > 0) {
+      this->ZeEventList = new ze_event_handle_t[this->Length];
+      this->UrEventList = new ur_event_handle_t[this->Length];
 
+      unsigned I = 0;
+      for (auto &UrEvent : FilteredList) {
+        UrEvent->RefCount.increment();
+        this->ZeEventList[I] = UrEvent->ZeEvent;
+        this->UrEventList[I] = UrEvent;
+        I++;
+      }
+    }
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
   }

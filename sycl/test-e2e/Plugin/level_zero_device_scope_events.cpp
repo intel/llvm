@@ -14,7 +14,7 @@
 // MODE1: ---> piEventsWait(
 // MODE1-NEXT:        <unknown> : 1
 // MODE1: ze_event_pool_desc_t flags set to: 1
-// MODE1: ZE ---> zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent)
+// MODE1: ZE ---> zeEventCreate(*RetZeEventPool, &ZeEventDesc, RetZeEvent)
 // MODE1: ZE ---> zeCommandListAppendWaitOnEvents(CommandList->first, 1, &ZeEvent)
 // MODE1-NEXT: ZE ---> zeCommandListAppendSignalEvent(CommandList->first, HostVisibleEvent->ZeEvent)
 // MODE1: Completed all kernels
@@ -23,7 +23,7 @@
 // creates host-visible event just before command-list submission.
 //
 // MODE2: ze_event_pool_desc_t flags set to: 1
-// MODE2: ZE ---> zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent)
+// MODE2: ZE ---> zeEventCreate(*RetZeEventPool, &ZeEventDesc, RetZeEvent)
 // MODE2: ZE ---> zeCommandListAppendBarrier(CommandList->first, HostVisibleEvent->ZeEvent, 0, nullptr)
 // MODE2: ZE ---> zeCommandListClose(CommandList->first)
 // MODE2: ZE ---> zeCommandQueueExecuteCommandLists(ZeCommandQueue, 1, &ZeCommandList, CommandList->second.ZeFence)

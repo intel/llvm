@@ -291,7 +291,8 @@ static ur_result_t enqueueCommandBufferMemCopyHelper(
                                   SyncPointWaitList, ZeEventList));
 
   ur_event_handle_t LaunchEvent;
-  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  UR_CALL(
+      EventCreate(CommandBuffer->Context, nullptr, true, false, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
   // Get sync point and register the event with it.
@@ -356,7 +357,8 @@ static ur_result_t enqueueCommandBufferMemCopyRectHelper(
                                   SyncPointWaitList, ZeEventList));
 
   ur_event_handle_t LaunchEvent;
-  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  UR_CALL(
+      EventCreate(CommandBuffer->Context, nullptr, true, false, &LaunchEvent));
   LaunchEvent->CommandType = CommandType;
 
   // Get sync point and register the event with it.
@@ -405,8 +407,10 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   // Create signal & wait events to be used in the command-list for sync
   // on command-buffer enqueue.
   auto RetCommandBuffer = *CommandBuffer;
-  UR_CALL(EventCreate(Context, nullptr, true, &RetCommandBuffer->SignalEvent));
-  UR_CALL(EventCreate(Context, nullptr, false, &RetCommandBuffer->WaitEvent));
+  UR_CALL(EventCreate(Context, nullptr, true, false,
+                      &RetCommandBuffer->SignalEvent));
+  UR_CALL(EventCreate(Context, nullptr, false, false,
+                      &RetCommandBuffer->WaitEvent));
 
   // Add prefix commands
   ZE2UR_CALL(zeCommandListAppendEventReset,
@@ -495,7 +499,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
                                   SyncPointWaitList, ZeEventList));
   ur_event_handle_t LaunchEvent;
-  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, true, &LaunchEvent));
+  UR_CALL(
+      EventCreate(CommandBuffer->Context, nullptr, true, false, &LaunchEvent));
   LaunchEvent->CommandType = UR_COMMAND_KERNEL_LAUNCH;
 
   // Get sync point and register the event with it.

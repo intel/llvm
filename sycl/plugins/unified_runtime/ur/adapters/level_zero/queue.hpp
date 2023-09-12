@@ -526,11 +526,10 @@ struct ur_queue_handle_t_ : _ur_object {
 //        plugin only.
 // \param ForceHostVisible tells if the event must be created in
 //        the host-visible pool
-ur_result_t
-createEventAndAssociateQueue(ur_queue_handle_t Queue, ur_event_handle_t *Event,
-                             ur_command_t CommandType,
-                             ur_command_list_ptr_t CommandList, bool IsInternal,
-                             std::optional<bool> HostVisible = std::nullopt);
+ur_result_t createEventAndAssociateQueue(
+    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
+    ur_command_list_ptr_t CommandList, bool IsInternal,
+    bool EmptyZeEvent = false, std::optional<bool> HostVisible = std::nullopt);
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
 // list.

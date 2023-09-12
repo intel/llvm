@@ -28,7 +28,13 @@
 extern "C" {
 ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
-                        bool HostVisible, ur_event_handle_t *RetEvent);
+                        bool HostVisible, bool EmptyZeEvent,
+                        ur_event_handle_t *RetEvent);
+ur_result_t CreateZeEventAndZePool(ur_context_handle_t Context,
+                                   ze_event_handle_t *RetZeEvent,
+                                   ze_event_pool_handle_t *RetZeEventPool,
+                                   bool HostVisible, bool ProfilingEnabled);
+ur_result_t materializeBarrierEventIfNeeded(ur_event_handle_t BarrierEvent);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -148,6 +154,15 @@ struct ur_event_handle_t_ : _ur_object {
     return this ==
            const_cast<const ur_event_handle_t_ *>(
                reinterpret_cast<ur_event_handle_t_ *>(HostVisibleEvent));
+  }
+
+  bool isBarrier() {
+    return CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER;
+  }
+
+  bool isDelayedBarrier() {
+    return CommandType == UR_COMMAND_EVENTS_WAIT_WITH_BARRIER &&
+           ZeEvent == nullptr;
   }
 
   // Provide direct access to Context, instead of going via queue.

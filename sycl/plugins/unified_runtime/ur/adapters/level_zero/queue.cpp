@@ -1124,7 +1124,8 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
         auto Res = createEventAndAssociateQueue(
             reinterpret_cast<ur_queue_handle_t>(this), &HostVisibleEvent,
             UR_EXT_COMMAND_TYPE_USER, CommandList,
-            /* IsInternal */ false, /* HostVisible */ true);
+            /* IsInternal */ false, /* EmptyZeEvent */ false,
+            /* HostVisible */ true);
         if (Res)
           return Res;
 
@@ -1388,7 +1389,7 @@ ur_result_t ur_queue_handle_t_::synchronize() {
                (ImmCmdList->first, zeEvent, 0, nullptr));
     ZE2UR_CALL(zeHostSynchronize, (zeEvent));
     Event->Completed = true;
-    UR_CALL(urEventRelease(Event));
+    UR_CALL(urEventReleaseInternal(Event));
 
     // Cleanup all events from the synced command list.
     CleanupEventListFromResetCmdList(ImmCmdList->second.EventList, true);
@@ -1402,6 +1403,11 @@ ur_result_t ur_queue_handle_t_::synchronize() {
     // zero handle can have device scope, so we can't synchronize the last
     // event.
     if (isInOrderQueue() && !LastCommandEvent->IsDiscarded) {
+      if (LastCommandEvent->isBarrier()) {
+        std::scoped_lock<ur_shared_mutex> Lock(LastCommandEvent->Mutex);
+        UR_CALL(materializeBarrierEventIfNeeded(LastCommandEvent));
+      }
+
       ZE2UR_CALL(zeHostSynchronize, (LastCommandEvent->ZeEvent));
 
       // clean up all events known to have been completed as well,
@@ -1478,9 +1484,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
                                          ur_event_handle_t *Event,
                                          ur_command_t CommandType,
                                          ur_command_list_ptr_t CommandList,
-                                         bool IsInternal,
+                                         bool IsInternal, bool EmptyZeEvent,
                                          std::optional<bool> HostVisible) {
-
   if (!HostVisible.has_value()) {
     // Internal/discarded events do not need host-scope visibility.
     HostVisible = IsInternal ? false : Queue->ZeEventsScope == AllHostVisible;
@@ -1491,7 +1496,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
       IsInternal ? Queue->getEventFromQueueCache(HostVisible.value()) : nullptr;
 
   if (*Event == nullptr)
-    UR_CALL(EventCreate(Queue->Context, Queue, HostVisible.value(), Event));
+    UR_CALL(EventCreate(Queue->Context, Queue, HostVisible.value(),
+                        EmptyZeEvent, Event));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
@@ -1501,7 +1507,9 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // ur_event_handle_t objects. We destroy corresponding ze_event by releasing
   // events from the events cache at queue destruction. Event in the cache owns
   // the Level Zero event.
-  if (IsInternal)
+  // If create UR event doesn't have underlying ze_event_handle_t then we also
+  // indicate that we don't own any native handle.
+  if (IsInternal || EmptyZeEvent)
     (*Event)->OwnNativeHandle = false;
 
   // Append this Event to the CommandList, if any
@@ -1525,6 +1533,9 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   // If the event is internal then don't increment the reference count as this
   // event will not be waited/released by SYCL RT, so it must be destroyed by
   // EventRelease in resetCommandList.
+  // If we have empty ZeEvent then we also don't need to track completion of
+  // such event (because there is no underlying ze_event_handle_t used by any
+  // command) and thus don't bump ref count here.
   if (!IsInternal)
     UR_CALL(urEventRetain(*Event));
 
@@ -1571,7 +1582,8 @@ ur_result_t ur_queue_handle_t_::signalEventFromCmdListIfLastEventDiscarded(
   UR_CALL(createEventAndAssociateQueue(
       reinterpret_cast<ur_queue_handle_t>(this), &Event,
       UR_EXT_COMMAND_TYPE_USER, CommandList,
-      /* IsInternal */ false, /* HostVisible */ false));
+      /* IsInternal */ false, /* EmptyZeEvent */ false,
+      /* HostVisible */ false));
   UR_CALL(urEventReleaseInternal(Event));
   LastCommandEvent = Event;
 
