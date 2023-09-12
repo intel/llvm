@@ -141,6 +141,7 @@ add_sycl_plugin(level_zero
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
     UnifiedMallocFramework
+    UnifiedRuntimeLoader
     LevelZeroLoader
     Threads::Threads
     ${XPTI_LIBS}
