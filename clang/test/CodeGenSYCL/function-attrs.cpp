@@ -3,7 +3,7 @@
 
 int foo();
 
-// CHECK: define dso_local spir_func void @_Z3barv() [[BAR:#[0-9]+]]
+// CHECK: define {{.*}}spir_func void @_Z3barv() [[BAR:#[0-9]+]]
 // CHECK: attributes [[BAR]] =
 // CHECK-SAME: convergent
 // CHECK-SAME: nounwind

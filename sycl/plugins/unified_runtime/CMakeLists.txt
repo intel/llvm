@@ -223,11 +223,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/sampler.hpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
       "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/usm.hpp"
       "ur/adapters/hip/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
       Threads::Threads
   )
 
@@ -235,6 +237,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+
+  if(UMF_ENABLE_POOL_TRACKING)
+    target_compile_definitions("ur_adapter_hip" PRIVATE
+      UMF_ENABLE_POOL_TRACKING)
+  else()
+    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+  endif()
 
   if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
