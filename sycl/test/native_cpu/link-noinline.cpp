@@ -25,7 +25,7 @@ __attribute__((noinline)) int get_val() {
 
 int main() {
   const size_t N = 4;
-  std::array<int, N>  C{{0, 0, 0, 0}};
+  std::array<int, N> C{{0, 0, 0, 0}};
   sycl::queue deviceQueue;
   sycl::range<1> numOfItems{N};
   sycl::buffer<int, 1> bufferC(C.data(), numOfItems);
@@ -34,9 +34,7 @@ int main() {
       .submit([&](sycl::handler &cgh) {
         auto accessorC = bufferC.get_access<sycl_write>(cgh);
 
-        auto kern = [=](sycl::id<1> wiID) {
-          accessorC[wiID] = get_val();
-        };
+        auto kern = [=](sycl::id<1> wiID) { accessorC[wiID] = get_val(); };
         cgh.parallel_for<class SimpleVadd>(numOfItems, kern);
       })
       .wait();
@@ -51,4 +49,3 @@ int main() {
   std::cout << "The results are correct!\n";
   return 0;
 }
-

@@ -26,19 +26,19 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
-void buildCalledSet(Function* F, std::set<Function*> &CalledSet) {
+void buildCalledSet(Function *F, std::set<Function *> &CalledSet) {
   // skip SPIRV builtins and LLVM intrinsics
-  if(isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
+  if (isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
     return;
   auto Inserted = CalledSet.insert(F);
-  if(!Inserted.second)
+  if (!Inserted.second)
     return;
 
-  for(auto& BB : *F) {
-    for(auto& I : BB) {
-      if(auto *CBI = dyn_cast<CallBase>(&I)) {
+  for (auto &BB : *F) {
+    for (auto &I : BB) {
+      if (auto *CBI = dyn_cast<CallBase>(&I)) {
         auto *Called = CBI->getCalledOperand();
-        if(auto *CalledF = dyn_cast<Function>(Called)) {
+        if (auto *CalledF = dyn_cast<Function>(Called)) {
           buildCalledSet(CalledF, CalledSet);
         }
       }
@@ -49,16 +49,17 @@ void buildCalledSet(Function* F, std::set<Function*> &CalledSet) {
 PreservedAnalyses
 RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
-  std::set<Function*> Called;
-  // Rename functions with sycl-module-id attr and built the set of functions called by them
+  std::set<Function *> Called;
+  // Rename functions with sycl-module-id attr and built the set of functions
+  // called by them
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       buildCalledSet(&F, Called);
     }
   }
-  for(auto& F : Called) {
-      F->setName(sycl::utils::addSYCLNativeCPUSuffix(F->getName()));
-      ModuleChanged |= true;
+  for (auto &F : Called) {
+    F->setName(sycl::utils::addSYCLNativeCPUSuffix(F->getName()));
+    ModuleChanged |= true;
   }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }

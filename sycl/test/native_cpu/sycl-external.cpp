@@ -10,8 +10,8 @@
 // static library.
 // RaUN: rm -f %t.a
 // RaUN: llvm-ar crv %t.a %t1.o
-// RaUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o -foffload-static-lib=%t.a -o %t.exe
-// RaUN: %{run} %t.exe
+// RaUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o
+// -foffload-static-lib=%t.a -o %t.exe RaUN: %{run} %t.exe
 
 #include <iostream>
 #include <sycl/sycl.hpp>
@@ -22,9 +22,8 @@ int bar(int b);
 SYCL_EXTERNAL
 int foo(int a) { return bar(a); }
 
-
-__attribute((noinline)) int bar(int b) { 
-#ifdef __SYCL_DEVICE_ONLY__ 
+__attribute((noinline)) int bar(int b) {
+#ifdef __SYCL_DEVICE_ONLY__
   return 1;
 #else
   return 0;
