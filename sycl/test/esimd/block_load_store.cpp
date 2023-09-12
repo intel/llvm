@@ -1,4 +1,4 @@
-// RUN: not %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
+// RUN: not %clangxx -fsycl -fsyntax-only -Wno-unused-command-line-argument %s 2>&1 | FileCheck %s --implicit-check-not="warning:" --implicit-check-not="error:"
 
 // This test checks that block_load/store API gets successfully compiled.
 
