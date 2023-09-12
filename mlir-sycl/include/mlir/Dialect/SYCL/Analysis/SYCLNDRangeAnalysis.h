@@ -70,9 +70,6 @@ public:
   getNDRangeInformationFromConstruction(Operation *op, Value operand);
 
   template <typename SYCLType>
-  bool isConstructorImpl(const polygeist::Definition &def);
-
-  template <typename SYCLType>
   NDRangeInformation getInformationImpl(const polygeist::Definition &def);
 
 private:

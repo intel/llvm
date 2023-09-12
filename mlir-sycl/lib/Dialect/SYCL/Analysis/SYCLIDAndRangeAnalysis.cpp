@@ -127,25 +127,11 @@ static std::optional<int> getConstantUInt(Value v) {
 // SYCLIDAndRangeAnalysis
 //===----------------------------------------------------------------------===//
 
-template <typename Type>
+template <typename Type, typename>
 std::optional<IDRangeInformation>
 SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
                                                               Value operand) {
   return getInformationFromConstruction<Type>(op, operand);
-}
-
-template <typename Type>
-bool SYCLIDAndRangeAnalysis::isConstructorImpl(
-    const polygeist::Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  // NOTE: This could be extended to also handle `SYCLConstructorOp`.
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<Type>(constructor.getType().getValue());
 }
 
 template <typename IDRange>

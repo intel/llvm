@@ -71,14 +71,12 @@ public:
   using ConstructorBaseAnalysis<SYCLIDAndRangeAnalysis,
                                 IDRangeInformation>::ConstructorBaseAnalysis;
 
-  template <typename Type>
+  template <typename Type, typename = std::enable_if_t<llvm::is_one_of<
+                               Type, sycl::IDType, sycl::RangeType>::value>>
   std::optional<IDRangeInformation>
   getIDRangeInformationFromConstruction(Operation *op, Value operand);
 
   void finalizeInitialization(bool){};
-
-  template <typename IDRange>
-  bool isConstructorImpl(const polygeist::Definition &def);
 
   template <typename IDRange>
   IDRangeInformation getInformationImpl(const polygeist::Definition &def);

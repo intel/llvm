@@ -130,20 +130,6 @@ SYCLNDRangeAnalysis::getNDRangeInformationFromConstruction(Operation *op,
 }
 
 template <>
-bool SYCLNDRangeAnalysis::isConstructorImpl<sycl::NdRangeType>(
-    const polygeist::Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  // NOTE: This could be extended to also handle `SYCLConstructorOp`.
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<sycl::NdRangeType>(constructor.getType().getValue());
-}
-
-template <>
 NDRangeInformation SYCLNDRangeAnalysis::getInformationImpl<sycl::NdRangeType>(
     const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");

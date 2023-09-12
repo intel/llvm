@@ -37,7 +37,7 @@ class BufferInformation {
 public:
   BufferInformation();
 
-  BufferInformation(ArrayRef<size_t> constRange, SubBufferLattice IsSubBuffer,
+  BufferInformation(ArrayRef<size_t> constRange, SubBufferLattice isSubBuffer,
                     Value baseBuffer, ArrayRef<size_t> constBaseBufferSize,
                     ArrayRef<size_t> constSubBufferOffset);
 
@@ -119,9 +119,6 @@ public:
 
   std::optional<BufferInformation>
   getBufferInformationFromConstruction(Operation *op, Value operand);
-
-  template <typename SYCLType>
-  bool isConstructorImpl(const polygeist::Definition &def);
 
   template <typename SYCLType>
   BufferInformation getInformationImpl(const polygeist::Definition &def);

@@ -142,19 +142,6 @@ SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
 }
 
 template <>
-bool SYCLBufferAnalysis::isConstructorImpl<sycl::BufferType>(
-    const polygeist::Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<sycl::BufferType>(constructor.getType().getValue());
-}
-
-template <>
 BufferInformation SYCLBufferAnalysis::getInformationImpl<sycl::BufferType>(
     const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");

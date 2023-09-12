@@ -14,10 +14,11 @@
 #ifndef MLIR_DIALECT_SYCL_ANALYSIS_CONSTRUCTORBASEANALYSIS_H
 #define MLIR_DIALECT_SYCL_ANALYSIS_CONSTRUCTORBASEANALYSIS_H
 
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/LLVMIR/LLVMTypes.h"
 #include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
@@ -71,7 +72,7 @@ public:
       : operation{op}, am{mgr}, solver{nullptr}, aliasAnalysis{nullptr} {}
 
 protected:
-  template <typename SYCLType>
+  template <typename... SYCLType>
   std::optional<AnalysisResult> getInformationFromConstruction(Operation *op,
                                                                Value operand) {
     assert(initialized &&
@@ -89,14 +90,14 @@ protected:
       return std::nullopt;
 
     if (!llvm::all_of(*mods, [&](const polygeist::Definition &def) {
-          return isConstructor<SYCLType>(def);
+          return isConstructor<SYCLType...>(def);
         }))
       return std::nullopt;
 
     auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
     if (pMods) {
       if (!llvm::all_of(*pMods, [&](const polygeist::Definition &def) {
-            return isConstructor<SYCLType>(def);
+            return isConstructor<SYCLType...>(def);
           }))
         return std::nullopt;
     }
@@ -104,21 +105,21 @@ protected:
     bool first = true;
     AnalysisResult info;
     for (const polygeist::Definition &def : *mods) {
-      if (first) {
-        info = getInformation<SYCLType>(def);
-        first = false;
-      } else {
-        info = info.join(getInformation<SYCLType>(def), *aliasAnalysis);
-        if (info.isTop())
-          // Early return: As soon as joining the different information has
-          // reached the top of the lattice, we can end processing.
-          return info;
-      }
+      if (first)
+        info = getInformation<SYCLType...>(def);
+      else
+        info = info.join(getInformation<SYCLType...>(def), *aliasAnalysis);
+
+      first = false;
+      if (info.isTop())
+        // Early return: As soon as joining the different information has
+        // reached the top of the lattice, we can end processing.
+        return info;
     }
 
     if (pMods) {
       for (const polygeist::Definition &def : *pMods) {
-        info = info.join(getInformation<SYCLType>(def), *aliasAnalysis);
+        info = info.join(getInformation<SYCLType...>(def), *aliasAnalysis);
         if (info.isTop())
           // Early return: As soon as joining the different information has
           // reached the top of the lattice, we can end processing.
@@ -138,16 +139,24 @@ protected:
   mlir::AliasAnalysis *aliasAnalysis;
 
 private:
-  template <typename SYCLType>
+  template <typename... SYCLType>
   bool isConstructor(const polygeist::Definition &def) {
-    return static_cast<ConcreteAnalysis *>(this)
-        ->template isConstructorImpl<SYCLType>(def);
+    if (!def.isOperation())
+      return false;
+
+    auto constructor =
+        dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
+    if (!constructor)
+      return false;
+
+    return isa<SYCLType...>(
+        constructor.getType().getValue());
   }
 
-  template <typename SYCLType>
+  template <typename... SYCLType>
   AnalysisResult getInformation(const polygeist::Definition &def) {
     return static_cast<ConcreteAnalysis *>(this)
-        ->template getInformationImpl<SYCLType>(def);
+        ->template getInformationImpl<SYCLType...>(def);
   }
 
   bool initialized = false;

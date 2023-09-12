@@ -128,17 +128,14 @@ class SYCLAccessorAnalysis
     : public ConstructorBaseAnalysis<SYCLAccessorAnalysis,
                                      AccessorInformation> {
 public:
-  SYCLAccessorAnalysis(Operation *op, AnalysisManager &am);
+  SYCLAccessorAnalysis(Operation *op, AnalysisManager &mgr);
 
   void finalizeInitialization(bool useRelaxedAliasing = false);
 
   std::optional<AccessorInformation>
   getAccessorInformationFromConstruction(Operation *op, Value operand);
 
-  template <typename SYCLType>
-  bool isConstructorImpl(const polygeist::Definition &def);
-
-  template <typename SYCLType>
+  template <typename... SYCLType>
   AccessorInformation getInformationImpl(const polygeist::Definition &def);
 
 private:

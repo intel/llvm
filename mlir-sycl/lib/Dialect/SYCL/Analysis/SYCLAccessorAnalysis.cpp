@@ -267,26 +267,14 @@ void SYCLAccessorAnalysis::finalizeInitialization(bool useRelaxedAliasing) {
 std::optional<AccessorInformation>
 SYCLAccessorAnalysis::getAccessorInformationFromConstruction(Operation *op,
                                                              Value operand) {
-  return getInformationFromConstruction<sycl::AccessorType>(op, operand);
-}
-
-template <>
-bool SYCLAccessorAnalysis::isConstructorImpl<sycl::AccessorType>(
-    const polygeist::Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<sycl::AccessorType, sycl::LocalAccessorType>(
-      constructor.getType().getValue());
+  return getInformationFromConstruction<sycl::AccessorType,
+                                        sycl::LocalAccessorType>(op, operand);
 }
 
 template <>
 AccessorInformation
-SYCLAccessorAnalysis::getInformationImpl<sycl::AccessorType>(
+SYCLAccessorAnalysis::getInformationImpl<sycl::AccessorType,
+                                         sycl::LocalAccessorType>(
     const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
