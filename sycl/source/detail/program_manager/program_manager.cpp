@@ -569,14 +569,8 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
-  // auto begin = std::chrono::steady_clock::now();
+  
   CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
-  // auto end = std::chrono::steady_clock::now();
-  //  Timing instrumentation just to see if this part got faster.
-  //  Obviously don't keep in production.
-  // std::cout <<
-  // std::chrono::duration_cast<std::chrono::nanoseconds>(end-begin).count() <<
-  // "ns\n";
 
   SerializedObj SpecConsts;
   if (Prg)
@@ -612,13 +606,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   std::string CompileOptsString;
   if (!CompileOpts.empty())
     CompileOptsString = std::string(CompileOpts);
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
-  appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
-  std::string_view CompileOptsupdated(CompileOptsString);
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg,
-                 CompileOptsupdated, SpecConsts] {
+                &CompileOptsString, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
+    appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
+    std::string_view CompileOptsupdated(CompileOptsString);
 
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
         Img, Context, Device, CompileOptsupdated, SpecConsts);
@@ -666,9 +659,10 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   };
 
   uint32_t ImgId = Img.getImageID();
+  std::string_view CompileOptsUpdated = CompileOptsString.empty()? CompileOpts: std::string_view(CompileOptsString);
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::make_pair(PiDevice, CompileOptsupdated));
+                                 std::make_pair(PiDevice, CompileOptsUpdated));
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
@@ -2267,17 +2261,15 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   std::string CompileOptsString;
   if (!CompileOpts.empty())
     CompileOptsString = std::string(CompileOpts);
-  const PluginPtr &Plugin = ContextImpl->getPlugin();
-  appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
-  std::string_view CompileOptsUpdated(CompileOptsString);
-
+ 
   // TODO: Unify this code with getBuiltPIProgram
-  auto BuildF = [this, &Context, &Img, &Devs, CompileOptsUpdated, &InputImpl,
-                 SpecConsts, Plugin] {
+  
+  auto BuildF = [this, &Context, &Img, &Devs, CompileOpts, &InputImpl,
+                 SpecConsts,&CompileOptsString] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-    // const PluginPtr &Plugin = ContextImpl->getPlugin();
-    /* std::string CompileOptsString(CompileOpts);
-     appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);*/
+     const PluginPtr &Plugin = ContextImpl->getPlugin();
+     appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
+     std::string_view CompileOptsUpdated(CompileOptsString);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2331,6 +2323,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
+  std::string_view CompileOptsUpdated = CompileOptsString.empty()? CompileOpts: std::string_view(CompileOptsString);
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
@@ -2355,6 +2348,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // Cache supports key with once device only, but here we have multiple
   // devices a program is built for, so add the program to the cache for all
   // other devices.
+  const PluginPtr &Plugin = ContextImpl->getPlugin();
   auto CacheOtherDevices = [ResProgram, &Plugin]() {
     Plugin->call<PiApiKind::piProgramRetain>(ResProgram);
     return ResProgram;
