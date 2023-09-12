@@ -23,6 +23,7 @@ struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <int Dimensions> class root_group;
 template <typename ParentGroup> class tangle_group;
 class opportunistic_group;
 } // namespace experimental
@@ -50,6 +51,11 @@ GetMultiPtrDecoratedAs(multi_ptr<FromT, Space, IsDecorated> MPtr) {
 namespace spirv {
 
 template <typename Group> struct group_scope {};
+
+template <int Dimensions>
+struct group_scope<sycl::ext::oneapi::experimental::root_group<Dimensions>> {
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
+};
 
 template <int Dimensions> struct group_scope<group<Dimensions>> {
   static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
