@@ -39,7 +39,7 @@ protected:
       // should be implemented in memory outside the datapath.
       [[__sycl_detail__::add_ir_annotations_member(
           "sycl-resource", oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
-          "", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
+          "DEFAULT", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
       ;
 
@@ -97,10 +97,15 @@ using properties_t = oneapi_exp::detail::properties_t<Props...>;
 
 // Empty property list specialization
 template <typename T, typename PropertyListT = oneapi_exp::detail::empty_properties_t>
-class fpga_mem
+class 
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          "sycl-resource", "DEFAULT")]]
+#endif
+fpga_mem
     : public detail::fpga_mem_base<T> {
 
-    using property_list_t = decltype(oneapi_exp::properties());
+    using property_list_t = oneapi_exp::detail::empty_properties_t;
 
   // Inherits the base class' constructors
   using detail::fpga_mem_base<T>::fpga_mem_base;
@@ -118,9 +123,9 @@ public:
 template <typename T, typename... Props>
 class
 #ifdef __SYCL_DEVICE_ONLY__
-      [[__sycl_detail__::aadd_ir_attributes_global_variable(
+      [[__sycl_detail__::add_ir_attributes_global_variable(
           "sycl-resource", oneapi_exp::detail::PropertyMetaInfo<Props>::name...,
-          "", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
+          "DEFAULT", oneapi_exp::detail::PropertyMetaInfo<Props>::value...)]]
 #endif
 fpga_mem<T, properties_t<Props...>>
     : public detail::fpga_mem_base<T, Props...> {
