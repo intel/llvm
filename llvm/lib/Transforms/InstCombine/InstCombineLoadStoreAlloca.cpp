@@ -404,14 +404,8 @@ void PointerReplacer::replace(Instruction *I) {
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewT = PointerType::get(BC->getType()->getContext(),
                                   V->getType()->getPointerAddressSpace());
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-    auto *NewT = PointerType::getWithSamePointeeType(
-        cast<PointerType>(BC->getType()),
-        V->getType()->getPointerAddressSpace());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewI = new BitCastInst(V, NewT);
     IC.InsertNewInstWith(NewI, *BC);
     NewI->takeName(BC);
@@ -583,22 +577,9 @@ LoadInst *InstCombinerImpl::combineLoadToNewType(LoadInst &LI, Type *NewTy,
   assert((!LI.isAtomic() || isSupportedAtomicType(NewTy)) &&
          "can't fold an atomic load to requested type");
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   LoadInst *NewLoad =
       Builder.CreateAlignedLoad(NewTy, LI.getPointerOperand(), LI.getAlign(),
                                 LI.isVolatile(), LI.getName() + Suffix);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = LI.getPointerOperand();
-  unsigned AS = LI.getPointerAddressSpace();
-  Type *NewPtrTy = NewTy->getPointerTo(AS);
-  Value *NewPtr = nullptr;
-  if (!(match(Ptr, m_BitCast(m_Value(NewPtr))) &&
-        NewPtr->getType() == NewPtrTy))
-    NewPtr = Builder.CreateBitCast(Ptr, NewPtrTy);
-
-  LoadInst *NewLoad = Builder.CreateAlignedLoad(
-      NewTy, NewPtr, LI.getAlign(), LI.isVolatile(), LI.getName() + Suffix);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   NewLoad->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
   copyMetadataForLoad(*NewLoad, LI);
@@ -614,20 +595,11 @@ static StoreInst *combineStoreToNewValue(InstCombinerImpl &IC, StoreInst &SI,
          "can't fold an atomic store of requested type");
 
   Value *Ptr = SI.getPointerOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  unsigned AS = SI.getPointerAddressSpace();
-#endif
   SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
   SI.getAllMetadata(MD);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   StoreInst *NewStore =
       IC.Builder.CreateAlignedStore(V, Ptr, SI.getAlign(), SI.isVolatile());
-#else
-  StoreInst *NewStore = IC.Builder.CreateAlignedStore(
-      V, IC.Builder.CreateBitCast(Ptr, V->getType()->getPointerTo(AS)),
-      SI.getAlign(), SI.isVolatile());
-#endif
   NewStore->setAtomic(SI.getOrdering(), SI.getSyncScopeID());
   for (const auto &MDPair : MD) {
     unsigned ID = MDPair.first;

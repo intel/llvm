@@ -204,6 +204,8 @@ def m_x86_Features_Group : OptionGroup<"<x86 features group>">,
                            DocName<"X86">;
 def m_riscv_Features_Group : OptionGroup<"<riscv features group>">,
                              Group<m_Group>, DocName<"RISC-V">;
+def m_ve_Features_Group : OptionGroup<"<ve features group>">,
+                          Group<m_Group>, DocName<"VE">;
 
 def m_libc_Group : OptionGroup<"<m libc group>">, Group<m_mips_Features_Group>,
                    Flags<[HelpHidden]>;
@@ -276,12 +278,6 @@ def : Flag<["-"], "fno-slp-vectorize-aggressive">, Group<clang_ignored_legacy_op
 // Retired with clang-10.0. Previously controlled X86 MPX ISA.
 def mmpx : Flag<["-"], "mmpx">, Group<clang_ignored_legacy_options_Group>;
 def mno_mpx : Flag<["-"], "mno-mpx">, Group<clang_ignored_legacy_options_Group>;
-
-// Retired with clang-16.0, to provide a deprecation period; it should
-// be removed in Clang 18 or later.
-def enable_trivial_var_init_zero : Flag<["-"], "enable-trivial-auto-var-init-zero-knowing-it-will-be-removed-from-clang">,
-  Flags<[NoArgumentUnused]>, Visibility<[ClangOption, CC1Option, CLOption]>,
-  Group<clang_ignored_legacy_options_Group>;
 
 // Group that ignores all gcc optimizations that won't be implemented
 def clang_ignored_gcc_optimization_f_Group : OptionGroup<
@@ -1522,6 +1518,17 @@ defm autolink : BoolFOption<"autolink",
   NegFlag<SetFalse, [], [ClangOption, CC1Option],
           "Disable generation of linker directives for automatic library linking">,
   PosFlag<SetTrue>>;
+
+let Flags = [TargetSpecific] in {
+defm auto_import : BoolFOption<"auto-import",
+  CodeGenOpts<"AutoImport">, DefaultTrue,
+  NegFlag<SetFalse, [], [ClangOption, CC1Option],
+          "MinGW specific. Disable support for automatic dllimport in code generation "
+          "and linking">,
+  PosFlag<SetTrue, [], [], "MinGW specific. Enable code generation support for "
+          "automatic dllimport, and enable support for it in the linker. "
+          "Enabled by default.">>;
+} // let Flags = [TargetSpecific]
 
 // In the future this option will be supported by other offloading
 // languages and accept other values such as CPU/GPU architectures,
@@ -6064,10 +6071,17 @@ def mretpoline_external_thunk : Flag<["-"], "mretpoline-external-thunk">, Group<
 def mno_retpoline_external_thunk : Flag<["-"], "mno-retpoline-external-thunk">, Group<m_x86_Features_Group>;
 def mvzeroupper : Flag<["-"], "mvzeroupper">, Group<m_x86_Features_Group>;
 def mno_vzeroupper : Flag<["-"], "mno-vzeroupper">, Group<m_x86_Features_Group>;
-def mno_gather : Flag<["-"], "mno-gather">, Group<m_x86_Features_Group>,
+def mno_gather : Flag<["-"], "mno-gather">, Group<m_Group>,
                  HelpText<"Disable generation of gather instructions in auto-vectorization(x86 only)">;
-def mno_scatter : Flag<["-"], "mno-scatter">, Group<m_x86_Features_Group>,
+def mno_scatter : Flag<["-"], "mno-scatter">, Group<m_Group>,
                   HelpText<"Disable generation of scatter instructions in auto-vectorization(x86 only)">;
+} // let Flags = [TargetSpecific]
+
+// VE feature flags
+let Flags = [TargetSpecific] in {
+def mvevpu : Flag<["-"], "mvevpu">, Group<m_ve_Features_Group>,
+  HelpText<"Emit VPU instructions for VE">;
+def mno_vevpu : Flag<["-"], "mno-vevpu">, Group<m_ve_Features_Group>;
 } // let Flags = [TargetSpecific]
 
 // These are legacy user-facing driver-level option spellings. They are always

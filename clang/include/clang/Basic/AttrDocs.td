@@ -3427,13 +3427,13 @@ This attribute applies to a loop. Places a maximum limit N on the number of
 interleaved invocations of an inner loop by an outer loop (note, this does not
 mean that this attribute can only be applied to inner loops in user code - outer
 loops in user code may still be contained in an implicit loop due to NDRange).
-Parameter N is mandatory, and shall be non-negative integer.
+Parameter N is mandatory, and may either be 0, or 1.
 
 .. code-block:: c++
 
   void foo() {
     int a[10];
-    [[intel::max_interleaving(4)]] for (int i = 0; i != 10; ++i) a[i] = 0;
+    [[intel::max_interleaving(1)]] for (int i = 0; i != 10; ++i) a[i] = 0;
   }
 
   template<int N>

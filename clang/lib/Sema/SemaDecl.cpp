@@ -1995,7 +1995,7 @@ static bool ShouldDiagnoseUnusedDecl(const LangOptions &LangOpts,
       return false;
   } else if (!D->getDeclName()) {
     return false;
-  } else if (D->isReferenced() || (!isa<VarDecl>(D) && D->isUsed())) {
+  } else if (D->isReferenced() || D->isUsed()) {
     return false;
   }
 
@@ -12061,7 +12061,7 @@ bool Sema::CheckFunctionDeclaration(Scope *S, FunctionDecl *NewFD,
       // struct B { struct Y { ~Y(); }; using X = Y; };
       // template struct A<B>;
       if (NewFD->getFriendObjectKind() == Decl::FriendObjectKind::FOK_None ||
-          !Destructor->getThisType()->isDependentType()) {
+          !Destructor->getThisObjectType()->isDependentType()) {
         CXXRecordDecl *Record = Destructor->getParent();
         QualType ClassType = Context.getTypeDeclType(Record);
 
@@ -15487,6 +15487,10 @@ LambdaScopeInfo *Sema::RebuildLambdaScopeInfo(CXXMethodDecl *CallOperator) {
   LSI->CallOperator = CallOperator;
   LSI->Lambda = LambdaClass;
   LSI->ReturnType = CallOperator->getReturnType();
+  // This function in calls in situation where the context of the call operator
+  // is not entered, so we set AfterParameterList to false, so that
+  // `tryCaptureVariable` finds explicit captures in the appropriate context.
+  LSI->AfterParameterList = false;
   const LambdaCaptureDefault LCD = LambdaClass->getLambdaCaptureDefault();
 
   if (LCD == LCD_None)

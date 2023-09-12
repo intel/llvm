@@ -26,19 +26,28 @@ struct util {
     std::default_random_engine generator;
     generator.seed(seed);
     auto distribution = [&]() {
-      if constexpr (std::is_same_v<DType, sycl::half>) {
-        return std::uniform_real_distribution<double>(0.0, 100.0);
-      } else if constexpr (std::is_floating_point_v<DType>) {
-        return std::uniform_real_distribution<DType>(0.0, 100.0);
+      auto distr_t_zero = []() {
+        if constexpr (std::is_same_v<DType, sycl::half>) {
+          return float{};
+        } else if constexpr (sizeof(DType) == 1) {
+          return int{};
+        } else {
+          return DType{};
+        }
+      }();
+      using distr_t = decltype(distr_t_zero);
+      if constexpr (std::is_floating_point_v<distr_t>) {
+        return std::uniform_real_distribution(distr_t_zero,
+                                              static_cast<distr_t>(100));
       } else {
-        return std::uniform_int_distribution<DType>(0, 100);
+        return std::uniform_int_distribution<distr_t>(distr_t_zero, 100);
       }
     }();
     for (int i = 0; i < v.size(); ++i) {
       sycl::vec<DType, NChannels> temp;
 
       for (int j = 0; j < NChannels; j++) {
-        temp[j] = distribution(generator);
+        temp[j] = static_cast<DType>(distribution(generator));
       }
 
       v[i] = temp;

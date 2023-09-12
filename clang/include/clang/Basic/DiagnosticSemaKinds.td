@@ -10293,7 +10293,7 @@ def err_disallowed_duplicate_attribute : Error<
 
 def err_disallow_attribute_on_func : Error<
   "attribute %0 cannot be applied to a "
-  "%select{virtual, overridden, or final|defaulted|deleted}1 function">;
+  "%select{defaulted|deleted}1 function">;
 
 def warn_sync_fetch_and_nand_semantics_change : Warning<
   "the semantics of this intrinsic changed with GCC "
@@ -12092,6 +12092,8 @@ def err_sycl_add_ir_attribute_invalid_filter : Error<
 def warn_sycl_old_and_new_kernel_attributes : Warning<
   "kernel has both attribute %0 and kernel properties; conflicting properties "
   "are ignored">, InGroup<IgnoredAttributes>;
+def err_attribute_argument_is_not_valid : Error<
+  "%0 attribute requires integer constant value 0 or 1">;
 
 // errors of expect.with.probability
 def err_probability_not_constant_float : Error<
