@@ -63,6 +63,7 @@ function(add_ur_target_compile_options name)
             -fPIC
             -Wall
             -Wpedantic
+            -Wempty-body
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
