@@ -739,6 +739,25 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
     std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
+  case PI_EXT_INTEL_DEVICE_INFO_ESIMD_SUPPORT: {
+    bool result = false;
+    if (paramValueSize < sizeof(result))
+      return PI_ERROR_INVALID_VALUE;
+    cl_device_type devType = CL_DEVICE_TYPE_DEFAULT;
+    cl_int res = clGetDeviceInfo(cast<cl_device_id>(device), CL_DEVICE_TYPE,
+                                 sizeof(cl_device_type), &devType, nullptr);
+    if (res != CL_SUCCESS)
+      return static_cast<pi_result>(res);
+
+    pi_uint32 vendorId = 0;
+    res = clGetDeviceInfo(cast<cl_device_id>(device), PI_DEVICE_INFO_VENDOR_ID,
+                          sizeof(vendorId), &vendorId, nullptr);
+    if (res != CL_SUCCESS)
+      return static_cast<pi_result>(res);
+    result = devType == CL_DEVICE_TYPE_GPU && vendorId == 0x8086;
+    std::memcpy(paramValue, &result, sizeof(result));
+    return PI_SUCCESS;
+  }
   default:
     cl_int result = clGetDeviceInfo(
         cast<cl_device_id>(device), cast<cl_device_info>(paramName),
