@@ -1,4 +1,4 @@
-// RUN: polygeist-opt -test-nd-range-analysis %s 2>&1 | FileCheck %s
+// RUN: sycl-mlir-opt -test-nd-range-analysis %s 2>&1 | FileCheck %s
 
 !sycl_id_1_ = !sycl.id<[1], (i64)>
 !sycl_id_2_ = !sycl.id<[2], (i64)>
