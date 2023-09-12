@@ -369,7 +369,6 @@ public:
 //     for (auto y = it[1]; y < UserRange[1]; y += it.get_range(1))
 //       for (auto x = it[0]; x < UserRange[0]; x += it.get_range(0))
 //         KernelFunc({x,y,z});
-
 template <typename TransformedArgType, int Dims, typename KernelType>
 class RoundedRangeKernel {
 public:
