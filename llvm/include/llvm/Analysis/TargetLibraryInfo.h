@@ -110,7 +110,8 @@ public:
     LIBMVEC_X86,      // GLIBC Vector Math library.
     MASSV,            // IBM MASS vector library.
     SVML,             // Intel short vector math library.
-    SLEEFGNUABI       // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    SLEEFGNUABI, // SLEEF - SIMD Library for Evaluating Elementary Functions.
+    ArmPL        // Arm Performance Libraries.
   };
 
   /// List of known alternate math libraries.
@@ -122,8 +123,9 @@ public:
   /// and then used by addAltMathFunctionsFromLib for populating the tables of
   /// math function implementations.
   enum AltMathLibrary {
-    NoAltMathLibrary,  // Don't use any alternate math library
-    TestAltMathLibrary // Use a fake alternate math library for testing
+    NoAltMathLibrary,   // Don't use any alternate math library
+    SVMLAltMathLibrary, // Intel SVML Library
+    TestAltMathLibrary  // Use a fake alternate math library for testing
   };
 
   TargetLibraryInfoImpl();

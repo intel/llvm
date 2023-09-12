@@ -375,6 +375,12 @@ enabled sub-projects. Nearly all of these variable names begin with
   will limit code coverage summaries to just the listed directories. If unset,
   coverage reports will include all sources identified by the tooling.
 
+ **LLVM_INDIVIDUAL_TEST_COVERAGE**: BOOL
+  Enable individual test case coverage. When set to ON, code coverage data for
+  each test case will be generated and stored in a separate directory under the
+  config.test_exec_root path. This feature allows code coverage analysis of each
+  individual test case. Defaults to OFF.
+
 **LLVM_BUILD_LLVM_DYLIB**:BOOL
   If enabled, the target for building the libLLVM shared library is added.
   This library contains all of LLVM's components in a single shared library.
@@ -594,9 +600,15 @@ enabled sub-projects. Nearly all of these variable names begin with
   If enabled, the Z3 constraint solver is activated for the Clang static analyzer.
   A recent version of the z3 library needs to be available on the system.
 
-**LLVM_ENABLE_ZLIB**:BOOL
-  Enable building with zlib to support compression/uncompression in LLVM tools.
-  Defaults to ON.
+**LLVM_ENABLE_ZLIB**:STRING
+  Used to decide if LLVM tools should support compression/decompression with
+  zlib. Allowed values are ``OFF``, ``ON`` (default, enable if zlib is found),
+  and ``FORCE_ON`` (error if zlib is not found).
+
+**LLVM_ENABLE_ZSTD**:STRING
+  Used to decide if LLVM tools should support compression/decompression with
+  zstd. Allowed values are ``OFF``, ``ON`` (default, enable if zstd is found),
+  and ``FORCE_ON`` (error if zstd is not found).
 
 **LLVM_EXPERIMENTAL_TARGETS_TO_BUILD**:STRING
   Semicolon-separated list of experimental targets to build and linked into
@@ -680,7 +692,7 @@ enabled sub-projects. Nearly all of these variable names begin with
     $ D:\llvm-project> cmake ... -DLLVM_INTEGRATED_CRT_ALLOC=D:\git\rpmalloc
 
   This flag needs to be used along with the static CRT, ie. if building the
-  Release target, add -DLLVM_USE_CRT_RELEASE=MT.
+  Release target, add -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded.
 
 **LLVM_INSTALL_DOXYGEN_HTML_DIR**:STRING
   The path to install Doxygen-generated HTML documentation to. This path can
@@ -768,7 +780,8 @@ enabled sub-projects. Nearly all of these variable names begin with
 **LLVM_USE_CRT_{target}**:STRING
   On Windows, tells which version of the C runtime library (CRT) should be used.
   For example, -DLLVM_USE_CRT_RELEASE=MT would statically link the CRT into the
-  LLVM tools and library.
+  LLVM tools and library. This is deprecated; use ``CMAKE_MSVC_RUNTIME_LIBRARY``
+  instead.
 
 **LLVM_USE_INTEL_JITEVENTS**:BOOL
   Enable building support for Intel JIT Events API. Defaults to OFF.

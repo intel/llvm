@@ -19,7 +19,6 @@
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
 #include "lldb/Core/Section.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Host/Host.h"
 #include "lldb/Symbol/DWARFCallFrameInfo.h"
 #include "lldb/Symbol/LocateSymbolFile.h"
@@ -63,7 +62,7 @@
 #endif
 
 #ifndef __APPLE__
-#include "Utility/UuidCompatibility.h"
+#include "lldb/Utility/AppleUuidCompatibility.h"
 #else
 #include <uuid/uuid.h>
 #endif
@@ -1202,6 +1201,8 @@ AddressClass ObjectFileMachO::GetAddressClass(lldb::addr_t file_addr) {
         case eSectionTypeDWARFAppleNamespaces:
         case eSectionTypeDWARFAppleObjC:
         case eSectionTypeDWARFGNUDebugAltLink:
+        case eSectionTypeCTF:
+        case eSectionTypeSwiftModules:
           return AddressClass::eDebug;
 
         case eSectionTypeEHFrame:
@@ -1439,19 +1440,32 @@ static lldb::SectionType GetSectionType(uint32_t flags,
   static ConstString g_sect_name_cfstring("__cfstring");
 
   static ConstString g_sect_name_dwarf_debug_abbrev("__debug_abbrev");
+  static ConstString g_sect_name_dwarf_debug_abbrev_dwo("__debug_abbrev.dwo");
+  static ConstString g_sect_name_dwarf_debug_addr("__debug_addr");
   static ConstString g_sect_name_dwarf_debug_aranges("__debug_aranges");
+  static ConstString g_sect_name_dwarf_debug_cu_index("__debug_cu_index");
   static ConstString g_sect_name_dwarf_debug_frame("__debug_frame");
   static ConstString g_sect_name_dwarf_debug_info("__debug_info");
+  static ConstString g_sect_name_dwarf_debug_info_dwo("__debug_info.dwo");
   static ConstString g_sect_name_dwarf_debug_line("__debug_line");
+  static ConstString g_sect_name_dwarf_debug_line_dwo("__debug_line.dwo");
   static ConstString g_sect_name_dwarf_debug_line_str("__debug_line_str");
   static ConstString g_sect_name_dwarf_debug_loc("__debug_loc");
   static ConstString g_sect_name_dwarf_debug_loclists("__debug_loclists");
+  static ConstString g_sect_name_dwarf_debug_loclists_dwo("__debug_loclists.dwo");
   static ConstString g_sect_name_dwarf_debug_macinfo("__debug_macinfo");
+  static ConstString g_sect_name_dwarf_debug_macro("__debug_macro");
+  static ConstString g_sect_name_dwarf_debug_macro_dwo("__debug_macro.dwo");
   static ConstString g_sect_name_dwarf_debug_names("__debug_names");
   static ConstString g_sect_name_dwarf_debug_pubnames("__debug_pubnames");
   static ConstString g_sect_name_dwarf_debug_pubtypes("__debug_pubtypes");
   static ConstString g_sect_name_dwarf_debug_ranges("__debug_ranges");
+  static ConstString g_sect_name_dwarf_debug_rnglists("__debug_rnglists");
   static ConstString g_sect_name_dwarf_debug_str("__debug_str");
+  static ConstString g_sect_name_dwarf_debug_str_dwo("__debug_str.dwo");
+  static ConstString g_sect_name_dwarf_debug_str_offs("__debug_str_offs");
+  static ConstString g_sect_name_dwarf_debug_str_offs_dwo("__debug_str_offs.dwo");
+  static ConstString g_sect_name_dwarf_debug_tu_index("__debug_tu_index");
   static ConstString g_sect_name_dwarf_debug_types("__debug_types");
   static ConstString g_sect_name_dwarf_apple_names("__apple_names");
   static ConstString g_sect_name_dwarf_apple_types("__apple_types");
@@ -1462,25 +1476,43 @@ static lldb::SectionType GetSectionType(uint32_t flags,
   static ConstString g_sect_name_text("__text");
   static ConstString g_sect_name_data("__data");
   static ConstString g_sect_name_go_symtab("__gosymtab");
+  static ConstString g_sect_name_ctf("__ctf");
+  static ConstString g_sect_name_swift_ast("__swift_ast");
 
   if (section_name == g_sect_name_dwarf_debug_abbrev)
     return eSectionTypeDWARFDebugAbbrev;
+  if (section_name == g_sect_name_dwarf_debug_abbrev_dwo)
+    return eSectionTypeDWARFDebugAbbrevDwo;
+  if (section_name == g_sect_name_dwarf_debug_addr)
+    return eSectionTypeDWARFDebugAddr;
   if (section_name == g_sect_name_dwarf_debug_aranges)
     return eSectionTypeDWARFDebugAranges;
+  if (section_name == g_sect_name_dwarf_debug_cu_index)
+    return eSectionTypeDWARFDebugCuIndex;
   if (section_name == g_sect_name_dwarf_debug_frame)
     return eSectionTypeDWARFDebugFrame;
   if (section_name == g_sect_name_dwarf_debug_info)
     return eSectionTypeDWARFDebugInfo;
+  if (section_name == g_sect_name_dwarf_debug_info_dwo)
+    return eSectionTypeDWARFDebugInfoDwo;
   if (section_name == g_sect_name_dwarf_debug_line)
     return eSectionTypeDWARFDebugLine;
+  if (section_name == g_sect_name_dwarf_debug_line_dwo)
+    return eSectionTypeDWARFDebugLine; // Same as debug_line.
   if (section_name == g_sect_name_dwarf_debug_line_str)
     return eSectionTypeDWARFDebugLineStr;
   if (section_name == g_sect_name_dwarf_debug_loc)
     return eSectionTypeDWARFDebugLoc;
   if (section_name == g_sect_name_dwarf_debug_loclists)
     return eSectionTypeDWARFDebugLocLists;
+  if (section_name == g_sect_name_dwarf_debug_loclists_dwo)
+    return eSectionTypeDWARFDebugLocListsDwo;
   if (section_name == g_sect_name_dwarf_debug_macinfo)
     return eSectionTypeDWARFDebugMacInfo;
+  if (section_name == g_sect_name_dwarf_debug_macro)
+    return eSectionTypeDWARFDebugMacro;
+  if (section_name == g_sect_name_dwarf_debug_macro_dwo)
+    return eSectionTypeDWARFDebugMacInfo; // Same as debug_macro.
   if (section_name == g_sect_name_dwarf_debug_names)
     return eSectionTypeDWARFDebugNames;
   if (section_name == g_sect_name_dwarf_debug_pubnames)
@@ -1489,8 +1521,18 @@ static lldb::SectionType GetSectionType(uint32_t flags,
     return eSectionTypeDWARFDebugPubTypes;
   if (section_name == g_sect_name_dwarf_debug_ranges)
     return eSectionTypeDWARFDebugRanges;
+  if (section_name == g_sect_name_dwarf_debug_rnglists)
+    return eSectionTypeDWARFDebugRngLists;
   if (section_name == g_sect_name_dwarf_debug_str)
     return eSectionTypeDWARFDebugStr;
+  if (section_name == g_sect_name_dwarf_debug_str_dwo)
+    return eSectionTypeDWARFDebugStrDwo;
+  if (section_name == g_sect_name_dwarf_debug_str_offs)
+    return eSectionTypeDWARFDebugStrOffsets;
+  if (section_name == g_sect_name_dwarf_debug_str_offs_dwo)
+    return eSectionTypeDWARFDebugStrOffsetsDwo;
+  if (section_name == g_sect_name_dwarf_debug_tu_index)
+    return eSectionTypeDWARFDebugTuIndex;
   if (section_name == g_sect_name_dwarf_debug_types)
     return eSectionTypeDWARFDebugTypes;
   if (section_name == g_sect_name_dwarf_apple_names)
@@ -1513,6 +1555,10 @@ static lldb::SectionType GetSectionType(uint32_t flags,
     return eSectionTypeDataObjCCFStrings;
   if (section_name == g_sect_name_go_symtab)
     return eSectionTypeGoSymtab;
+  if (section_name == g_sect_name_ctf)
+    return eSectionTypeCTF;
+  if (section_name == g_sect_name_swift_ast)
+    return eSectionTypeSwiftModules;
   if (section_name == g_sect_name_objc_data ||
       section_name == g_sect_name_objc_classrefs ||
       section_name == g_sect_name_objc_superrefs ||
@@ -2712,8 +2758,8 @@ void ObjectFileMachO::ParseSymtab(Symtab &symtab) {
               assert(vm_nlist_bytes_read == nlist_byte_size * nlistCount);
 
               // We don't know the size of the string table. It's cheaper
-              // to map the whol VM region than to determine the size by
-              // parsing all teh nlist entries.
+              // to map the whole VM region than to determine the size by
+              // parsing all the nlist entries.
               vm_address_t string_address = (vm_address_t)stringTable;
               vm_size_t region_size;
               mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
@@ -5371,6 +5417,8 @@ uint32_t ObjectFileMachO::GetNumThreadContexts() {
 
 std::string ObjectFileMachO::GetIdentifierString() {
   std::string result;
+  Log *log(
+      GetLog(LLDBLog::Symbols | LLDBLog::Process | LLDBLog::DynamicLoader));
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
@@ -5406,6 +5454,8 @@ std::string ObjectFileMachO::GetIdentifierString() {
                 result = buf;
                 if (buf)
                   free(buf);
+                LLDB_LOGF(log, "LC_NOTE 'kern ver str' found with text '%s'",
+                          result.c_str());
                 return result;
               }
             }
@@ -5429,6 +5479,7 @@ std::string ObjectFileMachO::GetIdentifierString() {
                                               buf) == ident_command.cmdsize) {
           buf[ident_command.cmdsize - 1] = '\0';
           result = buf;
+          LLDB_LOGF(log, "LC_IDENT found with text '%s'", result.c_str());
         }
         if (buf)
           free(buf);
@@ -5439,8 +5490,10 @@ std::string ObjectFileMachO::GetIdentifierString() {
   return result;
 }
 
-addr_t ObjectFileMachO::GetAddressMask() {
-  addr_t mask = 0;
+AddressableBits ObjectFileMachO::GetAddressableBits() {
+  AddressableBits addressable_bits;
+
+  Log *log(GetLog(LLDBLog::Process));
   ModuleSP module_sp(GetModule());
   if (module_sp) {
     std::lock_guard<std::recursive_mutex> guard(module_sp->GetMutex());
@@ -5465,9 +5518,25 @@ addr_t ObjectFileMachO::GetAddressMask() {
           if (m_data.GetU32(&offset, &version, 1) != nullptr) {
             if (version == 3) {
               uint32_t num_addr_bits = m_data.GetU32_unchecked(&offset);
-              if (num_addr_bits != 0) {
-                mask = ~((1ULL << num_addr_bits) - 1);
-              }
+              addressable_bits.SetAddressableBits(num_addr_bits);
+              LLDB_LOGF(log,
+                        "LC_NOTE 'addrable bits' v3 found, value %d "
+                        "bits",
+                        num_addr_bits);
+              break;
+            }
+            if (version == 4) {
+              uint32_t lo_addr_bits = m_data.GetU32_unchecked(&offset);
+              uint32_t hi_addr_bits = m_data.GetU32_unchecked(&offset);
+
+              if (lo_addr_bits == hi_addr_bits)
+                addressable_bits.SetAddressableBits(lo_addr_bits);
+              else
+                addressable_bits.SetAddressableBits(lo_addr_bits, hi_addr_bits);
+              LLDB_LOGF(log,
+                        "LC_NOTE 'addrable bits' v4 found, value %d & %d bits",
+                        lo_addr_bits, hi_addr_bits);
+
               break;
             }
           }
@@ -5476,13 +5545,15 @@ addr_t ObjectFileMachO::GetAddressMask() {
       offset = cmd_offset + lc.cmdsize;
     }
   }
-  return mask;
+  return addressable_bits;
 }
 
 bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &value,
                                                 bool &value_is_offset,
                                                 UUID &uuid,
                                                 ObjectFile::BinaryType &type) {
+  Log *log(
+      GetLog(LLDBLog::Symbols | LLDBLog::Process | LLDBLog::DynamicLoader));
   value = LLDB_INVALID_ADDRESS;
   value_is_offset = false;
   uuid.Clear();
@@ -5562,20 +5633,31 @@ bool ObjectFileMachO::GetCorefileMainBinaryInfo(addr_t &value,
               uuid = UUID(raw_uuid, sizeof(uuid_t));
               // convert the "main bin spec" type into our
               // ObjectFile::BinaryType enum
+              const char *typestr = "unrecognized type";
               switch (binspec_type) {
               case 0:
                 type = eBinaryTypeUnknown;
+                typestr = "uknown";
                 break;
               case 1:
                 type = eBinaryTypeKernel;
+                typestr = "xnu kernel";
                 break;
               case 2:
                 type = eBinaryTypeUser;
+                typestr = "userland dyld";
                 break;
               case 3:
                 type = eBinaryTypeStandalone;
+                typestr = "standalone";
                 break;
               }
+              LLDB_LOGF(log,
+                        "LC_NOTE 'main bin spec' found, version %d type %d "
+                        "(%s), value 0x%" PRIx64 " value-is-slide==%s uuid %s",
+                        version, type, typestr, value,
+                        value_is_offset ? "true" : "false",
+                        uuid.GetAsString().c_str());
               if (!m_data.GetU32(&offset, &log2_pagesize, 1))
                 return false;
               if (version > 1 && !m_data.GetU32(&offset, &platform, 1))
@@ -6009,7 +6091,8 @@ bool ObjectFileMachO::SectionIsLoadable(const Section *section) {
   if (!section)
     return false;
   const bool is_dsym = (m_header.filetype == MH_DSYM);
-  if (section->GetFileSize() == 0 && !is_dsym)
+  if (section->GetFileSize() == 0 && !is_dsym &&
+      section->GetName() != GetSegmentNameDATA())
     return false;
   if (section->IsThreadSpecific())
     return false;
@@ -6603,10 +6686,12 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
           addrable_bits_lcnote_up->name = "addrable bits";
           addrable_bits_lcnote_up->payload_file_offset = file_offset;
           int bits = std::bitset<64>(~address_mask).count();
-          addrable_bits_lcnote_up->payload.PutHex32(3); // version
+          addrable_bits_lcnote_up->payload.PutHex32(4); // version
           addrable_bits_lcnote_up->payload.PutHex32(
-              bits); // # of bits used for addressing
-          addrable_bits_lcnote_up->payload.PutHex64(0); // unused
+              bits); // # of bits used for low addresses
+          addrable_bits_lcnote_up->payload.PutHex32(
+              bits); // # of bits used for high addresses
+          addrable_bits_lcnote_up->payload.PutHex32(0); // reserved
 
           file_offset += addrable_bits_lcnote_up->payload.GetSize();
 
@@ -6767,6 +6852,8 @@ bool ObjectFileMachO::SaveCore(const lldb::ProcessSP &process_sp,
 ObjectFileMachO::MachOCorefileAllImageInfos
 ObjectFileMachO::GetCorefileAllImageInfos() {
   MachOCorefileAllImageInfos image_infos;
+  Log *log(
+      GetLog(LLDBLog::Symbols | LLDBLog::Process | LLDBLog::DynamicLoader));
 
   // Look for an "all image infos" LC_NOTE.
   lldb::offset_t offset = MachHeaderSizeFromMagic(m_header.magic);
@@ -6796,6 +6883,9 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
         //  offset += 4; // uint32_t entries_size;
         //  offset += 4; // uint32_t unused;
 
+        LLDB_LOGF(log,
+                  "LC_NOTE 'all image infos' found version %d with %d images",
+                  version, imgcount);
         offset = entries_fileoff;
         for (uint32_t i = 0; i < imgcount; i++) {
           // Read the struct image_entry.
@@ -6827,6 +6917,12 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
                                                     vmaddr};
             image_entry.segment_load_addresses.push_back(new_seg);
           }
+          LLDB_LOGF(
+              log, "  image entry: %s %s 0x%" PRIx64 " %s",
+              image_entry.filename.c_str(),
+              image_entry.uuid.GetAsString().c_str(), image_entry.load_address,
+              image_entry.currently_executing ? "currently executing"
+                                              : "not currently executing");
           image_infos.all_image_infos.push_back(image_entry);
         }
       } else if (strcmp("load binary", data_owner) == 0) {
@@ -6846,6 +6942,14 @@ ObjectFileMachO::GetCorefileAllImageInfos() {
           image_entry.slide = slide;
           image_entry.currently_executing = true;
           image_infos.all_image_infos.push_back(image_entry);
+          LLDB_LOGF(log,
+                    "LC_NOTE 'load binary' found, filename %s uuid %s load "
+                    "address 0x%" PRIx64 " slide 0x%" PRIx64,
+                    filename.c_str(),
+                    image_entry.uuid.IsValid()
+                        ? image_entry.uuid.GetAsString().c_str()
+                        : "00000000-0000-0000-0000-000000000000",
+                    load_address, slide);
         }
       }
     }
@@ -6894,9 +6998,15 @@ bool ObjectFileMachO::LoadCoreFileImages(lldb_private::Process &process) {
     if (image.uuid.IsValid() ||
         (!value_is_offset && value != LLDB_INVALID_ADDRESS)) {
       const bool set_load_address = image.segment_load_addresses.size() == 0;
+      const bool notify = false;
+      // Userland Darwin binaries will have segment load addresses via
+      // the `all image infos` LC_NOTE.
+      const bool allow_memory_image_last_resort =
+          image.segment_load_addresses.size();
       module_sp = DynamicLoader::LoadBinaryWithUUIDAndAddress(
           &process, image.filename, image.uuid, value, value_is_offset,
-          image.currently_executing, false /* notify */, set_load_address);
+          image.currently_executing, notify, set_load_address,
+          allow_memory_image_last_resort);
     }
 
     // We have a ModuleSP to load in the Target.  Load it at the

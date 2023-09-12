@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -spirv-text -o %t
 ; RUN: FileCheck < %t %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
@@ -123,29 +123,29 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir"
 
 @v = addrspace(1) global [2 x i32] [i32 1, i32 2], align 4
-@s = addrspace(1) global i32 addrspace(1)* getelementptr inbounds ([2 x i32], [2 x i32] addrspace(1)* @v, i32 0, i32 1), align 4
+@s = addrspace(1) global ptr addrspace(1) getelementptr inbounds ([2 x i32], ptr addrspace(1) @v, i32 0, i32 1), align 4
 
 %struct.A = type { i32, %struct.C }
 %struct.C = type { i32, %struct.B }
-%struct.B = type { i32, %struct.A addrspace(4)* }
+%struct.B = type { i32, ptr addrspace(4) }
 
 @f = addrspace(2) constant [2 x float] zeroinitializer, align 4
 @b = external addrspace(2) constant <3 x i32>
 @a = common addrspace(1) global %struct.A zeroinitializer, align 4
 
 ; Function Attrs: nounwind
-define spir_kernel void @foo(<3 x i32> addrspace(1)* %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @foo(ptr addrspace(1) %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  call spir_func void @bar1(<3 x i32> addrspace(1)* %a)
-  %loadVec4 = load <4 x i32> , <4 x i32> addrspace(2)* bitcast (<3 x i32> addrspace(2)* @b to <4 x i32> addrspace(2)*)
+  call spir_func void @bar1(ptr addrspace(1) %a)
+  %loadVec4 = load <4 x i32> , ptr addrspace(2) @b
   %extractVec = shufflevector <4 x i32> %loadVec4, <4 x i32> undef, <3 x i32> <i32 0, i32 1, i32 2>
-  call spir_func void @bar2(<3 x i32> addrspace(1)* %a, <3 x i32> %extractVec)
+  call spir_func void @bar2(ptr addrspace(1) %a, <3 x i32> %extractVec)
   ret void
 }
 
-declare spir_func void @bar1(<3 x i32> addrspace(1)*) #1
+declare spir_func void @bar1(ptr addrspace(1)) #1
 
-declare spir_func void @bar2(<3 x i32> addrspace(1)*, <3 x i32>) #1
+declare spir_func void @bar2(ptr addrspace(1), <3 x i32>) #1
 
 attributes #0 = { nounwind "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-realign-stack" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
@@ -157,7 +157,7 @@ attributes #1 = { "less-precise-fpmad"="false" "no-frame-pointer-elim"="false" "
 !opencl.used.optional.core.features = !{!8}
 !opencl.compiler.options = !{!8}
 
-!0 = !{void (<3 x i32> addrspace(1)*)* @foo, !1, !2, !3, !4, !5}
+!0 = !{ptr @foo, !1, !2, !3, !4, !5}
 !1 = !{i32 1}
 !2 = !{!"none"}
 !3 = !{!"int3*"}

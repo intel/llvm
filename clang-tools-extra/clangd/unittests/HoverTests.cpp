@@ -477,6 +477,26 @@ class Foo final {})cpp";
          HI.Kind = index::SymbolKind::TypeAlias;
          HI.Definition = "/* not deduced */";
        }},
+      // constrained auto
+      {R"cpp(
+        template <class T> concept F = true;
+        F [[au^to]] x = 1;
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "auto";
+         HI.Kind = index::SymbolKind::TypeAlias;
+         HI.Definition = "int";
+       }},
+      {R"cpp(
+        template <class T> concept F = true;
+        [[^F]] auto x = 1;
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "F";
+         HI.Kind = index::SymbolKind::Concept;
+         HI.Definition = "template <class T>\nconcept F = true";
+       }},
       // auto on lambda
       {R"cpp(
         void foo() {
@@ -512,6 +532,54 @@ class Foo final {})cpp";
          HI.Name = "auto";
          HI.Kind = index::SymbolKind::TypeAlias;
          HI.Definition = "Foo<int>";
+       }},
+      // constrained template parameter
+      {R"cpp(
+        template<class T> concept Fooable = true;
+        template<[[Foo^able]] T>
+        void bar(T t) {}
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "Fooable";
+         HI.Kind = index::SymbolKind::Concept;
+         HI.Definition = "template <class T>\nconcept Fooable = true";
+       }},
+      {R"cpp(
+        template<class T> concept Fooable = true;
+        template<Fooable [[T^T]]>
+        void bar(TT t) {}
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.Name = "TT";
+         HI.Type = "class";
+         HI.AccessSpecifier = "public";
+         HI.NamespaceScope = "";
+         HI.LocalScope = "bar::";
+         HI.Kind = index::SymbolKind::TemplateTypeParm;
+         HI.Definition = "Fooable TT";
+       }},
+      {R"cpp(
+        template<class T> concept Fooable = true;
+        void bar([[Foo^able]] auto t) {}
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "Fooable";
+         HI.Kind = index::SymbolKind::Concept;
+         HI.Definition = "template <class T>\nconcept Fooable = true";
+       }},
+      // concept reference
+      {R"cpp(
+        template<class T> concept Fooable = true;
+        auto X = [[Fooa^ble]]<int>;
+        )cpp",
+       [](HoverInfo &HI) {
+         HI.NamespaceScope = "";
+         HI.Name = "Fooable";
+         HI.Kind = index::SymbolKind::Concept;
+         HI.Definition = "template <class T>\nconcept Fooable = true";
+         HI.Value = "true";
        }},
 
       // empty macro
@@ -1314,7 +1382,7 @@ class Foo final {})cpp";
 
     Annotations T(Case.Code);
     TestTU TU = TestTU::withCode(T.code());
-    TU.ExtraArgs.push_back("-std=c++17");
+    TU.ExtraArgs.push_back("-std=c++20");
     // Types might be different depending on the target triplet, we chose a
     // fixed one to make sure tests passes on different platform.
     TU.ExtraArgs.push_back("--target=x86_64-pc-linux-gnu");
@@ -2508,6 +2576,19 @@ TEST(Hover, All) {
             HI.Definition = "Test &&test = {}";
           }},
       {
+          R"cpp(// Shouldn't crash when evaluating the initializer.
+            struct Bar {}; // error-ok
+            struct Foo { void foo(Bar x = y); }
+            void Foo::foo(Bar [[^x]]) {})cpp",
+          [](HoverInfo &HI) {
+            HI.Name = "x";
+            HI.Kind = index::SymbolKind::Parameter;
+            HI.NamespaceScope = "";
+            HI.LocalScope = "Foo::foo::";
+            HI.Type = "Bar";
+            HI.Definition = "Bar x = <recovery - expr>()";
+          }},
+      {
           R"cpp(// auto on alias
           typedef int int_type;
           ^[[auto]] x = int_type();
@@ -2918,6 +2999,32 @@ TEST(Hover, All) {
          HI.NamespaceScope = "";
          HI.Value = "0";
        }},
+      // Should not crash.
+      {R"objc(
+        typedef struct MyRect {} MyRect;
+
+        @interface IFace
+        @property(nonatomic) MyRect frame;
+        @end
+
+        MyRect foobar() {
+          MyRect mr;
+          return mr;
+        }
+        void test() {
+          IFace *v;
+          v.frame = [[foo^bar]]();
+        }
+        )objc",
+       [](HoverInfo &HI) {
+         HI.Name = "foobar";
+         HI.Kind = index::SymbolKind::Function;
+         HI.NamespaceScope = "";
+         HI.Definition = "MyRect foobar()";
+         HI.Type = {"MyRect ()", "MyRect ()"};
+         HI.ReturnType = {"MyRect", "MyRect"};
+         HI.Parameters.emplace();
+       }},
       {R"cpp(
          void foo(int * __attribute__(([[non^null]], noescape)) );
          )cpp",
@@ -2927,6 +3034,41 @@ TEST(Hover, All) {
          HI.Definition = "__attribute__((nonnull))";
          HI.Documentation = Attr::getDocumentation(attr::NonNull).str();
        }},
+      {
+          R"cpp(
+          namespace std {
+          struct strong_ordering {
+            int n;
+            constexpr operator int() const { return n; }
+            static const strong_ordering equal, greater, less;
+          };
+          constexpr strong_ordering strong_ordering::equal = {0};
+          constexpr strong_ordering strong_ordering::greater = {1};
+          constexpr strong_ordering strong_ordering::less = {-1};
+          }
+
+          struct Foo
+          {
+            int x;
+            // Foo spaceship
+            auto operator<=>(const Foo&) const = default;
+          };
+
+          bool x = Foo(1) [[!^=]] Foo(2);
+         )cpp",
+          [](HoverInfo &HI) {
+            HI.Type = "bool (const Foo &) const noexcept";
+            HI.Value = "true";
+            HI.Name = "operator==";
+            HI.Parameters = {{{"const Foo &"}, std::nullopt, std::nullopt}};
+            HI.ReturnType = "bool";
+            HI.Kind = index::SymbolKind::InstanceMethod;
+            HI.LocalScope = "Foo::";
+            HI.NamespaceScope = "";
+            HI.Definition =
+                "bool operator==(const Foo &) const noexcept = default";
+            HI.Documentation = "Foo spaceship";
+          }},
   };
 
   // Create a tiny index, so tests above can verify documentation is fetched.
@@ -2942,7 +3084,7 @@ TEST(Hover, All) {
 
     Annotations T(Case.Code);
     TestTU TU = TestTU::withCode(T.code());
-    TU.ExtraArgs.push_back("-std=c++17");
+    TU.ExtraArgs.push_back("-std=c++20");
     TU.ExtraArgs.push_back("-xobjective-c++");
 
     TU.ExtraArgs.push_back("-Wno-gnu-designator");
@@ -2980,17 +3122,17 @@ TEST(Hover, Providers) {
     const char *Code;
     const std::function<void(HoverInfo &)> ExpectedBuilder;
   } Cases[] = {{R"cpp(
-                  struct Foo {};                     
+                  struct Foo {};
                   Foo F = Fo^o{};
                 )cpp",
                 [](HoverInfo &HI) { HI.Provider = ""; }},
                {R"cpp(
-                  #include "foo.h"                   
+                  #include "foo.h"
                   Foo F = Fo^o{};
                 )cpp",
                 [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
                {R"cpp(
-                  #include "all.h"  
+                  #include "all.h"
                   Foo F = Fo^o{};
                 )cpp",
                 [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
@@ -3010,7 +3152,7 @@ TEST(Hover, Providers) {
                 )cpp",
                 [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
                {R"cpp(
-                  #include "foo.h"    
+                  #include "foo.h"
                   Foo A;
                   Foo B;
                   Foo C = A ^+ B;
@@ -3024,7 +3166,13 @@ TEST(Hover, Providers) {
                   }
                   ns::F^oo d;
                 )cpp",
-                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }}};
+                [](HoverInfo &HI) { HI.Provider = "\"foo.h\""; }},
+                {R"cpp(
+                  namespace foo {};
+                  using namespace fo^o;
+                )cpp",
+                [](HoverInfo &HI) { HI.Provider = ""; }},
+                };
 
   for (const auto &Case : Cases) {
     Annotations Code{Case.Code};
@@ -4076,7 +4224,6 @@ constexpr u64 pow_with_mod(u64 a, u64 b, u64 p) {
   EXPECT_TRUE(H->Value);
   EXPECT_TRUE(H->Type);
 }
-
 } // namespace
 } // namespace clangd
 } // namespace clang

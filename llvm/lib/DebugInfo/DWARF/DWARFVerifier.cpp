@@ -150,8 +150,15 @@ bool DWARFVerifier::verifyUnitHeader(const DWARFDataExtractor DebugInfoData,
     AddrSize = DebugInfoData.getU8(Offset);
   }
 
-  if (!DCtx.getDebugAbbrev()->getAbbreviationDeclarationSet(AbbrOffset))
+  Expected<const DWARFAbbreviationDeclarationSet *> AbbrevSetOrErr =
+      DCtx.getDebugAbbrev()->getAbbreviationDeclarationSet(AbbrOffset);
+  if (!AbbrevSetOrErr) {
     ValidAbbrevOffset = false;
+    // FIXME: A problematic debug_abbrev section is reported below in the form
+    // of a `note:`. We should propagate this error there (or elsewhere) to
+    // avoid losing the specific problem with the debug_abbrev section.
+    consumeError(AbbrevSetOrErr.takeError());
+  }
 
   ValidLength = DebugInfoData.isValidOffset(OffsetStart + Length + 3);
   ValidVersion = DWARFContext::isSupportedVersion(Version);
@@ -302,14 +309,14 @@ unsigned DWARFVerifier::verifyAbbrevSection(const DWARFDebugAbbrev *Abbrev) {
   if (!Abbrev)
     return 0;
 
-  const DWARFAbbreviationDeclarationSet *AbbrDecls =
+  Expected<const DWARFAbbreviationDeclarationSet *> AbbrDeclsOrErr =
       Abbrev->getAbbreviationDeclarationSet(0);
-  // FIXME: If we failed to get a DWARFAbbreviationDeclarationSet, it's possible
-  // that there are errors. We need to propagate the error from
-  // getAbbreviationDeclarationSet.
-  if (!AbbrDecls)
-    return 0;
+  if (!AbbrDeclsOrErr) {
+    error() << toString(AbbrDeclsOrErr.takeError()) << "\n";
+    return 1;
+  }
 
+  const auto *AbbrDecls = *AbbrDeclsOrErr;
   unsigned NumErrors = 0;
   for (auto AbbrDecl : *AbbrDecls) {
     SmallDenseSet<uint16_t> AttributeSet;
@@ -1344,12 +1351,18 @@ DWARFVerifier::verifyNameIndexAbbrevs(const DWARFDebugNames::NameIndex &NI) {
   return NumErrors;
 }
 
-static SmallVector<StringRef, 2> getNames(const DWARFDie &DIE,
+static SmallVector<StringRef, 3> getNames(const DWARFDie &DIE,
+                                          bool IncludeStrippedTemplateNames,
                                           bool IncludeLinkageName = true) {
-  SmallVector<StringRef, 2> Result;
-  if (const char *Str = DIE.getShortName())
+  SmallVector<StringRef, 3> Result;
+  if (const char *Str = DIE.getShortName()) {
     Result.emplace_back(Str);
-  else if (DIE.getTag() == dwarf::DW_TAG_namespace)
+    if (IncludeStrippedTemplateNames) {
+      if (std::optional<StringRef> StrippedName =
+              StripTemplateParameters(Result.back()))
+        Result.push_back(*StrippedName);
+    }
+  } else if (DIE.getTag() == dwarf::DW_TAG_namespace)
     Result.emplace_back("(anonymous namespace)");
 
   if (IncludeLinkageName) {
@@ -1416,7 +1429,12 @@ unsigned DWARFVerifier::verifyNameIndexEntries(
       ++NumErrors;
     }
 
-    auto EntryNames = getNames(DIE);
+    // We allow an extra name for functions: their name without any template
+    // parameters.
+    auto IncludeStrippedTemplateNames =
+        DIE.getTag() == DW_TAG_subprogram ||
+        DIE.getTag() == DW_TAG_inlined_subroutine;
+    auto EntryNames = getNames(DIE, IncludeStrippedTemplateNames);
     if (!is_contained(EntryNames, Str)) {
       error() << formatv("Name Index @ {0:x}: Entry @ {1:x}: mismatched Name "
                          "of DIE @ {2:x}: index - {3}; debug_info - {4}.\n",
@@ -1489,7 +1507,11 @@ unsigned DWARFVerifier::verifyNameIndexCompleteness(
   // the linkage name."
   auto IncludeLinkageName = Die.getTag() == DW_TAG_subprogram ||
                             Die.getTag() == DW_TAG_inlined_subroutine;
-  auto EntryNames = getNames(Die, IncludeLinkageName);
+  // We *allow* stripped template names as an extra entry into the template,
+  // but we don't *require* them to pass the completeness test.
+  auto IncludeStrippedTemplateNames = false;
+  auto EntryNames =
+      getNames(Die, IncludeStrippedTemplateNames, IncludeLinkageName);
   if (EntryNames.empty())
     return 0;
 

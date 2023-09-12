@@ -394,8 +394,9 @@ cc_library(
 
 cc_library(
     name = "DebugInfo",
-    hdrs = glob(["include/llvm/DebugInfo/*.h"]),
+    hdrs = glob(["include/llvm/DebugInfo/**/*.h"]),
     copts = llvm_copts,
+    textual_hdrs = glob(["include/llvm/DebugInfo/**/*.def"]),
     deps = [
         ":Object",
         ":Support",
@@ -411,6 +412,23 @@ cc_library(
     hdrs = glob(["include/llvm/DebugInfo/MSF/*.h"]),
     copts = llvm_copts,
     deps = [":Support"],
+)
+
+cc_library(
+    name = "DebugInfoBTF",
+    srcs = glob([
+        "lib/DebugInfo/BTF/*.cpp",
+        "lib/DebugInfo/BTF/*.h",
+    ]),
+    hdrs = glob(["include/llvm/DebugInfo/BTF/*.h"]) + [
+        "include/llvm/DebugInfo/BTF/BTF.def",
+    ],
+    copts = llvm_copts,
+    deps = [
+        ":DebugInfo",
+        ":Object",
+        ":Support",
+    ],
 )
 
 cc_library(
@@ -472,6 +490,7 @@ cc_library(
     deps = [
         ":BinaryFormat",
         ":DebugInfo",
+        ":DebugInfoBTF",
         ":DebugInfoCodeView",
         ":DebugInfoMSF",
         ":Object",
@@ -644,6 +663,7 @@ cc_binary(
         # listed here. MC uses headers produced by tablegen, so it cannot be a
         # regular dependency.
         "include/llvm/MC/*.h",
+        "include/llvm/TargetParser/SubtargetFeature.h",
     ]),
     copts = llvm_copts,
     stamp = 0,
@@ -652,6 +672,7 @@ cc_binary(
         ":Support",
         ":TableGen",
         ":TableGenGlobalISel",
+        ":TargetParser",
         ":config",
         ":llvm-tblgen-headers",
     ],
@@ -1105,6 +1126,7 @@ cc_library(
     hdrs = [
         "include/llvm-c/BitWriter.h",
         "include/llvm/Bitcode/BitcodeCommon.h",
+        "include/llvm/Bitcode/BitcodeConvenience.h",
         "include/llvm/Bitcode/BitcodeWriter.h",
         "include/llvm/Bitcode/BitcodeWriterPass.h",
         "include/llvm/Bitcode/LLVMBitCodes.h",
@@ -1791,10 +1813,10 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-dag-isel", "lib/Target/AArch64/AArch64GenDAGISel.inc"),
             ("-gen-fast-isel", "lib/Target/AArch64/AArch64GenFastISel.inc"),
             ("-gen-global-isel", "lib/Target/AArch64/AArch64GenGlobalISel.inc"),
-            ("-gen-global-isel-combiner -combiners=AArch64O0PreLegalizerCombinerHelper", "lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc"),
-            ("-gen-global-isel-combiner -combiners=AArch64PreLegalizerCombinerHelper", "lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc"),
-            ("-gen-global-isel-combiner -combiners=AArch64PostLegalizerCombinerHelper", "lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc"),
-            ("-gen-global-isel-combiner -combiners=AArch64PostLegalizerLoweringHelper", "lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc"),
+            ("-gen-global-isel-combiner -combiners=AArch64O0PreLegalizerCombiner", "lib/Target/AArch64/AArch64GenO0PreLegalizeGICombiner.inc"),
+            ("-gen-global-isel-combiner -combiners=AArch64PreLegalizerCombiner", "lib/Target/AArch64/AArch64GenPreLegalizeGICombiner.inc"),
+            ("-gen-global-isel-combiner -combiners=AArch64PostLegalizerCombiner", "lib/Target/AArch64/AArch64GenPostLegalizeGICombiner.inc"),
+            ("-gen-global-isel-combiner -combiners=AArch64PostLegalizerLowering", "lib/Target/AArch64/AArch64GenPostLegalizeGILowering.inc"),
             ("-gen-callingconv", "lib/Target/AArch64/AArch64GenCallingConv.inc"),
             ("-gen-subtarget", "lib/Target/AArch64/AArch64GenSubtargetInfo.inc"),
             ("-gen-disassembler", "lib/Target/AArch64/AArch64GenDisassemblerTables.inc"),
@@ -1934,7 +1956,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-exegesis", "lib/Target/Mips/MipsGenExegesis.inc"),
             ("-gen-fast-isel", "lib/Target/Mips/MipsGenFastISel.inc"),
             ("-gen-global-isel", "lib/Target/Mips/MipsGenGlobalISel.inc"),
-            ("-gen-global-isel-combiner -combiners=MipsPostLegalizerCombinerHelper", "lib/Target/Mips/MipsGenPostLegalizeGICombiner.inc"),
+            ("-gen-global-isel-combiner -combiners=MipsPostLegalizerCombiner", "lib/Target/Mips/MipsGenPostLegalizeGICombiner.inc"),
             ("-gen-instr-info", "lib/Target/Mips/MipsGenInstrInfo.inc"),
             ("-gen-pseudo-lowering", "lib/Target/Mips/MipsGenMCPseudoLowering.inc"),
             ("-gen-register-bank", "lib/Target/Mips/MipsGenRegisterBank.inc"),
@@ -2000,6 +2022,7 @@ llvm_target_lib_list = [lib for lib in [
             ("-gen-callingconv", "lib/Target/Sparc/SparcGenCallingConv.inc"),
             ("-gen-subtarget", "lib/Target/Sparc/SparcGenSubtargetInfo.inc"),
             ("-gen-disassembler", "lib/Target/Sparc/SparcGenDisassemblerTables.inc"),
+            ("-gen-searchable-tables", "lib/Target/Sparc/SparcGenSearchableTables.inc"),
         ],
     },
     {
@@ -2125,9 +2148,9 @@ gentbl(
     strip_include_prefix = "lib/Target/AMDGPU",
     tbl_outs = [
         ("-gen-global-isel", "lib/Target/AMDGPU/AMDGPUGenGlobalISel.inc"),
-        ("-gen-global-isel-combiner -combiners=AMDGPUPreLegalizerCombinerHelper", "lib/Target/AMDGPU/AMDGPUGenPreLegalizeGICombiner.inc"),
-        ("-gen-global-isel-combiner -combiners=AMDGPUPostLegalizerCombinerHelper", "lib/Target/AMDGPU/AMDGPUGenPostLegalizeGICombiner.inc"),
-        ("-gen-global-isel-combiner -combiners=AMDGPURegBankCombinerHelper", "lib/Target/AMDGPU/AMDGPUGenRegBankGICombiner.inc"),
+        ("-gen-global-isel-combiner -combiners=AMDGPUPreLegalizerCombiner", "lib/Target/AMDGPU/AMDGPUGenPreLegalizeGICombiner.inc"),
+        ("-gen-global-isel-combiner -combiners=AMDGPUPostLegalizerCombiner", "lib/Target/AMDGPU/AMDGPUGenPostLegalizeGICombiner.inc"),
+        ("-gen-global-isel-combiner -combiners=AMDGPURegBankCombiner", "lib/Target/AMDGPU/AMDGPUGenRegBankGICombiner.inc"),
     ],
     tblgen = ":llvm-tblgen",
     td_file = "lib/Target/AMDGPU/AMDGPUGISel.td",
@@ -2249,9 +2272,6 @@ gentbl(
         strip_include_prefix = "lib/Target/" + target["name"],
         deps = [
             ":BinaryFormat",
-            # Depending on `:CodeGen` headers in this library is almost
-            # certainly a layering problem in numerous targets.
-            ":CodeGen",
             ":CodeGenTypes",
             ":DebugInfoCodeView",
             ":MC",
@@ -2775,7 +2795,9 @@ cc_library(
         ":DWARFLinker",
         ":DebugInfoDWARF",
         ":MC",
+        ":Object",
         ":Support",
+        ":Target",
         ":TargetParser",
     ],
 )
@@ -3043,7 +3065,7 @@ cc_binary(
     srcs = glob([
         "tools/dsymutil/*.cpp",
         "tools/dsymutil/*.h",
-    ]),
+    ]) + ["dsymutil-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3488,18 +3510,41 @@ cc_binary(
     ],
 )
 
+gentbl(
+    name = "DwpOptionsTableGen",
+    strip_include_prefix = "tools/llvm-dwp",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-dwp/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-dwp/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+expand_template(
+    name = "dwp_main",
+    out = "llvm-dwp-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_dwp",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-dwp",
     srcs = glob([
         "tools/llvm-dwp/*.cpp",
         "tools/llvm-dwp/*.h",
-    ]),
+    ]) + ["llvm-dwp-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
         ":AllTargetsCodeGens",
         ":DWP",
+        ":DwpOptionsTableGen",
         ":MC",
+        ":Option",
         ":Support",
     ],
 )
@@ -3677,12 +3722,33 @@ cc_binary(
     ],
 )
 
+gentbl(
+    name = "LibtoolDarwinOptionsTableGen",
+    strip_include_prefix = "tools/llvm-libtool-darwin",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/llvm-libtool-darwin/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/llvm-libtool-darwin/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+expand_template(
+    name = "libtool-darwin_main",
+    out = "llvm-libtool-darwin-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_libtool_darwin",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-libtool-darwin",
     srcs = glob([
         "tools/llvm-libtool-darwin/*.cpp",
         "tools/llvm-libtool-darwin/*.h",
-    ]),
+    ]) + ["llvm-libtool-darwin-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -3690,7 +3756,9 @@ cc_binary(
         ":AllTargetsCodeGens",
         ":BinaryFormat",
         ":Core",
+        ":LibtoolDarwinOptionsTableGen",
         ":Object",
+        ":Option",
         ":Support",
         ":TextAPI",
     ],
@@ -3862,12 +3930,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "ml_main",
+    out = "llvm-ml-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_ml",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-ml",
     srcs = glob([
         "tools/llvm-ml/*.cpp",
         "tools/llvm-ml/*.h",
-    ]),
+    ]) + ["llvm-ml-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -4104,12 +4181,21 @@ binary_alias(
     binary = ":llvm-objcopy",
 )
 
+expand_template(
+    name = "objdump_main",
+    out = "llvm-objdump-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_objdump",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-objdump",
     srcs = glob([
         "tools/llvm-objdump/*.cpp",
         "tools/llvm-objdump/*.h",
-    ]),
+    ]) + ["llvm-objdump-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -4189,6 +4275,7 @@ cc_binary(
     stamp = 0,
     deps = [
         ":BinaryFormat",
+        ":DebugInfoBTF",
         ":DebugInfoCodeView",
         ":DebugInfoMSF",
         ":DebugInfoPDB",
@@ -4393,24 +4480,6 @@ cc_binary(
 )
 
 cc_binary(
-    name = "llvm-remark-size-diff",
-    srcs = glob([
-        "tools/llvm-remark-size-diff/**/*.cpp",
-        "tools/llvm-remark-size-diff/**/*.h",
-    ]),
-    copts = llvm_copts,
-    includes = ["tools/llvm-reark-size-diff"],
-    stamp = 0,
-    deps = [
-        ":Core",
-        ":Demangle",
-        ":Object",
-        ":Remarks",
-        ":Support",
-    ],
-)
-
-cc_binary(
     name = "llvm-rtdyld",
     srcs = glob([
         "tools/llvm-rtdyld/*.cpp",
@@ -4526,12 +4595,21 @@ gentbl(
     td_srcs = ["include/llvm/Option/OptParser.td"],
 )
 
+expand_template(
+    name = "symbolizer_main",
+    out = "llvm-symbolizer-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "llvm_symbolizer",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
 cc_binary(
     name = "llvm-symbolizer",
     srcs = glob([
         "tools/llvm-symbolizer/*.cpp",
         "tools/llvm-symbolizer/*.h",
-    ]),
+    ]) + [ "llvm-symbolizer-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -4623,12 +4701,34 @@ cc_binary(
     ],
 )
 
+gentbl(
+    name = "SancovOptsTableGen",
+    strip_include_prefix = "tools/sancov",
+    tbl_outs = [(
+        "-gen-opt-parser-defs",
+        "tools/sancov/Opts.inc",
+    )],
+    tblgen = ":llvm-tblgen",
+    td_file = "tools/sancov/Opts.td",
+    td_srcs = ["include/llvm/Option/OptParser.td"],
+)
+
+expand_template(
+    name = "sancov_main",
+    out = "sancov-driver.cpp",
+    substitutions = {
+        "@TOOL_NAME@": "sancov",
+    },
+    template = "cmake/modules/llvm-driver-template.cpp.in",
+)
+
+
 cc_binary(
     name = "sancov",
     srcs = glob([
         "tools/sancov/*.cpp",
         "tools/sancov/*.h",
-    ]),
+    ]) + ["sancov-driver.cpp"],
     copts = llvm_copts,
     stamp = 0,
     deps = [
@@ -4639,6 +4739,8 @@ cc_binary(
         ":MC",
         ":MCDisassembler",
         ":Object",
+        ":Option",
+        ":SancovOptsTableGen",
         ":Support",
         ":Symbolize",
     ],
@@ -4977,11 +5079,11 @@ cc_binary(
 )
 
 cc_binary(
-    name = "llvm-tapi-diff",
+    name = "llvm-readtapi",
     testonly = True,
     srcs = glob([
-        "tools/llvm-tapi-diff/*.cpp",
-        "tools/llvm-tapi-diff/*.h",
+        "tools/llvm-readtapi/*.cpp",
+        "tools/llvm-readtapi/*.h",
     ]),
     copts = llvm_copts,
     stamp = 0,

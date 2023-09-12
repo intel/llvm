@@ -838,9 +838,13 @@ bool SCCPInstVisitor::markBlockExecutable(BasicBlock *BB) {
 }
 
 void SCCPInstVisitor::pushToWorkList(ValueLatticeElement &IV, Value *V) {
-  if (IV.isOverdefined())
-    return OverdefinedInstWorkList.push_back(V);
-  InstWorkList.push_back(V);
+  if (IV.isOverdefined()) {
+    if (OverdefinedInstWorkList.empty() || OverdefinedInstWorkList.back() != V)
+      OverdefinedInstWorkList.push_back(V);
+    return;
+  }
+  if (InstWorkList.empty() || InstWorkList.back() != V)
+    InstWorkList.push_back(V);
 }
 
 void SCCPInstVisitor::pushToWorkListMsg(ValueLatticeElement &IV, Value *V) {
@@ -1025,8 +1029,9 @@ void SCCPInstVisitor::getFeasibleSuccessors(Instruction &TI,
     return;
   }
 
-  // Unwinding instructions successors are always executable.
-  if (TI.isExceptionalTerminator()) {
+  // We cannot analyze special terminators, so consider all successors
+  // executable.
+  if (TI.isSpecialTerminator()) {
     Succs.assign(TI.getNumSuccessors(), true);
     return;
   }
@@ -1091,13 +1096,6 @@ void SCCPInstVisitor::getFeasibleSuccessors(Instruction &TI,
 
     // If we didn't find our destination in the IBR successor list, then we
     // have undefined behavior. Its ok to assume no successor is executable.
-    return;
-  }
-
-  // In case of callbr, we pessimistically assume that all successors are
-  // feasible.
-  if (isa<CallBrInst>(&TI)) {
-    Succs.assign(TI.getNumSuccessors(), true);
     return;
   }
 
@@ -1535,11 +1533,8 @@ void SCCPInstVisitor::visitGetElementPtrInst(GetElementPtrInst &I) {
     return (void)markOverdefined(&I);
   }
 
-  Constant *Ptr = Operands[0];
-  auto Indices = ArrayRef(Operands.begin() + 1, Operands.end());
-  Constant *C =
-      ConstantExpr::getGetElementPtr(I.getSourceElementType(), Ptr, Indices);
-  markConstant(&I, C);
+  if (Constant *C = ConstantFoldInstOperands(&I, Operands, DL))
+    markConstant(&I, C);
 }
 
 void SCCPInstVisitor::visitStoreInst(StoreInst &SI) {

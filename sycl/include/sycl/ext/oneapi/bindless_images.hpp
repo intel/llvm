@@ -609,6 +609,28 @@ template <typename CoordT> constexpr size_t coord_size() {
     return CoordT::size();
   }
 }
+
+// bit_cast Color to a type the NVPTX backend is known to accept
+template <typename DataT> constexpr auto convert_color_nvptx(DataT Color) {
+  constexpr size_t dataSize = sizeof(DataT);
+  static_assert(
+      dataSize == 1 || dataSize == 2 || dataSize == 4 || dataSize == 8 ||
+          dataSize == 16,
+      "Expected input data type to be of size 1, 2, 4, 8, or 16 bytes.");
+
+  if constexpr (dataSize == 1) {
+    return sycl::bit_cast<uint8_t>(Color);
+  } else if constexpr (dataSize == 2) {
+    return sycl::bit_cast<uint16_t>(Color);
+  } else if constexpr (dataSize == 4) {
+    return sycl::bit_cast<uint32_t>(Color);
+  } else if constexpr (dataSize == 8) {
+    return sycl::bit_cast<sycl::vec<uint32_t, 2>>(Color);
+  } else { // dataSize == 16
+    return sycl::bit_cast<sycl::vec<uint32_t, 4>>(Color);
+  }
+}
+
 } // namespace detail
 
 /**
@@ -637,8 +659,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for unsampled image read
 #endif
@@ -673,8 +694,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for sampled image read
 #endif
@@ -705,8 +725,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadLod<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                         coords, level);
+  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
 #else
   // TODO: add SPIRV for mipmap level read
 #endif
@@ -740,8 +759,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadGrad<DataT, uint64_t, CoordT>(
-      imageHandle.raw_handle, coords, dX, dY);
+  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
 #else
   // TODO: add SPIRV part for mipmap grad read
 #endif
@@ -770,8 +788,8 @@ void write_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  __invoke__ImageWrite<uint64_t, CoordT, DataT>(
-      (uint64_t)imageHandle.raw_handle, Coords, Color);
+  __invoke__ImageWrite((uint64_t)imageHandle.raw_handle, Coords,
+                       detail::convert_color_nvptx(Color));
 #else
   // TODO: add SPIRV part for unsampled image write
 #endif

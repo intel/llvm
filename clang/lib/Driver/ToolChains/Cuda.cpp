@@ -714,8 +714,7 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
         const char *CubinF =
             Args.MakeArgString(getToolChain().getDriver().GetTemporaryPath(
                 llvm::sys::path::stem(InputFile), "cubin"));
-        if (std::error_code EC =
-                llvm::sys::fs::copy_file(InputFile, C.addTempFile(CubinF)))
+        if (llvm::sys::fs::copy_file(InputFile, C.addTempFile(CubinF)))
           continue;
 
         CmdArgs.push_back(CubinF);
@@ -789,10 +788,8 @@ NVPTXToolChain::NVPTXToolChain(const Driver &D, const llvm::Triple &Triple,
                                const ArgList &Args, bool Freestanding = false)
     : ToolChain(D, Triple, Args), CudaInstallation(D, HostTriple, Args),
       Freestanding(Freestanding) {
-  if (CudaInstallation.isValid()) {
-    CudaInstallation.WarnIfUnsupportedVersion();
+  if (CudaInstallation.isValid())
     getProgramPaths().push_back(std::string(CudaInstallation.getBinPath()));
-  }
   // Lookup binaries into the driver directory, this is used to
   // discover the 'nvptx-arch' executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -898,10 +895,6 @@ void CudaToolChain::addClangTargetOptions(
   if (DeviceOffloadingKind == Action::OFK_Cuda) {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
-
-    if (DriverArgs.hasFlag(options::OPT_fcuda_approx_transcendentals,
-                           options::OPT_fno_cuda_approx_transcendentals, false))
-      CC1Args.push_back("-fcuda-approx-transcendentals");
 
     // Unsized function arguments used for variadics were introduced in CUDA-9.0
     // We still do not support generating code that actually uses variadic

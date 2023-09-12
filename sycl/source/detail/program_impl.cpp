@@ -146,26 +146,25 @@ program_impl::program_impl(ContextImplPtr Context,
                                             sizeof(sycl::detail::pi::PiDevice) *
                                                 NumDevices,
                                             PiDevices.data(), nullptr);
-  std::vector<device> SyclContextDevices =
-      MContext->get_info<info::context::devices>();
 
+  std::vector<device> PlatformDevices =
+      MContext->getPlatformImpl()->get_devices();
   // Keep only the subset of the devices (associated with context) that
   // were actually used to create the program.
   // This is possible when clCreateProgramWithBinary is used.
   auto NewEnd = std::remove_if(
-      SyclContextDevices.begin(), SyclContextDevices.end(),
+      PlatformDevices.begin(), PlatformDevices.end(),
       [&PiDevices](const sycl::device &Dev) {
         return PiDevices.end() ==
                std::find(PiDevices.begin(), PiDevices.end(),
                          detail::getSyclObjImpl(Dev)->getHandleRef());
       });
-  SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
-  MDevices = SyclContextDevices;
+  PlatformDevices.erase(NewEnd, PlatformDevices.end());
+  MDevices = PlatformDevices;
   assert(!MDevices.empty() && "No device found for this program");
-  sycl::detail::pi::PiDevice Device =
-      getSyclObjImpl(MDevices[0])->getHandleRef();
+  sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
-  cl_program_binary_type BinaryType;
+  cl_program_binary_type BinaryType = PI_PROGRAM_BINARY_TYPE_NONE;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
@@ -184,20 +183,19 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case PI_PROGRAM_BINARY_TYPE_NONE:
-    assert(false);
-    break;
   case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
-    break;
+    return;
   case PI_PROGRAM_BINARY_TYPE_LIBRARY:
   case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
+    return;
   }
+  assert(false && "BinaryType is invalid.");
 }
 
 program_impl::program_impl(ContextImplPtr Context,

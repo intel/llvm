@@ -1,4 +1,4 @@
-// RUN: mlir-opt %s -split-input-file -verify-diagnostics
+// RUN: mlir-opt %s -split-input-file -verify-diagnostics | FileCheck %s
 
 // expected-error @below {{expects the entry block to have at least one argument}}
 transform.sequence failures(propagate) {
@@ -76,7 +76,7 @@ transform.sequence failures(propagate) {
 "transform.sequence"(%0) ({
 ^bb0(%arg0: !transform.any_op):
   "transform.yield"() : () -> ()
-}) {failure_propagation_mode = 1 : i32, operand_segment_sizes = array<i32: 0, 1>} : (!transform.any_op) -> ()
+}) {failure_propagation_mode = 1 : i32, operandSegmentSizes = array<i32: 0, 1>} : (!transform.any_op) -> ()
 
 // -----
 
@@ -517,15 +517,18 @@ module attributes { transform.with_named_sequence } {
 // -----
 
 module attributes { transform.with_named_sequence } {
+  // Note that printing a warning doesn't result in verification failures, so this
+  // also checks for the IR being printed back.
+  // CHECK-LABEL: transform.named_sequence @emit_warning_only
   // expected-warning @below {{argument #0 is not consumed in the body but is marked as consume}}
-  transform.named_sequence @foo(%op: !transform.any_op {transform.consumed}) {
+  transform.named_sequence @emit_warning_only(%op: !transform.any_op {transform.consumed}) {
     transform.test_print_remark_at_operand %op, "message" : !transform.any_op
     transform.yield
   }
 
   transform.sequence failures(propagate) {
   ^bb0(%arg0: !transform.any_op):
-    transform.include @foo failures(propagate) (%arg0) : (!transform.any_op) -> ()
+    transform.include @emit_warning_only failures(propagate) (%arg0) : (!transform.any_op) -> ()
     transform.yield
   }
 }

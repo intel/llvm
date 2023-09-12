@@ -347,6 +347,11 @@ SYMBOL(atomic_wchar_t, None, <stdatomic.h>)
 // which is tricky to disambiguate without type information.
 // Don't set any header for it, as it comes with the type header.
 SYMBOL(get, std::, /*no headers*/)
+// Similarly make_error_{code,condition} also have different overloads (errc,
+// io_errc, future_errc) and each of them are provided by relevant headers
+// providing the type.
+SYMBOL(make_error_code, std::, /*no headers*/)
+SYMBOL(make_error_condition, std::, /*no headers*/)
 
 // cppreference symbol index page was missing these symbols.
 // Remove them when the cppreference offline archive catches up.
@@ -354,6 +359,13 @@ SYMBOL(index_sequence, std::, <utility>)
 SYMBOL(index_sequence_for, std::, <utility>)
 SYMBOL(make_index_sequence, std::, <utility>)
 SYMBOL(make_integer_sequence, std::, <utility>)
+
+// Symbols missing from the generated symbol map as reported by users.
+// Remove when the generator starts producing them.
+SYMBOL(make_any, std::, <any>)
+SYMBOL(any_cast, std::, <any>)
+SYMBOL(div, std::, <cstdlib>)
+SYMBOL(abort, std::, <cstdlib>)
 
 // The std::placeholder symbols (_1, ..., _N) are listed in the cppreference
 // placeholder.html, but the index only contains a single entry with "_1, _2, ..., _N"

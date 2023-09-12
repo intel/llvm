@@ -48,12 +48,14 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/Debug.h"
 
 #include <algorithm>
 #include <set>
 
 using namespace llvm;
+using namespace PatternMatch;
 using namespace SPIRV;
 using namespace OCLUtil;
 
@@ -176,12 +178,8 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
 
   visit(*M);
 
-  for (auto &I : ValuesToDelete)
-    if (auto Inst = dyn_cast<Instruction>(I))
-      Inst->eraseFromParent();
-  for (auto &I : ValuesToDelete)
-    if (auto GV = dyn_cast<GlobalValue>(I))
-      GV->eraseFromParent();
+  for (Instruction *I : ValuesToDelete)
+    I->eraseFromParent();
 
   eraseUselessFunctions(M); // remove unused functions declarations
   LLVM_DEBUG(dbgs() << "After OCLToSPIRV:\n" << *M);
@@ -196,7 +194,7 @@ bool OCLToSPIRVBase::runOCLToSPIRV(Module &Module) {
 // there are functions fall into both categories.
 void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
-  auto F = CI.getCalledFunction();
+  auto *F = CI.getCalledFunction();
   if (!F)
     return;
 
@@ -231,7 +229,7 @@ void OCLToSPIRVBase::visitCallInst(CallInst &CI) {
         isComputeAtomicOCLBuiltin(DemangledName))
       return;
 
-    auto PCI = &CI;
+    auto *PCI = &CI;
     if (DemangledName == kOCLBuiltinName::AtomicInit) {
       visitCallAtomicInit(PCI);
       return;
@@ -497,7 +495,7 @@ CallInst *OCLToSPIRVBase::visitCallAtomicCmpXchg(CallInst *CI) {
 }
 
 void OCLToSPIRVBase::visitCallAtomicInit(CallInst *CI) {
-  auto ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
+  auto *ST = new StoreInst(CI->getArgOperand(1), CI->getArgOperand(0), CI);
   ST->takeName(CI);
   CI->dropAllReferences();
   CI->eraseFromParent();
@@ -510,7 +508,7 @@ void OCLToSPIRVBase::visitCallAllAny(spv::Op OC, CallInst *CI) {
   assert(Args.size() == 1);
 
   auto *ArgTy = Args[0]->getType();
-  auto Zero = Constant::getNullValue(Args[0]->getType());
+  auto *Zero = Constant::getNullValue(Args[0]->getType());
 
   auto *Cmp = CmpInst::Create(CmpInst::ICmp, CmpInst::ICMP_SLT, Args[0], Zero,
                               "cast", CI);
@@ -728,8 +726,8 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
   if (eraseUselessConvert(CI, MangledName, DemangledName))
     return;
   Op OC = OpNop;
-  auto TargetTy = CI->getType();
-  auto SrcTy = CI->getArgOperand(0)->getType();
+  auto *TargetTy = CI->getType();
+  auto *SrcTy = CI->getArgOperand(0)->getType();
   if (auto *VecTy = dyn_cast<VectorType>(TargetTy))
     TargetTy = VecTy->getElementType();
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
@@ -772,7 +770,7 @@ void OCLToSPIRVBase::visitCallConvert(CallInst *CI, StringRef MangledName,
 
 void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
                                            StringRef OrigDemangledName) {
-  auto F = CI->getCalledFunction();
+  auto *F = CI->getCalledFunction();
   std::vector<int> PreOps;
   std::string DemangledName{OrigDemangledName};
 
@@ -815,7 +813,7 @@ void OCLToSPIRVBase::visitCallGroupBuiltin(CallInst *CI,
           (void)(GroupOp.consume_front("_")); // when op is two characters
           assert(!GroupOp.empty() && "Invalid OpenCL group builtin function");
           char OpTyC = 0;
-          auto OpTy = F->getReturnType();
+          auto *OpTy = F->getReturnType();
           if (OpTy->isFloatingPointTy())
             OpTyC = 'f';
           else if (OpTy->isIntegerTy()) {
@@ -1014,7 +1012,7 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
           return NCI;
         if (DemangledName == kOCLBuiltinName::GetImageDim) {
           if (Desc.Dim == Dim3D) {
-            auto ZeroVec = ConstantVector::getSplat(
+            auto *ZeroVec = ConstantVector::getSplat(
                 ElementCount::getFixed(3),
                 Constant::getNullValue(
                     cast<VectorType>(NCI->getType())->getElementType()));
@@ -1044,8 +1042,8 @@ void OCLToSPIRVBase::visitCallGetImageSize(CallInst *CI,
 /// Remove trivial conversion functions
 bool OCLToSPIRVBase::eraseUselessConvert(CallInst *CI, StringRef MangledName,
                                          StringRef DemangledName) {
-  auto TargetTy = CI->getType();
-  auto SrcTy = CI->getArgOperand(0)->getType();
+  auto *TargetTy = CI->getType();
+  auto *SrcTy = CI->getArgOperand(0)->getType();
   if (auto *VecTy = dyn_cast<VectorType>(TargetTy))
     TargetTy = VecTy->getElementType();
   if (auto *VecTy = dyn_cast<VectorType>(SrcTy))
@@ -1060,7 +1058,6 @@ bool OCLToSPIRVBase::eraseUselessConvert(CallInst *CI, StringRef MangledName,
                     << *CI->getArgOperand(0) << '\n');
     CI->replaceAllUsesWith(CI->getArgOperand(0));
     ValuesToDelete.insert(CI);
-    ValuesToDelete.insert(CI->getCalledFunction());
     return true;
   }
   return false;
@@ -1114,7 +1111,7 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
   Info.UniqName = DemangledName.str();
   Info.Postfix = std::string(kSPIRVPostfix::Divider) + "To" +
                  SPIRAddrSpaceCapitalizedNameMap::map(AddrSpace);
-  auto StorageClass = addInt32(SPIRSPIRVAddrSpaceMap::map(AddrSpace));
+  auto *StorageClass = addInt32(SPIRSPIRVAddrSpaceMap::map(AddrSpace));
   Info.RetTy = getInt8PtrTy(cast<PointerType>(CI->getType()));
   Info.PostProc = [=](BuiltinCallMutator &Mutator) {
     Mutator
@@ -1360,10 +1357,56 @@ void OCLToSPIRVBase::visitCallScalToVec(CallInst *CI, StringRef MangledName,
     });
 }
 
+namespace {
+// Return true if any users of the CallInst use any of the constants
+// introduced by the SPV_EXT_image_raw10_raw12 extension.
+bool usesSpvExtImageRaw10Raw12Constants(const CallInst *CI) {
+  const std::array ExtConstants{
+      OCLImageChannelDataTypeOffset + ImageChannelDataTypeUnsignedIntRaw10EXT,
+      OCLImageChannelDataTypeOffset + ImageChannelDataTypeUnsignedIntRaw12EXT};
+
+  // The return values for `OpImageQueryFormat` added by the extension are
+  // integer constants that may appear anywhere in LLVM IR.  Only detect some
+  // common use patterns here.
+  for (auto *U : CI->users()) {
+    for (auto C : ExtConstants) {
+      ICmpInst::Predicate Pred;
+      if (match(U, m_c_ICmp(Pred, m_Value(), m_SpecificInt(C)))) {
+        return true;
+      }
+      if (auto *Switch = dyn_cast<SwitchInst>(U)) {
+        if (any_of(Switch->cases(), [C](const auto &Case) {
+              return Case.getCaseValue()->equalsInt(C);
+            })) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+} // anonymous namespace
+
 void OCLToSPIRVBase::visitCallGetImageChannel(CallInst *CI,
                                               StringRef DemangledName,
                                               unsigned int Offset) {
   assert(CI->getCalledFunction() && "Unexpected indirect call");
+
+  if (Offset == OCLImageChannelDataTypeOffset) {
+    // See if any of the SPV_EXT_image_raw10_raw12 constants are used, and
+    // add the extension if not already there.
+    if (usesSpvExtImageRaw10Raw12Constants(CI)) {
+      const char *ExtStr = "SPV_EXT_image_raw10_raw12";
+      NamedMDNode *NMD = M->getOrInsertNamedMetadata(kSPIRVMD::Extension);
+      if (none_of(NMD->operands(), [ExtStr](MDNode *N) {
+            return N->getOperand(0).equalsStr(ExtStr);
+          })) {
+        MDString *MDS = MDString::get(*Ctx, ExtStr);
+        NMD->addOperand(MDNode::get(*Ctx, MDS));
+      }
+    }
+  }
+
   Op OC = OpNop;
   OCLSPIRVBuiltinMap::find(DemangledName.str(), &OC);
   mutateCallInst(CI, OC).changeReturnType(
@@ -1542,7 +1585,7 @@ static const char *getSubgroupAVCIntelTyKind(StringRef MangledName) {
 }
 
 static Type *getSubgroupAVCIntelMCEType(Module *M, std::string &TName) {
-  auto Ty = StructType::getTypeByName(M->getContext(), TName);
+  auto *Ty = StructType::getTypeByName(M->getContext(), TName);
   if (Ty)
     return Ty;
 

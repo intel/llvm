@@ -29,6 +29,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -170,6 +171,11 @@ public:
     TOCType_EHBlock
   };
 
+  // Controls whether or not to emit a .ref reference to __tls_get_addr.
+  // This is currently used for TLS models that do not generate calls to
+  // TLS functions, such as for the local-exec model on AIX 64-bit.
+  bool HasRefGetTLSAddr = false;
+
   MCSymbol *lookUpOrCreateTOCEntry(const MCSymbol *Sym, TOCEntryType Type,
                                    MCSymbolRefExpr::VariantKind Kind =
                                        MCSymbolRefExpr::VariantKind::VK_None);
@@ -289,6 +295,8 @@ public:
   bool doFinalization(Module &M) override;
 
   void emitTTypeReference(const GlobalValue *GV, unsigned Encoding) override;
+
+  void emitModuleCommandLines(Module &M) override;
 };
 
 } // end anonymous namespace
@@ -313,7 +321,7 @@ void PPCAsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNo,
 
     // Linux assembler (Others?) does not take register mnemonics.
     // FIXME - What about special registers used in mfspr/mtspr?
-    O << PPCRegisterInfo::stripRegisterPrefix(RegName);
+    O << PPC::stripRegisterPrefix(RegName);
     return;
   }
   case MachineOperand::MO_Immediate:
@@ -373,13 +381,13 @@ bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
       // This operand uses VSX numbering.
       // If the operand is a VMX register, convert it to a VSX register.
       Register Reg = MI->getOperand(OpNo).getReg();
-      if (PPCInstrInfo::isVRRegister(Reg))
+      if (PPC::isVRRegister(Reg))
         Reg = PPC::VSX32 + (Reg - PPC::V0);
-      else if (PPCInstrInfo::isVFRegister(Reg))
+      else if (PPC::isVFRegister(Reg))
         Reg = PPC::VSX32 + (Reg - PPC::VF0);
       const char *RegName;
       RegName = PPCInstPrinter::getRegisterName(Reg);
-      RegName = PPCRegisterInfo::stripRegisterPrefix(RegName);
+      RegName = PPC::stripRegisterPrefix(RegName);
       O << RegName;
       return false;
     }
@@ -612,12 +620,17 @@ void PPCAsmPrinter::LowerPATCHPOINT(StackMaps &SM, const MachineInstr &MI) {
 /// This helper function creates the TlsGetAddr MCSymbol for AIX. We will
 /// create the csect and use the qual-name symbol instead of creating just the
 /// external symbol.
-static MCSymbol *createMCSymbolForTlsGetAddr(MCContext &Ctx, unsigned MIOpc) {
-  StringRef SymName =
-      MIOpc == PPC::GETtlsTpointer32AIX ? ".__get_tpointer" : ".__tls_get_addr";
+static MCSymbol *
+createMCSymbolForTlsGetAddr(MCContext &Ctx, unsigned MIOpc,
+                            XCOFF::StorageMappingClass SMC = XCOFF::XMC_PR) {
+  StringRef SymName;
+  if (MIOpc == PPC::GETtlsTpointer32AIX)
+    SymName = ".__get_tpointer";
+  else
+    SymName = (SMC == XCOFF::XMC_DS) ? "__tls_get_addr" : ".__tls_get_addr";
   return Ctx
       .getXCOFFSection(SymName, SectionKind::getText(),
-                       XCOFF::CsectProperties(XCOFF::XMC_PR, XCOFF::XTY_ER))
+                       XCOFF::CsectProperties(SMC, XCOFF::XTY_ER))
       ->getQualNameSymbol();
 }
 
@@ -629,7 +642,6 @@ void PPCAsmPrinter::EmitAIXTlsCallHelper(const MachineInstr *MI) {
   const MCExpr *TlsRef =
       MCSymbolRefExpr::create(TlsCall, MCSymbolRefExpr::VK_None, OutContext);
   EmitToStreamer(*OutStreamer, MCInstBuilder(PPC::BLA).addExpr(TlsRef));
-  return;
 }
 
 /// EmitTlsCall -- Given a GETtls[ld]ADDR[32] instruction, print a
@@ -824,17 +836,20 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     return Expr;
   };
   auto GetVKForMO = [&](const MachineOperand &MO) {
-    // For TLS local-exec accesses on AIX, we have one TOC entry for the symbol
-    // (with the variable offset), which is differentiated by MO_TPREL_FLAG.
+    // For TLS initial-exec and local-exec accesses on AIX, we have one TOC
+    // entry for the symbol (with the variable offset), which is differentiated
+    // by MO_TPREL_FLAG.
     if (MO.getTargetFlags() & PPCII::MO_TPREL_FLAG) {
-      // TODO: Update the query and the comment above to add a check for initial
-      // exec when this TLS model is supported on AIX in the future, as both
-      // local-exec and initial-exec can use MO_TPREL_FLAG.
       assert(MO.isGlobal() && "Only expecting a global MachineOperand here!\n");
       TLSModel::Model Model = TM.getTLSModel(MO.getGlobal());
-      if (Model == TLSModel::LocalExec)
+      if (Model == TLSModel::LocalExec) {
+        if (IsPPC64)
+          HasRefGetTLSAddr = true;
         return MCSymbolRefExpr::VariantKind::VK_PPC_AIX_TLSLE;
-      llvm_unreachable("Only expecting local-exec accesses!");
+      }
+      if (Model == TLSModel::InitialExec)
+        return MCSymbolRefExpr::VariantKind::VK_PPC_AIX_TLSIE;
+      llvm_unreachable("Only expecting local-exec or initial-exec accesses!");
     }
     // For GD TLS access on AIX, we have two TOC entries for the symbol (one for
     // the variable offset and the other for the region handle). They are
@@ -2760,11 +2775,21 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
 
   // Construct an aliasing list for each GlobalObject.
   for (const auto &Alias : M.aliases()) {
-    const GlobalObject *Base = Alias.getAliaseeObject();
-    if (!Base)
+    const GlobalObject *Aliasee = Alias.getAliaseeObject();
+    if (!Aliasee)
       report_fatal_error(
           "alias without a base object is not yet supported on AIX");
-    GOAliasMap[Base].push_back(&Alias);
+
+    if (Aliasee->hasCommonLinkage()) {
+      report_fatal_error("Aliases to common variables are not allowed on AIX:"
+                         "\n\tAlias attribute for " +
+                             Alias.getGlobalIdentifier() +
+                             " is invalid because " + Aliasee->getName() +
+                             " is common.",
+                         false);
+    }
+
+    GOAliasMap[Aliasee].push_back(&Alias);
   }
 
   return Result;
@@ -2849,6 +2874,22 @@ bool PPCAIXAsmPrinter::doFinalization(Module &M) {
   if (!MAI->usesDwarfFileAndLocDirectives() && MMI->hasDebugInfo())
     OutStreamer->doFinalizationAtSectionEnd(
         OutStreamer->getContext().getObjectFileInfo()->getTextSection());
+
+  // Add a single .ref reference to __tls_get_addr[DS] for the local-exec TLS
+  // model on AIX 64-bit. For TLS models that do not generate calls to TLS
+  // functions, this reference to __tls_get_addr helps generate a linker error
+  // to an undefined symbol to __tls_get_addr, which indicates to the user that
+  // compiling with -pthread is required for programs that use TLS variables.
+  if (HasRefGetTLSAddr) {
+    // Specifically for 64-bit AIX, a load from the TOC is generated to load
+    // the variable offset needed for local-exec accesses.
+    MCSymbol *TlsGetAddrDescriptor =
+        createMCSymbolForTlsGetAddr(OutContext, PPC::GETtlsADDR64AIX,
+                                    XCOFF::XMC_DS);
+
+    ExtSymSDNodeSymbols.insert(TlsGetAddrDescriptor);
+    OutStreamer->emitXCOFFRefDirective(TlsGetAddrDescriptor);
+  }
 
   for (MCSymbol *Sym : ExtSymSDNodeSymbols)
     OutStreamer->emitSymbolAttribute(Sym, MCSA_Extern);
@@ -2951,6 +2992,26 @@ createPPCAsmPrinterPass(TargetMachine &tm,
     return new PPCAIXAsmPrinter(tm, std::move(Streamer));
 
   return new PPCLinuxAsmPrinter(tm, std::move(Streamer));
+}
+
+void PPCAIXAsmPrinter::emitModuleCommandLines(Module &M) {
+  const NamedMDNode *NMD = M.getNamedMetadata("llvm.commandline");
+  if (!NMD || !NMD->getNumOperands())
+    return;
+
+  std::string S;
+  raw_string_ostream RSOS(S);
+  for (unsigned i = 0, e = NMD->getNumOperands(); i != e; ++i) {
+    const MDNode *N = NMD->getOperand(i);
+    assert(N->getNumOperands() == 1 &&
+           "llvm.commandline metadata entry can have only one operand");
+    const MDString *MDS = cast<MDString>(N->getOperand(0));
+    // Add "@(#)" to support retrieving the command line information with the
+    // AIX "what" command
+    RSOS << "@(#)opt " << MDS->getString() << "\n";
+    RSOS.write('\0');
+  }
+  OutStreamer->emitXCOFFCInfoSym(".GCC.command.line", RSOS.str());
 }
 
 // Force static initialization.

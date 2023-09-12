@@ -1,14 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -march=x86 -asm-verbose < %t.ll | grep DW_TAG_formal_parameter
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -march=x86 -asm-verbose < %t.ll | grep DW_TAG_formal_parameter
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -march=x86 -asm-verbose < %t.ll | grep DW_TAG_formal_parameter
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
@@ -18,22 +18,20 @@ target triple = "spir64-unknown-unknown"
 %struct.Pt = type { double, double }
 %struct.Rect = type { %struct.Pt, %struct.Pt }
 
-define double @foo(%struct.Rect* byval(%struct.Rect) %my_r0) nounwind ssp !dbg !1 {
+define double @foo(ptr byval(%struct.Rect) %my_r0) nounwind ssp !dbg !1 {
 entry:
-  %retval = alloca double                         ; <double*> [#uses=2]
-  %0 = alloca double                              ; <double*> [#uses=2]
+  %retval = alloca double                         ; <ptr> [#uses=2]
+  %0 = alloca double                              ; <ptr> [#uses=2]
   %"alloca point" = bitcast i32 0 to i32          ; <i32> [#uses=0]
-  call void @llvm.dbg.declare(metadata %struct.Rect* %my_r0, metadata !0, metadata !DIExpression()), !dbg !15
-  %1 = getelementptr inbounds %struct.Rect, %struct.Rect* %my_r0, i32 0, i32 0, !dbg !16 ; <%struct.Pt*> [#uses=1]
-  %2 = getelementptr inbounds %struct.Pt, %struct.Pt* %1, i32 0, i32 0, !dbg !16 ; <double*> [#uses=1]
-  %3 = load double, double* %2, align 8, !dbg !16         ; <double> [#uses=1]
-  store double %3, double* %0, align 8, !dbg !16
-  %4 = load double, double* %0, align 8, !dbg !16         ; <double> [#uses=1]
-  store double %4, double* %retval, align 8, !dbg !16
+  call void @llvm.dbg.declare(metadata ptr %my_r0, metadata !0, metadata !DIExpression()), !dbg !15
+  %1 = load double, ptr %my_r0, align 8, !dbg !16         ; <double> [#uses=1]
+  store double %1, ptr %0, align 8, !dbg !16
+  %2 = load double, ptr %0, align 8, !dbg !16         ; <double> [#uses=1]
+  store double %2, ptr %retval, align 8, !dbg !16
   br label %return, !dbg !16
 
 return:                                           ; preds = %entry
-  %retval1 = load double, double* %retval, !dbg !16       ; <double> [#uses=1]
+  %retval1 = load double, ptr %retval, !dbg !16       ; <double> [#uses=1]
   ret double %retval1, !dbg !16
 }
 

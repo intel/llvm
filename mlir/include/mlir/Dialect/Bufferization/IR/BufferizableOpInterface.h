@@ -12,6 +12,7 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm/ADT/DenseMapInfoVariant.h"
 #include "llvm/ADT/SetVector.h"
 #include <optional>
 
@@ -48,14 +49,13 @@ struct AliasingOpOperand {
   bool isDefinite;
 };
 
-/// A maybe aliasing OpResult. If `isDefinite` is `true`, the OpResult is
-/// guaranteed to alias at runtime.
-struct AliasingOpResult {
-  AliasingOpResult(OpResult opResult, BufferRelation relation,
-                   bool isDefinite = true)
-      : opResult(opResult), relation(relation), isDefinite(isDefinite) {}
+/// A maybe aliasing Value. If `isDefinite` is `true`, the Value is guaranteed
+/// to alias at runtime.
+struct AliasingValue {
+  AliasingValue(Value value, BufferRelation relation, bool isDefinite = true)
+      : value(value), relation(relation), isDefinite(isDefinite) {}
 
-  OpResult opResult;
+  Value value;
   BufferRelation relation;
   bool isDefinite;
 };
@@ -89,12 +89,12 @@ private:
 };
 
 /// A list of possible aliasing OpOperands. This list models the runtime
-/// aliasing relationship for an OpResult.
+/// aliasing relationship for a Value.
 using AliasingOpOperandList = AliasList<AliasingOpOperand>;
 
-/// A list of possible aliasing OpResults. This list models the runtime
-/// aliasing relationship for an OpOperand.
-using AliasingOpResultList = AliasList<AliasingOpResult>;
+/// A list of possible aliasing Values. This list models the runtime aliasing
+/// relationship for an OpOperand.
+using AliasingValueList = AliasList<AliasingValue>;
 
 class OpFilter {
 public:
@@ -407,21 +407,28 @@ struct TraversalConfig {
   /// Specifies whether unknown/non-bufferizable/ops not included in the
   /// OpFilter of BufferizationOptions should be followed.
   bool followUnknownOps = false;
+
+  /// Specifies whether OpOperands with a different type that are not the result
+  /// of a CastOpInterface op should be followed.
+  bool followSameTypeOrCastsOnly = false;
+
+  /// Specifies whether already visited values should be visited again.
+  /// (Note: This can result in infinite looping.)
+  bool revisitAlreadyVisitedValues = false;
 };
 
 /// AnalysisState provides a variety of helper functions for dealing with
 /// tensor values.
 class AnalysisState {
 public:
-  /// Determine which OpOperand* will alias with `result` if the op is
+  /// Determine which OpOperand* will alias with `value` if the op is
   /// bufferized in place. Return all tensor OpOperand* if the op is not
   /// bufferizable.
-  AliasingOpOperandList getAliasingOpOperands(OpResult result) const;
+  AliasingOpOperandList getAliasingOpOperands(Value value) const;
 
-  /// Determine which OpResult will alias with `opOperand` if the op is
-  /// bufferized in place. Return all tensor OpResults if the op is not
-  /// bufferizable.
-  AliasingOpResultList getAliasingOpResults(OpOperand &opOperand) const;
+  /// Determine which Value will alias with `opOperand` if the op is bufferized
+  /// in place. Return all tensor Values if the op is not bufferizable.
+  AliasingValueList getAliasingValues(OpOperand &opOperand) const;
 
   /// Return true if `opOperand` bufferizes to a memory read. Return `true` if
   /// the op is not bufferizable.
@@ -546,6 +553,21 @@ public:
 
   TypeID getType() const { return type; }
 
+  /// Return the closest enclosing repetitive region around the given op.
+  Region *getEnclosingRepetitiveRegion(Operation *op,
+                                       const BufferizationOptions &options);
+
+  /// Return the closest enclosing repetitive region around the place where the
+  /// given value is defined.
+  Region *getEnclosingRepetitiveRegion(Value value,
+                                       const BufferizationOptions &options);
+
+  /// Return the closest enclosing repetitive region around the given block.
+  Region *getEnclosingRepetitiveRegion(Block *block,
+                                       const BufferizationOptions &options);
+
+  virtual void resetCache();
+
 protected:
   AnalysisState(const BufferizationOptions &options, TypeID type);
 
@@ -555,6 +577,10 @@ private:
 
   /// The type of analysis.
   TypeID type;
+
+  /// Cache containing closest ancestor repetitive Region.
+  DenseMap<std::variant<Operation *, Block *, Region *, Value>, Region *>
+      enclosingRepetitiveRegionCache;
 };
 
 /// Create an AllocTensorOp for the given shaped value (memref or tensor).
@@ -587,17 +613,18 @@ FailureOr<BaseMemRefType> getBufferType(Value value,
                                         const BufferizationOptions &options);
 
 /// Return the buffer type for a given Value (tensor) after bufferization
-/// without bufferizing any IR. If at any point during the type computation, the
-/// type of a value in `fixedTypes` in required, the mapped type is used.
+/// without bufferizing any IR. This function (and not the other overload
+/// without `invocationStack`) can be used from `getBufferType` implementations
+/// of the `BufferizableOpInterface`.
 ///
 /// Note: It should be sufficient to call `getBuffer()->getType()` in most
 /// cases. However, when a buffer type should be predicted without modifying any
 /// IR, this function can be used.
 ///
-/// This function is a wrapper around BufferizableOpInterface::getBufferType.
-FailureOr<BaseMemRefType>
-getBufferType(Value value, const BufferizationOptions &options,
-              const DenseMap<Value, BaseMemRefType> &fixedTypes);
+/// This function is a wrapper around `BufferizableOpInterface::getBufferType`.
+FailureOr<BaseMemRefType> getBufferType(Value value,
+                                        const BufferizationOptions &options,
+                                        SmallVector<Value> &invocationStack);
 
 /// Replace an op with replacement values. The op is deleted. Tensor OpResults
 /// must be replaced with memref values.
@@ -652,29 +679,24 @@ getMemRefTypeWithStaticIdentityLayout(TensorType tensorType,
 /// owner of the block. In case of an OpResult that is the defining op.
 Operation *getOwnerOfValue(Value value);
 
-/// Return the closest enclosing repetitive region around the given op.
-Region *getEnclosingRepetitiveRegion(Operation *op,
-                                     const BufferizationOptions &options);
-
-/// Return the closest enclosing repetitive region around the place where the
-/// given value is defined.
-Region *getEnclosingRepetitiveRegion(Value value,
-                                     const BufferizationOptions &options);
-
-/// Return the closest enclosing repetitive region around the given block.
-Region *getEnclosingRepetitiveRegion(Block *block,
-                                     const BufferizationOptions &options);
-
 /// Assuming that the given region is repetitive, find the next enclosing
 /// repetitive region.
 Region *getNextEnclosingRepetitiveRegion(Region *region,
                                          const BufferizationOptions &options);
 
+/// If `region` is a parallel region, return `region`. Otherwise, find the first
+/// enclosing parallel region of `region`. If there is no such region, return
+/// "nullptr".
+///
+/// Note: Whether a region is parallel or sequential is queried from the
+/// `BufferizableOpInterface`.
+Region *getParallelRegion(Region *region, const BufferizationOptions &options);
+
 namespace detail {
 /// This is the default implementation of
 /// BufferizableOpInterface::getAliasingOpOperands. Should not be called from
 /// other places.
-AliasingOpOperandList defaultGetAliasingOpOperands(OpResult opResult,
+AliasingOpOperandList defaultGetAliasingOpOperands(Value value,
                                                    const AnalysisState &state);
 
 /// This is the default implementation of
@@ -682,7 +704,7 @@ AliasingOpOperandList defaultGetAliasingOpOperands(OpResult opResult,
 /// places.
 FailureOr<BaseMemRefType>
 defaultGetBufferType(Value value, const BufferizationOptions &options,
-                     const DenseMap<Value, BaseMemRefType> &fixedTypes);
+                     SmallVector<Value> &invocationStack);
 
 /// This is the default implementation of
 /// BufferizableOpInterface::resultBufferizesToMemoryWrite. Should not be called
@@ -698,11 +720,11 @@ bool defaultIsRepetitiveRegion(BufferizableOpInterface bufferizableOp,
 
 /// This is the default implementation of getAliasingOpOperands in case the
 /// defining op does not implement the BufferizableOpInterface.
-AliasingOpOperandList unknownGetAliasingOpOperands(OpResult opResult);
+AliasingOpOperandList unknownGetAliasingOpOperands(Value value);
 
-/// This is the default implementation of getAliasingOpResults in case the
-/// owner op does not implement the BufferizableOpInterface.
-AliasingOpResultList unknownGetAliasingOpResults(OpOperand &opOperand);
+/// This is the default implementation of getAliasingValues in case the owner
+/// op does not implement the BufferizableOpInterface.
+AliasingValueList unknownGetAliasingValues(OpOperand &opOperand);
 } // namespace detail
 
 } // namespace bufferization

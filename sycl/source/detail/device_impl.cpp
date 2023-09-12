@@ -87,9 +87,11 @@ device_impl::~device_impl() {
   if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const PluginPtr &Plugin = getPlugin();
-    sycl::detail::pi::PiResult Err =
-        Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+    if (!Plugin->pluginReleased) {
+      sycl::detail::pi::PiResult Err =
+          Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+      __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
+    }
   }
 }
 
@@ -626,6 +628,15 @@ uint64_t device_impl::getCurrentDeviceTime() {
     Diff = 0;
   }
   return MDeviceHostBaseTime.first + Diff;
+}
+
+bool device_impl::isGetDeviceAndHostTimerSupported() {
+  const auto &Plugin = getPlugin();
+  uint64_t DeviceTime = 0, HostTime = 0;
+  auto Result =
+      Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+          MDevice, &DeviceTime, &HostTime);
+  return Result != PI_ERROR_INVALID_OPERATION;
 }
 
 } // namespace detail

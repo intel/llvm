@@ -70,6 +70,13 @@ inline void populateGpuRewritePatterns(RewritePatternSet &patterns) {
 }
 
 namespace gpu {
+/// Searches for all GPU modules in `op` and transforms them into GPU binary
+/// operations. The resulting `gpu.binary` has `handler` as its offloading
+/// handler attribute.
+LogicalResult transformGpuModulesToBinaries(
+    Operation *op, OffloadingLLVMTranslationAttrInterface handler = nullptr,
+    const gpu::TargetOptions &options = {});
+
 /// Base pass class to serialize kernel functions through LLVM into
 /// user-specified IR and add the resulting blob as module attribute.
 class SerializeToBlobPass : public OperationPass<gpu::GPUModuleOp> {
@@ -80,8 +87,6 @@ public:
   void runOnOperation() final;
 
 protected:
-  void getDependentDialects(DialectRegistry &registry) const override;
-
   /// Hook allowing the application of optimizations before codegen
   /// By default, does nothing
   virtual LogicalResult optimizeLlvm(llvm::Module &llvmModule,
@@ -117,6 +122,9 @@ protected:
       *this, "gpu-binary-annotation",
       llvm::cl::desc("Annotation attribute string for GPU binary"),
       llvm::cl::init(getDefaultGpuBinaryAnnotation())};
+  Option<bool> dumpPtx{*this, "dump-ptx",
+                       ::llvm::cl::desc("Dump generated PTX"),
+                       llvm::cl::init(false)};
 };
 } // namespace gpu
 
@@ -137,7 +145,8 @@ void registerGpuSerializeToHsacoPass();
 std::unique_ptr<Pass> createGpuSerializeToCubinPass(StringRef triple,
                                                     StringRef chip,
                                                     StringRef features,
-                                                    int optLevel = 2);
+                                                    int optLevel = 2,
+                                                    bool dumpPtx = false);
 
 /// Create an instance of the GPU kernel function to HSAco binary serialization
 /// pass.
@@ -145,6 +154,12 @@ std::unique_ptr<Pass> createGpuSerializeToHsacoPass(StringRef triple,
                                                     StringRef arch,
                                                     StringRef features,
                                                     int optLevel);
+
+/// Collect a set of patterns to decompose memrefs ops.
+void populateGpuDecomposeMemrefsPatterns(RewritePatternSet &patterns);
+
+/// Pass decomposes memref ops inside `gpu.launch` body.
+std::unique_ptr<Pass> createGpuDecomposeMemrefsPass();
 
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION

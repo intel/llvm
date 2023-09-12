@@ -134,7 +134,7 @@ struct PackOpTiling
     DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
         packOp.getDimAndTileMapping();
     SmallVector<OpFoldResult> srcDimValues =
-        tensor::createDimValues(b, loc, packOp.getSource());
+        tensor::getMixedSizes(b, loc, packOp.getSource());
     SmallVector<OpFoldResult> inputIndices, inputSizes;
     for (auto dim : llvm::seq<int64_t>(0, inputRank)) {
       using AV = affine::AffineValueExpr;
@@ -219,6 +219,32 @@ struct PackOpTiling
       resultSizes.push_back(outputShape[0][dataTileDim]);
 
     return success();
+  }
+
+  FailureOr<TilingResult>
+  generateResultTileValue(Operation *op, OpBuilder &b, unsigned resultNumber,
+                          ArrayRef<OpFoldResult> offsets,
+                          ArrayRef<OpFoldResult> sizes) const {
+    auto packOp = cast<PackOp>(op);
+    int64_t numTiles = packOp.getInnerDimsPos().size();
+
+    // tensor.pack op is fusible (as a producer) only if full inner tiles are
+    // iterated or inner dims are not tiled. Otherwise, it will generate a
+    // sequence of non-trivial ops (for partial tiles).
+    for (auto offset : offsets.take_back(numTiles))
+      if (!isConstantIntValue(offset, 0))
+        return failure();
+
+    for (auto iter :
+         llvm::zip_equal(packOp.getMixedTiles(), sizes.take_back(numTiles)))
+      if (!isEqualConstantIntOrValue(std::get<0>(iter), std::get<1>(iter)))
+        return failure();
+
+    FailureOr<TilingResult> tilingResult = getTiledImplementation(
+        op, b, offsets.drop_back(numTiles), sizes.drop_back(numTiles));
+    if (failed(tilingResult))
+      return failure();
+    return tilingResult.value();
   }
 };
 
@@ -502,8 +528,7 @@ FailureOr<TilingResult> tensor::bubbleUpPadSlice(OpBuilder &b,
     bool hasHighPad = !isConstantIntValue(high, 0);
     auto offset = offsets[dim];
     auto length = sizes[dim];
-    auto srcSize =
-        tensor::createDimValue(b, loc, padOp.getSource(), dim).value();
+    auto srcSize = tensor::getMixedSize(b, loc, padOp.getSource(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of

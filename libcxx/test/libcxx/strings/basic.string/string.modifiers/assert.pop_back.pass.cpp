@@ -12,16 +12,16 @@
 
 // REQUIRES: has-unix-headers
 // UNSUPPORTED: c++03
+// UNSUPPORTED: libcpp-hardening-mode=unchecked
 // XFAIL: availability-verbose_abort-missing
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_ENABLE_ASSERTIONS=1
 
 #include <string>
 
 #include "check_assertion.h"
 
 int main(int, char**) {
-    std::string s;
-    TEST_LIBCPP_ASSERT_FAILURE(s.pop_back(), "string::pop_back(): string is already empty");
+  std::string s;
+  TEST_LIBCPP_ASSERT_FAILURE(s.pop_back(), "string::pop_back(): string is already empty");
 
-    return 0;
+  return 0;
 }

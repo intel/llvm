@@ -169,6 +169,10 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasArg(options::OPT_Z_Xlinker__no_demangle))
     CmdArgs.push_back("--no-demangle");
 
+  if (!Args.hasFlag(options::OPT_fauto_import, options::OPT_fno_auto_import,
+                    true))
+    CmdArgs.push_back("--disable-auto-import");
+
   if (Arg *A = Args.getLastArg(options::OPT_mguard_EQ)) {
     StringRef GuardArgs = A->getValue();
     if (GuardArgs == "none")
@@ -192,7 +196,6 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   } else
     CmdArgs.push_back(OutputFile);
 
-  Args.AddAllArgs(CmdArgs, options::OPT_e);
   // FIXME: add -N, -n flags
   Args.AddLastArg(CmdArgs, options::OPT_r);
   Args.AddLastArg(CmdArgs, options::OPT_s);
@@ -238,6 +241,12 @@ void tools::MinGW::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(Args.MakeArgString("-L" + CRTPath));
 
   AddLinkerInputs(TC, Inputs, Args, CmdArgs, JA);
+
+  if (D.isUsingLTO()) {
+    assert(!Inputs.empty() && "Must have at least one input.");
+    addLTOOptions(TC, Args, CmdArgs, Output, Inputs[0],
+                  D.getLTOMode() == LTOK_Thin);
+  }
 
   if (C.getDriver().IsFlangMode()) {
     addFortranRuntimeLibraryPath(TC, Args, CmdArgs);
@@ -518,8 +527,6 @@ toolchains::MinGW::MinGW(const Driver &D, const llvm::Triple &Triple,
       Args.getLastArgValue(options::OPT_fuse_ld_EQ, CLANG_DEFAULT_LINKER)
           .equals_insensitive("lld");
 }
-
-bool toolchains::MinGW::IsIntegratedAssemblerDefault() const { return true; }
 
 Tool *toolchains::MinGW::getTool(Action::ActionClass AC) const {
   switch (AC) {

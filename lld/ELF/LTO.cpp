@@ -164,8 +164,6 @@ static lto::Config createConfig() {
   c.RunCSIRInstr = config->ltoCSProfileGenerate;
   c.PGOWarnMismatch = config->ltoPGOWarnMismatch;
 
-  c.OpaquePointers = config->opaquePointers;
-
   if (config->emitLLVM) {
     c.PostInternalizeModuleHook = [](size_t task, const Module &m) {
       if (std::unique_ptr<raw_fd_ostream> os =
@@ -208,8 +206,13 @@ BitcodeCompiler::BitcodeCompiler() {
         config->thinLTOEmitImportsFiles);
   }
 
-  ltoObj = std::make_unique<lto::LTO>(createConfig(), backend,
-                                       config->ltoPartitions);
+  constexpr llvm::lto::LTO::LTOKind ltoModes[3] =
+    {llvm::lto::LTO::LTOKind::LTOK_UnifiedThin,
+     llvm::lto::LTO::LTOKind::LTOK_UnifiedRegular,
+     llvm::lto::LTO::LTOKind::LTOK_Default};
+  ltoObj = std::make_unique<lto::LTO>(
+      createConfig(), backend, config->ltoPartitions,
+      ltoModes[config->ltoKind]);
 
   // Initialize usedStartStop.
   if (ctx.bitcodeFiles.empty())

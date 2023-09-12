@@ -36,7 +36,6 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/iostream_proxy.hpp>      // for cout
 #include <sycl/detail/memcpy.hpp>              // for memcpy
 #include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
@@ -48,7 +47,6 @@
 
 #include <array>       // for array
 #include <assert.h>    // for assert
-#include <cmath>       // for ceil, floor, rint, trunc
 #include <cstddef>     // for size_t, NULL, byte
 #include <cstdint>     // for uint8_t, int16_t, int...
 #include <functional>  // for divides, multiplies
@@ -62,6 +60,7 @@
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv> // for fesetround, fegetround
+#include <cmath> // for ceil, floor, rint, trunc
 #endif
 
 // 4.10.1: Scalar data types
@@ -906,16 +905,6 @@ public:
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<vec_data_t<DataT>, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
-
-  // TODO: Remove, for debug purposes only.
-  void dump() const {
-#ifndef __SYCL_DEVICE_ONLY__
-    for (int I = 0; I < NumElements; ++I) {
-      std::cout << "  " << I << ": " << getValue(I) << std::endl;
-    }
-    std::cout << std::endl;
-#endif // __SYCL_DEVICE_ONLY__
-  }
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename vector_t_ = vector_t,

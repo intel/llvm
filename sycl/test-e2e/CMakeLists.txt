@@ -41,6 +41,23 @@ if(NOT SYCL_TEST_E2E_TARGETS)
   set(SYCL_TEST_E2E_TARGETS "all")
 endif()
 
+if(MSVC AND NOT SYCL_TEST_E2E_STANDALONE)
+  # We're trying to pass MSVC flags to Clang, which doesn't work by default
+  separate_arguments(cxx_flags NATIVE_COMMAND "${CMAKE_CXX_FLAGS}")
+  foreach(flag IN ITEMS ${cxx_flags})
+    # Skip certain flags that only exists for MSVC
+    if("${flag}" STREQUAL "/EHsc")
+      continue()
+    endif()
+    # Change the way compiler definitions are passed in
+    string(REGEX REPLACE "^/D" "-D" clang_flag "${flag}")
+    list(APPEND SYCL_E2E_CLANG_CXX_FLAGS ${clang_flag})
+  endforeach()
+  string (REPLACE ";" " " SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS}")
+else()
+  set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+endif()
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")

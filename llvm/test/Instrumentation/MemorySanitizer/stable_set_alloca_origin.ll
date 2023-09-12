@@ -1,7 +1,6 @@
-; Must pass -opaque-pointers explicitly until it becomes the default on xmain
-; RUN: opt < %s -opaque-pointers -msan-check-access-address=0 \
+; RUN: opt < %s -msan-check-access-address=0 \
 ; RUN: -msan-track-origins=1 -S -passes=msan 2>&1 | FileCheck %s
-; RUN: opt < %s -opaque-pointers -msan-check-access-address=0  \
+; RUN: opt < %s -msan-check-access-address=0  \
 ; RUN: -msan-track-origins=2 -S -passes=msan 2>&1 | FileCheck %s
 
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"

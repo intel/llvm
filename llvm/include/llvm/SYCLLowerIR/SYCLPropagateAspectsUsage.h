@@ -15,6 +15,8 @@
 
 #include "llvm/IR/PassManager.h"
 
+#include <set>
+
 namespace llvm {
 
 class SYCLPropagateAspectsUsagePass

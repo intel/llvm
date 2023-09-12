@@ -20,6 +20,7 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
+include "mlir/Dialect/OpenACCMPCommon/Interfaces/AtomicInterfaces.td"
 include "mlir/Dialect/OpenMP/OpenMPOpsInterfaces.td"
 include "mlir/Dialect/OpenMP/OpenMPTypeInterfaces.td"
 
@@ -28,7 +29,6 @@ def OpenMP_Dialect : Dialect {
   let cppNamespace = "::mlir::omp";
   let dependentDialects = ["::mlir::LLVM::LLVMDialect, ::mlir::func::FuncDialect"];
   let useDefaultAttributePrinterParser = 1;
-  let usePropertiesForAttributes = 1;
 }
 
 // OmpCommon requires definition of OpenACC_Dialect.
@@ -188,6 +188,10 @@ def ParallelOp : OpenMP_Op<"parallel", [
   let builders = [
     OpBuilder<(ins CArg<"ArrayRef<NamedAttribute>", "{}">:$attributes)>
   ];
+  let extraClassDeclaration = [{
+    /// Returns the number of reduction variables.
+    unsigned getNumReductionVars() { return getReductionVars().size(); }
+  }];
   let assemblyFormat = [{
     oilist( `reduction` `(`
               custom<ReductionVarList>(
@@ -216,6 +220,66 @@ def TerminatorOp : OpenMP_Op<"terminator", [Terminator, Pure]> {
   }];
 
   let assemblyFormat = "attr-dict";
+}
+
+//===----------------------------------------------------------------------===//
+// 2.7 teams Construct
+//===----------------------------------------------------------------------===//
+def TeamsOp : OpenMP_Op<"teams", [
+              AttrSizedOperandSegments, RecursiveMemoryEffects,
+              ReductionClauseInterface]> {
+  let summary = "teams construct";
+  let description = [{
+    The teams construct defines a region of code that triggers the creation of a
+    league of teams. Once created, the number of teams remains constant for the
+    duration of its code region.
+
+    The optional $num_teams_upper and $num_teams_lower specify the limit on the
+    number of teams to be created. If only the upper bound is specified, it acts
+    as if the lower bound was set to the same value. It is not supported to set
+    $num_teams_lower if $num_teams_upper is not specified. They define a closed
+    range, where both the lower and upper bounds are included.
+
+    If the $if_expr is present and it evaluates to `false`, the number of teams
+    created is one.
+
+    The optional $thread_limit specifies the limit on the number of threads.
+
+    The $allocators_vars and $allocate_vars parameters are a variadic list of
+    values that specify the memory allocator to be used to obtain storage for
+    private values.
+  }];
+
+  let arguments = (ins Optional<AnyInteger>:$num_teams_lower,
+                       Optional<AnyInteger>:$num_teams_upper,
+                       Optional<I1>:$if_expr,
+                       Optional<AnyInteger>:$thread_limit,
+                       Variadic<AnyType>:$allocate_vars,
+                       Variadic<AnyType>:$allocators_vars,
+                       Variadic<OpenMP_PointerLikeType>:$reduction_vars,
+                       OptionalAttr<SymbolRefArrayAttr>:$reductions);
+
+  let regions = (region AnyRegion:$region);
+
+  let assemblyFormat = [{
+    oilist(
+      `num_teams` `(` ( $num_teams_lower^ `:` type($num_teams_lower) )? `to`
+                        $num_teams_upper `:` type($num_teams_upper) `)`
+    | `if` `(` $if_expr `)`
+    | `thread_limit` `(` $thread_limit `:` type($thread_limit) `)`
+    | `reduction` `(`
+        custom<ReductionVarList>(
+          $reduction_vars, type($reduction_vars), $reductions
+        ) `)`
+    | `allocate` `(`
+        custom<AllocateAndAllocator>(
+          $allocate_vars, type($allocate_vars),
+          $allocators_vars, type($allocators_vars)
+        ) `)`
+    ) $region attr-dict
+  }];
+
+  let hasVerifier = 1;
 }
 
 def OMP_ScheduleModNone         : I32EnumAttrCase<"none", 0>;
@@ -978,19 +1042,20 @@ def Target_DataOp: OpenMP_Op<"target_data", [AttrSizedOperandSegments]>{
 
   let arguments = (ins Optional<I1>:$if_expr,
                        Optional<AnyInteger>:$device,
-                       Variadic<AnyType>:$use_device_ptr,
-                       Variadic<AnyType>:$use_device_addr,
+                       Variadic<OpenMP_PointerLikeType>:$use_device_ptr,
+                       Variadic<OpenMP_PointerLikeType>:$use_device_addr,
                        Variadic<OpenMP_PointerLikeType>:$map_operands,
-                       I64ArrayAttr:$map_types);
+                       OptionalAttr<I64ArrayAttr>:$map_types);
 
   let regions = (region AnyRegion:$region);
 
   let assemblyFormat = [{
     oilist(`if` `(` $if_expr `:` type($if_expr) `)`
     | `device` `(` $device `:` type($device) `)`
+    | `map`
+      `(` custom<MapClause>($map_operands, type($map_operands), $map_types) `)`
     | `use_device_ptr` `(` $use_device_ptr `:` type($use_device_ptr) `)`
     | `use_device_addr` `(` $use_device_addr `:` type($use_device_addr) `)`)
-    `map` `(` custom<MapClause>($map_operands, type($map_operands), $map_types) `)`
     $region attr-dict
   }];
 
@@ -1302,7 +1367,8 @@ def TaskwaitOp : OpenMP_Op<"taskwait"> {
 // value of the clause) here decomposes handling of this construct into a
 // two-step process.
 
-def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
+def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>,
+                                            AtomicReadOpInterface]> {
 
   let summary = "performs an atomic read";
 
@@ -1348,17 +1414,17 @@ def AtomicReadOp : OpenMP_Op<"atomic.read", [AllTypesMatch<["x", "v"]>]> {
   }];
 }
 
-def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
+def AtomicWriteOp : OpenMP_Op<"atomic.write", [AtomicWriteOpInterface]> {
 
   let summary = "performs an atomic write";
 
   let description = [{
     This operation performs an atomic write.
 
-    The operand `address` is the address to where the `value` is atomically
-    written w.r.t. multiple threads. The evaluation of `value` need not be
-    atomic w.r.t. the write to address. In general, the type(address) must
-    dereference to type(value).
+    The operand `x` is the address to where the `expr` is atomically
+    written w.r.t. multiple threads. The evaluation of `expr` need not be
+    atomic w.r.t. the write to address. In general, the type(x) must
+    dereference to type(expr).
 
     `hint` is the value of hint (as specified in the hint clause). It is a
     compile time constant. As the name suggests, this is just a hint for
@@ -1368,37 +1434,38 @@ def AtomicWriteOp : OpenMP_Op<"atomic.write"> {
     can be one of `seq_cst`, `release` or `relaxed`.
   }];
 
-  let arguments = (ins OpenMP_PointerLikeType:$address,
-                       AnyType:$value,
+  let arguments = (ins OpenMP_PointerLikeType:$x,
+                       AnyType:$expr,
                        DefaultValuedOptionalAttr<I64Attr, "0">:$hint_val,
                        OptionalAttr<MemoryOrderKindAttr>:$memory_order_val);
   let assemblyFormat = [{
-    $address `=` $value
+    $x `=` $expr
     oilist( `hint` `(` custom<SynchronizationHint>($hint_val) `)`
           | `memory_order` `(` custom<ClauseAttr>($memory_order_val) `)`)
-    `:` type($address) `,` type($value)
+    `:` type($x) `,` type($expr)
     attr-dict
   }];
   let hasVerifier = 1;
   let extraClassDeclaration = [{
     /// The number of variable operands.
     unsigned getNumVariableOperands() {
-      assert(getAddress() && "expected address operand");
-      assert(getValue() && "expected value operand");
+      assert(getX() && "expected address operand");
+      assert(getExpr() && "expected value operand");
       return 2;
     }
 
     /// The i-th variable operand passed.
     Value getVariableOperand(unsigned i) {
       assert(i < 2 && "invalid index position for an operand");
-      return i == 0 ? getAddress() : getValue();
+      return i == 0 ? getX() : getExpr();
     }
   }];
 }
 
 def AtomicUpdateOp : OpenMP_Op<"atomic.update",
                                [SingleBlockImplicitTerminator<"YieldOp">,
-                                RecursiveMemoryEffects]> {
+                                RecursiveMemoryEffects,
+                                AtomicUpdateOpInterface]> {
 
   let summary = "performs an atomic update";
 
@@ -1446,18 +1513,6 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
   let hasRegionVerifier = 1;
   let hasCanonicalizeMethod = 1;
   let extraClassDeclaration = [{
-    Operation* getFirstOp() {
-      return &getRegion().front().getOperations().front();
-    }
-
-    /// Returns true if the new value is same as old value and the operation is
-    /// a no-op, false otherwise.
-    bool isNoOp();
-
-    /// Returns the new value if the operation is equivalent to just a write
-    /// operation. Otherwise, returns nullptr.
-    Value getWriteOpVal();
-
     /// The number of variable operands.
     unsigned getNumVariableOperands() {
       assert(getX() && "expected 'x' operand");
@@ -1473,7 +1528,8 @@ def AtomicUpdateOp : OpenMP_Op<"atomic.update",
 }
 
 def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
-    [SingleBlockImplicitTerminator<"TerminatorOp">]> {
+    [SingleBlockImplicitTerminator<"TerminatorOp">,
+     RecursiveMemoryEffects, AtomicCaptureOpInterface]> {
   let summary = "performs an atomic capture";
   let description = [{
     This operation performs an atomic capture.
@@ -1519,12 +1575,6 @@ def AtomicCaptureOp : OpenMP_Op<"atomic.capture",
   let hasRegionVerifier = 1;
   let hasVerifier = 1;
   let extraClassDeclaration = [{
-    /// Returns the first operation in atomic capture region
-    Operation* getFirstOp();
-
-    /// Returns the second operation in atomic capture region
-    Operation* getSecondOp();
-
     /// Returns the `atomic.read` operation inside the region, if any.
     /// Otherwise, it returns nullptr.
     AtomicReadOp getAtomicReadOp();

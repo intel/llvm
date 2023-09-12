@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/FMF.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Intrinsics.h"
 #include <cassert>
@@ -229,6 +230,10 @@ std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
                                                 const Function &F, Value *LHS,
                                                 Value *RHS,
                                                 bool LookThroughSrc = true);
+std::pair<Value *, FPClassTest> fcmpToClassTest(CmpInst::Predicate Pred,
+                                                const Function &F, Value *LHS,
+                                                const APFloat *ConstRHS,
+                                                bool LookThroughSrc = true);
 
 struct KnownFPClass {
   /// Floating-point classes the value could be one of.
@@ -293,7 +298,8 @@ struct KnownFPClass {
     return isKnownNever(fcPosZero);
   }
 
-  /// Return true if it's known this can never be a literal negative zero.
+  /// Return true if it's known this can never be a negative zero. This means a
+  /// literal -0 and does not include denormal inputs implicitly treated as -0.
   bool isKnownNeverNegZero() const {
     return isKnownNever(fcNegZero);
   }
@@ -416,6 +422,23 @@ struct KnownFPClass {
       knownNot(fcSNan);
   }
 
+  /// Propagate knowledge from a source value that could be a denormal or
+  /// zero. We have to be conservative since output flushing is not guaranteed,
+  /// so known-never-zero may not hold.
+  ///
+  /// This assumes a copy-like operation and will replace any currently known
+  /// information.
+  void propagateDenormal(const KnownFPClass &Src, const Function &F, Type *Ty);
+
+  /// Report known classes if \p Src is evaluated through a potentially
+  /// canonicalizing operation. We can assume signaling nans will not be
+  /// introduced, but cannot assume a denormal will be flushed under FTZ/DAZ.
+  ///
+  /// This assumes a copy-like operation and will replace any currently known
+  /// information.
+  void propagateCanonicalizingSrc(const KnownFPClass &Src, const Function &F,
+                                  Type *Ty);
+
   void resetAll() { *this = KnownFPClass(); }
 };
 
@@ -453,10 +476,42 @@ KnownFPClass computeKnownFPClass(
     const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
     bool UseInstrInfo = true);
 
+/// Wrapper to account for known fast math flags at the use instruction.
+inline KnownFPClass computeKnownFPClass(
+    const Value *V, FastMathFlags FMF, const DataLayout &DL,
+    FPClassTest InterestedClasses = fcAllFlags, unsigned Depth = 0,
+    const TargetLibraryInfo *TLI = nullptr, AssumptionCache *AC = nullptr,
+    const Instruction *CxtI = nullptr, const DominatorTree *DT = nullptr,
+    bool UseInstrInfo = true) {
+  if (FMF.noNaNs())
+    InterestedClasses &= ~fcNan;
+  if (FMF.noInfs())
+    InterestedClasses &= ~fcInf;
+
+  KnownFPClass Result = computeKnownFPClass(V, DL, InterestedClasses, Depth,
+                                            TLI, AC, CxtI, DT, UseInstrInfo);
+
+  if (FMF.noNaNs())
+    Result.KnownFPClasses &= ~fcNan;
+  if (FMF.noInfs())
+    Result.KnownFPClasses &= ~fcInf;
+  return Result;
+}
+
 /// Return true if we can prove that the specified FP value is never equal to
-/// -0.0.
-bool CannotBeNegativeZero(const Value *V, const TargetLibraryInfo *TLI,
-                          unsigned Depth = 0);
+/// -0.0. Users should use caution when considering PreserveSign
+/// denormal-fp-math.
+inline bool cannotBeNegativeZero(const Value *V, const DataLayout &DL,
+                                 const TargetLibraryInfo *TLI = nullptr,
+                                 unsigned Depth = 0,
+                                 AssumptionCache *AC = nullptr,
+                                 const Instruction *CtxI = nullptr,
+                                 const DominatorTree *DT = nullptr,
+                                 bool UseInstrInfo = true) {
+  KnownFPClass Known = computeKnownFPClass(V, DL, fcNegZero, Depth, TLI, AC,
+                                           CtxI, DT, UseInstrInfo);
+  return Known.isKnownNeverNegZero();
+}
 
 /// Return true if we can prove that the specified FP value is either NaN or
 /// never less than -0.0.
@@ -466,8 +521,18 @@ bool CannotBeNegativeZero(const Value *V, const TargetLibraryInfo *TLI,
 ///       -0 --> true
 ///   x > +0 --> true
 ///   x < -0 --> false
-bool CannotBeOrderedLessThanZero(const Value *V, const DataLayout &DL,
-                                 const TargetLibraryInfo *TLI);
+inline bool cannotBeOrderedLessThanZero(const Value *V, const DataLayout &DL,
+                                        const TargetLibraryInfo *TLI = nullptr,
+                                        unsigned Depth = 0,
+                                        AssumptionCache *AC = nullptr,
+                                        const Instruction *CtxI = nullptr,
+                                        const DominatorTree *DT = nullptr,
+                                        bool UseInstrInfo = true) {
+  KnownFPClass Known =
+      computeKnownFPClass(V, DL, KnownFPClass::OrderedLessThanZeroMask, Depth,
+                          TLI, AC, CtxI, DT, UseInstrInfo);
+  return Known.cannotBeOrderedLessThanZero();
+}
 
 /// Return true if the floating-point scalar value is not an infinity or if
 /// the floating-point vector value has no infinities. Return false if a value

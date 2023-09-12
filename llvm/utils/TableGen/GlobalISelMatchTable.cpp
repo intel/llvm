@@ -31,8 +31,8 @@ Error failUnsupported(const Twine &Reason) {
 /// Get the name of the enum value used to number the predicate function.
 std::string getEnumNameForPredicate(const TreePredicateFn &Predicate) {
   if (Predicate.hasGISelPredicateCode())
-    return "GIPFP_MI_" + Predicate.getFnName();
-  return "GIPFP_" + Predicate.getImmTypeIdentifier().str() + "_" +
+    return "GICXXPred_MI_" + Predicate.getFnName();
+  return "GICXXPred_" + Predicate.getImmTypeIdentifier().str() + "_" +
          Predicate.getFnName();
 }
 
@@ -43,11 +43,13 @@ std::string getMatchOpcodeForImmPredicate(const TreePredicateFn &Predicate) {
 
 //===- Helpers ------------------------------------------------------------===//
 
-std::string
-getNameForFeatureBitset(const std::vector<Record *> &FeatureBitset) {
+std::string getNameForFeatureBitset(const std::vector<Record *> &FeatureBitset,
+                                    int HwModeIdx) {
   std::string Name = "GIFBS";
   for (const auto &Feature : FeatureBitset)
     Name += ("_" + Feature->getName()).str();
+  if (HwModeIdx >= 0)
+    Name += ("_HwMode" + std::to_string(HwModeIdx));
   return Name;
 }
 
@@ -244,9 +246,9 @@ void MatchTable::emitDeclaration(raw_ostream &OS) const {
   OS << "};\n";
 }
 
-MatchTable MatchTable::buildTable(ArrayRef<Matcher *> Rules,
-                                  bool WithCoverage) {
-  MatchTable Table(WithCoverage);
+MatchTable MatchTable::buildTable(ArrayRef<Matcher *> Rules, bool WithCoverage,
+                                  bool IsCombiner) {
+  MatchTable Table(WithCoverage, IsCombiner);
   for (Matcher *Rule : Rules)
     Rule->emit(Table);
 
@@ -750,6 +752,14 @@ InstructionMatcher &RuleMatcher::addInstructionMatcher(StringRef SymbolicName) {
   return *Matchers.back();
 }
 
+void RuleMatcher::addRequiredSimplePredicate(StringRef PredName) {
+  RequiredSimplePredicates.push_back(PredName.str());
+}
+
+const std::vector<std::string> &RuleMatcher::getRequiredSimplePredicates() {
+  return RequiredSimplePredicates;
+}
+
 void RuleMatcher::addRequiredFeature(Record *Feature) {
   RequiredFeatures.push_back(Feature);
 }
@@ -792,7 +802,7 @@ void RuleMatcher::definePhysRegOperand(Record *Reg, OperandMatcher &OM) {
   }
 }
 
-inline InstructionMatcher &
+InstructionMatcher &
 RuleMatcher::getInstructionMatcher(StringRef SymbolicName) const {
   for (const auto &I : InsnVariableIDs)
     if (I.first->getSymbolicName() == SymbolicName)
@@ -801,8 +811,7 @@ RuleMatcher::getInstructionMatcher(StringRef SymbolicName) const {
       ("Failed to lookup instruction " + SymbolicName).str().c_str());
 }
 
-inline const OperandMatcher &
-RuleMatcher::getPhysRegOperandMatcher(Record *Reg) const {
+const OperandMatcher &RuleMatcher::getPhysRegOperandMatcher(Record *Reg) const {
   const auto &I = PhysRegOperands.find(Reg);
 
   if (I == PhysRegOperands.end()) {
@@ -844,13 +853,25 @@ void RuleMatcher::emit(MatchTable &Table) {
         << MatchTable::Comment(("Rule ID " + Twine(RuleID) + " //").str())
         << MatchTable::LineBreak;
 
-  if (!RequiredFeatures.empty()) {
+  if (!RequiredFeatures.empty() || HwModeIdx >= 0) {
     Table << MatchTable::Opcode("GIM_CheckFeatures")
-          << MatchTable::NamedValue(getNameForFeatureBitset(RequiredFeatures))
+          << MatchTable::NamedValue(
+                 getNameForFeatureBitset(RequiredFeatures, HwModeIdx))
           << MatchTable::LineBreak;
   }
 
+  if (!RequiredSimplePredicates.empty()) {
+    for (const auto &Pred : RequiredSimplePredicates) {
+      Table << MatchTable::Opcode("GIM_CheckSimplePredicate")
+            << MatchTable::NamedValue(Pred) << MatchTable::LineBreak;
+    }
+  }
+
   Matchers.front()->emitPredicateOpcodes(Table, *this);
+
+  // Check if it's safe to replace registers.
+  for (const auto &MA : Actions)
+    MA->emitAdditionalPredicates(Table, *this);
 
   // We must also check if it's safe to fold the matched instructions.
   if (InsnVariableIDs.size() >= 2) {
@@ -904,8 +925,8 @@ void RuleMatcher::emit(MatchTable &Table) {
       //                 BB1:
       //          MI0-->   %2 = ... %0
       //          It's not always safe to sink %0 across control flow. In this
-      //          case it may introduce a memory fault. We currentl handle this
-      //          by rejecting all loads.
+      //          case it may introduce a memory fault. We currentl handle
+      //          this by rejecting all loads.
     }
   }
 
@@ -915,10 +936,12 @@ void RuleMatcher::emit(MatchTable &Table) {
   for (const auto &MA : Actions)
     MA->emitActionOpcodes(Table, *this);
 
+  assert((Table.isWithCoverage() ? !Table.isCombiner() : true) &&
+         "Combiner tables don't support coverage!");
   if (Table.isWithCoverage())
     Table << MatchTable::Opcode("GIR_Coverage") << MatchTable::IntValue(RuleID)
           << MatchTable::LineBreak;
-  else
+  else if (!Table.isCombiner())
     Table << MatchTable::Comment(("GIR_Coverage, " + Twine(RuleID) + ",").str())
           << MatchTable::LineBreak;
 
@@ -1088,7 +1111,7 @@ void RegisterBankOperandMatcher::emitPredicateOpcodes(MatchTable &Table,
         << MatchTable::Comment("MI") << MatchTable::IntValue(InsnVarID)
         << MatchTable::Comment("Op") << MatchTable::IntValue(OpIdx)
         << MatchTable::Comment("RC")
-        << MatchTable::NamedValue(RC.getQualifiedName() + "RegClassID")
+        << MatchTable::NamedValue(RC.getQualifiedIdName())
         << MatchTable::LineBreak;
 }
 
@@ -1467,18 +1490,22 @@ void VectorSplatImmPredicateMatcher::emitPredicateOpcodes(
 
 //===- GenericInstructionPredicateMatcher ---------------------------------===//
 
+GenericInstructionPredicateMatcher::GenericInstructionPredicateMatcher(
+    unsigned InsnVarID, TreePredicateFn Predicate)
+    : GenericInstructionPredicateMatcher(InsnVarID,
+                                         getEnumNameForPredicate(Predicate)) {}
+
 bool GenericInstructionPredicateMatcher::isIdentical(
     const PredicateMatcher &B) const {
   return InstructionPredicateMatcher::isIdentical(B) &&
-         Predicate == static_cast<const GenericInstructionPredicateMatcher &>(B)
-                          .Predicate;
+         EnumVal ==
+             static_cast<const GenericInstructionPredicateMatcher &>(B).EnumVal;
 }
 void GenericInstructionPredicateMatcher::emitPredicateOpcodes(
     MatchTable &Table, RuleMatcher &Rule) const {
   Table << MatchTable::Opcode("GIM_CheckCxxInsnPredicate")
         << MatchTable::Comment("MI") << MatchTable::IntValue(InsnVarID)
-        << MatchTable::Comment("FnId")
-        << MatchTable::NamedValue(getEnumNameForPredicate(Predicate))
+        << MatchTable::Comment("FnId") << MatchTable::NamedValue(EnumVal)
         << MatchTable::LineBreak;
 }
 
@@ -1584,7 +1611,8 @@ void InstructionMatcher::optimize() {
 
   Stash.push_back(predicates_pop_front());
   if (Stash.back().get() == &OpcMatcher) {
-    if (NumOperandsCheck && OpcMatcher.isVariadicNumOperands())
+    if (NumOperandsCheck && OpcMatcher.isVariadicNumOperands() &&
+        getNumOperands() != 0)
       Stash.emplace_back(
           new InstructionNumOperandsMatcher(InsnVarID, getNumOperands()));
     NumOperandsCheck = false;
@@ -1851,6 +1879,14 @@ void CustomOperandRenderer::emitRenderOpcodes(MatchTable &Table,
         << MatchTable::Comment(SymbolicName) << MatchTable::LineBreak;
 }
 
+//===- CustomCXXAction ----------------------------------------------------===//
+
+void CustomCXXAction::emitActionOpcodes(MatchTable &Table,
+                                        RuleMatcher &Rule) const {
+  Table << MatchTable::Opcode("GIR_CustomAction")
+        << MatchTable::NamedValue(FnEnumName) << MatchTable::LineBreak;
+}
+
 //===- BuildMIAction ------------------------------------------------------===//
 
 bool BuildMIAction::canMutate(RuleMatcher &Rule,
@@ -1906,9 +1942,12 @@ void BuildMIAction::emitActionOpcodes(MatchTable &Table,
         auto Namespace = Def->getValue("Namespace")
                              ? Def->getValueAsString("Namespace")
                              : "";
+        const bool IsDead = DeadImplicitDefs.contains(Def);
         Table << MatchTable::Opcode("GIR_AddImplicitDef")
               << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
               << MatchTable::NamedValue(Namespace, Def->getName())
+              << (IsDead ? MatchTable::NamedValue("RegState", "Dead")
+                         : MatchTable::IntValue(0))
               << MatchTable::LineBreak;
       }
       for (auto *Use : I->ImplicitUses) {
@@ -1933,6 +1972,19 @@ void BuildMIAction::emitActionOpcodes(MatchTable &Table,
         << MatchTable::LineBreak;
   for (const auto &Renderer : OperandRenderers)
     Renderer->emitRenderOpcodes(Table, Rule);
+
+  for (auto [OpIdx, Def] : enumerate(I->ImplicitDefs)) {
+    auto Namespace =
+        Def->getValue("Namespace") ? Def->getValueAsString("Namespace") : "";
+    if (DeadImplicitDefs.contains(Def)) {
+      Table
+          << MatchTable::Opcode("GIR_SetImplicitDefDead")
+          << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
+          << MatchTable::Comment(
+                 ("OpIdx for " + Namespace + "::" + Def->getName() + "").str())
+          << MatchTable::IntValue(OpIdx) << MatchTable::LineBreak;
+    }
+  }
 
   if (I->mayLoad || I->mayStore) {
     Table << MatchTable::Opcode("GIR_MergeMemOperands")
@@ -1959,9 +2011,58 @@ void BuildMIAction::emitActionOpcodes(MatchTable &Table,
   //        better for combines. Particularly when there are multiple match
   //        roots.
   if (InsnID == 0)
-    Table << MatchTable::Opcode("GIR_EraseFromParent")
-          << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
+    EraseInstAction::emitActionOpcodes(Table, Rule, /*InsnID*/ 0);
+}
+
+//===- EraseInstAction ----------------------------------------------------===//
+
+void EraseInstAction::emitActionOpcodes(MatchTable &Table, RuleMatcher &Rule,
+                                        unsigned InsnID) {
+  // Avoid erasing the same inst twice.
+  if (!Rule.tryEraseInsnID(InsnID))
+    return;
+
+  Table << MatchTable::Opcode("GIR_EraseFromParent")
+        << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
+        << MatchTable::LineBreak;
+}
+
+void EraseInstAction::emitActionOpcodes(MatchTable &Table,
+                                        RuleMatcher &Rule) const {
+  emitActionOpcodes(Table, Rule, InsnID);
+}
+
+//===- ReplaceRegAction ---------------------------------------------------===//
+
+void ReplaceRegAction::emitAdditionalPredicates(MatchTable &Table,
+                                                RuleMatcher &Rule) const {
+  if (TempRegID != (unsigned)-1)
+    return;
+
+  Table << MatchTable::Opcode("GIM_CheckCanReplaceReg")
+        << MatchTable::Comment("OldInsnID") << MatchTable::IntValue(OldInsnID)
+        << MatchTable::Comment("OldOpIdx") << MatchTable::IntValue(OldOpIdx)
+        << MatchTable::Comment("NewInsnId") << MatchTable::IntValue(NewInsnId)
+        << MatchTable::Comment("NewOpIdx") << MatchTable::IntValue(NewOpIdx)
+        << MatchTable::LineBreak;
+}
+
+void ReplaceRegAction::emitActionOpcodes(MatchTable &Table,
+                                         RuleMatcher &Rule) const {
+  if (TempRegID != (unsigned)-1) {
+    Table << MatchTable::Opcode("GIR_ReplaceRegWithTempReg")
+          << MatchTable::Comment("OldInsnID") << MatchTable::IntValue(OldInsnID)
+          << MatchTable::Comment("OldOpIdx") << MatchTable::IntValue(OldOpIdx)
+          << MatchTable::Comment("TempRegID") << MatchTable::IntValue(TempRegID)
           << MatchTable::LineBreak;
+  } else {
+    Table << MatchTable::Opcode("GIR_ReplaceReg")
+          << MatchTable::Comment("OldInsnID") << MatchTable::IntValue(OldInsnID)
+          << MatchTable::Comment("OldOpIdx") << MatchTable::IntValue(OldOpIdx)
+          << MatchTable::Comment("NewInsnId") << MatchTable::IntValue(NewInsnId)
+          << MatchTable::Comment("NewOpIdx") << MatchTable::IntValue(NewOpIdx)
+          << MatchTable::LineBreak;
+  }
 }
 
 //===- ConstrainOperandToRegClassAction -----------------------------------===//
@@ -1971,7 +2072,7 @@ void ConstrainOperandToRegClassAction::emitActionOpcodes(
   Table << MatchTable::Opcode("GIR_ConstrainOperandRC")
         << MatchTable::Comment("InsnID") << MatchTable::IntValue(InsnID)
         << MatchTable::Comment("Op") << MatchTable::IntValue(OpIdx)
-        << MatchTable::NamedValue(RC.getQualifiedName() + "RegClassID")
+        << MatchTable::NamedValue(RC.getQualifiedIdName())
         << MatchTable::LineBreak;
 }
 

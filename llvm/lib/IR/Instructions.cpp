@@ -145,6 +145,39 @@ Value *PHINode::removeIncomingValue(unsigned Idx, bool DeletePHIIfEmpty) {
   return Removed;
 }
 
+void PHINode::removeIncomingValueIf(function_ref<bool(unsigned)> Predicate,
+                                    bool DeletePHIIfEmpty) {
+  SmallDenseSet<unsigned> RemoveIndices;
+  for (unsigned Idx = 0; Idx < getNumIncomingValues(); ++Idx)
+    if (Predicate(Idx))
+      RemoveIndices.insert(Idx);
+
+  if (RemoveIndices.empty())
+    return;
+
+  // Remove operands.
+  auto NewOpEnd = remove_if(operands(), [&](Use &U) {
+    return RemoveIndices.contains(U.getOperandNo());
+  });
+  for (Use &U : make_range(NewOpEnd, op_end()))
+    U.set(nullptr);
+
+  // Remove incoming blocks.
+  (void)std::remove_if(const_cast<block_iterator>(block_begin()),
+                 const_cast<block_iterator>(block_end()), [&](BasicBlock *&BB) {
+                   return RemoveIndices.contains(&BB - block_begin());
+                 });
+
+  setNumHungOffUseOperands(getNumOperands() - RemoveIndices.size());
+
+  // If the PHI node is dead, because it has zero entries, nuke it now.
+  if (getNumOperands() == 0 && DeletePHIIfEmpty) {
+    // If anyone is using this PHI, make them use a dummy value instead...
+    replaceAllUsesWith(PoisonValue::get(getType()));
+    eraseFromParent();
+  }
+}
+
 /// growOperands - grow operands - This grows the operand list in response
 /// to a push_back style of operation.  This grows the number of ops by 1.5
 /// times.
@@ -830,7 +863,7 @@ static Instruction *createMalloc(Instruction *InsertBefore,
   // Create the call to Malloc.
   BasicBlock *BB = InsertBefore ? InsertBefore->getParent() : InsertAtEnd;
   Module *M = BB->getParent()->getParent();
-  Type *BPTy = Type::getInt8PtrTy(BB->getContext());
+  Type *BPTy = PointerType::getUnqual(BB->getContext());
   FunctionCallee MallocFunc = MallocF;
   if (!MallocFunc)
     // prototype malloc as "void *malloc(size_t)"
@@ -926,20 +959,14 @@ static Instruction *createFree(Value *Source,
   Module *M = BB->getParent()->getParent();
 
   Type *VoidTy = Type::getVoidTy(M->getContext());
-  Type *IntPtrTy = Type::getInt8PtrTy(M->getContext());
+  Type *VoidPtrTy = PointerType::getUnqual(M->getContext());
   // prototype free as "void free(void*)"
-  FunctionCallee FreeFunc = M->getOrInsertFunction("free", VoidTy, IntPtrTy);
+  FunctionCallee FreeFunc = M->getOrInsertFunction("free", VoidTy, VoidPtrTy);
   CallInst *Result = nullptr;
-  Value *PtrCast = Source;
-  if (InsertBefore) {
-    if (Source->getType() != IntPtrTy)
-      PtrCast = new BitCastInst(Source, IntPtrTy, "", InsertBefore);
-    Result = CallInst::Create(FreeFunc, PtrCast, Bundles, "", InsertBefore);
-  } else {
-    if (Source->getType() != IntPtrTy)
-      PtrCast = new BitCastInst(Source, IntPtrTy, "", InsertAtEnd);
-    Result = CallInst::Create(FreeFunc, PtrCast, Bundles, "");
-  }
+  if (InsertBefore)
+    Result = CallInst::Create(FreeFunc, Source, Bundles, "", InsertBefore);
+  else
+    Result = CallInst::Create(FreeFunc, Source, Bundles, "");
   Result->setTailCall();
   if (Function *F = dyn_cast<Function>(FreeFunc.getCallee()))
     Result->setCallingConv(F->getCallingConv());
@@ -1593,7 +1620,6 @@ LoadInst::LoadInst(Type *Ty, Value *Ptr, const Twine &Name, bool isVolatile,
                    Align Align, AtomicOrdering Order, SyncScope::ID SSID,
                    Instruction *InsertBef)
     : UnaryInstruction(Ty, Load, Ptr, InsertBef) {
-  assert(cast<PointerType>(Ptr->getType())->isOpaqueOrPointeeTypeMatches(Ty));
   setVolatile(isVolatile);
   setAlignment(Align);
   setAtomic(Order, SSID);
@@ -1605,7 +1631,6 @@ LoadInst::LoadInst(Type *Ty, Value *Ptr, const Twine &Name, bool isVolatile,
                    Align Align, AtomicOrdering Order, SyncScope::ID SSID,
                    BasicBlock *InsertAE)
     : UnaryInstruction(Ty, Load, Ptr, InsertAE) {
-  assert(cast<PointerType>(Ptr->getType())->isOpaqueOrPointeeTypeMatches(Ty));
   setVolatile(isVolatile);
   setAlignment(Align);
   setAtomic(Order, SSID);
@@ -1621,9 +1646,6 @@ void StoreInst::AssertOK() {
   assert(getOperand(0) && getOperand(1) && "Both operands must be non-null!");
   assert(getOperand(1)->getType()->isPointerTy() &&
          "Ptr must have pointer type!");
-  assert(cast<PointerType>(getOperand(1)->getType())
-             ->isOpaqueOrPointeeTypeMatches(getOperand(0)->getType()) &&
-         "Ptr must be a pointer to Val type!");
 }
 
 StoreInst::StoreInst(Value *val, Value *addr, Instruction *InsertBefore)
@@ -1703,12 +1725,6 @@ void AtomicCmpXchgInst::Init(Value *Ptr, Value *Cmp, Value *NewVal,
          "All operands must be non-null!");
   assert(getOperand(0)->getType()->isPointerTy() &&
          "Ptr must have pointer type!");
-  assert(cast<PointerType>(getOperand(0)->getType())
-             ->isOpaqueOrPointeeTypeMatches(getOperand(1)->getType()) &&
-         "Ptr must be a pointer to Cmp type!");
-  assert(cast<PointerType>(getOperand(0)->getType())
-             ->isOpaqueOrPointeeTypeMatches(getOperand(2)->getType()) &&
-         "Ptr must be a pointer to NewVal type!");
   assert(getOperand(1)->getType() == getOperand(2)->getType() &&
          "Cmp type and NewVal type must be same!");
 }
@@ -1761,9 +1777,6 @@ void AtomicRMWInst::Init(BinOp Operation, Value *Ptr, Value *Val,
          "All operands must be non-null!");
   assert(getOperand(0)->getType()->isPointerTy() &&
          "Ptr must have pointer type!");
-  assert(cast<PointerType>(getOperand(0)->getType())
-             ->isOpaqueOrPointeeTypeMatches(getOperand(1)->getType()) &&
-         "Ptr must be a pointer to Val type!");
   assert(Ordering != AtomicOrdering::NotAtomic &&
          "AtomicRMW instructions must be atomic!");
 }
@@ -2621,7 +2634,7 @@ static bool isReplicationMaskWithParams(ArrayRef<int> Mask,
   assert(Mask.size() == (unsigned)ReplicationFactor * VF &&
          "Unexpected mask size.");
 
-  for (int CurrElt : seq(0, VF)) {
+  for (int CurrElt : seq(VF)) {
     ArrayRef<int> CurrSubMask = Mask.take_front(ReplicationFactor);
     assert(CurrSubMask.size() == (unsigned)ReplicationFactor &&
            "Run out of mask?");
@@ -2706,10 +2719,10 @@ bool ShuffleVectorInst::isOneUseSingleSourceMask(ArrayRef<int> Mask, int VF) {
     if (all_of(SubMask, [](int Idx) { return Idx == PoisonMaskElem; }))
       continue;
     SmallBitVector Used(VF, false);
-    for_each(SubMask, [&Used, VF](int Idx) {
+    for (int Idx : SubMask) {
       if (Idx != PoisonMaskElem && Idx < VF)
         Used.set(Idx);
-    });
+    }
     if (!Used.all())
       return false;
   }
@@ -2818,6 +2831,45 @@ bool ShuffleVectorInst::isInterleaveMask(
   }
 
   return true;
+}
+
+/// Try to lower a vector shuffle as a bit rotation.
+///
+/// Look for a repeated rotation pattern in each sub group.
+/// Returns an element-wise left bit rotation amount or -1 if failed.
+static int matchShuffleAsBitRotate(ArrayRef<int> Mask, int NumSubElts) {
+  int NumElts = Mask.size();
+  assert((NumElts % NumSubElts) == 0 && "Illegal shuffle mask");
+
+  int RotateAmt = -1;
+  for (int i = 0; i != NumElts; i += NumSubElts) {
+    for (int j = 0; j != NumSubElts; ++j) {
+      int M = Mask[i + j];
+      if (M < 0)
+        continue;
+      if (M < i || M >= i + NumSubElts)
+        return -1;
+      int Offset = (NumSubElts - (M - (i + j))) % NumSubElts;
+      if (0 <= RotateAmt && Offset != RotateAmt)
+        return -1;
+      RotateAmt = Offset;
+    }
+  }
+  return RotateAmt;
+}
+
+bool ShuffleVectorInst::isBitRotateMask(
+    ArrayRef<int> Mask, unsigned EltSizeInBits, unsigned MinSubElts,
+    unsigned MaxSubElts, unsigned &NumSubElts, unsigned &RotateAmt) {
+  for (NumSubElts = MinSubElts; NumSubElts <= MaxSubElts; NumSubElts *= 2) {
+    int EltRotateAmt = matchShuffleAsBitRotate(Mask, NumSubElts);
+    if (EltRotateAmt < 0)
+      continue;
+    RotateAmt = EltRotateAmt * EltSizeInBits;
+    return true;
+  }
+
+  return false;
 }
 
 //===----------------------------------------------------------------------===//
@@ -3397,15 +3449,9 @@ unsigned CastInst::isEliminableCastPair(
         "Illegal addrspacecast, bitcast sequence!");
       // Allowed, use first cast's opcode
       return firstOp;
-    case 14: {
-      // bitcast, addrspacecast -> addrspacecast if the element type of
-      // bitcast's source is the same as that of addrspacecast's destination.
-      PointerType *SrcPtrTy = cast<PointerType>(SrcTy->getScalarType());
-      PointerType *DstPtrTy = cast<PointerType>(DstTy->getScalarType());
-      if (SrcPtrTy->hasSameElementTypeAs(DstPtrTy))
-        return Instruction::AddrSpaceCast;
-      return 0;
-    }
+    case 14:
+      // bitcast, addrspacecast -> addrspacecast
+      return Instruction::AddrSpaceCast;
     case 15:
       // FIXME: this state can be merged with (1), but the following assert
       // is useful to check the correcteness of the sequence due to semantic

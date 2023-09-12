@@ -46,7 +46,7 @@
 
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/PluginManager.h"
-#include "lldb/Core/StreamFile.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Utility/LLDBLog.h"
 #include "lldb/Utility/Log.h"
 #include "lldb/Utility/State.h"
@@ -128,8 +128,8 @@ CommandInterpreter::CommandInterpreter(Debugger &debugger,
                                        bool synchronous_execution)
     : Broadcaster(debugger.GetBroadcasterManager(),
                   CommandInterpreter::GetStaticBroadcasterClass().AsCString()),
-      Properties(OptionValuePropertiesSP(
-          new OptionValueProperties(ConstString("interpreter")))),
+      Properties(
+          OptionValuePropertiesSP(new OptionValueProperties("interpreter"))),
       IOHandlerDelegate(IOHandlerDelegate::Completion::LLDBCommand),
       m_debugger(debugger), m_synchronous_execution(true),
       m_skip_lldbinit_files(false), m_skip_app_init_files(false),
@@ -1894,7 +1894,7 @@ bool CommandInterpreter::HandleCommand(const char *command_line,
   LLDB_LOGF(log, "Processing command: %s", command_line);
   LLDB_SCOPED_TIMERF("Processing command: %s.", command_line);
 
-  if (GetDebugger().InterruptRequested()) {
+  if (INTERRUPT_REQUESTED(GetDebugger(), "Interrupted initiating command")) {
     result.AppendError("... Interrupted");
     return false;
   }
@@ -3071,7 +3071,8 @@ void CommandInterpreter::PrintCommandOutput(IOHandler &io_handler,
   }
 
   std::lock_guard<std::recursive_mutex> guard(io_handler.GetOutputMutex());
-  if (had_output && GetDebugger().InterruptRequested())
+  if (had_output && INTERRUPT_REQUESTED(GetDebugger(), 
+                                        "Interrupted dumping command output"))
     stream->Printf("\n... Interrupted.\n");
   stream->Flush();
 }

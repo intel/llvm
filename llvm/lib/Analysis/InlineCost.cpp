@@ -717,7 +717,9 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
   void onInitializeSROAArg(AllocaInst *Arg) override {
     assert(Arg != nullptr &&
            "Should not initialize SROA costs for null value.");
-    SROAArgCosts[Arg] = 0;
+    auto SROAArgCost = TTI.getCallerAllocaCost(&CandidateCall, Arg);
+    SROACostSavings += SROAArgCost;
+    SROAArgCosts[Arg] = SROAArgCost;
   }
 
   void onAggregateSROAUse(AllocaInst *SROAArg) override {
@@ -815,7 +817,7 @@ class InlineCostCallAnalyzer final : public CallAnalyzer {
 
   // Determine whether we should inline the given call site, taking into account
   // both the size cost and the cycle savings.  Return std::nullopt if we don't
-  // have suficient profiling information to determine.
+  // have sufficient profiling information to determine.
   std::optional<bool> costBenefitAnalysis() {
     if (!CostBenefitAnalysisEnabled)
       return std::nullopt;
@@ -1191,7 +1193,12 @@ private:
               InstrCost);
   }
 
-  void onInitializeSROAArg(AllocaInst *Arg) override { SROACosts[Arg] = 0; }
+  void onInitializeSROAArg(AllocaInst *Arg) override {
+    auto SROAArgCost = TTI.getCallerAllocaCost(&CandidateCall, Arg);
+    SROACosts[Arg] = SROAArgCost;
+    SROACostSavingOpportunities += SROAArgCost;
+  }
+
   void onAggregateSROAUse(AllocaInst *Arg) override {
     SROACosts.find(Arg)->second += InstrCost;
     SROACostSavingOpportunities += InstrCost;

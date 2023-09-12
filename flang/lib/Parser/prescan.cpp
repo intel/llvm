@@ -106,7 +106,7 @@ void Prescanner::Statement() {
   case LineClassification::Kind::PreprocessorDirective:
     preprocessor_.Directive(TokenizePreprocessorDirective(), *this);
     return;
-  case LineClassification::Kind::CompilerDirective:
+  case LineClassification::Kind::CompilerDirective: {
     directiveSentinel_ = line.sentinel;
     CHECK(InCompilerDirective());
     BeginStatementAndAdvance();
@@ -118,22 +118,22 @@ void Prescanner::Statement() {
       }
       CHECK(*at_ == '!');
     }
+    std::optional<int> condOffset;
     if (directiveSentinel_[0] == '$' && directiveSentinel_[1] == '\0') {
-      // OpenMP conditional compilation line.  Remove the sentinel and then
-      // treat the line as if it were normal source.
-      at_ += 2, column_ += 2;
-      if (inFixedForm_) {
-        LabelField(tokens);
-      } else {
-        SkipSpaces();
-      }
+      // OpenMP conditional compilation line.
+      condOffset = 2;
     } else if (directiveSentinel_[0] == '@' && directiveSentinel_[1] == 'c' &&
         directiveSentinel_[2] == 'u' && directiveSentinel_[3] == 'f' &&
         directiveSentinel_[4] == '\0') {
-      // CUDA conditional compilation line.  Remove the sentinel and then
-      // treat the line as if it were normal source.
-      at_ += 5, column_ += 5;
-      if (inFixedForm_) {
+      // CUDA conditional compilation line.
+      condOffset = 5;
+    }
+    if (condOffset) {
+      at_ += *condOffset, column_ += *condOffset;
+      if (auto payload{IsIncludeLine(at_)}) {
+        FortranInclude(at_ + *payload);
+        return;
+      } else if (inFixedForm_) {
         LabelField(tokens);
       } else {
         SkipSpaces();
@@ -153,6 +153,7 @@ void Prescanner::Statement() {
       tokens.CloseToken();
     }
     break;
+  }
   case LineClassification::Kind::Source:
     BeginStatementAndAdvance();
     if (inFixedForm_) {
@@ -349,7 +350,7 @@ void Prescanner::EnforceStupidEndStatementRules(const TokenSequence &tokens) {
   if (!start || !end) {
     return;
   }
-  if (&start->file == &end->file && start->line == end->line) {
+  if (&*start->sourceFile == &*end->sourceFile && start->line == end->line) {
     return; // no continuation
   }
   j += 3;
@@ -377,9 +378,11 @@ void Prescanner::EnforceStupidEndStatementRules(const TokenSequence &tokens) {
       auto endOfPrefixPos{
           allSources_.GetSourcePosition(tokens.GetCharProvenance(endOfPrefix))};
       auto next{allSources_.GetSourcePosition(tokens.GetCharProvenance(j))};
-      if (endOfPrefixPos && next && &endOfPrefixPos->file == &start->file &&
+      if (endOfPrefixPos && next &&
+          &*endOfPrefixPos->sourceFile == &*start->sourceFile &&
           endOfPrefixPos->line == start->line &&
-          (&next->file != &start->file || next->line != start->line)) {
+          (&*next->sourceFile != &*start->sourceFile ||
+              next->line != start->line)) {
         Say(range,
             "Initial line of continued statement must not appear to be a program unit END in fixed form source"_err_en_US);
       }
@@ -628,10 +631,14 @@ bool Prescanner::NextToken(TokenSequence &tokens) {
     }
   } else {
     char ch{*at_};
-    if (ch == '(' || ch == '[') {
-      ++delimiterNesting_;
-    } else if ((ch == ')' || ch == ']') && delimiterNesting_ > 0) {
-      --delimiterNesting_;
+    if (ch == '(') {
+      if (parenthesisNesting_++ == 0) {
+        isPossibleMacroCall_ = tokens.SizeInTokens() > 0 &&
+            preprocessor_.IsFunctionLikeDefinition(
+                tokens.TokenAt(tokens.SizeInTokens() - 1));
+      }
+    } else if (ch == ')' && parenthesisNesting_ > 0) {
+      --parenthesisNesting_;
     }
     char nch{EmitCharAndAdvance(tokens, ch)};
     preventHollerith_ = false;
@@ -724,6 +731,11 @@ void Prescanner::QuotedCharacterLiteral(
         break;
       }
       inCharLiteral_ = true;
+      if (insertASpace_) {
+        Say(GetProvenanceRange(at_, end),
+            "Repeated quote mark in character literal continuation line should have been preceded by '&'"_port_en_US);
+        insertASpace_ = false;
+      }
     }
   }
   inCharLiteral_ = false;
@@ -845,12 +857,25 @@ const char *Prescanner::IsFreeFormComment(const char *p) const {
 
 std::optional<std::size_t> Prescanner::IsIncludeLine(const char *start) const {
   const char *p{SkipWhiteSpace(start)};
-  for (char ch : "include"s) {
-    if (ToLowerCaseLetter(*p++) != ch) {
+  if (*p == '0' && inFixedForm_ && p == start + 5) {
+    // Accept "     0INCLUDE" in fixed form.
+    p = SkipWhiteSpace(p + 1);
+  }
+  for (const char *q{"include"}; *q; ++q) {
+    if (ToLowerCaseLetter(*p) != *q) {
       return std::nullopt;
     }
+    p = SkipWhiteSpace(p + 1);
   }
-  p = SkipWhiteSpace(p);
+  if (IsDecimalDigit(*p)) { // accept & ignore a numeric kind prefix
+    for (p = SkipWhiteSpace(p + 1); IsDecimalDigit(*p);
+         p = SkipWhiteSpace(p + 1)) {
+    }
+    if (*p != '_') {
+      return std::nullopt;
+    }
+    p = SkipWhiteSpace(p + 1);
+  }
   if (*p == '"' || *p == '\'') {
     return {p - start};
   }
@@ -1020,7 +1045,11 @@ const char *Prescanner::FixedFormContinuationLine(bool mightNeedSpace) {
         nextLine_[3] == ' ' && nextLine_[4] == ' ') {
       char col6{nextLine_[5]};
       if (col6 != '\n' && col6 != '\t' && col6 != ' ' && col6 != '0') {
-        return nextLine_ + 6;
+        if ((col6 == 'i' || col6 == 'I') && IsIncludeLine(nextLine_)) {
+          // It's An INCLUDE line, not a continuation
+        } else {
+          return nextLine_ + 6;
+        }
       }
     }
     if (IsImplicitContinuation()) {
@@ -1118,8 +1147,8 @@ bool Prescanner::FreeFormContinuation() {
 // Implicit line continuation allows a preprocessor macro call with
 // arguments to span multiple lines.
 bool Prescanner::IsImplicitContinuation() const {
-  return !inPreprocessorDirective_ && !inCharLiteral_ &&
-      delimiterNesting_ > 0 && !IsAtEnd() &&
+  return !inPreprocessorDirective_ && !inCharLiteral_ && isPossibleMacroCall_ &&
+      parenthesisNesting_ > 0 && !IsAtEnd() &&
       ClassifyLine(nextLine_).kind == LineClassification::Kind::Source;
 }
 

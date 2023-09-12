@@ -12,9 +12,9 @@
 #include "../graph_common.hpp"
 
 const size_t N = 10;
-const float ExpectedValue = 42.0f;
+const int ExpectedValue = 42;
 
-void run_some_kernel(queue Queue, float *Data) {
+void run_some_kernel(queue Queue, int *Data) {
   // 'Data' is captured by ref here but will have gone out of scope when the
   // CGF is later run when the graph is executed.
   Queue.submit([&](handler &CGH) {
@@ -27,11 +27,12 @@ void run_some_kernel(queue Queue, float *Data) {
 
 int main() {
 
-  queue Queue{default_selector_v};
+  queue Queue{default_selector_v,
+              {sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  float *Arr = malloc_device<float>(N, Queue);
+  int *Arr = malloc_device<int>(N, Queue);
 
   Graph.begin_recording(Queue);
   run_some_kernel(Queue, Arr);
@@ -41,8 +42,8 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   for (size_t i = 0; i < N; i++) {
     assert(Output[i] == ExpectedValue);
   }

@@ -386,12 +386,6 @@ public:
   void applyCombineExtOfExt(MachineInstr &MI,
                             std::tuple<Register, unsigned> &MatchInfo);
 
-  /// Transform fabs(fabs(x)) to fabs(x).
-  void applyCombineFAbsOfFAbs(MachineInstr &MI, Register &Src);
-
-  /// Transform fabs(fneg(x)) to fabs(x).
-  bool matchCombineFAbsOfFNeg(MachineInstr &MI, BuildFnTy &MatchInfo);
-
   /// Transform trunc ([asz]ext x) to x or ([asz]ext x) or (trunc x).
   bool matchCombineTruncOfExt(MachineInstr &MI,
                               std::pair<Register, unsigned> &MatchInfo);
@@ -438,30 +432,34 @@ public:
   bool matchConstantSelectCmp(MachineInstr &MI, unsigned &OpIdx);
 
   /// Replace an instruction with a G_FCONSTANT with value \p C.
-  bool replaceInstWithFConstant(MachineInstr &MI, double C);
+  void replaceInstWithFConstant(MachineInstr &MI, double C);
 
   /// Replace an instruction with a G_CONSTANT with value \p C.
-  bool replaceInstWithConstant(MachineInstr &MI, int64_t C);
+  void replaceInstWithConstant(MachineInstr &MI, int64_t C);
 
   /// Replace an instruction with a G_CONSTANT with value \p C.
-  bool replaceInstWithConstant(MachineInstr &MI, APInt C);
+  void replaceInstWithConstant(MachineInstr &MI, APInt C);
 
   /// Replace an instruction with a G_IMPLICIT_DEF.
-  bool replaceInstWithUndef(MachineInstr &MI);
+  void replaceInstWithUndef(MachineInstr &MI);
 
   /// Delete \p MI and replace all of its uses with its \p OpIdx-th operand.
-  bool replaceSingleDefInstWithOperand(MachineInstr &MI, unsigned OpIdx);
+  void replaceSingleDefInstWithOperand(MachineInstr &MI, unsigned OpIdx);
 
   /// Delete \p MI and replace all of its uses with \p Replacement.
-  bool replaceSingleDefInstWithReg(MachineInstr &MI, Register Replacement);
+  void replaceSingleDefInstWithReg(MachineInstr &MI, Register Replacement);
 
   /// Return true if \p MOP1 and \p MOP2 are register operands are defined by
   /// equivalent instructions.
   bool matchEqualDefs(const MachineOperand &MOP1, const MachineOperand &MOP2);
 
-  /// Return true if \p MOP is defined by a G_CONSTANT with a value equal to
+  /// Return true if \p MOP is defined by a G_CONSTANT or splat with a value equal to
   /// \p C.
   bool matchConstantOp(const MachineOperand &MOP, int64_t C);
+
+  /// Return true if \p MOP is defined by a G_FCONSTANT or splat with a value exactly
+  /// equal to \p C.
+  bool matchConstantFPOp(const MachineOperand &MOP, double C);
 
   /// Optimize (cond ? x : x) -> x
   bool matchSelectSameVal(MachineInstr &MI);
@@ -479,7 +477,7 @@ public:
   bool matchOperandIsKnownToBeAPowerOfTwo(MachineInstr &MI, unsigned OpIdx);
 
   /// Erase \p MI
-  bool eraseInst(MachineInstr &MI);
+  void eraseInst(MachineInstr &MI);
 
   /// Return true if MI is a G_ADD which can be simplified to a G_SUB.
   bool matchSimplifyAddToSub(MachineInstr &MI,
@@ -550,7 +548,7 @@ public:
   /// binop (select cond, K0, K1), K2 ->
   ///   select cond, (binop K0, K2), (binop K1, K2)
   bool matchFoldBinOpIntoSelect(MachineInstr &MI, unsigned &SelectOpNo);
-  bool applyFoldBinOpIntoSelect(MachineInstr &MI, const unsigned &SelectOpNo);
+  void applyFoldBinOpIntoSelect(MachineInstr &MI, const unsigned &SelectOpNo);
 
   bool matchCombineInsertVecElts(MachineInstr &MI,
                                  SmallVectorImpl<Register> &MatchInfo);
@@ -638,7 +636,10 @@ public:
   bool matchReassocCommBinOp(MachineInstr &MI, BuildFnTy &MatchInfo);
 
   /// Do constant folding when opportunities are exposed after MIR building.
-  bool matchConstantFold(MachineInstr &MI, APInt &MatchInfo);
+  bool matchConstantFoldCastOp(MachineInstr &MI, APInt &MatchInfo);
+
+  /// Do constant folding when opportunities are exposed after MIR building.
+  bool matchConstantFoldBinOp(MachineInstr &MI, APInt &MatchInfo);
 
   /// \returns true if it is possible to narrow the width of a scalar binop
   /// feeding a G_AND instruction \p MI.
@@ -786,6 +787,15 @@ public:
 
   /// Match shifts greater or equal to the bitwidth of the operation.
   bool matchShiftsTooBig(MachineInstr &MI);
+
+  /// Match constant LHS ops that should be commuted.
+  bool matchCommuteConstantToRHS(MachineInstr &MI);
+
+  /// Match constant LHS FP ops that should be commuted.
+  bool matchCommuteFPConstantToRHS(MachineInstr &MI);
+
+  // Given a binop \p MI, commute operands 1 and 2.
+  void applyCommuteBinOpOperands(MachineInstr &MI);
 
 private:
   /// Given a non-indexed load or store instruction \p MI, find an offset that

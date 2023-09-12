@@ -25,6 +25,8 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <optional>
+#include <queue>
+#include <set>
 #include <utility>
 
 namespace clang::include_cleaner {
@@ -96,7 +98,7 @@ hintedHeadersForStdHeaders(llvm::ArrayRef<tooling::stdlib::Header> Headers,
                            const SourceManager &SM, const PragmaIncludes *PI) {
   llvm::SmallVector<Hinted<Header>> Results;
   for (const auto &H : Headers) {
-    Results.emplace_back(H, Hints::PublicHeader);
+    Results.emplace_back(H, Hints::PublicHeader | Hints::OriginHeader);
     if (!PI)
       continue;
     for (const auto *Export : PI->getExporters(H, SM.getFileManager()))
@@ -123,8 +125,10 @@ headerForAmbiguousStdSymbol(const NamedDecl *ND) {
     if (FD->getNumParams() == 1)
       // move(T&& t)
       return tooling::stdlib::Header::named("<utility>");
-    if (FD->getNumParams() == 3)
+    if (FD->getNumParams() == 3 || FD->getNumParams() == 4)
       // move(InputIt first, InputIt last, OutputIt dest);
+      // move(ExecutionPolicy&& policy, ForwardIt1 first,
+      // ForwardIt1 last, ForwardIt2 d_first);
       return tooling::stdlib::Header::named("<algorithm>");
   } else if (FName == "remove") {
     if (FD->getNumParams() == 1)
@@ -186,13 +190,15 @@ llvm::SmallVector<Hinted<Header>> findHeaders(const SymbolLocation &Loc,
     if (!FE)
       return {};
     if (!PI)
-      return {{FE, Hints::PublicHeader}};
+      return {{FE, Hints::PublicHeader | Hints::OriginHeader}};
+    bool IsOrigin = true;
+    std::queue<const FileEntry *> Exporters;
     while (FE) {
-      Hints CurrentHints = isPublicHeader(FE, *PI);
-      Results.emplace_back(FE, CurrentHints);
-      // FIXME: compute transitive exporter headers.
+      Results.emplace_back(FE,
+                           isPublicHeader(FE, *PI) |
+                               (IsOrigin ? Hints::OriginHeader : Hints::None));
       for (const auto *Export : PI->getExporters(FE, SM.getFileManager()))
-        Results.emplace_back(Export, isPublicHeader(Export, *PI));
+        Exporters.push(Export);
 
       if (auto Verbatim = PI->getPublic(FE); !Verbatim.empty()) {
         Results.emplace_back(Verbatim,
@@ -205,6 +211,21 @@ llvm::SmallVector<Hinted<Header>> findHeaders(const SymbolLocation &Loc,
       // Walkup the include stack for non self-contained headers.
       FID = SM.getDecomposedIncludedLoc(FID).first;
       FE = SM.getFileEntryForID(FID);
+      IsOrigin = false;
+    }
+    // Now traverse provider trees rooted at exporters.
+    // Note that we only traverse export edges, and ignore private -> public
+    // mappings, as those pragmas apply to exporter, and not the main provider
+    // being exported in this header.
+    std::set<const FileEntry *> SeenExports;
+    while (!Exporters.empty()) {
+      auto *Export = Exporters.front();
+      Exporters.pop();
+      if (!SeenExports.insert(Export).second) // In case of cyclic exports
+        continue;
+      Results.emplace_back(Export, isPublicHeader(Export, *PI));
+      for (const auto *Export : PI->getExporters(Export, SM.getFileManager()))
+        Exporters.push(Export);
     }
     return Results;
   }

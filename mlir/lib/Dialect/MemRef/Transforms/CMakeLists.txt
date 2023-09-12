@@ -2,8 +2,10 @@ add_mlir_dialect_library(MLIRMemRefTransforms
   BufferizableOpInterfaceImpl.cpp
   ComposeSubView.cpp
   ExpandOps.cpp
+  ExpandRealloc.cpp
   ExpandStridedMetadata.cpp
   EmulateWideInt.cpp
+  EmulateNarrowType.cpp
   ExtractAddressComputations.cpp
   FoldMemRefAliasOps.cpp
   IndependenceTransforms.cpp

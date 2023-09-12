@@ -24,15 +24,15 @@
 #include "include/apple_availability.h"
 
 #if __has_include(<unistd.h>)
-# include <unistd.h>
+# include <unistd.h> // _POSIX_TIMERS
 #endif
 
 #if __has_include(<sys/time.h>)
 # include <sys/time.h> // for gettimeofday and timeval
 #endif
 
-#if !defined(__APPLE__) && defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
-# define _LIBCPP_USE_CLOCK_GETTIME
+#if defined(__APPLE__) || defined (__gnu_hurd__) || (defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0)
+# define _LIBCPP_HAS_CLOCK_GETTIME
 #endif
 
 #if defined(_LIBCPP_WIN32API)
@@ -99,7 +99,7 @@ static system_clock::time_point __libcpp_system_clock_now() {
                                                     nanoseconds::period>>;
 
   // The Windows epoch is Jan 1 1601, the Unix epoch Jan 1 1970.
-  static _LIBCPP_CONSTEXPR const seconds nt_to_unix_epoch{11644473600};
+  static constexpr const seconds nt_to_unix_epoch{11644473600};
 
   FILETIME ft;
 #if (_WIN32_WINNT >= _WIN32_WINNT_WIN8 && WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)) || \
@@ -116,7 +116,7 @@ static system_clock::time_point __libcpp_system_clock_now() {
   return system_clock::time_point(duration_cast<system_clock::duration>(d - nt_to_unix_epoch));
 }
 
-#elif defined(CLOCK_REALTIME) && defined(_LIBCPP_USE_CLOCK_GETTIME)
+#elif defined(_LIBCPP_HAS_CLOCK_GETTIME)
 
 static system_clock::time_point __libcpp_system_clock_now() {
   struct timespec tp;
@@ -226,7 +226,7 @@ static steady_clock::time_point __libcpp_steady_clock_now() noexcept {
   return steady_clock::time_point(nanoseconds(_zx_clock_get_monotonic()));
 }
 
-#  elif defined(CLOCK_MONOTONIC)
+#  elif defined(_LIBCPP_HAS_CLOCK_GETTIME)
 
 static steady_clock::time_point __libcpp_steady_clock_now() {
     struct timespec tp;

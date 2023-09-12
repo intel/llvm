@@ -1075,8 +1075,8 @@ void Parser::DiagnoseLabelAtEndOfCompoundStatement() {
                   ? diag::warn_cxx20_compat_label_end_of_compound_statement
                   : diag::ext_cxx_label_end_of_compound_statement);
   } else {
-    Diag(Tok, getLangOpts().C2x
-                  ? diag::warn_c2x_compat_label_end_of_compound_statement
+    Diag(Tok, getLangOpts().C23
+                  ? diag::warn_c23_compat_label_end_of_compound_statement
                   : diag::ext_c_label_end_of_compound_statement);
   }
 }
@@ -1894,7 +1894,8 @@ StmtResult Parser::ParseDoStatement() {
   ExprResult Cond = ParseExpression();
   // Correct the typos in condition before closing the scope.
   if (Cond.isUsable())
-    Cond = Actions.CorrectDelayedTyposInExpr(Cond);
+    Cond = Actions.CorrectDelayedTyposInExpr(Cond, /*InitDecl=*/nullptr,
+                                             /*RecoverUncorrectedTypos=*/true);
   else {
     if (!Tok.isOneOf(tok::r_paren, tok::r_square, tok::r_brace))
       SkipUntil(tok::semi);
@@ -2054,15 +2055,15 @@ StmtResult Parser::ParseForStatement(SourceLocation *TrailingElseLoc) {
       Diag(Tok, diag::warn_gcc_variable_decl_in_for_loop);
     }
     DeclGroupPtrTy DG;
+    SourceLocation DeclStart = Tok.getLocation(), DeclEnd;
     if (Tok.is(tok::kw_using)) {
       DG = ParseAliasDeclarationInInitStatement(DeclaratorContext::ForInit,
                                                 attrs);
+      FirstPart = Actions.ActOnDeclStmt(DG, DeclStart, Tok.getLocation());
     } else {
       // In C++0x, "for (T NS:a" might not be a typo for ::
       bool MightBeForRangeStmt = getLangOpts().CPlusPlus;
       ColonProtectionRAIIObject ColonProtection(*this, MightBeForRangeStmt);
-
-      SourceLocation DeclStart = Tok.getLocation(), DeclEnd;
       ParsedAttributes DeclSpecAttrs(AttrFactory);
       DG = ParseSimpleDeclaration(
           DeclaratorContext::ForInit, DeclEnd, attrs, DeclSpecAttrs, false,

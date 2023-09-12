@@ -1151,7 +1151,6 @@ public:
     return DI->getKind() == DK_AspectMismatch;
   }
 };
-
 } // end namespace llvm
 
 #endif // LLVM_IR_DIAGNOSTICINFO_H

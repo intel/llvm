@@ -17,6 +17,7 @@
 #ifndef LLVM_ADT_STLEXTRAS_H
 #define LLVM_ADT_STLEXTRAS_H
 
+#include "llvm/ADT/ADL.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/STLForwardCompat.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
@@ -45,90 +46,6 @@
 #endif
 
 namespace llvm {
-
-// Only used by compiler if both template types are the same.  Useful when
-// using SFINAE to test for the existence of member functions.
-template <typename T, T> struct SameType;
-
-namespace adl_detail {
-
-using std::begin;
-
-template <typename RangeT>
-constexpr auto begin_impl(RangeT &&range)
-    -> decltype(begin(std::forward<RangeT>(range))) {
-  return begin(std::forward<RangeT>(range));
-}
-
-using std::end;
-
-template <typename RangeT>
-constexpr auto end_impl(RangeT &&range)
-    -> decltype(end(std::forward<RangeT>(range))) {
-  return end(std::forward<RangeT>(range));
-}
-
-using std::swap;
-
-template <typename T>
-constexpr void swap_impl(T &&lhs,
-                         T &&rhs) noexcept(noexcept(swap(std::declval<T>(),
-                                                         std::declval<T>()))) {
-  swap(std::forward<T>(lhs), std::forward<T>(rhs));
-}
-
-using std::size;
-
-template <typename RangeT>
-constexpr auto size_impl(RangeT &&range)
-    -> decltype(size(std::forward<RangeT>(range))) {
-  return size(std::forward<RangeT>(range));
-}
-
-} // end namespace adl_detail
-
-/// Returns the begin iterator to \p range using `std::begin` and
-/// function found through Argument-Dependent Lookup (ADL).
-template <typename RangeT>
-constexpr auto adl_begin(RangeT &&range)
-    -> decltype(adl_detail::begin_impl(std::forward<RangeT>(range))) {
-  return adl_detail::begin_impl(std::forward<RangeT>(range));
-}
-
-/// Returns the end iterator to \p range using `std::end` and
-/// functions found through Argument-Dependent Lookup (ADL).
-template <typename RangeT>
-constexpr auto adl_end(RangeT &&range)
-    -> decltype(adl_detail::end_impl(std::forward<RangeT>(range))) {
-  return adl_detail::end_impl(std::forward<RangeT>(range));
-}
-
-/// Swaps \p lhs with \p rhs using `std::swap` and functions found through
-/// Argument-Dependent Lookup (ADL).
-template <typename T>
-constexpr void adl_swap(T &&lhs, T &&rhs) noexcept(
-    noexcept(adl_detail::swap_impl(std::declval<T>(), std::declval<T>()))) {
-  adl_detail::swap_impl(std::forward<T>(lhs), std::forward<T>(rhs));
-}
-
-/// Returns the size of \p range using `std::size` and functions found through
-/// Argument-Dependent Lookup (ADL).
-template <typename RangeT>
-constexpr auto adl_size(RangeT &&range)
-    -> decltype(adl_detail::size_impl(std::forward<RangeT>(range))) {
-  return adl_detail::size_impl(std::forward<RangeT>(range));
-}
-
-namespace detail {
-
-template <typename RangeT>
-using IterOfRange = decltype(adl_begin(std::declval<RangeT &>()));
-
-template <typename RangeT>
-using ValueOfRange =
-    std::remove_reference_t<decltype(*adl_begin(std::declval<RangeT &>()))>;
-
-} // end namespace detail
 
 //===----------------------------------------------------------------------===//
 //     Extra additions to <type_traits>
@@ -1567,16 +1484,6 @@ struct on_first {
 template <int N> struct rank : rank<N - 1> {};
 template <> struct rank<0> {};
 
-/// traits class for checking whether type T is one of any of the given
-/// types in the variadic list.
-template <typename T, typename... Ts>
-using is_one_of = std::disjunction<std::is_same<T, Ts>...>;
-
-/// traits class for checking whether type T is a base class for all
-///  the given types in the variadic list.
-template <typename T, typename... Ts>
-using are_base_of = std::conjunction<std::is_base_of<T, Ts>...>;
-
 namespace detail {
 template <typename... Ts> struct Visitor;
 
@@ -1875,7 +1782,7 @@ OutputIt copy_if(R &&Range, OutputIt Out, UnaryPredicate P) {
 template <typename T, typename R, typename Predicate>
 T *find_singleton(R &&Range, Predicate P, bool AllowRepeats = false) {
   T *RC = nullptr;
-  for (auto *A : Range) {
+  for (auto &&A : Range) {
     if (T *PRC = P(A, AllowRepeats)) {
       if (RC) {
         if (!AllowRepeats || PRC != RC)
@@ -2568,6 +2475,16 @@ bool hasNItemsOrLess(ContainerTy &&C, unsigned N) {
 /// not been implemented.
 template <class Ptr> auto to_address(const Ptr &P) { return P.operator->(); }
 template <class T> constexpr T *to_address(T *P) { return P; }
+
+// Detect incomplete types, relying on the fact that their size is unknown.
+namespace detail {
+template <typename T> using has_sizeof = decltype(sizeof(T));
+} // namespace detail
+
+/// Detects when type `T` is incomplete. This is true for forward declarations
+/// and false for types with a full definition.
+template <typename T>
+constexpr bool is_incomplete_v = !is_detected<detail::has_sizeof, T>::value;
 
 } // end namespace llvm
 

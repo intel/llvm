@@ -24,6 +24,7 @@
 #include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/OperationSupport.h"
 #include "mlir/Support/TypeID.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -485,7 +486,9 @@ public:
   void populateDefaultProperties(OperationName opName,
                                  OpaqueProperties properties) final {}
 
-  LogicalResult setPropertiesFromAttr(Operation *op, Attribute attr,
+  LogicalResult setPropertiesFromAttr(OperationName opName,
+                                      OpaqueProperties properties,
+                                      Attribute attr,
                                       InFlightDiagnostic *diag) final {
     return failure();
   }
@@ -542,10 +545,7 @@ public:
 
   /// Returns nullptr if the definition was not found.
   DynamicTypeDefinition *lookupTypeDefinition(StringRef name) const {
-    auto it = nameToDynTypes.find(name);
-    if (it == nameToDynTypes.end())
-      return nullptr;
-    return it->second;
+    return nameToDynTypes.lookup(name);
   }
 
   /// Returns nullptr if the definition was not found.
@@ -558,10 +558,7 @@ public:
 
   /// Returns nullptr if the definition was not found.
   DynamicAttrDefinition *lookupAttrDefinition(StringRef name) const {
-    auto it = nameToDynAttrs.find(name);
-    if (it == nameToDynAttrs.end())
-      return nullptr;
-    return it->second;
+    return nameToDynAttrs.lookup(name);
   }
 
   /// Returns nullptr if the definition was not found.
