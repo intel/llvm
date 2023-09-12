@@ -290,6 +290,7 @@ public:
   }
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  bool pluginReleased = false;
 
 private:
   std::shared_ptr<sycl::detail::pi::PiPlugin> MPlugin;

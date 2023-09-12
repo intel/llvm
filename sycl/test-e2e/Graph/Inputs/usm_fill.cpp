@@ -4,14 +4,14 @@
 
 int main() {
 
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
   const size_t N = 10;
-  float *Arr = malloc_device<float>(N, Queue);
+  int *Arr = malloc_device<int>(N, Queue);
 
-  float Pattern = 3.14f;
+  int Pattern = 3.14f;
   auto NodeA =
       add_node(Graph, Queue, [&](handler &CGH) { CGH.fill(Arr, Pattern, N); });
 
@@ -19,8 +19,8 @@ int main() {
 
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); }).wait();
 
-  std::vector<float> Output(N);
-  Queue.memcpy(Output.data(), Arr, N * sizeof(float)).wait();
+  std::vector<int> Output(N);
+  Queue.memcpy(Output.data(), Arr, N * sizeof(int)).wait();
   for (int i = 0; i < N; i++)
     assert(Output[i] == Pattern);
 

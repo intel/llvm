@@ -22,37 +22,37 @@ target triple = "spir-unknown-unknown"
 ; CHECK-LLVM: call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @nosamp(%opencl.image2d_ro_t addrspace(1)* %im, <2 x i32> %coord, <4 x half> addrspace(1)* nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @nosamp(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(%opencl.image2d_ro_t addrspace(1)* %im, <2 x i32> %coord) #3
-  store <4 x half> %call, <4 x half> addrspace(1)* %res, align 8, !tbaa !8
+  %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(ptr addrspace(1) %im, <2 x i32> %coord) #3
+  store <4 x half> %call, ptr addrspace(1) %res, align 8, !tbaa !8
   ret void
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(%opencl.image2d_ro_t addrspace(1)*, <2 x i32>) local_unnamed_addr #1
+declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_roDv2_i(ptr addrspace(1), <2 x i32>) local_unnamed_addr #1
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @withsamp(%opencl.image2d_ro_t addrspace(1)* %im, %opencl.sampler_t addrspace(2)* %smp, <2 x i32> %coord, <4 x half> addrspace(1)* nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !14 !kernel_arg_type_qual !15 {
+define spir_kernel void @withsamp(ptr addrspace(1) %im, ptr addrspace(2) %smp, <2 x i32> %coord, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !11 !kernel_arg_access_qual !12 !kernel_arg_type !13 !kernel_arg_base_type !14 !kernel_arg_type_qual !15 {
 entry:
-  %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(%opencl.image2d_ro_t addrspace(1)* %im, %opencl.sampler_t addrspace(2)* %smp, <2 x i32> %coord) #3
-  store <4 x half> %call, <4 x half> addrspace(1)* %res, align 8, !tbaa !8
+  %call = tail call spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(ptr addrspace(1) %im, ptr addrspace(2) %smp, <2 x i32> %coord) #3
+  store <4 x half> %call, ptr addrspace(1) %res, align 8, !tbaa !8
   ret void
 }
 
 ; Function Attrs: convergent nounwind readonly
-declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(%opencl.image2d_ro_t addrspace(1)*, %opencl.sampler_t addrspace(2)*, <2 x i32>) local_unnamed_addr #1
+declare spir_func <4 x half> @_Z11read_imageh14ocl_image2d_ro11ocl_samplerDv2_i(ptr addrspace(1), ptr addrspace(2), <2 x i32>) local_unnamed_addr #1
 
 ; Function Attrs: convergent nounwind
-define spir_kernel void @writehalf(%opencl.image2d_wo_t addrspace(1)* %im, <2 x i32> %coord, <4 x half> addrspace(1)* nocapture readonly %val) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !16 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
+define spir_kernel void @writehalf(ptr addrspace(1) %im, <2 x i32> %coord, ptr addrspace(1) nocapture readonly %val) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !16 !kernel_arg_type !5 !kernel_arg_base_type !6 !kernel_arg_type_qual !7 {
 entry:
-  %0 = load <4 x half>, <4 x half> addrspace(1)* %val, align 8, !tbaa !8
-  tail call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(%opencl.image2d_wo_t addrspace(1)* %im, <2 x i32> %coord, <4 x half> %0) #4
+  %0 = load <4 x half>, ptr addrspace(1) %val, align 8, !tbaa !8
+  tail call spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(ptr addrspace(1) %im, <2 x i32> %coord, <4 x half> %0) #4
   ret void
 }
 
 ; Function Attrs: convergent
-declare spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(%opencl.image2d_wo_t addrspace(1)*, <2 x i32>, <4 x half>) local_unnamed_addr #2
+declare spir_func void @_Z12write_imageh14ocl_image2d_woDv2_iDv4_Dh(ptr addrspace(1), <2 x i32>, <4 x half>) local_unnamed_addr #2
 
 attributes #0 = { convergent nounwind "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="64" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "uniform-work-group-size"="false" "unsafe-fp-math"="false" "use-soft-float"="false" }
 attributes #1 = { convergent nounwind readonly "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }

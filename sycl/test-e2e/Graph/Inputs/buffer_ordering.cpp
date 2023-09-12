@@ -13,7 +13,7 @@
 
 int main() {
 
-  queue Queue;
+  queue Queue{{sycl::ext::intel::property::queue::no_immediate_command_list{}}};
 
   exp_ext::command_graph Graph{
       Queue.get_context(),
@@ -21,17 +21,17 @@ int main() {
       {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
   const size_t N = 10;
-  std::vector<float> Arr(N, 0.0f);
+  std::vector<int> Arr(N, 0);
 
-  buffer<float> Buf{N};
+  buffer<int> Buf{N};
   Buf.set_write_back(false);
 
-  // Buffer elements set to 0.5
+  // Buffer elements set to 3
   Queue.submit([&](handler &CGH) {
     auto Acc = Buf.get_access(CGH);
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
       size_t i = idx;
-      Acc[i] = 0.5f;
+      Acc[i] = 3;
     });
   });
 
@@ -39,51 +39,51 @@ int main() {
     auto Acc = Buf.get_access(CGH);
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
       size_t i = idx;
-      Acc[i] += 0.25f;
+      Acc[i] += 2;
     });
   });
 
   for (size_t i = 0; i < N; i++) {
-    assert(Arr[i] == 0.0f);
+    assert(Arr[i] == 0);
   }
 
-  // Buffer elements set to 1.5
+  // Buffer elements set to 4
   Queue.submit([&](handler &CGH) {
     auto Acc = Buf.get_access(CGH);
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
       size_t i = idx;
-      Acc[i] += 1.0f;
+      Acc[i] += 1;
     });
   });
 
   auto ExecGraph = Graph.finalize();
 
   for (size_t i = 0; i < N; i++) {
-    assert(Arr[i] == 0.0f);
+    assert(Arr[i] == 0);
   }
 
-  // Buffer elements set to 3.0
+  // Buffer elements set to 8
   Queue.submit([&](handler &CGH) {
     auto Acc = Buf.get_access(CGH);
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
       size_t i = idx;
-      Acc[i] *= 2.0f;
+      Acc[i] *= 2;
     });
   });
 
-  // Buffer elements set to 3.25
+  // Buffer elements set to 10
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
-  // Buffer elements set to 6.5
+  // Buffer elements set to 20
   Queue.submit([&](handler &CGH) {
     auto Acc = Buf.get_access(CGH);
     CGH.parallel_for(range<1>{N}, [=](id<1> idx) {
       size_t i = idx;
-      Acc[i] *= 2.0f;
+      Acc[i] *= 2;
     });
   });
 
-  // Buffer elements set to 6.75
+  // Buffer elements set to 22
   Queue.submit([&](handler &CGH) { CGH.ext_oneapi_graph(ExecGraph); });
 
   Queue.submit([&](handler &CGH) {
@@ -93,7 +93,7 @@ int main() {
   Queue.wait();
 
   for (size_t i = 0; i < N; i++) {
-    assert(Arr[i] == 6.75f);
+    assert(Arr[i] == 22);
   }
 
   return 0;

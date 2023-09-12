@@ -1317,6 +1317,31 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
 #if HIP_VERSION_MAJOR >= 5
   void *HIPDevicePtr = const_cast<void *>(pMem);
+  ur_device_handle_t Device = hQueue->getContext()->getDevice();
+
+  // If the device does not support managed memory access, we can't set
+  // mem_advise.
+  if (!getAttribute(Device, hipDeviceAttributeManagedMemory)) {
+    setErrorMessage("mem_advise ignored as device does not support "
+                    " managed memory access",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
+  hipPointerAttribute_t attribs;
+  // TODO: hipPointerGetAttributes will fail if pMem is non-HIP allocated
+  // memory, as it is neither registered as host memory, nor into the address
+  // space for the current device, meaning the pMem ptr points to a
+  // system-allocated memory. This means we may need to check system-alloacted
+  // memory and handle the failure more gracefully.
+  UR_CHECK_ERROR(hipPointerGetAttributes(&attribs, pMem));
+  // async prefetch requires USM pointer (or hip SVM) to work.
+  if (!attribs.isManaged) {
+    setErrorMessage("Prefetch hint ignored as prefetch only works with USM",
+                    UR_RESULT_SUCCESS);
+    return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+
   unsigned int PointerRangeSize = 0;
   UR_CHECK_ERROR(hipPointerGetAttribute(&PointerRangeSize,
                                         HIP_POINTER_ATTRIBUTE_RANGE_SIZE,

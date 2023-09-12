@@ -20,7 +20,7 @@
 target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-%struct.S = type { %struct.S* }
+%struct.S = type { ptr }
 
 define void @f() !dbg !4 {
   %x = alloca %struct.S, align 8
@@ -37,7 +37,7 @@ define void @f() !dbg !4 {
   ; CHECK-NOT: DW_AT_decl_line
 
   ; CHECK: {{DW_TAG|NULL}}
-  call void @llvm.dbg.declare(metadata %struct.S* %x, metadata !10, metadata !16), !dbg !17
+  call void @llvm.dbg.declare(metadata ptr %x, metadata !10, metadata !16), !dbg !17
   ret void, !dbg !18
 }
 

@@ -7,6 +7,28 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "usm.hpp"
+
+void ur_context_handle_t_::addPool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.insert(Pool);
+}
+
+void ur_context_handle_t_::removePool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.erase(Pool);
+}
+
+ur_usm_pool_handle_t
+ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  for (auto &Pool : PoolHandles) {
+    if (Pool->hasUMFPool(UMFPool)) {
+      return Pool;
+    }
+  }
+  return nullptr;
+}
 
 /// Create a UR HIP context.
 ///
