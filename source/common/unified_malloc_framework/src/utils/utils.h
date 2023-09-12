@@ -73,9 +73,8 @@ static inline void *Zalloc(size_t s) {
 }
 
 #define NOFUNCTION                                                             \
-    do                                                                         \
-        ;                                                                      \
-    while (0)
+    do {                                                                       \
+    } while (0)
 #define VALGRIND_ANNOTATE_NEW_MEMORY(p, s) NOFUNCTION
 #define VALGRIND_HG_DRD_DISABLE_CHECKING(p, s) NOFUNCTION
 
