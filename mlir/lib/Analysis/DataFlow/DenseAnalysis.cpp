@@ -228,11 +228,8 @@ void AbstractDenseForwardDataFlowAnalysis::visitRegionBranchOperation(
         op == branch ? std::optional<unsigned>()
                      : op->getBlock()->getParent()->getRegionNumber();
     if (auto *toBlock = point.dyn_cast<Block *>()) {
-      // FIXME: The following assert causes
-      // `mlir-sycl/test/Transforms/constant-propagation.mlir` to fail, add the
-      // assert back after 10ae8ae8375d6b69064204338a33500917749da9.
-      // assert(op == branch ||
-      //        toBlock->getParent() != op->getBlock()->getParent());
+      assert(op == branch ||
+             toBlock->getParent() != op->getBlock()->getParent());
       unsigned regionTo = toBlock->getParent()->getRegionNumber();
       visitRegionBranchControlFlowTransfer(branch, regionFrom, regionTo,
                                            *before, after);
