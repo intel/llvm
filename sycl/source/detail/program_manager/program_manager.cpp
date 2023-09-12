@@ -569,7 +569,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
-  
+
   CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
 
   SerializedObj SpecConsts;
@@ -608,7 +608,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     CompileOptsString = std::string(CompileOpts);
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg,
-                &CompileOptsString, SpecConsts] {
+                 &CompileOptsString, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
     appendCompileOptionsFromImage(CompileOptsString, Img, {Device}, Plugin);
     std::string_view CompileOptsupdated(CompileOptsString);
@@ -659,7 +659,9 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   };
 
   uint32_t ImgId = Img.getImageID();
-  std::string_view CompileOptsUpdated = CompileOptsString.empty()? CompileOpts: std::string_view(CompileOptsString);
+  std::string_view CompileOptsUpdated =
+      CompileOptsString.empty() ? CompileOpts
+                                : std::string_view(CompileOptsString);
   const sycl::detail::pi::PiDevice PiDevice = Dev->getHandleRef();
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
                                  std::make_pair(PiDevice, CompileOptsUpdated));
@@ -2261,15 +2263,15 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   std::string CompileOptsString;
   if (!CompileOpts.empty())
     CompileOptsString = std::string(CompileOpts);
- 
+
   // TODO: Unify this code with getBuiltPIProgram
-  
+
   auto BuildF = [this, &Context, &Img, &Devs, CompileOpts, &InputImpl,
-                 SpecConsts,&CompileOptsString] {
+                 SpecConsts, &CompileOptsString] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
-     const PluginPtr &Plugin = ContextImpl->getPlugin();
-     appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
-     std::string_view CompileOptsUpdated(CompileOptsString);
+    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    appendCompileOptionsFromImage(CompileOptsString, Img, Devs, Plugin);
+    std::string_view CompileOptsUpdated(CompileOptsString);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2323,7 +2325,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return BuiltProgram.release();
   };
 
-  std::string_view CompileOptsUpdated = CompileOptsString.empty()? CompileOpts: std::string_view(CompileOptsString);
+  std::string_view CompileOptsUpdated =
+      CompileOptsString.empty() ? CompileOpts
+                                : std::string_view(CompileOptsString);
   uint32_t ImgId = Img.getImageID();
   const sycl::detail::pi::PiDevice PiDevice =
       getRawSyclObjImpl(Devs[0])->getHandleRef();
