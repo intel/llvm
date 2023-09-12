@@ -115,21 +115,6 @@ using namespace llvm::opt;
 // host. This function diagnoses incompatible options.
 static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
                             bool Diagnose) {
-  // Host raising only works with opaque pointers.
-  const auto UseOpaquePointers = [&]() {
-    constexpr llvm::StringLiteral Pos = "-opaque-pointers";
-    constexpr llvm::StringLiteral Neg = "-no-opaque-pointers";
-
-    // Search for -Xclang -[no-]opaque-pointers
-    const auto FilteredArgs = Args.filtered_reverse(options::OPT_Xclang);
-    const auto Iter =
-        llvm::find_if(Args.filtered_reverse(options::OPT_Xclang), [=](Arg *A) {
-          const char *Val = A->getValue();
-          return Val == Pos || Val == Neg;
-        });
-    constexpr bool Default = CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL;
-    return (Iter == FilteredArgs.end()) ? Default : Pos == (*Iter)->getValue();
-  };
   bool ShouldRaise = Args.hasArg(options::OPT_fsycl_raise_host);
   if (ShouldRaise) {
     if (Args.hasArg(options::OPT_fsyntax_only) ||
@@ -140,13 +125,6 @@ static bool shouldRaiseHost(Compilation &C, const ArgList &Args,
       if (Diagnose)
         C.getDriver().Diag(diag::err_drv_incompatible_options)
             << "-fsycl-raise-host" << A->getSpelling();
-      ShouldRaise = false;
-    }
-    if (!UseOpaquePointers()) {
-      if (Diagnose)
-        C.getDriver().Diag(diag::err_drv_argument_only_allowed_with)
-            << "-fsycl-raise-host"
-            << "-Xclang -opaque-pointers";
       ShouldRaise = false;
     }
   }
