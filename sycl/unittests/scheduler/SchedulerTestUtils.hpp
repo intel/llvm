@@ -220,7 +220,8 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessMode*/ sycl::access::mode::read_write,
           /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
           /*Dims*/ 0,
-          /*ElementSize*/ 0};
+          /*ElementSize*/ 0,
+          /*Offset*/ size_t(0)};
 }
 
 class MockHandler : public sycl::handler {
@@ -241,7 +242,9 @@ public:
   std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
     return MHostKernel;
   }
-  std::vector<std::vector<char>> &getArgsStorage() { return CGData.MArgsStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return CGData.MArgsStorage;
+  }
   std::vector<sycl::detail::AccessorImplPtr> &getAccStorage() {
     return CGData.MAccStorage;
   }
@@ -251,7 +254,9 @@ public:
   std::vector<sycl::detail::Requirement *> &getRequirements() {
     return CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() { return CGData.MEvents; }
+  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+    return CGData.MEvents;
+  }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
   std::string &getKernelName() { return MKernelName; }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }
@@ -302,7 +307,7 @@ public:
           getNDRDesc(), std::move(getHostKernel()), getKernel(),
           std::move(MImpl->MKernelBundle), std::move(CGData), getArgs(),
           getKernelName(), getStreamStorage(), MImpl->MAuxiliaryResources,
-          getCGType(), {}, getCodeLoc()));
+          getCGType(), {}, MImpl->MKernelIsCooperative, getCodeLoc()));
       break;
     }
     case sycl::detail::CG::CodeplayHostTask: {

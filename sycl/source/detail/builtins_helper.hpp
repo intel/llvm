@@ -258,7 +258,7 @@ template <int N> struct helper {
   inline void run_1v_2p(Res &r, Op op, T1 x, T2 y) {
     helper<N - 1>().run_1v_2p(r, op, x, y);
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T2>::type::element_type temp;
+    typename std::remove_pointer<T2>::type::element_type temp{};
     r.template swizzle<N>() = op(x.template swizzle<N>(), &temp);
     y->template swizzle<N>() = temp;
   }
@@ -267,7 +267,7 @@ template <int N> struct helper {
   inline void run_1v_2v_3p(Res &r, Op op, T1 x, T2 y, T3 z) {
     helper<N - 1>().run_1v_2v_3p(r, op, x, y, z);
     // TODO avoid creating a temporary variable
-    typename std::remove_pointer<T3>::type::element_type temp;
+    typename std::remove_pointer<T3>::type::element_type temp{};
     r.template swizzle<N>() =
         op(x.template swizzle<N>(), y.template swizzle<N>(), &temp);
     z->template swizzle<N>() = temp;

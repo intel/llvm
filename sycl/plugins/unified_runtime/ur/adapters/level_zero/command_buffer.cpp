@@ -1,10 +1,10 @@
-//===--------- command_buffer.cpp - Level Zero Adapter ---------------===//
+//===--------- command_buffer.cpp - Level Zero Adapter --------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #include "command_buffer.hpp"
 #include "ur_level_zero.hpp"
 
@@ -663,6 +663,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ur_exp_command_buffer_handle_t CommandBuffer, ur_queue_handle_t Queue,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
     ur_event_handle_t *Event) {
+  // There are issues with immediate command lists so return an error if the
+  // queue is in that mode.
+  if (Queue->UsingImmCmdLists) {
+    return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+  }
+
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
   // Use compute engine rather than copy engine
   const auto UseCopyEngine = false;

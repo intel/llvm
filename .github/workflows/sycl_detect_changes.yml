@@ -54,6 +54,7 @@ jobs:
               - devops/*/**
             drivers:
               - devops/dependencies.json
+              - devops/scripts/install_drivers.sh
 
       - name: Set output
         id: result

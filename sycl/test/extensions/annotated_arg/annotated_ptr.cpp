@@ -110,6 +110,9 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_ptr<int, decltype(properties{dwidth<32>})> arg24(tmp21,
   // properties{dwidth<32>});   // ERR
 
+  // Implicit conversion
+  a1 = raw;
+
   // Property merge
   auto arg31 = annotated_ptr_t3(raw, buffer_location<0>, awidth<32>);     // OK
   auto arg32 = annotated_ptr(arg31, properties{dwidth<32>});              // OK

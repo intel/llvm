@@ -1,10 +1,10 @@
-//===--------- program.cpp - Level Zero Adapter ----------------------===//
+//===--------- program.cpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "program.hpp"
 #include "ur_level_zero.hpp"
@@ -150,8 +150,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
       ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
                                        &ZeModule, &Program->ZeBuildLog));
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    // We adjust pi_program below to avoid attempting to release zeModule when
-    // RT calls piProgramRelease().
+    // We adjust ur_program below to avoid attempting to release zeModule when
+    // RT calls urProgramRelease().
     Program->State = ur_program_handle_t_::Invalid;
     Result = ze2urResult(ZeResult);
     if (ZeModule) {
@@ -223,9 +223,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of program object created.
 ) {
-  // TODO
-  // UR_ASSERT(Context->isValidDevice(Context->Devices[0]),
-  // UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(Context->isValidDevice(Context->Devices[0]),
+            UR_RESULT_ERROR_INVALID_DEVICE);
 
   // We do not support any link flags at this time because the Level Zero API
   // does not have any way to pass flags that are specific to linking.

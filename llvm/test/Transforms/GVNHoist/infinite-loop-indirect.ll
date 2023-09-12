@@ -2,7 +2,7 @@
 ; ifdef INTEL_SYCL_OPAQUEPOINTER_READY
 ; COM: opt -S -passes=gvn-hoist < %s | FileCheck %s
 ; else
-; RUN: opt -S -opaque-pointers -passes=gvn-hoist < %s | FileCheck %s
+; RUN: opt -S -passes=gvn-hoist < %s | FileCheck %s
 ; endif
 
 ; Checking gvn-hoist in case of indirect branches.

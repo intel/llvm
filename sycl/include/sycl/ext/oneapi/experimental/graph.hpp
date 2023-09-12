@@ -31,6 +31,45 @@ namespace oneapi {
 namespace experimental {
 
 namespace detail {
+// List of sycl features and extensions which are not supported by graphs. Used
+// for throwing errors when these features are used with graphs.
+enum class UnsupportedGraphFeatures {
+  sycl_reductions = 0,
+  sycl_specialization_constants = 1,
+  sycl_kernel_bundle = 2,
+  sycl_ext_oneapi_kernel_properties = 3,
+  sycl_ext_oneapi_enqueue_barrier = 4,
+  sycl_ext_oneapi_memcpy2d = 5,
+  sycl_ext_oneapi_device_global = 6,
+  sycl_ext_oneapi_bindless_images = 7
+};
+
+inline const char *
+UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
+  using UGF = UnsupportedGraphFeatures;
+  switch (Feature) {
+  case UGF::sycl_reductions:
+    return "Reductions";
+  case UGF::sycl_specialization_constants:
+    return "Specialization Constants";
+  case UGF::sycl_kernel_bundle:
+    return "Kernel Bundles";
+  case UGF::sycl_ext_oneapi_kernel_properties:
+    return "sycl_ext_oneapi_kernel_properties";
+  case UGF::sycl_ext_oneapi_enqueue_barrier:
+    return "sycl_ext_oneapi_enqueue_barrier";
+  case UGF::sycl_ext_oneapi_memcpy2d:
+    return "sycl_ext_oneapi_memcpy2d";
+  case UGF::sycl_ext_oneapi_device_global:
+    return "sycl_ext_oneapi_device_global";
+  case UGF::sycl_ext_oneapi_bindless_images:
+    return "sycl_ext_oneapi_bindless_images";
+  }
+
+  assert(false && "Unhandled graphs feature");
+  return {};
+}
+
 class node_impl;
 class graph_impl;
 class exec_graph_impl;
@@ -62,13 +101,22 @@ namespace graph {
 
 /// Property passed to command_graph constructor to disable checking for cycles.
 ///
-/// \todo Cycle check not yet implemented.
 class no_cycle_check : public ::sycl::detail::DataLessProperty<
                            ::sycl::detail::GraphNoCycleCheck> {
 public:
   no_cycle_check() = default;
 };
 
+/// Property passed to command_graph constructor to allow buffers to be used
+/// with graphs. Passing this property represents a promise from the user that
+/// the buffer will outlive any graph that it is used in.
+///
+class assume_buffer_outlives_graph
+    : public ::sycl::detail::DataLessProperty<
+          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
+public:
+  assume_buffer_outlives_graph() = default;
+};
 } // namespace graph
 
 namespace node {
@@ -224,7 +272,6 @@ protected:
   /// Creates a backend representation of the graph in \p impl member variable.
   void finalizeImpl();
 
-  int MTag;
   std::shared_ptr<detail::exec_graph_impl> impl;
 };
 } // namespace detail

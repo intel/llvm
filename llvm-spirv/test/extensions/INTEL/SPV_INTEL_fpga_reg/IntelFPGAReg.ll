@@ -54,7 +54,7 @@
 ;   A ca(213);
 ;   A cb = __builtin_intel_fpga_reg(ca);
 
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; FIXME: add more negative test cases
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_reg -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt

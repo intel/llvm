@@ -129,3 +129,11 @@ sycl/doc/extensions/**/sycl_ext_oneapi_graph.asciidoc @intel/sycl-graphs-reviewe
 sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
 sycl/cmake/modules/AddSYCLLibraryUnitTest.cmake @intel/syclcompat-lib-reviewers
 sycl/include/syclcompat.hpp @intel/syclcompat-lib-reviewers
+
+# bindless images
+sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc @intel/bindless-images-reviewers
+sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
+sycl/source/detail/bindless* @intel/bindless-images-reviewers
+sycl/plugins/unified_runtime/ur/adapters/**/image.* @intel/bindless-images-reviewers
+sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
+

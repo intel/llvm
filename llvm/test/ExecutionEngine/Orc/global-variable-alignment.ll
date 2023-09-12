@@ -8,7 +8,7 @@
 ; JIT memory manager.
 ;
 ; ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-; RUN: %lli -opaque-pointers %s
+; RUN: %lli %s
 ; endif
 
 @A = internal global i8 1, align 1

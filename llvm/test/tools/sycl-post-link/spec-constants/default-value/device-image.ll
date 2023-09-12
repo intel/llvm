@@ -22,7 +22,7 @@
 ; CHECK-IR0: call %struct.B @_Z29__spirv_SpecConstantCompositeiii_Rstruct.B
 ; CHECK-IR0: call %struct.A @_Z29__spirv_SpecConstantCompositeistruct.B_Rstruct.A
 
-; CHECK-IR1: store %struct.A { i32 3, %struct.B { i32 3, i32 2, i32 1 } }, %struct.A addrspace(4)* %a.ascast.i, align 4
+; CHECK-IR1: store %struct.A { i32 3, %struct.B { i32 3, i32 2, i32 1 } }, ptr addrspace(4) %a.ascast.i, align 4
 
 ; Check that %scalar value has been replaced by global value.
 ; CHECK-IR1-NOT: %scalar = call
@@ -58,11 +58,11 @@ target triple = "spir64-unknown-unknown"
 ; This constant checks `zeroinitializer` field.
 @_ZL1d = internal addrspace(1) constant %"class.sycl::_V1::specialization_id" { %struct.A { i32 3, %struct.B zeroinitializer } }, align 4
 
-declare spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
+declare spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(ptr addrspace(4) sret(%struct.A) align 4, ptr addrspace(4) noundef, ptr addrspace(4) noundef, ptr addrspace(4) noundef)
 
-declare spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
+declare spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(ptr addrspace(4) noundef, ptr addrspace(4) noundef, ptr addrspace(4) noundef)
 
-declare dso_local spir_func noundef i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)* noundef, i8 addrspace(4)* noundef, i8 addrspace(4)* noundef)
+declare dso_local spir_func noundef i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(ptr addrspace(4) noundef, ptr addrspace(4) noundef, ptr addrspace(4) noundef)
 
 ; Function for testing symbol generation
 define spir_func void @func() {
@@ -72,17 +72,16 @@ define spir_func void @func() {
 define spir_kernel void @kernel() {
 entry:
   %a.i = alloca %struct.A, align 4
-  %a.ascast.i = addrspacecast %struct.A* %a.i to %struct.A addrspace(4)*
-  %0 = bitcast %struct.A* %a.i to i8*
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4 %a.ascast.i, i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id" addrspace(1)* @_ZL1c to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
-  %scalar = call spir_func i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([33 x i8], [33 x i8]* @__usid_str.1, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id.2" addrspace(1)* @_ZL6valueS to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
+  %a.ascast.i = addrspacecast ptr %a.i to ptr addrspace(4)
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(ptr addrspace(4) sret(%struct.A) align 4 %a.ascast.i, ptr addrspace(4) noundef addrspacecast (ptr getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) @_ZL1c to ptr addrspace(4)), ptr addrspace(4) noundef null)
+  %scalar = call spir_func i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(ptr addrspace(4) noundef addrspacecast (ptr getelementptr inbounds ([33 x i8], [33 x i8]* @__usid_str.1, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) @_ZL6valueS to ptr addrspace(4)), ptr addrspace(4) noundef null)
   %scalar2 = add i32 %scalar, 1
 
-  %returned_spec_const = call spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str.2, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id.3" addrspace(1)* @_ZL1b to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
+  %returned_spec_const = call spir_func %struct.C @_Z40__sycl_getComposite2020SpecConstantValueI1CET_PKcPKvS5_(ptr addrspace(4) noundef addrspacecast (ptr getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str.2, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) @_ZL1b to ptr addrspace(4)), ptr addrspace(4) noundef null)
   %sc.e = extractvalue %struct.C %returned_spec_const, 0
   %scalar3 = add i32 %sc.e, 1
 
-  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(%struct.A addrspace(4)* sret(%struct.A) align 4 %a.ascast.i, i8 addrspace(4)* noundef addrspacecast (i8* getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to i8 addrspace(4)*), i8 addrspace(4)* noundef addrspacecast (i8 addrspace(1)* bitcast (%"class.sycl::_V1::specialization_id" addrspace(1)* @_ZL1d to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* noundef null)
+  call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI1AET_PKcPKvS5_(ptr addrspace(4) sret(%struct.A) align 4 %a.ascast.i, ptr addrspace(4) noundef addrspacecast (ptr getelementptr inbounds ([28 x i8], [28 x i8]* @__usid_str, i64 0, i64 0) to ptr addrspace(4)), ptr addrspace(4) noundef addrspacecast (ptr addrspace(1) @_ZL1d  to ptr addrspace(4)), ptr addrspace(4) noundef null)
 
 
   call void @func()

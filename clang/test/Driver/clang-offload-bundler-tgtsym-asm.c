@@ -13,8 +13,8 @@
 // RUN: llvm-readobj --string-dump=.tgtsym %t.fat.o | FileCheck %s
 
 // CHECK: String dump of section '.tgtsym':
-// CHECK-DAG: openmp-x86_64-pc-linux-gnu-.foo
-// CHECK-DAG: sycl-spir64----.foo
+// CHECK-DAG: openmp-x86_64-pc-linux-gnu.foo
+// CHECK-DAG: sycl-spir64.foo
 
 __asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
 void foo(void) {}

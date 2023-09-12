@@ -199,6 +199,8 @@ public:
     }
   }
 
+  XPTIScope &operator=(const XPTIScope &) = delete;
+
   xpti::trace_event_data_t *traceEvent() { return MTraceEvent; }
 
   uint8_t streamID() { return MStreamID; }

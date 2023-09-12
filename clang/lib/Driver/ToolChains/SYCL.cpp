@@ -223,7 +223,16 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     size_t InputFileNum = InputFiles.size();
     bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
-    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    // Per-object compilation (or non-relocatable device code mode) requires a
+    // change in the link dependencies, such that the first input file is no
+    // longer the prepended kernel BC module. The SYCL device libs are linked
+    // first and the single output is linked with the kernel module separately.
+    if (IsRDC) {
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    } else {
+      LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
+    }
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
@@ -231,10 +240,12 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
+#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
       // FIXME remove this when opaque pointers are supported for SPIR-V
       if (!this->getToolChain().getTriple().isSPIR()) {
         Opts.push_back("-opaque-pointers");
       }
+#endif
     }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);

@@ -165,8 +165,7 @@ namespace Intrinsic {
 #ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       assert(Kind == Argument || Kind == ExtendArgument ||
              Kind == TruncArgument || Kind == HalfVecArgument ||
-             Kind == SameVecWidthArgument ||
-             Kind == PtrToElt || Kind == VecElementArgument ||
+             Kind == SameVecWidthArgument || Kind == VecElementArgument ||
              Kind == Subdivide2Argument || Kind == Subdivide4Argument ||
              Kind == VecOfBitcastsToInt);
 #else

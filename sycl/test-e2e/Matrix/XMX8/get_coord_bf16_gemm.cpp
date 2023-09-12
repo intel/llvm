@@ -20,5 +20,6 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 using bfloat16 = sycl::ext::oneapi::bfloat16;
 
 #define SG_SZ 8
+constexpr size_t TN = 8;
 
 #include "../get_coord_bf16_gemm_impl.hpp"

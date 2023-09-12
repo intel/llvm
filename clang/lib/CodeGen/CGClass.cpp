@@ -2633,9 +2633,10 @@ void CodeGenFunction::InitializeVTablePointer(const VPtr &Vptr) {
       llvm::FunctionType::get(CGM.Int32Ty, /*isVarArg=*/true)
           ->getPointerTo(ProgAS)
           ->getPointerTo(GlobalsAS);
+#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
+  llvm::Type *PtrTy = llvm::PointerType::get(CGM.getLLVMContext(), GlobalsAS);
   // vtable field is derived from `this` pointer, therefore they should be in
   // the same addr space. Note that this might not be LLVM address space 0.
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   VTableField = VTableField.withElementType(PtrTy);
 #else
   VTableField = Builder.CreateElementBitCast(VTableField, VTablePtrTy);

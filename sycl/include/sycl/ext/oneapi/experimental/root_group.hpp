@@ -114,11 +114,7 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
   (void)G;
   (void)FenceScope;
 #ifdef __SYCL_DEVICE_ONLY__
-  // TODO: Change __spv::Scope::Workgroup to __spv::Scope::Device once backends
-  // support device scope. __spv::Scope::Workgroup is only valid when
-  // max_num_work_group_sync is 1, so that all work items in a root group will
-  // also be in the same work group.
-  __spirv_ControlBarrier(__spv::Scope::Workgroup, __spv::Scope::Workgroup,
+  __spirv_ControlBarrier(__spv::Scope::Device, __spv::Scope::Device,
                          __spv::MemorySemanticsMask::SubgroupMemory |
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);

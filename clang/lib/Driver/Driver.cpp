@@ -116,19 +116,6 @@ using namespace clang::driver;
 using namespace clang;
 using namespace llvm::opt;
 
-// clang-offload-bundler is currently generating a 'standardized' target triple.
-// Triple's format - Architecture-Vendor-OS-Environment.
-// Bundle sections created by clang-offload-bundler contain the 'standardized'
-// triple. This routine transforms the triple specified by user as input to this
-// 'standardized' format to facilitate checks.
-static std::string standardizedTriple(std::string OrigTriple) {
-  llvm::Triple t = llvm::Triple(OrigTriple);
-  return llvm::Triple(t.getArchName(), t.getVendorName(), t.getOSName(),
-                      t.getEnvironmentName())
-             .str() +
-         "-";
-}
-
 static std::optional<llvm::Triple> getOffloadTargetTriple(const Driver &D,
                                                           const ArgList &Args) {
   auto OffloadTargets = Args.getAllArgValues(options::OPT_offload_EQ);
@@ -1086,6 +1073,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
                                false) ||
       C.getInputArgs().hasArg(options::OPT_fsycl_device_only);
 
+  Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
+
+  // Make -fintelfpga flag imply -fsycl.
+  if (SYCLfpga && !HasValidSYCLRuntime)
+    HasValidSYCLRuntime = true;
+
   // A mechanism for retrieving SYCL-specific options, erroring out
   // if SYCL offloading wasn't enabled prior to that
   auto getArgRequiringSYCLRuntime = [&](OptSpecifier OptId) -> Arg * {
@@ -1106,7 +1099,7 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   Arg *SYCLAddTargets =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_add_targets_EQ);
   Arg *SYCLLink = getArgRequiringSYCLRuntime(options::OPT_fsycl_link_EQ);
-  Arg *SYCLfpga = getArgRequiringSYCLRuntime(options::OPT_fintelfpga);
+
   // Check if -fsycl-host-compiler is used in conjunction with -fsycl.
   Arg *SYCLHostCompiler =
       getArgRequiringSYCLRuntime(options::OPT_fsycl_host_compiler_EQ);
@@ -6101,20 +6094,9 @@ class OffloadingActionBuilder final {
           if (Arch.compare(0, 4, "fpga") == 0)
             Arch = C.getDriver().MakeSYCLDeviceTriple("spir64_fpga").str();
 
-          // The last component for the triple may be a GPU arch
-          auto TripleOrGPU = StringRef(Arch).rsplit('-');
-          if (clang::StringToCudaArch(TripleOrGPU.second.str()) !=
-              clang::CudaArch::UNKNOWN) {
-            Arch = standardizedTriple(TripleOrGPU.first.str());
-            Arch += TripleOrGPU.second.str();
-          } else {
-            Arch = standardizedTriple(Arch);
-          }
-
           if (std::find(UniqueSections.begin(), UniqueSections.end(), Arch) ==
-              UniqueSections.end()) {
+              UniqueSections.end())
             UniqueSections.push_back(Arch);
-          }
         }
       }
 
@@ -6123,8 +6105,8 @@ class OffloadingActionBuilder final {
 
       for (auto &SyclTarget : Targets) {
         std::string SectionTriple = SyclTarget.TC->getTriple().str();
-        SectionTriple = standardizedTriple(SectionTriple);
         if (SyclTarget.BoundArch) {
+          SectionTriple += "-";
           SectionTriple += SyclTarget.BoundArch;
         }
         // If any matching section is found, we are good.
@@ -6178,6 +6160,7 @@ class OffloadingActionBuilder final {
       Arg *SYCLTargets =
               C.getInputArgs().getLastArg(options::OPT_fsycl_targets_EQ);
       Arg *SYCLAddTargets = Args.getLastArg(options::OPT_fsycl_add_targets_EQ);
+      Arg *SYCLfpga = C.getInputArgs().getLastArg(options::OPT_fintelfpga);
       bool HasValidSYCLRuntime = C.getInputArgs().hasFlag(
           options::OPT_fsycl, options::OPT_fno_sycl, false);
       bool SYCLfpgaTriple = false;
@@ -6185,6 +6168,10 @@ class OffloadingActionBuilder final {
       bool GpuInitHasErrors = false;
       bool HasSYCLTargetsOption =
           SYCLAddTargets || SYCLTargets || SYCLLinkTargets;
+
+      // Make -fintelfpga flag imply -fsycl.
+      if (SYCLfpga && !HasValidSYCLRuntime)
+        HasValidSYCLRuntime = true;
 
       if (HasSYCLTargetsOption) {
         if (SYCLTargets || SYCLLinkTargets) {

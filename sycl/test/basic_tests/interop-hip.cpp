@@ -56,5 +56,9 @@ int main() {
   hip_event = get_native<backend::ext_oneapi_hip>(Event);
   hip_queue = get_native<backend::ext_oneapi_hip>(Queue);
 
+  device InteropDevice = make_device<backend::ext_oneapi_hip>(hip_device);
+  event InteropEvent = make_event<backend::ext_oneapi_hip>(hip_event, Context);
+  queue InteropQueue = make_queue<backend::ext_oneapi_hip>(hip_queue, Context);
+
   return 0;
 }

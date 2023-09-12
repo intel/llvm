@@ -346,7 +346,11 @@ public:
   using ModuleSplitterBase::ModuleSplitterBase; // to inherit base constructors
 
   ModuleDesc nextSplit() override {
-    return ModuleDesc{releaseInputModule(), nextGroup(), Input.Props};
+    ModuleDesc Desc{releaseInputModule(), nextGroup(), Input.Props};
+    // Do some basic optimization like unused symbol removal
+    // even if there was no split.
+    Desc.cleanup();
+    return Desc;
   }
 };
 
