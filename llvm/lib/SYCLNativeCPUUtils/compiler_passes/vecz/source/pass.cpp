@@ -30,6 +30,7 @@
 
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <tuple>
 
 #include "vectorization_context.h"
@@ -248,6 +249,26 @@ PreservedAnalyses VeczPassOptionsPrinterPass::run(Module &M,
   }
 
   return PreservedAnalyses::all();
+}
+
+std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(Function &F) {
+  if (auto reqd_sg_size = compiler::utils::getReqdSubgroupSize(F)) {
+    vecz::VeczPassOptions vecz_opts;
+    // Disable auto - we want a specific width
+    vecz_opts.vecz_auto = false;
+    vecz_opts.vec_dim_idx = 0;
+    // If we can't vectorize to the required sub-group size then we must bail.
+    if (*reqd_sg_size % compiler::utils::getMuxSubgroupSize(F)) {
+      return std::nullopt;
+    }
+    // Else we must vectorize such that we multiply the existing mux sub-group
+    // size up to the required one.
+    vecz_opts.factor = compiler::utils::VectorizationFactor::getFixedWidth(
+        *reqd_sg_size / compiler::utils::getMuxSubgroupSize(F));
+    vecz_opts.choices.enable(vecz::VectorizationChoices::eDivisionExceptions);
+    return vecz_opts;
+  }
+  return std::nullopt;
 }
 
 }  // namespace vecz
