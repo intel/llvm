@@ -290,6 +290,8 @@ def note_sycl_aspect_propagated_from_call
 def err_alias_to_undefined : Error<
   "%select{alias|ifunc}0 must point to a defined "
   "%select{variable or |}1function">;
+def err_alias_to_common : Error<
+  "alias to a variable in a common section is not allowed">;
 def note_alias_requires_mangled_name : Note<
   "the %select{function or variable|function}0 specified in an %select{alias|ifunc}1 must refer to its mangled name">;
 def note_alias_mangled_name_alternative: Note<

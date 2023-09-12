@@ -181,9 +181,6 @@ enum class image_channel_type : /* unspecified */ {
   snorm_int16,
   unorm_int8,
   unorm_int16,
-  unorm_short_565,
-  unorm_short_555,
-  unorm_int_101010,
   signed_int8,
   signed_int16,
   signed_int32,
@@ -966,10 +963,19 @@ sampler handle is included in the `sampled_image_handle` as
 
 The returned data will be of templated type `DataT`, which is specified by the 
 user, and should map to the type that the image was created with (a combination 
-of `image_channel_type` and `image_channel_order`). For multi-channel types, the 
-resultant `DataT` should be a `sycl::vec` type. E.g., for a channel order of 
-`image_channel_order::rg` and channel type of `image_channel_type::fp16`, the 
-resultant `DataT` should be `sycl::vec<sycl::half, 2>`.
+of `image_channel_type` and `image_channel_order`). One exception to this are 
+normalized integer channel types which are read back as either 32-bit or 16-bit 
+floating point values.
+
+For multi-channel types, the resultant `DataT` should be a `sycl::vec` type. 
+E.g., for a channel order of `image_channel_order::rg` and channel type of 
+`image_channel_type::fp16`, the resultant `DataT` should be 
+`sycl::vec<sycl::half, 2>`.
+
+An example of reading a normalized channel type with a channel order of 
+`image_channel_order::rg` and channel type of `image_channel_type::unorm_int8`, 
+the user can read the data as a `sycl::vec<float, 2>` or 
+`sycl::vec<sycl::half, 2>`.
 
 It's possible to write to an unsampled image via `write_image` passing the 
 handle of the image to be written to, along with the coordinates to write to and 
@@ -1955,4 +1961,7 @@ These features still need to be handled:
                  - Updated code samples.
 |4.1|2023-07-21| - Made bindless image sampler member names snake-case
 |4.2|2023-08-18| - `write_image` now allows passing of user-defined types
+|4.3|2023-09-08| - Clarify how normalized image formats are read
+                 - Remove support for packed normalized image formats 
+                   (`unorm_short_555`, `unorm_short_565`, `unorm_int_101010`)
 |======================

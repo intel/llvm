@@ -70,6 +70,16 @@ const Formula &getFormula(const ValueDecl &D, const Environment &Env) {
   return cast<BoolValue>(Env.getValue(D))->formula();
 }
 
+TEST(TransferTest, CNotSupported) {
+  std::string Code = R"(
+    void target() {}
+  )";
+  ASSERT_THAT_ERROR(checkDataflowWithNoopAnalysis(
+                        Code, [](const auto &, auto &) {}, {BuiltinOptions{}},
+                        LangStandard::lang_c89),
+                    llvm::FailedWithMessage("Can only analyze C++"));
+}
+
 TEST(TransferTest, IntVarDeclNotTrackedWhenTransferDisabled) {
   std::string Code = R"(
     void target() {
@@ -1418,9 +1428,7 @@ TEST(TransferTest, BaseClassInitializer) {
       checkDataflow<NoopAnalysis>(
           AnalysisInputs<NoopAnalysis>(
               Code, cxxConstructorDecl(ofClass(hasName("B"))),
-              [](ASTContext &C, Environment &) {
-                return NoopAnalysis(C, /*ApplyBuiltinTransfer=*/true);
-              })
+              [](ASTContext &C, Environment &) { return NoopAnalysis(C); })
               .withASTBuildArgs(
                   {"-fsyntax-only", "-fno-delayed-template-parsing",
                    "-std=" + std::string(LangStandard::getLangStandardForKind(
@@ -2862,11 +2870,11 @@ TEST(TransferTest, AggregateInitialization) {
 
           // Check that fields initialized in an initializer list are always
           // modeled in other instances of the same type.
-          const auto &OtherBVal =
-              getValueForDecl<RecordValue>(ASTCtx, Env, "OtherB");
-          EXPECT_THAT(OtherBVal.getChild(*BarDecl), NotNull());
-          EXPECT_THAT(OtherBVal.getChild(*BazDecl), NotNull());
-          EXPECT_THAT(OtherBVal.getChild(*QuxDecl), NotNull());
+          const auto &OtherBLoc =
+              getLocForDecl<RecordStorageLocation>(ASTCtx, Env, "OtherB");
+          EXPECT_THAT(OtherBLoc.getChild(*BarDecl), NotNull());
+          EXPECT_THAT(OtherBLoc.getChild(*BazDecl), NotNull());
+          EXPECT_THAT(OtherBLoc.getChild(*QuxDecl), NotNull());
         });
   }
 }
