@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <type_traits>
 
-#include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/sycl.hpp>
 
 static constexpr int WorkGroupSize = 32;
