@@ -272,7 +272,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
     bool Enabled = false;
 
-    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr ||
+        std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
       detail::ur::cuPrint(
