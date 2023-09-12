@@ -17,6 +17,14 @@
 #pragma OPENCL EXTENSION cl_khr_3d_image_writes : enable
 #endif
 
+#ifdef _WIN32
+#define MANGLE_FUNC_IMG_HANDLE(namelength, name, prefix, postfix)              \
+  _Z##namelength##name##prefix##y##postfix
+#else
+#define MANGLE_FUNC_IMG_HANDLE(namelength, name, prefix, postfix)              \
+  _Z##namelength##name##prefix##m##postfix
+#endif
+
 // CLC helpers
 int __clc__sampler_extract_normalized_coords_prop(int) __asm(
     "__clc__sampler_extract_normalized_coords_prop");
@@ -1679,9 +1687,9 @@ void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
 #define _CLC_DEFINE_IMAGE_BINDLESS_READ_BUILTIN(                               \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF                                                                     \
-  elem_t _Z17__spirv_ImageReadI##elem_t_mangled##m##coord_mangled##ET_T0_T1_(  \
-      unsigned long imageHandle, coord_input) {                                \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      17, __spirv_ImageRead, I##elem_t_mangled,                                \
+      coord_mangled##ET_T0_T1_)(ulong imageHandle, coord_input) {              \
     return __nvvm_suld_##dimension##d_##vec_size##_clamp_s(imageHandle,        \
                                                            __VA_ARGS__);       \
   }
@@ -1689,11 +1697,10 @@ void __nvvm_sust_3d_v4f16_clamp_s(unsigned long imageHandle, int x, int y,
 #define _CLC_DEFINE_IMAGE_BINDLESS_WRITE_BUILTIN(                              \
     elem_t, dimension, write_mangled, elem_t_mangled, vec_size, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF void                                                                \
-      _Z18__spirv_ImageWriteIm##write_mangled##elem_t_mangled##EvT_T0_T1_(     \
-          unsigned long imageHandle, coord_input, elem_t c) {                  \
-    __nvvm_sust_##dimension##d_##vec_size##_clamp_s(                           \
-        imageHandle, __VA_ARGS__);                                             \
+  _CLC_DEF void MANGLE_FUNC_IMG_HANDLE(                                        \
+      18, __spirv_ImageWrite, I, write_mangled##elem_t_mangled##EvT_T0_T1_)(   \
+      ulong imageHandle, coord_input, elem_t c) {                              \
+    __nvvm_sust_##dimension##d_##vec_size##_clamp_s(imageHandle, __VA_ARGS__); \
   }
 
 // READS
@@ -2362,9 +2369,9 @@ half __nvvm_tex_3d_f16_f32(unsigned long imageHandle, float x, float y,
 #define _CLC_DEFINE_SAMPLEDIMAGE_BINDLESS_READ_BUILTIN(                        \
     elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
     ...)                                                                       \
-  _CLC_DEF                                                                     \
-  elem_t _Z17__spirv_ImageReadI##elem_t_mangled##m##coord_mangled##ET_T0_T1_(  \
-      unsigned long imageHandle, coord_input) {                                \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      17, __spirv_ImageRead, I##elem_t_mangled,                                \
+      coord_mangled##ET_T0_T1_)(ulong imageHandle, coord_input) {              \
     return __nvvm_tex_##dimension##d_##vec_size##_f32(imageHandle,             \
                                                       __VA_ARGS__);            \
   }
@@ -2596,21 +2603,23 @@ _CLC_DEFINE_MIPMAP_BINDLESS_THUNK_READS_BUILTIN(uint, 3, j32, v4j32, COORD_INPUT
 #undef GRAD_INPUT_3D
 
 // Macro to generate the mangled names for mipmap fetches
-#define _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(                                                        \
-    elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,                              \
-    coord_parameter, grad_mangled, grad_input, ...)                                                       \
-  _CLC_DEF                                                                                                \
-  elem_t                                                                                                  \
-      _Z30__spirv_ImageSampleExplicitLodIm##elem_t_mangled##coord_mangled##ET0_T_T1_if(                   \
-          unsigned long imageHandle, coord_input, int type, float level) {                                \
-    return __nvvm_tex_##dimension##d_level_##vec_size##_f32(                                              \
-        imageHandle, coord_parameter, level);                                                             \
-  }                                                                                                       \
-  _CLC_DEF elem_t                                                                                         \
-      _Z30__spirv_ImageSampleExplicitLodIm##elem_t_mangled##coord_mangled##ET0_T_T1_i##grad_mangled(      \
-          unsigned long imageHandle, coord_input, int type, float##grad_input dX, float##grad_input dY) { \
-    return __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                                               \
-        imageHandle, coord_parameter, __VA_ARGS__);                                                       \
+#define _CLC_DEFINE_MIPMAP_BINDLESS_READS_BUILTIN(                             \
+    elem_t, dimension, elem_t_mangled, vec_size, coord_mangled, coord_input,   \
+    coord_parameter, grad_mangled, grad_input, ...)                            \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      30, __spirv_ImageSampleExplicitLod, I,                                   \
+      elem_t_mangled##coord_mangled##ET0_T_T1_if)(                             \
+      ulong imageHandle, coord_input, int type, float level) {                 \
+    return __nvvm_tex_##dimension##d_level_##vec_size##_f32(                   \
+        imageHandle, coord_parameter, level);                                  \
+  }                                                                            \
+  _CLC_DEF elem_t MANGLE_FUNC_IMG_HANDLE(                                      \
+      30, __spirv_ImageSampleExplicitLod, I,                                   \
+      elem_t_mangled##coord_mangled##ET0_T_T1_i##grad_mangled)(                \
+      ulong imageHandle, coord_input, int type, float##grad_input dX,          \
+      float##grad_input dY) {                                                  \
+    return __nvvm_tex_##dimension##d_grad_##vec_size##_f32(                    \
+        imageHandle, coord_parameter, __VA_ARGS__);                            \
   }
 
 #define COORD_PARAMS_1D coord

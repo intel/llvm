@@ -283,6 +283,8 @@ set(files
   __chrono/steady_clock.h
   __chrono/system_clock.h
   __chrono/time_point.h
+  __chrono/tzdb.h
+  __chrono/tzdb_list.h
   __chrono/weekday.h
   __chrono/year.h
   __chrono/year_month.h
@@ -543,6 +545,7 @@ set(files
   __memory_resource/unsynchronized_pool_resource.h
   __mutex/lock_guard.h
   __mutex/mutex.h
+  __mutex/once_flag.h
   __mutex/tag_types.h
   __mutex/unique_lock.h
   __node_handle
@@ -601,6 +604,7 @@ set(files
   __ranges/access.h
   __ranges/all.h
   __ranges/as_rvalue_view.h
+  __ranges/chunk_by_view.h
   __ranges/common_view.h
   __ranges/concepts.h
   __ranges/container_compatible_range.h

@@ -29,6 +29,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/IntrinsicsAArch64.h"
 #include "llvm/IR/IntrinsicsARM.h"
+#include "llvm/IR/IntrinsicsNVPTX.h"
 #include "llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IntrinsicsWebAssembly.h"
 #include "llvm/IR/IntrinsicsX86.h"
@@ -591,6 +592,71 @@ static bool UpgradeX86IntrinsicFunction(Function *F, StringRef Name,
   return false;
 }
 
+static Intrinsic::ID ShouldUpgradeNVPTXBF16Intrinsic(StringRef Name) {
+  return StringSwitch<Intrinsic::ID>(Name)
+      .Case("abs.bf16", Intrinsic::nvvm_abs_bf16)
+      .Case("abs.bf16x2", Intrinsic::nvvm_abs_bf16x2)
+      .Case("fma.rn.bf16", Intrinsic::nvvm_fma_rn_bf16)
+      .Case("fma.rn.bf16x2", Intrinsic::nvvm_fma_rn_bf16x2)
+      .Case("fma.rn.ftz_bf16", Intrinsic::nvvm_fma_rn_ftz_bf16)
+      .Case("fma.rn.ftz.bf16x2", Intrinsic::nvvm_fma_rn_ftz_bf16x2)
+      .Case("fma.rn.ftz.relu.bf16", Intrinsic::nvvm_fma_rn_ftz_relu_bf16)
+      .Case("fma.rn.ftz.relu.bf16x2", Intrinsic::nvvm_fma_rn_ftz_relu_bf16x2)
+      .Case("fma.rn.ftz_sat.bf16", Intrinsic::nvvm_fma_rn_ftz_sat_bf16)
+      .Case("fma.rn.ftz_sat.bf16x2", Intrinsic::nvvm_fma_rn_ftz_sat_bf16x2)
+      .Case("fma.rn.relu.bf16", Intrinsic::nvvm_fma_rn_relu_bf16)
+      .Case("fma.rn.relu.bf16x2", Intrinsic::nvvm_fma_rn_relu_bf16x2)
+      .Case("fma.rn.sat.bf16", Intrinsic::nvvm_fma_rn_sat_bf16)
+      .Case("fma.rn.sat.bf16x2", Intrinsic::nvvm_fma_rn_sat_bf16x2)
+      .Case("fmax.bf16", Intrinsic::nvvm_fmax_bf16)
+      .Case("fmax.bf16x2", Intrinsic::nvvm_fmax_bf16x2)
+      .Case("fmax.ftz.bf16", Intrinsic::nvvm_fmax_ftz_bf16)
+      .Case("fmax.ftz.bf16x2", Intrinsic::nvvm_fmax_ftz_bf16x2)
+      .Case("fmax.ftz.nan.bf16", Intrinsic::nvvm_fmax_ftz_nan_bf16)
+      .Case("fmax.ftz.nan.bf16x2", Intrinsic::nvvm_fmax_ftz_nan_bf16x2)
+      .Case("fmax.ftz.nan.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16)
+      .Case("fmax.ftz.nan.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmax_ftz_nan_xorsign_abs_bf16x2)
+      .Case("fmax.ftz.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16)
+      .Case("fmax.ftz.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmax_ftz_xorsign_abs_bf16x2)
+      .Case("fmax.nan.bf16", Intrinsic::nvvm_fmax_nan_bf16)
+      .Case("fmax.nan.bf16x2", Intrinsic::nvvm_fmax_nan_bf16x2)
+      .Case("fmax.nan.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16)
+      .Case("fmax.nan.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmax_nan_xorsign_abs_bf16x2)
+      .Case("fmax.xorsign.abs.bf16", Intrinsic::nvvm_fmax_xorsign_abs_bf16)
+      .Case("fmax.xorsign.abs.bf16x2", Intrinsic::nvvm_fmax_xorsign_abs_bf16x2)
+      .Case("fmin.bf16", Intrinsic::nvvm_fmin_bf16)
+      .Case("fmin.bf16x2", Intrinsic::nvvm_fmin_bf16x2)
+      .Case("fmin.ftz.bf16", Intrinsic::nvvm_fmin_ftz_bf16)
+      .Case("fmin.ftz.bf16x2", Intrinsic::nvvm_fmin_ftz_bf16x2)
+      .Case("fmin.ftz.nan_bf16", Intrinsic::nvvm_fmin_ftz_nan_bf16)
+      .Case("fmin.ftz.nan_bf16x2", Intrinsic::nvvm_fmin_ftz_nan_bf16x2)
+      .Case("fmin.ftz.nan.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16)
+      .Case("fmin.ftz.nan.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmin_ftz_nan_xorsign_abs_bf16x2)
+      .Case("fmin.ftz.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16)
+      .Case("fmin.ftz.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmin_ftz_xorsign_abs_bf16x2)
+      .Case("fmin.nan.bf16", Intrinsic::nvvm_fmin_nan_bf16)
+      .Case("fmin.nan.bf16x2", Intrinsic::nvvm_fmin_nan_bf16x2)
+      .Case("fmin.nan.xorsign.abs.bf16",
+            Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16)
+      .Case("fmin.nan.xorsign.abs.bf16x2",
+            Intrinsic::nvvm_fmin_nan_xorsign_abs_bf16x2)
+      .Case("fmin.xorsign.abs.bf16", Intrinsic::nvvm_fmin_xorsign_abs_bf16)
+      .Case("fmin.xorsign.abs.bf16x2", Intrinsic::nvvm_fmin_xorsign_abs_bf16x2)
+      .Case("neg.bf16", Intrinsic::nvvm_neg_bf16)
+      .Case("neg.bf16x2", Intrinsic::nvvm_neg_bf16x2)
+      .Default(Intrinsic::not_intrinsic);
+}
+
 static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
   assert(F && "Illegal to upgrade a non-existent Function.");
 
@@ -1000,7 +1066,12 @@ static bool UpgradeIntrinsicFunction1(Function *F, Function *&NewFn) {
                                           {F->getReturnType()});
         return true;
       }
-
+      IID = ShouldUpgradeNVPTXBF16Intrinsic(Name);
+      if (IID != Intrinsic::not_intrinsic &&
+          !F->getReturnType()->getScalarType()->isBFloatTy()) {
+        NewFn = nullptr;
+        return true;
+      }
       // The following nvvm intrinsics correspond exactly to an LLVM idiom, but
       // not to an intrinsic alone.  We expand them in UpgradeIntrinsicCall.
       //
@@ -1219,25 +1290,15 @@ GlobalVariable *llvm::UpgradeGlobalVariable(GlobalVariable *GV) {
   LLVMContext &C = GV->getContext();
   IRBuilder<> IRB(C);
   auto EltTy = StructType::get(STy->getElementType(0), STy->getElementType(1),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                IRB.getPtrTy());
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                               IRB.getInt8PtrTy());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Constant *Init = GV->getInitializer();
   unsigned N = Init->getNumOperands();
   std::vector<Constant *> NewCtors(N);
   for (unsigned i = 0; i != N; ++i) {
     auto Ctor = cast<Constant>(Init->getOperand(i));
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     NewCtors[i] = ConstantStruct::get(EltTy, Ctor->getAggregateElement(0u),
                                       Ctor->getAggregateElement(1),
                                       Constant::getNullValue(IRB.getPtrTy()));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-    NewCtors[i] = ConstantStruct::get(
-        EltTy, Ctor->getAggregateElement(0u), Ctor->getAggregateElement(1),
-        Constant::getNullValue(IRB.getInt8PtrTy()));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   Constant *NewInit = ConstantArray::get(ArrayType::get(EltTy, N), NewCtors);
 
@@ -3980,11 +4041,34 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
                                     {Arg->getType()}),
           Arg, "ctpop");
       Rep = Builder.CreateTrunc(Popc, Builder.getInt32Ty(), "ctpop.trunc");
-    } else if (IsNVVM && Name == "h2f") {
-      Rep = Builder.CreateCall(Intrinsic::getDeclaration(
+    } else if (IsNVVM) {
+      if (Name == "h2f") {
+        Rep =
+            Builder.CreateCall(Intrinsic::getDeclaration(
                                    F->getParent(), Intrinsic::convert_from_fp16,
                                    {Builder.getFloatTy()}),
                                CI->getArgOperand(0), "h2f");
+      } else {
+        Intrinsic::ID IID = ShouldUpgradeNVPTXBF16Intrinsic(Name);
+        if (IID != Intrinsic::not_intrinsic &&
+            !F->getReturnType()->getScalarType()->isBFloatTy()) {
+          rename(F);
+          NewFn = Intrinsic::getDeclaration(F->getParent(), IID);
+          SmallVector<Value *, 2> Args;
+          for (size_t I = 0; I < NewFn->arg_size(); ++I) {
+            Value *Arg = CI->getArgOperand(I);
+            Type *OldType = Arg->getType();
+            Type *NewType = NewFn->getArg(I)->getType();
+            Args.push_back((OldType->isIntegerTy() &&
+                            NewType->getScalarType()->isBFloatTy())
+                               ? Builder.CreateBitCast(Arg, NewType)
+                               : Arg);
+          }
+          Rep = Builder.CreateCall(NewFn, Args);
+          if (F->getReturnType()->isIntegerTy())
+            Rep = Builder.CreateBitCast(Rep, F->getReturnType());
+        }
+      }
     } else if (IsARM) {
       Rep = UpgradeARMIntrinsicCall(Name, CI, F, Builder);
     } else if (IsAMDGCN) {
@@ -4234,11 +4318,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();
@@ -4254,11 +4334,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();

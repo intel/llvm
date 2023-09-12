@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -41,6 +42,7 @@
 #include <functional>
 #include <numeric>
 #include <set>
+#include <utility>
 #include <vector>
 
 using namespace llvm;
@@ -137,12 +139,13 @@ void emitSubkernelForKernel(Function *F, Type *NativeCPUArgDescType,
     // Load the correct NativeCPUDesc and load the pointer from it
     auto *Addr = Builder.CreateGEP(NativeCPUArgDescType, BaseNativeCPUArg,
                                    {Builder.getInt64(UsedI)});
-    auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
     if (Arg->getType()->isPointerTy()) {
       // If the arg is a pointer, just use it
+      auto *Load = Builder.CreateLoad(Arg->getType(), Addr);
       KernelArgs.push_back(Load);
     } else {
       // Otherwise, load the scalar value and use that
+      auto *Load = Builder.CreateLoad(PointerType::getUnqual(Ctx), Addr);
       auto *Scalar = Builder.CreateLoad(Arg->getType(), Load);
       KernelArgs.push_back(Scalar);
     }
@@ -244,6 +247,8 @@ Value *getStateArg(const Function *F) {
   return F->getArg(FT->getNumParams() - 1);
 }
 
+static constexpr unsigned int NativeCPUGlobalAS = 1;
+
 } // namespace
 
 PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
@@ -261,10 +266,8 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
   Type *StateType =
       StructType::getTypeByName(M.getContext(), "struct.__nativecpu_state");
   if (!StateType)
-    report_fatal_error("Couldn't find the Native CPU state in the "
-                       "module, make sure that -D __SYCL_NATIVE_CPU__ is set",
-                       false);
-  Type *StatePtrType = PointerType::getUnqual(StateType);
+    return PreservedAnalyses::all();
+  Type *StatePtrType = PointerType::get(StateType, 1);
   SmallVector<Function *> NewKernels;
   for (auto &OldF : OldKernels) {
     auto *NewF = cloneFunctionAndAddParam(OldF, StatePtrType);

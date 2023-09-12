@@ -13,7 +13,7 @@ target triple = "spir64-unknown-unknown"
 @imageSampler = addrspace(2) constant i32 36, align 4
 
 ; Function Attrs: nounwind
-define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %input, float addrspace(1)* nocapture %xOffsets, float addrspace(1)* nocapture %yOffsets, <4 x float> addrspace(1)* nocapture %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
+define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %input, ptr addrspace(1) nocapture %xOffsets, ptr addrspace(1) nocapture %yOffsets, ptr addrspace(1) nocapture %results) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !5 !kernel_arg_type_qual !4 {
   %1 = tail call spir_func i64 @_Z13get_global_idj(i32 0) #1
   %2 = trunc i64 %1 to i32
   %3 = tail call spir_func i64 @_Z13get_global_idj(i32 1) #1
@@ -27,8 +27,8 @@ define spir_kernel void @sample_kernel(target("spirv.Image", void, 1, 0, 0, 0, 0
   %11 = insertelement <2 x float> %9, float %10, i32 1
   %12 = tail call spir_func <4 x float> @_Z11read_imagef11ocl_image2d11ocl_samplerDv2_f(target("spirv.Image", void, 1, 0, 0, 0, 0, 0, 1) %input, i32 36, <2 x float> %11) #1
   %13 = sext i32 %7 to i64
-  %14 = getelementptr inbounds <4 x float>, <4 x float> addrspace(1)* %results, i64 %13
-  store <4 x float> %12, <4 x float> addrspace(1)* %14, align 16, !tbaa !11
+  %14 = getelementptr inbounds <4 x float>, ptr addrspace(1) %results, i64 %13
+  store <4 x float> %12, ptr addrspace(1) %14, align 16, !tbaa !11
   ret void
 }
 

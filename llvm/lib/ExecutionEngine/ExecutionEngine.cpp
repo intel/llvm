@@ -430,11 +430,7 @@ int ExecutionEngine::runFunctionAsMain(Function *Fn,
   // Check main() type
   unsigned NumArgs = Fn->getFunctionType()->getNumParams();
   FunctionType *FTy = Fn->getFunctionType();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Type *PPInt8Ty = PointerType::get(Fn->getContext(), 0);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  Type *PPInt8Ty = Type::getInt8PtrTy(Fn->getContext())->getPointerTo();
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Check the argument types.
   if (NumArgs > 3)

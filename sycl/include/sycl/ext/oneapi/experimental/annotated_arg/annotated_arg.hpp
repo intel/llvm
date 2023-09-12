@@ -155,6 +155,8 @@ public:
 
   T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
 
+  T *operator->() const noexcept { return obj; }
+
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();
   }

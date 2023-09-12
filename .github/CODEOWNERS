@@ -87,7 +87,7 @@ invoke_simd/ @intel/dpcpp-esimd-reviewers
 InvokeSimd/ @intel/dpcpp-esimd-reviewers
 
 # DevOps configs
-.github/workflows/ @intel/dpcpp-devops-reviewers
+.github/ @intel/dpcpp-devops-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
@@ -104,7 +104,8 @@ sycl/source/detail/jit_device_binaries.hpp @victor-eds @Naghasan @sommerlukas
 sycl/source/detail/jit_device_binaries.cpp @victor-eds @Naghasan @sommerlukas
 sycl/test-e2e/KernelFusion @victor-eds @Naghasan @sommerlukas
 
-# Matrix tests
+# Matrix
+sycl/include/sycl/ext/oneapi/matrix/ @dkhaldi @YuriPlyakhin @yubingex007-a11y
 sycl/test-e2e/Matrix @dkhaldi @YuriPlyakhin @yubingex007-a11y
 
 # Native CPU
@@ -136,4 +137,3 @@ sycl/include/sycl/ext/oneapi/bindless* @intel/bindless-images-reviewers
 sycl/source/detail/bindless* @intel/bindless-images-reviewers
 sycl/plugins/unified_runtime/ur/adapters/**/image.* @intel/bindless-images-reviewers
 sycl/test-e2e/bindless_images/ @intel/bindless-images-reviewers
-
