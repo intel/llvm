@@ -104,6 +104,7 @@ piextDeviceSelectBinary
 piextDisablePeerAccess
 piextEnablePeerAccess
 piextEnqueueCommandBuffer
+piextEnqueueCooperativeKernelLaunch
 piextEnqueueReadHostPipe
 piextEnqueueWriteHostPipe
 piextEventCreateWithNativeHandle
@@ -115,6 +116,7 @@ piextKernelGetNativeHandle
 piextKernelSetArgMemObj
 piextKernelSetArgPointer
 piextKernelSetArgSampler
+piextKernelSuggestMaxCooperativeGroupCount
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
 piextMemImageAllocate

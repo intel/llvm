@@ -61,6 +61,7 @@ piextKernelGetNativeHandle
 piextKernelSetArgMemObj
 piextKernelSetArgPointer
 piextKernelSetArgSampler
+piextKernelSuggestMaxCooperativeGroupCount
 piextMemCreateWithNativeHandle
 piextMemGetNativeHandle
 piextMemImageCreateWithNativeHandle
