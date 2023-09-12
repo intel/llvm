@@ -565,8 +565,8 @@ pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
 
 pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
                                                      pi_uint32 *GroupCountRet) {
-  (void)kernel;
-  *group_count_ret = 1;
+  (void)Kernel;
+  *GroupCountRet = 1;
   return PI_SUCCESS;
 }
 
