@@ -6,8 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
@@ -20,7 +21,7 @@
 #define DEBUG_TYPE "sycl-id-range-analysis"
 
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 
 //===----------------------------------------------------------------------===//
 // IDRangeInformation
@@ -66,6 +67,8 @@ bool IDRangeInformation::isConstant() const {
   return constantValues.has_value();
 }
 
+bool IDRangeInformation::isTop() const { return !hasFixedDimensions(); }
+
 const llvm::SmallVector<size_t, 3> &
 IDRangeInformation::getConstantValues() const {
   assert(isConstant() &&
@@ -74,7 +77,8 @@ IDRangeInformation::getConstantValues() const {
 }
 
 const IDRangeInformation
-IDRangeInformation::join(const IDRangeInformation &other) const {
+IDRangeInformation::join(const IDRangeInformation &other,
+                         mlir::AliasAnalysis &) const {
   if (isConstant() && other.isConstant()) {
     if (getConstantValues() == other.getConstantValues())
       return *this;
@@ -117,108 +121,22 @@ static std::optional<int> getConstantUInt(Value v) {
   return cast<IntegerAttr>(folded.front().get<Attribute>()).getInt();
 }
 
-template <typename Type> bool isConstructor(const Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  // NOTE: This could be extended to also handle `SYCLConstructorOp`.
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<Type>(constructor.getType().getValue());
-}
-
 } // namespace
 
 //===----------------------------------------------------------------------===//
 // SYCLIDAndRangeAnalysis
 //===----------------------------------------------------------------------===//
 
-SYCLIDAndRangeAnalysis::SYCLIDAndRangeAnalysis(Operation *op,
-                                               AnalysisManager &mgr)
-    : operation(op), am(mgr) {}
-
-SYCLIDAndRangeAnalysis &
-SYCLIDAndRangeAnalysis::initialize(bool useRelaxedAliasing) {
-  // Initialize the dataflow solver
-  AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(useRelaxedAliasing));
-  solver = std::make_unique<DataFlowSolverWrapper>(aliasAnalysis);
-
-  // Populate the solver and run the analyses needed by this analysis.
-  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
-
-  if (failed(solver->initializeAndRun(operation))) {
-    operation->emitError("Failed to run required dataflow analyses");
-    return *this;
-  }
-
-  initialized = true;
-
-  return *this;
-}
-
-template <typename Type>
+template <typename Type, typename>
 std::optional<IDRangeInformation>
 SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction(Operation *op,
                                                               Value operand) {
-  assert(initialized &&
-         "Analysis only available after successful initialization");
-  assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
-         "Expecting an LLVM pointer");
-
-  const polygeist::ReachingDefinition *reachingDef =
-      solver->lookupState<polygeist::ReachingDefinition>(op);
-  assert(reachingDef && "expected a reaching definition");
-
-  auto mods = reachingDef->getModifiers(operand, *solver);
-  if (!mods || mods->empty())
-    return std::nullopt;
-
-  if (!llvm::all_of(*mods, isConstructor<Type>))
-    return std::nullopt;
-
-  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
-  if (pMods) {
-    if (!llvm::all_of(*pMods, isConstructor<Type>))
-      return std::nullopt;
-  }
-
-  bool first = true;
-  IDRangeInformation info;
-  for (const Definition &def : *mods) {
-    if (first) {
-      info = getInformation<Type>(def);
-      first = false;
-    } else {
-      info = info.join(getInformation<Type>(def));
-      if (!info.hasFixedDimensions())
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed dimension (and therefore also non-constant
-        // values), we can end the processing.
-        return info;
-    }
-  }
-
-  if (pMods) {
-    for (const Definition &def : *pMods) {
-      info = info.join(getInformation<Type>(def));
-      if (!info.hasFixedDimensions())
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed dimension (and therefore also non-constant
-        // values), we can end the processing.
-        return info;
-    }
-  }
-
-  return info;
+  return getInformationFromConstruction<Type>(op, operand);
 }
 
 template <typename IDRange>
 IDRangeInformation
-SYCLIDAndRangeAnalysis::getInformation(const Definition &def) {
+SYCLIDAndRangeAnalysis::getInformationImpl(const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");
 
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
@@ -276,5 +194,5 @@ template std::optional<IDRangeInformation>
 SYCLIDAndRangeAnalysis::getIDRangeInformationFromConstruction<sycl::RangeType>(
     Operation *, Value);
 
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir

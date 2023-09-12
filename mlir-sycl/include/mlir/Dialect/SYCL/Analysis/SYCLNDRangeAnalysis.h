@@ -11,22 +11,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLNDRANGEANALYSIS_H
-#define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLNDRANGEANALYSIS_H
+#ifndef MLIR_DIALECT_SYCL_ANALYSIS_SYCLNDRANGEANALYSIS_H
+#define MLIR_DIALECT_SYCL_ANALYSIS_SYCLNDRANGEANALYSIS_H
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/ConstructorBaseAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
-namespace polygeist {
-class Definition;
+namespace sycl {
 /// Represents information about a `sycl::nd_range` gathered from its
 /// construction.
 class NDRangeInformation {
 public:
-  static NDRangeInformation join(const NDRangeInformation &lhs,
-                                 const NDRangeInformation &rhs);
+  const NDRangeInformation join(const NDRangeInformation &other,
+                                mlir::AliasAnalysis &);
 
   NDRangeInformation() = default;
 
@@ -57,31 +59,23 @@ private:
 
 /// Analysis to determine properties of interest about `sycl::nd_range` from its
 /// construction.
-class SYCLNDRangeAnalysis {
+class SYCLNDRangeAnalysis
+    : public ConstructorBaseAnalysis<SYCLNDRangeAnalysis, NDRangeInformation> {
 public:
   SYCLNDRangeAnalysis(Operation *op, AnalysisManager &am);
 
-  /// Consumers of the analysis must call this member function immediately after
-  /// construction and before requesting any information from the analysis.
-  SYCLNDRangeAnalysis &initialize(bool useRelaxedAliasing);
+  void finalizeInitialization(bool useRelaxedAliasing);
 
   std::optional<NDRangeInformation>
   getNDRangeInformationFromConstruction(Operation *op, Value operand);
 
+  template <typename SYCLType>
+  NDRangeInformation getInformationImpl(const polygeist::Definition &def);
+
 private:
-  NDRangeInformation getInformation(const Definition &def);
-
-  Operation *operation;
-
-  AnalysisManager &am;
-
-  std::unique_ptr<DataFlowSolverWrapper> solver;
-
-  bool initialized = false;
-
   SYCLIDAndRangeAnalysis idRangeAnalysis;
 };
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLNDRANGEANALYSIS_H
+#endif // MLIR_DIALECT_SYCL_ANALYSIS_SYCLNDRANGEANALYSIS_H

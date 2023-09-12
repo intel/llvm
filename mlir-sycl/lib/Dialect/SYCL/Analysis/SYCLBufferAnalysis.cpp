@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLBufferAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLBufferAnalysis.h"
 
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
+#include "mlir/Dialect/Bufferization/Transforms/OneShotModuleBufferize.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLDialect.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
@@ -19,7 +20,7 @@
 #define DEBUG_TYPE "sycl-buffer-analysis"
 
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 
 //===----------------------------------------------------------------------===//
 // BufferInformation
@@ -87,7 +88,7 @@ BufferInformation::BufferInformation(
 
 const BufferInformation
 BufferInformation::join(const BufferInformation &other,
-                        AliasAnalysis &aliasAnalysis) const {
+                        mlir::AliasAnalysis &aliasAnalysis) const {
   auto jointSize = (constantSize == other.constantSize)
                        ? constantSize
                        : SmallVector<size_t, 3>{};
@@ -127,105 +128,22 @@ BufferInformation::join(const BufferInformation &other,
 //===----------------------------------------------------------------------===//
 
 SYCLBufferAnalysis::SYCLBufferAnalysis(Operation *op, AnalysisManager &mgr)
-    : operation(op), am(mgr), aliasAnalysis(nullptr), idRangeAnalysis(op, mgr) {
-}
+    : ConstructorBaseAnalysis<SYCLBufferAnalysis, BufferInformation>(op, mgr),
+      idRangeAnalysis(op, mgr) {}
 
-SYCLBufferAnalysis &SYCLBufferAnalysis::initialize(bool useRelaxedAliasing) {
-
-  // Initialize the dataflow solver
-  aliasAnalysis = &am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis->addAnalysisImplementation(
-      sycl::AliasAnalysis(useRelaxedAliasing));
-
-  solver = std::make_unique<DataFlowSolverWrapper>(*aliasAnalysis);
-
-  // Populate the solver and run the analyses needed by this analysis.
-  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(*aliasAnalysis);
-
-  if (failed(solver->initializeAndRun(operation))) {
-    operation->emitError("Failed to run required dataflow analyses");
-    return *this;
-  }
-
+void SYCLBufferAnalysis::finalizeInitialization(bool useRelaxedAliasing) {
   idRangeAnalysis.initialize(useRelaxedAliasing);
-
-  initialized = true;
-
-  return *this;
 }
 
 std::optional<BufferInformation>
 SYCLBufferAnalysis::getBufferInformationFromConstruction(Operation *op,
                                                          Value operand) {
-  assert(initialized &&
-         "Analysis only available after successful initialization");
-  assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
-         "Expecting an LLVM pointer");
-  assert(aliasAnalysis != nullptr && "Alias analysis not initialized");
-
-  const polygeist::ReachingDefinition *reachingDef =
-      solver->lookupState<polygeist::ReachingDefinition>(op);
-  assert(reachingDef && "expected a reaching definition");
-
-  auto mods = reachingDef->getModifiers(operand, *solver);
-  if (!mods || mods->empty())
-    return std::nullopt;
-
-  if (!llvm::all_of(*mods,
-                    [&](const Definition &def) { return isConstructor(def); }))
-    return std::nullopt;
-
-  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
-  if (pMods) {
-    if (!llvm::all_of(
-            *pMods, [&](const Definition &def) { return isConstructor(def); }))
-      return std::nullopt;
-  }
-
-  bool first = true;
-  BufferInformation info;
-  for (const Definition &def : *mods) {
-    if (first) {
-      info = getInformation(def);
-      first = false;
-    } else {
-      info = info.join(getInformation(def), *aliasAnalysis);
-      if (!info.hasConstantSize() &&
-          info.getSubBuffer() == SubBufferLattice::MAYBE)
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed size and no definitive sub-buffer
-        // information, we can end the processing.
-        return info;
-    }
-  }
-
-  if (pMods) {
-    for (const Definition &def : *pMods) {
-      info = info.join(getInformation(def), *aliasAnalysis);
-      if (!info.hasConstantSize() &&
-          info.getSubBuffer() == SubBufferLattice::MAYBE)
-        // Early return: As soon as joining of the different information has led
-        // to an info with no fixed size and no definitive sub-buffer
-        // information, we can end the processing.
-        return info;
-    }
-  }
-
-  return info;
+  return getInformationFromConstruction<sycl::BufferType>(op, operand);
 }
 
-bool SYCLBufferAnalysis::isConstructor(const Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<sycl::BufferType>(constructor.getType().getValue());
-}
-
-BufferInformation SYCLBufferAnalysis::getInformation(const Definition &def) {
+template <>
+BufferInformation SYCLBufferAnalysis::getInformationImpl<sycl::BufferType>(
+    const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");
 
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
@@ -297,5 +215,5 @@ BufferInformation SYCLBufferAnalysis::getInformation(const Definition &def) {
   return BufferInformation(constantSize, SubBufferLattice::NO, nullptr, {}, {});
 }
 
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir

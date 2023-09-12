@@ -10,9 +10,9 @@
 
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLAccessorAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLNDRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLAccessorAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLNDRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
@@ -61,7 +61,7 @@ private:
       SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
       SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
       ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
-      polygeist::SYCLAccessorAnalysis &accessorAnalysis);
+      SYCLAccessorAnalysis &accessorAnalysis);
 
   /// Inserts in \p constants all of the constant implicit arguments of \p op.
   ///
@@ -69,16 +69,16 @@ private:
   /// constant values of arguments.
   static SmallVectorImpl<std::unique_ptr<ConstantArg>> &getConstantImplicitArgs(
       SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
-      SYCLHostScheduleKernel op, polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-      polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
+      SYCLHostScheduleKernel op, SYCLNDRangeAnalysis &ndrAnalysis,
+      SYCLIDAndRangeAnalysis &idrAnalysis);
 
   /// Returns a list with all constant arguments (both implicit and explicit).
   static SmallVector<std::unique_ptr<ConstantArg>>
   getConstantArgs(SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes,
                   ArrayAttr argAttrs, SymbolTableCollection &symbolTable,
-                  polygeist::SYCLAccessorAnalysis &accessorAnalysis,
-                  polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-                  polygeist::SYCLIDAndRangeAnalysis &idrAnalysis);
+                  SYCLAccessorAnalysis &accessorAnalysis,
+                  SYCLNDRangeAnalysis &ndrAnalysis,
+                  SYCLIDAndRangeAnalysis &idrAnalysis);
 
   /// Propagate constants in \p constants to the function launched by \p launch.
   void propagateConstantArgs(
@@ -253,7 +253,7 @@ static Value createIDRange(OpBuilder &builder, Location loc, Type type,
 
 class OffsetInfo {
 public:
-  OffsetInfo(polygeist::IDRangeInformation &&info) : info(std::move(info)) {}
+  OffsetInfo(IDRangeInformation &&info) : info(std::move(info)) {}
   OffsetInfo(DefaultOffset) {}
 
   bool isConstant() const { return !info || info->isConstant(); }
@@ -273,18 +273,17 @@ public:
 
 private:
   /// Offset information.
-  std::optional<polygeist::IDRangeInformation> info;
+  std::optional<IDRangeInformation> info;
 };
 
 class RangeAndOffsetInfo {
 public:
   /// Provide only range info
-  RangeAndOffsetInfo(polygeist::IDRangeInformation &&rangeInfo)
+  RangeAndOffsetInfo(IDRangeInformation &&rangeInfo)
       : rangeInfo(std::move(rangeInfo)) {}
 
   /// Provide range and offset info
-  RangeAndOffsetInfo(polygeist::IDRangeInformation &&rangeInfo,
-                     OffsetInfo &&offsetInfo)
+  RangeAndOffsetInfo(IDRangeInformation &&rangeInfo, OffsetInfo &&offsetInfo)
       : rangeInfo(std::move(rangeInfo)), offsetInfo(std::move(offsetInfo)) {}
 
   /// Provide range and offset info
@@ -309,13 +308,13 @@ public:
   }
 
 private:
-  std::optional<polygeist::IDRangeInformation> rangeInfo;
+  std::optional<IDRangeInformation> rangeInfo;
   std::optional<OffsetInfo> offsetInfo;
 };
 
 class NDRInfo {
 public:
-  NDRInfo(polygeist::NDRangeInformation &&info) : info(std::move(info)) {}
+  NDRInfo(NDRangeInformation &&info) : info(std::move(info)) {}
 
   template <typename... Args>
   NDRInfo(Args &&...args)
@@ -325,7 +324,7 @@ public:
   bool hasConstantGlobalSizeInfo() const {
     return info &&
            std::visit(overloaded{
-                          [](const polygeist::NDRangeInformation &info) {
+                          [](const NDRangeInformation &info) {
                             return info.getGlobalSizeInfo().isConstant();
                           },
                           [](const RangeAndOffsetInfo &info) {
@@ -340,7 +339,7 @@ public:
     assert(hasConstantGlobalSizeInfo() &&
            "Constant global size information not present");
     return std::visit(
-        overloaded{[&](const polygeist::NDRangeInformation &info) {
+        overloaded{[&](const NDRangeInformation &info) {
                      return createIDRange<SYCLRangeConstructorOp>(
                          builder, loc, type,
                          info.getGlobalSizeInfo().getConstantValues());
@@ -354,7 +353,7 @@ public:
   bool hasConstantLocalSizeInfo() const {
     return info &&
            std::visit(overloaded{
-                          [](const polygeist::NDRangeInformation &info) {
+                          [](const NDRangeInformation &info) {
                             return info.getLocalSizeInfo().isConstant();
                           },
                           [](const RangeAndOffsetInfo &) { return false; },
@@ -367,7 +366,7 @@ public:
     assert(hasConstantLocalSizeInfo() &&
            "Constant local size information not present");
     return std::visit(
-        overloaded{[&](const polygeist::NDRangeInformation &info) {
+        overloaded{[&](const NDRangeInformation &info) {
                      return createIDRange<SYCLRangeConstructorOp>(
                          builder, loc, type,
                          info.getLocalSizeInfo().getConstantValues());
@@ -379,16 +378,15 @@ public:
   }
 
   bool hasConstantOffsetInfo() const {
-    return info &&
-           std::visit(overloaded{
-                          [](const polygeist::NDRangeInformation &info) {
-                            return info.getOffsetInfo().isConstant();
-                          },
-                          [](const RangeAndOffsetInfo &info) {
-                            return info.hasConstantOffset();
-                          },
-                      },
-                      *info);
+    return info && std::visit(overloaded{
+                                  [](const NDRangeInformation &info) {
+                                    return info.getOffsetInfo().isConstant();
+                                  },
+                                  [](const RangeAndOffsetInfo &info) {
+                                    return info.hasConstantOffset();
+                                  },
+                              },
+                              *info);
   }
 
   Value getConstantOffsetValue(OpBuilder &builder, Location loc,
@@ -396,7 +394,7 @@ public:
     assert(hasConstantOffsetInfo() &&
            "Constant offset information not present");
     return std::visit(
-        overloaded{[&](const polygeist::NDRangeInformation &info) {
+        overloaded{[&](const NDRangeInformation &info) {
                      return createIDRange<SYCLIDConstructorOp>(
                          builder, loc, type,
                          info.getOffsetInfo().getConstantValues());
@@ -408,17 +406,16 @@ public:
   }
 
   bool isNDRange() const {
-    return info && std::holds_alternative<polygeist::NDRangeInformation>(*info);
+    return info && std::holds_alternative<NDRangeInformation>(*info);
   }
 
-  const polygeist::NDRangeInformation &getNDRange() const {
+  const NDRangeInformation &getNDRange() const {
     assert(isNDRange() && "Not an nd-range");
-    return std::get<polygeist::NDRangeInformation>(*info);
+    return std::get<NDRangeInformation>(*info);
   }
 
 private:
-  std::optional<std::variant<polygeist::NDRangeInformation, RangeAndOffsetInfo>>
-      info;
+  std::optional<std::variant<NDRangeInformation, RangeAndOffsetInfo>> info;
 };
 
 class ConstantSYCLGridArgs : public ConstantImplicitArgBase {
@@ -523,8 +520,8 @@ private:
 /// Class representing an accessor with constant members.
 class ConstantAccessorArg : public ConstantExplicitArgBase {
 public:
-  static std::unique_ptr<ConstantAccessorArg>
-  get(unsigned index, polygeist::AccessorInformation &&info) {
+  static std::unique_ptr<ConstantAccessorArg> get(unsigned index,
+                                                  AccessorInformation &&info) {
     return std::unique_ptr<ConstantAccessorArg>(
         isValidInfo(info) ? new ConstantAccessorArg(index, std::move(info))
                           : nullptr);
@@ -539,13 +536,13 @@ public:
 
 private:
   /// Return whether \p can be used to replace arguments.
-  static bool isValidInfo(const polygeist::AccessorInformation &info);
+  static bool isValidInfo(const AccessorInformation &info);
 
-  ConstantAccessorArg(unsigned index, polygeist::AccessorInformation &&info)
+  ConstantAccessorArg(unsigned index, AccessorInformation &&info)
       : ConstantExplicitArgBase(ConstantArg::Kind::ConstantAccessorArg, index),
         info(std::move(info)) {}
 
-  polygeist::AccessorInformation info;
+  AccessorInformation info;
 };
 } // namespace
 
@@ -609,7 +606,7 @@ Value ConstantSYCLGridArgs::NumWorkItemsRewriter::getNewValue(
 template <>
 Value ConstantSYCLGridArgs::NumWorkGroupsRewriter::getNewValue(
     OpBuilder &builder, Location loc, const NDRInfo &info, Type type) const {
-  const polygeist::NDRangeInformation &ndrInfo = info.getNDRange();
+  const NDRangeInformation &ndrInfo = info.getNDRange();
   return createIDRange<SYCLRangeConstructorOp>(
       builder, loc, type,
       llvm::map_range(llvm::zip(ndrInfo.getGlobalSizeInfo().getConstantValues(),
@@ -792,9 +789,8 @@ void ConstantSYCLGridArgs::rewrite(Operation *op, OpBuilder &builder) const {
 // ConstantAccessorArg
 //===----------------------------------------------------------------------===//
 
-bool ConstantAccessorArg::isValidInfo(
-    const polygeist::AccessorInformation &info) {
-  return !info.needsRange() || info.hasConstantRange() ||
+bool ConstantAccessorArg::isValidInfo(const AccessorInformation &info) {
+  return !info.needsSubRange() || info.hasConstantSubRange() ||
          (info.hasBufferInformation() &&
           info.getBufferInfo().hasConstantSize()) ||
          !info.needsOffset() || info.hasConstantOffset();
@@ -827,8 +823,8 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
     llvm::dbgs() << "accessor at position #" << index << "\n";
   });
 
-  if (info.needsRange()) {
-    if (info.hasConstantRange()) {
+  if (info.needsSubRange()) {
+    if (info.hasConstantSubRange()) {
       ArrayRef<size_t> accessRange = info.getConstantRange();
       LLVM_DEBUG({
         llvm::dbgs().indent(4)
@@ -858,7 +854,7 @@ void ConstantAccessorArg::propagate(OpBuilder &builder, Region &region) {
                                                    dimensions);
     });
   } else if (info.hasBufferInformation()) {
-    const polygeist::BufferInformation &bufferInfo = info.getBufferInfo();
+    const BufferInformation &bufferInfo = info.getBufferInfo();
     if (bufferInfo.hasConstantSize()) {
       ArrayRef<size_t> memoryRange = bufferInfo.getConstantSize();
       LLVM_DEBUG({
@@ -937,8 +933,8 @@ template <typename OpTy> static OpTy getUniqueUserOp(Value range) {
 }
 
 static std::optional<NDRInfo>
-getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-                      polygeist::SYCLIDAndRangeAnalysis &idrAnalysis,
+getNDRangeInformation(SYCLNDRangeAnalysis &ndrAnalysis,
+                      SYCLIDAndRangeAnalysis &idrAnalysis,
                       SYCLHostScheduleKernel op) {
   Value range = op.getRange();
   if (!range)
@@ -954,7 +950,7 @@ getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
 
   if (op.getNdRange()) {
     // `parallel_for(nd_range, ...)` case
-    std::optional<polygeist::NDRangeInformation> ndrInfo =
+    std::optional<NDRangeInformation> ndrInfo =
         ndrAnalysis.getNDRangeInformationFromConstruction(setNDRangeOp, range);
     if (!ndrInfo)
       return std::nullopt;
@@ -964,7 +960,7 @@ getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
   }
 
   // `parallel_for(range, [offset], ...)` case
-  std::optional<polygeist::IDRangeInformation> rangeInfo =
+  std::optional<IDRangeInformation> rangeInfo =
       idrAnalysis.getIDRangeInformationFromConstruction<RangeType>(setNDRangeOp,
                                                                    range);
 
@@ -996,8 +992,8 @@ getNDRangeInformation(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
 }
 
 static std::optional<ConstantSYCLGridArgs>
-getSYCLGridPropagator(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-                      polygeist::SYCLIDAndRangeAnalysis &idrAnalysis,
+getSYCLGridPropagator(SYCLNDRangeAnalysis &ndrAnalysis,
+                      SYCLIDAndRangeAnalysis &idrAnalysis,
                       SYCLHostScheduleKernel op) {
   LLVM_DEBUG(llvm::dbgs().indent(4)
              << "Searching for constant SYCL grid arguments\n");
@@ -1012,8 +1008,8 @@ getSYCLGridPropagator(polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
 
 static std::unique_ptr<ConstantAccessorArg>
 getConstantAccessorArg(SYCLHostScheduleKernel op,
-                       polygeist::SYCLAccessorAnalysis &accessorAnalysis,
-                       unsigned index, Value value) {
+                       SYCLAccessorAnalysis &accessorAnalysis, unsigned index,
+                       Value value) {
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Handling accessor at operand #" << index << "\n");
 
@@ -1024,7 +1020,7 @@ getConstantAccessorArg(SYCLHostScheduleKernel op,
     return nullptr;
   }
 
-  std::optional<polygeist::AccessorInformation> accInfo =
+  std::optional<AccessorInformation> accInfo =
       accessorAnalysis.getAccessorInformationFromConstruction(setCapturedOp,
                                                               value);
   if (!accInfo) {
@@ -1105,7 +1101,7 @@ ConstantPropagationPass::getConstantExplicitArgs(
     SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
     SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes, ArrayAttr argAttrs,
     SymbolTableCollection &symbolTable,
-    polygeist::SYCLAccessorAnalysis &accessorAnalysis) {
+    SYCLAccessorAnalysis &accessorAnalysis) {
   // Map each argument to a ConstantExplicitArgBase
   auto isConstant = m_Constant();
   auto types = op.getSyclTypes().getAsRange<TypeAttr>();
@@ -1153,8 +1149,8 @@ ConstantPropagationPass::getConstantExplicitArgs(
 SmallVectorImpl<std::unique_ptr<ConstantArg>> &
 ConstantPropagationPass::getConstantImplicitArgs(
     SmallVectorImpl<std::unique_ptr<ConstantArg>> &constants,
-    SYCLHostScheduleKernel op, polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-    polygeist::SYCLIDAndRangeAnalysis &idrAnalysis) {
+    SYCLHostScheduleKernel op, SYCLNDRangeAnalysis &ndrAnalysis,
+    SYCLIDAndRangeAnalysis &idrAnalysis) {
   LLVM_DEBUG(llvm::dbgs().indent(2)
              << "Searching for constant implicit arguments\n");
   if (std::optional<ConstantSYCLGridArgs> gridConstantPropagation =
@@ -1171,10 +1167,8 @@ ConstantPropagationPass::getConstantImplicitArgs(
 SmallVector<std::unique_ptr<ConstantArg>>
 ConstantPropagationPass::getConstantArgs(
     SYCLHostScheduleKernel op, ArrayRef<Type> argumentTypes, ArrayAttr argAttrs,
-    SymbolTableCollection &symbolTable,
-    polygeist::SYCLAccessorAnalysis &accessorAnalysis,
-    polygeist::SYCLNDRangeAnalysis &ndrAnalysis,
-    polygeist::SYCLIDAndRangeAnalysis &idrAnalysis) {
+    SymbolTableCollection &symbolTable, SYCLAccessorAnalysis &accessorAnalysis,
+    SYCLNDRangeAnalysis &ndrAnalysis, SYCLIDAndRangeAnalysis &idrAnalysis) {
   SmallVector<std::unique_ptr<ConstantArg>> constants;
   getConstantExplicitArgs(constants, op, argumentTypes, argAttrs, symbolTable,
                           accessorAnalysis);
@@ -1208,13 +1202,11 @@ void ConstantPropagationPass::propagateConstantArgs(
 void ConstantPropagationPass::runOnOperation() {
   SymbolTableCollection symbolTable;
   auto &ndrAnalysis =
-      getAnalysis<polygeist::SYCLNDRangeAnalysis>().initialize(relaxedAliasing);
+      getAnalysis<SYCLNDRangeAnalysis>().initialize(relaxedAliasing);
   auto &idrAnalysis =
-      getAnalysis<polygeist::SYCLIDAndRangeAnalysis>().initialize(
-          relaxedAliasing);
+      getAnalysis<SYCLIDAndRangeAnalysis>().initialize(relaxedAliasing);
   auto &accessorAnalysis =
-      getAnalysis<polygeist::SYCLAccessorAnalysis>().initialize(
-          relaxedAliasing);
+      getAnalysis<SYCLAccessorAnalysis>().initialize(relaxedAliasing);
   getOperation()->walk([&](gpu::GPUFuncOp op) {
     LLVM_DEBUG(llvm::dbgs()
                << "Performing constant propagation on function '"

@@ -15,7 +15,9 @@
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/IntegerRangeAnalysis.h"
+#include "mlir/Analysis/DataFlowFramework.h"
 #include "mlir/Dialect/Affine/Analysis/AffineAnalysis.h"
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Affine/IR/AffineValueMap.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/Polygeist/Utils/TransformUtils.h"
@@ -1203,31 +1205,6 @@ MemoryAccessAnalysis::getMemoryAccess(const MemRefAccess &access) const {
   return it->second;
 }
 
-MemoryAccessAnalysis &MemoryAccessAnalysis::initialize(bool relaxedAliasing) {
-  AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
-
-  // Run the dataflow analysis we depend on.
-  DataFlowSolverWrapper solver(aliasAnalysis);
-  solver.load<IntegerRangeAnalysis>();
-  solver.loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
-
-  if (failed(solver.initializeAndRun(operation))) {
-    operation->emitError("Failed to run required dataflow analysis");
-    return *this;
-  }
-
-  // Try to construct the memory access matrix and offset vector for affine
-  // memory operation of interest.
-  operation->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    TypeSwitch<Operation *>(op).Case<AffineStoreOp, AffineLoadOp>(
-        [&](auto memoryOp) { build(memoryOp, solver); });
-  });
-
-  isInitialized = true;
-  return *this;
-}
-
 template <typename T>
 void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
   static_assert(llvm::is_one_of<T, AffineLoadOp, AffineStoreOp>::value);
@@ -1313,6 +1290,11 @@ void MemoryAccessAnalysis::build(T memoryOp, DataFlowSolver &solver) {
 
   accessMap[memoryOp] = {std::move(*matrix), std::move(*offsets)};
 }
+
+template void MemoryAccessAnalysis::build<AffineLoadOp>(AffineLoadOp,
+                                                        DataFlowSolver &);
+template void MemoryAccessAnalysis::build<AffineStoreOp>(AffineStoreOp,
+                                                         DataFlowSolver &);
 
 std::optional<MemoryAccessMatrix> MemoryAccessAnalysis::buildAccessMatrix(
     sycl::SYCLAccessorSubscriptOp accessorSubscriptOp,

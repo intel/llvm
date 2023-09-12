@@ -6,15 +6,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLNDRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLNDRangeAnalysis.h"
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/ConstructorBaseAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 
 using namespace mlir;
-using namespace mlir::polygeist;
+using namespace mlir::sycl;
 
 //===----------------------------------------------------------------------===//
 // NDRangeInformation
@@ -54,20 +57,8 @@ static LogicalResult joinDimsInfo(IDRangeInformation &globalSizeInfo,
   return success();
 }
 
-static bool isConstructor(const Definition &def) {
-  if (!def.isOperation())
-    return false;
-
-  // NOTE: This could be extended to also handle `SYCLConstructorOp`.
-  auto constructor = dyn_cast<sycl::SYCLHostConstructorOp>(def.getOperation());
-  if (!constructor)
-    return false;
-
-  return isa<sycl::NdRangeType>(constructor.getType().getValue());
-}
-
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 NDRangeInformation::NDRangeInformation(size_t dimensions)
     : globalSizeInfo(dimensions), localSizeInfo(dimensions),
       offsetInfo(dimensions) {
@@ -100,11 +91,12 @@ const IDRangeInformation &NDRangeInformation::getOffsetInfo() const {
   return offsetInfo;
 }
 
-NDRangeInformation NDRangeInformation::join(const NDRangeInformation &lhs,
-                                            const NDRangeInformation &rhs) {
-  return {lhs.globalSizeInfo.join(rhs.globalSizeInfo),
-          lhs.localSizeInfo.join(rhs.localSizeInfo),
-          lhs.offsetInfo.join(rhs.offsetInfo)};
+const NDRangeInformation
+NDRangeInformation::join(const NDRangeInformation &other,
+                         mlir::AliasAnalysis &alias) {
+  return {globalSizeInfo.join(other.globalSizeInfo, alias),
+          localSizeInfo.join(other.localSizeInfo, alias),
+          offsetInfo.join(other.offsetInfo, alias)};
 }
 
 raw_ostream &operator<<(raw_ostream &os, const NDRangeInformation &ndr) {
@@ -124,85 +116,22 @@ bool NDRangeInformation::isTop() const {
 //===----------------------------------------------------------------------===//
 
 SYCLNDRangeAnalysis::SYCLNDRangeAnalysis(Operation *op, AnalysisManager &am)
-    : operation(op), am(am), idRangeAnalysis(op, am) {}
+    : ConstructorBaseAnalysis<SYCLNDRangeAnalysis, NDRangeInformation>(op, am),
+      idRangeAnalysis(op, am) {}
 
-SYCLNDRangeAnalysis &SYCLNDRangeAnalysis::initialize(bool useRelaxedAliasing) {
-  // Initialize the dataflow solver
-  AliasAnalysis &aliasAnalysis = am.getAnalysis<mlir::AliasAnalysis>();
-  aliasAnalysis.addAnalysisImplementation(
-      sycl::AliasAnalysis(useRelaxedAliasing));
-  solver = std::make_unique<DataFlowSolverWrapper>(aliasAnalysis);
-
-  // Populate the solver and run the analyses needed by this analysis.
-  solver->loadWithRequiredAnalysis<ReachingDefinitionAnalysis>(aliasAnalysis);
-
-  if (failed(solver->initializeAndRun(operation))) {
-    operation->emitError("Failed to run required dataflow analyses");
-    return *this;
-  }
-
+void SYCLNDRangeAnalysis::finalizeInitialization(bool useRelaxedAliasing) {
   idRangeAnalysis.initialize(useRelaxedAliasing);
-
-  initialized = true;
-
-  return *this;
 }
 
 std::optional<NDRangeInformation>
 SYCLNDRangeAnalysis::getNDRangeInformationFromConstruction(Operation *op,
                                                            Value operand) {
-  assert(initialized &&
-         "Analysis only available after successful initialization");
-  assert(isa<LLVM::LLVMPointerType>(operand.getType()) &&
-         "Expecting an LLVM pointer");
-
-  const polygeist::ReachingDefinition *reachingDef =
-      solver->lookupState<polygeist::ReachingDefinition>(op);
-  assert(reachingDef && "expected a reaching definition");
-
-  auto mods = reachingDef->getModifiers(operand, *solver);
-  if (!mods || mods->empty())
-    return std::nullopt;
-
-  if (!llvm::all_of(*mods, isConstructor))
-    return std::nullopt;
-
-  auto pMods = reachingDef->getPotentialModifiers(operand, *solver);
-  if (pMods) {
-    if (!llvm::all_of(*pMods, isConstructor))
-      return std::nullopt;
-  }
-
-  bool first = true;
-  NDRangeInformation info;
-  for (const Definition &def : *mods) {
-    if (first) {
-      info = getInformation(def);
-      first = false;
-      continue;
-    }
-
-    info = NDRangeInformation::join(info, getInformation(def));
-    // Early return: As soon as joining of the different information has led to
-    // top, we can end the processing.
-    if (info.isTop())
-      return info;
-  }
-
-  if (pMods) {
-    for (const Definition &def : *pMods) {
-      info = NDRangeInformation::join(info, getInformation(def));
-      // Early return: As soon as joining of the different information has led
-      // to top, we can end the processing.
-      if (info.isTop())
-        return info;
-    }
-  }
-
-  return info;
+  return getInformationFromConstruction<sycl::NdRangeType>(op, operand);
 }
 
-NDRangeInformation SYCLNDRangeAnalysis::getInformation(const Definition &def) {
+template <>
+NDRangeInformation SYCLNDRangeAnalysis::getInformationImpl<sycl::NdRangeType>(
+    const polygeist::Definition &def) {
   assert(def.isOperation() && "Expecting operation");
 
   auto constructor = cast<sycl::SYCLHostConstructorOp>(def.getOperation());
@@ -252,5 +181,5 @@ NDRangeInformation SYCLNDRangeAnalysis::getInformation(const Definition &def) {
   }
   }
 }
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir

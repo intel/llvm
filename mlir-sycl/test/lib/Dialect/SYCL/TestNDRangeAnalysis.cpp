@@ -1,4 +1,4 @@
-//===--------------- TestBufferAnalysis.cpp -------------------------------===//
+//===----------- TestNDRangeAnalysis.cpp ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLBufferAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLNDRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Pass/Pass.h"
 
@@ -14,18 +14,17 @@ using namespace mlir;
 
 namespace {
 
-struct TestBufferAnalysisPass
-    : public PassWrapper<TestBufferAnalysisPass, OperationPass<>> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestBufferAnalysisPass)
+struct TestNDRangeAnalysisPass
+    : public PassWrapper<TestNDRangeAnalysisPass, OperationPass<>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(TestNDRangeAnalysisPass)
 
-  StringRef getArgument() const override { return "test-buffer-analysis"; }
+  StringRef getArgument() const override { return "test-nd-range-analysis"; }
 
   void runOnOperation() override {
     Operation *op = getOperation();
     bool relaxedAliasing = true;
-    auto &IDRangeAnalysis =
-        getAnalysis<polygeist::SYCLBufferAnalysis>().initialize(
-            relaxedAliasing);
+    auto &NDRangeAnalysis =
+        getAnalysis<sycl::SYCLNDRangeAnalysis>().initialize(relaxedAliasing);
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");
@@ -35,11 +34,11 @@ struct TestBufferAnalysisPass
       llvm::errs() << "test_tag: " << tag.getValue() << ":\n";
       for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
         llvm::errs().indent(2) << "operand #" << index << "\n";
-        auto result =
-            IDRangeAnalysis.getBufferInformationFromConstruction(op, operand);
-        if (result) {
-          llvm::errs().indent(2) << "buffer:\n";
-          llvm::errs() << *result;
+        auto ndrResult =
+            NDRangeAnalysis.getNDRangeInformationFromConstruction(op, operand);
+        if (ndrResult) {
+          llvm::errs().indent(2) << "nd_range:\n";
+          llvm::errs().indent(4) << *ndrResult << "\n";
         }
       }
       return WalkResult::advance();
@@ -51,8 +50,8 @@ struct TestBufferAnalysisPass
 
 namespace mlir {
 namespace test {
-void registerTestBufferAnalysisPass() {
-  PassRegistration<TestBufferAnalysisPass>();
+void registerTestNDRangeAnalysisPass() {
+  PassRegistration<TestNDRangeAnalysisPass>();
 }
 } // end namespace test
 } // end namespace mlir

@@ -11,25 +11,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLACCESSORANALYSIS_H
-#define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLACCESSORANALYSIS_H
+#ifndef MLIR_DIALECT_SYCL_ANALYSIS_SYCLACCESSORANALYSIS_H
+#define MLIR_DIALECT_SYCL_ANALYSIS_SYCLACCESSORANALYSIS_H
 
 #include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLBufferAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/ConstructorBaseAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLBufferAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLOps.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 
 /// Represents information about a `sycl::accessor` gathered from its
 /// construction.
 class AccessorInformation {
 public:
-  AccessorInformation() : isTop{true} {}
+  AccessorInformation() : isTopAcc{true} {}
 
   AccessorInformation(Value buf, std::optional<BufferInformation> bufInfo,
                       bool hasRange, llvm::ArrayRef<size_t> constRange,
@@ -66,14 +67,14 @@ public:
 
   /// Returns false if the range can be omitted for this accessor, true
   /// otherwise.
-  bool needsRange() const { return needRange; }
+  bool needsSubRange() const { return needRange; }
 
   /// Returns true if the range of this accessor is known to be constant.
-  bool hasConstantRange() const { return !constantRange.empty(); }
+  bool hasConstantSubRange() const { return !constantRange.empty(); }
 
   /// Returns the constant values for the range of this accessor.
   ArrayRef<size_t> getConstantRange() const {
-    assert(hasConstantRange() && "Range not constant");
+    assert(hasConstantSubRange() && "Range not constant");
     return constantRange;
   }
 
@@ -92,18 +93,18 @@ public:
 
   /// Returns true if the top of the lattice has been reached, i.e., it is not
   /// possible to further refine the information known about this accessor.
-  bool isTopAccessor() const { return isTop; }
+  bool isTop() const { return isTopAcc; }
 
   const AccessorInformation join(const AccessorInformation &other,
-                                 AliasAnalysis &aliasAnalysis) const;
+                                 mlir::AliasAnalysis &aliasAnalysis) const;
 
   /// Returns an AliasResult indicating whether this accessor and the given
   /// accessor must, may or do not alias.
   AliasResult alias(const AccessorInformation &other,
-                    AliasAnalysis &aliasAnalysis) const;
+                    mlir::AliasAnalysis &aliasAnalysis) const;
 
 private:
-  bool isTop = false;
+  bool isTopAcc = false;
   bool isLocal = false;
 
   Value buffer;
@@ -123,44 +124,31 @@ private:
 
 /// Analysis to determine properties of interest about a `sycl::accessor` from
 /// its construction.
-class SYCLAccessorAnalysis {
+class SYCLAccessorAnalysis
+    : public ConstructorBaseAnalysis<SYCLAccessorAnalysis,
+                                     AccessorInformation> {
 public:
-  SYCLAccessorAnalysis(Operation *op, AnalysisManager &am);
+  SYCLAccessorAnalysis(Operation *op, AnalysisManager &mgr);
 
-  /// Consumers of the analysis must call this member function immediately after
-  /// construction and before requesting any information from the analysis.
-  SYCLAccessorAnalysis &initialize(bool useRelaxedAliasing = false);
+  void finalizeInitialization(bool useRelaxedAliasing = false);
 
   std::optional<AccessorInformation>
   getAccessorInformationFromConstruction(Operation *op, Value operand);
 
+  template <typename... SYCLType>
+  AccessorInformation getInformationImpl(const polygeist::Definition &def);
+
 private:
-  void initialize();
-
-  bool isConstructor(const Definition &def);
-
-  AccessorInformation getInformation(const Definition &def);
-
   template <typename OperandType>
   std::optional<IDRangeInformation>
   getOperandInfo(sycl::SYCLHostConstructorOp constructor,
                  ArrayRef<size_t> possibleIndices);
 
-  Operation *operation;
-
-  AnalysisManager &am;
-
-  std::unique_ptr<DataFlowSolverWrapper> solver;
-
-  bool initialized = false;
-
-  AliasAnalysis *aliasAnalysis;
-
   SYCLIDAndRangeAnalysis idRangeAnalysis;
 
   SYCLBufferAnalysis bufferAnalysis;
 };
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLACCESSORANALYSIS_H
+#endif // MLIR_DIALECT_SYCL_ANALYSIS_SYCLACCESSORANALYSIS_H

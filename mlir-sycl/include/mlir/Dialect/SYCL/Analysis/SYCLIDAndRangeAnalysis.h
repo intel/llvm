@@ -11,15 +11,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
-#define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
+#ifndef MLIR_DIALECT_SYCL_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
+#define MLIR_DIALECT_SYCL_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
 
+#include "ConstructorBaseAnalysis.h"
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
+#include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
-namespace polygeist {
-class Definition;
+namespace sycl {
 /// Represents information about a `sycl::id` or `sycl::range` gathered from its
 /// construction.
 class IDRangeInformation {
@@ -42,11 +44,15 @@ public:
   /// values.
   bool isConstant() const;
 
+  /// Returns true if the top of the lattice was reached.
+  bool isTop() const;
+
   /// Returns the constant values with which this id/range is constructed, in
   /// case it is always constructed with the same constant values.
   const llvm::SmallVector<size_t, 3> &getConstantValues() const;
 
-  const IDRangeInformation join(const IDRangeInformation &other) const;
+  const IDRangeInformation join(const IDRangeInformation &other,
+                                mlir::AliasAnalysis &) const;
 
 private:
   std::optional<size_t> dimensions;
@@ -58,31 +64,24 @@ private:
 
 /// Analysis to determine properties of interest about `sycl::id` or
 /// `sycl::range` from their construction.
-class SYCLIDAndRangeAnalysis {
+class SYCLIDAndRangeAnalysis
+    : public ConstructorBaseAnalysis<SYCLIDAndRangeAnalysis,
+                                     IDRangeInformation> {
 public:
-  SYCLIDAndRangeAnalysis(Operation *op, AnalysisManager &am);
+  using ConstructorBaseAnalysis<SYCLIDAndRangeAnalysis,
+                                IDRangeInformation>::ConstructorBaseAnalysis;
 
-  /// Consumers of the analysis must call this member function immediately after
-  /// construction and before requesting any information from the analysis.
-  SYCLIDAndRangeAnalysis &initialize(bool useRelaxedAliasing);
-
-  template <typename Type>
+  template <typename Type, typename = std::enable_if_t<llvm::is_one_of<
+                               Type, sycl::IDType, sycl::RangeType>::value>>
   std::optional<IDRangeInformation>
   getIDRangeInformationFromConstruction(Operation *op, Value operand);
 
-private:
+  void finalizeInitialization(bool){};
+
   template <typename IDRange>
-  IDRangeInformation getInformation(const Definition &def);
-
-  Operation *operation;
-
-  AnalysisManager &am;
-
-  std::unique_ptr<DataFlowSolverWrapper> solver;
-
-  bool initialized = false;
+  IDRangeInformation getInformationImpl(const polygeist::Definition &def);
 };
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLIDANDRANGEANALYSIS_H
+#endif // MLIR_DIALECT_SYCL_ANALYSIS_SYCLIDANDRANGEANALYSIS_H

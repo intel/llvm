@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Polygeist/Analysis/SYCLAccessorAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLAccessorAnalysis.h"
 #include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Pass/Pass.h"
 
@@ -27,8 +27,7 @@ struct TestAccessorAnalysisPass
     aliasAnalysis.addAnalysisImplementation(
         sycl::AliasAnalysis(relaxedAliasing));
     auto &AccessorAnalysis =
-        getAnalysis<polygeist::SYCLAccessorAnalysis>().initialize(
-            relaxedAliasing);
+        getAnalysis<sycl::SYCLAccessorAnalysis>().initialize(relaxedAliasing);
 
     op->walk([&](Operation *op) {
       auto tag = op->getAttrOfType<StringAttr>("tag");

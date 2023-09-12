@@ -11,17 +11,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLBUFFERANALYSIS_H
-#define MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLBUFFERANALYSIS_H
+#ifndef MLIR_DIALECT_SYCL_ANALYSIS_SYCLBUFFERANALYSIS_H
+#define MLIR_DIALECT_SYCL_ANALYSIS_SYCLBUFFERANALYSIS_H
 
+#include "ConstructorBaseAnalysis.h"
 #include "mlir/Dialect/Polygeist/Analysis/DataFlowSolverWrapper.h"
 #include "mlir/Dialect/Polygeist/Analysis/ReachingDefinitionAnalysis.h"
-#include "mlir/Dialect/Polygeist/Analysis/SYCLIDAndRangeAnalysis.h"
 #include "mlir/Dialect/SYCL/Analysis/AliasAnalysis.h"
+#include "mlir/Dialect/SYCL/Analysis/SYCLIDAndRangeAnalysis.h"
+#include "mlir/Dialect/SYCL/IR/SYCLTypes.h"
 #include "mlir/Pass/AnalysisManager.h"
 
 namespace mlir {
-namespace polygeist {
+namespace sycl {
 
 /// YES indicates that the buffer is definitely a sub-buffer
 /// NO indicates that the buffer is definitely not a sub-buffer.
@@ -35,7 +37,7 @@ class BufferInformation {
 public:
   BufferInformation();
 
-  BufferInformation(ArrayRef<size_t> constRange, SubBufferLattice IsSubBuffer,
+  BufferInformation(ArrayRef<size_t> constRange, SubBufferLattice isSubBuffer,
                     Value baseBuffer, ArrayRef<size_t> constBaseBufferSize,
                     ArrayRef<size_t> constSubBufferOffset);
 
@@ -82,8 +84,13 @@ public:
     return subBufOffset;
   }
 
+  /// Returns true if the top of the lattice has been reached.
+  bool isTop() const {
+    return !hasConstantSize() && getSubBuffer() == SubBufferLattice::MAYBE;
+  }
+
   const BufferInformation join(const BufferInformation &other,
-                               AliasAnalysis &aliasAnalysis) const;
+                               mlir::AliasAnalysis &aliasAnalysis) const;
 
 private:
   SmallVector<size_t, 3> constantSize;
@@ -101,37 +108,25 @@ private:
 
 /// Analysis to determine properties of interest about a `sycl::buffer` from its
 /// construction.
-class SYCLBufferAnalysis {
+class SYCLBufferAnalysis
+    : public ConstructorBaseAnalysis<SYCLBufferAnalysis, BufferInformation> {
 public:
-  SYCLBufferAnalysis(Operation *op, AnalysisManager &am);
+  SYCLBufferAnalysis(Operation *op, AnalysisManager &mgr);
 
   /// Consumers of the analysis must call this member function immediately after
   /// construction and before requesting any information from the analysis.
-  SYCLBufferAnalysis &initialize(bool useRelaxedAliasing = false);
+  void finalizeInitialization(bool useRelaxedAliasing = false);
 
   std::optional<BufferInformation>
   getBufferInformationFromConstruction(Operation *op, Value operand);
 
+  template <typename SYCLType>
+  BufferInformation getInformationImpl(const polygeist::Definition &def);
+
 private:
-  void initialize();
-
-  bool isConstructor(const Definition &def);
-
-  BufferInformation getInformation(const Definition &def);
-
-  Operation *operation;
-
-  AnalysisManager &am;
-
-  std::unique_ptr<DataFlowSolverWrapper> solver;
-
-  bool initialized = false;
-
-  AliasAnalysis *aliasAnalysis;
-
   SYCLIDAndRangeAnalysis idRangeAnalysis;
 };
-} // namespace polygeist
+} // namespace sycl
 } // namespace mlir
 
-#endif // MLIR_DIALECT_POLYGEIST_ANALYSIS_SYCLBUFFERANALYSIS_H
+#endif // MLIR_DIALECT_SYCL_ANALYSIS_SYCLBUFFERANALYSIS_H
