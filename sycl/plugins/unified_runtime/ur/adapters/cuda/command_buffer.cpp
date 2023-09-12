@@ -74,14 +74,18 @@ static ur_result_t getNodesFromSyncPoints(
 /// Set parameter for General 1D memory copy.
 /// If the source and/or destination is on the device, SrcPtr and/or DstPtr
 /// must be a pointer to a CUdeviceptr
-static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
-                          void *DstPtr, const CUmemorytype_enum DstType,
+static void setCopyParams(const void *SrcPtr, size_t SrcOffset,
+                          const CUmemorytype_enum SrcType, void *DstPtr,
+                          size_t DstOffset, const CUmemorytype_enum DstType,
                           size_t Size, CUDA_MEMCPY3D &Params) {
 
   Params.srcMemoryType = SrcType;
-  Params.srcDevice = SrcType == CU_MEMORYTYPE_DEVICE
-                         ? *static_cast<const CUdeviceptr *>(SrcPtr)
-                         : 0;
+  Params.srcDevice =
+      SrcType == CU_MEMORYTYPE_DEVICE
+          ? (*static_cast<const CUdeviceptr *>(SrcPtr)) + SrcOffset
+          : 0;
+  // UR entry point function definitions imply that offsets can be set only on
+  // device side.
   Params.srcHost = SrcType == CU_MEMORYTYPE_HOST ? SrcPtr : nullptr;
   Params.srcXInBytes = 0;
   Params.srcY = 0;
@@ -91,8 +95,9 @@ static void setCopyParams(const void *SrcPtr, const CUmemorytype_enum SrcType,
   Params.srcHeight = 0;
 
   Params.dstMemoryType = DstType;
-  Params.dstDevice =
-      DstType == CU_MEMORYTYPE_DEVICE ? *static_cast<CUdeviceptr *>(DstPtr) : 0;
+  Params.dstDevice = DstType == CU_MEMORYTYPE_DEVICE
+                         ? (*static_cast<CUdeviceptr *>(DstPtr)) + DstOffset
+                         : 0;
   Params.dstHost = DstType == CU_MEMORYTYPE_HOST ? DstPtr : nullptr;
   Params.dstXInBytes = 0;
   Params.dstY = 0;
@@ -252,8 +257,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
 
   try {
     CUDA_MEMCPY3D NodeParams = {};
-    setCopyParams(pSrc, CU_MEMORYTYPE_HOST, pDst, CU_MEMORYTYPE_HOST, size,
-                  NodeParams);
+    setCopyParams(pSrc, 0, CU_MEMORYTYPE_HOST, pDst, 0, CU_MEMORYTYPE_HOST,
+                  size, NodeParams);
 
     Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
@@ -281,12 +286,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
                                  pSyncPointWaitList, DepsList));
 
   try {
-    auto Src = hSrcMem->Mem.BufferMem.get() + srcOffset;
-    auto Dst = hDstMem->Mem.BufferMem.get() + dstOffset;
+    auto Src = hSrcMem->Mem.BufferMem.get();
+    auto Dst = hDstMem->Mem.BufferMem.get();
 
     CUDA_MEMCPY3D NodeParams = {};
-    setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, &Dst, CU_MEMORYTYPE_DEVICE, size,
-                  NodeParams);
+    setCopyParams(&Src, srcOffset, CU_MEMORYTYPE_DEVICE, &Dst, dstOffset,
+                  CU_MEMORYTYPE_DEVICE, size, NodeParams);
 
     Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
@@ -351,11 +356,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
                                  pSyncPointWaitList, DepsList));
 
   try {
-    auto Dst = hBuffer->Mem.BufferMem.get() + offset;
+    auto Dst = hBuffer->Mem.BufferMem.get();
 
     CUDA_MEMCPY3D NodeParams = {};
-    setCopyParams(pSrc, CU_MEMORYTYPE_HOST, &Dst, CU_MEMORYTYPE_DEVICE, size,
-                  NodeParams);
+    setCopyParams(pSrc, 0, CU_MEMORYTYPE_HOST, &Dst, offset,
+                  CU_MEMORYTYPE_DEVICE, size, NodeParams);
 
     Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
@@ -383,11 +388,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
                                  pSyncPointWaitList, DepsList));
 
   try {
-    auto Src = hBuffer->Mem.BufferMem.get() + offset;
+    auto Src = hBuffer->Mem.BufferMem.get();
 
     CUDA_MEMCPY3D NodeParams = {};
-    setCopyParams(&Src, CU_MEMORYTYPE_DEVICE, pDst, CU_MEMORYTYPE_HOST, size,
-                  NodeParams);
+    setCopyParams(&Src, offset, CU_MEMORYTYPE_DEVICE, pDst, 0,
+                  CU_MEMORYTYPE_HOST, size, NodeParams);
 
     Result = UR_CHECK_ERROR(cuGraphAddMemcpyNode(
         &GraphNode, hCommandBuffer->CudaGraph, DepsList.data(), DepsList.size(),
