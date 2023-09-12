@@ -1146,8 +1146,17 @@ private:
     // that has each work item peform multiple invocations the old
     // kernel in a 32-bit global range.
     auto Dev = detail::getDeviceFromHandler(*this);
-    auto MaxNWGs = Dev.get_info<
-        ext::oneapi::experimental::info::device::max_work_groups<Dims>>();
+    id<Dims> MaxNWGs = [&] {
+      try {
+        return Dev.get_info<
+            ext::oneapi::experimental::info::device::max_work_groups<Dims>>();
+      } catch (sycl::exception &e) {
+        id<Dims> Default;
+        for (int i = 0; i < Dims; ++i)
+          Default[i] = (std::numeric_limits<int32_t>::max());
+        return Default;
+      }
+    }();
     auto M = (std::numeric_limits<int32_t>::max)();
     range<Dims> MaxRange;
     for (int i = 0; i < Dims; ++i) {
