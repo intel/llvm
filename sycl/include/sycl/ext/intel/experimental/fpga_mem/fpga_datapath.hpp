@@ -35,21 +35,6 @@ struct datapath_key {
 };
 
 } // namespace detail
-
-// alias for proper namespace
-template <typename... Props>
-using properties_t = oneapi_exp::detail::properties_t<Props...>;
-
-
-template <typename T>
-class fpga_datapath
-    : public detail::fpga_mem_base<T, detail::datapath_key> {
-
-  // Inherits the base class' constructors
-  using detail::fpga_mem_base<T, detail::datapath_key>::fpga_mem_base;
-
-};
-
 } // namespace ext::intel::experimental
 
 namespace ext::oneapi::experimental::detail {
@@ -71,8 +56,30 @@ template <> struct PropertyMetaInfo<datapath_key::value_t> {
   static constexpr std::nullptr_t value = nullptr;
 };
 
-
 } // namespace ext::oneapi::experimental::detail
+
+namespace ext::intel::experimental {
+// alias for proper namespace
+template <typename... Props>
+using properties_t = oneapi_exp::detail::properties_t<Props...>;
+
+template <typename T>
+class 
+#ifdef __SYCL_DEVICE_ONLY__
+      [[__sycl_detail__::add_ir_attributes_global_variable(
+          oneapi_exp::detail::PropertyMetaInfo<detail::datapath_key::value_t>::name, 
+          oneapi_exp::detail::PropertyMetaInfo<detail::datapath_key::value_t>::value)]]
+#endif
+fpga_datapath
+    : public detail::fpga_mem_base<T, detail::datapath_key> {
+
+  // Inherits the base class' constructors
+  using detail::fpga_mem_base<T, detail::datapath_key>::fpga_mem_base;
+
+};
+
+} // namespace ext::intel::experimental
+
 } // namespace _V1
 } // namespace sycl
 

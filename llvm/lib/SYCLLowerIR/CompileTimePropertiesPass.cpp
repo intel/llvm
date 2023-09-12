@@ -62,6 +62,21 @@ const StringMap<Decor> SpirvDecorMap = {
 };
 #undef SYCL_COMPILE_TIME_PROPERTY
 
+/// Builds a metadata node for a SPIR-V decoration (decoration code is
+/// \c uint32_t integers) with no value.
+///
+/// @param Ctx    [in] the LLVM Context.
+/// @param OpCode [in] the SPIR-V OpCode code.
+///
+/// @returns a pointer to the metadata node created for the required decoration
+MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode) {
+  auto *Ty = Type::getInt32Ty(Ctx);
+  SmallVector<Metadata *, 2> MD;
+  MD.push_back(ConstantAsMetadata::get(
+      Constant::getIntegerValue(Ty, APInt(32, OpCode))));
+  return MDNode::get(Ctx, MD);
+}
+
 /// Builds a metadata node for a SPIR-V decoration (both decoration code
 /// and value are \c uint32_t integers).
 ///
@@ -170,6 +185,8 @@ MDNode *attributeToDecorateMetadata(LLVMContext &Ctx, const Attribute &Attr) {
     return buildSpirvDecorMetadata(Ctx, DecorCode, hasProperty(Attr));
   case DecorValueTy::string:
     return buildSpirvDecorMetadata(Ctx, DecorCode, Attr.getValueAsString());
+  case DecorValueTy::none:
+    return buildSpirvDecorMetadata(Ctx, DecorCode);
   default:
     llvm_unreachable("Unhandled decorator type.");
   }
