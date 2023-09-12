@@ -68,6 +68,7 @@ Enums
     ${X}_STRUCTURE_TYPE_EXP_INTEROP_SEMAPHORE_DESC
     ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
     ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
+    ${X}_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES 
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
@@ -127,6 +128,7 @@ Types
 * ${x}_exp_interop_semaphore_desc_t
 * ${x}_exp_file_descriptor_t
 * ${x}_exp_win32_handle_t
+* ${x}_exp_layered_image_properties_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -175,6 +177,8 @@ Changelog
 | 5.0      | Update interop struct and func param names to adhere to convention. |
 +----------+-------------------------------------------------------------+
 | 6.0      | Fix semaphore import function parameter name.               |
++----------+-------------------------------------------------------------+
+| 7.0      | Add layered image properties struct.                        |
 +----------+-------------------------------------------------------------+
 
 Contributors
