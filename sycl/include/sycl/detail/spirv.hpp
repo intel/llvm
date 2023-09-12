@@ -54,7 +54,7 @@ template <typename Group> struct group_scope {};
 
 template <int Dimensions>
 struct group_scope<sycl::ext::oneapi::experimental::root_group<Dimensions>> {
-  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Workgroup;
+  static constexpr __spv::Scope::Flag value = __spv::Scope::Flag::Device;
 };
 
 template <int Dimensions> struct group_scope<group<Dimensions>> {
