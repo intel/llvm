@@ -2881,7 +2881,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
@@ -2946,7 +2946,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
   raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc, desc);
@@ -2984,7 +2984,7 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
 
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc = base_desc | cache_mask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
