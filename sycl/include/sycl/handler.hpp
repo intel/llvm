@@ -1247,7 +1247,12 @@ private:
       kernel_parallel_for_wrapper<KName, item<Dims>, decltype(Wrapper),
                                   PropertiesT>(Wrapper);
 #ifndef __SYCL_DEVICE_ONLY__
-      detail::checkValueRange<Dims>(*RoundedRange);
+      // We are executing over the rounded range, but there are still
+      // items/ids that are are constructed in ther range rounded
+      // kernel use items/ids in the user range, which means that
+      // __SYCL_ASSUME_INT can still be violated. So check the bounds
+      // of the user range, instead of the rounded range.
+      detail::checkValueRange<Dims>(UserRange);
       MNDRDesc.set(*RoundedRange);
       StoreLambda<KName, decltype(Wrapper), Dims, item<Dims>>(
           std::move(Wrapper));

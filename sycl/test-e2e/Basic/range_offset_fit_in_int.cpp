@@ -63,6 +63,22 @@ void test() {
   int Data = 0;
   S::buffer<int, 1> Buf{&Data, 1};
 
+  // no offset, either dim of range exceeds limit
+  try {
+    Queue.submit([&](S::handler &CGH) {
+      auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
+
+      CGH.parallel_for<class PF_ROL>(RangeOutOfLimits,
+                                     [=](S::id<2> Id) { Acc[0] += 1; });
+    });
+
+    assert(false && "Exception expected");
+  } catch (S::exception &E) {
+    checkRangeException(E);
+  } catch (...) {
+    assert(false && "Unexpected exception catched");
+  }
+
   // no offset, all dims of range are in limits
   try {
     Queue.submit([&](S::handler &CGH) {
