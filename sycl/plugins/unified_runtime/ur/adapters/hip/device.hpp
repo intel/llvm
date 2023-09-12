@@ -24,6 +24,8 @@ private:
   ur_platform_handle_t Platform;
   hipCtx_t HIPContext;
 
+  size_t MaxAllocSize{0};
+
 public:
   ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
                       ur_platform_handle_t Platform)
