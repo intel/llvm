@@ -13,6 +13,7 @@
 
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/IR/Constant.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 
@@ -64,9 +65,9 @@ void fixCallingConv(Function *F) {
   }
   F->setAttributes(AttList);
   F->addFnAttr("frame-pointer", "none");
-  if (!F->isDeclaration())
-    F->setLinkage(GlobalValue::LinkageTypes::WeakAnyLinkage);
 }
+
+
 
 // returns the indexes of the used arguments
 SmallVector<unsigned> getUsedIndexes(const Function *F) {
