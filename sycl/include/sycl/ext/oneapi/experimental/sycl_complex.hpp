@@ -1150,20 +1150,20 @@ public:
 
   // MARRAY_CPLX_OP is: +=, -=, *=, /=
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray &operator op(marray &lhs, const marray &rhs) {                 \
+  friend marray &operator op(marray & lhs, const marray & rhs) {               \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs[i];                                                        \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
                                                                                \
-  friend marray &operator op(marray &lhs, const value_type &rhs) {             \
+  friend marray &operator op(marray & lhs, const value_type & rhs) {           \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs;                                                           \
     }                                                                          \
     return lhs;                                                                \
   }                                                                            \
-  friend marray &operator op(value_type &lhs, const marray &rhs) {             \
+  friend marray &operator op(value_type & lhs, const marray & rhs) {           \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       lhs[i] op rhs;                                                           \
     }                                                                          \
@@ -1185,7 +1185,7 @@ public:
 // MARRAY_CPLX_OP is: ++, --
 #define MARRAY_CPLX_OP(op)                                                     \
   friend marray operator op(marray &lhs, int) = delete;                        \
-  friend marray &operator op(marray &rhs) = delete;
+  friend marray &operator op(marray & rhs) = delete;
 
   MARRAY_CPLX_OP(++)
   MARRAY_CPLX_OP(--)
@@ -1221,9 +1221,9 @@ public:
 
 // MARRAY_CPLX_OP is: &=, |=, ^=
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray &operator op(marray &lhs, const marray &rhs) = delete;         \
-  friend marray &operator op(marray &lhs, const value_type &rhs) = delete;     \
-  friend marray &operator op(value_type &lhs, const marray &rhs) = delete;
+  friend marray &operator op(marray & lhs, const marray & rhs) = delete;       \
+  friend marray &operator op(marray & lhs, const value_type & rhs) = delete;   \
+  friend marray &operator op(value_type & lhs, const marray & rhs) = delete;
 
   MARRAY_CPLX_OP(&=)
   MARRAY_CPLX_OP(|=)
@@ -1233,12 +1233,12 @@ public:
 
 // MARRAY_CPLX_OP is: &&, ||
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const marray &rhs) = delete;    \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const marray & rhs) = delete;   \
   friend marray<bool, NumElements> operator op(                                \
-      const marray &lhs, const value_type &rhs) = delete;                      \
-  friend marray<bool, NumElements> operator op(const value_type &lhs,          \
-                                               const marray &rhs) = delete;
+      const marray & lhs, const value_type & rhs) = delete;                    \
+  friend marray<bool, NumElements> operator op(const value_type & lhs,         \
+                                               const marray & rhs) = delete;
 
   MARRAY_CPLX_OP(&&)
   MARRAY_CPLX_OP(||)
@@ -1259,8 +1259,8 @@ public:
 
 // MARRAY_CPLX_OP is: <<=, >>=
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray &operator op(marray &lhs, const marray &rhs) = delete;         \
-  friend marray &operator op(marray &lhs, const value_type &rhs) = delete;
+  friend marray &operator op(marray & lhs, const marray & rhs) = delete;       \
+  friend marray &operator op(marray & lhs, const value_type & rhs) = delete;
 
   MARRAY_CPLX_OP(<<=)
   MARRAY_CPLX_OP(>>=)
@@ -1269,8 +1269,8 @@ public:
 
   // MARRAY_CPLX_OP is: ==, !=
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const marray &rhs) {            \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const marray & rhs) {           \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs[i] op rhs[i];                                               \
@@ -1278,8 +1278,8 @@ public:
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const value_type &rhs) {        \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const value_type & rhs) {       \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs[i] op rhs;                                                  \
@@ -1287,8 +1287,8 @@ public:
     return rtn;                                                                \
   }                                                                            \
                                                                                \
-  friend marray<bool, NumElements> operator op(const value_type &lhs,          \
-                                               const marray &rhs) {            \
+  friend marray<bool, NumElements> operator op(const value_type & lhs,         \
+                                               const marray & rhs) {           \
     marray<bool, NumElements> rtn;                                             \
     for (std::size_t i = 0; i < NumElements; ++i) {                            \
       rtn[i] = lhs op rhs[i];                                                  \
@@ -1303,12 +1303,12 @@ public:
 
   // MARRAY_CPLX_OP is: <, >, <=, >=
 #define MARRAY_CPLX_OP(op)                                                     \
-  friend marray<bool, NumElements> operator op(const marray &lhs,              \
-                                               const marray &rhs) = delete;    \
+  friend marray<bool, NumElements> operator op(const marray & lhs,             \
+                                               const marray & rhs) = delete;   \
   friend marray<bool, NumElements> operator op(                                \
-      const marray &lhs, const value_type &rhs) = delete;                      \
-  friend marray<bool, NumElements> operator op(const value_type &lhs,          \
-                                               const marray &rhs) = delete;
+      const marray & lhs, const value_type & rhs) = delete;                    \
+  friend marray<bool, NumElements> operator op(const value_type & lhs,         \
+                                               const marray & rhs) = delete;
 
   MARRAY_CPLX_OP(<);
   MARRAY_CPLX_OP(>);
