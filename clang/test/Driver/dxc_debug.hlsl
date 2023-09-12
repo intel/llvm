@@ -8,9 +8,6 @@
 // RUN: %clang_dxc -Tlib_6_7 -### -gcodeview -Zi %s 2>&1 | FileCheck %s -check-prefixes=CHECK,CHECK-CV
 // RUN: %clang_dxc -Tlib_6_7 -### -gdwarf -Zi %s 2>&1 | FileCheck %s -check-prefixes=CHECK,CHECK-DWARF
 
-// FIXME: https://github.com/intel/llvm/issues/11079.
-// XFAIL: *
-
 // CHECK: "-cc1"
 // CHECK-CV-SAME: -gcodeview
 // CHECK-SAME: "-debug-info-kind=constructor"
