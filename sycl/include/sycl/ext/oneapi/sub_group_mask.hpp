@@ -89,6 +89,34 @@ struct sub_group_mask {
     BitsType RefBit;
   };
 
+  sub_group_mask() : sub_group_mask(0, GetMaxLocalRangeSize()){};
+
+  sub_group_mask(unsigned long long val)
+      : sub_group_mask(0, GetMaxLocalRangeSize()) {
+    constexpr size_t BytesToCopy =
+        sizeof(Bits) < sizeof(val) ? sizeof(Bits) : sizeof(val);
+    // TODO: memcpy is not guaranteed to work in kernels. Find alternative.
+    std::memcpy(&Bits, &val, BytesToCopy);
+  };
+
+  template <typename T, std::size_t K>
+  sub_group_mask(const sycl::marray<T, K> &val)
+      : sub_group_mask(0, GetMaxLocalRangeSize()) {
+    for (size_t I = 0, BytesCopied = 0; I < K && BytesCopied < sizeof(Bits);
+         ++I) {
+      size_t RemainingBytes = sizeof(Bits) - BytesCopied;
+      size_t BytesToCopy =
+          RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
+      // TODO: memcpy is not guaranteed to work in kernels. Find alternative.
+      std::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied, &val[I],
+                  BytesToCopy);
+      BytesCopied += BytesToCopy;
+    }
+  }
+
+  sub_group_mask(const sub_group_mask &other) = default;
+  sub_group_mask& operator=(const sub_group_mask &other) = default;
+
   bool operator[](id<1> id) const {
     return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
   }
@@ -252,10 +280,6 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  sub_group_mask(const sub_group_mask &rhs) = default;
-
-  sub_group_mask &operator=(const sub_group_mask &rhs) = default;
-
   template <typename Group>
   friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,
                           sub_group_mask>
@@ -283,6 +307,14 @@ struct sub_group_mask {
   }
 
 private:
+  static size_t GetMaxLocalRangeSize() {
+#ifdef __SYCL_DEVICE_ONLY__
+    return __spirv_SubgroupMaxSize();
+#else
+    return max_bits;
+#endif
+  }
+
   sub_group_mask(BitsType rhs, size_t bn)
       : Bits(rhs & valuable_bits(bn)), bits_num(bn) {
     assert(bits_num <= max_bits);
