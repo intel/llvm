@@ -104,4 +104,52 @@ irdl.dialect @testd {
     %2 = irdl.any_of(%0, %1)
     irdl.results(%2, %2)
   }
+
+  // CHECK: irdl.operation @attrs {
+  // CHECK:   %[[v0:[^ ]*]] = irdl.is i32
+  // CHECK:   %[[v1:[^ ]*]] = irdl.is i64
+  // CHECK:   irdl.attributes {"attr1" = %[[v0]], "attr2" = %[[v1]]}
+  // CHECK: }
+  irdl.operation @attrs {
+    %0 = irdl.is i32
+    %1 = irdl.is i64
+
+    irdl.attributes {
+      "attr1" = %0,
+      "attr2" = %1
+    }
+  }
+  // CHECK: irdl.operation @regions {
+  // CHECK:   %[[r0:[^ ]*]] = irdl.region
+  // CHECK:   %[[v0:[^ ]*]] = irdl.is i32
+  // CHECK:   %[[v1:[^ ]*]] = irdl.is i64
+  // CHECK:   %[[r1:[^ ]*]] = irdl.region(%[[v0]], %[[v1]])
+  // CHECK:   %[[r2:[^ ]*]] = irdl.region with size 3
+  // CHECK:   %[[r3:[^ ]*]] = irdl.region()
+  // CHECK:   irdl.regions(%[[r0]], %[[r1]], %[[r2]], %[[r3]])
+  // CHECK: }
+  irdl.operation @regions {
+    %r0 = irdl.region
+    %v0 = irdl.is i32
+    %v1 = irdl.is i64
+    %r1 = irdl.region(%v0, %v1)
+    %r2 = irdl.region with size 3
+    %r3 = irdl.region()
+
+    irdl.regions(%r0, %r1, %r2, %r3)
+  }
+
+  // CHECK: irdl.operation @region_and_operand {
+  // CHECK:   %[[v0:[^ ]*]] = irdl.any
+  // CHECK:   %[[r0:[^ ]*]] = irdl.region(%[[v0]])
+  // CHECK:   irdl.operands(%[[v0]])
+  // CHECK:   irdl.regions(%[[r0]])
+  // CHECK: }
+  irdl.operation @region_and_operand {
+    %v0 = irdl.any
+    %r0 = irdl.region(%v0)
+
+    irdl.operands(%v0)
+    irdl.regions(%r0)
+  }
 }

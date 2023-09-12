@@ -71,7 +71,6 @@
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Disassembler.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Expression/IRExecutionUnit.h"
 #include "lldb/Expression/IRInterpreter.h"
 #include "lldb/Host/File.h"
@@ -575,7 +574,6 @@ ClangExpressionParser::ClangExpressionParser(
     // FIXME: We should ask the driver for the appropriate default flags.
     lang_opts.GNUMode = true;
     lang_opts.GNUKeywords = true;
-    lang_opts.DoubleSquareBracketAttributes = true;
     lang_opts.CPlusPlus11 = true;
 
     // The Darwin libc expects this macro to be set.

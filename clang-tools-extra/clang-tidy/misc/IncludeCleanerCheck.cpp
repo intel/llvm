@@ -33,7 +33,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
 #include <optional>
 #include <string>
@@ -45,7 +47,7 @@ namespace clang::tidy::misc {
 
 namespace {
 struct MissingIncludeInfo {
-  SourceLocation SymRefLocation;
+  include_cleaner::SymbolReference SymRef;
   include_cleaner::Header Missing;
 };
 } // namespace
@@ -54,7 +56,9 @@ IncludeCleanerCheck::IncludeCleanerCheck(StringRef Name,
                                          ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context),
       IgnoreHeaders(utils::options::parseStringList(
-          Options.getLocalOrGlobal("IgnoreHeaders", ""))) {
+          Options.getLocalOrGlobal("IgnoreHeaders", ""))),
+      DeduplicateFindings(
+          Options.getLocalOrGlobal("DeduplicateFindings", true)) {
   for (const auto &Header : IgnoreHeaders) {
     if (!llvm::Regex{Header}.isValid())
       configurationDiag("Invalid ignore headers regex '%0'") << Header;
@@ -68,6 +72,7 @@ IncludeCleanerCheck::IncludeCleanerCheck(StringRef Name,
 void IncludeCleanerCheck::storeOptions(ClangTidyOptions::OptionMap &Opts) {
   Options.store(Opts, "IgnoreHeaders",
                 utils::options::serializeStringList(IgnoreHeaders));
+  Options.store(Opts, "DeduplicateFindings", DeduplicateFindings);
 }
 
 bool IncludeCleanerCheck::isLanguageVersionSupported(
@@ -83,7 +88,7 @@ void IncludeCleanerCheck::registerPPCallbacks(const SourceManager &SM,
                                               Preprocessor *PP,
                                               Preprocessor *ModuleExpanderPP) {
   PP->addPPCallbacks(RecordedPreprocessor.record(*PP));
-  HS = &PP->getHeaderSearchInfo();
+  this->PP = PP;
   RecordedPI.record(*PP);
 }
 
@@ -113,12 +118,26 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
     // FIXME: Filter out implicit template specializations.
     MainFileDecls.push_back(D);
   }
+  llvm::DenseSet<include_cleaner::Symbol> SeenSymbols;
   // FIXME: Find a way to have less code duplication between include-cleaner
   // analysis implementation and the below code.
   walkUsed(MainFileDecls, RecordedPreprocessor.MacroReferences, &RecordedPI,
-           *SM,
+           *PP,
            [&](const include_cleaner::SymbolReference &Ref,
                llvm::ArrayRef<include_cleaner::Header> Providers) {
+             // Process each symbol once to reduce noise in the findings.
+             // Tidy checks are used in two different workflows:
+             // - Ones that show all the findings for a given file. For such
+             // workflows there is not much point in showing all the occurences,
+             // as one is enough to indicate the issue.
+             // - Ones that show only the findings on changed pieces. For such
+             // workflows it's useful to show findings on every reference of a
+             // symbol as otherwise tools might give incosistent results
+             // depending on the parts of the file being edited. But it should
+             // still help surface findings for "new violations" (i.e.
+             // dependency did not exist in the code at all before).
+             if (DeduplicateFindings && !SeenSymbols.insert(Ref.Target).second)
+               return;
              bool Satisfied = false;
              for (const include_cleaner::Header &H : Providers) {
                if (H.kind() == include_cleaner::Header::Physical &&
@@ -134,7 +153,7 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
              if (!Satisfied && !Providers.empty() &&
                  Ref.RT == include_cleaner::RefType::Explicit &&
                  !shouldIgnore(Providers.front()))
-               Missing.push_back({Ref.RefLocation, Providers.front()});
+               Missing.push_back({Ref, Providers.front()});
            });
 
   std::vector<const include_cleaner::Include *> Unused;
@@ -142,11 +161,11 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
        RecordedPreprocessor.Includes.all()) {
     if (Used.contains(&I) || !I.Resolved)
       continue;
-    if (RecordedPI.shouldKeep(I.Line))
+    if (RecordedPI.shouldKeep(*I.Resolved))
       continue;
     // Check if main file is the public interface for a private header. If so
     // we shouldn't diagnose it as unused.
-    if (auto PHeader = RecordedPI.getPublic(I.Resolved); !PHeader.empty()) {
+    if (auto PHeader = RecordedPI.getPublic(*I.Resolved); !PHeader.empty()) {
       PHeader = PHeader.trim("<>\"");
       // Since most private -> public mappings happen in a verbatim way, we
       // check textually here. This might go wrong in presence of symlinks or
@@ -155,9 +174,10 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
         continue;
     }
 
-    if (llvm::none_of(IgnoreHeadersRegex,
-                      [Resolved = I.Resolved->tryGetRealPathName()](
-                          const llvm::Regex &R) { return R.match(Resolved); }))
+    if (llvm::none_of(
+            IgnoreHeadersRegex,
+            [Resolved = (*I.Resolved).getFileEntry().tryGetRealPathName()](
+                const llvm::Regex &R) { return R.match(Resolved); }))
       Unused.push_back(&I);
   }
 
@@ -171,7 +191,8 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
 
   for (const auto *Inc : Unused) {
     diag(Inc->HashLocation, "included header %0 is not used directly")
-        << Inc->quote()
+        << llvm::sys::path::filename(Inc->Spelled,
+                                     llvm::sys::path::Style::posix)
         << FixItHint::CreateRemoval(CharSourceRange::getCharRange(
                SM->translateLineCol(SM->getMainFileID(), Inc->Line, 1),
                SM->translateLineCol(SM->getMainFileID(), Inc->Line + 1, 1)));
@@ -179,9 +200,11 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
 
   tooling::HeaderIncludes HeaderIncludes(getCurrentMainFile(), Code,
                                          FileStyle->IncludeStyle);
+  // Deduplicate insertions when running in bulk fix mode.
+  llvm::StringSet<> InsertedHeaders{};
   for (const auto &Inc : Missing) {
-    std::string Spelling =
-        include_cleaner::spellHeader({Inc.Missing, *HS, MainFile});
+    std::string Spelling = include_cleaner::spellHeader(
+        {Inc.Missing, PP->getHeaderSearchInfo(), MainFile});
     bool Angled = llvm::StringRef{Spelling}.starts_with("<");
     // We might suggest insertion of an existing include in edge cases, e.g.,
     // include is present in a PP-disabled region, or spelling of the header
@@ -189,14 +212,18 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
     // main file.
     if (auto Replacement =
             HeaderIncludes.insert(llvm::StringRef{Spelling}.trim("\"<>"),
-                                  Angled, tooling::IncludeDirective::Include))
-      diag(SM->getSpellingLoc(Inc.SymRefLocation),
-           "no header providing %0 is directly included")
-          << Spelling
-          << FixItHint::CreateInsertion(
-                 SM->getComposedLoc(SM->getMainFileID(),
-                                    Replacement->getOffset()),
-                 Replacement->getReplacementText());
+                                  Angled, tooling::IncludeDirective::Include)) {
+      DiagnosticBuilder DB =
+          diag(SM->getSpellingLoc(Inc.SymRef.RefLocation),
+               "no header providing \"%0\" is directly included")
+          << Inc.SymRef.Target.name();
+      if (areDiagsSelfContained() ||
+          InsertedHeaders.insert(Replacement->getReplacementText()).second) {
+        DB << FixItHint::CreateInsertion(
+            SM->getComposedLoc(SM->getMainFileID(), Replacement->getOffset()),
+            Replacement->getReplacementText());
+      }
+    }
   }
 }
 

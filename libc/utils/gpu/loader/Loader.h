@@ -9,9 +9,15 @@
 #ifndef LLVM_LIBC_UTILS_GPU_LOADER_LOADER_H
 #define LLVM_LIBC_UTILS_GPU_LOADER_LOADER_H
 
+#include "utils/gpu/server/rpc_server.h"
+
+#include "include/llvm-libc-types/test_rpc_opcodes_t.h"
+
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <stddef.h>
 
 /// Generic launch parameters for configuration the number of blocks / threads.
 struct LaunchParameters {
@@ -91,5 +97,131 @@ void *copy_environment(char **envp, Allocator alloc) {
 
   return copy_argument_vector(envc, envp, alloc);
 };
+
+inline void handle_error(const char *msg) {
+  fprintf(stderr, "%s\n", msg);
+  exit(EXIT_FAILURE);
+}
+
+inline void handle_error(rpc_status_t) {
+  handle_error("Failure in the RPC server\n");
+}
+
+template <uint32_t lane_size>
+inline void register_rpc_callbacks(uint32_t device_id) {
+  static_assert(lane_size == 32 || lane_size == 64, "Invalid Lane size");
+  // Register the ping test for the `libc` tests.
+  rpc_register_callback(
+      device_id, static_cast<rpc_opcode_t>(RPC_TEST_INCREMENT),
+      [](rpc_port_t port, void *data) {
+        rpc_recv_and_send(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              reinterpret_cast<uint64_t *>(buffer->data)[0] += 1;
+            },
+            data);
+      },
+      nullptr);
+
+  // Register the interface test callbacks.
+  rpc_register_callback(
+      device_id, static_cast<rpc_opcode_t>(RPC_TEST_INTERFACE),
+      [](rpc_port_t port, void *data) {
+        uint64_t cnt = 0;
+        bool end_with_recv;
+        rpc_recv(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              *reinterpret_cast<bool *>(data) = buffer->data[0];
+            },
+            &end_with_recv);
+        rpc_recv(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              *reinterpret_cast<uint64_t *>(data) = buffer->data[0];
+            },
+            &cnt);
+        rpc_send(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              uint64_t &cnt = *reinterpret_cast<uint64_t *>(data);
+              buffer->data[0] = cnt = cnt + 1;
+            },
+            &cnt);
+        rpc_recv(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              *reinterpret_cast<uint64_t *>(data) = buffer->data[0];
+            },
+            &cnt);
+        rpc_send(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              uint64_t &cnt = *reinterpret_cast<uint64_t *>(data);
+              buffer->data[0] = cnt = cnt + 1;
+            },
+            &cnt);
+        rpc_recv(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              *reinterpret_cast<uint64_t *>(data) = buffer->data[0];
+            },
+            &cnt);
+        rpc_recv(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              *reinterpret_cast<uint64_t *>(data) = buffer->data[0];
+            },
+            &cnt);
+        rpc_send(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              uint64_t &cnt = *reinterpret_cast<uint64_t *>(data);
+              buffer->data[0] = cnt = cnt + 1;
+            },
+            &cnt);
+        rpc_send(
+            port,
+            [](rpc_buffer_t *buffer, void *data) {
+              uint64_t &cnt = *reinterpret_cast<uint64_t *>(data);
+              buffer->data[0] = cnt = cnt + 1;
+            },
+            &cnt);
+        if (end_with_recv)
+          rpc_recv(
+              port,
+              [](rpc_buffer_t *buffer, void *data) {
+                *reinterpret_cast<uint64_t *>(data) = buffer->data[0];
+              },
+              &cnt);
+        else
+          rpc_send(
+              port,
+              [](rpc_buffer_t *buffer, void *data) {
+                uint64_t &cnt = *reinterpret_cast<uint64_t *>(data);
+                buffer->data[0] = cnt = cnt + 1;
+              },
+              &cnt);
+      },
+      nullptr);
+
+  // Register the stream test handler.
+  rpc_register_callback(
+      device_id, static_cast<rpc_opcode_t>(RPC_TEST_STREAM),
+      [](rpc_port_t port, void *data) {
+        uint64_t sizes[lane_size] = {0};
+        void *dst[lane_size] = {nullptr};
+        rpc_recv_n(
+            port, dst, sizes,
+            [](uint64_t size, void *) -> void * { return new char[size]; },
+            nullptr);
+        rpc_send_n(port, dst, sizes);
+        for (uint64_t i = 0; i < lane_size; ++i) {
+          if (dst[i])
+            delete[] reinterpret_cast<uint8_t *>(dst[i]);
+        }
+      },
+      nullptr);
+}
 
 #endif

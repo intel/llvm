@@ -161,8 +161,8 @@ namespace {
 
     /// Mark a physreg as used in this instruction.
     void markRegUsedInInstr(MCPhysReg PhysReg) {
-      for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units)
-        UsedInInstr.insert(*Units);
+      for (MCRegUnit Unit : TRI->regunits(PhysReg))
+        UsedInInstr.insert(Unit);
     }
 
     // Check if physreg is clobbered by instruction's regmask(s).
@@ -176,10 +176,10 @@ namespace {
     bool isRegUsedInInstr(MCPhysReg PhysReg, bool LookAtPhysRegUses) const {
       if (LookAtPhysRegUses && isClobberedByRegMasks(PhysReg))
         return true;
-      for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units) {
-        if (UsedInInstr.count(*Units))
+      for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+        if (UsedInInstr.count(Unit))
           return true;
-        if (LookAtPhysRegUses && PhysRegUses.count(*Units))
+        if (LookAtPhysRegUses && PhysRegUses.count(Unit))
           return true;
       }
       return false;
@@ -188,14 +188,14 @@ namespace {
     /// Mark physical register as being used in a register use operand.
     /// This is only used by the special livethrough handling code.
     void markPhysRegUsedInInstr(MCPhysReg PhysReg) {
-      for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units)
-        PhysRegUses.insert(*Units);
+      for (MCRegUnit Unit : TRI->regunits(PhysReg))
+        PhysRegUses.insert(Unit);
     }
 
     /// Remove mark of physical register being used in the instruction.
     void unmarkRegUsedInInstr(MCPhysReg PhysReg) {
-      for (MCRegUnitIterator Units(PhysReg, TRI); Units.isValid(); ++Units)
-        UsedInInstr.erase(*Units);
+      for (MCRegUnit Unit : TRI->regunits(PhysReg))
+        UsedInInstr.erase(Unit);
     }
 
     enum : unsigned {
@@ -310,13 +310,13 @@ bool RegAllocFast::shouldAllocateRegister(const Register Reg) const {
 }
 
 void RegAllocFast::setPhysRegState(MCPhysReg PhysReg, unsigned NewState) {
-  for (MCRegUnitIterator UI(PhysReg, TRI); UI.isValid(); ++UI)
-    RegUnitStates[*UI] = NewState;
+  for (MCRegUnit Unit : TRI->regunits(PhysReg))
+    RegUnitStates[Unit] = NewState;
 }
 
 bool RegAllocFast::isPhysRegFree(MCPhysReg PhysReg) const {
-  for (MCRegUnitIterator UI(PhysReg, TRI); UI.isValid(); ++UI) {
-    if (RegUnitStates[*UI] != regFree)
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+    if (RegUnitStates[Unit] != regFree)
       return false;
   }
   return true;
@@ -554,7 +554,7 @@ void RegAllocFast::reloadAtBegin(MachineBasicBlock &MBB) {
     if (PhysReg == 0)
       continue;
 
-    MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+    MCRegister FirstUnit = *TRI->regunits(PhysReg).begin();
     if (RegUnitStates[FirstUnit] == regLiveIn)
       continue;
 
@@ -595,8 +595,7 @@ bool RegAllocFast::definePhysReg(MachineInstr &MI, MCPhysReg Reg) {
 bool RegAllocFast::displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg) {
   bool displacedAny = false;
 
-  for (MCRegUnitIterator UI(PhysReg, TRI); UI.isValid(); ++UI) {
-    unsigned Unit = *UI;
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
     switch (unsigned VirtReg = RegUnitStates[Unit]) {
     default: {
       LiveRegMap::iterator LRI = findLiveVirtReg(VirtReg);
@@ -625,7 +624,7 @@ bool RegAllocFast::displacePhysReg(MachineInstr &MI, MCPhysReg PhysReg) {
 void RegAllocFast::freePhysReg(MCPhysReg PhysReg) {
   LLVM_DEBUG(dbgs() << "Freeing " << printReg(PhysReg, TRI) << ':');
 
-  MCRegister FirstUnit = *MCRegUnitIterator(PhysReg, TRI);
+  MCRegister FirstUnit = *TRI->regunits(PhysReg).begin();
   switch (unsigned VirtReg = RegUnitStates[FirstUnit]) {
   case regFree:
     LLVM_DEBUG(dbgs() << '\n');
@@ -650,8 +649,8 @@ void RegAllocFast::freePhysReg(MCPhysReg PhysReg) {
 /// disabled - it can be allocated directly.
 /// \returns spillImpossible when PhysReg or an alias can't be spilled.
 unsigned RegAllocFast::calcSpillCost(MCPhysReg PhysReg) const {
-  for (MCRegUnitIterator UI(PhysReg, TRI); UI.isValid(); ++UI) {
-    switch (unsigned VirtReg = RegUnitStates[*UI]) {
+  for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+    switch (unsigned VirtReg = RegUnitStates[Unit]) {
     case regFree:
       break;
     case regPreAssigned:
@@ -933,9 +932,18 @@ bool RegAllocFast::defineVirtReg(MachineInstr &MI, unsigned OpNum,
       }
     }
   }
-  if (LRI->PhysReg == 0)
+  if (LRI->PhysReg == 0) {
     allocVirtReg(MI, *LRI, 0, LookAtPhysRegUses);
-  else {
+    // If no physical register is available for LRI, we assign one at random
+    // and bail out of this function immediately.
+    if (LRI->Error) {
+      const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
+      ArrayRef<MCPhysReg> AllocationOrder = RegClassInfo.getOrder(&RC);
+      if (AllocationOrder.empty())
+        return setPhysReg(MI, MO, MCRegister::NoRegister);
+      return setPhysReg(MI, MO, *AllocationOrder.begin());
+    }
+  } else {
     assert(!isRegUsedInInstr(LRI->PhysReg, LookAtPhysRegUses) &&
            "TODO: preassign mismatch");
     LLVM_DEBUG(dbgs() << "In def of " << printReg(VirtReg, TRI)
@@ -944,7 +952,6 @@ bool RegAllocFast::defineVirtReg(MachineInstr &MI, unsigned OpNum,
   }
 
   MCPhysReg PhysReg = LRI->PhysReg;
-  assert(PhysReg != 0 && "Register not assigned");
   if (LRI->Reloaded || LRI->LiveOut) {
     if (!MI.isImplicitDef()) {
       MachineBasicBlock::iterator SpillBefore =
@@ -1025,6 +1032,8 @@ bool RegAllocFast::useVirtReg(MachineInstr &MI, unsigned OpNum,
     if (LRI->Error) {
       const TargetRegisterClass &RC = *MRI->getRegClass(VirtReg);
       ArrayRef<MCPhysReg> AllocationOrder = RegClassInfo.getOrder(&RC);
+      if (AllocationOrder.empty())
+        return setPhysReg(MI, MO, MCRegister::NoRegister);
       return setPhysReg(MI, MO, *AllocationOrder.begin());
     }
   }
@@ -1115,8 +1124,8 @@ void RegAllocFast::dumpState() const {
     if (PhysReg != 0) {
       assert(Register::isPhysicalRegister(PhysReg) &&
              "mapped to physreg");
-      for (MCRegUnitIterator UI(PhysReg, TRI); UI.isValid(); ++UI) {
-        assert(RegUnitStates[*UI] == VirtReg && "inverse map valid");
+      for (MCRegUnit Unit : TRI->regunits(PhysReg)) {
+        assert(RegUnitStates[Unit] == VirtReg && "inverse map valid");
       }
     }
   }
@@ -1500,7 +1509,11 @@ void RegAllocFast::allocateInstruction(MachineInstr &MI) {
 void RegAllocFast::handleDebugValue(MachineInstr &MI) {
   // Ignore DBG_VALUEs that aren't based on virtual registers. These are
   // mostly constants and frame indices.
-  for (Register Reg : MI.getUsedDebugRegs()) {
+  assert(MI.isDebugValue() && "not a DBG_VALUE*");
+  for (const auto &MO : MI.debug_operands()) {
+    if (!MO.isReg())
+      continue;
+    Register Reg = MO.getReg();
     if (!Reg.isVirtual())
       continue;
     if (!shouldAllocateRegister(Reg))

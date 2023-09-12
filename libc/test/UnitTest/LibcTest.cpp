@@ -15,6 +15,17 @@
 
 #if __STDC_HOSTED__
 #include <time.h>
+#elif defined(LIBC_TARGET_ARCH_IS_GPU)
+#include "src/__support/GPU/utils.h"
+static long clock() { return __llvm_libc::gpu::fixed_frequency_clock(); }
+#if defined(LIBC_TARGET_ARCH_IS_NVPTX)
+#define CLOCKS_PER_SEC 1000000000UL
+#else
+// The AMDGPU loader needs to initialize this at runtime by querying the driver.
+extern "C" [[gnu::visibility("protected")]] uint64_t
+    [[clang::address_space(4)]] __llvm_libc_clock_freq;
+#define CLOCKS_PER_SEC __llvm_libc_clock_freq
+#endif
 #else
 static long clock() { return 0; }
 #define CLOCKS_PER_SEC 1
@@ -25,16 +36,19 @@ namespace testing {
 
 namespace internal {
 
-// When the value is UInt128, __uint128_t or wider, show its hexadecimal digits.
+TestLogger &operator<<(TestLogger &logger, Location Loc) {
+  return logger << Loc.file << ":" << Loc.line << ": FAILURE\n";
+}
+
+// When the value is UInt128, __uint128_t or wider, show its hexadecimal
+// digits.
 template <typename T>
-cpp::enable_if_t<cpp::is_integral_v<T> && cpp::is_unsigned_v<T> &&
-                     (sizeof(T) > sizeof(uint64_t)),
+cpp::enable_if_t<cpp::is_integral_v<T> && (sizeof(T) > sizeof(uint64_t)),
                  cpp::string>
 describeValue(T Value) {
   static_assert(sizeof(T) % 8 == 0, "Unsupported size of UInt");
-  char buf[IntegerToString::hex_bufsize<T>()];
-  IntegerToString::hex(Value, buf, false);
-  return "0x" + cpp::string(buf, sizeof(buf));
+  const IntegerToString<T, radix::Hex::WithPrefix> buffer(Value);
+  return buffer.view();
 }
 
 // When the value is of a standard integral type, just display it as normal.
@@ -46,78 +60,40 @@ describeValue(ValType Value) {
   return cpp::to_string(Value);
 }
 
-cpp::string describeValue(cpp::string Value) { return Value; }
+cpp::string_view describeValue(const cpp::string &Value) { return Value; }
 cpp::string_view describeValue(cpp::string_view Value) { return Value; }
 
 template <typename ValType>
-void explainDifference(ValType LHS, ValType RHS, const char *LHSStr,
-                       const char *RHSStr, const char *File, unsigned long Line,
-                       cpp::string OpString) {
-  size_t OffsetLength = OpString.size() > 2 ? OpString.size() - 2 : 0;
-  cpp::string Offset(OffsetLength, ' ');
-
-  tlog << File << ":" << Line << ": FAILURE\n"
-       << Offset << "Expected: " << LHSStr << '\n'
-       << Offset << "Which is: " << describeValue(LHS) << '\n'
-       << "To be " << OpString << ": " << RHSStr << '\n'
-       << Offset << "Which is: " << describeValue(RHS) << '\n';
-}
-
-template <typename ValType>
-bool test(RunContext *Ctx, TestCondition Cond, ValType LHS, ValType RHS,
-          const char *LHSStr, const char *RHSStr, const char *File,
-          unsigned long Line) {
-  auto ExplainDifference = [=](cpp::string OpString) {
-    explainDifference(LHS, RHS, LHSStr, RHSStr, File, Line, OpString);
+bool test(RunContext *Ctx, TestCond Cond, ValType LHS, ValType RHS,
+          const char *LHSStr, const char *RHSStr, Location Loc) {
+  auto ExplainDifference = [=, &Ctx](bool Cond,
+                                     cpp::string_view OpString) -> bool {
+    if (Cond)
+      return true;
+    Ctx->markFail();
+    size_t OffsetLength = OpString.size() > 2 ? OpString.size() - 2 : 0;
+    cpp::string Offset(OffsetLength, ' ');
+    tlog << Loc;
+    tlog << Offset << "Expected: " << LHSStr << '\n'
+         << Offset << "Which is: " << describeValue(LHS) << '\n'
+         << "To be " << OpString << ": " << RHSStr << '\n'
+         << Offset << "Which is: " << describeValue(RHS) << '\n';
+    return false;
   };
 
   switch (Cond) {
-  case Cond_EQ:
-    if (LHS == RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("equal to");
-    return false;
-  case Cond_NE:
-    if (LHS != RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("not equal to");
-    return false;
-  case Cond_LT:
-    if (LHS < RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("less than");
-    return false;
-  case Cond_LE:
-    if (LHS <= RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("less than or equal to");
-    return false;
-  case Cond_GT:
-    if (LHS > RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("greater than");
-    return false;
-  case Cond_GE:
-    if (LHS >= RHS)
-      return true;
-
-    Ctx->markFail();
-    ExplainDifference("greater than or equal to");
-    return false;
-  default:
-    Ctx->markFail();
-    tlog << "Unexpected test condition.\n";
-    return false;
+  case TestCond::EQ:
+    return ExplainDifference(LHS == RHS, "equal to");
+  case TestCond::NE:
+    return ExplainDifference(LHS != RHS, "not equal to");
+  case TestCond::LT:
+    return ExplainDifference(LHS < RHS, "less than");
+  case TestCond::LE:
+    return ExplainDifference(LHS <= RHS, "less than or equal to");
+  case TestCond::GT:
+    return ExplainDifference(LHS > RHS, "greater than");
+  case TestCond::GE:
+    return ExplainDifference(LHS >= RHS, "greater than or equal to");
   }
 }
 
@@ -163,22 +139,29 @@ int Test::runTests(const char *TestFilter) {
     T->Run();
     T->TearDown();
     [[maybe_unused]] const auto end_time = clock();
-    auto Result = Ctx.status();
-    switch (Result) {
-    case RunContext::Result_Fail:
+    switch (Ctx.status()) {
+    case RunContext::RunResult::Fail:
       tlog << RED << "[  FAILED  ] " << RESET << TestName << '\n';
       ++FailCount;
       break;
-    case RunContext::Result_Pass:
+    case RunContext::RunResult::Pass:
       tlog << GREEN << "[       OK ] " << RESET << TestName;
-#if __STDC_HOSTED__
+#if __STDC_HOSTED__ || defined(LIBC_TARGET_ARCH_IS_GPU)
       tlog << " (took ";
       if (start_time > end_time) {
         tlog << "unknown - try rerunning)\n";
       } else {
         const auto duration = end_time - start_time;
-        const uint64_t duration_ms = duration * 1000 / CLOCKS_PER_SEC;
-        tlog << duration_ms << " ms)\n";
+        const uint64_t duration_ms = (duration * 1000) / CLOCKS_PER_SEC;
+        const uint64_t duration_us = (duration * 1000 * 1000) / CLOCKS_PER_SEC;
+        const uint64_t duration_ns =
+            (duration * 1000 * 1000 * 1000) / CLOCKS_PER_SEC;
+        if (duration_ms != 0)
+          tlog << duration_ms << " ms)\n";
+        else if (duration_us != 0)
+          tlog << duration_us << " us)\n";
+        else
+          tlog << duration_ns << " ns)\n";
       }
 #else
       tlog << '\n';
@@ -204,56 +187,50 @@ int Test::runTests(const char *TestFilter) {
 
 namespace internal {
 
-template bool test<char>(RunContext *Ctx, TestCondition Cond, char LHS,
-                         char RHS, const char *LHSStr, const char *RHSStr,
-                         const char *File, unsigned long Line);
+template bool test<char>(RunContext *Ctx, TestCond Cond, char LHS, char RHS,
+                         const char *LHSStr, const char *RHSStr, Location Loc);
 
-template bool test<short>(RunContext *Ctx, TestCondition Cond, short LHS,
-                          short RHS, const char *LHSStr, const char *RHSStr,
-                          const char *File, unsigned long Line);
+template bool test<short>(RunContext *Ctx, TestCond Cond, short LHS, short RHS,
+                          const char *LHSStr, const char *RHSStr, Location Loc);
 
-template bool test<int>(RunContext *Ctx, TestCondition Cond, int LHS, int RHS,
-                        const char *LHSStr, const char *RHSStr,
-                        const char *File, unsigned long Line);
+template bool test<int>(RunContext *Ctx, TestCond Cond, int LHS, int RHS,
+                        const char *LHSStr, const char *RHSStr, Location Loc);
 
-template bool test<long>(RunContext *Ctx, TestCondition Cond, long LHS,
-                         long RHS, const char *LHSStr, const char *RHSStr,
-                         const char *File, unsigned long Line);
+template bool test<long>(RunContext *Ctx, TestCond Cond, long LHS, long RHS,
+                         const char *LHSStr, const char *RHSStr, Location Loc);
 
-template bool test<long long>(RunContext *Ctx, TestCondition Cond,
-                              long long LHS, long long RHS, const char *LHSStr,
-                              const char *RHSStr, const char *File,
-                              unsigned long Line);
+template bool test<long long>(RunContext *Ctx, TestCond Cond, long long LHS,
+                              long long RHS, const char *LHSStr,
+                              const char *RHSStr, Location Loc);
 
-template bool test<unsigned char>(RunContext *Ctx, TestCondition Cond,
+template bool test<unsigned char>(RunContext *Ctx, TestCond Cond,
                                   unsigned char LHS, unsigned char RHS,
                                   const char *LHSStr, const char *RHSStr,
-                                  const char *File, unsigned long Line);
+                                  Location Loc);
 
-template bool test<unsigned short>(RunContext *Ctx, TestCondition Cond,
+template bool test<unsigned short>(RunContext *Ctx, TestCond Cond,
                                    unsigned short LHS, unsigned short RHS,
                                    const char *LHSStr, const char *RHSStr,
-                                   const char *File, unsigned long Line);
+                                   Location Loc);
 
-template bool test<unsigned int>(RunContext *Ctx, TestCondition Cond,
+template bool test<unsigned int>(RunContext *Ctx, TestCond Cond,
                                  unsigned int LHS, unsigned int RHS,
                                  const char *LHSStr, const char *RHSStr,
-                                 const char *File, unsigned long Line);
+                                 Location Loc);
 
-template bool test<unsigned long>(RunContext *Ctx, TestCondition Cond,
+template bool test<unsigned long>(RunContext *Ctx, TestCond Cond,
                                   unsigned long LHS, unsigned long RHS,
                                   const char *LHSStr, const char *RHSStr,
-                                  const char *File, unsigned long Line);
+                                  Location Loc);
 
-template bool test<bool>(RunContext *Ctx, TestCondition Cond, bool LHS,
-                         bool RHS, const char *LHSStr, const char *RHSStr,
-                         const char *File, unsigned long Line);
+template bool test<bool>(RunContext *Ctx, TestCond Cond, bool LHS, bool RHS,
+                         const char *LHSStr, const char *RHSStr, Location Loc);
 
-template bool test<unsigned long long>(RunContext *Ctx, TestCondition Cond,
+template bool test<unsigned long long>(RunContext *Ctx, TestCond Cond,
                                        unsigned long long LHS,
                                        unsigned long long RHS,
                                        const char *LHSStr, const char *RHSStr,
-                                       const char *File, unsigned long Line);
+                                       Location Loc);
 
 // We cannot just use a single UInt128 specialization as that resolves to only
 // one type, UInt<128> or __uint128_t. We want both overloads as we want to
@@ -262,67 +239,82 @@ template bool test<unsigned long long>(RunContext *Ctx, TestCondition Cond,
 #ifdef __SIZEOF_INT128__
 // When builtin __uint128_t type is available, include its specialization
 // also.
-template bool test<__uint128_t>(RunContext *Ctx, TestCondition Cond,
-                                __uint128_t LHS, __uint128_t RHS,
-                                const char *LHSStr, const char *RHSStr,
-                                const char *File, unsigned long Line);
+template bool test<__uint128_t>(RunContext *Ctx, TestCond Cond, __uint128_t LHS,
+                                __uint128_t RHS, const char *LHSStr,
+                                const char *RHSStr, Location Loc);
 #endif
 
-template bool test<__llvm_libc::cpp::UInt<128>>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::UInt<128> LHS,
-    __llvm_libc::cpp::UInt<128> RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+template bool test<__llvm_libc::cpp::Int<128>>(RunContext *Ctx, TestCond Cond,
+                                               __llvm_libc::cpp::Int<128> LHS,
+                                               __llvm_libc::cpp::Int<128> RHS,
+                                               const char *LHSStr,
+                                               const char *RHSStr,
+                                               Location Loc);
 
-template bool test<__llvm_libc::cpp::UInt<192>>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::UInt<192> LHS,
-    __llvm_libc::cpp::UInt<192> RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+template bool test<__llvm_libc::cpp::UInt<128>>(RunContext *Ctx, TestCond Cond,
+                                                __llvm_libc::cpp::UInt<128> LHS,
+                                                __llvm_libc::cpp::UInt<128> RHS,
+                                                const char *LHSStr,
+                                                const char *RHSStr,
+                                                Location Loc);
 
-template bool test<__llvm_libc::cpp::UInt<256>>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::UInt<256> LHS,
-    __llvm_libc::cpp::UInt<256> RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+template bool test<__llvm_libc::cpp::UInt<192>>(RunContext *Ctx, TestCond Cond,
+                                                __llvm_libc::cpp::UInt<192> LHS,
+                                                __llvm_libc::cpp::UInt<192> RHS,
+                                                const char *LHSStr,
+                                                const char *RHSStr,
+                                                Location Loc);
 
-template bool test<__llvm_libc::cpp::UInt<320>>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::UInt<320> LHS,
-    __llvm_libc::cpp::UInt<320> RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+template bool test<__llvm_libc::cpp::UInt<256>>(RunContext *Ctx, TestCond Cond,
+                                                __llvm_libc::cpp::UInt<256> LHS,
+                                                __llvm_libc::cpp::UInt<256> RHS,
+                                                const char *LHSStr,
+                                                const char *RHSStr,
+                                                Location Loc);
+
+template bool test<__llvm_libc::cpp::UInt<320>>(RunContext *Ctx, TestCond Cond,
+                                                __llvm_libc::cpp::UInt<320> LHS,
+                                                __llvm_libc::cpp::UInt<320> RHS,
+                                                const char *LHSStr,
+                                                const char *RHSStr,
+                                                Location Loc);
 
 template bool test<__llvm_libc::cpp::string_view>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::string_view LHS,
+    RunContext *Ctx, TestCond Cond, __llvm_libc::cpp::string_view LHS,
     __llvm_libc::cpp::string_view RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+    Location Loc);
 
-template bool test<__llvm_libc::cpp::string>(
-    RunContext *Ctx, TestCondition Cond, __llvm_libc::cpp::string LHS,
-    __llvm_libc::cpp::string RHS, const char *LHSStr, const char *RHSStr,
-    const char *File, unsigned long Line);
+template bool test<__llvm_libc::cpp::string>(RunContext *Ctx, TestCond Cond,
+                                             __llvm_libc::cpp::string LHS,
+                                             __llvm_libc::cpp::string RHS,
+                                             const char *LHSStr,
+                                             const char *RHSStr, Location Loc);
 
 } // namespace internal
 
 bool Test::testStrEq(const char *LHS, const char *RHS, const char *LHSStr,
-                     const char *RHSStr, const char *File, unsigned long Line) {
-  return internal::test(Ctx, Cond_EQ, LHS ? cpp::string(LHS) : cpp::string(),
-                        RHS ? cpp::string(RHS) : cpp::string(), LHSStr, RHSStr,
-                        File, Line);
+                     const char *RHSStr, internal::Location Loc) {
+  return internal::test(
+      Ctx, TestCond::EQ, LHS ? cpp::string_view(LHS) : cpp::string_view(),
+      RHS ? cpp::string_view(RHS) : cpp::string_view(), LHSStr, RHSStr, Loc);
 }
 
 bool Test::testStrNe(const char *LHS, const char *RHS, const char *LHSStr,
-                     const char *RHSStr, const char *File, unsigned long Line) {
-  return internal::test(Ctx, Cond_NE, LHS ? cpp::string(LHS) : cpp::string(),
-                        RHS ? cpp::string(RHS) : cpp::string(), LHSStr, RHSStr,
-                        File, Line);
+                     const char *RHSStr, internal::Location Loc) {
+  return internal::test(
+      Ctx, TestCond::NE, LHS ? cpp::string_view(LHS) : cpp::string_view(),
+      RHS ? cpp::string_view(RHS) : cpp::string_view(), LHSStr, RHSStr, Loc);
 }
 
 bool Test::testMatch(bool MatchResult, MatcherBase &Matcher, const char *LHSStr,
-                     const char *RHSStr, const char *File, unsigned long Line) {
+                     const char *RHSStr, internal::Location Loc) {
   if (MatchResult)
     return true;
 
   Ctx->markFail();
   if (!Matcher.is_silent()) {
-    tlog << File << ":" << Line << ": FAILURE\n"
-         << "Failed to match " << LHSStr << " against " << RHSStr << ".\n";
+    tlog << Loc;
+    tlog << "Failed to match " << LHSStr << " against " << RHSStr << ".\n";
     Matcher.explainError();
   }
   return false;

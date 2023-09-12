@@ -18,9 +18,9 @@
 #include "Selection.h"
 #include "SourceCode.h"
 #include "clang-include-cleaner/Analysis.h"
+#include "clang-include-cleaner/IncludeSpeller.h"
 #include "clang-include-cleaner/Types.h"
 #include "index/SymbolCollector.h"
-#include "support/Logger.h"
 #include "support/Markup.h"
 #include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
@@ -658,7 +658,7 @@ HoverInfo getHoverContents(const NamedDecl *D, const PrintingPolicy &PP,
     HI.Type = printType(TAT->getTemplatedDecl()->getUnderlyingType(), Ctx, PP);
 
   // Fill in value with evaluated initializer if possible.
-  if (const auto *Var = dyn_cast<VarDecl>(D)) {
+  if (const auto *Var = dyn_cast<VarDecl>(D); Var && !Var->isInvalidDecl()) {
     if (const Expr *Init = Var->getInit())
       HI.Value = printExprValue(Init, Ctx);
   } else if (const auto *ECD = dyn_cast<EnumConstantDecl>(D)) {
@@ -1189,13 +1189,12 @@ void maybeAddSymbolProviders(ParsedAST &AST, HoverInfo &HI,
 
   const SourceManager &SM = AST.getSourceManager();
   llvm::SmallVector<include_cleaner::Header> RankedProviders =
-      include_cleaner::headersForSymbol(Sym, SM, AST.getPragmaIncludes());
+      include_cleaner::headersForSymbol(Sym, SM, AST.getPragmaIncludes().get());
   if (RankedProviders.empty())
     return;
 
   std::string Result;
-  include_cleaner::Includes ConvertedIncludes =
-      convertIncludes(SM, AST.getIncludeStructure().MainFileIncludes);
+  include_cleaner::Includes ConvertedIncludes = convertIncludes(AST);
   for (const auto &P : RankedProviders) {
     if (P.kind() == include_cleaner::Header::Physical &&
         P.physical() == SM.getFileEntryForID(SM.getMainFileID()))
@@ -1223,7 +1222,9 @@ void maybeAddSymbolProviders(ParsedAST &AST, HoverInfo &HI,
     // on local variables, etc.
     return;
 
-  HI.Provider = spellHeader(AST, SM.getFileEntryForID(SM.getMainFileID()), H);
+  HI.Provider = include_cleaner::spellHeader(
+      {H, AST.getPreprocessor().getHeaderSearchInfo(),
+       SM.getFileEntryForID(SM.getMainFileID())});
 }
 
 // FIXME: similar functions are present in FindHeaders.cpp (symbolName)
@@ -1244,26 +1245,19 @@ std::string getSymbolName(include_cleaner::Symbol Sym) {
 }
 
 void maybeAddUsedSymbols(ParsedAST &AST, HoverInfo &HI, const Inclusion &Inc) {
-  const SourceManager &SM = AST.getSourceManager();
-  const auto &ConvertedMainFileIncludes =
-      convertIncludes(SM, AST.getIncludeStructure().MainFileIncludes);
-  const auto &HoveredInclude = convertIncludes(SM, llvm::ArrayRef{Inc});
+  auto Converted = convertIncludes(AST);
   llvm::DenseSet<include_cleaner::Symbol> UsedSymbols;
   include_cleaner::walkUsed(
       AST.getLocalTopLevelDecls(), collectMacroReferences(AST),
-      AST.getPragmaIncludes(), SM,
+      AST.getPragmaIncludes().get(), AST.getPreprocessor(),
       [&](const include_cleaner::SymbolReference &Ref,
           llvm::ArrayRef<include_cleaner::Header> Providers) {
         if (Ref.RT != include_cleaner::RefType::Explicit ||
             UsedSymbols.contains(Ref.Target))
           return;
 
-        auto Provider =
-            firstMatchedProvider(ConvertedMainFileIncludes, Providers);
-        if (!Provider || HoveredInclude.match(*Provider).empty())
-          return;
-
-        UsedSymbols.insert(Ref.Target);
+        if (isPreferredProvider(Inc, Converted, Providers))
+          UsedSymbols.insert(Ref.Target);
       });
 
   for (const auto &UsedSymbolDecl : UsedSymbols)
@@ -1371,7 +1365,10 @@ std::optional<HoverInfo> getHover(ParsedAST &AST, Position Pos,
         if (!HI->Value)
           HI->Value = printExprValue(N, AST.getASTContext()).PrintedValue;
         maybeAddCalleeArgInfo(N, *HI, PP);
-        maybeAddSymbolProviders(AST, *HI, include_cleaner::Symbol{*DeclToUse});
+
+        if (!isa<NamespaceDecl>(DeclToUse))
+          maybeAddSymbolProviders(AST, *HI,
+                                  include_cleaner::Symbol{*DeclToUse});
       } else if (const Expr *E = N->ASTNode.get<Expr>()) {
         HoverCountMetric.record(1, "expr");
         HI = getHoverContents(N, E, AST, PP, Index);

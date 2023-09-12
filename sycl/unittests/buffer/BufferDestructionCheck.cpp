@@ -11,6 +11,7 @@
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
 #include <gtest/gtest.h>
 

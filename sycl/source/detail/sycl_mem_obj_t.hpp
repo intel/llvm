@@ -17,14 +17,15 @@
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/range.hpp>
 
+#include <atomic>
 #include <cstring>
 #include <memory>
 #include <type_traits>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Forward declarations
@@ -175,7 +176,7 @@ public:
   bool canReuseHostPtr(void *HostPtr, const size_t RequiredAlign) {
     bool Aligned =
         (reinterpret_cast<std::uintptr_t>(HostPtr) % RequiredAlign) == 0;
-    return Aligned || useHostPtr();
+    return !MHostPtrReadOnly && (Aligned || useHostPtr());
   }
 
   void handleHostData(void *HostPtr, const size_t RequiredAlign) {
@@ -186,13 +187,15 @@ public:
       });
     }
 
-    if (canReuseHostPtr(HostPtr, RequiredAlign)) {
-      MUserPtr = HostPtr;
-    } else {
-      setAlign(RequiredAlign);
-      MShadowCopy = allocateHostMem();
-      MUserPtr = MShadowCopy;
-      std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+    if (HostPtr) {
+      if (canReuseHostPtr(HostPtr, RequiredAlign)) {
+        MUserPtr = HostPtr;
+      } else {
+        setAlign(RequiredAlign);
+        MShadowCopy = allocateHostMem();
+        MUserPtr = MShadowCopy;
+        std::memcpy(MUserPtr, HostPtr, MSizeInBytes);
+      }
     }
   }
 
@@ -259,13 +262,46 @@ public:
 
   ContextImplPtr getInteropContext() const override { return MInteropContext; }
 
-  bool hasUserDataPtr() const { return MUserPtr != nullptr; };
+  bool isInterop() const override;
 
-  bool isInterop() const;
+  bool hasUserDataPtr() const override { return MUserPtr != nullptr; }
 
-  bool isHostPointerReadOnly() const { return MHostPtrReadOnly; }
+  bool isHostPointerReadOnly() const override { return MHostPtrReadOnly; }
+
+  bool usesPinnedHostMemory() const override {
+    return has_property<
+        sycl::ext::oneapi::property::buffer::use_pinned_host_memory>();
+  }
 
   void detachMemoryObject(const std::shared_ptr<SYCLMemObjT> &Self) const;
+
+  void markAsInternal() { MIsInternal = true; }
+
+  /// Returns true if this memory object requires a write_back on destruction.
+  bool needsWriteBack() const { return MNeedWriteBack && MUploadDataFunctor; }
+
+  /// Increment an internal counter for how many graphs are currently using this
+  /// memory object.
+  void markBeingUsedInGraph() { MGraphUseCount += 1; }
+
+  /// Decrement an internal counter for how many graphs are currently using this
+  /// memory object.
+  void markNoLongerBeingUsedInGraph() {
+    // Compare exchange loop to safely decrement MGraphUseCount
+    while (true) {
+      size_t CurrentVal = MGraphUseCount;
+      if (CurrentVal == 0) {
+        break;
+      }
+      if (MGraphUseCount.compare_exchange_strong(CurrentVal, CurrentVal - 1) ==
+          false) {
+        continue;
+      }
+    }
+  }
+
+  /// Returns true if any graphs are currently using this memory object.
+  bool isUsedInGraph() const { return MGraphUseCount > 0; }
 
 protected:
   // An allocateMem helper that determines which host ptr to use
@@ -307,7 +343,13 @@ protected:
   // we have read only HostPtr - MUploadDataFunctor is empty but delayed release
   // must be not allowed.
   bool MHostPtrProvided;
+  // Indicates that the memory object was allocated internally. Such memory
+  // objects can be released in a deferred manner regardless of whether a host
+  // pointer was provided or not.
+  bool MIsInternal = false;
+  // The number of graphs which are currently using this memory object.
+  std::atomic<size_t> MGraphUseCount = 0;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

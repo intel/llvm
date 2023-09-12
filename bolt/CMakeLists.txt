@@ -9,7 +9,7 @@ list(INSERT CMAKE_MODULE_PATH 0 "${BOLT_SOURCE_DIR}/cmake/modules")
 
 # Determine default set of targets to build -- the intersection of
 # those BOLT supports and those LLVM is targeting.
-set(BOLT_TARGETS_TO_BUILD_all "AArch64;X86")
+set(BOLT_TARGETS_TO_BUILD_all "AArch64;X86;RISCV")
 set(BOLT_TARGETS_TO_BUILD_default)
 foreach (tgt ${BOLT_TARGETS_TO_BUILD_all})
   if (tgt IN_LIST LLVM_TARGETS_TO_BUILD)
@@ -32,10 +32,11 @@ foreach (tgt ${BOLT_TARGETS_TO_BUILD})
 endforeach()
 
 set(BOLT_ENABLE_RUNTIME_default OFF)
-if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"
+if ((CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"
+    OR CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     AND (CMAKE_SYSTEM_NAME STREQUAL "Linux"
       OR CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    AND "X86" IN_LIST BOLT_TARGETS_TO_BUILD)
+    AND (NOT CMAKE_CROSSCOMPILING))
   set(BOLT_ENABLE_RUNTIME_default ON)
 endif()
 option(BOLT_ENABLE_RUNTIME "Enable BOLT runtime" ${BOLT_ENABLE_RUNTIME_default})

@@ -598,11 +598,7 @@ struct BubbleDownVectorBitCastForExtract
     unsigned expandRatio =
         castDstType.getNumElements() / castSrcType.getNumElements();
 
-    auto getFirstIntValue = [](ArrayAttr attr) -> uint64_t {
-      return (*attr.getAsValueRange<IntegerAttr>().begin()).getZExtValue();
-    };
-
-    uint64_t index = getFirstIntValue(extractOp.getPosition());
+    uint64_t index = extractOp.getPosition()[0];
 
     // Get the single scalar (as a vector) in the source value that packs the
     // desired scalar. E.g. extract vector<1xf32> from vector<4xf32>
@@ -610,7 +606,7 @@ struct BubbleDownVectorBitCastForExtract
         VectorType::get({1}, castSrcType.getElementType());
     Value packedValue = rewriter.create<vector::ExtractOp>(
         extractOp.getLoc(), oneScalarType, castOp.getSource(),
-        rewriter.getI64ArrayAttr(index / expandRatio));
+        index / expandRatio);
 
     // Cast it to a vector with the desired scalar's type.
     // E.g. f32 -> vector<2xf16>
@@ -621,8 +617,7 @@ struct BubbleDownVectorBitCastForExtract
 
     // Finally extract the desired scalar.
     rewriter.replaceOpWithNewOp<vector::ExtractOp>(
-        extractOp, extractOp.getType(), castedValue,
-        rewriter.getI64ArrayAttr(index % expandRatio));
+        extractOp, extractOp.getType(), castedValue, index % expandRatio);
 
     return success();
   }
@@ -885,6 +880,66 @@ private:
   std::function<bool(BitCastOp)> controlFn;
 };
 
+/// Reorders elementwise(broadcast) to broadcast(elementwise). Ex:
+/// ```
+/// %a = vector.broadcast %arg1 : index to vector<1x4xindex>
+/// %b = vector.broadcast %arg2 : index to vector<1x4xindex>
+/// %r = arith.addi %a, %b : vector<1x4xindex>
+/// ```
+/// Gets converted to:
+/// ```
+/// %r = arith.addi %arg0, %arg1 : index
+/// %b = vector.broadcast %r : index to vector<1x4xindex>
+/// ```
+struct ReorderElementwiseOpsOnBroadcast final
+    : public OpTraitRewritePattern<OpTrait::Elementwise> {
+  using OpTraitRewritePattern::OpTraitRewritePattern;
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (op->getNumResults() != 1)
+      return failure();
+    if (!llvm::isa<ShapedType>(op->getResults()[0].getType()))
+      return failure();
+    if (!OpTrait::hasElementwiseMappableTraits(op))
+      return failure();
+
+    // Get the type of the first operand
+    auto firstBcast = op->getOperand(0).getDefiningOp<vector::BroadcastOp>();
+    if (!firstBcast)
+      return failure();
+    auto firstOpType = firstBcast.getOperand().getType();
+
+    // Make sure that operands are "broadcast"ed from identical (scalar or
+    // vector) types. That indicates that it's safe to skip the broadcasting of
+    // operands.
+    if (!llvm::all_of(op->getOperands(), [&firstOpType](Value val) {
+          auto bcast = val.getDefiningOp<vector::BroadcastOp>();
+          return (bcast && (bcast.getOperand().getType() == firstOpType));
+        })) {
+      return failure();
+    }
+
+    // Collect the source values
+    SmallVector<Value> srcValues;
+    srcValues.reserve(op->getNumOperands());
+
+    for (Value operand : op->getOperands()) {
+      srcValues.push_back(
+          operand.getDefiningOp<vector::BroadcastOp>().getOperand());
+    }
+
+    Operation *elementwiseOp =
+        rewriter.create(op->getLoc(), op->getName().getIdentifier(), srcValues,
+                        firstOpType, op->getAttrs());
+
+    auto vectorType = op->getResultTypes()[0];
+    rewriter.replaceOpWithNewOp<vector::BroadcastOp>(
+        op, vectorType, elementwiseOp->getResults());
+
+    return success();
+  }
+};
+
 // Helper that returns a vector comparison that constructs a mask:
 //     mask = [0,1,..,n-1] + [o,o,..,o] < [b,b,..,b]
 //
@@ -964,7 +1019,7 @@ public:
     Value mask = rewriter.create<vector::CreateMaskOp>(
         loc,
         VectorType::get(vtp.getShape(), rewriter.getI1Type(),
-                        vtp.getNumScalableDims()),
+                        vtp.getScalableDims()),
         b);
     if (xferOp.getMask()) {
       // Intersect the in-bounds with the mask specified as an op parameter.
@@ -1010,6 +1065,67 @@ public:
 
 private:
   const bool force32BitVectorIndices;
+};
+
+/// Returns true if all the `i1` elements of `constantOp` are set to `value`.
+static bool allI1ConstantValuesSetTo(arith::ConstantOp constantOp, bool value) {
+  auto denseAttr = dyn_cast<DenseIntElementsAttr>(constantOp.getValue());
+  // TODO: Support non-dense constant.
+  if (!denseAttr)
+    return false;
+
+  assert(denseAttr.getElementType().isInteger(1) && "Unexpected type");
+  return denseAttr.isSplat() && denseAttr.getSplatValue<bool>() == value;
+}
+
+/// Folds a select operation between an all-true and all-false vector. For now,
+/// only single element vectors (i.e., vector<1xi1>) are supported. That is:
+///
+///   %true = arith.constant dense<true> : vector<1xi1>
+///   %false = arith.constant dense<false> : vector<1xi1>
+///   %result = arith.select %cond, %true, %false : i1, vector<1xi1>
+///   =>
+///   %result = vector.broadcast %cond : i1 to vector<1xi1>
+///
+/// InstCombine seems to handle vectors with multiple elements but not the
+/// single element ones.
+struct FoldI1Select : public OpRewritePattern<arith::SelectOp> {
+  using OpRewritePattern<arith::SelectOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(arith::SelectOp selectOp,
+                                PatternRewriter &rewriter) const override {
+    auto vecType = dyn_cast<VectorType>(selectOp.getType());
+    if (!vecType || !vecType.getElementType().isInteger(1))
+      return failure();
+
+    // Only scalar conditions can be folded.
+    Value cond = selectOp.getCondition();
+    if (isa<VectorType>(cond.getType()))
+      return failure();
+
+    // TODO: Support n-D and scalable vectors.
+    if (vecType.getRank() != 1 || vecType.isScalable())
+      return failure();
+
+    // TODO: Support vectors with multiple elements.
+    if (vecType.getShape()[0] != 1)
+      return failure();
+
+    auto trueConst = selectOp.getTrueValue().getDefiningOp<arith::ConstantOp>();
+    if (!trueConst || !allI1ConstantValuesSetTo(trueConst, true))
+      return failure();
+
+    auto falseConst =
+        selectOp.getFalseValue().getDefiningOp<arith::ConstantOp>();
+    if (!falseConst || !allI1ConstantValuesSetTo(falseConst, false))
+      return failure();
+
+    // Replace select with its condition broadcasted to single element vector.
+    auto elemType = rewriter.getIntegerType(vecType.getNumElements());
+    auto bcastType = VectorType::get(/*shape=*/{1}, elemType);
+    rewriter.replaceOpWithNewOp<vector::BroadcastOp>(selectOp, bcastType, cond);
+    return success();
+  }
 };
 
 // Drop inner most contiguous unit dimensions from transfer_read operand.
@@ -1267,6 +1383,7 @@ void mlir::vector::populateVectorMaskMaterializationPatterns(
                MaterializeTransferMask<vector::TransferReadOp>,
                MaterializeTransferMask<vector::TransferWriteOp>>(
       patterns.getContext(), force32BitVectorIndices, benefit);
+  patterns.add<FoldI1Select>(patterns.getContext(), benefit);
 }
 
 void mlir::vector::populateShapeCastFoldingPatterns(RewritePatternSet &patterns,
@@ -1309,6 +1426,12 @@ void mlir::vector::
     populateVectorTransferCollapseInnerMostContiguousDimsPatterns(
         RewritePatternSet &patterns, PatternBenefit benefit) {
   patterns.add<DropInnerMostUnitDims>(patterns.getContext(), benefit);
+}
+
+void mlir::vector::populateSinkVectorBroadcastPatterns(
+    RewritePatternSet &patterns, PatternBenefit benefit) {
+  patterns.add<ReorderElementwiseOpsOnBroadcast>(patterns.getContext(),
+                                                 benefit);
 }
 
 //===----------------------------------------------------------------------===//

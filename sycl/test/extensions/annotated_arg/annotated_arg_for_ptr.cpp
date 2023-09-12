@@ -10,17 +10,22 @@
 
 using namespace sycl;
 using namespace ext::oneapi::experimental;
+using namespace ext::intel::experimental;
 
 using annotated_arg_t1 =
-    annotated_arg<int *, decltype(properties(awidth<32>, dwidth<32>))>;
+    annotated_arg<int *, decltype(properties(buffer_location<0>, awidth<32>,
+                                             dwidth<32>))>;
 
 using annotated_arg_t2 =
     annotated_arg<int, decltype(properties(conduit, register_map))>;
 
-using annotated_arg_t3 = annotated_arg<int *, decltype(properties(awidth<32>))>;
+using annotated_arg_t3 =
+    annotated_arg<int *, decltype(properties(buffer_location<0>, awidth<32>))>;
 
 struct MyIP {
-  annotated_arg<int *, decltype(properties(awidth<32>, dwidth<32>))> a;
+  annotated_arg<int *, decltype(properties(buffer_location<0>, awidth<32>,
+                                           dwidth<32>))>
+      a;
 
   int b;
 
@@ -39,7 +44,7 @@ struct MyIP {
 
 template <typename T> T foo() {
   auto raw = new int;
-  return annotated_arg(raw, awidth<32>);
+  return annotated_arg(raw, buffer_location<0>, awidth<32>);
 }
 
 void TestVectorAddWithAnnotatedMMHosts() {
@@ -58,18 +63,24 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // Construct from raw pointers
   auto tmp11 = annotated_arg(raw); // empty property list
   // Construct from raw pointers and a property list
-  auto tmp12 = annotated_arg<int *, decltype(properties{awidth<32>})>(
-      raw, properties{awidth<32>});
-  auto tmp14 = annotated_arg(raw, properties{awidth<32>}); // deduction guide
+  auto tmp12 =
+      annotated_arg<int *,
+                    decltype(properties{buffer_location<0>, awidth<32>})>(
+          raw, properties{buffer_location<0>, awidth<32>});
+  auto tmp14 = annotated_arg(
+      raw, properties{buffer_location<0>, awidth<32>}); // deduction guide
   static_assert(std::is_same<decltype(tmp14), annotated_arg_t3>::value,
                 "deduction guide failed 1");
   // Construct from raw pointers and variadic properties
-  auto tmp13 = annotated_arg(raw, dwidth<32>, awidth<32>); // deduction guide
+  auto tmp13 = annotated_arg(raw, buffer_location<0>, dwidth<32>,
+                             awidth<32>); // deduction guide
   static_assert(std::is_same<decltype(tmp13), annotated_arg_t1>::value,
                 "deduction guide failed 2");
-  auto tmp15 = annotated_arg(raw, awidth<32>);
+  auto tmp15 = annotated_arg(raw, buffer_location<0>, awidth<32>);
   static_assert(std::is_same<decltype(tmp15), annotated_arg_t3>::value,
                 "deduction guide failed 1");
+
+  auto tmp16 = annotated_arg(raw, properties{alignment<16>}); // deduction guide
 
   // Property list can't have duplicated properties
   // auto tmp16 = annotated_arg(raw, awidth<32>, awidth<32>);   // ERR
@@ -81,10 +92,12 @@ void TestVectorAddWithAnnotatedMMHosts() {
 
   // Construct from another annotated_arg
   // templated copy constructor
-  annotated_arg<int *, decltype(properties{awidth<32>, dwidth<32>})> arg11(
-      tmp11);
+  annotated_arg<int *, decltype(properties{buffer_location<0>, awidth<32>,
+                                           dwidth<32>})>
+      arg11(tmp11);
   auto arg12 =
-      annotated_arg<int *, decltype(properties{dwidth<32>, awidth<32>})>(tmp11);
+      annotated_arg<int *, decltype(properties{buffer_location<0>, dwidth<32>,
+                                               awidth<32>})>(tmp11);
 
   // default copy constructor
   auto arg13 = annotated_arg(tmp12);
@@ -95,9 +108,11 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // annotated_arg<int*, decltype(properties{awidth<32>, dwidth<32>})>
   // arg21(tmp11, properties{dwidth<32>});   // ERR:  the type properties should
   // be the union of the inputs
-  annotated_arg<int *, decltype(properties{awidth<32>, dwidth<32>})> arg22(
-      tmp12, properties{dwidth<32>});
-  auto arg23 = annotated_arg(tmp12, properties{dwidth<32>}); // deduction guide
+  annotated_arg<int *, decltype(properties{buffer_location<0>, awidth<32>,
+                                           dwidth<32>})>
+      arg22(tmp12, properties{dwidth<32>});
+  auto arg23 = annotated_arg(
+      tmp12, properties{buffer_location<0>, dwidth<32>}); // deduction guide
   static_assert(std::is_same<decltype(arg22), annotated_arg_t1>::value,
                 "deduction guide failed 4");
   static_assert(std::is_same<decltype(arg23), decltype(arg22)>::value,
@@ -109,10 +124,13 @@ void TestVectorAddWithAnnotatedMMHosts() {
   // properties{dwidth<32>});   // ERR
 
   // Property merge
-  auto arg31 = annotated_arg_t3(raw, awidth<32>);                         // OK
-  auto arg32 = annotated_arg(arg31, properties{dwidth<32>});              // OK
-  auto arg33 = annotated_arg(arg32, properties{dwidth<32>, awidth<32>});  // OK
-  auto arg34 = annotated_arg(arg32, properties{awidth<32>, latency<22>}); // OK
+  auto arg31 = annotated_arg_t3(raw, buffer_location<0>, awidth<32>); // OK
+  auto arg32 =
+      annotated_arg(arg31, properties{buffer_location<0>, dwidth<32>}); // OK
+  auto arg33 = annotated_arg(
+      arg32, properties{buffer_location<0>, dwidth<32>, awidth<32>}); // OK
+  auto arg34 = annotated_arg(
+      arg32, properties{buffer_location<0>, awidth<32>, latency<22>}); // OK
   static_assert(std::is_same<decltype(arg32), annotated_arg_t1>::value,
                 "deduction guide failed 6");
   static_assert(std::is_same<decltype(arg33), annotated_arg_t1>::value,

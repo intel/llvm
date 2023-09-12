@@ -84,7 +84,12 @@ public:
   NODE(parser, AccEndAtomic)
   NODE(parser, AccEndBlockDirective)
   NODE(parser, AccEndCombinedDirective)
-  NODE(parser, AccGangArgument)
+  NODE(parser, AccCollapseArg)
+  NODE(parser, AccGangArg)
+  NODE(AccGangArg, Num)
+  NODE(AccGangArg, Dim)
+  NODE(AccGangArg, Static)
+  NODE(parser, AccGangArgList)
   NODE(parser, AccObject)
   NODE(parser, AccObjectList)
   NODE(parser, AccObjectListWithModifier)
@@ -100,6 +105,7 @@ public:
   NODE(parser, AccTileExpr)
   NODE(parser, AccTileExprList)
   NODE(parser, AccLoopDirective)
+  NODE(parser, AccEndLoop)
   NODE(parser, AccWaitArgument)
   static std::string GetNodeName(const llvm::acc::Directive &x) {
     return llvm::Twine(

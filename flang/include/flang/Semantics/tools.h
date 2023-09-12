@@ -143,6 +143,7 @@ inline bool IsPointer(const Symbol &symbol) {
 inline bool IsAllocatable(const Symbol &symbol) {
   return symbol.attrs().test(Attr::ALLOCATABLE);
 }
+// IsAllocatableOrObjectPointer() may be the better choice
 inline bool IsAllocatableOrPointer(const Symbol &symbol) {
   return IsPointer(symbol) || IsAllocatable(symbol);
 }
@@ -649,6 +650,38 @@ std::forward_list<std::string> GetAllNames(
 // assuming that the procedure is a specific procedure of a defined I/O
 // generic interface,
 const DerivedTypeSpec *GetDtvArgDerivedType(const Symbol &);
+
+// If "expr" exists and is a designator for a deferred length
+// character allocatable whose semantics might change under Fortran 202X,
+// emit a portability warning.
+void WarnOnDeferredLengthCharacterScalar(SemanticsContext &, const SomeExpr *,
+    parser::CharBlock at, const char *what);
+
+inline const parser::Name *getDesignatorNameIfDataRef(
+    const parser::Designator &designator) {
+  const auto *dataRef{std::get_if<parser::DataRef>(&designator.u)};
+  return dataRef ? std::get_if<parser::Name>(&dataRef->u) : nullptr;
+}
+
+bool CouldBeDataPointerValuedFunction(const Symbol *);
+
+template <typename R, typename T>
+std::optional<R> GetConstExpr(
+    Fortran::semantics::SemanticsContext &semanticsContext, const T &x) {
+  using DefaultCharConstantType = Fortran::evaluate::Ascii;
+  if (const auto *expr{Fortran::semantics::GetExpr(semanticsContext, x)}) {
+    const auto foldExpr{Fortran::evaluate::Fold(
+        semanticsContext.foldingContext(), Fortran::common::Clone(*expr))};
+    if constexpr (std::is_same_v<R, std::string>) {
+      return Fortran::evaluate::GetScalarConstantValue<DefaultCharConstantType>(
+          foldExpr);
+    }
+  }
+  return std::nullopt;
+}
+
+// Returns "m" for a module, "m:sm" for a submodule.
+std::string GetModuleOrSubmoduleName(const Symbol &);
 
 } // namespace Fortran::semantics
 #endif // FORTRAN_SEMANTICS_TOOLS_H_

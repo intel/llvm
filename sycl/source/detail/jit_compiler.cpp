@@ -19,7 +19,7 @@
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
@@ -1009,7 +1009,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION

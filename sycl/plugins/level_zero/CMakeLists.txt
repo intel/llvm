@@ -8,8 +8,6 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
 
   # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104
   set(CMAKE_INCLUDE_CURRENT_DIR OFF)
-  # Prevent L0 loader from exporting extra symbols
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF)
 
   message(STATUS "Will fetch Level Zero Loader from ${LEVEL_ZERO_LOADER_REPO}")
   include(FetchContent)
@@ -97,36 +95,37 @@ add_sycl_plugin(level_zero
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/usm_allocator.cpp"
-    "../unified_runtime/ur/usm_allocator.hpp"
-    "../unified_runtime/ur/usm_allocator_config.cpp"
-    "../unified_runtime/ur/usm_allocator_config.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.hpp"
     "../unified_runtime/ur/adapters/level_zero/command_buffer.hpp"
+    "../unified_runtime/ur/adapters/level_zero/adapter.hpp"
     "../unified_runtime/ur/adapters/level_zero/common.hpp"
     "../unified_runtime/ur/adapters/level_zero/context.hpp"
     "../unified_runtime/ur/adapters/level_zero/device.hpp"
     "../unified_runtime/ur/adapters/level_zero/event.hpp"
-    "../unified_runtime/ur/adapters/level_zero/memory.hpp"
+    "../unified_runtime/ur/adapters/level_zero/image.hpp"
     "../unified_runtime/ur/adapters/level_zero/kernel.hpp"
+    "../unified_runtime/ur/adapters/level_zero/memory.hpp"
     "../unified_runtime/ur/adapters/level_zero/platform.hpp"
     "../unified_runtime/ur/adapters/level_zero/program.hpp"
     "../unified_runtime/ur/adapters/level_zero/queue.hpp"
     "../unified_runtime/ur/adapters/level_zero/sampler.hpp"
     "../unified_runtime/ur/adapters/level_zero/usm.hpp"
     "../unified_runtime/ur/adapters/level_zero/ur_level_zero.cpp"
+    "../unified_runtime/ur/adapters/level_zero/adapter.cpp"
     "../unified_runtime/ur/adapters/level_zero/command_buffer.cpp"
     "../unified_runtime/ur/adapters/level_zero/common.cpp"
     "../unified_runtime/ur/adapters/level_zero/context.cpp"
     "../unified_runtime/ur/adapters/level_zero/device.cpp"
     "../unified_runtime/ur/adapters/level_zero/event.cpp"
-    "../unified_runtime/ur/adapters/level_zero/memory.cpp"
+    "../unified_runtime/ur/adapters/level_zero/image.cpp"
     "../unified_runtime/ur/adapters/level_zero/kernel.cpp"
+    "../unified_runtime/ur/adapters/level_zero/memory.cpp"
     "../unified_runtime/ur/adapters/level_zero/platform.cpp"
     "../unified_runtime/ur/adapters/level_zero/program.cpp"
     "../unified_runtime/ur/adapters/level_zero/queue.cpp"
     "../unified_runtime/ur/adapters/level_zero/sampler.cpp"
     "../unified_runtime/ur/adapters/level_zero/usm.cpp"
+    "../unified_runtime/ur/adapters/level_zero/usm_p2p.cpp"
     # Following are the PI Level-Zero Plugin only codes.
     "pi_level_zero.cpp"
     "pi_level_zero.hpp"
@@ -140,6 +139,8 @@ add_sycl_plugin(level_zero
   LIBRARIES
     LevelZeroLoader-Headers
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
     LevelZeroLoader
     Threads::Threads
     ${XPTI_LIBS}

@@ -9,9 +9,17 @@
 #ifndef FORTRAN_LOWER_INTRINSICCALL_H
 #define FORTRAN_LOWER_INTRINSICCALL_H
 
+#include "flang/Lower/AbstractConverter.h"
+#include "flang/Optimizer/Builder/BoxValue.h"
 #include "flang/Optimizer/Builder/FIRBuilder.h"
+#include "flang/Optimizer/Builder/Runtime/Character.h"
+#include "flang/Optimizer/Builder/Runtime/Numeric.h"
 #include "flang/Optimizer/Builder/Runtime/RTBuilder.h"
+#include "flang/Runtime/entry-names.h"
 #include "flang/Runtime/iostat.h"
+#include "mlir/Dialect/Complex/IR/Complex.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include <optional>
 
 namespace fir {
@@ -27,7 +35,8 @@ class StatementContext;
 std::pair<fir::ExtendedValue, bool>
 genIntrinsicCall(fir::FirOpBuilder &, mlir::Location, llvm::StringRef name,
                  std::optional<mlir::Type> resultType,
-                 llvm::ArrayRef<fir::ExtendedValue> args);
+                 llvm::ArrayRef<fir::ExtendedValue> args,
+                 Fortran::lower::AbstractConverter *converter = nullptr);
 
 /// Enums used to templatize and share lowering of MIN and MAX.
 enum class Extremum { Min, Max };
@@ -104,6 +113,11 @@ struct ArgLoweringRule {
   bool handleDynamicOptional;
 };
 
+constexpr auto asValue = fir::LowerIntrinsicArgAs::Value;
+constexpr auto asAddr = fir::LowerIntrinsicArgAs::Addr;
+constexpr auto asBox = fir::LowerIntrinsicArgAs::Box;
+constexpr auto asInquired = fir::LowerIntrinsicArgAs::Inquired;
+
 /// Opaque class defining the argument lowering rules for all the argument of
 /// an intrinsic.
 struct IntrinsicArgumentLoweringRules;
@@ -112,8 +126,10 @@ struct IntrinsicArgumentLoweringRules;
 struct IntrinsicLibrary {
 
   // Constructors.
-  explicit IntrinsicLibrary(fir::FirOpBuilder &builder, mlir::Location loc)
-      : builder{builder}, loc{loc} {}
+  explicit IntrinsicLibrary(
+      fir::FirOpBuilder &builder, mlir::Location loc,
+      Fortran::lower::AbstractConverter *converter = nullptr)
+      : builder{builder}, loc{loc}, converter{converter} {}
   IntrinsicLibrary() = delete;
   IntrinsicLibrary(const IntrinsicLibrary &) = delete;
 
@@ -219,11 +235,20 @@ struct IntrinsicLibrary {
   mlir::Value genIbset(mlir::Type, llvm::ArrayRef<mlir::Value>);
   fir::ExtendedValue genIchar(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
   fir::ExtendedValue genFindloc(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
+  mlir::Value genIeeeClass(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeCopySign(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  void genIeeeGetRoundingMode(llvm::ArrayRef<fir::ExtendedValue>);
   mlir::Value genIeeeIsFinite(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeIsNan(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeIsNegative(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genIeeeIsNormal(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  void genIeeeSetRoundingMode(llvm::ArrayRef<fir::ExtendedValue>);
+  mlir::Value genIeeeSignbit(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeSupportRounding(mlir::Type, llvm::ArrayRef<mlir::Value>);
   template <mlir::arith::CmpIPredicate pred>
-  fir::ExtendedValue genIeeeTypeCompare(mlir::Type,
-                                        llvm::ArrayRef<fir::ExtendedValue>);
+  mlir::Value genIeeeTypeCompare(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeUnordered(mlir::Type, llvm::ArrayRef<mlir::Value>);
+  mlir::Value genIeeeValue(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genIeor(mlir::Type, llvm::ArrayRef<mlir::Value>);
   fir::ExtendedValue genIndex(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
   mlir::Value genIor(mlir::Type, llvm::ArrayRef<mlir::Value>);
@@ -232,7 +257,6 @@ struct IntrinsicLibrary {
                                      llvm::ArrayRef<fir::ExtendedValue>);
   template <Fortran::runtime::io::Iostat value>
   mlir::Value genIsIostatValue(mlir::Type, llvm::ArrayRef<mlir::Value>);
-  mlir::Value genIsNan(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genIsFPClass(mlir::Type, llvm::ArrayRef<mlir::Value>,
                            int fpclass);
   mlir::Value genIshft(mlir::Type, llvm::ArrayRef<mlir::Value>);
@@ -296,6 +320,7 @@ struct IntrinsicLibrary {
                                     llvm::ArrayRef<fir::ExtendedValue>);
   fir::ExtendedValue genSum(mlir::Type, llvm::ArrayRef<fir::ExtendedValue>);
   void genSystemClock(llvm::ArrayRef<fir::ExtendedValue>);
+  mlir::Value genTand(mlir::Type, llvm::ArrayRef<mlir::Value>);
   mlir::Value genTrailz(mlir::Type, llvm::ArrayRef<mlir::Value>);
   fir::ExtendedValue genTransfer(mlir::Type,
                                  llvm::ArrayRef<fir::ExtendedValue>);
@@ -309,10 +334,6 @@ struct IntrinsicLibrary {
   /// the value to convert. There may be an additional KIND arguments that
   /// is ignored because this is already reflected in the result type.
   mlir::Value genConversion(mlir::Type, llvm::ArrayRef<mlir::Value>);
-
-  // PPC intrinsic handlers.
-  template <bool isImm>
-  void genMtfsf(llvm::ArrayRef<fir::ExtendedValue>);
 
   /// In the template helper below:
   ///  - "FN func" is a callback to generate the related intrinsic runtime call.
@@ -399,6 +420,7 @@ struct IntrinsicLibrary {
   fir::FirOpBuilder &builder;
   mlir::Location loc;
   bool resultMustBeFreed = false;
+  Fortran::lower::AbstractConverter *converter = nullptr;
 };
 
 struct IntrinsicDummyArgument {
@@ -445,6 +467,10 @@ using MathGeneratorTy = mlir::Value (*)(fir::FirOpBuilder &, mlir::Location,
                                         llvm::ArrayRef<mlir::Value>);
 
 struct MathOperation {
+  // Overrides fir::runtime::FuncTypeBuilderFunc to add FirOpBuilder argument.
+  using FuncTypeBuilderFunc = mlir::FunctionType (*)(mlir::MLIRContext *,
+                                                     fir::FirOpBuilder &);
+
   // llvm::StringRef comparison operator are not constexpr, so use string_view.
   using Key = std::string_view;
   // Needed for implicit compare with keys.
@@ -454,7 +480,7 @@ struct MathOperation {
 
   // Name of a runtime function that implements the operation.
   llvm::StringRef runtimeFunc;
-  fir::runtime::FuncTypeBuilderFunc typeGenerator;
+  FuncTypeBuilderFunc typeGenerator;
 
   // A callback to generate FIR for the intrinsic defined by 'key'.
   // A callback may generate either dedicated MLIR operation(s) or
@@ -462,6 +488,182 @@ struct MathOperation {
   // 'runtimeFunc'.
   MathGeneratorTy funcGenerator;
 };
+
+// Enum of most supported intrinsic argument or return types.
+enum class ParamTypeId {
+  Void,
+  Integer,
+  Real,
+  Complex,
+  IntegerVector,
+  UnsignedVector,
+  RealVector,
+};
+
+// Helper function to get length of a 16-byte vector of element type eleTy.
+static int getVecLen(mlir::Type eleTy) {
+  assert((mlir::isa<mlir::IntegerType>(eleTy) ||
+          mlir::isa<mlir::FloatType>(eleTy)) &&
+         "unsupported vector element type");
+  return 16 / (eleTy.getIntOrFloatBitWidth() / 8);
+}
+
+template <ParamTypeId t, int k>
+struct ParamType {
+  // Supported kinds can be checked with static asserts at compile time.
+  static_assert(t != ParamTypeId::Integer || k == 1 || k == 2 || k == 4 ||
+                    k == 8,
+                "Unsupported integer kind");
+  static_assert(t != ParamTypeId::Real || k == 4 || k == 8 || k == 10 ||
+                    k == 16,
+                "Unsupported real kind");
+  static_assert(t != ParamTypeId::Complex || k == 2 || k == 3 || k == 4 ||
+                    k == 8 || k == 10 || k == 16,
+                "Unsupported complex kind");
+
+  static const ParamTypeId ty = t;
+  static const int kind = k;
+};
+
+// Namespace encapsulating type definitions for parameter types.
+namespace Ty {
+using Void = ParamType<ParamTypeId::Void, 0>;
+template <int k>
+using Real = ParamType<ParamTypeId::Real, k>;
+template <int k>
+using Integer = ParamType<ParamTypeId::Integer, k>;
+template <int k>
+using Complex = ParamType<ParamTypeId::Complex, k>;
+template <int k>
+using IntegerVector = ParamType<ParamTypeId::IntegerVector, k>;
+template <int k>
+using RealVector = ParamType<ParamTypeId::RealVector, k>;
+template <int k>
+using UnsignedVector = ParamType<ParamTypeId::UnsignedVector, k>;
+} // namespace Ty
+
+// Helper function that generates most types that are supported for intrinsic
+// arguments and return type. Used by `genFuncType` to generate function
+// types for most of the intrinsics.
+static inline mlir::Type getTypeHelper(mlir::MLIRContext *context,
+                                       fir::FirOpBuilder &builder,
+                                       ParamTypeId typeId, int kind) {
+  mlir::Type r;
+  unsigned bits{0};
+  switch (typeId) {
+  case ParamTypeId::Void:
+    llvm::report_fatal_error("can not get type of void");
+    break;
+  case ParamTypeId::Integer:
+  case ParamTypeId::IntegerVector:
+    bits = builder.getKindMap().getIntegerBitsize(kind);
+    assert(bits != 0 && "failed to convert kind to integer bitsize");
+    r = mlir::IntegerType::get(context, bits);
+    break;
+  case ParamTypeId::UnsignedVector:
+    bits = builder.getKindMap().getIntegerBitsize(kind);
+    assert(bits != 0 && "failed to convert kind to unsigned bitsize");
+    r = mlir::IntegerType::get(context, bits, mlir::IntegerType::Unsigned);
+    break;
+  case ParamTypeId::Real:
+  case ParamTypeId::RealVector:
+    r = builder.getRealType(kind);
+    break;
+  case ParamTypeId::Complex:
+    r = fir::ComplexType::get(context, kind);
+    break;
+  }
+
+  mlir::Type fTy;
+  switch (typeId) {
+  case ParamTypeId::Void:
+  case ParamTypeId::Integer:
+  case ParamTypeId::Real:
+  case ParamTypeId::Complex:
+    // keep original type for void and non-vector
+    fTy = r;
+    break;
+  case ParamTypeId::IntegerVector:
+  case ParamTypeId::UnsignedVector:
+  case ParamTypeId::RealVector:
+    // convert to FIR vector type
+    fTy = fir::VectorType::get(getVecLen(r), r);
+    break;
+  }
+  return fTy;
+}
+
+// Generic function type generator that supports most of the function types
+// used by intrinsics.
+template <typename TyR, typename... ArgTys>
+static inline mlir::FunctionType genFuncType(mlir::MLIRContext *context,
+                                             fir::FirOpBuilder &builder) {
+  llvm::SmallVector<ParamTypeId> argTys = {ArgTys::ty...};
+  llvm::SmallVector<int> argKinds = {ArgTys::kind...};
+  llvm::SmallVector<mlir::Type> argTypes;
+
+  for (size_t i = 0; i < argTys.size(); ++i) {
+    argTypes.push_back(getTypeHelper(context, builder, argTys[i], argKinds[i]));
+  }
+
+  if (TyR::ty == ParamTypeId::Void)
+    return mlir::FunctionType::get(context, argTypes, std::nullopt);
+
+  auto resType = getTypeHelper(context, builder, TyR::ty, TyR::kind);
+  return mlir::FunctionType::get(context, argTypes, {resType});
+}
+
+//===----------------------------------------------------------------------===//
+// Helper functions for argument handling.
+//===----------------------------------------------------------------------===//
+static inline mlir::Type getConvertedElementType(mlir::MLIRContext *context,
+                                                 mlir::Type eleTy) {
+  if (eleTy.isa<mlir::IntegerType>() && !eleTy.isSignlessInteger()) {
+    const auto intTy{eleTy.dyn_cast<mlir::IntegerType>()};
+    auto newEleTy{mlir::IntegerType::get(context, intTy.getWidth())};
+    return newEleTy;
+  }
+  return eleTy;
+}
+
+static inline llvm::SmallVector<mlir::Value, 4>
+getBasesForArgs(llvm::ArrayRef<fir::ExtendedValue> args) {
+  llvm::SmallVector<mlir::Value, 4> baseVec;
+  for (auto arg : args)
+    baseVec.push_back(getBase(arg));
+  return baseVec;
+}
+
+static inline llvm::SmallVector<mlir::Type, 4>
+getTypesForArgs(llvm::ArrayRef<mlir::Value> args) {
+  llvm::SmallVector<mlir::Type, 4> typeVec;
+  for (auto arg : args)
+    typeVec.push_back(arg.getType());
+  return typeVec;
+}
+
+mlir::Value genLibCall(fir::FirOpBuilder &builder, mlir::Location loc,
+                       llvm::StringRef libFuncName,
+                       mlir::FunctionType libFuncType,
+                       llvm::ArrayRef<mlir::Value> args);
+
+template <typename T>
+mlir::Value genMathOp(fir::FirOpBuilder &builder, mlir::Location loc,
+                      llvm::StringRef mathLibFuncName,
+                      mlir::FunctionType mathLibFuncType,
+                      llvm::ArrayRef<mlir::Value> args);
+
+template <typename T>
+mlir::Value genComplexMathOp(fir::FirOpBuilder &builder, mlir::Location loc,
+                             llvm::StringRef mathLibFuncName,
+                             mlir::FunctionType mathLibFuncType,
+                             llvm::ArrayRef<mlir::Value> args);
+
+mlir::Value genLibSplitComplexArgsCall(fir::FirOpBuilder &builder,
+                                       mlir::Location loc,
+                                       llvm::StringRef libFuncName,
+                                       mlir::FunctionType libFuncType,
+                                       llvm::ArrayRef<mlir::Value> args);
 
 /// Return argument lowering rules for an intrinsic.
 /// Returns a nullptr if all the intrinsic arguments should be lowered by value.

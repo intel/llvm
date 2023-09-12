@@ -228,9 +228,18 @@ public:
   xpti_plugin_handle_t loadLibrary(const char *path, std::string &error) {
     xpti_plugin_handle_t handle = 0;
 #if defined(_WIN32) || defined(_WIN64)
-    handle = LoadLibraryA(path);
+    UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
+    // Exclude current directory from DLL search path
+    if (!SetDllDirectoryA("")) {
+      assert(false && "Failed to update DLL search path");
+    }
+    handle = LoadLibraryExA(path, NULL, NULL);
     if (!handle) {
       error = getLastError();
+    }
+    (void)SetErrorMode(SavedMode);
+    if (!SetDllDirectoryA(nullptr)) {
+      assert(false && "Failed to restore DLL search path");
     }
 #else
     handle = dlopen(path, RTLD_LAZY);

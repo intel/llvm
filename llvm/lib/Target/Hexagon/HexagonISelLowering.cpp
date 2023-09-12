@@ -676,14 +676,14 @@ HexagonTargetLowering::LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const {
     switch (InlineAsm::getKind(Flags)) {
       default:
         llvm_unreachable("Bad flags!");
-      case InlineAsm::Kind_RegUse:
-      case InlineAsm::Kind_Imm:
-      case InlineAsm::Kind_Mem:
+      case InlineAsm::Kind::RegUse:
+      case InlineAsm::Kind::Imm:
+      case InlineAsm::Kind::Mem:
         i += NumVals;
         break;
-      case InlineAsm::Kind_Clobber:
-      case InlineAsm::Kind_RegDef:
-      case InlineAsm::Kind_RegDefEarlyClobber: {
+      case InlineAsm::Kind::Clobber:
+      case InlineAsm::Kind::RegDef:
+      case InlineAsm::Kind::RegDefEarlyClobber: {
         for (; NumVals; --NumVals, ++i) {
           Register Reg = cast<RegisterSDNode>(Op.getOperand(i))->getReg();
           if (Reg != LR)
@@ -1635,7 +1635,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     ISD::FCOS,    ISD::FPOW,    ISD::FLOG,    ISD::FLOG2,
     ISD::FLOG10,  ISD::FEXP,    ISD::FEXP2,   ISD::FCEIL,   ISD::FTRUNC,
     ISD::FRINT,   ISD::FNEARBYINT,            ISD::FROUND,  ISD::FFLOOR,
-    ISD::FMINNUM, ISD::FMAXNUM, ISD::FSINCOS,
+    ISD::FMINNUM, ISD::FMAXNUM, ISD::FSINCOS, ISD::FLDEXP,
     // Misc:
     ISD::BR_CC,   ISD::SELECT_CC,             ISD::ConstantPool,
     // Vector:
@@ -1731,6 +1731,7 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     setOperationAction(ISD::STORE, VT, Custom);
   }
 
+  // Normalize integer compares to EQ/GT/UGT
   for (MVT VT : {MVT::v2i16, MVT::v4i8, MVT::v8i8, MVT::v2i32, MVT::v4i16,
                  MVT::v2i32}) {
     setCondCodeAction(ISD::SETNE,  VT, Expand);
@@ -1740,6 +1741,14 @@ HexagonTargetLowering::HexagonTargetLowering(const TargetMachine &TM,
     setCondCodeAction(ISD::SETULE, VT, Expand);
     setCondCodeAction(ISD::SETUGE, VT, Expand);
     setCondCodeAction(ISD::SETULT, VT, Expand);
+  }
+
+  // Normalize boolean compares to [U]LE/[U]LT
+  for (MVT VT : {MVT::i1, MVT::v2i1, MVT::v4i1, MVT::v8i1}) {
+    setCondCodeAction(ISD::SETGE,  VT, Expand);
+    setCondCodeAction(ISD::SETGT,  VT, Expand);
+    setCondCodeAction(ISD::SETUGE, VT, Expand);
+    setCondCodeAction(ISD::SETUGT, VT, Expand);
   }
 
   // Custom-lower bitcasts from i8 to v8i1.
@@ -2708,12 +2717,11 @@ HexagonTargetLowering::extractVectorPred(SDValue VecV, SDValue IdxV,
   assert(VecWidth == 8 || VecWidth == 4 || VecWidth == 2);
 
   // Check if this is an extract of the lowest bit.
-  if (auto *IdxN = dyn_cast<ConstantSDNode>(IdxV)) {
+  if (isNullConstant(IdxV) && ValTy.getSizeInBits() == 1) {
     // Extracting the lowest bit is a no-op, but it changes the type,
     // so it must be kept as an operation to avoid errors related to
     // type mismatches.
-    if (IdxN->isZero() && ValTy.getSizeInBits() == 1)
-      return DAG.getNode(HexagonISD::TYPECAST, dl, MVT::i1, VecV);
+    return DAG.getNode(HexagonISD::TYPECAST, dl, MVT::i1, VecV);
   }
 
   // If the value extracted is a single bit, use tstbit.
@@ -3243,7 +3251,7 @@ HexagonTargetLowering::LowerUAddSubO(SDValue Op, SelectionDAG &DAG) const {
   unsigned Opc = Op.getOpcode();
 
   if (CY) {
-    uint32_t VY = CY->getZExtValue();
+    uint64_t VY = CY->getZExtValue();
     assert(VY != 0 && "This should have been folded");
     // X +/- 1
     if (VY != 1)
@@ -3838,11 +3846,6 @@ Value *HexagonTargetLowering::emitLoadLinked(IRBuilderBase &Builder,
                                    : Intrinsic::hexagon_L4_loadd_locked;
   Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
-  auto PtrTy = cast<PointerType>(Addr->getType());
-  PointerType *NewPtrTy =
-      Builder.getIntNTy(SZ)->getPointerTo(PtrTy->getAddressSpace());
-  Addr = Builder.CreateBitCast(Addr, NewPtrTy);
-
   Value *Call = Builder.CreateCall(Fn, Addr, "larx");
 
   return Builder.CreateBitCast(Call, ValueTy);
@@ -3864,8 +3867,6 @@ Value *HexagonTargetLowering::emitStoreConditional(IRBuilderBase &Builder,
                                    : Intrinsic::hexagon_S4_stored_locked;
   Function *Fn = Intrinsic::getDeclaration(M, IntID);
 
-  unsigned AS = Addr->getType()->getPointerAddressSpace();
-  Addr = Builder.CreateBitCast(Addr, CastTy->getPointerTo(AS));
   Val = Builder.CreateBitCast(Val, CastTy);
 
   Value *Call = Builder.CreateCall(Fn, {Addr, Val}, "stcx");

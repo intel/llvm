@@ -1,10 +1,10 @@
-//===--------- context.hpp - Level Zero Adapter ----------------------===//
+//===--------- context.hpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <list>
@@ -22,7 +22,8 @@
 
 #include "common.hpp"
 #include "queue.hpp"
-#include <ur/usm_allocator.hpp>
+
+#include <umf_helpers.hpp>
 
 struct ur_context_handle_t_ : _ur_object {
   ur_context_handle_t_(ze_context_handle_t ZeContext, uint32_t NumDevices,
@@ -36,14 +37,15 @@ struct ur_context_handle_t_ : _ur_object {
 
   // A L0 context handle is primarily used during creation and management of
   // resources that may be used by multiple devices.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t.
   const ze_context_handle_t ZeContext{};
 
   // Keep the PI devices this PI context was created for.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
-  // const std::vector<ur_device_handle_t> Devices;
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t. const std::vector<ur_device_handle_t> Devices;
   std::vector<ur_device_handle_t> Devices;
   uint32_t NumDevices{};
 
@@ -68,8 +70,9 @@ struct ur_context_handle_t_ : _ur_object {
 
   // If context contains one device or sub-devices of the same device, we want
   // to save this device.
-  // This field is only set at _pi_context creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_context.
+  // This field is only set at ur_context_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_context_handle_t.
   ur_device_handle_t SingleRootDevice = nullptr;
 
   // Cache of all currently available/completed command/copy lists.
@@ -89,23 +92,22 @@ struct ur_context_handle_t_ : _ur_object {
                                          ZeStruct<ze_command_queue_desc_t>>>>
       ZeCopyCommandListCache;
 
-  // Store USM allocator context(internal allocator structures)
-  // for USM shared and device allocations. There is 1 allocator context
-  // per each pair of (context, device) per each memory type.
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      DeviceMemAllocContexts;
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      SharedMemAllocContexts;
-  std::unordered_map<ze_device_handle_t, USMAllocContext>
-      SharedReadOnlyMemAllocContexts;
+  // Store USM pool for USM shared and device allocations. There is 1 memory
+  // pool per each pair of (context, device) per each memory type.
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      DeviceMemPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedMemPools;
+  std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
+      SharedReadOnlyMemPools;
 
   // Since L0 native runtime does not distinguisg "shared device_read_only"
   // vs regular "shared" allocations, we have keep track of it to use
-  // proper USMAllocContext when freeing allocations.
+  // proper memory pool when freeing allocations.
   std::unordered_set<void *> SharedReadOnlyAllocs;
 
-  // Store the host allocator context. It does not depend on any device.
-  std::unique_ptr<USMAllocContext> HostMemAllocContext;
+  // Store the host memory pool. It does not depend on any device.
+  umf::pool_unique_handle_t HostMemPool;
 
   // We need to store all memory allocations in the context because there could
   // be kernels with indirect access. Kernels with indirect access start to
@@ -117,9 +119,9 @@ struct ur_context_handle_t_ : _ur_object {
   // Following member variables are used to manage assignment of events
   // to event pools.
   //
-  // TODO: Create pi_event_pool class to encapsulate working with pools.
+  // TODO: Create ur_event_pool class to encapsulate working with pools.
   // This will avoid needing the use of maps below, and cleanup the
-  // pi_context overall.
+  // ur_context_handle_t overall.
   //
 
   // The cache of event pools from where new events are allocated from.
@@ -179,11 +181,11 @@ struct ur_context_handle_t_ : _ur_object {
                                              bool HostVisible,
                                              bool ProfilingEnabled);
 
-  // Get pi_event from cache.
+  // Get ur_event_handle_t from cache.
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
                                              bool WithProfiling);
 
-  // Add pi_event to cache.
+  // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
 
   auto getZeEventPoolCache(bool HostVisible, bool WithProfiling) {

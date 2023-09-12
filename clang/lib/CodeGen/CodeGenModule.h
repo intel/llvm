@@ -26,10 +26,12 @@
 #include "clang/Basic/LangOptions.h"
 #include "clang/Basic/Module.h"
 #include "clang/Basic/NoSanitizeList.h"
+#include "clang/Basic/ProfileList.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/XRayLists.h"
 #include "clang/Lex/PreprocessorOptions.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringMap.h"
@@ -214,16 +216,14 @@ struct ObjCEntrypoints {
 
 /// This class records statistics on instrumentation based profiling.
 class InstrProfStats {
-  uint32_t VisitedInMainFile;
-  uint32_t MissingInMainFile;
-  uint32_t Visited;
-  uint32_t Missing;
-  uint32_t Mismatched;
+  uint32_t VisitedInMainFile = 0;
+  uint32_t MissingInMainFile = 0;
+  uint32_t Visited = 0;
+  uint32_t Missing = 0;
+  uint32_t Mismatched = 0;
 
 public:
-  InstrProfStats()
-      : VisitedInMainFile(0), MissingInMainFile(0), Visited(0), Missing(0),
-        Mismatched(0) {}
+  InstrProfStats() = default;
   /// Record that we've visited a function and whether or not that function was
   /// in the main source file.
   void addVisited(bool MainFile) {
@@ -367,10 +367,19 @@ private:
   llvm::DenseMap<llvm::StringRef, GlobalDecl> EmittedDeferredDecls;
 
   void addEmittedDeferredDecl(GlobalDecl GD) {
-    if (!llvm::isa<FunctionDecl>(GD.getDecl()))
+    // Reemission is only needed in incremental mode.
+    if (!Context.getLangOpts().IncrementalExtensions)
       return;
-    llvm::GlobalVariable::LinkageTypes L = getFunctionLinkage(GD);
-    if (llvm::GlobalValue::isLinkOnceLinkage(L) ||
+
+    // Assume a linkage by default that does not need reemission.
+    auto L = llvm::GlobalValue::ExternalLinkage;
+    if (llvm::isa<FunctionDecl>(GD.getDecl()))
+      L = getFunctionLinkage(GD);
+    else if (auto *VD = llvm::dyn_cast<VarDecl>(GD.getDecl()))
+      L = getLLVMLinkageVarDefinition(VD);
+
+    if (llvm::GlobalValue::isInternalLinkage(L) ||
+        llvm::GlobalValue::isLinkOnceLinkage(L) ||
         llvm::GlobalValue::isWeakLinkage(L)) {
       EmittedDeferredDecls[getMangledName(GD)] = GD;
     }
@@ -385,8 +394,7 @@ private:
   /// multiversion function resolvers and ifuncs are defined and emitted.
   std::vector<GlobalDecl> MultiVersionFuncs;
 
-  typedef llvm::StringMap<llvm::TrackingVH<llvm::Constant> > ReplacementsTy;
-  ReplacementsTy Replacements;
+  llvm::MapVector<StringRef, llvm::TrackingVH<llvm::Constant>> Replacements;
 
   /// List of global values to be replaced with something else. Used when we
   /// want to replace a GlobalValue but can't identify it by its mangled name
@@ -601,8 +609,6 @@ private:
   MetadataTypeMap MetadataIdMap;
   MetadataTypeMap VirtualMetadataIdMap;
   MetadataTypeMap GeneralizedMetadataIdMap;
-
-  llvm::DenseMap<const llvm::Constant *, llvm::GlobalVariable *> RTTIProxyMap;
 
   llvm::DenseMap<StringRef, const RecordDecl *> TypesWithAspects;
   const EnumDecl *AspectsEnumDecl = nullptr;
@@ -836,8 +842,6 @@ public:
     return getTBAAAccessInfo(AccessType);
   }
 
-  bool isTypeConstant(QualType QTy, bool ExcludeCtor, bool ExcludeDtor);
-
   bool isPaddedAtomicType(QualType type);
   bool isPaddedAtomicType(const AtomicType *type);
 
@@ -948,6 +952,13 @@ public:
   // Return the function body address of the given function.
   llvm::Constant *GetFunctionStart(const ValueDecl *Decl);
 
+  // Return whether RTTI information should be emitted for this target.
+  bool shouldEmitRTTI(bool ForEH = false) {
+    return (ForEH || getLangOpts().RTTI) && !getLangOpts().CUDAIsDevice &&
+           !(getLangOpts().OpenMP && getLangOpts().OpenMPIsTargetDevice &&
+             getTriple().isNVPTX());
+  }
+
   /// Get the address of the RTTI descriptor for the given type.
   llvm::Constant *GetAddrOfRTTIDescriptor(QualType Ty, bool ForEH = false);
 
@@ -1033,11 +1044,6 @@ public:
 
   /// Return a pointer to a constant CFString object for the given string.
   ConstantAddress GetAddrOfConstantCFString(const StringLiteral *Literal);
-
-  /// Return a pointer to a constant NSString object for the given string. Or a
-  /// user defined String object as defined via
-  /// -fconstant-string-class=class_name option.
-  ConstantAddress GetAddrOfConstantString(const StringLiteral *Literal);
 
   /// Return a constant array for the given string.
   llvm::Constant *GetConstantArrayFromStringLiteral(const StringLiteral *E);
@@ -1284,27 +1290,6 @@ public:
                               llvm::AttributeList &Attrs, unsigned &CallingConv,
                               bool AttrOnCallSite, bool IsThunk);
 
-  /// Adds attributes to F according to our CodeGenOptions and LangOptions, as
-  /// though we had emitted it ourselves.  We remove any attributes on F that
-  /// conflict with the attributes we add here.
-  ///
-  /// This is useful for adding attrs to bitcode modules that you want to link
-  /// with but don't control, such as CUDA's libdevice.  When linking with such
-  /// a bitcode library, you might want to set e.g. its functions'
-  /// "unsafe-fp-math" attribute to match the attr of the functions you're
-  /// codegen'ing.  Otherwise, LLVM will interpret the bitcode module's lack of
-  /// unsafe-fp-math attrs as tantamount to unsafe-fp-math=false, and then LLVM
-  /// will propagate unsafe-fp-math=false up to every transitive caller of a
-  /// function in the bitcode library!
-  ///
-  /// With the exception of fast-math attrs, this will only make the attributes
-  /// on the function more conservative.  But it's unsafe to call this on a
-  /// function which relies on particular fast-math attributes for correctness.
-  /// It's up to you to ensure that this is safe.
-  void addDefaultFunctionDefinitionAttributes(llvm::Function &F);
-  void mergeDefaultFunctionDefinitionAttributes(llvm::Function &F,
-                                                bool WillInternalize);
-
   /// Like the overload taking a `Function &`, but intended specifically
   /// for frontends that want to build on Clang's target-configuration logic.
   void addDefaultFunctionDefinitionAttributes(llvm::AttrBuilder &attrs);
@@ -1346,12 +1331,11 @@ public:
 
   /// Returns LLVM linkage for a declarator.
   llvm::GlobalValue::LinkageTypes
-  getLLVMLinkageForDeclarator(const DeclaratorDecl *D, GVALinkage Linkage,
-                              bool IsConstantVariable);
+  getLLVMLinkageForDeclarator(const DeclaratorDecl *D, GVALinkage Linkage);
 
   /// Returns LLVM linkage for a declarator.
   llvm::GlobalValue::LinkageTypes
-  getLLVMLinkageVarDefinition(const VarDecl *VD, bool IsConstant);
+  getLLVMLinkageVarDefinition(const VarDecl *VD);
 
   /// Emit all the global annotations.
   void EmitGlobalAnnotations();
@@ -1384,8 +1368,8 @@ public:
   void AddGlobalAnnotations(const ValueDecl *D, llvm::GlobalValue *GV);
 
   /// Emit additional args of the annotation.
-  llvm::Constant *
-  EmitSYCLAnnotationArgs(const SYCLAddIRAnnotationsMemberAttr *Attr);
+  llvm::Constant *EmitSYCLAnnotationArgs(
+      SmallVectorImpl<std::pair<std::string, std::string>> &Pairs);
 
   /// Add attributes from add_ir_attributes_global_variable on TND to GV.
   void AddGlobalSYCLIRAttributes(llvm::GlobalVariable *GV,
@@ -1538,11 +1522,8 @@ public:
   ///
   /// A most-base class of a class C is defined as a recursive base class of C,
   /// including C itself, that does not have any bases.
-  std::vector<const CXXRecordDecl *>
+  SmallVector<const CXXRecordDecl *, 0>
   getMostBaseClasses(const CXXRecordDecl *RD);
-
-  llvm::GlobalVariable *
-  GetOrCreateRTTIProxyGlobalVariable(llvm::Constant *Addr);
 
   /// Get the declaration of std::terminate for the platform.
   llvm::FunctionCallee getTerminateFn();
@@ -1594,8 +1575,28 @@ public:
   void moveLazyEmissionStates(CodeGenModule *NewBuilder);
 
   void getFPAccuracyFuncAttributes(StringRef Name,
-                                   llvm::AttributeList &AttrList, unsigned ID,
+                                   llvm::AttributeList &AttrList,
+                                   llvm::Metadata *&MDs, unsigned ID,
                                    const llvm::Type *FuncType);
+  /// Emit the IR encoding to attach the CUDA launch bounds attribute to \p F.
+  void handleCUDALaunchBoundsAttr(llvm::Function *F,
+                                  const CUDALaunchBoundsAttr *A);
+
+  /// Emit the IR encoding to attach the AMD GPU flat-work-group-size attribute
+  /// to \p F. Alternatively, the work group size can be taken from a \p
+  /// ReqdWGS.
+  void handleAMDGPUFlatWorkGroupSizeAttr(
+      llvm::Function *F, const AMDGPUFlatWorkGroupSizeAttr *A,
+      const ReqdWorkGroupSizeAttr *ReqdWGS = nullptr);
+
+  /// Emit the IR encoding to attach the AMD GPU waves-per-eu attribute to \p F.
+  void handleAMDGPUWavesPerEUAttr(llvm::Function *F,
+                                  const AMDGPUWavesPerEUAttr *A);
+
+  llvm::Constant *
+  GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty, LangAS AddrSpace,
+                        const VarDecl *D,
+                        ForDefinition_t IsForDefinition = NotForDefinition);
 
 private:
   llvm::Constant *GetOrCreateLLVMFunction(
@@ -1619,13 +1620,9 @@ private:
   void UpdateMultiVersionNames(GlobalDecl GD, const FunctionDecl *FD,
                                StringRef &CurName);
 
-  llvm::Constant *
-  GetOrCreateLLVMGlobal(StringRef MangledName, llvm::Type *Ty, LangAS AddrSpace,
-                        const VarDecl *D,
-                        ForDefinition_t IsForDefinition = NotForDefinition);
-
   bool GetCPUAndFeaturesAttributes(GlobalDecl GD,
-                                   llvm::AttrBuilder &AttrBuilder);
+                                   llvm::AttrBuilder &AttrBuilder,
+                                   bool SetTargetFeatures = true);
   void setNonAliasAttributes(GlobalDecl GD, llvm::GlobalObject *GO);
 
   /// Set function attributes for a function declaration.
@@ -1793,7 +1790,7 @@ private:
 
   void getDefaultFunctionFPAccuracyAttributes(StringRef Name,
                                               llvm::AttrBuilder &FuncAttrs,
-                                              unsigned ID,
+                                              llvm::Metadata *&MD, unsigned ID,
                                               const llvm::Type *FuncType);
 
   llvm::Metadata *CreateMetadataIdentifierImpl(QualType T, MetadataTypeMap &Map,

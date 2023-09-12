@@ -66,8 +66,9 @@ protected:
   }
 
   std::multimap<size_t, std::vector<Header>>
-  offsetToProviders(TestAST &AST, SourceManager &SM,
+  offsetToProviders(TestAST &AST,
                     llvm::ArrayRef<SymbolReference> MacroRefs = {}) {
+    const auto &SM = AST.sourceManager();
     llvm::SmallVector<Decl *> TopLevelDecls;
     for (Decl *D : AST.context().getTranslationUnitDecl()->decls()) {
       if (!SM.isWrittenInMainFile(SM.getExpansionLoc(D->getLocation())))
@@ -75,7 +76,7 @@ protected:
       TopLevelDecls.emplace_back(D);
     }
     std::multimap<size_t, std::vector<Header>> OffsetToProviders;
-    walkUsed(TopLevelDecls, MacroRefs, &PI, SM,
+    walkUsed(TopLevelDecls, MacroRefs, &PI, AST.preprocessor(),
              [&](const SymbolReference &Ref, llvm::ArrayRef<Header> Providers) {
                auto [FID, Offset] = SM.getDecomposedLoc(Ref.RefLocation);
                if (FID != SM.getMainFileID())
@@ -91,7 +92,8 @@ TEST_F(WalkUsedTest, Basic) {
   #include "header.h"
   #include "private.h"
 
-  void $bar^bar($private^Private $p^p) {
+  // No reference reported for the Parameter "p".
+  void $bar^bar($private^Private p) {
     $foo^foo();
     std::$vector^vector $vconstructor^$v^v;
     $builtin^__builtin_popcount(1);
@@ -117,10 +119,9 @@ TEST_F(WalkUsedTest, Basic) {
   auto VectorSTL = Header(*tooling::stdlib::Header::named("<vector>"));
   auto UtilitySTL = Header(*tooling::stdlib::Header::named("<utility>"));
   EXPECT_THAT(
-      offsetToProviders(AST, SM),
+      offsetToProviders(AST),
       UnorderedElementsAre(
           Pair(Code.point("bar"), UnorderedElementsAre(MainFile)),
-          Pair(Code.point("p"), UnorderedElementsAre(MainFile)),
           Pair(Code.point("private"),
                UnorderedElementsAre(PublicFile, PrivateFile)),
           Pair(Code.point("foo"), UnorderedElementsAre(HeaderFile)),
@@ -155,7 +156,7 @@ TEST_F(WalkUsedTest, MultipleProviders) {
   auto HeaderFile2 = Header(AST.fileManager().getFile("header2.h").get());
   auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
   EXPECT_THAT(
-      offsetToProviders(AST, SM),
+      offsetToProviders(AST),
       Contains(Pair(Code.point("foo"),
                     UnorderedElementsAre(HeaderFile1, HeaderFile2, MainFile))));
 }
@@ -171,24 +172,25 @@ TEST_F(WalkUsedTest, MacroRefs) {
   Inputs.ExtraFiles["hdr.h"] = Hdr.code();
   TestAST AST(Inputs);
   auto &SM = AST.sourceManager();
+  auto &PP = AST.preprocessor();
   const auto *HdrFile = SM.getFileManager().getFile("hdr.h").get();
   auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
 
   auto HdrID = SM.translateFile(HdrFile);
 
-  IdentifierTable Idents;
-  Symbol Answer1 =
-      Macro{&Idents.get("ANSWER"), SM.getComposedLoc(HdrID, Hdr.point())};
-  Symbol Answer2 =
-      Macro{&Idents.get("ANSWER"), SM.getComposedLoc(HdrID, Hdr.point())};
+  Symbol Answer1 = Macro{PP.getIdentifierInfo("ANSWER"),
+                         SM.getComposedLoc(HdrID, Hdr.point())};
+  Symbol Answer2 = Macro{PP.getIdentifierInfo("ANSWER"),
+                         SM.getComposedLoc(HdrID, Hdr.point())};
   EXPECT_THAT(
-      offsetToProviders(AST, SM,
-                        {SymbolReference{SM.getComposedLoc(SM.getMainFileID(),
-                                                           Code.point("1")),
-                                         Answer1, RefType::Explicit},
-                         SymbolReference{SM.getComposedLoc(SM.getMainFileID(),
-                                                           Code.point("2")),
-                                         Answer2, RefType::Explicit}}),
+      offsetToProviders(
+          AST,
+          {SymbolReference{
+               Answer1, SM.getComposedLoc(SM.getMainFileID(), Code.point("1")),
+               RefType::Explicit},
+           SymbolReference{
+               Answer2, SM.getComposedLoc(SM.getMainFileID(), Code.point("2")),
+               RefType::Explicit}}),
       UnorderedElementsAre(
           Pair(Code.point("1"), UnorderedElementsAre(HdrFile)),
           Pair(Code.point("2"), UnorderedElementsAre(HdrFile)),
@@ -239,8 +241,7 @@ int x = a + c;
   auto Decls = AST.context().getTranslationUnitDecl()->decls();
   auto Results =
       analyze(std::vector<Decl *>{Decls.begin(), Decls.end()},
-              PP.MacroReferences, PP.Includes, &PI, AST.sourceManager(),
-              AST.preprocessor().getHeaderSearchInfo());
+              PP.MacroReferences, PP.Includes, &PI, AST.preprocessor());
 
   const Include *B = PP.Includes.atLine(3);
   ASSERT_EQ(B->Spelled, "b.h");
@@ -256,8 +257,7 @@ TEST_F(AnalyzeTest, PrivateUsedInPublic) {
   Inputs.FileName = "public.h";
   TestAST AST(Inputs);
   EXPECT_FALSE(PP.Includes.all().empty());
-  auto Results = analyze({}, {}, PP.Includes, &PI, AST.sourceManager(),
-                         AST.preprocessor().getHeaderSearchInfo());
+  auto Results = analyze({}, {}, PP.Includes, &PI, AST.preprocessor());
   EXPECT_THAT(Results.Unused, testing::IsEmpty());
 }
 
@@ -267,13 +267,12 @@ TEST_F(AnalyzeTest, NoCrashWhenUnresolved) {
   Inputs.ErrorOK = true;
   TestAST AST(Inputs);
   EXPECT_FALSE(PP.Includes.all().empty());
-  auto Results = analyze({}, {}, PP.Includes, &PI, AST.sourceManager(),
-                         AST.preprocessor().getHeaderSearchInfo());
+  auto Results = analyze({}, {}, PP.Includes, &PI, AST.preprocessor());
   EXPECT_THAT(Results.Unused, testing::IsEmpty());
 }
 
 TEST(FixIncludes, Basic) {
-  llvm::StringRef Code = R"cpp(
+  llvm::StringRef Code = R"cpp(#include "d.h"
 #include "a.h"
 #include "b.h"
 #include <c.h>
@@ -299,12 +298,20 @@ TEST(FixIncludes, Basic) {
   Results.Unused.push_back(Inc.atLine(3));
   Results.Unused.push_back(Inc.atLine(4));
 
-  EXPECT_EQ(fixIncludes(Results, Code, format::getLLVMStyle()), R"cpp(
+  EXPECT_EQ(fixIncludes(Results, "d.cc", Code, format::getLLVMStyle()),
+R"cpp(#include "d.h"
 #include "a.h"
 #include "aa.h"
 #include "ab.h"
 #include <e.h>
 )cpp");
+
+  Results = {};
+  Results.Missing.push_back("\"d.h\"");
+  Code = R"cpp(#include "a.h")cpp";
+  EXPECT_EQ(fixIncludes(Results, "d.cc", Code, format::getLLVMStyle()),
+R"cpp(#include "d.h"
+#include "a.h")cpp");
 }
 
 MATCHER_P3(expandedAt, FileID, Offset, SM, "") {
@@ -400,7 +407,7 @@ TEST(WalkUsed, FilterRefsNotSpelledInMainFile) {
 
     SourceLocation RefLoc;
     walkUsed(TopLevelDecls, Recorded.MacroReferences,
-             /*PragmaIncludes=*/nullptr, SM,
+             /*PragmaIncludes=*/nullptr, AST.preprocessor(),
              [&](const SymbolReference &Ref, llvm::ArrayRef<Header>) {
                if (!Ref.RefLocation.isMacroID())
                  return;
@@ -421,16 +428,20 @@ TEST(WalkUsed, FilterRefsNotSpelledInMainFile) {
   }
 }
 
+struct Tag {
+  friend llvm::raw_ostream &operator<<(llvm::raw_ostream &OS, const Tag &T) {
+    return OS << "Anon Tag";
+  }
+};
 TEST(Hints, Ordering) {
-  struct Tag {};
   auto Hinted = [](Hints Hints) {
     return clang::include_cleaner::Hinted<Tag>({}, Hints);
   };
   EXPECT_LT(Hinted(Hints::None), Hinted(Hints::CompleteSymbol));
   EXPECT_LT(Hinted(Hints::CompleteSymbol), Hinted(Hints::PublicHeader));
-  EXPECT_LT(Hinted(Hints::PublicHeader), Hinted(Hints::PreferredHeader));
-  EXPECT_LT(Hinted(Hints::CompleteSymbol | Hints::PublicHeader),
-            Hinted(Hints::PreferredHeader));
+  EXPECT_LT(Hinted(Hints::PreferredHeader), Hinted(Hints::PublicHeader));
+  EXPECT_LT(Hinted(Hints::CompleteSymbol | Hints::PreferredHeader),
+            Hinted(Hints::PublicHeader));
 }
 
 // Test ast traversal & redecl selection end-to-end for templates, as explicit
@@ -459,7 +470,7 @@ TEST_F(WalkUsedTest, TemplateDecls) {
   const auto *Partial = SM.getFileManager().getFile("partial.h").get();
 
   EXPECT_THAT(
-      offsetToProviders(AST, SM),
+      offsetToProviders(AST),
       AllOf(Contains(
                 Pair(Code.point("exp_spec"), UnorderedElementsAre(Fwd, Def))),
             Contains(Pair(Code.point("exp"), UnorderedElementsAre(Fwd, Def))),
@@ -470,5 +481,29 @@ TEST_F(WalkUsedTest, TemplateDecls) {
                 Pair(Code.point("partial"), UnorderedElementsAre(Partial)))));
 }
 
+TEST_F(WalkUsedTest, IgnoresIdentityMacros) {
+  llvm::Annotations Code(R"cpp(
+  #include "header.h"
+  void $bar^bar() {
+    $stdin^stdin();
+  }
+  )cpp");
+  Inputs.Code = Code.code();
+  Inputs.ExtraFiles["header.h"] = guard(R"cpp(
+  #include "inner.h"
+  void stdin();
+  )cpp");
+  Inputs.ExtraFiles["inner.h"] = guard(R"cpp(
+  #define stdin stdin
+  )cpp");
+
+  TestAST AST(Inputs);
+  auto &SM = AST.sourceManager();
+  auto MainFile = Header(SM.getFileEntryForID(SM.getMainFileID()));
+  EXPECT_THAT(offsetToProviders(AST),
+              UnorderedElementsAre(
+                  // FIXME: we should have a reference from stdin to header.h
+                  Pair(Code.point("bar"), UnorderedElementsAre(MainFile))));
+}
 } // namespace
 } // namespace clang::include_cleaner

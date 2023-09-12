@@ -8,15 +8,14 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cassert>
-#include <iterator>
-#include <tuple>
-#include <type_traits>
+#include <array>   // for tuple_element
+#include <cstddef> // for size_t
+#include <tuple>   // for tuple
+#include <utility> // for make_index_sequence, index_sequence
+#include <variant> // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename... T> struct tuple;
@@ -189,7 +188,7 @@ template <> struct tuple<> {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

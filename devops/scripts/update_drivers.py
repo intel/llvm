@@ -52,6 +52,7 @@ def main(platform_tag):
 
     with open(config_name, "w") as f:
         json.dump(config, f, indent=2)
+        f.write('\n')
 
     return config[platform_tag]['compute_runtime']['version']
 

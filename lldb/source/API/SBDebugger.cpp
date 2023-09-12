@@ -39,10 +39,10 @@
 #include "lldb/Core/DebuggerEvents.h"
 #include "lldb/Core/PluginManager.h"
 #include "lldb/Core/Progress.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/StructuredDataImpl.h"
 #include "lldb/DataFormatters/DataVisualization.h"
 #include "lldb/Host/Config.h"
+#include "lldb/Host/StreamFile.h"
 #include "lldb/Host/XML.h"
 #include "lldb/Initialization/SystemLifetimeManager.h"
 #include "lldb/Interpreter/CommandInterpreter.h"
@@ -1399,9 +1399,9 @@ const char *SBDebugger::GetPrompt() const {
 
   Log *log = GetLog(LLDBLog::API);
 
-  LLDB_LOGF(log, "SBDebugger(%p)::GetPrompt () => \"%s\"",
-            static_cast<void *>(m_opaque_sp.get()),
-            (m_opaque_sp ? m_opaque_sp->GetPrompt().str().c_str() : ""));
+  LLDB_LOG(log, "SBDebugger({0:x})::GetPrompt () => \"{1}\"",
+           static_cast<void *>(m_opaque_sp.get()),
+           (m_opaque_sp ? m_opaque_sp->GetPrompt() : ""));
 
   return (m_opaque_sp ? ConstString(m_opaque_sp->GetPrompt()).GetCString()
                       : nullptr);
@@ -1538,14 +1538,11 @@ bool SBDebugger::SetCurrentPlatformSDKRoot(const char *sysroot) {
 bool SBDebugger::GetCloseInputOnEOF() const {
   LLDB_INSTRUMENT_VA(this);
 
-  return (m_opaque_sp ? m_opaque_sp->GetCloseInputOnEOF() : false);
+  return false;
 }
 
 void SBDebugger::SetCloseInputOnEOF(bool b) {
   LLDB_INSTRUMENT_VA(this, b);
-
-  if (m_opaque_sp)
-    m_opaque_sp->SetCloseInputOnEOF(b);
 }
 
 SBTypeCategory SBDebugger::GetCategory(const char *category_name) {

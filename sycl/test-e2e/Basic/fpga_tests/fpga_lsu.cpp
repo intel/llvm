@@ -35,8 +35,10 @@ int test_lsu(sycl::queue Queue) {
           input_buffer.get_access<sycl::access::mode::read>(cgh);
 
       cgh.single_task<class kernel>([=] {
-        auto input_ptr = input_accessor.get_pointer();
-        auto output_ptr = output_accessor.get_pointer();
+        auto input_ptr =
+            input_accessor.get_multi_ptr<sycl::access::decorated::no>();
+        auto output_ptr =
+            output_accessor.get_multi_ptr<sycl::access::decorated::no>();
 
         using PrefetchingLSU =
             sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,

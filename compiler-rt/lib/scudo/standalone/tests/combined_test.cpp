@@ -78,14 +78,72 @@ template <typename Config> struct TestAllocator : scudo::Allocator<Config> {
   }
   ~TestAllocator() { this->unmapTestOnly(); }
 
-  void *operator new(size_t size) {
-    void *p = nullptr;
-    EXPECT_EQ(0, posix_memalign(&p, alignof(TestAllocator), size));
-    return p;
+  void *operator new(size_t size);
+  void operator delete(void *ptr);
+};
+
+constexpr size_t kMaxAlign = std::max({
+  alignof(scudo::Allocator<scudo::DefaultConfig>),
+#if SCUDO_CAN_USE_PRIMARY64
+      alignof(scudo::Allocator<scudo::FuchsiaConfig>),
+#endif
+      alignof(scudo::Allocator<scudo::AndroidSvelteConfig>),
+      alignof(scudo::Allocator<scudo::AndroidConfig>)
+});
+
+#if SCUDO_RISCV64
+// The allocator is over 4MB large. Rather than creating an instance of this on
+// the heap, keep it in a global storage to reduce fragmentation from having to
+// mmap this at the start of every test.
+struct TestAllocatorStorage {
+  static constexpr size_t kMaxSize = std::max({
+    sizeof(scudo::Allocator<scudo::DefaultConfig>),
+#if SCUDO_CAN_USE_PRIMARY64
+        sizeof(scudo::Allocator<scudo::FuchsiaConfig>),
+#endif
+        sizeof(scudo::Allocator<scudo::AndroidSvelteConfig>),
+        sizeof(scudo::Allocator<scudo::AndroidConfig>)
+  });
+
+  // To alleviate some problem, let's skip the thread safety analysis here.
+  static void *get(size_t size) NO_THREAD_SAFETY_ANALYSIS {
+    assert(size <= kMaxSize &&
+           "Allocation size doesn't fit in the allocator storage");
+    M.lock();
+    return AllocatorStorage;
   }
 
-  void operator delete(void *ptr) { free(ptr); }
+  static void release(void *ptr) NO_THREAD_SAFETY_ANALYSIS {
+    M.assertHeld();
+    M.unlock();
+    ASSERT_EQ(ptr, AllocatorStorage);
+  }
+
+  static scudo::HybridMutex M;
+  static uint8_t AllocatorStorage[kMaxSize];
 };
+scudo::HybridMutex TestAllocatorStorage::M;
+alignas(kMaxAlign) uint8_t TestAllocatorStorage::AllocatorStorage[kMaxSize];
+#else
+struct TestAllocatorStorage {
+  static void *get(size_t size) NO_THREAD_SAFETY_ANALYSIS {
+    void *p = nullptr;
+    EXPECT_EQ(0, posix_memalign(&p, kMaxAlign, size));
+    return p;
+  }
+  static void release(void *ptr) NO_THREAD_SAFETY_ANALYSIS { free(ptr); }
+};
+#endif
+
+template <typename Config>
+void *TestAllocator<Config>::operator new(size_t size) {
+  return TestAllocatorStorage::get(size);
+}
+
+template <typename Config>
+void TestAllocator<Config>::operator delete(void *ptr) {
+  TestAllocatorStorage::release(ptr);
+}
 
 template <class TypeParam> struct ScudoCombinedTest : public Test {
   ScudoCombinedTest() {
@@ -154,9 +212,10 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
   for (scudo::uptr AlignLog = MinAlignLog; AlignLog <= 16U; AlignLog++) {
     const scudo::uptr Align = 1U << AlignLog;
     for (scudo::sptr Delta = -32; Delta <= 32; Delta++) {
-      if (static_cast<scudo::sptr>(1U << SizeLog) + Delta < 0)
+      if ((1LL << SizeLog) + Delta < 0)
         continue;
-      const scudo::uptr Size = (1U << SizeLog) + Delta;
+      const scudo::uptr Size =
+          static_cast<scudo::uptr>((1LL << SizeLog) + Delta);
       void *P = Allocator->allocate(Size, Origin, Align);
       EXPECT_NE(P, nullptr);
       EXPECT_TRUE(Allocator->isOwned(P));
@@ -169,6 +228,7 @@ void ScudoCombinedTest<Config>::BasicTest(scudo::uptr SizeLog) {
   }
 
   Allocator->printStats();
+  Allocator->printFragmentationInfo();
 }
 
 #define SCUDO_MAKE_BASIC_TEST(SizeLog)                                         \
@@ -333,7 +393,8 @@ SCUDO_TYPED_TEST(ScudoCombinedDeathTest, ReallocateSame) {
   const char Marker = 0xab;
   memset(P, Marker, ReallocSize);
   for (scudo::sptr Delta = -32; Delta < 32; Delta += 8) {
-    const scudo::uptr NewSize = ReallocSize + Delta;
+    const scudo::uptr NewSize =
+        static_cast<scudo::uptr>(static_cast<scudo::sptr>(ReallocSize) + Delta);
     void *NewP = Allocator->reallocate(P, NewSize);
     EXPECT_EQ(NewP, P);
     for (scudo::uptr I = 0; I < ReallocSize - 32; I++)
@@ -355,11 +416,13 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, IterateOverChunks) {
     std::vector<void *> V;
     for (scudo::uptr I = 0; I < 64U; I++)
       V.push_back(Allocator->allocate(
-          rand() % (TypeParam::Primary::SizeClassMap::MaxSize / 2U), Origin));
+          static_cast<scudo::uptr>(std::rand()) %
+              (TypeParam::Primary::SizeClassMap::MaxSize / 2U),
+          Origin));
     Allocator->disable();
     Allocator->iterateOverChunks(
         0U, static_cast<scudo::uptr>(SCUDO_MMAP_RANGE_SIZE - 1),
-        [](uintptr_t Base, size_t Size, void *Arg) {
+        [](uintptr_t Base, UNUSED size_t Size, void *Arg) {
           std::vector<void *> *V = reinterpret_cast<std::vector<void *> *>(Arg);
           void *P = reinterpret_cast<void *>(Base);
           EXPECT_NE(std::find(V->begin(), V->end(), P), V->end());
@@ -444,7 +507,9 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, CacheDrain) NO_THREAD_SAFETY_ANALYSIS {
   std::vector<void *> V;
   for (scudo::uptr I = 0; I < 64U; I++)
     V.push_back(Allocator->allocate(
-        rand() % (TypeParam::Primary::SizeClassMap::MaxSize / 2U), Origin));
+        static_cast<scudo::uptr>(std::rand()) %
+            (TypeParam::Primary::SizeClassMap::MaxSize / 2U),
+        Origin));
   for (auto P : V)
     Allocator->deallocate(P, Origin);
 
@@ -463,7 +528,9 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ForceCacheDrain) NO_THREAD_SAFETY_ANALYSIS {
   std::vector<void *> V;
   for (scudo::uptr I = 0; I < 64U; I++)
     V.push_back(Allocator->allocate(
-        rand() % (TypeParam::Primary::SizeClassMap::MaxSize / 2U), Origin));
+        static_cast<scudo::uptr>(std::rand()) %
+            (TypeParam::Primary::SizeClassMap::MaxSize / 2U),
+        Origin));
   for (auto P : V)
     Allocator->deallocate(P, Origin);
 
@@ -494,12 +561,16 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ThreadedCombined) {
       }
       std::vector<std::pair<void *, scudo::uptr>> V;
       for (scudo::uptr I = 0; I < 256U; I++) {
-        const scudo::uptr Size = std::rand() % 4096U;
+        const scudo::uptr Size = static_cast<scudo::uptr>(std::rand()) % 4096U;
         void *P = Allocator->allocate(Size, Origin);
         // A region could have ran out of memory, resulting in a null P.
         if (P)
           V.push_back(std::make_pair(P, Size));
       }
+
+      // Try to interleave pushBlocks(), popBatch() and releaseToOS().
+      Allocator->releaseToOS(scudo::ReleaseToOS::Force);
+
       while (!V.empty()) {
         auto Pair = V.back();
         Allocator->deallocate(Pair.first, Origin, Pair.second);
@@ -641,6 +712,7 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ReleaseToOS) {
 
 SCUDO_TYPED_TEST(ScudoCombinedTest, OddEven) {
   auto *Allocator = this->Allocator.get();
+  Allocator->setOption(scudo::Option::MemtagTuning, M_MEMTAG_TUNING_BUFFER_OVERFLOW);
 
   if (!Allocator->useMemoryTaggingTestOnly())
     return;
@@ -722,17 +794,17 @@ SCUDO_TYPED_TEST(ScudoCombinedTest, ReallocateInPlaceStress) {
 
   // Regression test: make realloc-in-place happen at the very right end of a
   // mapped region.
-  constexpr int nPtrs = 10000;
-  for (int i = 1; i < 32; ++i) {
+  constexpr size_t nPtrs = 10000;
+  for (scudo::uptr i = 1; i < 32; ++i) {
     scudo::uptr Size = 16 * i - 1;
     std::vector<void *> Ptrs;
-    for (int i = 0; i < nPtrs; ++i) {
+    for (size_t i = 0; i < nPtrs; ++i) {
       void *P = Allocator->allocate(Size, Origin);
       P = Allocator->reallocate(P, Size + 1);
       Ptrs.push_back(P);
     }
 
-    for (int i = 0; i < nPtrs; ++i)
+    for (size_t i = 0; i < nPtrs; ++i)
       Allocator->deallocate(Ptrs[i], Origin);
   }
 }
@@ -779,42 +851,4 @@ TEST(ScudoCombinedTest, BasicTrustyConfig) {
 }
 
 #endif
-#endif
-
-#if SCUDO_LINUX
-
-SCUDO_TYPED_TEST(ScudoCombinedTest, SoftRssLimit) {
-  auto *Allocator = this->Allocator.get();
-  Allocator->setRssLimitsTestOnly(1, 0, true);
-
-  size_t Megabyte = 1024 * 1024;
-  size_t ChunkSize = 16;
-  size_t Error = 256;
-
-  std::vector<void *> Ptrs;
-  for (size_t index = 0; index < Megabyte + Error; index += ChunkSize) {
-    void *Ptr = Allocator->allocate(ChunkSize, Origin);
-    Ptrs.push_back(Ptr);
-  }
-
-  EXPECT_EQ(nullptr, Allocator->allocate(ChunkSize, Origin));
-
-  for (void *Ptr : Ptrs)
-    Allocator->deallocate(Ptr, Origin);
-}
-
-SCUDO_TYPED_TEST(ScudoCombinedTest, HardRssLimit) {
-  auto *Allocator = this->Allocator.get();
-  Allocator->setRssLimitsTestOnly(0, 1, false);
-
-  size_t Megabyte = 1024 * 1024;
-
-  EXPECT_DEATH(
-      {
-        disableDebuggerdMaybe();
-        Allocator->allocate(Megabyte, Origin);
-      },
-      "");
-}
-
 #endif

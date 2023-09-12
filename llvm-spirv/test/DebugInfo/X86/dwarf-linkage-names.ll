@@ -3,21 +3,21 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -debugger-tune=sce < %t.ll | FileCheck %s -check-prefix NOLINKAGE
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown -debugger-tune=sce < %t.ll | FileCheck %s -check-prefix NOLINKAGE
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE1
 ; RUN: llc -O0 -mtriple=x86_64-unknown-unknown < %t.ll | FileCheck %s -check-prefix LINKAGE2
 ; RUN: llc -O0 -mtriple=x86_64-scei-ps4 < %t.ll | FileCheck %s -check-prefix NOLINKAGE
@@ -65,7 +65,7 @@ source_filename = "test/DebugInfo/X86/dwarf-linkage-names.ll"
 ; Function Attrs: nounwind uwtable
 define i32 @_ZN4test3barEv() #0 !dbg !11 {
 entry:
-  %0 = load i32, i32* @_ZN4test10global_varE, align 4, !dbg !14
+  %0 = load i32, ptr @_ZN4test10global_varE, align 4, !dbg !14
   ret i32 %0, !dbg !15
 }
 

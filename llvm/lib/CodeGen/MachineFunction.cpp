@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -210,6 +211,14 @@ void MachineFunction::init() {
   if (!F.hasFnAttribute(Attribute::OptimizeForSize))
     Alignment = std::max(Alignment,
                          STI->getTargetLowering()->getPrefFunctionAlignment());
+
+  // -fsanitize=function and -fsanitize=kcfi instrument indirect function calls
+  // to load a type hash before the function label. Ensure functions are aligned
+  // by a least 4 to avoid unaligned access, which is especially important for
+  // -mno-unaligned-access.
+  if (F.hasMetadata(LLVMContext::MD_func_sanitize) ||
+      F.getMetadata(LLVMContext::MD_kcfi_type))
+    Alignment = std::max(Alignment, Align(4));
 
   if (AlignAllFunctions)
     Alignment = Align(1ULL << AlignAllFunctions);
@@ -1235,6 +1244,7 @@ unsigned MachineJumpTableInfo::getEntrySize(const DataLayout &TD) const {
   case MachineJumpTableInfo::EK_BlockAddress:
     return TD.getPointerSize();
   case MachineJumpTableInfo::EK_GPRel64BlockAddress:
+  case MachineJumpTableInfo::EK_LabelDifference64:
     return 8;
   case MachineJumpTableInfo::EK_GPRel32BlockAddress:
   case MachineJumpTableInfo::EK_LabelDifference32:
@@ -1255,6 +1265,7 @@ unsigned MachineJumpTableInfo::getEntryAlignment(const DataLayout &TD) const {
   case MachineJumpTableInfo::EK_BlockAddress:
     return TD.getPointerABIAlignment(0).value();
   case MachineJumpTableInfo::EK_GPRel64BlockAddress:
+  case MachineJumpTableInfo::EK_LabelDifference64:
     return TD.getABIIntegerTypeAlignment(64).value();
   case MachineJumpTableInfo::EK_GPRel32BlockAddress:
   case MachineJumpTableInfo::EK_LabelDifference32:
@@ -1392,7 +1403,7 @@ MachineConstantPool::~MachineConstantPool() {
 }
 
 /// Test whether the given two constants can be allocated the same constant pool
-/// entry.
+/// entry referenced by \param A.
 static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
                                       const DataLayout &DL) {
   // Handle the trivial case quickly.
@@ -1411,6 +1422,8 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
   uint64_t StoreSize = DL.getTypeStoreSize(A->getType());
   if (StoreSize != DL.getTypeStoreSize(B->getType()) || StoreSize > 128)
     return false;
+
+  bool ContainsUndefOrPoisonA = A->containsUndefOrPoisonElement();
 
   Type *IntTy = IntegerType::get(A->getContext(), StoreSize*8);
 
@@ -1431,7 +1444,14 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
     B = ConstantFoldCastOperand(Instruction::BitCast, const_cast<Constant *>(B),
                                 IntTy, DL);
 
-  return A == B;
+  if (A != B)
+    return false;
+
+  // Constants only safely match if A doesn't contain undef/poison.
+  // As we'll be reusing A, it doesn't matter if B contain undef/poison.
+  // TODO: Handle cases where A and B have the same undef/poison elements.
+  // TODO: Merge A and B with mismatching undef/poison elements.
+  return !ContainsUndefOrPoisonA;
 }
 
 /// Create a new entry in the constant pool or return an existing one.
@@ -1485,6 +1505,17 @@ void MachineConstantPool::print(raw_ostream &OS) const {
     OS << ", align=" << Constants[i].getAlign().value();
     OS << "\n";
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Template specialization for MachineFunction implementation of
+// ProfileSummaryInfo::getEntryCount().
+//===----------------------------------------------------------------------===//
+template <>
+std::optional<Function::ProfileCount>
+ProfileSummaryInfo::getEntryCount<llvm::MachineFunction>(
+    const llvm::MachineFunction *F) const {
+  return F->getFunction().getEntryCount();
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)

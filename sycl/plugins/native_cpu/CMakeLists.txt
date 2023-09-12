@@ -1,8 +1,38 @@
 add_sycl_plugin(native_cpu
   SOURCES
-    pi_native_cpu.cpp
+    "pi_native_cpu.cpp"
+    "../unified_runtime/pi2ur.hpp"
+    "../unified_runtime/pi2ur.cpp"
+    "../unified_runtime/ur/ur.hpp"
+    "../unified_runtime/ur/ur.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/adapter.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/common.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/common.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/context.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/context.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/device.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/device.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/enqueue.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/event.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/image.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/kernel.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/kernel.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/memory.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/memory.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/platform.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/platform.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/program.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/program.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/queue.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/queue.hpp"
+    "../unified_runtime/ur/adapters/native_cpu/sampler.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/ur_interface_loader.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/usm.cpp"
+    "../unified_runtime/ur/adapters/native_cpu/usm_p2p.cpp"
   INCLUDE_DIRS
-    ${CMAKE_CURRENT_SOURCE_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}/../unified_runtime
   LIBRARIES
     sycl
+    UnifiedRuntime-Headers
 )

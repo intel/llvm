@@ -700,13 +700,12 @@ ModuleMap::findResolvedModulesForHeader(const FileEntry *File) const {
   return It->second;
 }
 
-bool ModuleMap::isHeaderInUnavailableModule(const FileEntry *Header) const {
+bool ModuleMap::isHeaderInUnavailableModule(FileEntryRef Header) const {
   return isHeaderUnavailableInModule(Header, nullptr);
 }
 
-bool
-ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
-                                       const Module *RequestingModule) const {
+bool ModuleMap::isHeaderUnavailableInModule(
+    FileEntryRef Header, const Module *RequestingModule) const {
   resolveHeaderDirectives(Header);
   HeadersMap::const_iterator Known = Headers.find(Header);
   if (Known != Headers.end()) {
@@ -734,8 +733,8 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
     return true;
   }
 
-  const DirectoryEntry *Dir = Header->getDir();
-  SmallVector<const DirectoryEntry *, 2> SkippedDirs;
+  OptionalDirectoryEntryRef Dir = Header.getDir();
+  SmallVector<DirectoryEntryRef, 2> SkippedDirs;
   StringRef DirName = Dir->getName();
 
   auto IsUnavailable = [&](const Module *M) {
@@ -746,8 +745,7 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
   // Keep walking up the directory hierarchy, looking for a directory with
   // an umbrella header.
   do {
-    llvm::DenseMap<const DirectoryEntry *, Module *>::const_iterator KnownDir
-      = UmbrellaDirs.find(Dir);
+    auto KnownDir = UmbrellaDirs.find(*Dir);
     if (KnownDir != UmbrellaDirs.end()) {
       Module *Found = KnownDir->second;
       if (IsUnavailable(Found))
@@ -761,11 +759,11 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
         UmbrellaModule = UmbrellaModule->Parent;
 
       if (UmbrellaModule->InferSubmodules) {
-        for (const DirectoryEntry *SkippedDir : llvm::reverse(SkippedDirs)) {
+        for (DirectoryEntryRef SkippedDir : llvm::reverse(SkippedDirs)) {
           // Find or create the module that corresponds to this directory name.
           SmallString<32> NameBuf;
           StringRef Name = sanitizeFilenameAsIdentifier(
-              llvm::sys::path::stem(SkippedDir->getName()), NameBuf);
+              llvm::sys::path::stem(SkippedDir.getName()), NameBuf);
           Found = lookupModuleQualified(Name, Found);
           if (!Found)
             return false;
@@ -776,7 +774,7 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
         // Infer a submodule with the same name as this header file.
         SmallString<32> NameBuf;
         StringRef Name = sanitizeFilenameAsIdentifier(
-                           llvm::sys::path::stem(Header->getName()),
+                           llvm::sys::path::stem(Header.getName()),
                            NameBuf);
         Found = lookupModuleQualified(Name, Found);
         if (!Found)
@@ -786,7 +784,7 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
       return IsUnavailable(Found);
     }
 
-    SkippedDirs.push_back(Dir);
+    SkippedDirs.push_back(*Dir);
 
     // Retrieve our parent path.
     DirName = llvm::sys::path::parent_path(DirName);
@@ -794,10 +792,7 @@ ModuleMap::isHeaderUnavailableInModule(const FileEntry *Header,
       break;
 
     // Resolve the parent path to a directory entry.
-    if (auto DirEntry = SourceMgr.getFileManager().getDirectory(DirName))
-      Dir = *DirEntry;
-    else
-      Dir = nullptr;
+    Dir = SourceMgr.getFileManager().getOptionalDirectoryRef(DirName);
   } while (Dir);
 
   return false;
@@ -1167,7 +1162,7 @@ void ModuleMap::setUmbrellaHeaderAsWritten(
     Module *Mod, FileEntryRef UmbrellaHeader, const Twine &NameAsWritten,
     const Twine &PathRelativeToRootModuleDirectory) {
   Headers[UmbrellaHeader].push_back(KnownHeader(Mod, NormalHeader));
-  Mod->Umbrella = &UmbrellaHeader.getMapEntry();
+  Mod->Umbrella = UmbrellaHeader;
   Mod->UmbrellaAsWritten = NameAsWritten.str();
   Mod->UmbrellaRelativeToRootModuleDirectory =
       PathRelativeToRootModuleDirectory.str();
@@ -1181,7 +1176,7 @@ void ModuleMap::setUmbrellaHeaderAsWritten(
 void ModuleMap::setUmbrellaDirAsWritten(
     Module *Mod, DirectoryEntryRef UmbrellaDir, const Twine &NameAsWritten,
     const Twine &PathRelativeToRootModuleDirectory) {
-  Mod->Umbrella = &UmbrellaDir.getMapEntry();
+  Mod->Umbrella = UmbrellaDir;
   Mod->UmbrellaAsWritten = NameAsWritten.str();
   Mod->UmbrellaRelativeToRootModuleDirectory =
       PathRelativeToRootModuleDirectory.str();
@@ -1273,8 +1268,7 @@ void ModuleMap::addHeader(Module *Mod, Module::Header Header,
   HeaderList.push_back(KH);
   Mod->Headers[headerRoleToKind(Role)].push_back(Header);
 
-  bool isCompilingModuleHeader =
-      LangOpts.isCompilingModule() && Mod->getTopLevelModule() == SourceModule;
+  bool isCompilingModuleHeader = Mod->isForBuilding(LangOpts);
   if (!Imported || isCompilingModuleHeader) {
     // When we import HeaderFileInfo, the external source is expected to
     // set the isModuleHeader flag itself.
@@ -1324,24 +1318,14 @@ ModuleMap::canonicalizeModuleMapPath(SmallVectorImpl<char> &Path) {
   }
 
   FileManager &FM = SourceMgr.getFileManager();
-  auto DirEntry = FM.getDirectory(Dir.empty() ? "." : Dir);
+  auto DirEntry = FM.getDirectoryRef(Dir.empty() ? "." : Dir);
   if (!DirEntry)
-    return DirEntry.getError();
+    return llvm::errorToErrorCode(DirEntry.takeError());
 
   // Canonicalize the directory.
   StringRef CanonicalDir = FM.getCanonicalName(*DirEntry);
-  if (CanonicalDir != Dir) {
-    auto CanonicalDirEntry = FM.getDirectory(CanonicalDir);
-    // Only use the canonicalized path if it resolves to the same entry as the
-    // original. This is not true if there's a VFS overlay on top of a FS where
-    // the directory is a symlink. The overlay would not remap the target path
-    // of the symlink to the same directory entry in that case.
-    if (CanonicalDirEntry && *CanonicalDirEntry == *DirEntry) {
-      bool Done = llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
-      (void)Done;
-      assert(Done && "Path should always start with Dir");
-    }
-  }
+  if (CanonicalDir != Dir)
+    llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
 
   // In theory, the filename component should also be canonicalized if it
   // on a case-insensitive filesystem. However, the extra canonicalization is
@@ -2031,10 +2015,28 @@ void ModuleMapParser::parseModuleDecl() {
   Module *ShadowingModule = nullptr;
   if (Module *Existing = Map.lookupModuleQualified(ModuleName, ActiveModule)) {
     // We might see a (re)definition of a module that we already have a
-    // definition for in two cases:
+    // definition for in four cases:
     //  - If we loaded one definition from an AST file and we've just found a
     //    corresponding definition in a module map file, or
-    bool LoadedFromASTFile = Existing->DefinitionLoc.isInvalid();
+    bool LoadedFromASTFile = Existing->IsFromModuleFile;
+    //  - If we previously inferred this module from different module map file.
+    bool Inferred = Existing->IsInferred;
+    //  - If we're building a framework that vends a module map, we might've
+    //    previously seen the one in intermediate products and now the system
+    //    one.
+    // FIXME: If we're parsing module map file that looks like this:
+    //          framework module FW { ... }
+    //          module FW.Sub { ... }
+    //        We can't check the framework qualifier, since it's not attached to
+    //        the definition of Sub. Checking that qualifier on \c Existing is
+    //        not correct either, since we might've previously seen:
+    //          module FW { ... }
+    //          module FW.Sub { ... }
+    //        We should enforce consistency of redefinitions so that we can rely
+    //        that \c Existing is part of a framework iff the redefinition of FW
+    //        we have just skipped had it too. Once we do that, stop checking
+    //        the local framework qualifier and only rely on \c Existing.
+    bool PartOfFramework = Framework || Existing->isPartOfFramework();
     //  - If we're building a (preprocessed) module and we've just loaded the
     //    module map file from which it was created.
     bool ParsedAsMainInput =
@@ -2042,7 +2044,8 @@ void ModuleMapParser::parseModuleDecl() {
         Map.LangOpts.CurrentModule == ModuleName &&
         SourceMgr.getDecomposedLoc(ModuleNameLoc).first !=
             SourceMgr.getDecomposedLoc(Existing->DefinitionLoc).first;
-    if (!ActiveModule && (LoadedFromASTFile || ParsedAsMainInput)) {
+    if (LoadedFromASTFile || Inferred || PartOfFramework || ParsedAsMainInput) {
+      ActiveModule = PreviousActiveModule;
       // Skip the module definition.
       skipUntil(MMToken::RBrace);
       if (Tok.is(MMToken::RBrace))
@@ -2471,7 +2474,7 @@ void ModuleMapParser::parseHeaderDecl(MMToken::TokenKind LeadingToken,
   bool NeedsFramework = false;
   Map.addUnresolvedHeader(ActiveModule, std::move(Header), NeedsFramework);
 
-  if (NeedsFramework && ActiveModule)
+  if (NeedsFramework)
     Diags.Report(CurrModuleDeclLoc, diag::note_mmap_add_framework_keyword)
       << ActiveModule->getFullModuleName()
       << FixItHint::CreateReplacement(CurrModuleDeclLoc, "framework module");

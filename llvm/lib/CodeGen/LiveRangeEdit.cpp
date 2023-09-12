@@ -286,8 +286,12 @@ void LiveRangeEdit::eliminateDeadDef(MachineInstr *MI, ToShrinkSet &ToShrink) {
 
   // Never delete a bundled instruction.
   if (MI->isBundled()) {
+    // TODO: Handle deleting copy bundles
+    LLVM_DEBUG(dbgs() << "Won't delete dead bundled inst: " << Idx << '\t'
+                      << *MI);
     return;
   }
+
   // Never delete inline asm.
   if (MI->isInlineAsm()) {
     LLVM_DEBUG(dbgs() << "Won't delete: " << Idx << '\t' << *MI);
@@ -348,7 +352,8 @@ void LiveRangeEdit::eliminateDeadDef(MachineInstr *MI, ToShrinkSet &ToShrink) {
     // unlikely to change anything. We typically don't want to shrink the
     // PIC base register that has lots of uses everywhere.
     // Always shrink COPY uses that probably come from live range splitting.
-    if ((MI->readsVirtualRegister(Reg) && (MI->isCopy() || MO.isDef())) ||
+    if ((MI->readsVirtualRegister(Reg) &&
+         (MO.isDef() || TII.isCopyInstr(*MI))) ||
         (MO.readsReg() && (MRI.hasOneNonDBGUse(Reg) || useIsKill(LI, MO))))
       ToShrink.insert(&LI);
     else if (MO.readsReg())

@@ -315,7 +315,7 @@ class RegisterClass<string namespace, list<ValueType> regTypes, int alignment,
   string DiagnosticType = "";
 
   // A diagnostic message to emit when an invalid value is provided for this
-  // register class when it is being used an an assembly operand. If this is
+  // register class when it is being used as an assembly operand. If this is
   // non-empty, an anonymous diagnostic type enum value will be generated, and
   // the assembly matcher will provide a function to map from diagnostic types
   // to message strings.
@@ -1410,6 +1410,14 @@ def MEMBARRIER : StandardPseudoInstruction {
   let Size = 0;
   let isMeta = true;
 }
+def JUMP_TABLE_DEBUG_INFO : StandardPseudoInstruction {
+  let OutOperandList = (outs);
+  let InOperandList = (ins i64imm:$jti);
+  let AsmString = "";
+  let hasSideEffects = false;
+  let Size = 0;
+  let isMeta = true;
+}
 
 // Generic opcodes used in GlobalISel.
 include "llvm/Target/GenericOpcodes.td"
@@ -1657,18 +1665,24 @@ class Target {
 //===----------------------------------------------------------------------===//
 // SubtargetFeature - A characteristic of the chip set.
 //
-class SubtargetFeature<string n, string a,  string v, string d,
+class SubtargetFeature<string n, string f, string v, string d,
                        list<SubtargetFeature> i = []> {
   // Name - Feature name.  Used by command line (-mattr=) to determine the
   // appropriate target chip.
   //
   string Name = n;
 
-  // Attribute - Attribute to be set by feature.
+  // FieldName - Field in XXXSubtarget to be set by feature.
   //
-  string Attribute = a;
+  string FieldName = f;
 
-  // Value - Value the attribute to be set to by feature.
+  // Value - Value the XXXSubtarget field to be set to by feature.
+  //
+  // A value of "true" or "false" implies the field is a bool. Otherwise,
+  // it is assumed to be an integer. the integer value may be the name of an
+  // enum constant. If multiple features use the same integer field, the
+  // field will be set to the maximum value of all enabled features that
+  // share the field.
   //
   string Value = v;
 

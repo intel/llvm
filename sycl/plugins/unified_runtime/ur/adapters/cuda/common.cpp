@@ -1,10 +1,10 @@
-//===--------- common.cpp - CUDA Adapter -----------------------------===//
+//===--------- common.cpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 
@@ -39,7 +39,7 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
     return UR_RESULT_SUCCESS;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr ||
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
       std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *ErrorString = nullptr;
     const char *ErrorName = nullptr;
@@ -64,6 +64,30 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
   throw mapErrorUR(Result);
 }
 
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                         const char *File) {
+  if (Result == UR_RESULT_SUCCESS) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    std::stringstream SS;
+    SS << "\nUR ERROR:"
+       << "\n\tValue:           " << Result
+       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+       << ":" << Line << "\n"
+       << std::endl;
+    std::cerr << SS.str();
+  }
+
+  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw Result;
+}
+
 std::string getCudaVersionString() {
   int driver_version = 0;
   cuDriverGetVersion(&driver_version);
@@ -74,17 +98,17 @@ std::string getCudaVersionString() {
   return stream.str();
 }
 
-void sycl::detail::ur::die(const char *Message) {
+void detail::ur::die(const char *Message) {
   std::cerr << "ur_die: " << Message << std::endl;
   std::terminate();
 }
 
-void sycl::detail::ur::assertion(bool Condition, const char *Message) {
+void detail::ur::assertion(bool Condition, const char *Message) {
   if (!Condition)
     die(Message);
 }
 
-void sycl::detail::ur::cuPrint(const char *Message) {
+void detail::ur::cuPrint(const char *Message) {
   std::cerr << "ur_print: " << Message << std::endl;
 }
 
@@ -100,9 +124,16 @@ thread_local char ErrorMessage[MaxMessageSize];
   ErrorMessageCode = ErrorCode;
 }
 
-// Returns plugin specific error and warning messages; common implementation
-// that can be shared between adapters
-ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
-  *ppMessage = &ErrorMessage[0];
-  return ErrorMessageCode;
+void setPluginSpecificMessage(CUresult cu_res) {
+  const char *error_string;
+  const char *error_name;
+  cuGetErrorName(cu_res, &error_name);
+  cuGetErrorString(cu_res, &error_string);
+  char *message = (char *)malloc(strlen(error_string) + strlen(error_name) + 2);
+  strcpy(message, error_name);
+  strcat(message, "\n");
+  strcat(message, error_string);
+
+  setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
+  free(message);
 }

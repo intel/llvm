@@ -10,15 +10,16 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
+#include <sycl/detail/iostream_proxy.hpp> // for cerr
 
-#include <cstddef>
+#include <cstddef>   // for size_t
+#include <exception> // for exception_ptr, exception
+#include <ostream>   // for operator<<, basic_ostream
+#include <vector>    // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 namespace detail {
@@ -51,8 +52,6 @@ private:
   std::vector<std::exception_ptr> MList;
 };
 
-using async_handler = std::function<void(sycl::exception_list)>;
-
 namespace detail {
 // Default implementation of async_handler used by queue and context when no
 // user-defined async_handler is specified.
@@ -71,5 +70,5 @@ inline void defaultAsyncHandler(exception_list Exceptions) {
   std::terminate();
 }
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

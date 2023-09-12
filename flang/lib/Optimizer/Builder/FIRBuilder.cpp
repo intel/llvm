@@ -205,6 +205,21 @@ mlir::Block *fir::FirOpBuilder::getAllocaBlock() {
   return iface ? iface.getAllocaBlock() : getEntryBlock();
 }
 
+mlir::Value fir::FirOpBuilder::createTemporaryAlloc(
+    mlir::Location loc, mlir::Type type, llvm::StringRef name,
+    mlir::ValueRange lenParams, mlir::ValueRange shape,
+    llvm::ArrayRef<mlir::NamedAttribute> attrs) {
+  assert(!type.isa<fir::ReferenceType>() && "cannot be a reference");
+  // If the alloca is inside an OpenMP Op which will be outlined then pin
+  // the alloca here.
+  const bool pinned =
+      getRegion().getParentOfType<mlir::omp::OutlineableOpenMPOpInterface>();
+  mlir::Value temp =
+      create<fir::AllocaOp>(loc, type, /*unique_name=*/llvm::StringRef{}, name,
+                            pinned, lenParams, shape, attrs);
+  return temp;
+}
+
 /// Create a temporary variable on the stack. Anonymous temporaries have no
 /// `name` value. Temporaries do not require a uniqued name.
 mlir::Value
@@ -223,14 +238,9 @@ fir::FirOpBuilder::createTemporary(mlir::Location loc, mlir::Type type,
     setInsertionPointToStart(getAllocaBlock());
   }
 
-  // If the alloca is inside an OpenMP Op which will be outlined then pin the
-  // alloca here.
-  const bool pinned =
-      getRegion().getParentOfType<mlir::omp::OutlineableOpenMPOpInterface>();
-  assert(!type.isa<fir::ReferenceType>() && "cannot be a reference");
-  auto ae =
-      create<fir::AllocaOp>(loc, type, /*unique_name=*/llvm::StringRef{}, name,
-                            pinned, dynamicLength, dynamicShape, attrs);
+  mlir::Value ae =
+      createTemporaryAlloc(loc, type, name, dynamicLength, dynamicShape, attrs);
+
   if (hoistAlloc)
     restoreInsertionPoint(insPt);
   return ae;
@@ -999,9 +1009,7 @@ fir::ExtendedValue fir::factory::createStringLiteral(fir::FirOpBuilder &builder,
           auto stringLitOp = builder.createStringLitOp(loc, str);
           builder.create<fir::HasValueOp>(loc, stringLitOp);
         },
-        builder.createInternalLinkage());
-  // TODO: This can be changed to linkonce linkage once we have support for
-  // generating comdat sections
+        builder.createLinkOnceLinkage());
   auto addr = builder.create<fir::AddrOfOp>(loc, global.resultType(),
                                             global.getSymbol());
   auto len = builder.createIntegerConstant(
@@ -1138,7 +1146,9 @@ fir::ExtendedValue fir::factory::arraySectionElementToExtendedValue(
 void fir::factory::genScalarAssignment(fir::FirOpBuilder &builder,
                                        mlir::Location loc,
                                        const fir::ExtendedValue &lhs,
-                                       const fir::ExtendedValue &rhs) {
+                                       const fir::ExtendedValue &rhs,
+                                       bool needFinalization,
+                                       bool isTemporaryLHS) {
   assert(lhs.rank() == 0 && rhs.rank() == 0 && "must be scalars");
   auto type = fir::unwrapSequenceType(
       fir::unwrapPassByRefType(fir::getBase(lhs).getType()));
@@ -1150,7 +1160,8 @@ void fir::factory::genScalarAssignment(fir::FirOpBuilder &builder,
     helper.createAssign(fir::ExtendedValue{*toChar},
                         fir::ExtendedValue{*fromChar});
   } else if (type.isa<fir::RecordType>()) {
-    fir::factory::genRecordAssignment(builder, loc, lhs, rhs);
+    fir::factory::genRecordAssignment(builder, loc, lhs, rhs, needFinalization,
+                                      isTemporaryLHS);
   } else {
     assert(!fir::hasDynamicSize(type));
     auto rhsVal = fir::getBase(rhs);
@@ -1166,7 +1177,8 @@ void fir::factory::genScalarAssignment(fir::FirOpBuilder &builder,
 static void genComponentByComponentAssignment(fir::FirOpBuilder &builder,
                                               mlir::Location loc,
                                               const fir::ExtendedValue &lhs,
-                                              const fir::ExtendedValue &rhs) {
+                                              const fir::ExtendedValue &rhs,
+                                              bool isTemporaryLHS) {
   auto lbaseType = fir::unwrapPassByRefType(fir::getBase(lhs).getType());
   auto lhsType = lbaseType.dyn_cast<fir::RecordType>();
   assert(lhsType && "lhs must be a scalar record type");
@@ -1229,7 +1241,12 @@ static void genComponentByComponentAssignment(fir::FirOpBuilder &builder,
       auto from =
           fir::factory::componentToExtendedValue(builder, loc, fromCoor);
       auto to = fir::factory::componentToExtendedValue(builder, loc, toCoor);
-      fir::factory::genScalarAssignment(builder, loc, to, from);
+      // If LHS finalization is needed it is expected to be done
+      // for the parent record, so that component-by-component
+      // assignments may avoid finalization calls.
+      fir::factory::genScalarAssignment(builder, loc, to, from,
+                                        /*needFinalization=*/false,
+                                        isTemporaryLHS);
     }
     if (outerLoop)
       builder.setInsertionPointAfter(*outerLoop);
@@ -1260,7 +1277,8 @@ void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
                                        mlir::Location loc,
                                        const fir::ExtendedValue &lhs,
                                        const fir::ExtendedValue &rhs,
-                                       bool needFinalization) {
+                                       bool needFinalization,
+                                       bool isTemporaryLHS) {
   assert(lhs.rank() == 0 && rhs.rank() == 0 && "assume scalar assignment");
   auto baseTy = fir::dyn_cast_ptrOrBoxEleTy(fir::getBase(lhs).getType());
   assert(baseTy && "must be a memory type");
@@ -1281,7 +1299,10 @@ void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
     // TODO: does this holds true with polymorphic entities ?
     auto toMutableBox = builder.createTemporary(loc, to.getType());
     builder.create<fir::StoreOp>(loc, to, toMutableBox);
-    fir::runtime::genAssign(builder, loc, toMutableBox, from);
+    if (isTemporaryLHS)
+      fir::runtime::genAssignTemporary(builder, loc, toMutableBox, from);
+    else
+      fir::runtime::genAssign(builder, loc, toMutableBox, from);
     return;
   }
 
@@ -1299,7 +1320,7 @@ void fir::factory::genRecordAssignment(fir::FirOpBuilder &builder,
   // leads to issues in LLVM (long compile times, long IR files, and even
   // asserts at some point). Since there is no good size boundary, just always
   // use component by component assignment here.
-  genComponentByComponentAssignment(builder, loc, lhs, rhs);
+  genComponentByComponentAssignment(builder, loc, lhs, rhs, isTemporaryLHS);
 }
 
 mlir::TupleType
@@ -1468,6 +1489,17 @@ fir::BoxValue fir::factory::createBoxValue(fir::FirOpBuilder &builder,
         explicitTypeParams.emplace_back(box.getLen());
       },
       [&](const fir::MutableBoxValue &x) {
+        if (x.rank() > 0) {
+          // The resulting box lbounds must be coming from the mutable box.
+          fir::ExtendedValue boxVal =
+              fir::factory::genMutableBoxRead(builder, loc, x);
+          // Make sure we do not recurse infinitely.
+          if (boxVal.getBoxOf<fir::MutableBoxValue>())
+            fir::emitFatalError(loc, "mutable box read cannot be mutable box");
+          fir::BoxValue box =
+              fir::factory::createBoxValue(builder, loc, boxVal);
+          lbounds.append(box.getLBounds().begin(), box.getLBounds().end());
+        }
         explicitTypeParams.append(x.nonDeferredLenParams().begin(),
                                   x.nonDeferredLenParams().end());
       },

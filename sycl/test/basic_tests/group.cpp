@@ -35,13 +35,13 @@ int main() {
     one_dim.get_local_id();
     assert(one_dim.get_local_id(0) == one_dim.get_local_id()[0]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 
   try {
     one_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 
   // two dimension group
@@ -68,13 +68,13 @@ int main() {
     assert(two_dim.get_local_id(0) == two_dim.get_local_id()[0]);
     assert(two_dim.get_local_id(1) == two_dim.get_local_id()[1]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 
   try {
     two_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 
   // three dimension group
@@ -108,12 +108,12 @@ int main() {
     assert(three_dim.get_local_id(1) == three_dim.get_local_id()[1]);
     assert(three_dim.get_local_id(2) == three_dim.get_local_id()[2]);
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 
   try {
     three_dim.get_local_linear_id();
     assert(0); // get_local_id() is not implemented on host device
-  } catch (sycl::runtime_error) {
+  } catch (sycl::exception) {
   }
 }

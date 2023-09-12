@@ -13,8 +13,13 @@ add_mlir_dialect_library(MLIRTransformDialect
 
   LINK_LIBS PUBLIC
   MLIRCastInterfaces
+  MLIRFunctionInterfaces
   MLIRIR
+  MLIRLLVMCommonConversion
+  MLIRLLVMDialect
+  MLIRLoopLikeInterface
   MLIRParser
+  MLIRPass
   MLIRRewrite
   MLIRSideEffectInterfaces
   MLIRTransforms

@@ -20,7 +20,6 @@
 #include "lldb/Core/Declaration.h"
 #include "lldb/Core/Module.h"
 #include "lldb/Core/Section.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/Value.h"
 #include "lldb/Core/ValueObject.h"
 #include "lldb/Core/ValueObjectConstResult.h"
@@ -668,7 +667,7 @@ SBValue SBValue::GetChildAtIndex(uint32_t idx,
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
     const bool can_create = true;
-    child_sp = value_sp->GetChildAtIndex(idx, can_create);
+    child_sp = value_sp->GetChildAtIndex(idx);
     if (can_create_synthetic && !child_sp) {
       child_sp = value_sp->GetSyntheticArrayMember(idx, can_create);
     }
@@ -715,7 +714,7 @@ SBValue::GetChildMemberWithName(const char *name,
   ValueLocker locker;
   lldb::ValueObjectSP value_sp(GetSP(locker));
   if (value_sp) {
-    child_sp = value_sp->GetChildMemberWithName(name, true);
+    child_sp = value_sp->GetChildMemberWithName(name);
   }
 
   SBValue sb_value;

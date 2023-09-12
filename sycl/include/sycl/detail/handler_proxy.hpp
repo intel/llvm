@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/access/access.hpp> // for image_target, target
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class handler;
 
@@ -37,5 +37,5 @@ __SYCL_EXPORT void
 associateWithHandler(handler &, SampledImageAccessorBaseHost *, image_target);
 #endif
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

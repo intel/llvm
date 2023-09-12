@@ -13,7 +13,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using KernelBundleImplPtr = std::shared_ptr<detail::kernel_bundle_impl>;
@@ -104,8 +104,21 @@ public:
 
   sycl::detail::pi::PiKernelCacheConfig MKernelCacheConfig =
       PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+
+  // Extra information for bindless image copy
+  sycl::detail::pi::PiMemImageDesc MImageDesc;
+  sycl::detail::pi::PiMemImageFormat MImageFormat;
+  sycl::detail::pi::PiImageCopyFlags MImageCopyFlags;
+
+  sycl::detail::pi::PiImageOffset MSrcOffset;
+  sycl::detail::pi::PiImageOffset MDestOffset;
+  sycl::detail::pi::PiImageRegion MHostExtent;
+  sycl::detail::pi::PiImageRegion MCopyExtent;
+
+  // Extra information for semaphore interoperability
+  sycl::detail::pi::PiInteropSemaphoreHandle MInteropSemaphoreHandle;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

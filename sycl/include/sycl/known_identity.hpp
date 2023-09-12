@@ -8,14 +8,22 @@
 
 #pragma once
 
-#include <functional>
-#include <limits>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/functional.hpp>
-#include <type_traits>
+#include <sycl/aliases.hpp>                    // for half
+#include <sycl/detail/generic_type_traits.hpp> // for is_genbool, is_genint...
+#include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
+#include <sycl/half_type.hpp>                  // for half
+#include <sycl/marray.hpp>                     // for marray
+#include <sycl/types.hpp>                      // for vec
+
+#include <complex>     // for complex
+#include <cstddef>     // for byte, size_t
+#include <functional>  // for logical_and, logical_or
+#include <limits>      // for numeric_limits
+#include <stdint.h>    // for uint16_t
+#include <type_traits> // for enable_if_t, bool_con...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T, class BinaryOperation>
@@ -408,5 +416,5 @@ template <typename BinaryOperation, typename AccumulatorT>
 inline constexpr AccumulatorT known_identity_v =
     sycl::known_identity<BinaryOperation, AccumulatorT>::value;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

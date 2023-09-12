@@ -385,17 +385,20 @@ static APInt trimTrailingZerosInVector(InstCombiner &IC, Value *UseV,
   APInt DemandedElts = APInt::getAllOnes(VWidth);
 
   for (int i = VWidth - 1; i > 0; --i) {
-    APInt DemandOneElt = APInt::getOneBitSet(VWidth, i);
-    KnownFPClass KnownFPClass =
-        computeKnownFPClass(UseV, DemandOneElt, IC.getDataLayout(),
-                            /*InterestedClasses=*/fcAllFlags,
-                            /*Depth=*/0, &IC.getTargetLibraryInfo(),
-                            &IC.getAssumptionCache(), I,
-                            &IC.getDominatorTree());
-    if (KnownFPClass.KnownFPClasses != fcPosZero)
+    auto *Elt = findScalarElement(UseV, i);
+    if (!Elt)
       break;
+
+    if (auto *ConstElt = dyn_cast<Constant>(Elt)) {
+      if (!ConstElt->isNullValue() && !isa<UndefValue>(Elt))
+        break;
+    } else {
+      break;
+    }
+
     DemandedElts.clearBit(i);
   }
+
   return DemandedElts;
 }
 
@@ -404,6 +407,13 @@ static Value *simplifyAMDGCNMemoryIntrinsicDemanded(InstCombiner &IC,
                                                     APInt DemandedElts,
                                                     int DMaskIdx = -1,
                                                     bool IsLoad = true);
+
+/// Return true if it's legal to contract llvm.amdgcn.rcp(llvm.sqrt)
+static bool canContractSqrtToRsq(const FPMathOperator *SqrtOp) {
+  return (SqrtOp->getType()->isFloatTy() &&
+          (SqrtOp->hasApproxFunc() || SqrtOp->getFPAccuracy() >= 1.0f)) ||
+         SqrtOp->getType()->isHalfTy();
+}
 
 std::optional<Instruction *>
 GCNTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
@@ -434,6 +444,37 @@ GCNTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
       return IC.replaceInstUsesWith(II, ConstantFP::get(II.getContext(), Val));
     }
 
+    FastMathFlags FMF = cast<FPMathOperator>(II).getFastMathFlags();
+    if (!FMF.allowContract())
+      break;
+    auto *SrcCI = dyn_cast<IntrinsicInst>(Src);
+    if (!SrcCI)
+      break;
+
+    auto IID = SrcCI->getIntrinsicID();
+    // llvm.amdgcn.rcp(llvm.amdgcn.sqrt(x)) -> llvm.amdgcn.rsq(x) if contractable
+    //
+    // llvm.amdgcn.rcp(llvm.sqrt(x)) -> llvm.amdgcn.rsq(x) if contractable and
+    // relaxed.
+    if (IID == Intrinsic::amdgcn_sqrt || IID == Intrinsic::sqrt) {
+      const FPMathOperator *SqrtOp = cast<FPMathOperator>(SrcCI);
+      FastMathFlags InnerFMF = SqrtOp->getFastMathFlags();
+      if (!InnerFMF.allowContract() || !SrcCI->hasOneUse())
+        break;
+
+      if (IID == Intrinsic::sqrt && !canContractSqrtToRsq(SqrtOp))
+        break;
+
+      Function *NewDecl = Intrinsic::getDeclaration(
+          SrcCI->getModule(), Intrinsic::amdgcn_rsq, {SrcCI->getType()});
+
+      InnerFMF |= FMF;
+      II.setFastMathFlags(InnerFMF);
+
+      II.setCalledFunction(NewDecl);
+      return IC.replaceOperand(II, 0, SrcCI->getArgOperand(0));
+    }
+
     break;
   }
   case Intrinsic::amdgcn_sqrt:
@@ -445,6 +486,62 @@ GCNTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
       Type *Ty = II.getType();
       auto *QNaN = ConstantFP::get(Ty, APFloat::getQNaN(Ty->getFltSemantics()));
       return IC.replaceInstUsesWith(II, QNaN);
+    }
+
+    // f16 amdgcn.sqrt is identical to regular sqrt.
+    if (IID == Intrinsic::amdgcn_sqrt && Src->getType()->isHalfTy()) {
+      Function *NewDecl = Intrinsic::getDeclaration(
+          II.getModule(), Intrinsic::sqrt, {II.getType()});
+      II.setCalledFunction(NewDecl);
+      return &II;
+    }
+
+    break;
+  }
+  case Intrinsic::amdgcn_log:
+  case Intrinsic::amdgcn_exp2: {
+    const bool IsLog = IID == Intrinsic::amdgcn_log;
+    const bool IsExp = IID == Intrinsic::amdgcn_exp2;
+    Value *Src = II.getArgOperand(0);
+    Type *Ty = II.getType();
+
+    if (isa<PoisonValue>(Src))
+      return IC.replaceInstUsesWith(II, Src);
+
+    if (IC.getSimplifyQuery().isUndefValue(Src))
+      return IC.replaceInstUsesWith(II, ConstantFP::getNaN(Ty));
+
+    if (ConstantFP *C = dyn_cast<ConstantFP>(Src)) {
+      if (C->isInfinity()) {
+        // exp2(+inf) -> +inf
+        // log2(+inf) -> +inf
+        if (!C->isNegative())
+          return IC.replaceInstUsesWith(II, C);
+
+        // exp2(-inf) -> 0
+        if (IsExp && C->isNegative())
+          return IC.replaceInstUsesWith(II, ConstantFP::getZero(Ty));
+      }
+
+      if (II.isStrictFP())
+        break;
+
+      if (C->isNaN()) {
+        Constant *Quieted = ConstantFP::get(Ty, C->getValue().makeQuiet());
+        return IC.replaceInstUsesWith(II, Quieted);
+      }
+
+      // f32 instruction doesn't handle denormals, f16 does.
+      if (C->isZero() || (C->getValue().isDenormal() && Ty->isFloatTy())) {
+        Constant *FoldedValue = IsLog ? ConstantFP::getInfinity(Ty, true)
+                                      : ConstantFP::get(Ty, 1.0);
+        return IC.replaceInstUsesWith(II, FoldedValue);
+      }
+
+      if (IsLog && C->isNegative())
+        return IC.replaceInstUsesWith(II, ConstantFP::getNaN(Ty));
+
+      // TODO: Full constant folding matching hardware behavior.
     }
 
     break;
@@ -851,30 +948,17 @@ GCNTTIImpl::instCombineIntrinsic(InstCombiner &IC, IntrinsicInst &II) const {
 
     break;
   }
+  case Intrinsic::amdgcn_mbcnt_hi: {
+    // exec_hi is all 0, so this is just a copy.
+    if (ST->isWave32())
+      return IC.replaceInstUsesWith(II, II.getArgOperand(1));
+    break;
+  }
   case Intrinsic::amdgcn_ballot: {
     if (auto *Src = dyn_cast<ConstantInt>(II.getArgOperand(0))) {
       if (Src->isZero()) {
         // amdgcn.ballot(i1 0) is zero.
         return IC.replaceInstUsesWith(II, Constant::getNullValue(II.getType()));
-      }
-
-      if (Src->isOne()) {
-        // amdgcn.ballot(i1 1) is exec.
-        const char *RegName = "exec";
-        if (II.getType()->isIntegerTy(32))
-          RegName = "exec_lo";
-        else if (!II.getType()->isIntegerTy(64))
-          break;
-
-        Function *NewF = Intrinsic::getDeclaration(
-            II.getModule(), Intrinsic::read_register, II.getType());
-        Metadata *MDArgs[] = {MDString::get(II.getContext(), RegName)};
-        MDNode *MD = MDNode::get(II.getContext(), MDArgs);
-        Value *Args[] = {MetadataAsValue::get(II.getContext(), MD)};
-        CallInst *NewCall = IC.Builder.CreateCall(NewF, Args);
-        NewCall->addFnAttr(Attribute::Convergent);
-        NewCall->takeName(&II);
-        return IC.replaceInstUsesWith(II, NewCall);
       }
     }
     break;

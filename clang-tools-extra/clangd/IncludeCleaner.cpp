@@ -7,14 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "IncludeCleaner.h"
-#include "Config.h"
 #include "Diagnostics.h"
 #include "Headers.h"
 #include "ParsedAST.h"
 #include "Preamble.h"
 #include "Protocol.h"
 #include "SourceCode.h"
-#include "URI.h"
 #include "clang-include-cleaner/Analysis.h"
 #include "clang-include-cleaner/IncludeSpeller.h"
 #include "clang-include-cleaner/Record.h"
@@ -23,16 +21,12 @@
 #include "support/Path.h"
 #include "support/Trace.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/DeclCXX.h"
-#include "clang/AST/Expr.h"
-#include "clang/AST/ExprCXX.h"
-#include "clang/AST/TemplateName.h"
-#include "clang/AST/Type.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Format/Format.h"
+#include "clang/Lex/DirectoryLookup.h"
 #include "clang/Lex/HeaderSearch.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/Core/Replacement.h"
@@ -43,13 +37,9 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/GenericUniformityImpl.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
-#include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormatVariadic.h"
@@ -57,63 +47,42 @@
 #include "llvm/Support/Regex.h"
 #include <cassert>
 #include <iterator>
+#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace clang {
-namespace clangd {
-
-static bool AnalyzeStdlib = false;
-void setIncludeCleanerAnalyzesStdlib(bool B) { AnalyzeStdlib = B; }
-
+namespace clang::clangd {
 namespace {
 
-// Returns the range starting at '#' and ending at EOL. Escaped newlines are not
-// handled.
-clangd::Range getDiagnosticRange(llvm::StringRef Code, unsigned HashOffset) {
-  clangd::Range Result;
-  Result.end = Result.start = offsetToPosition(Code, HashOffset);
-
-  // Span the warning until the EOL or EOF.
-  Result.end.character +=
-      lspLength(Code.drop_front(HashOffset).take_until([](char C) {
-        return C == '\n' || C == '\r';
-      }));
-  return Result;
-}
-
-bool isFilteredByConfig(const Config &Cfg, llvm::StringRef HeaderPath) {
+bool isIgnored(llvm::StringRef HeaderPath, HeaderFilter IgnoreHeaders) {
   // Convert the path to Unix slashes and try to match against the filter.
   llvm::SmallString<64> NormalizedPath(HeaderPath);
   llvm::sys::path::native(NormalizedPath, llvm::sys::path::Style::posix);
-  for (auto &Filter : Cfg.Diagnostics.Includes.IgnoreHeader) {
+  for (auto &Filter : IgnoreHeaders) {
     if (Filter(NormalizedPath))
       return true;
   }
   return false;
 }
 
-static bool mayConsiderUnused(const Inclusion &Inc, ParsedAST &AST,
-                              const Config &Cfg,
-                              const include_cleaner::PragmaIncludes *PI) {
-  // FIXME(kirillbobyrev): We currently do not support the umbrella headers.
-  // System headers are likely to be standard library headers.
-  // Until we have good support for umbrella headers, don't warn about them.
-  if (Inc.Written.front() == '<') {
-    if (AnalyzeStdlib && tooling::stdlib::Header::named(Inc.Written))
-      return true;
-    return false;
-  }
+bool mayConsiderUnused(const Inclusion &Inc, ParsedAST &AST,
+                       const include_cleaner::PragmaIncludes *PI) {
   assert(Inc.HeaderID);
   auto HID = static_cast<IncludeStructure::HeaderID>(*Inc.HeaderID);
   auto FE = AST.getSourceManager().getFileManager().getFileRef(
       AST.getIncludeStructure().getRealPath(HID));
   assert(FE);
+  if (PI && PI->shouldKeep(*FE))
+    return false;
+  // FIXME(kirillbobyrev): We currently do not support the umbrella headers.
+  // System headers are likely to be standard library headers.
+  // Until we have good support for umbrella headers, don't warn about them.
+  if (Inc.Written.front() == '<')
+    return tooling::stdlib::Header::named(Inc.Written).has_value();
   if (PI) {
-    if (PI->shouldKeep(Inc.HashLine + 1))
-      return false;
     // Check if main file is the public interface for a private header. If so we
     // shouldn't diagnose it as unused.
     if (auto PHeader = PI->getPublic(*FE); !PHeader.empty()) {
@@ -133,48 +102,13 @@ static bool mayConsiderUnused(const Inclusion &Inc, ParsedAST &AST,
          FE->getName());
     return false;
   }
-
-  if (isFilteredByConfig(Cfg, Inc.Resolved)) {
-    dlog("{0} header is filtered out by the configuration", FE->getName());
-    return false;
-  }
   return true;
-}
-
-llvm::StringRef getResolvedPath(const include_cleaner::Header &SymProvider) {
-  switch (SymProvider.kind()) {
-  case include_cleaner::Header::Physical:
-    return SymProvider.physical()->tryGetRealPathName();
-  case include_cleaner::Header::Standard:
-    return SymProvider.standard().name().trim("<>\"");
-  case include_cleaner::Header::Verbatim:
-    return SymProvider.verbatim().trim("<>\"");
-  }
-  llvm_unreachable("Unknown header kind");
-}
-
-std::string getSymbolName(const include_cleaner::Symbol &Sym) {
-  switch (Sym.kind()) {
-  case include_cleaner::Symbol::Macro:
-    return Sym.macro().Name->getName().str();
-  case include_cleaner::Symbol::Declaration:
-    return llvm::dyn_cast<NamedDecl>(&Sym.declaration())
-        ->getQualifiedNameAsString();
-  }
-  llvm_unreachable("Unknown symbol kind");
 }
 
 std::vector<Diag> generateMissingIncludeDiagnostics(
     ParsedAST &AST, llvm::ArrayRef<MissingIncludeDiagInfo> MissingIncludes,
-    llvm::StringRef Code) {
+    llvm::StringRef Code, HeaderFilter IgnoreHeaders) {
   std::vector<Diag> Result;
-  const Config &Cfg = Config::current();
-  if (Cfg.Diagnostics.MissingIncludes != Config::IncludesPolicy::Strict ||
-      Cfg.Diagnostics.SuppressAll ||
-      Cfg.Diagnostics.Suppress.contains("missing-includes")) {
-    return Result;
-  }
-
   const SourceManager &SM = AST.getSourceManager();
   const FileEntry *MainFile = SM.getFileEntryForID(SM.getMainFileID());
 
@@ -190,16 +124,17 @@ std::vector<Diag> generateMissingIncludeDiagnostics(
                                          FileStyle->IncludeStyle);
   for (const auto &SymbolWithMissingInclude : MissingIncludes) {
     llvm::StringRef ResolvedPath =
-        getResolvedPath(SymbolWithMissingInclude.Providers.front());
-    if (isFilteredByConfig(Cfg, ResolvedPath)) {
+        SymbolWithMissingInclude.Providers.front().resolvedPath();
+    if (isIgnored(ResolvedPath, IgnoreHeaders)) {
       dlog("IncludeCleaner: not diagnosing missing include {0}, filtered by "
            "config",
            ResolvedPath);
       continue;
     }
 
-    std::string Spelling =
-        spellHeader(AST, MainFile, SymbolWithMissingInclude.Providers.front());
+    std::string Spelling = include_cleaner::spellHeader(
+        {SymbolWithMissingInclude.Providers.front(),
+         AST.getPreprocessor().getHeaderSearchInfo(), MainFile});
 
     llvm::StringRef HeaderRef{Spelling};
     bool Angled = HeaderRef.starts_with("<");
@@ -215,7 +150,7 @@ std::vector<Diag> generateMissingIncludeDiagnostics(
     Diag &D = Result.emplace_back();
     D.Message =
         llvm::formatv("No header providing \"{0}\" is directly included",
-                      getSymbolName(SymbolWithMissingInclude.Symbol));
+                      SymbolWithMissingInclude.Symbol.name());
     D.Name = "missing-includes";
     D.Source = Diag::DiagSource::Clangd;
     D.File = AST.tuPath();
@@ -252,15 +187,11 @@ std::vector<Diag> generateMissingIncludeDiagnostics(
 
 std::vector<Diag> generateUnusedIncludeDiagnostics(
     PathRef FileName, llvm::ArrayRef<const Inclusion *> UnusedIncludes,
-    llvm::StringRef Code) {
+    llvm::StringRef Code, HeaderFilter IgnoreHeaders) {
   std::vector<Diag> Result;
-  const Config &Cfg = Config::current();
-  if (Cfg.Diagnostics.UnusedIncludes == Config::IncludesPolicy::None ||
-      Cfg.Diagnostics.SuppressAll ||
-      Cfg.Diagnostics.Suppress.contains("unused-includes")) {
-    return Result;
-  }
   for (const auto *Inc : UnusedIncludes) {
+    if (isIgnored(Inc->Resolved, IgnoreHeaders))
+      continue;
     Diag &D = Result.emplace_back();
     D.Message =
         llvm::formatv("included header {0} is not used directly",
@@ -273,7 +204,7 @@ std::vector<Diag> generateUnusedIncludeDiagnostics(
     D.InsideMainFile = true;
     D.Severity = DiagnosticsEngine::Warning;
     D.Tags.push_back(Unnecessary);
-    D.Range = getDiagnosticRange(Code, Inc->HashOffset);
+    D.Range = rangeTillEOL(Code, Inc->HashOffset);
     // FIXME(kirillbobyrev): Removing inclusion might break the code if the
     // used headers are only reachable transitively through this one. Suggest
     // including them directly instead.
@@ -287,34 +218,145 @@ std::vector<Diag> generateUnusedIncludeDiagnostics(
   }
   return Result;
 }
+
+std::optional<Fix>
+removeAllUnusedIncludes(llvm::ArrayRef<Diag> UnusedIncludes) {
+  if (UnusedIncludes.empty())
+    return std::nullopt;
+
+  Fix RemoveAll;
+  RemoveAll.Message = "remove all unused includes";
+  for (const auto &Diag : UnusedIncludes) {
+    assert(Diag.Fixes.size() == 1 && "Expected exactly one fix.");
+    RemoveAll.Edits.insert(RemoveAll.Edits.end(),
+                           Diag.Fixes.front().Edits.begin(),
+                           Diag.Fixes.front().Edits.end());
+  }
+
+  // TODO(hokein): emit a suitable text for the label.
+  ChangeAnnotation Annotation = {/*label=*/"",
+                                 /*needsConfirmation=*/true,
+                                 /*description=*/""};
+  static const ChangeAnnotationIdentifier RemoveAllUnusedID =
+      "RemoveAllUnusedIncludes";
+  for (unsigned I = 0; I < RemoveAll.Edits.size(); ++I) {
+    ChangeAnnotationIdentifier ID = RemoveAllUnusedID + std::to_string(I);
+    RemoveAll.Edits[I].annotationId = ID;
+    RemoveAll.Annotations.push_back({ID, Annotation});
+  }
+  return RemoveAll;
+}
+
+std::optional<Fix>
+addAllMissingIncludes(llvm::ArrayRef<Diag> MissingIncludeDiags) {
+  if (MissingIncludeDiags.empty())
+    return std::nullopt;
+
+  Fix AddAllMissing;
+  AddAllMissing.Message = "add all missing includes";
+  // A map to deduplicate the edits with the same new text.
+  // newText (#include "my_missing_header.h") -> TextEdit.
+  std::map<std::string, TextEdit> Edits;
+  for (const auto &Diag : MissingIncludeDiags) {
+    assert(Diag.Fixes.size() == 1 && "Expected exactly one fix.");
+    for (const auto &Edit : Diag.Fixes.front().Edits) {
+      Edits.try_emplace(Edit.newText, Edit);
+    }
+  }
+  // FIXME(hokein): emit used symbol reference in the annotation.
+  ChangeAnnotation Annotation = {/*label=*/"",
+                                 /*needsConfirmation=*/true,
+                                 /*description=*/""};
+  static const ChangeAnnotationIdentifier AddAllMissingID =
+      "AddAllMissingIncludes";
+  unsigned I = 0;
+  for (auto &It : Edits) {
+    ChangeAnnotationIdentifier ID = AddAllMissingID + std::to_string(I++);
+    AddAllMissing.Edits.push_back(std::move(It.second));
+    AddAllMissing.Edits.back().annotationId = ID;
+
+    AddAllMissing.Annotations.push_back({ID, Annotation});
+  }
+  return AddAllMissing;
+}
+Fix fixAll(const Fix &RemoveAllUnused, const Fix &AddAllMissing) {
+  Fix FixAll;
+  FixAll.Message = "fix all includes";
+
+  for (const auto &F : RemoveAllUnused.Edits)
+    FixAll.Edits.push_back(F);
+  for (const auto &F : AddAllMissing.Edits)
+    FixAll.Edits.push_back(F);
+
+  for (const auto &A : RemoveAllUnused.Annotations)
+    FixAll.Annotations.push_back(A);
+  for (const auto &A : AddAllMissing.Annotations)
+    FixAll.Annotations.push_back(A);
+  return FixAll;
+}
+
+std::vector<const Inclusion *>
+getUnused(ParsedAST &AST,
+          const llvm::DenseSet<IncludeStructure::HeaderID> &ReferencedFiles) {
+  trace::Span Tracer("IncludeCleaner::getUnused");
+  std::vector<const Inclusion *> Unused;
+  for (const Inclusion &MFI : AST.getIncludeStructure().MainFileIncludes) {
+    if (!MFI.HeaderID)
+      continue;
+    auto IncludeID = static_cast<IncludeStructure::HeaderID>(*MFI.HeaderID);
+    if (ReferencedFiles.contains(IncludeID))
+      continue;
+    if (!mayConsiderUnused(MFI, AST, AST.getPragmaIncludes().get())) {
+      dlog("{0} was not used, but is not eligible to be diagnosed as unused",
+           MFI.Written);
+      continue;
+    }
+    Unused.push_back(&MFI);
+  }
+  return Unused;
+}
+
 } // namespace
 
 std::vector<include_cleaner::SymbolReference>
 collectMacroReferences(ParsedAST &AST) {
   const auto &SM = AST.getSourceManager();
-  //  FIXME: !!this is a hacky way to collect macro references.
-  std::vector<include_cleaner::SymbolReference> Macros;
   auto &PP = AST.getPreprocessor();
-  for (const syntax::Token &Tok :
-       AST.getTokens().spelledTokens(SM.getMainFileID())) {
-    auto Macro = locateMacroAt(Tok, PP);
-    if (!Macro)
-      continue;
-    if (auto DefLoc = Macro->Info->getDefinitionLoc(); DefLoc.isValid())
+  std::vector<include_cleaner::SymbolReference> Macros;
+  for (const auto &[_, Refs] : AST.getMacros().MacroRefs) {
+    for (const auto &Ref : Refs) {
+      auto Loc = SM.getComposedLoc(SM.getMainFileID(), Ref.StartOffset);
+      const auto *Tok = AST.getTokens().spelledTokenAt(Loc);
+      if (!Tok)
+        continue;
+      auto Macro = locateMacroAt(*Tok, PP);
+      if (!Macro)
+        continue;
+      auto DefLoc = Macro->NameLoc;
+      if (!DefLoc.isValid())
+        continue;
       Macros.push_back(
-          {Tok.location(),
-           include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok.text(SM)),
+          {include_cleaner::Macro{/*Name=*/PP.getIdentifierInfo(Tok->text(SM)),
                                   DefLoc},
-           include_cleaner::RefType::Explicit});
+           Tok->location(),
+           Ref.InConditionalDirective ? include_cleaner::RefType::Ambiguous
+                                      : include_cleaner::RefType::Explicit});
+    }
   }
+
   return Macros;
 }
 
-include_cleaner::Includes
-convertIncludes(const SourceManager &SM,
-                const llvm::ArrayRef<Inclusion> Includes) {
+include_cleaner::Includes convertIncludes(const ParsedAST &AST) {
+  auto &SM = AST.getSourceManager();
+
   include_cleaner::Includes ConvertedIncludes;
-  for (const Inclusion &Inc : Includes) {
+  // We satisfy Includes's contract that search dirs and included files have
+  // matching path styles: both ultimately use FileManager::getCanonicalName().
+  for (const auto &Dir : AST.getIncludeStructure().SearchPathsCanonical)
+    ConvertedIncludes.addSearchDirectory(Dir);
+
+  for (const Inclusion &Inc : AST.getIncludeStructure().MainFileIncludes) {
     include_cleaner::Include TransformedInc;
     llvm::StringRef WrittenRef = llvm::StringRef(Inc.Written);
     TransformedInc.Spelled = WrittenRef.trim("\"<>");
@@ -322,10 +364,12 @@ convertIncludes(const SourceManager &SM,
         SM.getComposedLoc(SM.getMainFileID(), Inc.HashOffset);
     TransformedInc.Line = Inc.HashLine + 1;
     TransformedInc.Angled = WrittenRef.starts_with("<");
-    auto FE = SM.getFileManager().getFile(Inc.Resolved);
+    // Inc.Resolved is canonicalized with clangd::getCanonicalPath(),
+    // which is based on FileManager::getCanonicalName(ParentDir).
+    auto FE = SM.getFileManager().getFileRef(Inc.Resolved);
     if (!FE) {
       elog("IncludeCleaner: Failed to get an entry for resolved path {0}: {1}",
-           Inc.Resolved, FE.getError().message());
+           Inc.Resolved, FE.takeError());
       continue;
     }
     TransformedInc.Resolved = *FE;
@@ -334,53 +378,12 @@ convertIncludes(const SourceManager &SM,
   return ConvertedIncludes;
 }
 
-std::string spellHeader(ParsedAST &AST, const FileEntry *MainFile,
-                        include_cleaner::Header Provider) {
-  if (Provider.kind() == include_cleaner::Header::Physical) {
-    if (auto CanonicalPath =
-            getCanonicalPath(Provider.physical()->getLastRef(),
-                             AST.getSourceManager().getFileManager())) {
-      std::string SpelledHeader =
-          llvm::cantFail(URI::includeSpelling(URI::create(*CanonicalPath)));
-      if (!SpelledHeader.empty())
-        return SpelledHeader;
-    }
-  }
-  return include_cleaner::spellHeader(
-      {Provider, AST.getPreprocessor().getHeaderSearchInfo(), MainFile});
-}
-
-std::vector<const Inclusion *>
-getUnused(ParsedAST &AST,
-          const llvm::DenseSet<IncludeStructure::HeaderID> &ReferencedFiles,
-          const llvm::StringSet<> &ReferencedPublicHeaders) {
-  trace::Span Tracer("IncludeCleaner::getUnused");
-  const Config &Cfg = Config::current();
-  std::vector<const Inclusion *> Unused;
-  for (const Inclusion &MFI : AST.getIncludeStructure().MainFileIncludes) {
-    if (!MFI.HeaderID)
-      continue;
-    if (ReferencedPublicHeaders.contains(MFI.Written))
-      continue;
-    auto IncludeID = static_cast<IncludeStructure::HeaderID>(*MFI.HeaderID);
-    bool Used = ReferencedFiles.contains(IncludeID);
-    if (!Used && !mayConsiderUnused(MFI, AST, Cfg, AST.getPragmaIncludes())) {
-      dlog("{0} was not used, but is not eligible to be diagnosed as unused",
-           MFI.Written);
-      continue;
-    }
-    if (!Used)
-      Unused.push_back(&MFI);
-    dlog("{0} is {1}", MFI.Written, Used ? "USED" : "UNUSED");
-  }
-  return Unused;
-}
-
 IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
+  // Interaction is only polished for C/CPP.
+  if (AST.getLangOpts().ObjC)
+    return {};
   const auto &SM = AST.getSourceManager();
-  const auto &Includes = AST.getIncludeStructure();
-  include_cleaner::Includes ConvertedIncludes =
-      convertIncludes(SM, Includes.MainFileIncludes);
+  include_cleaner::Includes ConvertedIncludes = convertIncludes(AST);
   const FileEntry *MainFile = SM.getFileEntryForID(SM.getMainFileID());
   auto *PreamblePatch = PreamblePatch::getPatchEntry(AST.tuPath(), SM);
 
@@ -391,7 +394,7 @@ IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
   trace::Span Tracer("include_cleaner::walkUsed");
   include_cleaner::walkUsed(
       AST.getLocalTopLevelDecls(), /*MacroRefs=*/Macros,
-      AST.getPragmaIncludes(), SM,
+      AST.getPragmaIncludes().get(), AST.getPreprocessor(),
       [&](const include_cleaner::SymbolReference &Ref,
           llvm::ArrayRef<include_cleaner::Header> Providers) {
         bool Satisfied = false;
@@ -403,7 +406,8 @@ IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
           }
           for (auto *Inc : ConvertedIncludes.match(H)) {
             Satisfied = true;
-            auto HeaderID = Includes.getID(Inc->Resolved);
+            auto HeaderID =
+                AST.getIncludeStructure().getID(&Inc->Resolved->getFileEntry());
             assert(HeaderID.has_value() &&
                    "ConvertedIncludes only contains resolved includes.");
             Used.insert(*HeaderID);
@@ -454,94 +458,35 @@ IncludeCleanerFindings computeIncludeCleanerFindings(ParsedAST &AST) {
            MapInfo::getHashValue(RHS.Symbol);
   });
   MissingIncludes.erase(llvm::unique(MissingIncludes), MissingIncludes.end());
-  std::vector<const Inclusion *> UnusedIncludes =
-      getUnused(AST, Used, /*ReferencedPublicHeaders*/ {});
+  std::vector<const Inclusion *> UnusedIncludes = getUnused(AST, Used);
   return {std::move(UnusedIncludes), std::move(MissingIncludes)};
 }
 
-std::optional<Fix> removeAllUnusedIncludes(llvm::ArrayRef<Diag> UnusedIncludes) {
-  if (UnusedIncludes.empty())
-    return std::nullopt;
-
-  Fix RemoveAll;
-  RemoveAll.Message = "remove all unused includes";
-  for (const auto &Diag : UnusedIncludes) {
-    assert(Diag.Fixes.size() == 1 && "Expected exactly one fix.");
-    RemoveAll.Edits.insert(RemoveAll.Edits.end(),
-         Diag.Fixes.front().Edits.begin(),
-         Diag.Fixes.front().Edits.end());
+bool isPreferredProvider(const Inclusion &Inc,
+                         const include_cleaner::Includes &Includes,
+                         llvm::ArrayRef<include_cleaner::Header> Providers) {
+  for (const auto &H : Providers) {
+    auto Matches = Includes.match(H);
+    for (const include_cleaner::Include *Match : Matches)
+      if (Match->Line == unsigned(Inc.HashLine + 1))
+        return true; // this header is (equal) best
+    if (!Matches.empty())
+      return false; // another header is better
   }
-
-  // TODO(hokein): emit a suitable text for the label.
-  ChangeAnnotation Annotation = {/*label=*/"",
-                                 /*needsConfirmation=*/true,
-                                 /*description=*/""};
-  static const ChangeAnnotationIdentifier RemoveAllUnusedID =
-      "RemoveAllUnusedIncludes";
-  for (unsigned I = 0; I < RemoveAll.Edits.size(); ++I) {
-    ChangeAnnotationIdentifier ID = RemoveAllUnusedID + std::to_string(I);
-    RemoveAll.Edits[I].annotationId = ID;
-    RemoveAll.Annotations.push_back({ID, Annotation});
-  }
-  return RemoveAll;
-}
-std::optional<Fix>
-addAllMissingIncludes(llvm::ArrayRef<Diag> MissingIncludeDiags) {
-  if (MissingIncludeDiags.empty())
-    return std::nullopt;
-
-  Fix AddAllMissing;
-  AddAllMissing.Message = "add all missing includes";
-  // A map to deduplicate the edits with the same new text.
-  // newText (#include "my_missing_header.h") -> TextEdit.
-  llvm::StringMap<TextEdit> Edits;
-  for (const auto &Diag : MissingIncludeDiags) {
-    assert(Diag.Fixes.size() == 1 && "Expected exactly one fix.");
-    for (const auto& Edit : Diag.Fixes.front().Edits) {
-      Edits.try_emplace(Edit.newText, Edit);
-    }
-  }
-  // FIXME(hokein): emit used symbol reference in the annotation.
-  ChangeAnnotation Annotation = {/*label=*/"",
-                                 /*needsConfirmation=*/true,
-                                 /*description=*/""};
-  static const ChangeAnnotationIdentifier AddAllMissingID =
-      "AddAllMissingIncludes";
-  unsigned I = 0;
-  for (auto &It : Edits) {
-    ChangeAnnotationIdentifier ID = AddAllMissingID + std::to_string(I++);
-    AddAllMissing.Edits.push_back(std::move(It.getValue()));
-    AddAllMissing.Edits.back().annotationId = ID;
-
-    AddAllMissing.Annotations.push_back({ID, Annotation});
-  }
-  return AddAllMissing;
-}
-Fix fixAll(const Fix& RemoveAllUnused, const Fix& AddAllMissing) {
-  Fix FixAll;
-  FixAll.Message = "fix all includes";
-
-  for (const auto &F : RemoveAllUnused.Edits)
-    FixAll.Edits.push_back(F);
-  for (const auto &F : AddAllMissing.Edits)
-    FixAll.Edits.push_back(F);
-
-  for (const auto& A : RemoveAllUnused.Annotations)
-    FixAll.Annotations.push_back(A);
-  for (const auto& A : AddAllMissing.Annotations)
-    FixAll.Annotations.push_back(A);
-  return FixAll;
+  return false; // no header provides the symbol
 }
 
-std::vector<Diag> generateIncludeCleanerDiagnostic(
-    ParsedAST &AST, const IncludeCleanerFindings &Findings,
-    llvm::StringRef Code) {
+std::vector<Diag>
+issueIncludeCleanerDiagnostics(ParsedAST &AST, llvm::StringRef Code,
+                               const IncludeCleanerFindings &Findings,
+                               HeaderFilter IgnoreHeaders) {
+  trace::Span Tracer("IncludeCleaner::issueIncludeCleanerDiagnostics");
   std::vector<Diag> UnusedIncludes = generateUnusedIncludeDiagnostics(
-      AST.tuPath(), Findings.UnusedIncludes, Code);
+      AST.tuPath(), Findings.UnusedIncludes, Code, IgnoreHeaders);
   std::optional<Fix> RemoveAllUnused = removeAllUnusedIncludes(UnusedIncludes);
 
   std::vector<Diag> MissingIncludeDiags = generateMissingIncludeDiagnostics(
-      AST, Findings.MissingIncludes, Code);
+      AST, Findings.MissingIncludes, Code, IgnoreHeaders);
   std::optional<Fix> AddAllMissing = addAllMissingIncludes(MissingIncludeDiags);
 
   std::optional<Fix> FixAll;
@@ -549,56 +494,24 @@ std::vector<Diag> generateIncludeCleanerDiagnostic(
     FixAll = fixAll(*RemoveAllUnused, *AddAllMissing);
 
   auto AddBatchFix = [](const std::optional<Fix> &F, clang::clangd::Diag *Out) {
-    if (!F) return;
+    if (!F)
+      return;
     Out->Fixes.push_back(*F);
   };
   for (auto &Diag : MissingIncludeDiags) {
-    AddBatchFix(MissingIncludeDiags.size() > 1
-                    ? AddAllMissing
-                    : std::nullopt,
+    AddBatchFix(MissingIncludeDiags.size() > 1 ? AddAllMissing : std::nullopt,
                 &Diag);
     AddBatchFix(FixAll, &Diag);
   }
   for (auto &Diag : UnusedIncludes) {
-    AddBatchFix(UnusedIncludes.size() > 1 ? RemoveAllUnused
-                                          : std::nullopt,
+    AddBatchFix(UnusedIncludes.size() > 1 ? RemoveAllUnused : std::nullopt,
                 &Diag);
     AddBatchFix(FixAll, &Diag);
   }
 
   auto Result = std::move(MissingIncludeDiags);
-  llvm::move(UnusedIncludes,
-             std::back_inserter(Result));
+  llvm::move(UnusedIncludes, std::back_inserter(Result));
   return Result;
 }
 
-std::vector<Diag> issueIncludeCleanerDiagnostics(ParsedAST &AST,
-                                                 llvm::StringRef Code) {
-  // Interaction is only polished for C/CPP.
-  if (AST.getLangOpts().ObjC)
-    return {};
-
-  trace::Span Tracer("IncludeCleaner::issueIncludeCleanerDiagnostics");
-
-  const Config &Cfg = Config::current();
-  IncludeCleanerFindings Findings;
-  if (Cfg.Diagnostics.MissingIncludes == Config::IncludesPolicy::Strict ||
-      Cfg.Diagnostics.UnusedIncludes == Config::IncludesPolicy::Strict) {
-    // will need include-cleaner results, call it once
-    Findings = computeIncludeCleanerFindings(AST);
-  }
-  return generateIncludeCleanerDiagnostic(AST, Findings, Code);
-}
-
-std::optional<include_cleaner::Header>
-firstMatchedProvider(const include_cleaner::Includes &Includes,
-                     llvm::ArrayRef<include_cleaner::Header> Providers) {
-  for (const auto &H : Providers) {
-    if (!Includes.match(H).empty())
-      return H;
-  }
-  // No match for this provider in the includes list.
-  return std::nullopt;
-}
-} // namespace clangd
-} // namespace clang
+} // namespace clang::clangd

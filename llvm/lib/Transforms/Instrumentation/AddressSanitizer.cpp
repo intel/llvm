@@ -492,7 +492,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
   bool IsMIPS64 = TargetTriple.isMIPS64();
   bool IsArmOrThumb = TargetTriple.isARM() || TargetTriple.isThumb();
   bool IsAArch64 = TargetTriple.getArch() == Triple::aarch64;
-  bool IsLoongArch64 = TargetTriple.getArch() == Triple::loongarch64;
+  bool IsLoongArch64 = TargetTriple.isLoongArch64();
   bool IsRISCV64 = TargetTriple.getArch() == Triple::riscv64;
   bool IsWindows = TargetTriple.isOSWindows();
   bool IsFuchsia = TargetTriple.isOSFuchsia();
@@ -684,7 +684,8 @@ struct AddressSanitizer {
                      const DataLayout &DL);
   void instrumentPointerComparisonOrSubtraction(Instruction *I);
   void instrumentAddress(Instruction *OrigIns, Instruction *InsertBefore,
-                         Value *Addr, uint32_t TypeStoreSize, bool IsWrite,
+                         Value *Addr, MaybeAlign Alignment,
+                         uint32_t TypeStoreSize, bool IsWrite,
                          Value *SizeArgument, bool UseCalls, uint32_t Exp);
   Instruction *instrumentAMDGPUAddress(Instruction *OrigIns,
                                        Instruction *InsertBefore, Value *Addr,
@@ -1229,7 +1230,7 @@ Value *AddressSanitizer::memToShadow(Value *Shadow, IRBuilder<> &IRB) {
 
 // Instrument memset/memmove/memcpy
 void AddressSanitizer::instrumentMemIntrinsic(MemIntrinsic *MI) {
-  IRBuilder<> IRB(MI);
+  InstrumentationIRBuilder IRB(MI);
   if (isa<MemTransferInst>(MI)) {
     IRB.CreateCall(
         isa<MemMoveInst>(MI) ? AsanMemmove : AsanMemcpy,
@@ -1330,8 +1331,10 @@ void AddressSanitizer::getInterestingMemoryOperands(
   } else if (auto CI = dyn_cast<CallInst>(I)) {
     switch (CI->getIntrinsicID()) {
     case Intrinsic::masked_load:
-    case Intrinsic::masked_store: {
-      bool IsWrite = CI->getIntrinsicID() == Intrinsic::masked_store;
+    case Intrinsic::masked_store:
+    case Intrinsic::masked_gather:
+    case Intrinsic::masked_scatter: {
+      bool IsWrite = CI->getType()->isVoidTy();
       // Masked store has an initial operand for the value.
       unsigned OpOffset = IsWrite ? 1 : 0;
       if (IsWrite ? !ClInstrumentWrites : !ClInstrumentReads)
@@ -1347,6 +1350,29 @@ void AddressSanitizer::getInterestingMemoryOperands(
         Alignment = Op->getMaybeAlignValue();
       Value *Mask = CI->getOperand(2 + OpOffset);
       Interesting.emplace_back(I, OpOffset, IsWrite, Ty, Alignment, Mask);
+      break;
+    }
+    case Intrinsic::masked_expandload:
+    case Intrinsic::masked_compressstore: {
+      bool IsWrite = CI->getIntrinsicID() == Intrinsic::masked_compressstore;
+      unsigned OpOffset = IsWrite ? 1 : 0;
+      if (IsWrite ? !ClInstrumentWrites : !ClInstrumentReads)
+        return;
+      auto BasePtr = CI->getOperand(OpOffset);
+      if (ignoreAccess(I, BasePtr))
+        return;
+      MaybeAlign Alignment = BasePtr->getPointerAlignment(*DL);
+      Type *Ty = IsWrite ? CI->getArgOperand(0)->getType() : CI->getType();
+
+      IRBuilder IB(I);
+      Value *Mask = CI->getOperand(1 + OpOffset);
+      // Use the popcount of Mask as the effective vector length.
+      Type *ExtTy = VectorType::get(IntptrTy, cast<VectorType>(Ty));
+      Value *ExtMask = IB.CreateZExt(Mask, ExtTy);
+      Value *EVL = IB.CreateAddReduce(ExtMask);
+      Value *TrueMask = ConstantInt::get(Mask->getType(), 1);
+      Interesting.emplace_back(I, OpOffset, IsWrite, Ty, Alignment, TrueMask,
+                               EVL);
       break;
     }
     case Intrinsic::vp_load:
@@ -1480,8 +1506,9 @@ static void doInstrumentAddress(AddressSanitizer *Pass, Instruction *I,
     case 128:
       if (!Alignment || *Alignment >= Granularity ||
           *Alignment >= FixedSize / 8)
-        return Pass->instrumentAddress(I, InsertBefore, Addr, FixedSize,
-                                       IsWrite, nullptr, UseCalls, Exp);
+        return Pass->instrumentAddress(I, InsertBefore, Addr, Alignment,
+                                       FixedSize, IsWrite, nullptr, UseCalls,
+                                       Exp);
     }
   }
   Pass->instrumentUnusualSizeOrAlignment(I, InsertBefore, Addr, TypeStoreSize,
@@ -1615,7 +1642,7 @@ Instruction *AddressSanitizer::generateCrashCode(Instruction *InsertBefore,
                                                  size_t AccessSizeIndex,
                                                  Value *SizeArgument,
                                                  uint32_t Exp) {
-  IRBuilder<> IRB(InsertBefore);
+  InstrumentationIRBuilder IRB(InsertBefore);
   Value *ExpVal = Exp == 0 ? nullptr : ConstantInt::get(IRB.getInt32Ty(), Exp);
   CallInst *Call = nullptr;
   if (SizeArgument) {
@@ -1681,6 +1708,7 @@ Instruction *AddressSanitizer::instrumentAMDGPUAddress(
 
 void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
                                          Instruction *InsertBefore, Value *Addr,
+                                         MaybeAlign Alignment,
                                          uint32_t TypeStoreSize, bool IsWrite,
                                          Value *SizeArgument, bool UseCalls,
                                          uint32_t Exp) {
@@ -1691,7 +1719,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       return;
   }
 
-  IRBuilder<> IRB(InsertBefore);
+  InstrumentationIRBuilder IRB(InsertBefore);
   size_t AccessSizeIndex = TypeStoreSizeToSizeIndex(TypeStoreSize);
   const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
 
@@ -1720,8 +1748,10 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
       IntegerType::get(*C, std::max(8U, TypeStoreSize >> Mapping.Scale));
   Type *ShadowPtrTy = PointerType::get(ShadowTy, 0);
   Value *ShadowPtr = memToShadow(AddrLong, IRB);
-  Value *ShadowValue =
-      IRB.CreateLoad(ShadowTy, IRB.CreateIntToPtr(ShadowPtr, ShadowPtrTy));
+  const uint64_t ShadowAlign =
+      std::max<uint64_t>(Alignment.valueOrOne().value() >> Mapping.Scale, 1);
+  Value *ShadowValue = IRB.CreateAlignedLoad(
+      ShadowTy, IRB.CreateIntToPtr(ShadowPtr, ShadowPtrTy), Align(ShadowAlign));
 
   Value *Cmp = IRB.CreateIsNotNull(ShadowValue);
   size_t Granularity = 1ULL << Mapping.Scale;
@@ -1751,7 +1781,8 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
 
   Instruction *Crash = generateCrashCode(CrashTerm, AddrLong, IsWrite,
                                          AccessSizeIndex, SizeArgument, Exp);
-  Crash->setDebugLoc(OrigIns->getDebugLoc());
+  if (OrigIns->getDebugLoc())
+    Crash->setDebugLoc(OrigIns->getDebugLoc());
 }
 
 // Instrument unusual size or unusual alignment.
@@ -1761,7 +1792,7 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
 void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     Instruction *I, Instruction *InsertBefore, Value *Addr, TypeSize TypeStoreSize,
     bool IsWrite, Value *SizeArgument, bool UseCalls, uint32_t Exp) {
-  IRBuilder<> IRB(InsertBefore);
+  InstrumentationIRBuilder IRB(InsertBefore);
   Value *NumBits = IRB.CreateTypeSize(IntptrTy, TypeStoreSize);
   Value *Size = IRB.CreateLShr(NumBits, ConstantInt::get(IntptrTy, 3));
 
@@ -1778,8 +1809,9 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     Value *LastByte = IRB.CreateIntToPtr(
         IRB.CreateAdd(AddrLong, SizeMinusOne),
         Addr->getType());
-    instrumentAddress(I, InsertBefore, Addr, 8, IsWrite, Size, false, Exp);
-    instrumentAddress(I, InsertBefore, LastByte, 8, IsWrite, Size, false, Exp);
+    instrumentAddress(I, InsertBefore, Addr, {}, 8, IsWrite, Size, false, Exp);
+    instrumentAddress(I, InsertBefore, LastByte, {}, 8, IsWrite, Size, false,
+                      Exp);
   }
 }
 

@@ -43,14 +43,6 @@ DEVICE_EXTERN_C_INLINE double __devicelib_imf_rsqrt(double a) {
 
 DEVICE_EXTERN_C_INLINE double __devicelib_imf_inv(double a) { return 1.0 / a; }
 
-DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmax(double a, double b) {
-  return __fmax(a, b);
-}
-
-DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmin(double a, double b) {
-  return __fmin(a, b);
-}
-
 DEVICE_EXTERN_C_INLINE double __devicelib_imf_copysign(double a, double b) {
   return __copysign(a, b);
 }

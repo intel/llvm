@@ -19,6 +19,7 @@
 #include "clang/AST/CharUnits.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/ExprCXX.h"
+#include "clang/AST/ExprConcepts.h"
 #include "clang/AST/ExprObjC.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
@@ -43,6 +44,7 @@
 #include "clang/Sema/TemplateDeduction.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/TypeSize.h"
 #include <optional>
@@ -137,9 +139,7 @@ ParsedType Sema::getConstructorName(IdentifierInfo &II,
   return ParsedType::make(T);
 }
 
-ParsedType Sema::getDestructorName(SourceLocation TildeLoc,
-                                   IdentifierInfo &II,
-                                   SourceLocation NameLoc,
+ParsedType Sema::getDestructorName(IdentifierInfo &II, SourceLocation NameLoc,
                                    Scope *S, CXXScopeSpec &SS,
                                    ParsedType ObjectTypePtr,
                                    bool EnteringContext) {
@@ -501,13 +501,16 @@ bool Sema::checkLiteralOperatorId(const CXXScopeSpec &SS,
     IdentifierInfo *II = Name.Identifier;
     ReservedIdentifierStatus Status = II->isReserved(PP.getLangOpts());
     SourceLocation Loc = Name.getEndLoc();
-    if (isReservedInAllContexts(Status) &&
-        !PP.getSourceManager().isInSystemHeader(Loc)) {
-      Diag(Loc, diag::warn_reserved_extern_symbol)
-          << II << static_cast<int>(Status)
-          << FixItHint::CreateReplacement(
-                 Name.getSourceRange(),
-                 (StringRef("operator\"\"") + II->getName()).str());
+    if (!PP.getSourceManager().isInSystemHeader(Loc)) {
+      if (auto Hint = FixItHint::CreateReplacement(
+              Name.getSourceRange(),
+              (StringRef("operator\"\"") + II->getName()).str());
+          isReservedInAllContexts(Status)) {
+        Diag(Loc, diag::warn_reserved_extern_symbol)
+            << II << static_cast<int>(Status) << Hint;
+      } else {
+        Diag(Loc, diag::warn_deprecated_literal_operator_id) << II << Hint;
+      }
     }
   }
 
@@ -862,12 +865,20 @@ Sema::ActOnCXXThrow(Scope *S, SourceLocation OpLoc, Expr *Ex) {
 
 ExprResult Sema::BuildCXXThrow(SourceLocation OpLoc, Expr *Ex,
                                bool IsThrownVarInScope) {
-  // Don't report an error if 'throw' is used in system headers.
-  if (!getLangOpts().CXXExceptions &&
+  const llvm::Triple &T = Context.getTargetInfo().getTriple();
+  const bool IsOpenMPGPUTarget =
+      getLangOpts().OpenMPIsTargetDevice && (T.isNVPTX() || T.isAMDGCN());
+  // Don't report an error if 'throw' is used in system headers or in an OpenMP
+  // target region compiled for a GPU architecture.
+  if (!IsOpenMPGPUTarget && !getLangOpts().CXXExceptions &&
       !getSourceManager().isInSystemHeader(OpLoc) && !getLangOpts().CUDA) {
     // Delay error emission for the OpenMP device code.
     targetDiag(OpLoc, diag::err_exceptions_disabled) << "throw";
   }
+
+  // In OpenMP target regions, we replace 'throw' with a trap on GPU targets.
+  if (IsOpenMPGPUTarget)
+    targetDiag(OpLoc, diag::warn_throw_not_valid_on_target) << T.str();
 
   // Exceptions aren't allowed in CUDA device code.
   if (getLangOpts().CUDA)
@@ -981,6 +992,19 @@ bool Sema::CheckCXXThrowOperand(SourceLocation ThrowLoc,
     Ty = Ptr->getPointeeType();
     isPointer = true;
   }
+
+  // Cannot throw WebAssembly reference type.
+  if (Ty.isWebAssemblyReferenceType()) {
+    Diag(ThrowLoc, diag::err_wasm_reftype_tc) << 0 << E->getSourceRange();
+    return true;
+  }
+
+  // Cannot throw WebAssembly table.
+  if (isPointer && Ty.isWebAssemblyReferenceType()) {
+    Diag(ThrowLoc, diag::err_wasm_table_art) << 2 << E->getSourceRange();
+    return true;
+  }
+
   if (!isPointer || !Ty->isVoidType()) {
     if (RequireCompleteType(ThrowLoc, Ty,
                             isPointer ? diag::err_throw_incomplete_ptr
@@ -1198,7 +1222,7 @@ QualType Sema::getCurrentThisType() {
 
   if (CXXMethodDecl *method = dyn_cast<CXXMethodDecl>(DC)) {
     if (method && method->isInstance())
-      ThisTy = method->getThisType();
+      ThisTy = method->getThisType().getNonReferenceType();
   }
 
   if (ThisTy.isNull() && isLambdaCallOperator(CurContext) &&
@@ -1240,7 +1264,8 @@ Sema::CXXThisScopeRAII::CXXThisScopeRAII(Sema &S,
   QualType T = S.Context.getRecordType(Record);
   T = S.getASTContext().getQualifiedType(T, CXXThisTypeQuals);
 
-  S.CXXThisTypeOverride = S.Context.getPointerType(T);
+  S.CXXThisTypeOverride =
+      S.Context.getLangOpts().HLSL ? T : S.Context.getPointerType(T);
 
   this->Enabled = true;
 }
@@ -1387,14 +1412,7 @@ ExprResult Sema::ActOnCXXThis(SourceLocation Loc) {
 
 Expr *Sema::BuildCXXThisExpr(SourceLocation Loc, QualType Type,
                              bool IsImplicit) {
-  if (getLangOpts().HLSL && Type.getTypePtr()->isPointerType()) {
-    auto *This = new (Context)
-        CXXThisExpr(Loc, Type.getTypePtr()->getPointeeType(), IsImplicit);
-    This->setValueKind(ExprValueKind::VK_LValue);
-    MarkThisReferenced(This);
-    return This;
-  }
-  auto *This = new (Context) CXXThisExpr(Loc, Type, IsImplicit);
+  auto *This = CXXThisExpr::Create(Context, Loc, Type, IsImplicit);
   MarkThisReferenced(This);
   return This;
 }
@@ -1702,8 +1720,8 @@ namespace {
 
       // In CUDA, determine how much we'd like / dislike to call this.
       if (S.getLangOpts().CUDA)
-        if (auto *Caller = S.getCurFunctionDecl(/*AllowLambda=*/true))
-          CUDAPref = S.IdentifyCUDAPreference(Caller, FD);
+        CUDAPref = S.IdentifyCUDAPreference(
+            S.getCurFunctionDecl(/*AllowLambda=*/true), FD);
     }
 
     explicit operator bool() const { return FD; }
@@ -2649,11 +2667,10 @@ bool Sema::FindAllocationFunctions(SourceLocation StartLoc, SourceRange Range,
   // FIXME: Should the Sema create the expression and embed it in the syntax
   // tree? Or should the consumer just recalculate the value?
   // FIXME: Using a dummy value will interact poorly with attribute enable_if.
-  IntegerLiteral Size(
-      Context,
-      llvm::APInt::getZero(
-          Context.getTargetInfo().getPointerWidth(LangAS::Default)),
-      Context.getSizeType(), SourceLocation());
+  QualType SizeTy = Context.getSizeType();
+  unsigned SizeTyWidth = Context.getTypeSize(SizeTy);
+  IntegerLiteral Size(Context, llvm::APInt::getZero(SizeTyWidth), SizeTy,
+                      SourceLocation());
   AllocArgs.push_back(&Size);
 
   QualType AlignValT = Context.VoidTy;
@@ -3153,7 +3170,8 @@ void Sema::DeclareGlobalAllocationFunction(DeclarationName Name,
     // Global allocation functions should always be visible.
     Alloc->setVisibleDespiteOwningModule();
 
-    if (HasBadAllocExceptionSpec && getLangOpts().NewInfallible)
+    if (HasBadAllocExceptionSpec && getLangOpts().NewInfallible &&
+        !getLangOpts().CheckNew)
       Alloc->addAttr(
           ReturnsNonNullAttr::CreateImplicit(Context, Alloc->getLocation()));
 
@@ -3951,7 +3969,7 @@ void Sema::CheckVirtualDtorCall(CXXDestructorDecl *dtor, SourceLocation Loc,
   if (getSourceManager().isInSystemHeader(PointeeRD->getLocation()))
     return;
 
-  QualType ClassType = dtor->getThisType()->getPointeeType();
+  QualType ClassType = dtor->getThisObjectType();
   if (PointeeRD->isAbstract()) {
     // If the class is abstract, we warn by default, because we're
     // sure the code has undefined behavior.
@@ -4082,6 +4100,9 @@ Sema::IsStringLiteralToNonConstPointerConversion(Expr *From, QualType ToType) {
             case StringLiteral::Wide:
               return Context.typesAreCompatible(Context.getWideCharType(),
                                                 QualType(ToPointeeType, 0));
+            case StringLiteral::Unevaluated:
+              assert(false && "Unevaluated string literal in expression");
+              break;
           }
         }
       }
@@ -6294,7 +6315,7 @@ static bool isValidVectorForConditionalCondition(ASTContext &Ctx,
 
 static bool isValidSizelessVectorForConditionalCondition(ASTContext &Ctx,
                                                          QualType CondTy) {
-  if (!CondTy->isVLSTBuiltinType())
+  if (!CondTy->isSveVLSBuiltinType())
     return false;
   const QualType EltTy =
       cast<BuiltinType>(CondTy.getCanonicalType())->getSveEltType(Ctx);
@@ -6406,10 +6427,10 @@ QualType Sema::CheckSizelessVectorConditionalTypes(ExprResult &Cond,
 
   QualType LHSType = LHS.get()->getType();
   const auto *LHSBT =
-      LHSType->isVLSTBuiltinType() ? LHSType->getAs<BuiltinType>() : nullptr;
+      LHSType->isSveVLSBuiltinType() ? LHSType->getAs<BuiltinType>() : nullptr;
   QualType RHSType = RHS.get()->getType();
   const auto *RHSBT =
-      RHSType->isVLSTBuiltinType() ? RHSType->getAs<BuiltinType>() : nullptr;
+      RHSType->isSveVLSBuiltinType() ? RHSType->getAs<BuiltinType>() : nullptr;
 
   QualType ResultType;
 
@@ -6451,7 +6472,7 @@ QualType Sema::CheckSizelessVectorConditionalTypes(ExprResult &Cond,
     RHS = ImpCastExprToType(RHS.get(), ResultType, CK_VectorSplat);
   }
 
-  assert(!ResultType.isNull() && ResultType->isVLSTBuiltinType() &&
+  assert(!ResultType.isNull() && ResultType->isSveVLSBuiltinType() &&
          "Result should have been a vector type");
   auto *ResultBuiltinTy = ResultType->castAs<BuiltinType>();
   QualType ResultElementTy = ResultBuiltinTy->getSveEltType(Context);
@@ -6585,6 +6606,13 @@ QualType Sema::CXXCheckConditionalOperands(ExprResult &Cond, ExprResult &LHS,
 
   if (IsSizelessVectorConditional)
     return CheckSizelessVectorConditionalTypes(Cond, LHS, RHS, QuestionLoc);
+
+  // WebAssembly tables are not allowed as conditional LHS or RHS.
+  if (LTy->isWebAssemblyTableType() || RTy->isWebAssemblyTableType()) {
+    Diag(QuestionLoc, diag::err_wasm_table_conditional_expression)
+        << LHS.get()->getSourceRange() << RHS.get()->getSourceRange();
+    return QualType();
+  }
 
   // C++11 [expr.cond]p3
   //   Otherwise, if the second and third operand have different types, and
@@ -9054,16 +9082,24 @@ Sema::BuildExprRequirement(
     MultiLevelTemplateArgumentList MLTAL(Param, TAL.asArray(),
                                          /*Final=*/false);
     MLTAL.addOuterRetainedLevels(TPL->getDepth());
-    Expr *IDC = Param->getTypeConstraint()->getImmediatelyDeclaredConstraint();
+    const TypeConstraint *TC = Param->getTypeConstraint();
+    assert(TC && "Type Constraint cannot be null here");
+    auto *IDC = TC->getImmediatelyDeclaredConstraint();
+    assert(IDC && "ImmediatelyDeclaredConstraint can't be null here.");
     ExprResult Constraint = SubstExpr(IDC, MLTAL);
     if (Constraint.isInvalid()) {
-      Status = concepts::ExprRequirement::SS_ExprSubstitutionFailure;
-    } else {
-      SubstitutedConstraintExpr =
-          cast<ConceptSpecializationExpr>(Constraint.get());
-      if (!SubstitutedConstraintExpr->isSatisfied())
-        Status = concepts::ExprRequirement::SS_ConstraintsNotSatisfied;
+      return new (Context) concepts::ExprRequirement(
+          concepts::createSubstDiagAt(*this, IDC->getExprLoc(),
+                                      [&](llvm::raw_ostream &OS) {
+                                        IDC->printPretty(OS, /*Helper=*/nullptr,
+                                                         getPrintingPolicy());
+                                      }),
+          IsSimple, NoexceptLoc, ReturnTypeRequirement);
     }
+    SubstitutedConstraintExpr =
+        cast<ConceptSpecializationExpr>(Constraint.get());
+    if (!SubstitutedConstraintExpr->isSatisfied())
+      Status = concepts::ExprRequirement::SS_ConstraintsNotSatisfied;
   }
   return new (Context) concepts::ExprRequirement(E, IsSimple, NoexceptLoc,
                                                  ReturnTypeRequirement, Status,

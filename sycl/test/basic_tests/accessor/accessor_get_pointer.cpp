@@ -27,8 +27,6 @@ void test_get_multi_ptr(handler &cgh, buffer<int, size> &buffer) {
   auto device_acc_ptr = device_acc.get_pointer();
   static_assert(std::is_same_v<decltype(acc_ptr), std::add_pointer_t<int>>);
   static_assert(std::is_same_v<decltype(target_local_ptr), local_ptr<int>>);
-  static_assert(
-      std::is_same_v<decltype(local_pointer), std::add_pointer_t<int>>);
-  static_assert(
-      std::is_same_v<decltype(device_acc_ptr), std::add_pointer_t<int>>);
+  static_assert(std::is_same_v<decltype(local_pointer), local_ptr<int>>);
+  static_assert(std::is_same_v<decltype(device_acc_ptr), global_ptr<int>>);
 }

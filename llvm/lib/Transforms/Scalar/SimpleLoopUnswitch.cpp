@@ -2735,6 +2735,8 @@ static BranchInst *turnGuardIntoBranch(IntrinsicInst *GI, Loop &L,
       MSSAU->getMemorySSA()->verifyMemorySSA();
   }
 
+  if (VerifyLoopInfo)
+    LI.verify(DT);
   ++NumGuards;
   return CheckBI;
 }
@@ -2837,6 +2839,24 @@ static bool collectUnswitchCandidates(
     const Loop &L, const LoopInfo &LI, AAResults &AA,
     const MemorySSAUpdater *MSSAU) {
   assert(UnswitchCandidates.empty() && "Should be!");
+
+  auto AddUnswitchCandidatesForInst = [&](Instruction *I, Value *Cond) {
+    Cond = skipTrivialSelect(Cond);
+    if (isa<Constant>(Cond))
+      return;
+    if (L.isLoopInvariant(Cond)) {
+      UnswitchCandidates.push_back({I, {Cond}});
+      return;
+    }
+    if (match(Cond, m_CombineOr(m_LogicalAnd(), m_LogicalOr()))) {
+      TinyPtrVector<Value *> Invariants =
+          collectHomogenousInstGraphLoopInvariants(
+              L, *static_cast<Instruction *>(Cond), LI);
+      if (!Invariants.empty())
+        UnswitchCandidates.push_back({I, std::move(Invariants)});
+    }
+  };
+
   // Whether or not we should also collect guards in the loop.
   bool CollectGuards = false;
   if (UnswitchGuards) {
@@ -2852,10 +2872,10 @@ static bool collectUnswitchCandidates(
 
     for (auto &I : *BB) {
       if (auto *SI = dyn_cast<SelectInst>(&I)) {
-        auto *Cond = skipTrivialSelect(SI->getCondition());
-        // restrict to simple boolean selects
-        if (!isa<Constant>(Cond) && L.isLoopInvariant(Cond) && Cond->getType()->isIntegerTy(1))
-          UnswitchCandidates.push_back({&I, {Cond}});
+        auto *Cond = SI->getCondition();
+        // Do not unswitch vector selects and logical and/or selects
+        if (Cond->getType()->isIntegerTy(1) && !SI->getType()->isIntegerTy(1))
+          AddUnswitchCandidatesForInst(SI, Cond);
       } else if (CollectGuards && isGuard(&I)) {
         auto *Cond =
             skipTrivialSelect(cast<IntrinsicInst>(&I)->getArgOperand(0));
@@ -2875,29 +2895,11 @@ static bool collectUnswitchCandidates(
     }
 
     auto *BI = dyn_cast<BranchInst>(BB->getTerminator());
-    if (!BI || !BI->isConditional() || isa<Constant>(BI->getCondition()) ||
+    if (!BI || !BI->isConditional() ||
         BI->getSuccessor(0) == BI->getSuccessor(1))
       continue;
 
-    Value *Cond = skipTrivialSelect(BI->getCondition());
-    if (isa<Constant>(Cond))
-      continue;
-
-    if (L.isLoopInvariant(Cond)) {
-      UnswitchCandidates.push_back({BI, {Cond}});
-      continue;
-    }
-
-    Instruction &CondI = *cast<Instruction>(Cond);
-    if (match(&CondI, m_CombineOr(m_LogicalAnd(), m_LogicalOr()))) {
-      TinyPtrVector<Value *> Invariants =
-          collectHomogenousInstGraphLoopInvariants(L, CondI, LI);
-      if (Invariants.empty())
-        continue;
-
-      UnswitchCandidates.push_back({BI, std::move(Invariants)});
-      continue;
-    }
+    AddUnswitchCandidatesForInst(BI, BI->getCondition());
   }
 
   if (MSSAU && !findOptionMDForLoop(&L, "llvm.loop.unswitch.partial.disable") &&
@@ -3316,6 +3318,10 @@ static NonTrivialUnswitchCandidate findBestNonTrivialUnswitchCandidate(
   // cost for that terminator.
   auto ComputeUnswitchedCost = [&](Instruction &TI,
                                    bool FullUnswitch) -> InstructionCost {
+    // Unswitching selects unswitches the entire loop.
+    if (isa<SelectInst>(TI))
+      return LoopCost;
+
     BasicBlock &BB = *TI.getParent();
     SmallPtrSet<BasicBlock *, 4> Visited;
 
@@ -3365,8 +3371,7 @@ static NonTrivialUnswitchCandidate findBestNonTrivialUnswitchCandidate(
     // loop. This is computing the new cost of unswitching a condition.
     // Note that guards always have 2 unique successors that are implicit and
     // will be materialized if we decide to unswitch it.
-    int SuccessorsCount =
-        isGuard(&TI) || isa<SelectInst>(TI) ? 2 : Visited.size();
+    int SuccessorsCount = isGuard(&TI) ? 2 : Visited.size();
     assert(SuccessorsCount > 1 &&
            "Cannot unswitch a condition without multiple distinct successors!");
     return (LoopCost - Cost) * (SuccessorsCount - 1);
@@ -3547,6 +3552,8 @@ unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI, AssumptionCache &AC,
     return true;
   }
 
+  const Function *F = L.getHeader()->getParent();
+
   // Check whether we should continue with non-trivial conditions.
   // EnableNonTrivialUnswitch: Global variable that forces non-trivial
   //                           unswitching for testing and debugging.
@@ -3559,12 +3566,12 @@ unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI, AssumptionCache &AC,
   // branches even on targets that have divergence.
   // https://bugs.llvm.org/show_bug.cgi?id=48819
   bool ContinueWithNonTrivial =
-      EnableNonTrivialUnswitch || (NonTrivial && !TTI.hasBranchDivergence());
+      EnableNonTrivialUnswitch || (NonTrivial && !TTI.hasBranchDivergence(F));
   if (!ContinueWithNonTrivial)
     return false;
 
   // Skip non-trivial unswitching for optsize functions.
-  if (L.getHeader()->getParent()->hasOptSize())
+  if (F->hasOptSize())
     return false;
 
   // Returns true if Loop L's loop nest is cold, i.e. if the headers of L,

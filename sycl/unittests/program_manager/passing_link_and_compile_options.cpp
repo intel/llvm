@@ -31,7 +31,7 @@ const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
 constexpr unsigned EAMTestKernelNumArgs3 = 4;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <>
 struct KernelInfo<EAMTestKernel1> : public unittest::MockKernelInfoBase {
@@ -52,7 +52,7 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 template <typename T>

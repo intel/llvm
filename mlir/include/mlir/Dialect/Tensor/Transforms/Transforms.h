@@ -34,9 +34,14 @@ FailureOr<TilingResult> replaceExtractSliceWithTiledProducer(
 // Populate functions.
 //===----------------------------------------------------------------------===//
 
-/// Appends patterns for folding tensor aliasing ops into consumer load/store
-/// ops into `patterns`.
+/// Appends patterns for folding tensor subset ops into consumer load/store
+/// ops into `patterns`. (This includes patterns for folding tensor subset ops
+/// into vector transfer ops.)
 void populateFoldTensorSubsetOpPatterns(RewritePatternSet &patterns);
+
+/// Appends patterns for folding tensor subset ops into vector transfer ops.
+void populateFoldTensorSubsetIntoVectorTransferPatterns(
+    RewritePatternSet &patterns);
 
 /// Collects patterns to merge consecutive tensor.insert_slice/extract_slice
 /// into one. These patterns are in this separate entry point because the
@@ -56,12 +61,20 @@ void populateReassociativeReshapeFoldingPatterns(RewritePatternSet &patterns);
 
 /// Populates `patterns` with patterns that fold tensor.empty with
 /// tensor.[extract_slice|expand_shape|collapse_shape].
-void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns);
+///
+/// If `singleUseOnly` is set to "true", only tensor.empty ops with a single
+/// use are folded.
+void populateFoldTensorEmptyPatterns(RewritePatternSet &patterns,
+                                     bool foldSingleUseOnly = false);
 
 /// Populates `patterns` with patterns that fold operations like `tensor.pad`
 /// and `tensor.extract_slice` into `tensor.pack` and `tensor.unpack` operations
 /// respectively.
 void populateFoldIntoPackAndUnpackPatterns(RewritePatternSet &patterns);
+
+/// Populates `patterns` with patterns that replace tensor ops (such as
+/// tensor.generate) with constants when possible.
+void populateRewriteAsConstantPatterns(RewritePatternSet &patterns);
 
 //===----------------------------------------------------------------------===//
 // Transform helpers

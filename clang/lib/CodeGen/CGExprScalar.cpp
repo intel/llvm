@@ -1820,7 +1820,7 @@ Value *ScalarExprEmitter::VisitArraySubscriptExpr(ArraySubscriptExpr *E) {
   // careful, because the base of a vector subscript is occasionally an rvalue,
   // so we can't get it as an lvalue.
   if (!E->getBase()->getType()->isVectorType() &&
-      !E->getBase()->getType()->isVLSTBuiltinType())
+      !E->getBase()->getType()->isSveVLSBuiltinType())
     return EmitLoadOfLValue(E);
 
   // Handle the vector case.  The base must be a vector, the index must be an
@@ -1889,6 +1889,23 @@ Value *ScalarExprEmitter::VisitInitListExpr(InitListExpr *E) {
     }
     // We have a scalar in braces. Just use the first element.
     return Visit(E->getInit(0));
+  }
+
+  if (isa<llvm::ScalableVectorType>(VType)) {
+    if (NumInitElements == 0) {
+      // C++11 value-initialization for the vector.
+      return EmitNullValue(E->getType());
+    }
+
+    if (NumInitElements == 1) {
+      Expr *InitVector = E->getInit(0);
+
+      // Initialize from another scalable vector of the same type.
+      if (InitVector->getType() == E->getType())
+        return Visit(InitVector);
+    }
+
+    llvm_unreachable("Unexpected initialization of a scalable vector!");
   }
 
   unsigned ResElts = cast<llvm::FixedVectorType>(VType)->getNumElements();
@@ -2068,15 +2085,15 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
   case CK_LValueBitCast:
   case CK_ObjCObjectLValueCast: {
     Address Addr = EmitLValue(E).getAddress(CGF);
-    Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy));
+    Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
     LValue LV = CGF.MakeAddrLValue(Addr, DestTy);
     return EmitLoadOfLValue(LV, CE->getExprLoc());
   }
 
   case CK_LValueToRValueBitCast: {
     LValue SourceLVal = CGF.EmitLValue(E);
-    Address Addr = Builder.CreateElementBitCast(SourceLVal.getAddress(CGF),
-                                                CGF.ConvertTypeForMem(DestTy));
+    Address Addr = SourceLVal.getAddress(CGF).withElementType(
+        CGF.ConvertTypeForMem(DestTy));
     LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
     DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
     return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -2163,7 +2180,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
           llvm::Value *UndefVec = llvm::UndefValue::get(DstTy);
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
           llvm::Value *Result = Builder.CreateInsertVector(
-              DstTy, UndefVec, Src, Zero, "castScalableSve");
+              DstTy, UndefVec, Src, Zero, "cast.scalable");
           if (NeedsBitCast)
             Result = Builder.CreateBitCast(Result, OrigType);
           return Result;
@@ -2187,7 +2204,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
         }
         if (ScalableSrc->getElementType() == FixedDst->getElementType()) {
           llvm::Value *Zero = llvm::Constant::getNullValue(CGF.CGM.Int64Ty);
-          return Builder.CreateExtractVector(DstTy, Src, Zero, "castFixedSve");
+          return Builder.CreateExtractVector(DstTy, Src, Zero, "cast.fixed");
         }
       }
     }
@@ -2205,8 +2222,7 @@ Value *ScalarExprEmitter::VisitCastExpr(CastExpr *CE) {
       Address Addr = CGF.CreateDefaultAlignTempAlloca(SrcTy, "saved-value");
       LValue LV = CGF.MakeAddrLValue(Addr, E->getType());
       CGF.EmitStoreOfScalar(Src, LV);
-      Addr = Builder.CreateElementBitCast(Addr, CGF.ConvertTypeForMem(DestTy),
-                                          "castFixedSve");
+      Addr = Addr.withElementType(CGF.ConvertTypeForMem(DestTy));
       LValue DestLV = CGF.MakeAddrLValue(Addr, DestTy);
       DestLV.setTBAAInfo(TBAAAccessInfo::getMayAliasInfo());
       return EmitLoadOfLValue(DestLV, CE->getExprLoc());
@@ -2718,15 +2734,13 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
     } else if (type->isFunctionType()) {
       llvm::Value *amt = Builder.getInt32(amount);
 
-      value = CGF.EmitCastToVoidPtr(value);
       if (CGF.getLangOpts().isSignedOverflowDefined())
         value = Builder.CreateGEP(CGF.Int8Ty, value, amt, "incdec.funcptr");
       else
-        value = CGF.EmitCheckedInBoundsGEP(CGF.Int8Ty, value, amt,
-                                           /*SignedIndices=*/false,
-                                           isSubtraction, E->getExprLoc(),
-                                           "incdec.funcptr");
-      value = Builder.CreateBitCast(value, input->getType());
+        value =
+            CGF.EmitCheckedInBoundsGEP(CGF.Int8Ty, value, amt,
+                                       /*SignedIndices=*/false, isSubtraction,
+                                       E->getExprLoc(), "incdec.funcptr");
 
     // For everything else, we can just do a simple increment.
     } else {
@@ -2778,8 +2792,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
       amt = llvm::ConstantFP::get(VMContext,
                                   llvm::APFloat(static_cast<double>(amount)));
     else {
-      // Remaining types are Half, LongDouble, __ibm128 or __float128. Convert
-      // from float.
+      // Remaining types are Half, Bfloat16, LongDouble, __ibm128 or __float128.
+      // Convert from float.
       llvm::APFloat F(static_cast<float>(amount));
       bool ignored;
       const llvm::fltSemantics *FS;
@@ -2789,6 +2803,8 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
         FS = &CGF.getTarget().getFloat128Format();
       else if (value->getType()->isHalfTy())
         FS = &CGF.getTarget().getHalfFormat();
+      else if (value->getType()->isBFloatTy())
+        FS = &CGF.getTarget().getBFloat16Format();
       else if (value->getType()->isPPC_FP128Ty())
         FS = &CGF.getTarget().getIbm128Format();
       else
@@ -2837,7 +2853,6 @@ ScalarExprEmitter::EmitScalarPrePostIncDec(const UnaryOperator *E, LValue LV,
   // Objective-C pointer types.
   } else {
     const ObjCObjectPointerType *OPT = type->castAs<ObjCObjectPointerType>();
-    value = CGF.EmitCastToVoidPtr(value);
 
     CharUnits size = CGF.getContext().getTypeSizeInChars(OPT->getObjectType());
     if (!isInc) size = -size;
@@ -3493,21 +3508,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
     llvm::Value *Val;
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, Ops.FPFeatures);
     Val = Builder.CreateFDiv(Ops.LHS, Ops.RHS, "div");
-    if ((CGF.getLangOpts().OpenCL &&
-         !CGF.CGM.getCodeGenOpts().OpenCLCorrectlyRoundedDivSqrt) ||
-        (CGF.getLangOpts().HIP && CGF.getLangOpts().CUDAIsDevice &&
-         !CGF.CGM.getCodeGenOpts().HIPCorrectlyRoundedDivSqrt)) {
-      // OpenCL v1.1 s7.4: minimum accuracy of single precision / is 2.5ulp
-      // OpenCL v1.2 s5.6.4.2: The -cl-fp32-correctly-rounded-divide-sqrt
-      // build option allows an application to specify that single precision
-      // floating-point divide (x/y and 1/x) and sqrt used in the program
-      // source are correctly rounded.
-      llvm::Type *ValTy = Val->getType();
-      if (ValTy->isFloatTy() ||
-          (isa<llvm::VectorType>(ValTy) &&
-           cast<llvm::VectorType>(ValTy)->getElementType()->isFloatTy()))
-        CGF.SetFPAccuracy(Val, 2.5);
-    }
+    CGF.SetDivFPAccuracy(Val);
     return Val;
   }
   else if (Ops.isFixedPointOp())
@@ -3717,8 +3718,8 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
 
     index = CGF.Builder.CreateMul(index, objectSize);
 
-    Value *result = CGF.Builder.CreateBitCast(pointer, CGF.VoidPtrTy);
-    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
+    Value *result =
+        CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
     return CGF.Builder.CreateBitCast(result, pointer->getType());
   }
 
@@ -3748,11 +3749,8 @@ static Value *emitPointerArithmetic(CodeGenFunction &CGF,
   // Explicitly handle GNU void* and function pointer arithmetic extensions. The
   // GNU void* casts amount to no-ops since our void* type is i8*, but this is
   // future proof.
-  if (elementType->isVoidType() || elementType->isFunctionType()) {
-    Value *result = CGF.EmitCastToVoidPtr(pointer);
-    result = CGF.Builder.CreateGEP(CGF.Int8Ty, result, index, "add.ptr");
-    return CGF.Builder.CreateBitCast(result, pointer->getType());
-  }
+  if (elementType->isVoidType() || elementType->isFunctionType())
+    return CGF.Builder.CreateGEP(CGF.Int8Ty, pointer, index, "add.ptr");
 
   llvm::Type *elemTy = CGF.ConvertTypeForMem(elementType);
   if (CGF.getLangOpts().isSignedOverflowDefined())
@@ -3904,6 +3902,14 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
     }
   }
 
+  // For vector and matrix adds, try to fold into a fmuladd.
+  if (op.LHS->getType()->isFPOrFPVectorTy()) {
+    CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+    // Try to form an fmuladd.
+    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
+      return FMulAdd;
+  }
+
   if (op.Ty->isConstantMatrixType()) {
     llvm::MatrixBuilder MB(Builder);
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -3917,10 +3923,6 @@ Value *ScalarExprEmitter::EmitAdd(const BinOpInfo &op) {
 
   if (op.LHS->getType()->isFPOrFPVectorTy()) {
     CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-    // Try to form an fmuladd.
-    if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder))
-      return FMulAdd;
-
     return Builder.CreateFAdd(op.LHS, op.RHS, "add");
   }
 
@@ -4054,6 +4056,14 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
       }
     }
 
+    // For vector and matrix subs, try to fold into a fmuladd.
+    if (op.LHS->getType()->isFPOrFPVectorTy()) {
+      CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
+      // Try to form an fmuladd.
+      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
+        return FMulAdd;
+    }
+
     if (op.Ty->isConstantMatrixType()) {
       llvm::MatrixBuilder MB(Builder);
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
@@ -4067,9 +4077,6 @@ Value *ScalarExprEmitter::EmitSub(const BinOpInfo &op) {
 
     if (op.LHS->getType()->isFPOrFPVectorTy()) {
       CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, op.FPFeatures);
-      // Try to form an fmuladd.
-      if (Value *FMulAdd = tryEmitFMulAdd(op, CGF, Builder, true))
-        return FMulAdd;
       return Builder.CreateFSub(op.LHS, op.RHS, "sub");
     }
 
@@ -4888,7 +4895,7 @@ VisitAbstractConditionalOperator(const AbstractConditionalOperator *E) {
   }
 
   if (condExpr->getType()->isVectorType() ||
-      condExpr->getType()->isVLSTBuiltinType()) {
+      condExpr->getType()->isSveVLSBuiltinType()) {
     CGF.incrementProfileCounter(E);
 
     llvm::Value *CondV = CGF.EmitScalarExpr(condExpr);
@@ -5172,7 +5179,7 @@ LValue CodeGenFunction::EmitObjCIsaExpr(const ObjCIsaExpr *E) {
   }
 
   // Cast the address to Class*.
-  Addr = Builder.CreateElementBitCast(Addr, ConvertType(E->getType()));
+  Addr = Addr.withElementType(ConvertType(E->getType()));
   return MakeAddrLValue(Addr, E->getType());
 }
 

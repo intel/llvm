@@ -82,10 +82,10 @@ if(CLANG_BUILT_STANDALONE)
   set( CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
   set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib${LLVM_LIBDIR_SUFFIX} )
 
-  if(LLVM_INCLUDE_TESTS)
-    find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED
-      COMPONENTS Interpreter)
+  find_package(Python3 ${LLVM_MINIMUM_PYTHON_VERSION} REQUIRED
+    COMPONENTS Interpreter)
 
+  if(LLVM_INCLUDE_TESTS)
     # Check prebuilt llvm/utils.
     if(EXISTS ${LLVM_TOOLS_BINARY_DIR}/FileCheck${CMAKE_EXECUTABLE_SUFFIX}
         AND EXISTS ${LLVM_TOOLS_BINARY_DIR}/count${CMAKE_EXECUTABLE_SUFFIX}
@@ -475,6 +475,7 @@ get_property(CLANG_TABLEGEN_TARGETS GLOBAL PROPERTY CLANG_TABLEGEN_TARGETS)
 add_custom_target(clang-tablegen-targets
   DEPENDS
   omp_gen
+  ClangDriverOptions
   ${CLANG_TABLEGEN_TARGETS})
 set_target_properties(clang-tablegen-targets PROPERTIES FOLDER "Misc")
 list(APPEND LLVM_COMMON_DEPENDS clang-tablegen-targets)

@@ -1,15 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
-// TODO: GPU driver on Windows requires a fix/update.
-// XFAIL: windows
-
-// Failure on Linux: https://github.com/intel/llvm/issues/10138
-// UNSUPPORTED: linux
-
-// esimd_emulator does not yet support local accessors
-// UNSUPPORTED: esimd_emulator
-
+// TODO: Reenable the test for Gen12 once driver issue is fixed
+// REQUIRES: gpu-intel-pvc
 // This test verifies usage of local_accessor methods operator[]
 // and get_pointer().
 
@@ -53,7 +45,7 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
          uint32_t LocalAccOffset = static_cast<uint32_t>(
-             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer()));
+             reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer().get()));
          if constexpr (TestSubscript) {
            for (int I = 0; I < VL; I++)
              LocalAcc[LID * VL + I] = GID * 100 + I;
@@ -121,6 +113,12 @@ int main() {
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << ", Local memory size available : " << DeviceSLMSize << std::endl;
+
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
+                     "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
+    return 0;
+  }
 
   uint32_t LocalRange = 16;
   uint32_t GlobalRange = LocalRange * 2; // 2 groups.

@@ -795,10 +795,11 @@ static void *mmap_interceptor(ThreadState *thr, uptr pc, Mmap real_mmap,
   return res;
 }
 
-TSAN_INTERCEPTOR(int, munmap, void *addr, long_t sz) {
-  SCOPED_TSAN_INTERCEPTOR(munmap, addr, sz);
+template <class Munmap>
+static int munmap_interceptor(ThreadState *thr, uptr pc, Munmap real_munmap,
+                                void *addr, SIZE_T sz) {
   UnmapShadow(thr, (uptr)addr, sz);
-  int res = REAL(munmap)(addr, sz);
+  int res = real_munmap(addr, sz);
   return res;
 }
 
@@ -2504,6 +2505,11 @@ static void HandleRecvmsg(ThreadState *thr, uptr pc,
                             off);                                           \
   } while (false)
 
+#define COMMON_INTERCEPTOR_MUNMAP_IMPL(ctx, addr, sz)           \
+  do {                                                          \
+    return munmap_interceptor(thr, pc, REAL(munmap), addr, sz); \
+  } while (false)
+
 #if !SANITIZER_APPLE
 #define COMMON_INTERCEPTOR_HANDLE_RECVMSG(ctx, msg) \
   HandleRecvmsg(((TsanInterceptorContext *)ctx)->thr, \
@@ -2537,6 +2543,8 @@ static __sanitizer_sighandler_ptr signal_impl(int sig,
 #define SIGNAL_INTERCEPTOR_SIGNAL_IMPL(func, signo, handler) \
   { return (uptr)signal_impl(signo, (__sanitizer_sighandler_ptr)handler); }
 
+#define SIGNAL_INTERCEPTOR_ENTER() LazyInitialize(cur_thread_init())
+
 #include "sanitizer_common/sanitizer_signal_interceptors.inc"
 
 int sigaction_impl(int sig, const __sanitizer_sigaction *act,
@@ -2557,7 +2565,7 @@ int sigaction_impl(int sig, const __sanitizer_sigaction *act,
     // Copy act into sigactions[sig].
     // Can't use struct copy, because compiler can emit call to memcpy.
     // Can't use internal_memcpy, because it copies byte-by-byte,
-    // and signal handler reads the handler concurrently. It it can read
+    // and signal handler reads the handler concurrently. It can read
     // some bytes from old value and some bytes from new value.
     // Use volatile to prevent insertion of memcpy.
     sigactions[sig].handler =

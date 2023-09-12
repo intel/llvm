@@ -1,5 +1,4 @@
 set(LLVM_LINK_COMPONENTS
-  ProfileData
   Support
   TargetParser
   )
@@ -42,7 +41,6 @@ add_llvm_unittest(SupportTests
   ExtensibleRTTITest.cpp
   FileCollectorTest.cpp
   FileOutputBufferTest.cpp
-  FileUtilitiesTest.cpp
   FormatVariadicTest.cpp
   FSUniqueIDTest.cpp
   GlobPatternTest.cpp
@@ -78,12 +76,12 @@ add_llvm_unittest(SupportTests
   SimpleTableTest.cpp
   ScopedPrinterTest.cpp
   SHA256.cpp
+  SignalsTest.cpp
   SourceMgrTest.cpp
   SpecialCaseListTest.cpp
   SuffixTreeTest.cpp
   SwapByteOrderTest.cpp
   TarWriterTest.cpp
-  TaskQueueTest.cpp
   ThreadPool.cpp
   Threading.cpp
   TimerTest.cpp
@@ -93,7 +91,6 @@ add_llvm_unittest(SupportTests
   TypeSizeTest.cpp
   TypeTraitsTest.cpp
   TrailingObjectsTest.cpp
-  TrigramIndexTest.cpp
   UnicodeTest.cpp
   VersionTupleTest.cpp
   VirtualFileSystemTest.cpp
@@ -107,6 +104,9 @@ add_llvm_unittest(SupportTests
   raw_pwrite_stream_test.cpp
   raw_sha1_ostream_test.cpp
   xxhashTest.cpp
+
+  DEPENDS
+  intrinsics_gen
   )
 
 target_link_libraries(SupportTests PRIVATE LLVMTestingSupport)

@@ -11,8 +11,8 @@
 
 #include "src/__support/CPP/string_view.h"
 #include "src/__support/integer_to_string.h" // IntegerToString
-#include "src/string/memory_utils/memcpy_implementations.h"
-#include "src/string/memory_utils/memset_implementations.h"
+#include "src/string/memory_utils/inline_memcpy.h"
+#include "src/string/memory_utils/inline_memset.h"
 #include "src/string/string_utils.h" // string_length
 
 #include <stddef.h> // size_t
@@ -56,8 +56,10 @@ public:
   }
   LIBC_INLINE string(const char *cstr, size_t count) {
     resize(count);
-    inline_memcpy((void *)buffer_, (const void *)cstr, count);
+    inline_memcpy(buffer_, cstr, count);
   }
+  LIBC_INLINE string(const string_view &view)
+      : string(view.data(), view.size()) {}
   LIBC_INLINE string(const char *cstr)
       : string(cstr, ::__llvm_libc::internal::string_length(cstr)) {}
   LIBC_INLINE string(size_t size_, char value) {
@@ -76,6 +78,10 @@ public:
     capacity_ = other.capacity_;
     other.reset_no_deallocate();
     return *this;
+  }
+
+  LIBC_INLINE string &operator=(const string_view &view) {
+    return *this = string(view);
   }
 
   LIBC_INLINE ~string() {
@@ -189,10 +195,8 @@ LIBC_INLINE string operator+(const char *lhs, const string &rhs) {
 
 namespace internal {
 template <typename T> string to_dec_string(T value) {
-  char dec_buf[IntegerToString::dec_bufsize<T>()];
-  auto maybe_string_view = IntegerToString::dec(value, dec_buf);
-  const auto &string_view = *maybe_string_view;
-  return string(string_view.data(), string_view.size());
+  const IntegerToString<T> buffer(value);
+  return buffer.view();
 }
 } // namespace internal
 

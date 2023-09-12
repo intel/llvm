@@ -72,6 +72,6 @@ SYCL_EXTERNAL void test_all() {
 
   static_assert(
       std::is_same<decltype(sycl::ext::oneapi::experimental::this_sub_group()),
-                   sycl::ext::oneapi::sub_group>::value,
+                   sycl::sub_group>::value,
       "Wrong return type of free function query for Sub Group");
 }

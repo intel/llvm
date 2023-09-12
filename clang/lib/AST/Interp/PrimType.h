@@ -13,6 +13,7 @@
 #ifndef LLVM_CLANG_AST_INTERP_TYPE_H
 #define LLVM_CLANG_AST_INTERP_TYPE_H
 
+#include "llvm/Support/raw_ostream.h"
 #include <climits>
 #include <cstddef>
 #include <cstdint>
@@ -42,7 +43,20 @@ enum PrimType : unsigned {
   PT_FnPtr,
 };
 
-constexpr bool isIntegralType(PrimType T) { return T <= PT_Uint64; }
+enum class CastKind : uint8_t {
+  Reinterpret,
+};
+inline llvm::raw_ostream &operator<<(llvm::raw_ostream &OS,
+                                     interp::CastKind CK) {
+  switch (CK) {
+  case interp::CastKind::Reinterpret:
+    OS << "reinterpret_cast";
+    break;
+  }
+  return OS;
+}
+
+constexpr bool isIntegralType(PrimType T) { return T <= PT_Bool; }
 
 /// Mapping from primitive types to their representation.
 template <PrimType T> struct PrimConv;
@@ -100,6 +114,24 @@ static inline bool aligned(const void *P) {
       TYPE_SWITCH_CASE(PT_FnPtr, B)                                            \
     }                                                                          \
   } while (0)
+
+#define INT_TYPE_SWITCH(Expr, B)                                               \
+  do {                                                                         \
+    switch (Expr) {                                                            \
+      TYPE_SWITCH_CASE(PT_Sint8, B)                                            \
+      TYPE_SWITCH_CASE(PT_Uint8, B)                                            \
+      TYPE_SWITCH_CASE(PT_Sint16, B)                                           \
+      TYPE_SWITCH_CASE(PT_Uint16, B)                                           \
+      TYPE_SWITCH_CASE(PT_Sint32, B)                                           \
+      TYPE_SWITCH_CASE(PT_Uint32, B)                                           \
+      TYPE_SWITCH_CASE(PT_Sint64, B)                                           \
+      TYPE_SWITCH_CASE(PT_Uint64, B)                                           \
+      TYPE_SWITCH_CASE(PT_Bool, B)                                             \
+    default:                                                                   \
+      llvm_unreachable("Not an integer value");                                \
+    }                                                                          \
+  } while (0)
+
 #define COMPOSITE_TYPE_SWITCH(Expr, B, D)                                      \
   do {                                                                         \
     switch (Expr) {                                                            \

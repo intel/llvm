@@ -604,14 +604,14 @@ def atomic_store_64_glue : PatFrag <
 }
 
 let IsAtomic = 1, AddressSpaces = StoreAddress_local.AddrSpaces in {
-def atomic_store_8_local_m0 : PatFrag<(ops node:$ptr, node:$val),
-                                       (atomic_store_8_glue node:$ptr, node:$val)>;
-def atomic_store_16_local_m0 : PatFrag<(ops node:$ptr, node:$val),
-                                       (atomic_store_16_glue node:$ptr, node:$val)>;
-def atomic_store_32_local_m0 : PatFrag<(ops node:$ptr, node:$val),
-                                       (atomic_store_32_glue node:$ptr, node:$val)>;
-def atomic_store_64_local_m0 : PatFrag<(ops node:$ptr, node:$val),
-                                       (atomic_store_64_glue node:$ptr, node:$val)>;
+def atomic_store_8_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                       (atomic_store_8_glue node:$val, node:$ptr)>;
+def atomic_store_16_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                       (atomic_store_16_glue node:$val, node:$ptr)>;
+def atomic_store_32_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                       (atomic_store_32_glue node:$val, node:$ptr)>;
+def atomic_store_64_local_m0 : PatFrag<(ops node:$val, node:$ptr),
+                                       (atomic_store_64_glue node:$val, node:$ptr)>;
 } // End let IsAtomic = 1, AddressSpaces = StoreAddress_local.AddrSpaces
 
 
@@ -921,127 +921,39 @@ def set_glc : SDNodeXForm<timm, [{
 // Custom Operands
 //===----------------------------------------------------------------------===//
 
-def SoppBrTarget : AsmOperandClass {
-  let Name = "SoppBrTarget";
-  let ParserMethod = "parseSOppBrTarget";
-}
-
-def sopp_brtarget : Operand<OtherVT> {
+def SOPPBrTarget : CustomOperand<OtherVT> {
+  let PrintMethod = "printOperand";
   let EncoderMethod = "getSOPPBrEncoding";
-  let DecoderMethod = "decodeSoppBrTarget";
+  let DecoderMethod = "decodeSOPPBrTarget";
   let OperandType = "OPERAND_PCREL";
-  let ParserMatchClass = SoppBrTarget;
 }
 
 def si_ga : Operand<iPTR>;
 
-def InterpSlotMatchClass : AsmOperandClass {
-  let Name = "InterpSlot";
-  let PredicateMethod = "isInterpSlot";
-  let ParserMethod = "parseInterpSlot";
-  let RenderMethod = "addImmOperands";
-}
-
-def InterpSlot : Operand<i32> {
-  let PrintMethod = "printInterpSlot";
-  let ParserMatchClass = InterpSlotMatchClass;
-  let OperandType = "OPERAND_IMMEDIATE";
-}
-
-def AttrMatchClass : AsmOperandClass {
-  let Name = "Attr";
-  let PredicateMethod = "isInterpAttr";
-  let ParserMethod = "parseInterpAttr";
-  let RenderMethod = "addImmOperands";
-}
+def InterpSlot : CustomOperand<i32>;
 
 // It appears to be necessary to create a separate operand for this to
 // be able to parse attr<num> with no space.
-def Attr : Operand<i32> {
-  let PrintMethod = "printInterpAttr";
-  let ParserMatchClass = AttrMatchClass;
-  let OperandType = "OPERAND_IMMEDIATE";
-}
+def InterpAttr : CustomOperand<i32>;
 
-def AttrChan : ImmOperand<i32, "AttrChan", 0, "printInterpAttrChan">;
-
-def SendMsgMatchClass : AsmOperandClass {
-  let Name = "SendMsg";
-  let PredicateMethod = "isSendMsg";
-  let ParserMethod = "parseSendMsgOp";
-  let RenderMethod = "addImmOperands";
-}
-
-def SwizzleMatchClass : AsmOperandClass {
-  let Name = "Swizzle";
-  let PredicateMethod = "isSwizzle";
-  let ParserMethod = "parseSwizzleOp";
-  let RenderMethod = "addImmOperands";
-  let IsOptional = 1;
-}
-
-def EndpgmMatchClass : AsmOperandClass {
-  let Name = "EndpgmImm";
-  let PredicateMethod = "isEndpgm";
-  let ParserMethod = "parseEndpgmOp";
-  let RenderMethod = "addImmOperands";
-  let IsOptional = 1;
-}
-
-def SWaitMatchClass : AsmOperandClass {
-  let Name = "SWaitCnt";
-  let RenderMethod = "addImmOperands";
-  let ParserMethod = "parseSWaitCntOps";
-}
-
-def DepCtrMatchClass : AsmOperandClass {
-  let Name = "DepCtr";
-  let RenderMethod = "addImmOperands";
-  let ParserMethod = "parseDepCtrOps";
-}
-
-def SDelayMatchClass : AsmOperandClass {
-  let Name = "SDelayAlu";
-  let RenderMethod = "addImmOperands";
-  let ParserMethod = "parseSDelayAluOps";
-}
+def InterpAttrChan : ImmOperand<i32>;
 
 def VReg32OrOffClass : AsmOperandClass {
   let Name = "VReg32OrOff";
   let ParserMethod = "parseVReg32OrOff";
 }
 
-let OperandType = "OPERAND_IMMEDIATE" in {
-def SendMsgImm : Operand<i32> {
-  let PrintMethod = "printSendMsg";
-  let ParserMatchClass = SendMsgMatchClass;
-}
+def SendMsg : CustomOperand<i32>;
 
-def SwizzleImm : Operand<i16> {
-  let PrintMethod = "printSwizzle";
-  let ParserMatchClass = SwizzleMatchClass;
-}
+def Swizzle : CustomOperand<i16, 1>;
 
-def EndpgmImm : Operand<i16> {
-  let PrintMethod = "printEndpgm";
-  let ParserMatchClass = EndpgmMatchClass;
-}
+def Endpgm : CustomOperand<i16, 1>;
 
-def WAIT_FLAG : Operand <i32> {
-  let ParserMatchClass = SWaitMatchClass;
-  let PrintMethod = "printWaitFlag";
-}
+def SWaitCnt : CustomOperand<i32>;
 
-def DepCtrImm : Operand <i32> {
-  let ParserMatchClass = DepCtrMatchClass;
-  let PrintMethod = "printDepCtr";
-}
+def DepCtr : CustomOperand<i32>;
 
-def DELAY_FLAG : Operand <i32> {
-  let ParserMatchClass = SDelayMatchClass;
-  let PrintMethod = "printDelayFlag";
-}
-} // End OperandType = "OPERAND_IMMEDIATE"
+def SDelayALU : CustomOperand<i32>;
 
 include "SIInstrFormats.td"
 include "VIInstrFormats.td"
@@ -1124,44 +1036,46 @@ def SDWAVopcDst : BoolRC {
 class NamedIntOperand<ValueType Type, string Prefix, string Name = NAME,
                       string ConvertMethod = "nullptr">
     : CustomOperand<Type, 1, Name> {
-  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
   let ParserMethod =
-    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
-    "return parseIntWithPrefix(\""#Prefix#"\", Operands, "#ImmTy#", "#
-    ConvertMethod#"); }";
+    "[this](OperandVector &Operands) -> ParseStatus { "#
+    "return parseIntWithPrefix(\""#Prefix#"\", Operands, "#
+    "AMDGPUOperand::"#ImmTy#", "#ConvertMethod#"); }";
 }
 
 class NamedBitOperand<string Id, string Name = NAME>
     : CustomOperand<i1, 1, Name> {
-  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
   let ParserMethod =
-    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
-    "return parseNamedBit(\""#Id#"\", Operands, "#ImmTy#"); }";
+    "[this](OperandVector &Operands) -> ParseStatus { "#
+    "return parseNamedBit(\""#Id#"\", Operands, AMDGPUOperand::"#ImmTy#"); }";
+  let PrintMethod = "[this](const MCInst *MI, unsigned OpNo, "#
+    "const MCSubtargetInfo &STI, raw_ostream &O) { "#
+    "printNamedBit(MI, OpNo, O, \""#Id#"\"); }";
 }
 
 class DefaultOperand<CustomOperand Op, int Value>
   : OperandWithDefaultOps<Op.Type, (ops (Op.Type Value))>,
     CustomOperandProps<1, Op.ParserMatchClass.Name> {
   let ParserMethod = Op.ParserMatchClass.ParserMethod;
+  let PrintMethod = Op.PrintMethod;
 }
 
 class SDWAOperand<string Id, string Name = NAME>
     : CustomOperand<i32, 1, Name> {
-  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
   let ParserMethod =
-    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
-    "return parseSDWASel(Operands, \""#Id#"\", "#ImmTy#"); }";
+    "[this](OperandVector &Operands) -> ParseStatus { "#
+    "return parseSDWASel(Operands, \""#Id#"\", AMDGPUOperand::"#ImmTy#"); }";
 }
 
 class ArrayOperand0<string Id, string Name = NAME>
   : OperandWithDefaultOps<i32, (ops (i32 0))>,
     CustomOperandProps<1, Name> {
-  string ImmTy = "AMDGPUOperand::ImmTy"#Name;
   let ParserMethod =
-    "[this](OperandVector &Operands) -> OperandMatchResultTy { "#
-    "return parseOperandArrayWithPrefix(\""#Id#"\", Operands, "#ImmTy#"); }";
+    "[this](OperandVector &Operands) -> ParseStatus { "#
+    "return parseOperandArrayWithPrefix(\""#Id#"\", Operands, "#
+    "AMDGPUOperand::"#ImmTy#"); }";
 }
 
+let ImmTy = "ImmTyOffset" in
 def flat_offset : CustomOperand<i32, 1, "FlatOffset">;
 def offset : NamedIntOperand<i32, "offset", "Offset">;
 def offset0 : NamedIntOperand<i8, "offset0", "Offset0">;
@@ -1184,8 +1098,6 @@ def CPol_0 : DefaultOperand<CPol, 0>;
 def CPol_GLC1 : DefaultOperand<CPol, 1>;
 
 def TFE : NamedBitOperand<"tfe">;
-def SWZ : NamedBitOperand<"swz">;
-def SWZ_0 : DefaultOperand<SWZ, 0>;
 def UNorm : NamedBitOperand<"unorm">;
 def DA : NamedBitOperand<"da">;
 def R128A16 : CustomOperand<i1, 1>;
@@ -1213,8 +1125,10 @@ def neg_hi0 : ArrayOperand0<"neg_hi", "NegHi">;
 def dpp8 : CustomOperand<i32, 0, "DPP8">;
 def dpp_ctrl : CustomOperand<i32, 0, "DPPCtrl">;
 
+let DefaultValue = "0xf" in {
 def row_mask : NamedIntOperand<i32, "row_mask", "DppRowMask">;
 def bank_mask : NamedIntOperand<i32, "bank_mask", "DppBankMask">;
+}
 def bound_ctrl : NamedIntOperand<i1, "bound_ctrl", "DppBoundCtrl",
     "[this] (int64_t &BC) -> bool { return convertDppBoundCtrl(BC); }">;
 def FI : NamedIntOperand<i32, "fi", "DppFI">;
@@ -1230,29 +1144,19 @@ def exp_tgt : CustomOperand<i32, 0, "ExpTgt">;
 def wait_vdst : NamedIntOperand<i8, "wait_vdst", "WaitVDST">;
 def wait_exp : NamedIntOperand<i8, "wait_exp", "WaitEXP">;
 
-class KImmMatchClass<int size> : AsmOperandClass {
-  let Name = "KImmFP"#size;
-  let PredicateMethod = "isKImmFP"#size;
-  let ParserMethod = "parseImm";
-  let RenderMethod = "addKImmFP"#size#"Operands";
-}
-
-class kimmOperand<ValueType vt> : Operand<vt> {
+class KImmFPOperand<ValueType vt> : ImmOperand<vt> {
   let OperandNamespace = "AMDGPU";
   let OperandType = "OPERAND_KIMM"#vt.Size;
   let PrintMethod = "printU"#vt.Size#"ImmOperand";
-  let ParserMatchClass = !cast<AsmOperandClass>("KImmFP"#vt.Size#"MatchClass");
-  let DecoderMethod = "decodeOperand_f"#vt.Size#"kimm";
+  let DecoderMethod = "decodeOperand_KImmFP";
 }
 
 // 32-bit VALU immediate operand that uses the constant bus.
-def KImmFP32MatchClass : KImmMatchClass<32>;
-def f32kimm : kimmOperand<i32>;
+def KImmFP32 : KImmFPOperand<i32>;
 
 // 32-bit VALU immediate operand with a 16-bit value that uses the
 // constant bus.
-def KImmFP16MatchClass : KImmMatchClass<16>;
-def f16kimm : kimmOperand<i16>;
+def KImmFP16 : KImmFPOperand<i16>;
 
 class FPInputModsMatchClass <int opSize> : AsmOperandClass {
   let Name = "RegOrImmWithFP"#opSize#"InputMods";
@@ -1436,7 +1340,16 @@ def DS128Bit8ByteAligned : ComplexPattern<iPTR, 3, "SelectDS128Bit8ByteAligned">
 def MOVRELOffset : ComplexPattern<iPTR, 2, "SelectMOVRELOffset">;
 
 def VOP3Mods0 : ComplexPattern<untyped, 4, "SelectVOP3Mods0">;
+
+// Modifiers for floating point instructions.
 def VOP3Mods  : ComplexPattern<untyped, 2, "SelectVOP3Mods">;
+
+// VOP3 modifiers used for instructions that do not read canonicalized
+// floating point values (i.e. integer operations with FP source
+// modifiers)
+def VOP3ModsNonCanonicalizing : ComplexPattern<untyped, 2,
+  "SelectVOP3ModsNonCanonicalizing">;
+
 def VOP3NoMods : ComplexPattern<untyped, 1, "SelectVOP3NoMods">;
 
 def VOP3OMods : ComplexPattern<untyped, 3, "SelectVOP3OMods">;

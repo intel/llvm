@@ -231,23 +231,6 @@ func.func @main() -> tensor<4xi32> {
 
 // -----
 
-func.func @to_memref_op_unsupported(
-    %t1: tensor<?xf32> {bufferization.writable = true}, %idx1: index,
-    %idx2: index, %idx3: index, %v1: vector<5xf32>) -> (vector<5xf32>, vector<5xf32>) {
-
-  // expected-error @+1 {{to_memref ops are not supported by One-Shot Analysis}}
-  %0 = bufferization.to_memref %t1 : memref<?xf32>
-
-  // Read from both.
-  %cst = arith.constant 0.0 : f32
-  %r1 = vector.transfer_read %t1[%idx3], %cst : tensor<?xf32>, vector<5xf32>
-  %r2 = vector.transfer_read %0[%idx3], %cst : memref<?xf32>, vector<5xf32>
-
-  return %r1, %r2 : vector<5xf32>, vector<5xf32>
-}
-
-// -----
-
 func.func @to_tensor_op_unsupported(%m: memref<?xf32>, %idx: index) -> (f32) {
   // expected-error @+1 {{to_tensor ops without `restrict` are not supported by One-Shot Analysis}}
   %0 = bufferization.to_tensor %m : memref<?xf32>
@@ -337,4 +320,13 @@ func.func @regression_scf_while() {
     scf.yield %8 : tensor<10x10xf32>
   }
   return
+}
+
+// -----
+
+// expected-error @below{{cannot bufferize a FuncOp with tensors and without a unique ReturnOp}}
+func.func @func_multiple_yields(%t: tensor<5xf32>) -> tensor<5xf32> {
+  func.return %t : tensor<5xf32>
+^bb1(%arg1 : tensor<5xf32>):
+  func.return %arg1 : tensor<5xf32>
 }

@@ -1377,7 +1377,8 @@ public:
     Default = 0,
     GNU = 1,
     None = 2,
-    LastDebugNameTableKind = None
+    Apple = 3,
+    LastDebugNameTableKind = Apple
   };
 
   static std::optional<DebugEmissionKind> getEmissionKind(StringRef Str);
@@ -1817,6 +1818,7 @@ public:
   DISubprogram *getDeclaration() const {
     return cast_or_null<DISubprogram>(getRawDeclaration());
   }
+  void replaceDeclaration(DISubprogram *Decl) { replaceOperandWith(6, Decl); }
   DINodeArray getRetainedNodes() const {
     return cast_or_null<MDTuple>(getRawRetainedNodes());
   }
@@ -1855,6 +1857,9 @@ public:
 
   void replaceRawLinkageName(MDString *LinkageName) {
     replaceOperandWith(3, LinkageName);
+  }
+  void replaceRetainedNodes(DINodeArray N) {
+    replaceOperandWith(7, N.get());
   }
 
   /// Check if this subprogram describes the given function.

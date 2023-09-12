@@ -18,4 +18,12 @@ DEVICE_EXTERN_C_INLINE double __devicelib_imf_fabs(double x) {
   return __fabs(x);
 }
 
+DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmax(double a, double b) {
+  return __fmax(a, b);
+}
+
+DEVICE_EXTERN_C_INLINE double __devicelib_imf_fmin(double a, double b) {
+  return __fmin(a, b);
+}
+
 #endif /*__LIBDEVICE_IMF_ENABLED__*/

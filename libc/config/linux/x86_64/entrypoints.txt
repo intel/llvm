@@ -104,6 +104,7 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdlib.llabs
     libc.src.stdlib.lldiv
     libc.src.stdlib.qsort
+    libc.src.stdlib.qsort_r
     libc.src.stdlib.rand
     libc.src.stdlib.srand
     libc.src.stdlib.strtod
@@ -127,6 +128,10 @@ set(TARGET_LIBC_ENTRYPOINTS
     libc.src.stdio.snprintf
     libc.src.stdio.fprintf
     libc.src.stdio.printf
+    libc.src.stdio.vsprintf
+    libc.src.stdio.vsnprintf
+    libc.src.stdio.vfprintf
+    libc.src.stdio.vprintf
 
     # sys/mman.h entrypoints
     libc.src.sys.mman.madvise
@@ -250,8 +255,12 @@ set(TARGET_LIBM_ENTRYPOINTS
     libc.src.math.cos
     libc.src.math.coshf
     libc.src.math.cosf
+    libc.src.math.erff
+    libc.src.math.exp
     libc.src.math.expf
+    libc.src.math.exp10
     libc.src.math.exp10f
+    libc.src.math.exp2
     libc.src.math.exp2f
     libc.src.math.expm1f
     libc.src.math.fabs

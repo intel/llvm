@@ -21,7 +21,7 @@
 #include <unordered_set>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 event::event() : impl(std::make_shared<detail::event_impl>(std::nullopt)) {}
 
@@ -111,5 +111,5 @@ std::vector<pi_native_handle> event::getNativeVector() const {
   return ReturnVector;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

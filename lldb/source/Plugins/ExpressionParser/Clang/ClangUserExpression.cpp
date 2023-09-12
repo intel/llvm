@@ -27,7 +27,6 @@
 #include "Plugins/TypeSystem/Clang/TypeSystemClang.h"
 #include "lldb/Core/Debugger.h"
 #include "lldb/Core/Module.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/ValueObjectConstResult.h"
 #include "lldb/Expression/ExpressionSourceCode.h"
 #include "lldb/Expression/IRExecutionUnit.h"
@@ -880,7 +879,7 @@ lldb::addr_t ClangUserExpression::GetCppObjectPointer(
   // We're inside a C++ class method. This could potentially be an unnamed
   // lambda structure. If the lambda captured a "this", that should be
   // the object pointer.
-  if (auto thisChildSP = valobj_sp->GetChildMemberWithName("this", true)) {
+  if (auto thisChildSP = valobj_sp->GetChildMemberWithName("this")) {
     valobj_sp = thisChildSP;
   }
 

@@ -455,7 +455,7 @@ public:
   /// ParseArgStrings - Parse the given list of strings into an
   /// ArgList.
   llvm::opt::InputArgList ParseArgStrings(ArrayRef<const char *> Args,
-                                          bool IsClCompatMode,
+                                          bool UseDriverMode,
                                           bool &ContainsError);
 
   /// BuildInputs - Construct the list of inputs and their types from
@@ -791,7 +791,8 @@ private:
 
   /// Get bitmasks for which option flags to include and exclude based on
   /// the driver mode.
-  std::pair<unsigned, unsigned> getIncludeExcludeOptionFlagMasks(bool IsClCompatMode) const;
+  llvm::opt::Visibility
+  getOptionVisibilityMask(bool UseDriverMode = true) const;
 
   /// Helper used in BuildJobsForAction.  Doesn't use the cache when building
   /// jobs specifically for the given action, but will use the cache when
@@ -853,6 +854,11 @@ private:
   /// SYCL based offloading scenario.  These macros are gathered during
   /// construction of the device compilations.
   mutable std::vector<std::string> SYCLTargetMacroArgs;
+
+  /// Vector of Macros related to Device Traits that need to be added to the
+  /// device compilation in a SYCL based offloading scenario.  These macros are
+  /// gathered during creation of offloading device toolchains.
+  mutable llvm::opt::ArgStringList SYCLDeviceTraitsMacrosArgs;
 
   /// Return the typical executable name for the specified driver \p Mode.
   static const char *getExecutableForDriverMode(DriverMode Mode);
@@ -939,6 +945,16 @@ public:
   /// getSYCLUniqueID - Get the Unique ID associated with the file.
   StringRef getSYCLUniqueID(StringRef FileName) const {
     return SYCLUniqueIDList[FileName];
+  }
+
+  /// Reads device config file to find information about the SYCL targets in
+  /// UniqueSYCLTriplesVec, and defines device traits macros accordingly.
+  void populateSYCLDeviceTraitsMacrosArgs(
+      const llvm::opt::ArgList &Args,
+      const llvm::SmallVector<llvm::Triple, 4> &UniqueSYCLTriplesVec);
+
+  llvm::opt::ArgStringList getDeviceTraitsMacrosArgs() const {
+    return SYCLDeviceTraitsMacrosArgs;
   }
 };
 

@@ -1,15 +1,16 @@
-//===--------- kernel.hpp - CUDA Adapter ---------------------------===//
+//===--------- kernel.hpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cuda.h>
 #include <ur_api.h>
 
+#include <array>
 #include <atomic>
 #include <cassert>
 #include <numeric>
@@ -43,6 +44,7 @@ struct ur_kernel_handle_t_ {
 
   static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
+  int RegsPerThread{0};
 
   /// Structure that holds the arguments to the kernel.
   /// Note each argument size is known, since it comes
@@ -143,6 +145,8 @@ struct ur_kernel_handle_t_ {
         sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
     (void)RetError;
     assert(RetError == UR_RESULT_SUCCESS);
+    UR_CHECK_ERROR(
+        cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS, Func));
   }
 
   ~ur_kernel_handle_t_() {
@@ -197,4 +201,6 @@ struct ur_kernel_handle_t_ {
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
   void clearLocalSize() { Args.clearLocalSize(); }
+
+  size_t getRegsPerThread() const noexcept { return RegsPerThread; };
 };

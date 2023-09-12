@@ -411,6 +411,7 @@ enum NodeType {
   STRICT_FSQRT,
   STRICT_FPOW,
   STRICT_FPOWI,
+  STRICT_FLDEXP,
   STRICT_FSIN,
   STRICT_FCOS,
   STRICT_FEXP,
@@ -871,6 +872,7 @@ enum NodeType {
   ///  2 Round to +inf
   ///  3 Round to -inf
   ///  4 Round to nearest, ties to zero
+  ///  Other values are target dependent.
   /// Result is rounding mode and chain. Input is a chain.
   GET_ROUNDING,
 
@@ -918,7 +920,7 @@ enum NodeType {
   FP_TO_BF16,
 
   /// Perform various unary floating-point operations inspired by libm. For
-  /// FPOWI, the result is undefined if if the integer operand doesn't fit into
+  /// FPOWI, the result is undefined if the integer operand doesn't fit into
   /// sizeof(int).
   FNEG,
   FABS,
@@ -926,13 +928,22 @@ enum NodeType {
   FCBRT,
   FSIN,
   FCOS,
-  FPOWI,
   FPOW,
+  FPOWI,
+  /// FLDEXP - ldexp, inspired by libm (op0 * 2**op1).
+  FLDEXP,
+
+  /// FFREXP - frexp, extract fractional and exponent component of a
+  /// floating-point value. Returns the two components as separate return
+  /// values.
+  FFREXP,
+
   FLOG,
   FLOG2,
   FLOG10,
   FEXP,
   FEXP2,
+  FEXP10,
   FCEIL,
   FTRUNC,
   FRINT,
@@ -995,6 +1006,19 @@ enum NodeType {
   /// from. The result is a token chain.
   SET_FPENV_MEM,
 
+  /// Reads the current dynamic floating-point control modes. The operand is
+  /// a token chain.
+  GET_FPMODE,
+
+  /// Sets the current dynamic floating-point control modes. The first operand
+  /// is a token chain, the second is control modes set represented as integer
+  /// value.
+  SET_FPMODE,
+
+  /// Sets default dynamic floating-point control modes. The operand is a
+  /// token chain.
+  RESET_FPMODE,
+
   /// LOAD and STORE have token chains as their first operand, then the same
   /// operands as an LLVM load/store instruction, then an offset node that
   /// is added / subtracted from the base pointer to form the address (for
@@ -1025,6 +1049,10 @@ enum NodeType {
   /// BR_JT - Jumptable branch. The first operand is the chain, the second
   /// is the jumptable index, the last one is the jumptable entry index.
   BR_JT,
+
+  /// JUMP_TABLE_DEBUG_INFO - Jumptable debug info. The first operand is the
+  /// chain, the second is the jumptable index.
+  JUMP_TABLE_DEBUG_INFO,
 
   /// BRCOND - Conditional branch.  The first operand is the chain, the
   /// second is the condition, the third is the block to branch to if the
@@ -1315,6 +1343,10 @@ enum NodeType {
   /// FMIN/FMAX nodes can have flags, for NaN/NoNaN variants.
   VECREDUCE_FMAX,
   VECREDUCE_FMIN,
+  /// FMINIMUM/FMAXIMUM nodes propatate NaNs and signed zeroes using the
+  /// llvm.minimum and llvm.maximum semantics.
+  VECREDUCE_FMAXIMUM,
+  VECREDUCE_FMINIMUM,
   /// Integer reductions may have a result type larger than the vector element
   /// type. However, the reduction is performed using the vector element type
   /// and the value in the top bits is unspecified.
@@ -1515,6 +1547,12 @@ inline bool isUnsignedIntSetCC(CondCode Code) {
 /// comparison when used with integer operands.
 inline bool isIntEqualitySetCC(CondCode Code) {
   return Code == SETEQ || Code == SETNE;
+}
+
+/// Return true if this is a setcc instruction that performs an equality
+/// comparison when used with floating point operands.
+inline bool isFPEqualitySetCC(CondCode Code) {
+  return Code == SETOEQ || Code == SETONE || Code == SETUEQ || Code == SETUNE;
 }
 
 /// Return true if the specified condition returns true if the two operands to

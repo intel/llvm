@@ -48,9 +48,9 @@ int main(int argc, char **argv) {
     });
   });
 
-  // get read-only access to the buffer on the host
+  // get access to the buffer on the host
   // introduce an implicit barrier waiting for queue to complete the work
-  const auto host_accessor = buffer.get_access<sycl::access::mode::read>();
+  const auto host_accessor = buffer.get_host_access();
 
   // check the results
   bool mismatch = false;

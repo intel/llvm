@@ -8,12 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_list_base.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
+#include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
+#include <sycl/exception.hpp>                  // for invalid_object_error
+#include <sycl/properties/property_traits.hpp> // for is_property
+
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr
+#include <type_traits> // for conditional_t, enable...
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
@@ -68,5 +75,5 @@ private:
   friend class ext::oneapi::accessor_property_list;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

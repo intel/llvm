@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #include "SYCL.h"
 #include "CommonArgs.h"
+#include "clang/Driver/Action.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Driver.h"
 #include "clang/Driver/DriverDiagnostic.h"
@@ -137,7 +138,7 @@ bool SYCL::shouldDoPerObjectFileLinking(const Compilation &C) {
 // compiler package. Once we add or remove any SYCL device library files,
 // the list should be updated accordingly.
 static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
-  "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
+  "bfloat16", "crt", "cmath", "cmath-fp64", "complex", "complex-fp64",
 #if defined(_WIN32)
       "msvc-math",
 #endif
@@ -145,7 +146,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList {
       "itt-user-wrappers", "fallback-cassert", "fallback-cstring",
       "fallback-cmath", "fallback-cmath-fp64", "fallback-complex",
       "fallback-complex-fp64", "fallback-imf", "fallback-imf-fp64",
-      "fallback-imf-bf16"
+      "fallback-imf-bf16", "fallback-bfloat16", "native-bfloat16"
 };
 
 const char *SYCL::Linker::constructLLVMLinkCommand(
@@ -170,6 +171,8 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
   // instead of the original object.
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
     bool IsRDC = !shouldDoPerObjectFileLinking(C);
+    const bool IsSYCLNativeCPU = isSYCLNativeCPU(
+        this->getToolChain(), *C.getSingleOffloadToolChain<Action::OFK_Host>());
     auto isNoRDCDeviceCodeLink = [&](const InputInfo &II) {
       if (IsRDC)
         return false;
@@ -190,12 +193,14 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
 
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (this->getToolChain().getTriple().isNVPTX()) {
+      const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      if (IsNVPTX || IsSYCLNativeCPU) {
         // Linking SYCL Device libs requires libclc as well as libdevice
         if ((InputFilename.find("libspirv") != InputFilename.npos ||
              InputFilename.find("libdevice") != InputFilename.npos))
           return true;
-        LibPostfix = ".cubin";
+        if (IsNVPTX)
+          LibPostfix = ".cubin";
       }
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.startswith(LibSyclPrefix) ||
@@ -223,7 +228,16 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     };
     size_t InputFileNum = InputFiles.size();
     bool LinkSYCLDeviceLibs = (InputFileNum >= 2);
-    LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    // Per-object compilation (or non-relocatable device code mode) requires a
+    // change in the link dependencies, such that the first input file is no
+    // longer the prepended kernel BC module. The SYCL device libs are linked
+    // first and the single output is linked with the kernel module separately.
+    if (IsRDC) {
+      LinkSYCLDeviceLibs =
+          LinkSYCLDeviceLibs && !isSYCLDeviceLib(InputFiles[0]);
+    } else {
+      LinkSYCLDeviceLibs = LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[0]);
+    }
     for (size_t Idx = 1; Idx < InputFileNum; ++Idx)
       LinkSYCLDeviceLibs =
           LinkSYCLDeviceLibs && isSYCLDeviceLib(InputFiles[Idx]);
@@ -231,10 +245,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     // know it is an unbundled generated list.
     if (LinkSYCLDeviceLibs) {
       Opts.push_back("-only-needed");
-      // FIXME remove this when opaque pointers are supported for SPIR-V
-      if (!this->getToolChain().getTriple().isSPIR()) {
-        Opts.push_back("-opaque-pointers");
-      }
     }
     for (const auto &II : InputFiles) {
       std::string FileName = getToolChain().getInputFilename(II);
@@ -641,65 +651,66 @@ void SYCL::gen::BackendCompiler::ConstructJob(Compilation &C,
 
 StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
   StringRef Device;
-  Device = llvm::StringSwitch<StringRef>(DeviceName)
-               .Cases("intel_gpu_bdw", "intel_gpu_8_0_0", "bdw")
-               .Cases("intel_gpu_skl", "intel_gpu_9_0_9", "skl")
-               .Cases("intel_gpu_kbl", "intel_gpu_9_1_9", "kbl")
-               .Cases("intel_gpu_cfl", "intel_gpu_9_2_9", "cfl")
-               .Cases("intel_gpu_apl", "intel_gpu_9_3_0", "apl")
-               .Cases("intel_gpu_glk", "intel_gpu_9_4_0", "glk")
-               .Cases("intel_gpu_whl", "intel_gpu_9_5_0", "whl")
-               .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
-               .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
-               .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
-               .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
-               .Case("intel_gpu_rkl", "rkl")
-               .Case("intel_gpu_adl_s", "adl_s")
-               .Case("intel_gpu_rpl_s", "rpl_s")
-               .Case("intel_gpu_adl_p", "adl_p")
-               .Case("intel_gpu_adl_n", "adl_n")
-               .Cases("intel_gpu_dg1", "intel_gpu_12_10_0", "dg1")
-               .Case("intel_gpu_acm_g10", "acm_g10")
-               .Case("intel_gpu_acm_g11", "acm_g11")
-               .Case("intel_gpu_acm_g12", "acm_g12")
-               .Case("intel_gpu_pvc", "pvc")
-               .Case("nvidia_gpu_sm_50", "sm_50")
-               .Case("nvidia_gpu_sm_52", "sm_52")
-               .Case("nvidia_gpu_sm_53", "sm_53")
-               .Case("nvidia_gpu_sm_60", "sm_60")
-               .Case("nvidia_gpu_sm_61", "sm_61")
-               .Case("nvidia_gpu_sm_62", "sm_62")
-               .Case("nvidia_gpu_sm_70", "sm_70")
-               .Case("nvidia_gpu_sm_72", "sm_72")
-               .Case("nvidia_gpu_sm_75", "sm_75")
-               .Case("nvidia_gpu_sm_80", "sm_80")
-               .Case("nvidia_gpu_sm_86", "sm_86")
-               .Case("nvidia_gpu_sm_87", "sm_87")
-               .Case("nvidia_gpu_sm_89", "sm_89")
-               .Case("nvidia_gpu_sm_90", "sm_90")
-               .Case("amd_gpu_gfx700", "gfx700")
-               .Case("amd_gpu_gfx701", "gfx701")
-               .Case("amd_gpu_gfx702", "gfx702")
-               .Case("amd_gpu_gfx801", "gfx801")
-               .Case("amd_gpu_gfx802", "gfx802")
-               .Case("amd_gpu_gfx803", "gfx803")
-               .Case("amd_gpu_gfx805", "gfx805")
-               .Case("amd_gpu_gfx810", "gfx810")
-               .Case("amd_gpu_gfx900", "gfx900")
-               .Case("amd_gpu_gfx902", "gfx902")
-               .Case("amd_gpu_gfx904", "gfx904")
-               .Case("amd_gpu_gfx906", "gfx906")
-               .Case("amd_gpu_gfx908", "gfx908")
-               .Case("amd_gpu_gfx90a", "gfx90a")
-               .Case("amd_gpu_gfx1010", "gfx1010")
-               .Case("amd_gpu_gfx1011", "gfx1011")
-               .Case("amd_gpu_gfx1012", "gfx1012")
-               .Case("amd_gpu_gfx1013", "gfx1013")
-               .Case("amd_gpu_gfx1030", "gfx1030")
-               .Case("amd_gpu_gfx1031", "gfx1031")
-               .Case("amd_gpu_gfx1032", "gfx1032")
-               .Case("amd_gpu_gfx1034", "gfx1034")
-               .Default("");
+  Device =
+      llvm::StringSwitch<StringRef>(DeviceName)
+          .Cases("intel_gpu_bdw", "intel_gpu_8_0_0", "bdw")
+          .Cases("intel_gpu_skl", "intel_gpu_9_0_9", "skl")
+          .Cases("intel_gpu_kbl", "intel_gpu_9_1_9", "kbl")
+          .Cases("intel_gpu_cfl", "intel_gpu_9_2_9", "cfl")
+          .Cases("intel_gpu_apl", "intel_gpu_bxt", "intel_gpu_9_3_0", "apl")
+          .Cases("intel_gpu_glk", "intel_gpu_9_4_0", "glk")
+          .Cases("intel_gpu_whl", "intel_gpu_9_5_0", "whl")
+          .Cases("intel_gpu_aml", "intel_gpu_9_6_0", "aml")
+          .Cases("intel_gpu_cml", "intel_gpu_9_7_0", "cml")
+          .Cases("intel_gpu_icllp", "intel_gpu_11_0_0", "icllp")
+          .Cases("intel_gpu_ehl", "intel_gpu_jsl", "ehl")
+          .Cases("intel_gpu_tgllp", "intel_gpu_12_0_0", "tgllp")
+          .Case("intel_gpu_rkl", "rkl")
+          .Cases("intel_gpu_adl_s", "intel_gpu_rpl_s", "adl_s")
+          .Case("intel_gpu_adl_p", "adl_p")
+          .Case("intel_gpu_adl_n", "adl_n")
+          .Cases("intel_gpu_dg1", "intel_gpu_12_10_0", "dg1")
+          .Cases("intel_gpu_acm_g10", "intel_gpu_dg2_g10", "acm_g10")
+          .Cases("intel_gpu_acm_g11", "intel_gpu_dg2_g11", "acm_g11")
+          .Cases("intel_gpu_acm_g12", "intel_gpu_dg2_g12", "acm_g12")
+          .Case("intel_gpu_pvc", "pvc")
+          .Case("nvidia_gpu_sm_50", "sm_50")
+          .Case("nvidia_gpu_sm_52", "sm_52")
+          .Case("nvidia_gpu_sm_53", "sm_53")
+          .Case("nvidia_gpu_sm_60", "sm_60")
+          .Case("nvidia_gpu_sm_61", "sm_61")
+          .Case("nvidia_gpu_sm_62", "sm_62")
+          .Case("nvidia_gpu_sm_70", "sm_70")
+          .Case("nvidia_gpu_sm_72", "sm_72")
+          .Case("nvidia_gpu_sm_75", "sm_75")
+          .Case("nvidia_gpu_sm_80", "sm_80")
+          .Case("nvidia_gpu_sm_86", "sm_86")
+          .Case("nvidia_gpu_sm_87", "sm_87")
+          .Case("nvidia_gpu_sm_89", "sm_89")
+          .Case("nvidia_gpu_sm_90", "sm_90")
+          .Case("amd_gpu_gfx700", "gfx700")
+          .Case("amd_gpu_gfx701", "gfx701")
+          .Case("amd_gpu_gfx702", "gfx702")
+          .Case("amd_gpu_gfx801", "gfx801")
+          .Case("amd_gpu_gfx802", "gfx802")
+          .Case("amd_gpu_gfx803", "gfx803")
+          .Case("amd_gpu_gfx805", "gfx805")
+          .Case("amd_gpu_gfx810", "gfx810")
+          .Case("amd_gpu_gfx900", "gfx900")
+          .Case("amd_gpu_gfx902", "gfx902")
+          .Case("amd_gpu_gfx904", "gfx904")
+          .Case("amd_gpu_gfx906", "gfx906")
+          .Case("amd_gpu_gfx908", "gfx908")
+          .Case("amd_gpu_gfx90a", "gfx90a")
+          .Case("amd_gpu_gfx1010", "gfx1010")
+          .Case("amd_gpu_gfx1011", "gfx1011")
+          .Case("amd_gpu_gfx1012", "gfx1012")
+          .Case("amd_gpu_gfx1013", "gfx1013")
+          .Case("amd_gpu_gfx1030", "gfx1030")
+          .Case("amd_gpu_gfx1031", "gfx1031")
+          .Case("amd_gpu_gfx1032", "gfx1032")
+          .Case("amd_gpu_gfx1034", "gfx1034")
+          .Default("");
   return Device;
 }
 
@@ -716,10 +727,10 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("aml", "INTEL_GPU_AML")
                       .Case("cml", "INTEL_GPU_CML")
                       .Case("icllp", "INTEL_GPU_ICLLP")
+                      .Case("ehl", "INTEL_GPU_EHL")
                       .Case("tgllp", "INTEL_GPU_TGLLP")
                       .Case("rkl", "INTEL_GPU_RKL")
                       .Case("adl_s", "INTEL_GPU_ADL_S")
-                      .Case("rpl_s", "INTEL_GPU_RPL_S")
                       .Case("adl_p", "INTEL_GPU_ADL_P")
                       .Case("adl_n", "INTEL_GPU_ADL_N")
                       .Case("dg1", "INTEL_GPU_DG1")
@@ -810,7 +821,7 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(isSYCLNativeCPU(Args)) {
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -914,12 +925,15 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::opt::ArgList &Args,
     if (A->getOption().matches(Opt_EQ)) {
       // Passing device args: -X<Opt>=<triple> -opt=val.
       StringRef GenDevice = SYCL::gen::resolveGenDevice(A->getValue());
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
-          GenDevice.empty())
-        // Provided triple does not match current tool chain.
+      bool IsGenTriple =
+          getTriple().isSPIR() &&
+          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen;
+      if (Device != GenDevice)
         continue;
-      if (Device != GenDevice && getTriple().isSPIR() &&
-          getTriple().getSubArch() == llvm::Triple::SPIRSubArch_gen)
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != getTriple() &&
+          (!IsGenTriple || (IsGenTriple && GenDevice.empty())))
+        // Triples do not match, but only skip when we know we are not comparing
+        // against intel_gpu_* and non-spir64_gen
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is

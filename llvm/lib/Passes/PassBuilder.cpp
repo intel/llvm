@@ -67,6 +67,7 @@
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/StackLifetime.h"
 #include "llvm/Analysis/StackSafetyAnalysis.h"
+#include "llvm/Analysis/StructuralHash.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
@@ -80,6 +81,7 @@
 #include "llvm/IR/SafepointIRVerifier.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/IRPrinter/IRPrintingPasses.h"
+#include "llvm/Passes/OptimizationLevel.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
@@ -111,6 +113,7 @@
 #include "llvm/Transforms/IPO/CrossDSOCFI.h"
 #include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/IPO/ElimAvailExtern.h"
+#include "llvm/Transforms/IPO/EmbedBitcodePass.h"
 #include "llvm/Transforms/IPO/ForceFunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionAttrs.h"
 #include "llvm/Transforms/IPO/FunctionImport.h"
@@ -536,6 +539,17 @@ static bool checkParametrizedPassName(StringRef Name, StringRef PassName) {
   return Name.startswith("<") && Name.endswith(">");
 }
 
+static std::optional<OptimizationLevel> parseOptLevel(StringRef S) {
+  return StringSwitch<std::optional<OptimizationLevel>>(S)
+      .Case("O0", OptimizationLevel::O0)
+      .Case("O1", OptimizationLevel::O1)
+      .Case("O2", OptimizationLevel::O2)
+      .Case("O3", OptimizationLevel::O3)
+      .Case("Os", OptimizationLevel::Os)
+      .Case("Oz", OptimizationLevel::Oz)
+      .Default(std::nullopt);
+}
+
 namespace {
 
 /// This performs customized parsing of pass name with parameters.
@@ -622,14 +636,10 @@ Expected<LoopUnrollOptions> parseLoopUnrollOptions(StringRef Params) {
   while (!Params.empty()) {
     StringRef ParamName;
     std::tie(ParamName, Params) = Params.split(';');
-    int OptLevel = StringSwitch<int>(ParamName)
-                       .Case("O0", 0)
-                       .Case("O1", 1)
-                       .Case("O2", 2)
-                       .Case("O3", 3)
-                       .Default(-1);
-    if (OptLevel >= 0) {
-      UnrollOpts.setOptLevel(OptLevel);
+    std::optional<OptimizationLevel> OptLevel = parseOptLevel(ParamName);
+    // Don't accept -Os/-Oz.
+    if (OptLevel && !OptLevel->isOptimizingForSize()) {
+      UnrollOpts.setOptLevel(OptLevel->getSpeedupLevel());
       continue;
     }
     if (ParamName.consume_front("full-unroll-max=")) {
@@ -681,6 +691,10 @@ Expected<bool> parseSinglePassOption(StringRef Params, StringRef OptionName,
   return Result;
 }
 
+Expected<bool> parseGlobalDCEPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "vfe-linkage-unit-visibility", "GlobalDCE");
+}
+
 Expected<bool> parseInlinerPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "only-mandatory", "InlinerPass");
 }
@@ -690,7 +704,7 @@ Expected<bool> parseCoroSplitPassOptions(StringRef Params) {
 }
 
 Expected<bool> parsePostOrderFunctionAttrsPassOptions(StringRef Params) {
-  return parseSinglePassOption(Params, "skip-non-recursive",
+  return parseSinglePassOption(Params, "skip-non-recursive-function-attrs",
                                "PostOrderFunctionAttrs");
 }
 
@@ -748,6 +762,26 @@ Expected<HWAddressSanitizerOptions> parseHWASanPassOptions(StringRef Params) {
   return Result;
 }
 
+Expected<EmbedBitcodeOptions> parseEmbedBitcodePassOptions(StringRef Params) {
+  EmbedBitcodeOptions Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    if (ParamName == "thinlto") {
+      Result.IsThinLTO = true;
+    } else if (ParamName == "emit-summary") {
+      Result.EmitLTOSummary = true;
+    } else {
+      return make_error<StringError>(
+          formatv("invalid EmbedBitcode pass parameter '{0}' ", ParamName)
+              .str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
 Expected<MemorySanitizerOptions> parseMSanPassOptions(StringRef Params) {
   MemorySanitizerOptions Result;
   while (!Params.empty()) {
@@ -786,7 +820,11 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
     std::tie(ParamName, Params) = Params.split(';');
 
     bool Enable = !ParamName.consume_front("no-");
-    if (ParamName == "forward-switch-cond") {
+    if (ParamName == "speculate-blocks") {
+      Result.speculateBlocks(Enable);
+    } else if (ParamName == "simplify-cond-branch") {
+      Result.setSimplifyCondBranch(Enable);
+    } else if (ParamName == "forward-switch-cond") {
       Result.forwardSwitchCondToPhi(Enable);
     } else if (ParamName == "switch-range-to-icmp") {
       Result.convertSwitchRangeToICmp(Enable);
@@ -818,6 +856,9 @@ Expected<SimplifyCFGOptions> parseSimplifyCFGOptions(StringRef Params) {
 
 Expected<InstCombineOptions> parseInstCombineOptions(StringRef Params) {
   InstCombineOptions Result;
+  // When specifying "instcombine" in -passes enable fix-point verification by
+  // default, as this is what most tests should use.
+  Result.setVerifyFixpoint(true);
   while (!Params.empty()) {
     StringRef ParamName;
     std::tie(ParamName, Params) = Params.split(';');
@@ -825,6 +866,8 @@ Expected<InstCombineOptions> parseInstCombineOptions(StringRef Params) {
     bool Enable = !ParamName.consume_front("no-");
     if (ParamName == "use-loop-info") {
       Result.setUseLoopInfo(Enable);
+    } else if (ParamName == "verify-fixpoint") {
+      Result.setVerifyFixpoint(Enable);
     } else if (Enable && ParamName.consume_front("max-iterations=")) {
       APInt MaxIterations;
       if (ParamName.getAsInteger(0, MaxIterations))
@@ -897,6 +940,26 @@ Expected<LICMOptions> parseLICMOptions(StringRef Params) {
     } else {
       return make_error<StringError>(
           formatv("invalid LICM pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
+Expected<std::pair<bool, bool>> parseLoopRotateOptions(StringRef Params) {
+  std::pair<bool, bool> Result = {true, false};
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    bool Enable = !ParamName.consume_front("no-");
+    if (ParamName == "header-duplication") {
+      Result.first = Enable;
+    } else if (ParamName == "prepare-for-lto") {
+      Result.second = Enable;
+    } else {
+      return make_error<StringError>(
+          formatv("invalid LoopRotate pass parameter '{0}' ", ParamName).str(),
           inconvertibleErrorCode());
     }
   }
@@ -1005,6 +1068,45 @@ Expected<bool> parseDependenceAnalysisPrinterOptions(StringRef Params) {
 Expected<bool> parseSeparateConstOffsetFromGEPPassOptions(StringRef Params) {
   return parseSinglePassOption(Params, "lower-gep",
                                "SeparateConstOffsetFromGEP");
+}
+
+Expected<OptimizationLevel>
+parseFunctionSimplificationPipelineOptions(StringRef Params) {
+  std::optional<OptimizationLevel> L = parseOptLevel(Params);
+  if (!L || *L == OptimizationLevel::O0) {
+    return make_error<StringError>(
+        formatv("invalid function-simplification parameter '{0}' ", Params)
+            .str(),
+        inconvertibleErrorCode());
+  };
+  return *L;
+}
+
+Expected<bool> parseMemorySSAPrinterPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "no-ensure-optimized-uses",
+                               "MemorySSAPrinterPass");
+}
+
+Expected<std::string> parseMemProfUsePassOptions(StringRef Params) {
+  std::string Result;
+  while (!Params.empty()) {
+    StringRef ParamName;
+    std::tie(ParamName, Params) = Params.split(';');
+
+    if (ParamName.consume_front("profile-filename=")) {
+      Result = ParamName.str();
+    } else {
+      return make_error<StringError>(
+          formatv("invalid MemProfUse pass parameter '{0}' ", ParamName).str(),
+          inconvertibleErrorCode());
+    }
+  }
+  return Result;
+}
+
+Expected<bool> parseStructuralHashPrinterPassOptions(StringRef Params) {
+  return parseSinglePassOption(Params, "detailed",
+                               "StructuralHashPrinterPass");
 }
 
 } // namespace
@@ -1303,13 +1405,7 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
 
     assert(Matches.size() == 3 && "Must capture two matched strings!");
 
-    OptimizationLevel L = StringSwitch<OptimizationLevel>(Matches[2])
-                              .Case("O0", OptimizationLevel::O0)
-                              .Case("O1", OptimizationLevel::O1)
-                              .Case("O2", OptimizationLevel::O2)
-                              .Case("O3", OptimizationLevel::O3)
-                              .Case("Os", OptimizationLevel::Os)
-                              .Case("Oz", OptimizationLevel::Oz);
+    OptimizationLevel L = *parseOptLevel(Matches[2]);
 
     // This is consistent with old pass manager invoked via opt, but
     // inconsistent with clang. Clang doesn't enable loop vectorization
@@ -1326,7 +1422,13 @@ Error PassBuilder::parseModulePass(ModulePassManager &MPM,
     } else if (Matches[1] == "thinlto") {
       MPM.addPass(buildThinLTODefaultPipeline(L, nullptr));
     } else if (Matches[1] == "lto-pre-link") {
-      MPM.addPass(buildLTOPreLinkDefaultPipeline(L));
+      if (PTO.UnifiedLTO)
+        // When UnifiedLTO is enabled, use the ThinLTO pre-link pipeline. This
+        // avoids compile-time performance regressions and keeps the pre-link
+        // LTO pipeline "unified" for both LTO modes.
+        MPM.addPass(buildThinLTOPreLinkDefaultPipeline(L));
+      else
+        MPM.addPass(buildLTOPreLinkDefaultPipeline(L));
     } else {
       assert(Matches[1] == "lto" && "Not one of the matched options!");
       MPM.addPass(buildLTODefaultPipeline(L, nullptr));

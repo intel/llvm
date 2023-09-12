@@ -30,7 +30,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using LockGuard = std::lock_guard<SpinLock>;
@@ -259,11 +259,11 @@ void GlobalHandler::unloadPlugins() {
   // there's no need to load and unload plugins.
   if (MPlugins.Inst) {
     for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter is reserved for future use that can control
-      // some parameters in the plugin tear-down process.
-      // Currently, it is not used.
-      void *PluginParameter = nullptr;
-      Plugin->call<PiApiKind::piTearDown>(PluginParameter);
+      // PluginParameter for Teardown is the boolean tracking if a
+      // given plugin has been teardown successfully.
+      // This tracking prevents usage of this plugin after teardown
+      // has been completed to avoid invalid resource access.
+      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
       Plugin->unload();
     }
   }
@@ -322,10 +322,11 @@ void shutdown() {
   Handler->MProgramManager.Inst.reset(nullptr);
 
   // Clear the plugins and reset the instance if it was there.
-  Handler->MXPTIRegistry.Inst.reset(nullptr);
   Handler->unloadPlugins();
   if (Handler->MPlugins.Inst)
     Handler->MPlugins.Inst.reset(nullptr);
+
+  Handler->MXPTIRegistry.Inst.reset(nullptr);
 
   // Release the rest of global resources.
   delete Handler;
@@ -375,5 +376,5 @@ extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
 __attribute__((destructor(110))) static void syclUnload() { shutdown(); }
 #endif
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

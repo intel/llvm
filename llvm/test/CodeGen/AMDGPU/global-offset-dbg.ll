@@ -7,14 +7,14 @@ target triple = "amdgcn-amd-amdhsa"
 
 ; This test checks that debug information on functions and callsites are preserved
 
-declare i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
+declare ptr addrspace(5) @llvm.amdgcn.implicit.offset()
 ; CHECK-NOT: llvm.amdgcn.implicit.offset
 
 define weak_odr dso_local i64 @_ZTS14other_function() !dbg !11 {
-; CHECK: define weak_odr dso_local i64 @_ZTS14other_function(i32 addrspace(5)* %0) !dbg !11 {
-  %1 = tail call i32 addrspace(5)* @llvm.amdgcn.implicit.offset()
-  %2 = getelementptr inbounds i32, i32 addrspace(5)* %1, i64 2
-  %3 = load i32, i32 addrspace(5)* %2, align 4
+; CHECK: define weak_odr dso_local i64 @_ZTS14other_function(ptr addrspace(5) %0) !dbg !11 {
+  %1 = tail call ptr addrspace(5) @llvm.amdgcn.implicit.offset()
+  %2 = getelementptr inbounds i32, ptr addrspace(5) %1, i64 2
+  %3 = load i32, ptr addrspace(5) %2, align 4
   %4 = zext i32 %3 to i64
   ret i64 %4
 }
@@ -24,15 +24,15 @@ define weak_odr dso_local void @_ZTS14example_kernel() !dbg !14 {
 ; CHECK: define weak_odr dso_local void @_ZTS14example_kernel() !dbg !14 {
 entry:
   %0 = call i64 @_ZTS14other_function(), !dbg !15
-; CHECK: %3 = call i64 @_ZTS14other_function(i32 addrspace(5)* %2), !dbg !15
+; CHECK: %2 = call i64 @_ZTS14other_function(ptr addrspace(5) %1), !dbg !15
   ret void
 }
 
-; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset([3 x i32]* byref([3 x i32]) %0) !dbg !16 {
+; CHECK: define weak_odr dso_local void @_ZTS14example_kernel_with_offset(ptr byref([3 x i32]) %0) !dbg !16 {
 ; CHECK:  %1 = alloca [3 x i32], align 4, addrspace(5), !dbg !17
-; CHECK:  %2 = bitcast [3 x i32] addrspace(5)* %1 to i32 addrspace(5)*, !dbg !17
-; CHECK:  call void @llvm.memcpy.p5i8.p4i8.i64(i8 addrspace(5)* align 4 %4, i8 addrspace(4)* align 1 %3, i64 12, i1 false), !dbg !17
-; CHECK:  %5 = call i64 @_ZTS14other_function(i32 addrspace(5)* %2), !dbg !17
+; CHECK:  %2 = addrspacecast ptr %0 to ptr addrspace(4), !dbg !17
+; CHECK:  call void @llvm.memcpy.p5.p4.i64(ptr addrspace(5) align 4 %1, ptr addrspace(4) align 1 %2, i64 12, i1 false), !dbg !17
+; CHECK:  %3 = call i64 @_ZTS14other_function(ptr addrspace(5) %1), !dbg !17
 
 !llvm.dbg.cu = !{!0}
 !llvm.module.flags = !{!3, !4}
@@ -43,7 +43,7 @@ entry:
 !2 = !{}
 !3 = !{i32 2, !"Dwarf Version", i32 4}
 !4 = !{i32 2, !"Debug Info Version", i32 3}
-!5 = distinct !{void ()* @_ZTS14example_kernel, !"kernel", i32 1}
+!5 = distinct !{ptr @_ZTS14example_kernel, !"kernel", i32 1}
 !6 = !{i32 1, i32 4}
 !7 = !{null, !"align", i32 8, !"align", i32 65544, !"align", i32 131080}
 !8 = !{null, !"align", i32 16}

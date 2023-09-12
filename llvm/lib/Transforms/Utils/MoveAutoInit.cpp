@@ -40,9 +40,7 @@ static cl::opt<unsigned> MoveAutoInitThreshold(
 static bool hasAutoInitMetadata(const Instruction &I) {
   return I.hasMetadata(LLVMContext::MD_annotation) &&
          any_of(I.getMetadata(LLVMContext::MD_annotation)->operands(),
-                [](const MDOperand &Op) {
-                  return cast<MDString>(Op.get())->getString() == "auto-init";
-                });
+                [](const MDOperand &Op) { return Op.equalsStr("auto-init"); });
 }
 
 static std::optional<MemoryLocation> writeToAlloca(const Instruction &I) {
@@ -52,7 +50,7 @@ static std::optional<MemoryLocation> writeToAlloca(const Instruction &I) {
   else if (auto *SI = dyn_cast<StoreInst>(&I))
     ML = MemoryLocation::get(SI);
   else
-    assert(false && "memory location set");
+    return std::nullopt;
 
   if (isa<AllocaInst>(getUnderlyingObject(ML.Ptr)))
     return ML;

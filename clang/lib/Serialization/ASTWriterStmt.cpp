@@ -11,15 +11,16 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "clang/AST/ExprOpenMP.h"
-#include "clang/Serialization/ASTRecordWriter.h"
-#include "clang/Sema/DeclSpec.h"
+#include "clang/AST/ASTConcept.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/ExprOpenMP.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Lex/Token.h"
+#include "clang/Sema/DeclSpec.h"
+#include "clang/Serialization/ASTRecordWriter.h"
 #include "llvm/Bitstream/BitstreamWriter.h"
 using namespace clang;
 
@@ -437,13 +438,11 @@ addSubstitutionDiagnostic(
 void ASTStmtWriter::VisitConceptSpecializationExpr(
         ConceptSpecializationExpr *E) {
   VisitExpr(E);
-  Record.AddNestedNameSpecifierLoc(E->getNestedNameSpecifierLoc());
-  Record.AddSourceLocation(E->getTemplateKWLoc());
-  Record.AddDeclarationNameInfo(E->getConceptNameInfo());
-  Record.AddDeclRef(E->getNamedConcept());
-  Record.AddDeclRef(E->getFoundDecl());
   Record.AddDeclRef(E->getSpecializationDecl());
-  Record.AddASTTemplateArgumentListInfo(E->getTemplateArgsAsWritten());
+  const ConceptReference *CR = E->getConceptReference();
+  Record.push_back(CR != nullptr);
+  if (CR)
+    Record.AddConceptReference(CR);
   if (!E->isValueDependent())
     addConstraintSatisfaction(Record, E->getSatisfaction());
 
@@ -624,6 +623,7 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   Record.push_back(E->hadMultipleCandidates());
   Record.push_back(E->refersToEnclosingVariableOrCapture());
   Record.push_back(E->isNonOdrUse());
+  Record.push_back(E->isImmediateEscalating());
 
   if (E->hasTemplateKWAndArgsInfo()) {
     unsigned NumTemplateArgs = E->getNumTemplateArgs();
@@ -635,7 +635,8 @@ void ASTStmtWriter::VisitDeclRefExpr(DeclRefExpr *E) {
   if ((!E->hasTemplateKWAndArgsInfo()) && (!E->hasQualifier()) &&
       (E->getDecl() == E->getFoundDecl()) &&
       nk == DeclarationName::Identifier &&
-      !E->refersToEnclosingVariableOrCapture() && !E->isNonOdrUse()) {
+      !E->refersToEnclosingVariableOrCapture() && !E->isNonOdrUse() &&
+      !E->isImmediateEscalating()) {
     AbbrevToUse = Writer.getDeclRefExprAbbrev();
   }
 
@@ -1612,6 +1613,7 @@ void ASTStmtWriter::VisitCXXConstructExpr(CXXConstructExpr *E) {
   Record.push_back(E->isStdInitListInitialization());
   Record.push_back(E->requiresZeroInitialization());
   Record.push_back(E->getConstructionKind()); // FIXME: stable encoding
+  Record.push_back(E->isImmediateEscalating());
   Record.AddSourceLocation(E->getLocation());
   Record.AddDeclRef(E->getConstructor());
   Record.AddSourceRange(E->getParenOrBraceRange());
@@ -2269,6 +2271,7 @@ void ASTStmtWriter::VisitOMPExecutableDirective(OMPExecutableDirective *E) {
   Record.writeOMPChildren(E->Data);
   Record.AddSourceLocation(E->getBeginLoc());
   Record.AddSourceLocation(E->getEndLoc());
+  Record.writeEnum(E->getMappedDirective());
 }
 
 void ASTStmtWriter::VisitOMPLoopBasedDirective(OMPLoopBasedDirective *D) {
@@ -2339,6 +2342,12 @@ void ASTStmtWriter::VisitOMPSectionDirective(OMPSectionDirective *D) {
   VisitOMPExecutableDirective(D);
   Record.writeBool(D->hasCancel());
   Code = serialization::STMT_OMP_SECTION_DIRECTIVE;
+}
+
+void ASTStmtWriter::VisitOMPScopeDirective(OMPScopeDirective *D) {
+  VisitStmt(D);
+  VisitOMPExecutableDirective(D);
+  Code = serialization::STMT_OMP_SCOPE_DIRECTIVE;
 }
 
 void ASTStmtWriter::VisitOMPSingleDirective(OMPSingleDirective *D) {

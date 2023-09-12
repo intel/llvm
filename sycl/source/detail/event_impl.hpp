@@ -22,7 +22,10 @@
 #include <optional>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+namespace ext::oneapi::experimental::detail {
+class graph_impl;
+}
 class context;
 namespace detail {
 class plugin;
@@ -225,6 +228,10 @@ public:
   /// submission time for the command associated with this event.
   void setSubmissionTime();
 
+  /// Calling this function to capture the host timestamp to use
+  /// profiling base time. See MFallbackProfiling
+  void setHostEnqueueTime();
+
   /// @return Submission time for command associated with this event
   uint64_t getSubmissionTime();
 
@@ -256,6 +263,33 @@ public:
     return MContext;
   }
 
+  // Sets a sync point which is used when this event represents an enqueue to a
+  // Command Bufferr.
+  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+    MSyncPoint = SyncPoint;
+  }
+
+  // Get the sync point associated with this event.
+  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+
+  void setCommandGraph(
+      std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    MGraph = Graph;
+  }
+
+  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+  getCommandGraph() const {
+    return MGraph.lock();
+  }
+
+  void setEventFromSubmitedExecCommandBuffer(bool value) {
+    MEventFromSubmitedExecCommandBuffer = value;
+  }
+
+  bool isEventFromSubmitedExecCommandBuffer() const {
+    return MEventFromSubmitedExecCommandBuffer;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -273,13 +307,14 @@ protected:
   sycl::detail::pi::PiEvent MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
+  uint64_t MHostBaseTime = 0;
   ContextImplPtr MContext;
   bool MHostEvent = true;
   std::unique_ptr<HostProfilingInfo> MHostProfilingInfo;
   void *MCommand = nullptr;
   std::weak_ptr<queue_impl> MQueue;
   const bool MIsProfilingEnabled = false;
-  const bool MLimitedProfiling = false;
+  const bool MFallbackProfiling = false;
 
   std::weak_ptr<queue_impl> MWorkerQueue;
   std::weak_ptr<queue_impl> MSubmittedQueue;
@@ -302,11 +337,22 @@ protected:
   std::mutex MMutex;
   std::condition_variable cv;
 
+  /// Store the command graph associated with this event, if any.
+  /// This event is also be stored in the graph so a weak_ptr is used.
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph;
+  /// Indicates that the event results from a command graph submission
+  bool MEventFromSubmitedExecCommandBuffer = false;
+
+  // If this event represents a submission to a
+  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // stored here.
+  sycl::detail::pi::PiExtSyncPoint MSyncPoint;
+
   friend std::vector<sycl::detail::pi::PiEvent>
   getOrWaitEvents(std::vector<sycl::event> DepEvents,
                   std::shared_ptr<sycl::detail::context_impl> Context);
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,14 +1,13 @@
-//===--------- common.hpp - CUDA Adapter -----------------------------===//
+//===--------- common.hpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cuda.h>
-#include <sycl/detail/defines.hpp>
 #include <ur/ur.hpp>
 
 ur_result_t mapErrorUR(CUresult Result);
@@ -21,6 +20,9 @@ ur_result_t mapErrorUR(CUresult Result);
 /// \throw ur_result_t exception (integer) if input was not success.
 ///
 ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
+                         const char *File);
+
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
                          const char *File);
 
 #define UR_CHECK_ERROR(Result)                                                 \
@@ -36,9 +38,9 @@ extern thread_local char ErrorMessage[MaxMessageSize];
 [[maybe_unused]] void setErrorMessage(const char *pMessage,
                                       ur_result_t ErrorCode);
 
+void setPluginSpecificMessage(CUresult cu_res);
+
 /// ------ Error handling, matching OpenCL plugin semantics.
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace ur {
 
@@ -55,5 +57,3 @@ void assertion(bool Condition, const char *Message = nullptr);
 
 } // namespace ur
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl

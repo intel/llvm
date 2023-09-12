@@ -13,8 +13,9 @@
 
 #include "../../clang-tidy/ClangTidyCheck.h"
 #include "AST.h"
-#include "Annotations.h"
+#include "CompileCommands.h"
 #include "Compiler.h"
+#include "Config.h"
 #include "Diagnostics.h"
 #include "Headers.h"
 #include "ParsedAST.h"
@@ -23,16 +24,19 @@
 #include "TestFS.h"
 #include "TestTU.h"
 #include "TidyProvider.h"
+#include "support/Context.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TokenKinds.h"
 #include "clang/Tooling/Syntax/Tokens.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Testing/Annotations/Annotations.h"
 #include "llvm/Testing/Support/Error.h"
 #include "gmock/gmock-matchers.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include <utility>
 
 namespace clang {
 namespace clangd {
@@ -278,7 +282,7 @@ TEST(ParsedASTTest, CanBuildInvocationWithUnknownArgs) {
 }
 
 TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
-  Annotations TestCase(R"cpp(
+  llvm::Annotations TestCase(R"cpp(
     #define ^MACRO_ARGS(X, Y) X Y
     // - preamble ends
     ^ID(int A);
@@ -331,15 +335,16 @@ TEST(ParsedASTTest, CollectsMainFileMacroExpansions) {
     int D = DEF;
   )cpp";
   ParsedAST AST = TU.build();
-  std::vector<Position> MacroExpansionPositions;
+  std::vector<size_t> MacroExpansionPositions;
   for (const auto &SIDToRefs : AST.getMacros().MacroRefs) {
     for (const auto &R : SIDToRefs.second)
-      MacroExpansionPositions.push_back(R.Rng.start);
+      MacroExpansionPositions.push_back(R.StartOffset);
   }
   for (const auto &R : AST.getMacros().UnknownMacros)
-    MacroExpansionPositions.push_back(R.Rng.start);
-  EXPECT_THAT(MacroExpansionPositions,
-              testing::UnorderedElementsAreArray(TestCase.points()));
+    MacroExpansionPositions.push_back(R.StartOffset);
+  EXPECT_THAT(
+      MacroExpansionPositions,
+      testing::UnorderedElementsAreArray(TestCase.points()));
 }
 
 MATCHER_P(withFileName, Inc, "") { return arg.FileName == Inc; }
@@ -381,7 +386,6 @@ TEST(ParsedASTTest, PatchesAdditionalIncludes) {
   auto PatchedAST = ParsedAST::build(testPath("foo.cpp"), Inputs, std::move(CI),
                                      {}, EmptyPreamble);
   ASSERT_TRUE(PatchedAST);
-  ASSERT_FALSE(PatchedAST->getDiagnostics());
 
   // Ensure source location information is correct, including resolved paths.
   EXPECT_THAT(PatchedAST->getIncludeStructure().MainFileIncludes,
@@ -513,6 +517,13 @@ TEST(ParsedASTTest, HeaderGuards) {
 //   size is part of the lookup key for HeaderFileInfo, and we don't want to
 //   rely on the preamble's HFI being looked up when parsing the main file.
 TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
+  // Disable include cleaner diagnostics to prevent them from interfering with
+  // other diagnostics.
+  Config Cfg;
+  Cfg.Diagnostics.MissingIncludes = Config::IncludesPolicy::None;
+  Cfg.Diagnostics.UnusedIncludes = Config::IncludesPolicy::None;
+  WithContextValue Ctx(Config::Key, std::move(Cfg));
+
   TestTU TU;
   TU.ImplicitHeaderGuard = false;
   TU.Filename = "self.h";
@@ -522,7 +533,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     ;
   )cpp";
   auto AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_FALSE(mainIsGuarded(AST));
 
@@ -531,7 +542,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #include "self.h" // error-ok
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), ElementsAre(diag("nested too deeply")));
+  EXPECT_THAT(AST.getDiagnostics(), ElementsAre(diag("nested too deeply")));
   EXPECT_FALSE(mainIsGuarded(AST));
 
   TU.Code = R"cpp(
@@ -540,7 +551,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     ;
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
 
   TU.Code = R"cpp(
@@ -549,7 +560,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #include "self.h"
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
 
   TU.Code = R"cpp(
@@ -558,7 +569,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #include "self.h"
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
 
   TU.Code = R"cpp(
@@ -569,7 +580,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     ;
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_TRUE(mainIsGuarded(AST));
 
@@ -581,7 +592,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #endif
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
 
   // Guarded too late...
@@ -593,7 +604,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #endif
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_FALSE(mainIsGuarded(AST));
 
@@ -605,7 +616,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #endif
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_FALSE(mainIsGuarded(AST));
 
@@ -617,7 +628,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #endif
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_FALSE(mainIsGuarded(AST));
 
   TU.Code = R"cpp(
@@ -626,7 +637,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     ;
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_TRUE(mainIsGuarded(AST));
 
@@ -636,7 +647,7 @@ TEST(ParsedASTTest, HeaderGuardsSelfInclude) {
     #pragma once
   )cpp";
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("recursively when building a preamble")));
   EXPECT_TRUE(mainIsGuarded(AST));
 }
@@ -671,13 +682,13 @@ TEST(ParsedASTTest, HeaderGuardsImplIface) {
   TU.Code = guard(Interface);
   TU.AdditionalFiles = {{"impl.h", Implementation}};
   auto AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
   // Slightly harder: the `#pragma once` is part of the preamble, and we
   // need to transfer it to the main file's HeaderFileInfo.
   TU.Code = once(Interface);
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(), IsEmpty());
+  EXPECT_THAT(AST.getDiagnostics(), IsEmpty());
   EXPECT_TRUE(mainIsGuarded(AST));
 
   // Editing the implementation file, which is not include guarded.
@@ -687,14 +698,14 @@ TEST(ParsedASTTest, HeaderGuardsImplIface) {
   AST = TU.build();
   // The diagnostic is unfortunate in this case, but correct per our model.
   // Ultimately the include is skipped and the code is parsed correctly though.
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("in included file: main file cannot be included "
                                "recursively when building a preamble")));
   EXPECT_FALSE(mainIsGuarded(AST));
   // Interface is pragma once guarded, same thing.
   TU.AdditionalFiles = {{"iface.h", once(Interface)}};
   AST = TU.build();
-  EXPECT_THAT(*AST.getDiagnostics(),
+  EXPECT_THAT(AST.getDiagnostics(),
               ElementsAre(diag("in included file: main file cannot be included "
                                "recursively when building a preamble")));
   EXPECT_FALSE(mainIsGuarded(AST));
@@ -719,6 +730,37 @@ TEST(ParsedASTTest, DiscoversPragmaMarks) {
   EXPECT_THAT(AST.getMarks(), ElementsAre(pragmaTrivia(" In Preamble"),
                                           pragmaTrivia(" - Something Impl"),
                                           pragmaTrivia(" End")));
+}
+
+TEST(ParsedASTTest, GracefulFailureOnAssemblyFile) {
+  std::string Filename = "TestTU.S";
+  std::string Code = R"S(
+main:
+    # test comment
+    bx lr
+  )S";
+
+  // The rest is a simplified version of TestTU::build().
+  // Don't call TestTU::build() itself because it would assert on
+  // failure to build an AST.
+  MockFS FS;
+  std::string FullFilename = testPath(Filename);
+  FS.Files[FullFilename] = Code;
+  ParseInputs Inputs;
+  auto &Argv = Inputs.CompileCommand.CommandLine;
+  Argv = {"clang"};
+  Argv.push_back(FullFilename);
+  Inputs.CompileCommand.Filename = FullFilename;
+  Inputs.CompileCommand.Directory = testRoot();
+  Inputs.Contents = Code;
+  Inputs.TFS = &FS;
+  StoreDiags Diags;
+  auto CI = buildCompilerInvocation(Inputs, Diags);
+  assert(CI && "Failed to build compilation invocation.");
+  auto AST = ParsedAST::build(FullFilename, Inputs, std::move(CI), {}, nullptr);
+
+  EXPECT_FALSE(AST.has_value())
+      << "Should not try to build AST for assembly source file";
 }
 
 } // namespace

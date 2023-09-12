@@ -41,6 +41,7 @@ enum functions_t {
   XPTI_REGISTER_PAYLOAD,
   XPTI_QUERY_PAYLOAD_BY_UID,
   XPTI_FORCE_SET_TRACE_ENABLED,
+  XPTI_CHECK_TRACE_ENABLED,
 
   // All additional functions need to appear before
   // the XPTI_FW_API_COUNT enum
@@ -76,6 +77,7 @@ class ProxyLoader {
       {XPTI_ADD_METADATA, "xptiAddMetadata"},
       {XPTI_QUERY_METADATA, "xptiQueryMetadata"},
       {XPTI_TRACE_ENABLED, "xptiTraceEnabled"},
+      {XPTI_CHECK_TRACE_ENABLED, "xptiCheckTraceEnabled"},
       {XPTI_FORCE_SET_TRACE_ENABLED, "xptiForceSetTraceEnabled"}};
 
 public:
@@ -90,6 +92,8 @@ public:
     //
     tryToEnable();
   }
+
+  ProxyLoader &operator=(const ProxyLoader &) = delete;
 
   ~ProxyLoader() {
     // If the loading of the framework library was
@@ -423,6 +427,17 @@ XPTI_EXPORT_API bool xptiTraceEnabled() {
     auto f = xpti::ProxyLoader::instance().functionByIndex(XPTI_TRACE_ENABLED);
     if (f) {
       return (*(xpti_trace_enabled_t)f)();
+    }
+  }
+  return false;
+}
+
+XPTI_EXPORT_API bool xptiCheckTraceEnabled(uint16_t stream, uint16_t ttype) {
+  if (xpti::ProxyLoader::instance().noErrors()) {
+    auto f =
+        xpti::ProxyLoader::instance().functionByIndex(XPTI_CHECK_TRACE_ENABLED);
+    if (f) {
+      return (*(xpti_check_trace_enabled_t)f)(stream, ttype);
     }
   }
   return false;

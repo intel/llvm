@@ -13,18 +13,17 @@
 #include <__assert>
 #include <__concepts/arithmetic.h>
 #include <__config>
-#include <__format/format_error.h>
+#include <__format/concepts.h>
 #include <__format/format_fwd.h>
 #include <__format/format_parse_context.h>
 #include <__functional/invoke.h>
 #include <__memory/addressof.h>
 #include <__type_traits/conditional.h>
-#include <__type_traits/is_const.h>
-#include <__utility/declval.h>
 #include <__utility/forward.h>
+#include <__utility/move.h>
 #include <__utility/unreachable.h>
 #include <__variant/monostate.h>
-#include <string>
+#include <cstdint>
 #include <string_view>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -54,7 +53,7 @@ namespace __format {
 /// handle to satisfy the user observable behaviour. The internal function
 /// __visit_format_arg doesn't do this wrapping. So in the format functions
 /// this function is used to avoid unneeded overhead.
-enum class _LIBCPP_ENUM_VIS __arg_t : uint8_t {
+enum class __arg_t : uint8_t {
   __none,
   __boolean,
   __char_type,
@@ -84,7 +83,7 @@ constexpr bool __use_packed_format_arg_store(size_t __size) { return __size <= _
 
 _LIBCPP_HIDE_FROM_ABI
 constexpr __arg_t __get_packed_type(uint64_t __types, size_t __id) {
-  _LIBCPP_ASSERT(__id <= __packed_types_max, "");
+  _LIBCPP_ASSERT_UNCATEGORIZED(__id <= __packed_types_max, "");
 
   if (__id > 0)
     __types >>= __id * __packed_arg_t_bits;
@@ -158,18 +157,14 @@ public:
   /// Contains the implementation for basic_format_arg::handle.
   struct __handle {
     template <class _Tp>
-    _LIBCPP_HIDE_FROM_ABI explicit __handle(_Tp&& __v) noexcept
+    _LIBCPP_HIDE_FROM_ABI explicit __handle(_Tp& __v) noexcept
         : __ptr_(_VSTD::addressof(__v)),
           __format_([](basic_format_parse_context<_CharT>& __parse_ctx, _Context& __ctx, const void* __ptr) {
-            using _Dp = remove_cvref_t<_Tp>;
-            using _Formatter = typename _Context::template formatter_type<_Dp>;
-            constexpr bool __const_formattable =
-                requires { _Formatter().format(std::declval<const _Dp&>(), std::declval<_Context&>()); };
-            using _Qp = conditional_t<__const_formattable, const _Dp, _Dp>;
+            using _Dp = remove_const_t<_Tp>;
+            using _Qp = conditional_t<__formattable_with<const _Dp, _Context>, const _Dp, _Dp>;
+            static_assert(__formattable_with<_Qp, _Context>, "Mandated by [format.arg]/10");
 
-            static_assert(__const_formattable || !is_const_v<remove_reference_t<_Tp>>, "Mandated by [format.arg]/18");
-
-            _Formatter __f;
+            typename _Context::template formatter_type<_Dp> __f;
             __parse_ctx.advance_to(__f.parse(__parse_ctx));
             __ctx.advance_to(__f.format(*const_cast<_Qp*>(static_cast<const _Dp*>(__ptr)), __ctx));
           }) {}
@@ -221,9 +216,7 @@ public:
   _LIBCPP_HIDE_FROM_ABI __basic_format_arg_value(basic_string_view<_CharT> __value) noexcept
       : __string_view_(__value) {}
   _LIBCPP_HIDE_FROM_ABI __basic_format_arg_value(const void* __value) noexcept : __ptr_(__value) {}
-  _LIBCPP_HIDE_FROM_ABI __basic_format_arg_value(__handle __value) noexcept
-      // TODO FMT Investigate why it doesn't work without the forward.
-      : __handle_(std::forward<__handle>(__value)) {}
+  _LIBCPP_HIDE_FROM_ABI __basic_format_arg_value(__handle&& __value) noexcept : __handle_(std::move(__value)) {}
 };
 
 template <class _Context>

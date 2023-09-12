@@ -239,11 +239,11 @@ func.func @transfer_broadcasting_complex(%mem : memref<10x20x30x8x8xf32>, %i : i
 
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !transform.any_op):
-  transform.apply_patterns to %module_op {
+^bb1(%func_op: !transform.op<"func.func">):
+  transform.apply_patterns to %func_op {
     transform.apply_patterns.vector.lower_transfer max_transfer_rank = 99
-    transform.apply_patterns.vector.apply_transfer_permutation_patterns
-  } : !transform.any_op
+    transform.apply_patterns.vector.transfer_permutation_patterns
+  } : !transform.op<"func.func">
 }
 
 // -----
@@ -355,15 +355,15 @@ func.func @transfer_write_broadcast_unit_dim(
   vector.transfer_write %v2, %arg0[%c0, %c0, %c0, %c0] {permutation_map = affine_map<(d0, d1, d2, d3) -> (d1, d2)>} : vector<8x16xf32>, memref<?x?x?x?xf32>
   // CHECK: %[[NEW_VEC2:.*]] = vector.broadcast %{{.*}} : vector<8x16xf32> to vector<1x8x16xf32>
   // CHECK: %[[NEW_VEC3:.*]] = vector.transpose %[[NEW_VEC2]], [1, 2, 0] : vector<1x8x16xf32> to vector<8x16x1xf32>
-  // CHECK: vector.transfer_write %[[NEW_VEC3]], %[[ARG0]][%[[C0]], %[[C0]], %[[C0]], %[[C0]]] : vector<8x16x1xf32>, memref<?x?x?x?xf32>
+  // CHECK: vector.transfer_write %[[NEW_VEC3]], %[[ARG0]][%[[C0]], %[[C0]], %[[C0]], %[[C0]]] {in_bounds = [false, false, true]} : vector<8x16x1xf32>, memref<?x?x?x?xf32>
 
   return %0 : tensor<?x?x?x?xf32>
 }
 
 transform.sequence failures(propagate) {
-^bb1(%module_op: !transform.any_op):
-  transform.apply_patterns to %module_op {
+^bb1(%func_op: !transform.op<"func.func">):
+  transform.apply_patterns to %func_op {
     transform.apply_patterns.vector.lower_transfer max_transfer_rank = 99
-    transform.apply_patterns.vector.apply_transfer_permutation_patterns
-  } : !transform.any_op
+    transform.apply_patterns.vector.transfer_permutation_patterns
+  } : !transform.op<"func.func">
 }

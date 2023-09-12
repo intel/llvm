@@ -112,7 +112,9 @@ private:
       case MatchMode::MatchFullyQualified:
         return Regex.match("::" + ND.getQualifiedNameAsString());
       default:
-        return Regex.match(ND.getName());
+        if (const IdentifierInfo *II = ND.getIdentifier())
+          return Regex.match(II->getName());
+        return false;
       }
     }
 
@@ -136,6 +138,24 @@ inline ::clang::ast_matchers::internal::Matcher<NamedDecl>
 matchesAnyListedName(llvm::ArrayRef<StringRef> NameList) {
   return ::clang::ast_matchers::internal::makeMatcher(
       new MatchesAnyListedNameMatcher(NameList));
+}
+
+// Predicate that verify if statement is not identical to one bound to ID node.
+struct NotIdenticalStatementsPredicate {
+  bool
+  operator()(const clang::ast_matchers::internal::BoundNodesMap &Nodes) const;
+
+  std::string ID;
+  ::clang::DynTypedNode Node;
+  ASTContext *Context;
+};
+
+// Checks if statement is identical (utils::areStatementsIdentical) to one bound
+// to ID node.
+AST_MATCHER_P(Stmt, isStatementIdenticalToBoundNode, std::string, ID) {
+  NotIdenticalStatementsPredicate Predicate{
+      ID, ::clang::DynTypedNode::create(Node), &(Finder->getASTContext())};
+  return Builder->removeBindings(Predicate);
 }
 
 } // namespace clang::tidy::matchers

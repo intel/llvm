@@ -8,10 +8,20 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
+#include <sycl/detail/pi.h>            // for PI_ERROR_INVALID_DEVICE
+#include <sycl/detail/type_traits.hpp> // for is_fixed_size_group, is_group
+#include <sycl/exception.hpp>          // for runtime_error
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/id.hpp>                        // for id
+#include <sycl/memory_enums.hpp>              // for memory_scope
+#include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>                 // for sub_group
+
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t, true_type, dec...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
@@ -175,5 +185,5 @@ struct is_group<
     ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

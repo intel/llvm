@@ -92,7 +92,6 @@ add_llvm_component_library(LLVMAnalysis
   LoopInfo.cpp
   LoopPass.cpp
   MLInlineAdvisor.cpp
-  MemDepPrinter.cpp
   MemDerefPrinter.cpp
   MemoryBuiltins.cpp
   MemoryDependenceAnalysis.cpp
@@ -125,6 +124,7 @@ add_llvm_component_library(LLVMAnalysis
   ScalarEvolutionNormalization.cpp
   StackLifetime.cpp
   StackSafetyAnalysis.cpp
+  StructuralHash.cpp
   SyntheticCountsUtils.cpp
   TFLiteUtils.cpp
   TargetLibraryInfo.cpp

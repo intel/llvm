@@ -193,6 +193,7 @@ public:
   bool TerminateOnError = false;
 
   USMAnalyzer(const USMAnalyzer &obj) = delete;
+  USMAnalyzer &operator=(const USMAnalyzer &rhs) = delete;
 
   static USMAnalyzer &getInstance() {
     static USMAnalyzer s;
@@ -203,7 +204,7 @@ public:
     TerminateOnError = EnableTermination;
   }
 
-  void printToErrorStream(bool Mode) { PrintToError = true; }
+  void printToErrorStream() { PrintToError = true; }
 
   void setupUSMHandlers() {
     ArgHandlerPostCall.set_piextUSMHostAlloc(USMAnalyzer::handleUSMHostAlloc);
@@ -382,10 +383,9 @@ public:
 
   static void handleUSMEnqueueFill2D(const pi_plugin &,
                                      std::optional<pi_result>, pi_queue,
-                                     void *ptr, size_t pitch,
-                                     size_t pattern_size, const void *pattern,
-                                     size_t width, size_t height, pi_uint32,
-                                     const pi_event *, pi_event *) {
+                                     void *ptr, size_t pitch, size_t,
+                                     const void *, size_t width, size_t height,
+                                     pi_uint32, const pi_event *, pi_event *) {
     // TO DO: add checks for pattern validity
     CheckPointerValidness("input parameter", ptr, pitch, width, height,
                           "ext_oneapi_fill2d");
@@ -413,9 +413,8 @@ public:
   }
 
   static void handleKernelSetArgPointer(const pi_plugin &,
-                                        std::optional<pi_result>,
-                                        pi_kernel kernel, pi_uint32 arg_index,
-                                        size_t arg_size,
+                                        std::optional<pi_result>, pi_kernel,
+                                        pi_uint32 arg_index, size_t arg_size,
                                         const void *arg_value) {
     // no clarity how to handle complex types so check only simple pointers here
     if (arg_size == sizeof(arg_value)) {

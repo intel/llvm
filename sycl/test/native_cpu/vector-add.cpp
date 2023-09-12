@@ -1,9 +1,5 @@
 // REQUIRES: native_cpu_be
-// REQUIRES: native_cpu_be
-// RUN: %clangxx -fsycl-device-only -fsycl-targets=native_cpu -Xclang -fsycl-int-header=%t.h -Xclang -fsycl-int-footer=%t-footer.h %s -o %t.bc
-// RUN: %clangxx -D __SYCL_NATIVE_CPU__ -std=c++17 -include %t.h -include %t-footer.h -I %sycl_include -I %sycl_include/sycl  %s -O2 -c -o %t-host.o
-// RUN: %clangxx %t.bc -O3 -c -o %t-kernel.o
-// RUN: %clangxx -L %sycl_libs_dir %sycl_lib %t-kernel.o %t-host.o -o %t
+// RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 
 #include <sycl/sycl.hpp>

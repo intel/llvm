@@ -26,6 +26,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/Twine.h"
@@ -382,6 +383,7 @@ const TargetLoweringObjectFile &AsmPrinter::getObjFileLowering() const {
 }
 
 const DataLayout &AsmPrinter::getDataLayout() const {
+  assert(MMI && "MMI could not be nullptr!");
   return MMI->getModule()->getDataLayout();
 }
 
@@ -485,6 +487,11 @@ bool AsmPrinter::doInitialization(Module &M) {
     }
   }
 
+  // On AIX, emit bytes for llvm.commandline metadata after .file so that the
+  // C_INFO symbol is preserved if any csect is kept by the linker.
+  if (TM.getTargetTriple().isOSBinFormatXCOFF())
+    emitModuleCommandLines(M);
+
   GCModuleInfo *MI = getAnalysisIfAvailable<GCModuleInfo>();
   assert(MI && "AsmPrinter didn't require GCModuleInfo?");
   for (const auto &I : *MI)
@@ -510,6 +517,7 @@ bool AsmPrinter::doInitialization(Module &M) {
                             CodeViewLineTablesGroupDescription);
     }
     if (!EmitCodeView || M.getDwarfVersion()) {
+      assert(MMI && "MMI could not be nullptr here!");
       if (MMI->hasDebugInfo()) {
         DD = new DwarfDebug(this);
         Handlers.emplace_back(std::unique_ptr<DwarfDebug>(DD), DbgTimerName,
@@ -541,7 +549,7 @@ bool AsmPrinter::doInitialization(Module &M) {
         break;
     }
     assert(MAI->getExceptionHandlingType() == ExceptionHandling::DwarfCFI ||
-           ModuleCFISection != CFISection::EH);
+           usesCFIWithoutEH() || ModuleCFISection != CFISection::EH);
     break;
   default:
     break;
@@ -550,7 +558,7 @@ bool AsmPrinter::doInitialization(Module &M) {
   EHStreamer *ES = nullptr;
   switch (MAI->getExceptionHandlingType()) {
   case ExceptionHandling::None:
-    if (!needsCFIForDebug())
+    if (!usesCFIWithoutEH())
       break;
     [[fallthrough]];
   case ExceptionHandling::SjLj:
@@ -724,8 +732,8 @@ void AsmPrinter::emitGlobalVariable(const GlobalVariable *GV) {
 
     if (T.getArch() != Triple::aarch64 || !T.isAndroid())
       OutContext.reportError(SMLoc(),
-                             "Tagged symbols (-fsanitize=memtag-globals) are "
-                             "only supported on aarch64 + Android.");
+                             "tagged symbols (-fsanitize=memtag-globals) are "
+                             "only supported on AArch64 Android");
     OutStreamer->emitSymbolAttribute(EmittedSym, MAI->getMemtagAttr());
   }
 
@@ -1266,6 +1274,9 @@ AsmPrinter::getFunctionCFISectionType(const Function &F) const {
       F.needsUnwindTableEntry())
     return CFISection::EH;
 
+  if (MAI->usesCFIWithoutEH() && F.hasUWTable())
+    return CFISection::EH;
+
   assert(MMI != nullptr && "Invalid machine module info");
   if (MMI->hasDebugInfo() || TM.Options.ForceDwarfFrameSection)
     return CFISection::Debug;
@@ -1282,14 +1293,13 @@ bool AsmPrinter::needsSEHMoves() {
   return MAI->usesWindowsCFI() && MF->getFunction().needsUnwindTableEntry();
 }
 
-bool AsmPrinter::needsCFIForDebug() const {
-  return MAI->getExceptionHandlingType() == ExceptionHandling::None &&
-         MAI->doesUseCFIForDebug() && ModuleCFISection == CFISection::Debug;
+bool AsmPrinter::usesCFIWithoutEH() const {
+  return MAI->usesCFIWithoutEH() && ModuleCFISection != CFISection::None;
 }
 
 void AsmPrinter::emitCFIInstruction(const MachineInstr &MI) {
   ExceptionHandling ExceptionHandlingType = MAI->getExceptionHandlingType();
-  if (!needsCFIForDebug() &&
+  if (!usesCFIWithoutEH() &&
       ExceptionHandlingType != ExceptionHandling::DwarfCFI &&
       ExceptionHandlingType != ExceptionHandling::ARM)
     return;
@@ -1715,6 +1725,10 @@ void AsmPrinter::emitFunctionBody() {
         break;
       case TargetOpcode::MEMBARRIER:
         OutStreamer->emitRawComment("MEMBARRIER");
+        break;
+      case TargetOpcode::JUMP_TABLE_DEBUG_INFO:
+        // This instruction is only used to note jump table debug info, it's
+        // purely meta information.
         break;
       default:
         emitInstruction(&MI);
@@ -2327,7 +2341,9 @@ bool AsmPrinter::doFinalization(Module &M) {
   emitModuleIdents(M);
 
   // Emit bytes for llvm.commandline metadata.
-  emitModuleCommandLines(M);
+  // The command line metadata is emitted earlier on XCOFF.
+  if (!TM.getTargetTriple().isOSBinFormatXCOFF())
+    emitModuleCommandLines(M);
 
   // Emit .note.GNU-split-stack and .note.GNU-no-split-stack sections if
   // split-stack is used.
@@ -2555,7 +2571,8 @@ void AsmPrinter::emitJumpTableInfo() {
   const Function &F = MF->getFunction();
   const TargetLoweringObjectFile &TLOF = getObjFileLowering();
   bool JTInDiffSection = !TLOF.shouldPutJumpTableInFunctionSection(
-      MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32,
+      MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 ||
+          MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference64,
       F);
   if (JTInDiffSection) {
     // Drop it in the readonly section.
@@ -2653,7 +2670,8 @@ void AsmPrinter::emitJumpTableEntry(const MachineJumpTableInfo *MJTI,
     return;
   }
 
-  case MachineJumpTableInfo::EK_LabelDifference32: {
+  case MachineJumpTableInfo::EK_LabelDifference32:
+  case MachineJumpTableInfo::EK_LabelDifference64: {
     // Each entry is the address of the block minus the address of the jump
     // table. This is used for PIC jump tables where gprel32 is not supported.
     // e.g.:
@@ -2661,7 +2679,8 @@ void AsmPrinter::emitJumpTableEntry(const MachineJumpTableInfo *MJTI,
     // If the .set directive avoids relocations, this is emitted as:
     //      .set L4_5_set_123, LBB123 - LJTI1_2
     //      .word L4_5_set_123
-    if (MAI->doesSetDirectiveSuppressReloc()) {
+    if (MJTI->getEntryKind() == MachineJumpTableInfo::EK_LabelDifference32 &&
+        MAI->doesSetDirectiveSuppressReloc()) {
       Value = MCSymbolRefExpr::create(GetJTSetSymbol(UID, MBB->getNumber()),
                                       OutContext);
       break;
@@ -4009,16 +4028,18 @@ void AsmPrinter::emitXRayTable() {
                                        Flags, 0, GroupName, F.hasComdat(),
                                        MCSection::NonUniqueID, LinkedToSym);
 
-    if (!TM.Options.XRayOmitFunctionIndex)
+    if (TM.Options.XRayFunctionIndex)
       FnSledIndex = OutContext.getELFSection(
-          "xray_fn_idx", ELF::SHT_PROGBITS, Flags | ELF::SHF_WRITE, 0,
-          GroupName, F.hasComdat(), MCSection::NonUniqueID, LinkedToSym);
+          "xray_fn_idx", ELF::SHT_PROGBITS, Flags, 0, GroupName, F.hasComdat(),
+          MCSection::NonUniqueID, LinkedToSym);
   } else if (MF->getSubtarget().getTargetTriple().isOSBinFormatMachO()) {
-    InstMap = OutContext.getMachOSection("__DATA", "xray_instr_map", 0,
+    InstMap = OutContext.getMachOSection("__DATA", "xray_instr_map",
+                                         MachO::S_ATTR_LIVE_SUPPORT,
                                          SectionKind::getReadOnlyWithRel());
-    if (!TM.Options.XRayOmitFunctionIndex)
-      FnSledIndex = OutContext.getMachOSection(
-          "__DATA", "xray_fn_idx", 0, SectionKind::getReadOnlyWithRel());
+    if (TM.Options.XRayFunctionIndex)
+      FnSledIndex = OutContext.getMachOSection("__DATA", "xray_fn_idx",
+                                               MachO::S_ATTR_LIVE_SUPPORT,
+                                               SectionKind::getReadOnly());
   } else {
     llvm_unreachable("Unsupported target");
   }
@@ -4029,7 +4050,8 @@ void AsmPrinter::emitXRayTable() {
   // per-function, we are able to create an index entry that will represent the
   // range of sleds associated with a function.
   auto &Ctx = OutContext;
-  MCSymbol *SledsStart = OutContext.createTempSymbol("xray_sleds_start", true);
+  MCSymbol *SledsStart =
+      OutContext.createLinkerPrivateSymbol("xray_sleds_start");
   OutStreamer->switchSection(InstMap);
   OutStreamer->emitLabel(SledsStart);
   for (const auto &Sled : Sleds) {
@@ -4060,8 +4082,17 @@ void AsmPrinter::emitXRayTable() {
     OutStreamer->switchSection(FnSledIndex);
     OutStreamer->emitCodeAlignment(Align(2 * WordSizeBytes),
                                    &getSubtargetInfo());
-    OutStreamer->emitSymbolValue(SledsStart, WordSizeBytes, false);
-    OutStreamer->emitSymbolValue(SledsEnd, WordSizeBytes, false);
+    // For Mach-O, use an "l" symbol as the atom of this subsection. The label
+    // difference uses a SUBTRACTOR external relocation which references the
+    // symbol.
+    MCSymbol *Dot = Ctx.createLinkerPrivateSymbol("xray_fn_idx");
+    OutStreamer->emitLabel(Dot);
+    OutStreamer->emitValueImpl(
+        MCBinaryExpr::createSub(MCSymbolRefExpr::create(SledsStart, Ctx),
+                                MCSymbolRefExpr::create(Dot, Ctx), Ctx),
+        WordSizeBytes);
+    OutStreamer->emitValueImpl(MCConstantExpr::create(Sleds.size(), Ctx),
+                               WordSizeBytes);
     OutStreamer->switchSection(PrevSection);
   }
   Sleds.clear();
@@ -4141,4 +4172,19 @@ dwarf::FormParams AsmPrinter::getDwarfFormParams() const {
 unsigned int AsmPrinter::getUnitLengthFieldByteSize() const {
   return dwarf::getUnitLengthFieldByteSize(
       OutStreamer->getContext().getDwarfFormat());
+}
+
+std::tuple<const MCSymbol *, uint64_t, const MCSymbol *,
+           codeview::JumpTableEntrySize>
+AsmPrinter::getCodeViewJumpTableInfo(int JTI, const MachineInstr *BranchInstr,
+                                     const MCSymbol *BranchLabel) const {
+  const auto TLI = MF->getSubtarget().getTargetLowering();
+  const auto BaseExpr =
+      TLI->getPICJumpTableRelocBaseExpr(MF, JTI, MMI->getContext());
+  const auto Base = &cast<MCSymbolRefExpr>(BaseExpr)->getSymbol();
+
+  // By default, for the architectures that support CodeView,
+  // EK_LabelDifference32 is implemented as an Int32 from the base address.
+  return std::make_tuple(Base, 0, BranchLabel,
+                         codeview::JumpTableEntrySize::Int32);
 }

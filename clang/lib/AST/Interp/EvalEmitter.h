@@ -75,7 +75,10 @@ protected:
   }
 
   /// Parameter indices.
-  llvm::DenseMap<const ParmVarDecl *, unsigned> Params;
+  llvm::DenseMap<const ParmVarDecl *, ParamOffset> Params;
+  /// Lambda captures.
+  llvm::DenseMap<const ValueDecl *, ParamOffset> LambdaCaptures;
+  unsigned LambdaThisCapture;
   /// Local descriptors.
   llvm::SmallVector<SmallVector<Local, 8>, 2> Descriptors;
 

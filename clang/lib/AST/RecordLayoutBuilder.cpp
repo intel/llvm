@@ -58,13 +58,13 @@ struct BaseSubobjectInfo {
 /// as DWARF, lacks all the information that was available at compile time, such
 /// as alignment attributes on fields and pragmas in effect.
 struct ExternalLayout {
-  ExternalLayout() : Size(0), Align(0) {}
+  ExternalLayout() = default;
 
   /// Overall record size in bits.
-  uint64_t Size;
+  uint64_t Size = 0;
 
   /// Overall record alignment in bits.
-  uint64_t Align;
+  uint64_t Align = 0;
 
   /// Record field offsets in bits.
   llvm::DenseMap<const FieldDecl *, uint64_t> FieldOffsets;
@@ -2927,8 +2927,7 @@ void MicrosoftRecordLayoutBuilder::layoutNonVirtualBase(
   bool FoundBase = false;
   if (UseExternalLayout) {
     FoundBase = External.getExternalNVBaseOffset(BaseDecl, BaseOffset);
-    if (FoundBase) {
-      assert(BaseOffset >= Size && "base offset already allocated");
+    if (BaseOffset > Size) {
       Size = BaseOffset;
     }
   }
@@ -3727,6 +3726,28 @@ void ASTContext::DumpRecordLayout(const RecordDecl *RD, raw_ostream &OS,
   if (Target->defaultsToAIXPowerAlignment())
     OS << "  PreferredAlignment:" << toBits(Info.getPreferredAlignment())
        << "\n";
+  if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD)) {
+    OS << "  BaseOffsets: [";
+    const CXXRecordDecl *Base = nullptr;
+    for (auto I : CXXRD->bases()) {
+      if (I.isVirtual())
+        continue;
+      if (Base)
+        OS << ", ";
+      Base = I.getType()->getAsCXXRecordDecl();
+      OS << Info.CXXInfo->BaseOffsets[Base].getQuantity();
+    }
+    OS << "]>\n";
+    OS << "  VBaseOffsets: [";
+    const CXXRecordDecl *VBase = nullptr;
+    for (auto I : CXXRD->vbases()) {
+      if (VBase)
+        OS << ", ";
+      VBase = I.getType()->getAsCXXRecordDecl();
+      OS << Info.CXXInfo->VBaseOffsets[VBase].VBaseOffset.getQuantity();
+    }
+    OS << "]>\n";
+  }
   OS << "  FieldOffsets: [";
   for (unsigned i = 0, e = Info.getFieldCount(); i != e; ++i) {
     if (i)

@@ -105,6 +105,7 @@ def get_tidy_invocation(
     line_filter,
     use_color,
     plugins,
+    warnings_as_errors,
 ):
     """Gets a command line for clang-tidy."""
     start = [clang_tidy_binary]
@@ -141,6 +142,8 @@ def get_tidy_invocation(
         start.append("-config=" + config)
     for plugin in plugins:
         start.append("-load=" + plugin)
+    if warnings_as_errors:
+        start.append("--warnings-as-errors=" + warnings_as_errors)
     start.append(f)
     return start
 
@@ -224,6 +227,7 @@ def run_tidy(args, clang_tidy_binary, tmpdir, build_path, queue, lock, failed_fi
             args.line_filter,
             args.use_color,
             args.plugins,
+            args.warnings_as_errors,
         )
 
         proc = subprocess.Popen(
@@ -363,6 +367,11 @@ def main():
         default=[],
         help="Load the specified plugin in clang-tidy.",
     )
+    parser.add_argument(
+        "-warnings-as-errors",
+        default=None,
+        help="Upgrades warnings to errors. Same format as " "'-checks'",
+    )
     args = parser.parse_args()
 
     db_path = "compile_commands.json"
@@ -380,6 +389,8 @@ def main():
         clang_apply_replacements_binary = find_binary(
             args.clang_apply_replacements_binary, "clang-apply-replacements", build_path
         )
+
+    if args.fix or (yaml and args.export_fixes):
         tmpdir = tempfile.mkdtemp()
 
     try:
@@ -399,6 +410,7 @@ def main():
             args.line_filter,
             args.use_color,
             args.plugins,
+            args.warnings_as_errors,
         )
         invocation.append("-list-checks")
         invocation.append("-")

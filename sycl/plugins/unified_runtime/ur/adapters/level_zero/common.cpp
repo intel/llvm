@@ -1,12 +1,13 @@
-//===--------- common.cpp - Level Zero Adapter -----------------------===//
+//===--------- common.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include "usm.hpp"
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -69,7 +70,8 @@ void urPrint(const char *Format, ...) {
   }
 }
 
-usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+usm::DisjointPoolAllConfigs DisjointPoolConfigInstance =
+    InitializeDisjointPoolConfig();
 
 // This function will ensure compatibility with both Linux and Windows for
 // setting environment variables.
@@ -90,7 +92,7 @@ bool setEnvVar(const char *name, const char *value) {
 ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-std::map<const char *, int> *ZeCallCount = nullptr;
+std::map<std::string, int> *ZeCallCount = nullptr;
 
 inline void zeParseError(ze_result_t ZeError, const char *&ErrorString) {
   switch (ZeError) {
@@ -257,7 +259,11 @@ ze_structure_type_t getZeStructureType<ze_memory_allocation_properties_t>() {
   return ZE_STRUCTURE_TYPE_MEMORY_ALLOCATION_PROPERTIES;
 }
 
-template <> zes_structure_type_t getZesStructureType<zes_pci_properties_t>() {
+template <> ze_structure_type_t getZeStructureType<ze_pci_ext_properties_t>() {
+  return ZE_STRUCTURE_TYPE_PCI_EXT_PROPERTIES;
+}
+
+template <> zes_structure_type_t getZesStructureType<ze_pci_address_ext_t>() {
   return ZES_STRUCTURE_TYPE_PCI_PROPERTIES;
 }
 

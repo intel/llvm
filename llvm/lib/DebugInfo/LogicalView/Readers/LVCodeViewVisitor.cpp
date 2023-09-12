@@ -1065,7 +1065,7 @@ Error LVSymbolVisitor::visitKnownRecord(
 
     uint64_t Operand1 = DefRangeFramePointerRelFullScope.Offset;
     Symbol->addLocation(Attr, 0, 0, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1103,7 +1103,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1142,7 +1142,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, Operand2);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, Operand2});
   }
 
   return Error::success();
@@ -1177,7 +1177,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1215,7 +1215,7 @@ Error LVSymbolVisitor::visitKnownRecord(
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1});
   }
 
   return Error::success();
@@ -1258,7 +1258,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, /*Operand2=*/0});
   }
 
   return Error::success();
@@ -1299,7 +1299,7 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
         Reader->linearAddress(Range.ISectStart, Range.OffsetStart);
 
     Symbol->addLocation(Attr, Address, Address + Range.Range, 0, 0);
-    Symbol->addLocationOperands(LVSmall(Attr), Operand1, /*Operand2=*/0);
+    Symbol->addLocationOperands(LVSmall(Attr), {Operand1, /*Operand2=*/0});
   }
 
   return Error::success();
@@ -1685,6 +1685,23 @@ Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record, UDTSym &UDT) {
 Error LVSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                         UsingNamespaceSym &UN) {
   LLVM_DEBUG({ W.printString("Namespace", UN.Name); });
+  return Error::success();
+}
+
+// S_ARMSWITCHTABLE
+Error LVSymbolVisitor::visitKnownRecord(CVSymbol &CVR,
+                                        JumpTableSym &JumpTable) {
+  LLVM_DEBUG({
+    W.printHex("BaseOffset", JumpTable.BaseOffset);
+    W.printNumber("BaseSegment", JumpTable.BaseSegment);
+    W.printFlags("SwitchType", static_cast<uint16_t>(JumpTable.SwitchType),
+                 getJumpTableEntrySizeNames());
+    W.printHex("BranchOffset", JumpTable.BranchOffset);
+    W.printHex("TableOffset", JumpTable.TableOffset);
+    W.printNumber("BranchSegment", JumpTable.BranchSegment);
+    W.printNumber("TableSegment", JumpTable.TableSegment);
+    W.printNumber("EntriesCount", JumpTable.EntriesCount);
+  });
   return Error::success();
 }
 

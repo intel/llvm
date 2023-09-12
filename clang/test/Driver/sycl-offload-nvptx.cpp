@@ -232,12 +232,12 @@
 // CHK-PREPROC: 2: offload, "device-sycl (nvptx64-nvidia-cuda:sm_[[CUDA_VERSION]])" {1}, c++-cpp-output
 // CHK-PREPROC: 4: compiler, {1}, none, (device-sycl, sm_[[CUDA_VERSION]])
 //
-// RUN: %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
+// RUN: not %clangxx -### -std=c++11 -target x86_64-unknown-linux-gnu -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-CUDA-PATH-ERROR %s
 //
-// RUN: %clang_cl -### -fsycl \
+// RUN: not %clang_cl -### -fsycl \
 // RUN: -fsycl-targets=nvptx64-nvidia-cuda --cuda-path=%S/Inputs/no/CUDA/path/here \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-CUDA-PATH-ERROR %s

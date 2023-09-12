@@ -1,10 +1,10 @@
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:*" %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR='*:cpu;level_zero:gpu' %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:acc %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:*" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:cpu" %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR='*:cpu;level_zero:gpu' %{run-unfiltered-devices} %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:acc %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set

@@ -8,26 +8,22 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/access/access.hpp>    // for address_space
+#include <sycl/detail/type_list.hpp> // for type_list, address_space_list
+#include <sycl/half_type.hpp>        // for half
 
-#include <cstddef>
+#include <cstddef>     // for byte, size_t
+#include <type_traits> // for conditional_t, is_signed_v, is_...
 
 // Generic type name description, which serves as a description for all valid
 // types of parameters to kernel functions
 
 // Forward declarations
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, int N> class vec;
 template <typename Type, std::size_t NumElements> class marray;
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace detail {
 namespace gtl {
 // floating point types
@@ -591,5 +587,5 @@ using nonlocal_address_space_list =
                        access::address_space::ext_intel_global_host_space>;
 } // namespace gvl
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

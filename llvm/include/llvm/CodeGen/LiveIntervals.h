@@ -322,7 +322,7 @@ class VirtRegMap;
     /// OrigRegs is a vector of registers that were originally used by the
     /// instructions in the range between the two iterators.
     ///
-    /// Currently, the only only changes that are supported are simple removal
+    /// Currently, the only changes that are supported are simple removal
     /// and addition of uses.
     void repairIntervalsInRange(MachineBasicBlock *MBB,
                                 MachineBasicBlock::iterator Begin,
@@ -417,8 +417,8 @@ class VirtRegMap;
     /// method can result in inconsistent liveness tracking if multiple phyical
     /// registers share a regunit, and should be used cautiously.
     void removeAllRegUnitsForPhysReg(MCRegister Reg) {
-      for (MCRegUnitIterator Units(Reg, TRI); Units.isValid(); ++Units)
-        removeRegUnit(*Units);
+      for (MCRegUnit Unit : TRI->regunits(Reg))
+        removeRegUnit(Unit);
     }
 
     /// Remove value numbers and related live segments starting at position

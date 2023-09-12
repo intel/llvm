@@ -2,6 +2,24 @@
 
 ! RUN: bbc -fopenacc -emit-fir %s -o - | FileCheck %s
 
+! CHECK-LABEL: acc.firstprivate.recipe @firstprivatization_ref_10xf32 : !fir.ref<!fir.array<10xf32>> init {
+! CHECK: ^bb0(%{{.*}}: !fir.ref<!fir.array<10xf32>>):
+! CHECK:   %[[ALLOCA:.*]] = fir.alloca !fir.array<10xf32> 
+! CHECK:   acc.yield %[[ALLOCA]] : !fir.ref<!fir.array<10xf32>>
+! CHECK: } copy {
+! CHECK: ^bb0(%[[SRC:.*]]: !fir.ref<!fir.array<10xf32>>, %[[DST:.*]]: !fir.ref<!fir.array<10xf32>>):
+! CHECK:   %[[LB0:.*]] = arith.constant 0 : index
+! CHECK:   %[[UB0:.*]] = arith.constant 9 : index
+! CHECK:   %[[STEP0:.*]] = arith.constant 1 : index
+! CHECK:   fir.do_loop %[[IV0:.*]] = %[[LB0]] to %[[UB0]] step %[[STEP0]] {
+! CHECK:     %[[COORD0:.*]] = fir.coordinate_of %[[SRC]], %[[IV0]] : (!fir.ref<!fir.array<10xf32>>, index) -> !fir.ref<f32>
+! CHECK:     %[[COORD1:.*]] = fir.coordinate_of %[[DST]], %[[IV0]] : (!fir.ref<!fir.array<10xf32>>, index) -> !fir.ref<f32>
+! CHECK:     %[[LOAD:.*]] = fir.load %[[COORD0]] : !fir.ref<f32>
+! CHECK:     fir.store %[[LOAD]] to %[[COORD1]] : !fir.ref<f32>
+! CHECK:   }
+! CHECK:   acc.terminator
+! CHECK: }
+
 ! CHECK-LABEL: acc.private.recipe @privatization_ref_10xf32 : !fir.ref<!fir.array<10xf32>> init {
 ! CHECK: ^bb0(%{{.*}}: !fir.ref<!fir.array<10xf32>>):
 ! CHECK:   acc.yield %{{.*}} : !fir.ref<!fir.array<10xf32>>
@@ -23,6 +41,8 @@ subroutine acc_parallel_loop
   real, dimension(n) :: a, b, c
   real, dimension(n, n) :: d, e
   real, pointer :: f, g
+  integer :: reduction_i
+  real :: reduction_r
 
   integer :: gangNum = 8
   integer :: gangStatic = 8
@@ -307,8 +327,8 @@ subroutine acc_parallel_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      %[[COPYIN_A:.*]] = acc.copyin varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 3 : i64, name = "a"} 
-! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 3 : i64, name = "b"} 
+! CHECK:      %[[COPYIN_A:.*]] = acc.copyin varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copy>, name = "a"} 
+! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copy>, name = "b"} 
 ! CHECK:      acc.parallel dataOperands(%[[COPYIN_A]], %[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>, !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:        acc.loop {
 ! CHECK:          fir.do_loop
@@ -316,16 +336,16 @@ subroutine acc_parallel_loop
 ! CHECK-NEXT:   }{{$}}
 ! CHECK:        acc.yield
 ! CHECK-NEXT: }{{$}}
-! CHECK:      acc.copyout accPtr(%[[COPYIN_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) {dataClause = 3 : i64, name = "a"}
-! CHECK:      acc.copyout accPtr(%[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) {dataClause = 3 : i64, name = "b"}
+! CHECK:      acc.copyout accPtr(%[[COPYIN_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) {dataClause = #acc<data_clause acc_copy>, name = "a"}
+! CHECK:      acc.copyout accPtr(%[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) {dataClause = #acc<data_clause acc_copy>, name = "b"}
 
   !$acc parallel loop copy(a) copy(b)
   DO i = 1, n
     a(i) = b(i)
   END DO
 
-! CHECK:      %[[COPYIN_A:.*]] = acc.copyin varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 3 : i64, name = "a"} 
-! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 3 : i64, name = "b"} 
+! CHECK:      %[[COPYIN_A:.*]] = acc.copyin varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copy>, name = "a"} 
+! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copy>, name = "b"} 
 ! CHECK:      acc.parallel dataOperands(%[[COPYIN_A]], %[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>, !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:        acc.loop {
 ! CHECK:          fir.do_loop
@@ -333,8 +353,8 @@ subroutine acc_parallel_loop
 ! CHECK-NEXT:   }{{$}}
 ! CHECK:        acc.yield
 ! CHECK-NEXT: }{{$}}
-! CHECK:      acc.copyout accPtr(%[[COPYIN_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) {dataClause = 3 : i64, name = "a"}
-! CHECK:      acc.copyout accPtr(%[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) {dataClause = 3 : i64, name = "b"}
+! CHECK:      acc.copyout accPtr(%[[COPYIN_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) {dataClause = #acc<data_clause acc_copy>, name = "a"}
+! CHECK:      acc.copyout accPtr(%[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) to varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) {dataClause = #acc<data_clause acc_copy>, name = "b"}
 
   !$acc parallel loop copyin(a) copyin(readonly: b)
   DO i = 1, n
@@ -342,7 +362,7 @@ subroutine acc_parallel_loop
   END DO
 
 ! CHECK:      %[[COPYIN_A:.*]] = acc.copyin varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"} 
-! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 2 : i64, name = "b"} 
+! CHECK:      %[[COPYIN_B:.*]] = acc.copyin varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copyin_readonly>, name = "b"} 
 ! CHECK:      acc.parallel dataOperands(%[[COPYIN_A]], %[[COPYIN_B]] : !fir.ref<!fir.array<10xf32>>, !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:        acc.loop {
 ! CHECK:          fir.do_loop
@@ -356,8 +376,8 @@ subroutine acc_parallel_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      %[[CREATE_A:.*]] = acc.create varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 4 : i64, name = "a"} 
-! CHECK:      %[[CREATE_B:.*]] = acc.create varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 4 : i64, name = "b"} 
+! CHECK:      %[[CREATE_A:.*]] = acc.create varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copyout>, name = "a"} 
+! CHECK:      %[[CREATE_B:.*]] = acc.create varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_copyout>, name = "b"} 
 ! CHECK:      acc.parallel dataOperands(%[[CREATE_A]], %[[CREATE_B]] : !fir.ref<!fir.array<10xf32>>, !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:        acc.loop {
 ! CHECK:          fir.do_loop
@@ -374,7 +394,7 @@ subroutine acc_parallel_loop
   END DO
 
 ! CHECK:      %[[CREATE_B:.*]] = acc.create varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "b"} 
-! CHECK:      %[[CREATE_A:.*]] = acc.create varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = 8 : i64, name = "a"}
+! CHECK:      %[[CREATE_A:.*]] = acc.create varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {dataClause = #acc<data_clause acc_create_zero>, name = "a"}
 ! CHECK:      acc.parallel dataOperands(%[[CREATE_B]], %[[CREATE_A]] : !fir.ref<!fir.array<10xf32>>, !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:        acc.loop {
 ! CHECK:          fir.do_loop
@@ -382,8 +402,8 @@ subroutine acc_parallel_loop
 ! CHECK-NEXT:   }{{$}}
 ! CHECK:        acc.yield
 ! CHECK-NEXT: }{{$}}
-! CHECK:      acc.delete accPtr(%[[CREATE_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) {dataClause = 7 : i64, name = "b"}
-! CHECK:      acc.delete accPtr(%[[CREATE_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) {dataClause = 8 : i64, name = "a"}
+! CHECK:      acc.delete accPtr(%[[CREATE_B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) {dataClause = #acc<data_clause acc_create>, name = "b"}
+! CHECK:      acc.delete accPtr(%[[CREATE_A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) {dataClause = #acc<data_clause acc_create_zero>, name = "a"}
 
   !$acc parallel loop no_create(a, b)
   DO i = 1, n
@@ -454,8 +474,11 @@ subroutine acc_parallel_loop
     a(i) = b(i)
   END DO
 
-! CHECK:      acc.parallel firstprivate(%[[B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
-! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:      %[[ACC_PRIVATE_B:.*]] = acc.firstprivate varPtr(%[[B]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "b"}
+! CHECK:      acc.parallel firstprivate(@firstprivatization_ref_10xf32 -> %[[ACC_PRIVATE_B]] : !fir.ref<!fir.array<10xf32>>) private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
+! CHECK:      %[[ACC_PRIVATE_A:.*]] = acc.private varPtr(%[[A]] : !fir.ref<!fir.array<10xf32>>) bounds(%{{.*}}) -> !fir.ref<!fir.array<10xf32>> {name = "a"}
+! CHECK:        acc.loop private(@privatization_ref_10xf32 -> %[[ACC_PRIVATE_A]] : !fir.ref<!fir.array<10xf32>>) {
 ! CHECK:          fir.do_loop
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}
@@ -725,6 +748,20 @@ subroutine acc_parallel_loop
 
 ! CHECK:      acc.parallel {
 ! CHECK:        acc.loop tile(%{{.*}}, %{{.*}} : i32, i32) {
+! CHECK:          fir.do_loop
+! CHECK:          acc.yield
+! CHECK-NEXT:   }{{$}}
+! CHECK:        acc.yield
+! CHECK-NEXT: }{{$}}
+
+  !$acc parallel loop reduction(+:reduction_r) reduction(*:reduction_i)
+  do i = 1, n
+    reduction_r = reduction_r + a(i)
+    reduction_i = 1
+  end do
+
+! CHECK:      acc.parallel reduction(@reduction_add_ref_f32 -> %{{.*}} : !fir.ref<f32>, @reduction_mul_ref_i32 -> %{{.*}} : !fir.ref<i32>) {
+! CHECK:        acc.loop reduction(@reduction_add_ref_f32 -> %{{.*}} : !fir.ref<f32>, @reduction_mul_ref_i32 -> %{{.*}} : !fir.ref<i32>) {
 ! CHECK:          fir.do_loop
 ! CHECK:          acc.yield
 ! CHECK-NEXT:   }{{$}}

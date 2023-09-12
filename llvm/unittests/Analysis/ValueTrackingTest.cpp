@@ -1791,6 +1791,179 @@ TEST_F(ComputeKnownFPClassTest, CannotBeOrderedLessThanZero) {
           .cannotBeOrderedLessThanZero());
 }
 
+TEST_F(ComputeKnownFPClassTest, FCmpToClassTest_OrdNan) {
+  parseAssembly("define i1 @test(double %arg) {\n"
+                "  %A = fcmp ord double %arg, 0x7FF8000000000000"
+                "  %A2 = fcmp uno double %arg, 0x7FF8000000000000"
+                "  %A3 = fcmp oeq double %arg, 0x7FF8000000000000"
+                "  %A4 = fcmp ueq double %arg, 0x7FF8000000000000"
+                "  ret i1 %A\n"
+                "}\n");
+
+  auto [OrdVal, OrdClass] = fcmpToClassTest(
+      CmpInst::FCMP_ORD, *A->getFunction(), A->getOperand(0), A->getOperand(1));
+  EXPECT_EQ(A->getOperand(0), OrdVal);
+  EXPECT_EQ(fcNone, OrdClass);
+
+  auto [UnordVal, UnordClass] =
+      fcmpToClassTest(CmpInst::FCMP_UNO, *A2->getFunction(), A2->getOperand(0),
+                      A2->getOperand(1));
+  EXPECT_EQ(A2->getOperand(0), UnordVal);
+  EXPECT_EQ(fcAllFlags, UnordClass);
+
+  auto [OeqVal, OeqClass] =
+      fcmpToClassTest(CmpInst::FCMP_OEQ, *A3->getFunction(), A3->getOperand(0),
+                      A3->getOperand(1));
+  EXPECT_EQ(A3->getOperand(0), OeqVal);
+  EXPECT_EQ(fcNone, OeqClass);
+
+  auto [UeqVal, UeqClass] =
+      fcmpToClassTest(CmpInst::FCMP_UEQ, *A3->getFunction(), A3->getOperand(0),
+                      A3->getOperand(1));
+  EXPECT_EQ(A3->getOperand(0), UeqVal);
+  EXPECT_EQ(fcAllFlags, UeqClass);
+}
+
+TEST_F(ComputeKnownFPClassTest, FCmpToClassTest_NInf) {
+  parseAssembly("define i1 @test(double %arg) {\n"
+                "  %A = fcmp olt double %arg, 0xFFF0000000000000"
+                "  %A2 = fcmp uge double %arg, 0xFFF0000000000000"
+                "  %A3 = fcmp ogt double %arg, 0xFFF0000000000000"
+                "  %A4 = fcmp ule double %arg, 0xFFF0000000000000"
+                "  ret i1 %A\n"
+                "}\n");
+
+  auto [OltVal, OltClass] = fcmpToClassTest(
+      CmpInst::FCMP_OLT, *A->getFunction(), A->getOperand(0), A->getOperand(1));
+  EXPECT_EQ(A->getOperand(0), OltVal);
+  EXPECT_EQ(fcNone, OltClass);
+
+  auto [UgeVal, UgeClass] =
+      fcmpToClassTest(CmpInst::FCMP_UGE, *A2->getFunction(), A2->getOperand(0),
+                      A2->getOperand(1));
+  EXPECT_EQ(A2->getOperand(0), UgeVal);
+  EXPECT_EQ(fcAllFlags, UgeClass);
+
+  auto [OgtVal, OgtClass] =
+      fcmpToClassTest(CmpInst::FCMP_OGT, *A3->getFunction(), A3->getOperand(0),
+                      A3->getOperand(1));
+  EXPECT_EQ(nullptr, OgtVal);
+  EXPECT_EQ(fcNone, OgtClass);
+
+  auto [UleVal, UleClass] =
+      fcmpToClassTest(CmpInst::FCMP_ULE, *A4->getFunction(), A4->getOperand(0),
+                      A4->getOperand(1));
+  EXPECT_EQ(nullptr, UleVal);
+  EXPECT_EQ(fcNone, UleClass);
+}
+
+TEST_F(ComputeKnownFPClassTest, FCmpToClassTest_PInf) {
+  parseAssembly("define i1 @test(double %arg) {\n"
+                "  %A = fcmp ogt double %arg, 0x7FF0000000000000"
+                "  %A2 = fcmp ule double %arg, 0x7FF0000000000000"
+                "  %A3 = fcmp ole double %arg, 0x7FF0000000000000"
+                "  %A4 = fcmp ugt double %arg, 0x7FF0000000000000"
+                "  ret i1 %A\n"
+                "}\n");
+
+  auto [OgtVal, OgtClass] = fcmpToClassTest(
+      CmpInst::FCMP_OGT, *A->getFunction(), A->getOperand(0), A->getOperand(1));
+  EXPECT_EQ(A->getOperand(0), OgtVal);
+  EXPECT_EQ(fcNone, OgtClass);
+
+  auto [UleVal, UleClass] =
+      fcmpToClassTest(CmpInst::FCMP_ULE, *A2->getFunction(), A2->getOperand(0),
+                      A2->getOperand(1));
+  EXPECT_EQ(A2->getOperand(0), UleVal);
+  EXPECT_EQ(fcAllFlags, UleClass);
+
+  auto [OleVal, OleClass] =
+      fcmpToClassTest(CmpInst::FCMP_OLE, *A3->getFunction(), A3->getOperand(0),
+                      A3->getOperand(1));
+  EXPECT_EQ(nullptr, OleVal);
+  EXPECT_EQ(fcNone, OleClass);
+
+  auto [UgtVal, UgtClass] =
+      fcmpToClassTest(CmpInst::FCMP_UGT, *A4->getFunction(), A4->getOperand(0),
+                      A4->getOperand(1));
+  EXPECT_EQ(nullptr, UgtVal);
+  EXPECT_EQ(fcNone, UgtClass);
+}
+
+TEST_F(ComputeKnownFPClassTest, SqrtNszSignBit) {
+  parseAssembly(
+      "declare float @llvm.sqrt.f32(float)\n"
+      "define float @test(float %arg, float nofpclass(nan) %arg.nnan) {\n"
+      "  %A = call float @llvm.sqrt.f32(float %arg)\n"
+      "  %A2 = call nsz float @llvm.sqrt.f32(float %arg)\n"
+      "  %A3 = call float @llvm.sqrt.f32(float %arg.nnan)\n"
+      "  %A4 = call nsz float @llvm.sqrt.f32(float %arg.nnan)\n"
+      "  ret float %A\n"
+      "}\n");
+
+  const FPClassTest SqrtMask = fcPositive | fcNegZero | fcNan;
+  const FPClassTest NszSqrtMask = fcPositive | fcNan;
+
+  {
+    KnownFPClass UseInstrInfo =
+        computeKnownFPClass(A, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/true);
+    EXPECT_EQ(SqrtMask, UseInstrInfo.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, UseInstrInfo.SignBit);
+
+    KnownFPClass NoUseInstrInfo =
+        computeKnownFPClass(A, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/false);
+    EXPECT_EQ(SqrtMask, NoUseInstrInfo.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, NoUseInstrInfo.SignBit);
+  }
+
+  {
+    KnownFPClass UseInstrInfoNSZ =
+        computeKnownFPClass(A2, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/true);
+    EXPECT_EQ(NszSqrtMask, UseInstrInfoNSZ.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, UseInstrInfoNSZ.SignBit);
+
+    KnownFPClass NoUseInstrInfoNSZ =
+        computeKnownFPClass(A2, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/false);
+    EXPECT_EQ(SqrtMask, NoUseInstrInfoNSZ.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, NoUseInstrInfoNSZ.SignBit);
+  }
+
+  {
+    KnownFPClass UseInstrInfoNoNan =
+        computeKnownFPClass(A3, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/true);
+    EXPECT_EQ(fcPositive | fcNegZero | fcQNan,
+              UseInstrInfoNoNan.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, UseInstrInfoNoNan.SignBit);
+
+    KnownFPClass NoUseInstrInfoNoNan =
+        computeKnownFPClass(A3, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/false);
+    EXPECT_EQ(fcPositive | fcNegZero | fcQNan,
+              NoUseInstrInfoNoNan.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, NoUseInstrInfoNoNan.SignBit);
+  }
+
+  {
+    KnownFPClass UseInstrInfoNSZNoNan =
+        computeKnownFPClass(A4, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/true);
+    EXPECT_EQ(fcPositive | fcQNan, UseInstrInfoNSZNoNan.KnownFPClasses);
+    EXPECT_EQ(false, UseInstrInfoNSZNoNan.SignBit);
+
+    KnownFPClass NoUseInstrInfoNSZNoNan =
+        computeKnownFPClass(A4, M->getDataLayout(), fcAllFlags, 0, nullptr,
+                            nullptr, nullptr, nullptr, /*UseInstrInfo=*/false);
+    EXPECT_EQ(fcPositive | fcNegZero | fcQNan,
+              NoUseInstrInfoNSZNoNan.KnownFPClasses);
+    EXPECT_EQ(std::nullopt, NoUseInstrInfoNSZNoNan.SignBit);
+  }
+}
+
 TEST_F(ValueTrackingTest, isNonZeroRecurrence) {
   parseAssembly(R"(
     define i1 @test(i8 %n, i8 %r) {
@@ -2081,7 +2254,7 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownUSubSatZerosPreserved) {
 }
 
 TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntTrunc) {
-  // ptrtoint truncates the pointer type.
+  // ptrtoint truncates the pointer type. Make sure we don't crash.
   parseAssembly(
       "define void @test(ptr %p) {\n"
       "  %A = load ptr, ptr %p\n"
@@ -2095,12 +2268,11 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntTrunc) {
   AssumptionCache AC(*F);
   KnownBits Known = computeKnownBits(
       A, M->getDataLayout(), /* Depth */ 0, &AC, F->front().getTerminator());
-  EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
-  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_TRUE(Known.isUnknown());
 }
 
 TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntZext) {
-  // ptrtoint zero extends the pointer type.
+  // ptrtoint zero extends the pointer type. Make sure we don't crash.
   parseAssembly(
       "define void @test(ptr %p) {\n"
       "  %A = load ptr, ptr %p\n"
@@ -2114,8 +2286,7 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsPtrToIntZext) {
   AssumptionCache AC(*F);
   KnownBits Known = computeKnownBits(
       A, M->getDataLayout(), /* Depth */ 0, &AC, F->front().getTerminator());
-  EXPECT_EQ(Known.Zero.getZExtValue(), 31u);
-  EXPECT_EQ(Known.One.getZExtValue(), 0u);
+  EXPECT_TRUE(Known.isUnknown());
 }
 
 TEST_F(ComputeKnownBitsTest, ComputeKnownBitsFreeze) {
@@ -2274,6 +2445,94 @@ TEST_F(ComputeKnownBitsTest, ComputeKnownBitsGEPWithRangeNoOverlap) {
   // with the masks of zeros and ones, not the ranges.
   EXPECT_EQ(Known.getMinValue(), 544);
   EXPECT_EQ(Known.getMaxValue(), 575);
+}
+
+TEST_F(ComputeKnownBitsTest, ComputeKnownBitsAbsoluteSymbol) {
+  auto M = parseModule(R"(
+    @absolute_0_255 = external global [128 x i32], align 1, !absolute_symbol !0
+    @absolute_0_256 = external global [128 x i32], align 1, !absolute_symbol !1
+    @absolute_256_512 = external global [128 x i32], align 1, !absolute_symbol !2
+    @absolute_0_neg1 = external global [128 x i32], align 1, !absolute_symbol !3
+    @absolute_neg32_32 = external global [128 x i32], align 1, !absolute_symbol !4
+    @absolute_neg32_33 = external global [128 x i32], align 1, !absolute_symbol !5
+    @absolute_neg64_neg32 = external global [128 x i32], align 1, !absolute_symbol !6
+    @absolute_0_256_align8 = external global [128 x i32], align 8, !absolute_symbol !1
+
+    !0 = !{i64 0, i64 255}
+    !1 = !{i64 0, i64 256}
+    !2 = !{i64 256, i64 512}
+    !3 = !{i64 0, i64 -1}
+    !4 = !{i64 -32, i64 32}
+    !5 = !{i64 -32, i64 33}
+    !6 = !{i64 -64, i64 -32}
+  )");
+
+  GlobalValue *Absolute_0_255 = M->getNamedValue("absolute_0_255");
+  GlobalValue *Absolute_0_256 = M->getNamedValue("absolute_0_256");
+  GlobalValue *Absolute_256_512 = M->getNamedValue("absolute_256_512");
+  GlobalValue *Absolute_0_Neg1 = M->getNamedValue("absolute_0_neg1");
+  GlobalValue *Absolute_Neg32_32 = M->getNamedValue("absolute_neg32_32");
+  GlobalValue *Absolute_Neg32_33 = M->getNamedValue("absolute_neg32_33");
+  GlobalValue *Absolute_Neg64_Neg32 = M->getNamedValue("absolute_neg64_neg32");
+  GlobalValue *Absolute_0_256_Align8 =
+      M->getNamedValue("absolute_0_256_align8");
+
+  KnownBits Known_0_255 = computeKnownBits(Absolute_0_255, M->getDataLayout());
+  EXPECT_EQ(64u - 8u, Known_0_255.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_0_255.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_0_255.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_0_255.countMinTrailingOnes());
+
+  KnownBits Known_0_256 = computeKnownBits(Absolute_0_256, M->getDataLayout());
+  EXPECT_EQ(64u - 8u, Known_0_256.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_0_256.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_0_256.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_0_256.countMinTrailingOnes());
+
+  KnownBits Known_256_512 =
+      computeKnownBits(Absolute_256_512, M->getDataLayout());
+  EXPECT_EQ(64u - 8u, Known_0_255.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_0_255.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_0_255.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_0_255.countMinTrailingOnes());
+
+  KnownBits Known_0_Neg1 =
+      computeKnownBits(Absolute_0_Neg1, M->getDataLayout());
+  EXPECT_EQ(0u, Known_0_Neg1.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_0_Neg1.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_0_Neg1.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_0_Neg1.countMinTrailingOnes());
+
+  KnownBits Known_Neg32_32 =
+      computeKnownBits(Absolute_Neg32_32, M->getDataLayout());
+  EXPECT_EQ(0u, Known_Neg32_32.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_Neg32_32.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_Neg32_32.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_Neg32_32.countMinTrailingOnes());
+  EXPECT_EQ(1u, Known_Neg32_32.countMinSignBits());
+
+  KnownBits Known_Neg32_33 =
+      computeKnownBits(Absolute_Neg32_33, M->getDataLayout());
+  EXPECT_EQ(0u, Known_Neg32_33.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_Neg32_33.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_Neg32_33.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_Neg32_33.countMinTrailingOnes());
+  EXPECT_EQ(1u, Known_Neg32_33.countMinSignBits());
+
+  KnownBits Known_Neg32_Neg32 =
+      computeKnownBits(Absolute_Neg64_Neg32, M->getDataLayout());
+  EXPECT_EQ(0u, Known_Neg32_Neg32.countMinLeadingZeros());
+  EXPECT_EQ(0u, Known_Neg32_Neg32.countMinTrailingZeros());
+  EXPECT_EQ(58u, Known_Neg32_Neg32.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_Neg32_Neg32.countMinTrailingOnes());
+  EXPECT_EQ(58u, Known_Neg32_Neg32.countMinSignBits());
+
+  KnownBits Known_0_256_Align8 =
+      computeKnownBits(Absolute_0_256_Align8, M->getDataLayout());
+  EXPECT_EQ(64u - 8u, Known_0_256_Align8.countMinLeadingZeros());
+  EXPECT_EQ(3u, Known_0_256_Align8.countMinTrailingZeros());
+  EXPECT_EQ(0u, Known_0_256_Align8.countMinLeadingOnes());
+  EXPECT_EQ(0u, Known_0_256_Align8.countMinTrailingOnes());
 }
 
 TEST_F(ValueTrackingTest, HaveNoCommonBitsSet) {

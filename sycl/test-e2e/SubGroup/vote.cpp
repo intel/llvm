@@ -44,7 +44,7 @@ void check(queue Queue, const int G, const int L, const int D, const int R) {
       auto sganyacc = sganybuf.get_access<access::mode::read_write>(cgh);
       auto sgallacc = sgallbuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<class subgr>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         /* Set to 1 if any local ID in subgroup devided by D has remainder R */
         if (any_of_group(SG, SG.get_local_id().get(0) % D == R)) {
           sganyacc[NdItem.get_global_id()] = 1;

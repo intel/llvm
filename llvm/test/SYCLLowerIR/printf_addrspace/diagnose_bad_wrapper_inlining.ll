@@ -19,14 +19,14 @@ target triple = "spir64-unknown-unknown"
 %"class.cl::sycl::detail::array" = type { [1 x i64] }
 
 ; Function Attrs: convergent mustprogress norecurse
-define dso_local spir_func void @_Z14custom_wrapperPKc(i8 addrspace(4)* %S) local_unnamed_addr #0 {
+define dso_local spir_func void @_Z14custom_wrapperPKc(ptr addrspace(4) %S) local_unnamed_addr #0 {
 entry:
-  %call.i = tail call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)* %S) #3
+  %call.i = tail call spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4) %S) #3
   ret void
 }
 
 ; Function Attrs: convergent
-declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(i8 addrspace(4)*) local_unnamed_addr #1
+declare dso_local spir_func i32 @_Z18__spirv_ocl_printfIJEEiPKcDpT_(ptr addrspace(4)) local_unnamed_addr #1
 
 attributes #0 = { convergent mustprogress norecurse "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="experimental-printf.cpp" }
 attributes #1 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" }

@@ -53,10 +53,10 @@ RISCVToolChain::RISCVToolChain(const Driver &D, const llvm::Triple &Triple,
   GCCInstallation.init(Triple, Args);
   if (GCCInstallation.isValid()) {
     Multilibs = GCCInstallation.getMultilibs();
-    SelectedMultilib = GCCInstallation.getMultilib();
+    SelectedMultilibs.assign({GCCInstallation.getMultilib()});
     path_list &Paths = getFilePaths();
     // Add toolchain/multilib specific file paths.
-    addMultilibsFilePaths(D, Multilibs, SelectedMultilib,
+    addMultilibsFilePaths(D, Multilibs, SelectedMultilibs.back(),
                           GCCInstallation.getInstallPath(), Paths);
     getFilePaths().push_back(GCCInstallation.getInstallPath().str());
     ToolChain::path_list &PPaths = getProgramPaths();
@@ -194,8 +194,8 @@ void RISCV::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddAllArgs(CmdArgs, options::OPT_u);
   ToolChain.AddFilePathLibArgs(Args, CmdArgs);
   Args.AddAllArgs(CmdArgs,
-                  {options::OPT_T_Group, options::OPT_e, options::OPT_s,
-                   options::OPT_t, options::OPT_Z_Flag, options::OPT_r});
+                  {options::OPT_T_Group, options::OPT_s, options::OPT_t,
+                   options::OPT_Z_Flag, options::OPT_r});
 
   // TODO: add C++ includes and libs if compiling C++.
 

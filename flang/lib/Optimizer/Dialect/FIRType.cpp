@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Optimizer/Dialect/FIRType.h"
-#include "flang/ISO_Fortran_binding.h"
+#include "flang/ISO_Fortran_binding_wrapper.h"
 #include "flang/Optimizer/Dialect/FIRDialect.h"
 #include "flang/Optimizer/Dialect/Support/KindMapping.h"
 #include "flang/Tools/PointerModels.h"
@@ -482,7 +482,8 @@ int getTypeCode(mlir::Type ty, const fir::KindMapping &kindMap) {
 
 std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
                             llvm::StringRef prefix) {
-  std::stringstream name;
+  std::string buf;
+  llvm::raw_string_ostream name{buf};
   name << prefix.str();
   if (!prefix.empty())
     name << "_";
@@ -508,20 +509,44 @@ std::string getTypeAsString(mlir::Type ty, const fir::KindMapping &kindMap,
         llvm::report_fatal_error("unsupported type");
       }
       break;
+    } else if (mlir::isa<mlir::NoneType>(ty)) {
+      name << "none";
+      break;
     } else if (auto charTy = mlir::dyn_cast_or_null<fir::CharacterType>(ty)) {
       name << 'c' << kindMap.getCharacterBitsize(charTy.getFKind());
       if (charTy.getLen() != fir::CharacterType::singleton())
         name << "x" << charTy.getLen();
       break;
     } else if (auto seqTy = mlir::dyn_cast_or_null<fir::SequenceType>(ty)) {
-      for (auto extent : seqTy.getShape())
-        name << extent << 'x';
+      for (auto extent : seqTy.getShape()) {
+        if (extent == fir::SequenceType::getUnknownExtent())
+          name << "?x";
+        else
+          name << extent << 'x';
+      }
       ty = seqTy.getEleTy();
     } else if (auto refTy = mlir::dyn_cast_or_null<fir::ReferenceType>(ty)) {
       name << "ref_";
       ty = refTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::PointerType>(ty)) {
+      name << "ptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto ptrTy = mlir::dyn_cast_or_null<fir::LLVMPointerType>(ty)) {
+      name << "llvmptr_";
+      ty = ptrTy.getEleTy();
+    } else if (auto heapTy = mlir::dyn_cast_or_null<fir::HeapType>(ty)) {
+      name << "heap_";
+      ty = heapTy.getEleTy();
+    } else if (auto classTy = mlir::dyn_cast_or_null<fir::ClassType>(ty)) {
+      name << "class_";
+      ty = classTy.getEleTy();
+    } else if (auto boxTy = mlir::dyn_cast_or_null<fir::BoxType>(ty)) {
+      name << "box_";
+      ty = boxTy.getEleTy();
+    } else if (auto recTy = mlir::dyn_cast_or_null<fir::RecordType>(ty)) {
+      name << "rec_" << recTy.getName();
+      break;
     } else {
-      // TODO: add support for RecordType/BaseBoxType
       llvm::report_fatal_error("unsupported type");
     }
   }
@@ -1014,7 +1039,7 @@ mlir::LogicalResult fir::SequenceType::verify(
   // DIMENSION attribute can only be applied to an intrinsic or record type
   if (eleTy.isa<BoxType, BoxCharType, BoxProcType, ShapeType, ShapeShiftType,
                 ShiftType, SliceType, FieldType, LenType, HeapType, PointerType,
-                ReferenceType, TypeDescType, fir::VectorType, SequenceType>())
+                ReferenceType, TypeDescType, SequenceType>())
     return emitError() << "cannot build an array of this element type: "
                        << eleTy << '\n';
   return mlir::success();

@@ -15,6 +15,7 @@
 #include <__config>
 #include <__fwd/array.h>
 #include <__fwd/get.h>
+#include <__fwd/pair.h>
 #include <__fwd/subrange.h>
 #include <__fwd/tuple.h>
 #include <__tuple/pair_like.h>
@@ -54,6 +55,9 @@
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
 #  pragma GCC system_header
 #endif
+
+_LIBCPP_PUSH_MACROS
+#include <__undef_macros>
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
@@ -161,34 +165,28 @@ struct _LIBCPP_TEMPLATE_VIS pair
     using _CheckArgsDep _LIBCPP_NODEBUG = typename conditional<
       _MaybeEnable, _CheckArgs, __check_tuple_constructor_fail>::type;
 
-    template<bool _Dummy = true, typename enable_if<
-            _CheckArgsDep<_Dummy>::__enable_explicit_default()
-    >::type* = nullptr>
+    template<bool _Dummy = true, __enable_if_t<_CheckArgsDep<_Dummy>::__enable_explicit_default(), int> = 0>
     explicit _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
     pair() _NOEXCEPT_(is_nothrow_default_constructible<first_type>::value &&
                       is_nothrow_default_constructible<second_type>::value)
         : first(), second() {}
 
-    template<bool _Dummy = true, typename enable_if<
-            _CheckArgsDep<_Dummy>::__enable_implicit_default()
-    >::type* = nullptr>
+    template<bool _Dummy = true, __enable_if_t<_CheckArgsDep<_Dummy>::__enable_implicit_default(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR
     pair() _NOEXCEPT_(is_nothrow_default_constructible<first_type>::value &&
                       is_nothrow_default_constructible<second_type>::value)
         : first(), second() {}
 
-    template <bool _Dummy = true, typename enable_if<
-             _CheckArgsDep<_Dummy>::template __enable_explicit<_T1 const&, _T2 const&>()
-    >::type* = nullptr>
+    template <bool _Dummy = true,
+              __enable_if_t<_CheckArgsDep<_Dummy>::template __enable_explicit<_T1 const&, _T2 const&>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     explicit pair(_T1 const& __t1, _T2 const& __t2)
         _NOEXCEPT_(is_nothrow_copy_constructible<first_type>::value &&
                    is_nothrow_copy_constructible<second_type>::value)
         : first(__t1), second(__t2) {}
 
-    template<bool _Dummy = true, typename enable_if<
-            _CheckArgsDep<_Dummy>::template __enable_implicit<_T1 const&, _T2 const&>()
-    >::type* = nullptr>
+    template<bool _Dummy = true,
+             __enable_if_t<_CheckArgsDep<_Dummy>::template __enable_implicit<_T1 const&, _T2 const&>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     pair(_T1 const& __t1, _T2 const& __t2)
         _NOEXCEPT_(is_nothrow_copy_constructible<first_type>::value &&
@@ -201,7 +199,7 @@ struct _LIBCPP_TEMPLATE_VIS pair
 #else
         class _U1, class _U2,
 #endif
-        typename enable_if<_CheckArgs::template __enable_explicit<_U1, _U2>()>::type* = nullptr
+        __enable_if_t<_CheckArgs::template __enable_explicit<_U1, _U2>(), int> = 0
     >
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     explicit pair(_U1&& __u1, _U2&& __u2)
@@ -215,7 +213,7 @@ struct _LIBCPP_TEMPLATE_VIS pair
 #else
         class _U1, class _U2,
 #endif
-        typename enable_if<_CheckArgs::template __enable_implicit<_U1, _U2>()>::type* = nullptr
+        __enable_if_t<_CheckArgs::template __enable_implicit<_U1, _U2>(), int> = 0
     >
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     pair(_U1&& __u1, _U2&& __u2)
@@ -234,36 +232,28 @@ struct _LIBCPP_TEMPLATE_VIS pair
         : first(__p.first), second(__p.second) {}
 #endif
 
-    template<class _U1, class _U2, typename enable_if<
-            _CheckArgs::template __enable_explicit<_U1 const&, _U2 const&>()
-    >::type* = nullptr>
+    template<class _U1, class _U2, __enable_if_t<_CheckArgs::template __enable_explicit<_U1 const&, _U2 const&>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     explicit pair(pair<_U1, _U2> const& __p)
         _NOEXCEPT_((is_nothrow_constructible<first_type, _U1 const&>::value &&
                     is_nothrow_constructible<second_type, _U2 const&>::value))
         : first(__p.first), second(__p.second) {}
 
-    template<class _U1, class _U2, typename enable_if<
-            _CheckArgs::template __enable_implicit<_U1 const&, _U2 const&>()
-    >::type* = nullptr>
+    template<class _U1, class _U2, __enable_if_t<_CheckArgs::template __enable_implicit<_U1 const&, _U2 const&>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     pair(pair<_U1, _U2> const& __p)
         _NOEXCEPT_((is_nothrow_constructible<first_type, _U1 const&>::value &&
                     is_nothrow_constructible<second_type, _U2 const&>::value))
         : first(__p.first), second(__p.second) {}
 
-    template<class _U1, class _U2, typename enable_if<
-            _CheckArgs::template __enable_explicit<_U1, _U2>()
-    >::type* = nullptr>
+    template<class _U1, class _U2, __enable_if_t<_CheckArgs::template __enable_explicit<_U1, _U2>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     explicit pair(pair<_U1, _U2>&&__p)
         _NOEXCEPT_((is_nothrow_constructible<first_type, _U1&&>::value &&
                     is_nothrow_constructible<second_type, _U2&&>::value))
         : first(std::forward<_U1>(__p.first)), second(std::forward<_U2>(__p.second)) {}
 
-    template<class _U1, class _U2, typename enable_if<
-            _CheckArgs::template __enable_implicit<_U1, _U2>()
-    >::type* = nullptr>
+    template<class _U1, class _U2, __enable_if_t<_CheckArgs::template __enable_implicit<_U1, _U2>(), int> = 0>
     _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX14
     pair(pair<_U1, _U2>&& __p)
         _NOEXCEPT_((is_nothrow_constructible<first_type, _U1&&>::value &&
@@ -684,14 +674,9 @@ struct common_type<pair<_T1, _T2>, pair<_U1, _U2>> {
 };
 #endif // _LIBCPP_STD_VER >= 23
 
-template <class _T1, class _T2>
+template <class _T1, class _T2, __enable_if_t<__is_swappable<_T1>::value && __is_swappable<_T2>::value, int> = 0>
 inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20
-typename enable_if
-<
-    __is_swappable<_T1>::value &&
-    __is_swappable<_T2>::value,
-    void
->::type
+void
 swap(pair<_T1, _T2>& __x, pair<_T1, _T2>& __y)
                      _NOEXCEPT_((__is_nothrow_swappable<_T1>::value &&
                                  __is_nothrow_swappable<_T2>::value))
@@ -892,5 +877,7 @@ constexpr _T1 const && get(pair<_T2, _T1> const&& __p) _NOEXCEPT
 #endif // _LIBCPP_STD_VER >= 14
 
 _LIBCPP_END_NAMESPACE_STD
+
+_LIBCPP_POP_MACROS
 
 #endif // _LIBCPP___UTILITY_PAIR_H

@@ -1605,6 +1605,8 @@ const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion3[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1101),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1102),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1103),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1150),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1151),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_V3),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_SRAMECC_V3)
 };
@@ -1667,6 +1669,8 @@ const EnumEntry<unsigned> ElfHeaderAMDGPUFlagsABIVersion4[] = {
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1101),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1102),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1103),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1150),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_MACH_AMDGCN_GFX1151),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ANY_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_OFF_V4),
   LLVM_READOBJ_ENUM_ENT(ELF, EF_AMDGPU_FEATURE_XNACK_ON_V4),
@@ -2737,7 +2741,7 @@ void ELFDumper<ELFT>::printHashHistogram(const Elf_Hash &HashTable) const {
     return;
 
   std::vector<size_t> ChainLen(NBucket, 0);
-  // Go over all buckets and and note chain lengths of each bucket (total
+  // Go over all buckets and note chain lengths of each bucket (total
   // unique chain lengths).
   for (size_t B = 0; B < NBucket; ++B) {
     BitVector Visited(NChain);
@@ -3757,18 +3761,21 @@ void GNUELFDumper<ELFT>::printRelRelaReloc(const Relocation<ELFT> &R,
   if (RelSym.Sym)
     Fields[3].Str =
         to_string(format_hex_no_prefix(RelSym.Sym->getValue(), Width));
+  if (RelSym.Sym && RelSym.Name.empty())
+    Fields[4].Str = "<null>";
+  else
+    Fields[4].Str = std::string(RelSym.Name);
 
-  Fields[4].Str = std::string(RelSym.Name);
   for (const Field &F : Fields)
     printField(F);
 
   std::string Addend;
   if (std::optional<int64_t> A = R.Addend) {
     int64_t RelAddend = *A;
-    if (!RelSym.Name.empty()) {
+    if (!Fields[4].Str.empty()) {
       if (RelAddend < 0) {
         Addend = " - ";
-        RelAddend = std::abs(RelAddend);
+        RelAddend = -static_cast<uint64_t>(RelAddend);
       } else {
         Addend = " + ";
       }
@@ -6947,6 +6954,8 @@ template <class ELFT>
 void LLVMELFDumper<ELFT>::printRelRelaReloc(const Relocation<ELFT> &R,
                                             const RelSymbol<ELFT> &RelSym) {
   StringRef SymbolName = RelSym.Name;
+  if (RelSym.Sym && RelSym.Name.empty())
+    SymbolName = "<null>";
   SmallString<32> RelocName;
   this->Obj.getRelocationTypeName(R.Type, RelocName);
 
@@ -7462,7 +7471,7 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printBBAddrMaps() {
         W.printBoolean("HasTailCall", BBE.hasTailCall());
         W.printBoolean("IsEHPad", BBE.isEHPad());
         W.printBoolean("CanFallThrough", BBE.canFallThrough());
-        W.printBoolean("HasIndirectBranch", BBE.MD.HasIndirectBranch);
+        W.printBoolean("HasIndirectBranch", BBE.hasIndirectBranch());
       }
     }
   }

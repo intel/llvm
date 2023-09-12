@@ -3,30 +3,18 @@
 // REQUIRES: x86-registered-target
 // REQUIRES: amdgpu-registered-target
 // RUN:   %clang -### --target=x86_64-unknown-linux-gnu -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa \
-// RUN:          -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx906 --libomptarget-amdgpu-bc-path=%S/Inputs/hip_dev_lib %s 2>&1 \
+// RUN:          -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx906 --libomptarget-amdgpu-bc-path=%S/Inputs/hip_dev_lib -nogpulib %s 2>&1 \
 // RUN:   | FileCheck %s
 // RUN:   %clang -### --target=x86_64-unknown-linux-gnu -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa \
-// RUN:          --offload-arch=gfx906 --libomptarget-amdgpu-bc-path=%S/Inputs/hip_dev_lib %s 2>&1 \
+// RUN:          --offload-arch=gfx906 --libomptarget-amdgpu-bc-path=%S/Inputs/hip_dev_lib -nogpulib %s 2>&1 \
 // RUN:   | FileCheck %s
 
 // verify the tools invocations
 // FIXME: Need to resolve the conflict if the test is turned on
-<<<<<<< HEAD
-// CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-x" "c"
-// CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-x" "ir"
-// CHECK: "-cc1" "-triple" "amdgcn-amd-amdhsa"{{.*}}"-emit-llvm-bc"{{.*}}"-target-cpu" "gfx906" "-fcuda-is-device"{{.*}}"-mlink-builtin-bitcode"{{.*}}libomptarget-amdgpu-gfx906.bc"{{.*}}
-// CHECK: llvm-link{{.*}}"-o" "{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-linked-{{.*}}.bc"
-// CHECK: llc{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-linked-{{.*}}.bc" "-mtriple=amdgcn-amd-amdhsa" "-mcpu=gfx906" "-filetype=obj" "-o"{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-{{.*}}.o"
-// CHECK: lld{{.*}}"-flavor" "gnu" "--no-undefined" "-shared" "-o"{{.*}}amdgpu-openmp-toolchain-{{.*}}.out" "{{.*}}amdgpu-openmp-toolchain-{{.*}}-gfx906-{{.*}}.o"
-// CHECK: clang-offload-wrapper{{.*}}"-host" "x86_64-unknown-linux-gnu" "-o" "{{.*}}a-{{.*}}.bc" {{.*}}amdgpu-openmp-toolchain-{{.*}}.out"
-// CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-o" "{{.*}}a-{{.*}}.o" "-x" "ir" "{{.*}}a-{{.*}}.bc"
-// CHECK: ld{{.*}}"-o" "a.out"{{.*}}"{{.*}}amdgpu-openmp-toolchain-{{.*}}.o" "{{.*}}a-{{.*}}.o" "-lomp" "-lomptarget"
-=======
 // CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-emit-llvm-bc"{{.*}}"-x" "c"
 // CHECK: "-cc1" "-triple" "amdgcn-amd-amdhsa" "-aux-triple" "x86_64-unknown-linux-gnu"{{.*}}"-target-cpu" "gfx906"{{.*}}"-fcuda-is-device"{{.*}}
 // CHECK: "-cc1" "-triple" "x86_64-unknown-linux-gnu"{{.*}}"-emit-obj"
 // CHECK: clang-linker-wrapper{{.*}}"--"{{.*}} "-o" "a.out"
->>>>>>> 5d1dc9fa043f8ee239cbc16347025a4f0831e132
 
 // RUN:   %clang -ccc-print-phases --target=x86_64-unknown-linux-gnu -fopenmp -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=gfx906 %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=CHECK-PHASES %s
@@ -78,3 +66,15 @@
 // RUN:   --rocm-device-lib-path=%S/Inputs/rocm/amdgcn/bitcode -fopenmp-new-driver %s  2>&1 | \
 // RUN: FileCheck %s --check-prefix=CHECK-LIB-DEVICE-NOGPULIB
 // CHECK-LIB-DEVICE-NOGPULIB-NOT: "-cc1" {{.*}}ocml.bc"{{.*}}ockl.bc"{{.*}}oclc_daz_opt_on.bc"{{.*}}oclc_unsafe_math_off.bc"{{.*}}oclc_finite_only_off.bc"{{.*}}oclc_correctly_rounded_sqrt_on.bc"{{.*}}oclc_wavefrontsize64_on.bc"{{.*}}oclc_isa_version_803.bc"
+
+// RUN: %clang -### -target x86_64-pc-linux-gnu -fopenmp --offload-arch=gfx90a:sramecc-:xnack+ \
+// RUN:   -nogpulib %s 2>&1 | FileCheck %s --check-prefix=CHECK-TARGET-ID
+// CHECK-TARGET-ID: clang-offload-packager{{.*}}arch=gfx90a,kind=openmp,feature=-sramecc,feature=+xnack
+
+// RUN: not %clang -### -target x86_64-pc-linux-gnu -fopenmp --offload-arch=gfx90a,gfx90a:xnack+ \
+// RUN:   -nogpulib %s 2>&1 | FileCheck %s --check-prefix=CHECK-TARGET-ID-ERROR
+// CHECK-TARGET-ID-ERROR: error: invalid offload arch combinations: 'gfx90a' and 'gfx90a:xnack+'
+
+// RUN: %clang -### -target x86_64-pc-linux-gnu -fopenmp --offload-arch=gfx90a \
+// RUN:   -O3 -nogpulib %s 2>&1 | FileCheck %s --check-prefix=CHECK-OPT
+// CHECK-OPT: clang-linker-wrapper{{.*}}"--opt-level=O3"

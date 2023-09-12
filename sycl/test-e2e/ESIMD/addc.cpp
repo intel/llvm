@@ -20,7 +20,6 @@
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-namespace iesimd = sycl::ext::intel::experimental::esimd;
 
 template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
   static_assert(AIsVector || BIsVector || N == 1,
@@ -84,7 +83,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
            using ResType = std::conditional_t<AIsVector || BIsVector,
                                               simd<uint32_t, N>, uint32_t>;
            ResType Carry = 0;
-           ResType Res = iesimd::addc(Carry, A, B);
+           ResType Res = addc(Carry, A, B);
 
            if constexpr (AIsVector || BIsVector) {
              Carry.copy_to(CarryMatrixPtr + (ValuesToTrySize * AI + BI) * N);

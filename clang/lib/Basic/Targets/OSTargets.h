@@ -34,36 +34,6 @@ public:
   }
 };
 
-// CloudABI Target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY CloudABITargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    Builder.defineMacro("__CloudABI__");
-
-    // CloudABI uses ISO/IEC 10646:2012 for wchar_t, char16_t and char32_t.
-    Builder.defineMacro("__STDC_ISO_10646__", "201206L");
-  }
-
-public:
-  using OSTargetInfo<Target>::OSTargetInfo;
-};
-
-// Ananas target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY AnanasTargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    // Ananas defines
-    Builder.defineMacro("__Ananas__");
-  }
-
-public:
-  using OSTargetInfo<Target>::OSTargetInfo;
-};
-
 void getDarwinDefines(MacroBuilder &Builder, const LangOptions &Opts,
                       const llvm::Triple &Triple, StringRef &PlatformName,
                       VersionTuple &PlatformMinVersion);
@@ -298,7 +268,6 @@ public:
     this->IntPtrType = TargetInfo::SignedLong;
     this->PtrDiffType = TargetInfo::SignedLong;
     this->ProcessIDType = TargetInfo::SignedLong;
-    this->TLSSupported = false;
     switch (Triple.getArch()) {
     default:
       break;
@@ -327,28 +296,6 @@ protected:
     if (Opts.CPlusPlus)
       Builder.defineMacro("_GNU_SOURCE");
   }
-public:
-  using OSTargetInfo<Target>::OSTargetInfo;
-};
-
-// Minix Target
-template <typename Target>
-class LLVM_LIBRARY_VISIBILITY MinixTargetInfo : public OSTargetInfo<Target> {
-protected:
-  void getOSDefines(const LangOptions &Opts, const llvm::Triple &Triple,
-                    MacroBuilder &Builder) const override {
-    // Minix defines
-
-    Builder.defineMacro("__minix", "3");
-    Builder.defineMacro("_EM_WSIZE", "4");
-    Builder.defineMacro("_EM_PSIZE", "4");
-    Builder.defineMacro("_EM_SSIZE", "2");
-    Builder.defineMacro("_EM_LSIZE", "4");
-    Builder.defineMacro("_EM_FSIZE", "4");
-    Builder.defineMacro("_EM_DSIZE", "8");
-    DefineStd(Builder, "unix", Opts);
-  }
-
 public:
   using OSTargetInfo<Target>::OSTargetInfo;
 };
@@ -771,13 +718,11 @@ protected:
                     MacroBuilder &Builder) const override {
     // FIXME: _LONG_LONG should not be defined under -std=c89.
     Builder.defineMacro("_LONG_LONG");
-    Builder.defineMacro("_OPEN_DEFAULT");
-    // _UNIX03_WITHDRAWN is required to build libcxx.
-    Builder.defineMacro("_UNIX03_WITHDRAWN");
     Builder.defineMacro("__370__");
     Builder.defineMacro("__BFP__");
     // FIXME: __BOOL__ should not be defined under -std=c89.
     Builder.defineMacro("__BOOL__");
+    Builder.defineMacro("__COMPILER_VER__", "0x50000000");
     Builder.defineMacro("__LONGNAME__");
     Builder.defineMacro("__MVS__");
     Builder.defineMacro("__THW_370__");
@@ -788,17 +733,6 @@ protected:
 
     if (this->PointerWidth == 64)
       Builder.defineMacro("__64BIT__");
-
-    if (Opts.CPlusPlus) {
-      Builder.defineMacro("__DLL__");
-      // _XOPEN_SOURCE=600 is required to build libcxx.
-      Builder.defineMacro("_XOPEN_SOURCE", "600");
-    }
-
-    if (Opts.GNUMode) {
-      Builder.defineMacro("_MI_BUILTIN");
-      Builder.defineMacro("_EXT");
-    }
 
     if (Opts.CPlusPlus && Opts.WChar) {
       // Macro __wchar_t is defined so that the wchar_t data
@@ -818,6 +752,7 @@ public:
     this->UseZeroLengthBitfieldAlignment = true;
     this->UseLeadingZeroLengthBitfield = false;
     this->ZeroLengthBitfieldBoundary = 32;
+    this->TheCXXABI.set(TargetCXXABI::XL);
   }
 
   bool areDefaultedSMFStillPOD(const LangOptions &) const override {

@@ -14,7 +14,7 @@
 #include <mutex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 /// Represents a reference to value with appropriate lock acquired.
 /// Employed for acquire/release logic. Acquire action is construction
@@ -30,5 +30,5 @@ public:
   T &get() const { return m_Value.get(); }
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

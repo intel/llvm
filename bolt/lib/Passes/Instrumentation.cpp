@@ -176,7 +176,8 @@ Instrumentation::createInstrumentationSnippet(BinaryContext &BC, bool IsLeaf) {
   auto L = BC.scopeLock();
   MCSymbol *Label = BC.Ctx->createNamedTempSymbol("InstrEntry");
   Summary->Counters.emplace_back(Label);
-  return BC.MIB->createInstrIncMemory(Label, BC.Ctx.get(), IsLeaf);
+  return BC.MIB->createInstrIncMemory(Label, BC.Ctx.get(), IsLeaf,
+                                      BC.AsmInfo->getCodePointerSize());
 }
 
 // Helper instruction sequence insertion function
@@ -381,7 +382,7 @@ void Instrumentation::instrumentFunction(BinaryFunction &Function,
       else if (BC.MIB->isUnconditionalBranch(Inst))
         HasUnconditionalBranch = true;
       else if ((!BC.MIB->isCall(Inst) && !BC.MIB->isConditionalBranch(Inst)) ||
-               BC.MIB->isUnsupportedBranch(Inst.getOpcode()))
+               BC.MIB->isUnsupportedBranch(Inst))
         continue;
 
       const uint32_t FromOffset = *BC.MIB->getOffset(Inst);
@@ -504,9 +505,6 @@ void Instrumentation::instrumentFunction(BinaryFunction &Function,
 }
 
 void Instrumentation::runOnFunctions(BinaryContext &BC) {
-  if (!BC.isX86())
-    return;
-
   const unsigned Flags = BinarySection::getFlags(/*IsReadOnly=*/false,
                                                  /*IsText=*/false,
                                                  /*IsAllocatable=*/true);

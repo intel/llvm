@@ -27,7 +27,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 // simd and simd_view_impl forward declarations
@@ -230,23 +230,23 @@ template <typename T> using element_type_t = typename element_type<T>::type;
 // hence can't be used here).
 template <class T> struct simd_like_obj_info {
   using element_type = T;
-  static inline constexpr int vector_length = 0;
+  static constexpr int vector_length = 0;
 };
 
 template <class T, int N> struct simd_like_obj_info<simd<T, N>> {
   using element_type = T;
-  static inline constexpr int vector_length = N;
+  static constexpr int vector_length = N;
 };
 
 template <class T, int N> struct simd_like_obj_info<simd_mask_impl<T, N>> {
   using element_type = simd_mask_elem_type; // equals T
-  static inline constexpr int vector_length = N;
+  static constexpr int vector_length = N;
 };
 
 template <class BaseT, class RegionT>
 struct simd_like_obj_info<simd_view<BaseT, RegionT>> {
   using element_type = typename RegionT::element_type;
-  static inline constexpr int vector_length = RegionT::length;
+  static constexpr int vector_length = RegionT::length;
 };
 
 template <typename T>
@@ -272,7 +272,7 @@ std::enable_if_t<is_clang_vector_type_v<To> && is_clang_vector_type_v<From>, To>
 template <typename ToEltTy, typename FromEltTy, int FromN,
           typename = std::enable_if_t<is_vectorizable<ToEltTy>::value>>
 struct bitcast_helper {
-  static inline constexpr int nToElems() {
+  static constexpr int nToElems() {
     constexpr int R1 = sizeof(ToEltTy) / sizeof(FromEltTy);
     constexpr int R2 = sizeof(FromEltTy) / sizeof(ToEltTy);
     constexpr int ToN = (R2 > 0) ? (FromN * R2) : (FromN / R1);
@@ -323,10 +323,10 @@ private:
   using native_t =
       std::conditional_t<tr<T>::use_native_cpp_ops, typename tr<T>::RawT,
                          typename tr<T>::EnclosingCppT>;
-  static inline constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
-  static inline constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
-  static inline constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
-  static inline constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
+  static constexpr bool is_wr1 = is_wrapper_elem_type_v<T1>;
+  static constexpr bool is_wr2 = is_wrapper_elem_type_v<T2>;
+  static constexpr bool is_fp1 = is_generic_floating_point_v<T1>;
+  static constexpr bool is_fp2 = is_generic_floating_point_v<T2>;
 
 public:
   using type = std::conditional_t<
@@ -391,5 +391,5 @@ using computation_type_t =
 template <int N> using mask_type_t = detail::simd_mask_storage_t<N>;
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

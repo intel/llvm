@@ -102,10 +102,17 @@
   file = #file, subprogramFlags = "Definition", type = #spType1
 >
 
-// CHECK-DAG: #[[SP2:.*]] = #llvm.di_subprogram<compileUnit = #[[CU]], scope = #[[FILE]], name = "value", file = #[[FILE]], subprogramFlags = Definition, type = #[[SPTYPE2]]>
+// CHECK-DAG: #[[MODULE:.*]] = #llvm.di_module<file = #[[FILE]], scope = #[[FILE]], name = "module", configMacros = "bar", includePath = "/", apinotes = "/", line = 42, isDecl = true>
+#module = #llvm.di_module<
+  file = #file, scope = #file, name = "module",
+  configMacros = "bar", includePath = "/",
+  apinotes = "/", line = 42, isDecl = true
+>
+
+// CHECK-DAG: #[[SP2:.*]] = #llvm.di_subprogram<compileUnit = #[[CU]], scope = #[[MODULE]], name = "value", file = #[[FILE]], subprogramFlags = Definition, type = #[[SPTYPE2]]>
 #sp2 = #llvm.di_subprogram<
   // Omit the optional linkageName parameter.
-  compileUnit = #cu, scope = #file, name = "value",
+  compileUnit = #cu, scope = #module, name = "value",
   file = #file, subprogramFlags = "Definition", type = #spType2
 >
 
@@ -136,6 +143,12 @@
   scope = #block2, name = "arg2"
 >
 
+// CHECK-DAG: #[[LABEL1:.*]] =  #llvm.di_label<scope = #[[BLOCK1]], name = "label", file = #[[FILE]], line = 42>
+#label1 = #llvm.di_label<scope = #block1, name = "label", file = #file, line = 42>
+
+// CHECK-DAG: #[[LABEL2:.*]] =  #llvm.di_label<scope = #[[BLOCK2]]>
+#label2 = #llvm.di_label<scope = #block2>
+
 // CHECK: llvm.func @addr(%[[ARG:.*]]: i64)
 llvm.func @addr(%arg: i64) {
   // CHECK: %[[ALLOC:.*]] = llvm.alloca
@@ -153,5 +166,9 @@ llvm.func @value(%arg1: i32, %arg2: i32) {
   llvm.intr.dbg.value #var1 = %arg1 : i32
   // CHECK: llvm.intr.dbg.value #[[VAR2]] = %[[ARG2]]
   llvm.intr.dbg.value #var2 = %arg2 : i32
+  // CHECK: llvm.intr.dbg.label #[[LABEL1]]
+  llvm.intr.dbg.label #label1
+  // CHECK: llvm.intr.dbg.label #[[LABEL2]]
+  llvm.intr.dbg.label #label2
   llvm.return
 }

@@ -15,6 +15,7 @@
 #include "clang/Basic/FileEntry.h"
 #include "clang/Basic/LangStandard.h"
 #include "clang/Basic/Sarif.h"
+#include "clang/Basic/Stack.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendDiagnostic.h"
@@ -60,6 +61,11 @@ public:
     if (DeletePrevious)
       delete Previous;
   }
+
+  DelegatingDeserializationListener(const DelegatingDeserializationListener &) =
+      delete;
+  DelegatingDeserializationListener &
+  operator=(const DelegatingDeserializationListener &) = delete;
 
   void ReaderInitialized(ASTReader *Reader) override {
     if (Previous)
@@ -379,9 +385,7 @@ static std::error_code collectModuleHeaderIncludes(
     llvm::sys::path::native(UmbrellaDir->Entry.getName(), DirNative);
 
     llvm::vfs::FileSystem &FS = FileMgr.getVirtualFileSystem();
-    SmallVector<
-        std::pair<std::string, OptionalFileEntryRefDegradesToFileEntryPtr>, 8>
-        Headers;
+    SmallVector<std::pair<std::string, FileEntryRef>, 8> Headers;
     for (llvm::vfs::recursive_directory_iterator Dir(FS, DirNative, EC), End;
          Dir != End && !EC; Dir.increment(EC)) {
       // Check whether this entry has an extension typically associated with
@@ -1152,6 +1156,10 @@ void ASTFrontendAction::ExecuteAction() {
   CompilerInstance &CI = getCompilerInstance();
   if (!CI.hasPreprocessor())
     return;
+  // This is a fallback: If the client forgets to invoke this, we mark the
+  // current stack as the bottom. Though not optimal, this could help prevent
+  // stack overflow during deep recursion.
+  clang::noteBottomOfStack();
 
   // FIXME: Move the truncation aspect of this into Sema, we delayed this till
   // here so the source manager would be initialized.

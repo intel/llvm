@@ -22,15 +22,12 @@
 #define SIMDCF_ELEMENT_SKIP(i)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
 
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
 namespace ext::intel::esimd::emu::detail {
 
 using half = sycl::detail::half_impl::half;
@@ -702,7 +699,7 @@ template <> struct dwordtype<unsigned int> {
 };
 
 } // namespace ext::intel::esimd::emu::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #endif // #ifndef __SYCL_DEVICE_ONLY__

@@ -70,6 +70,7 @@ struct RecordKeeperImpl {
   BitInit TrueBitInit;
   BitInit FalseBitInit;
 
+  FoldingSet<ArgumentInit> TheArgumentInitPool;
   FoldingSet<BitsInit> TheBitsInitPool;
   std::map<int64_t, IntInit *> TheIntInitPool;
   StringMap<StringInit *, BumpPtrAllocator &> StringInitStringPool;
@@ -349,6 +350,8 @@ LLVM_DUMP_METHOD void Init::dump() const { return print(errs()); }
 RecordKeeper &Init::getRecordKeeper() const {
   if (auto *TyInit = dyn_cast<TypedInit>(this))
     return TyInit->getType()->getRecordKeeper();
+  if (auto *ArgInit = dyn_cast<ArgumentInit>(this))
+    return ArgInit->getRecordKeeper();
   return cast<UnsetInit>(this)->getRecordKeeper();
 }
 
@@ -362,6 +365,44 @@ Init *UnsetInit::getCastTo(RecTy *Ty) const {
 
 Init *UnsetInit::convertInitializerTo(RecTy *Ty) const {
   return const_cast<UnsetInit *>(this);
+}
+
+static void ProfileArgumentInit(FoldingSetNodeID &ID, Init *Value,
+                                ArgAuxType Aux) {
+  auto I = Aux.index();
+  ID.AddInteger(I);
+  if (I == ArgumentInit::Positional)
+    ID.AddInteger(std::get<ArgumentInit::Positional>(Aux));
+  if (I == ArgumentInit::Named)
+    ID.AddPointer(std::get<ArgumentInit::Named>(Aux));
+  ID.AddPointer(Value);
+}
+
+void ArgumentInit::Profile(FoldingSetNodeID &ID) const {
+  ProfileArgumentInit(ID, Value, Aux);
+}
+
+ArgumentInit *ArgumentInit::get(Init *Value, ArgAuxType Aux) {
+  FoldingSetNodeID ID;
+  ProfileArgumentInit(ID, Value, Aux);
+
+  RecordKeeper &RK = Value->getRecordKeeper();
+  detail::RecordKeeperImpl &RKImpl = RK.getImpl();
+  void *IP = nullptr;
+  if (ArgumentInit *I = RKImpl.TheArgumentInitPool.FindNodeOrInsertPos(ID, IP))
+    return I;
+
+  ArgumentInit *I = new (RKImpl.Allocator) ArgumentInit(Value, Aux);
+  RKImpl.TheArgumentInitPool.InsertNode(I, IP);
+  return I;
+}
+
+Init *ArgumentInit::resolveReferences(Resolver &R) const {
+  Init *NewValue = Value->resolveReferences(R);
+  if (NewValue != Value)
+    return cloneWithValue(NewValue);
+
+  return const_cast<ArgumentInit *>(this);
 }
 
 BitInit *BitInit::get(RecordKeeper &RK, bool V) {
@@ -1109,6 +1150,39 @@ std::optional<bool> BinOpInit::CompareInit(unsigned Opc, Init *LHS,
   return std::nullopt;
 }
 
+static std::optional<unsigned> getDagArgNoByKey(DagInit *Dag, Init *Key,
+                                                std::string &Error) {
+  // Accessor by index
+  if (IntInit *Idx = dyn_cast<IntInit>(Key)) {
+    int64_t Pos = Idx->getValue();
+    if (Pos < 0) {
+      // The index is negative.
+      Error =
+          (Twine("index ") + std::to_string(Pos) + Twine(" is negative")).str();
+      return std::nullopt;
+    }
+    if (Pos >= Dag->getNumArgs()) {
+      // The index is out-of-range.
+      Error = (Twine("index ") + std::to_string(Pos) +
+               " is out of range (dag has " +
+               std::to_string(Dag->getNumArgs()) + " arguments)")
+                  .str();
+      return std::nullopt;
+    }
+    return Pos;
+  }
+  assert(isa<StringInit>(Key));
+  // Accessor by name
+  StringInit *Name = dyn_cast<StringInit>(Key);
+  auto ArgNo = Dag->getArgNo(Name->getValue());
+  if (!ArgNo) {
+    // The key is not found.
+    Error = (Twine("key '") + Name->getValue() + Twine("' is not found")).str();
+    return std::nullopt;
+  }
+  return *ArgNo;
+}
+
 Init *BinOpInit::Fold(Record *CurRec) const {
   switch (getOpcode()) {
   case CONCAT: {
@@ -1279,51 +1353,19 @@ Init *BinOpInit::Fold(Record *CurRec) const {
   }
   case GETDAGARG: {
     DagInit *Dag = dyn_cast<DagInit>(LHS);
-    if (!Dag)
-      break;
+    if (Dag && isa<IntInit, StringInit>(RHS)) {
+      std::string Error;
+      auto ArgNo = getDagArgNoByKey(Dag, RHS, Error);
+      if (!ArgNo)
+        PrintFatalError(CurRec->getLoc(), "!getdagarg " + Error);
 
-    // Helper returning the specified argument.
-    auto getDagArgAsType = [](DagInit *Dag, unsigned Pos,
-                              RecTy *Type) -> Init * {
-      assert(Pos < Dag->getNumArgs());
-      Init *Arg = Dag->getArg(Pos);
+      assert(*ArgNo < Dag->getNumArgs());
+
+      Init *Arg = Dag->getArg(*ArgNo);
       if (auto *TI = dyn_cast<TypedInit>(Arg))
-        if (!TI->getType()->typeIsConvertibleTo(Type))
+        if (!TI->getType()->typeIsConvertibleTo(getType()))
           return UnsetInit::get(Dag->getRecordKeeper());
       return Arg;
-    };
-
-    // Accessor by index
-    if (IntInit *Idx = dyn_cast<IntInit>(RHS)) {
-      int64_t Pos = Idx->getValue();
-      if (Pos < 0) {
-        // The index is negative.
-        PrintFatalError(CurRec->getLoc(), Twine("!getdagarg index ") +
-                                              std::to_string(Pos) +
-                                              Twine(" is negative"));
-      }
-      if (Pos >= Dag->getNumArgs()) {
-        // The index is out-of-range.
-        PrintFatalError(CurRec->getLoc(),
-                        Twine("!getdagarg index ") + std::to_string(Pos) +
-                            " is out of range (dag has " +
-                            std::to_string(Dag->getNumArgs()) + " arguments)");
-      }
-      return getDagArgAsType(Dag, Pos, getType());
-    }
-    // Accessor by name
-    if (StringInit *Key = dyn_cast<StringInit>(RHS)) {
-      for (unsigned i = 0, e = Dag->getNumArgs(); i < e; ++i) {
-        StringInit *ArgName = Dag->getArgName(i);
-        if (!ArgName || ArgName->getValue() != Key->getValue())
-          continue;
-        // Found
-        return getDagArgAsType(Dag, i, getType());
-      }
-      // The key is not found.
-      PrintFatalError(CurRec->getLoc(), Twine("!getdagarg key '") +
-                                            Key->getValue() +
-                                            Twine("' is not found"));
     }
     break;
   }
@@ -1702,6 +1744,42 @@ Init *TernOpInit::Fold(Record *CurRec) const {
     }
     break;
   }
+
+  case SETDAGARG: {
+    DagInit *Dag = dyn_cast<DagInit>(LHS);
+    if (Dag && isa<IntInit, StringInit>(MHS)) {
+      std::string Error;
+      auto ArgNo = getDagArgNoByKey(Dag, MHS, Error);
+      if (!ArgNo)
+        PrintFatalError(CurRec->getLoc(), "!setdagarg " + Error);
+
+      assert(*ArgNo < Dag->getNumArgs());
+
+      SmallVector<Init *, 8> Args(Dag->getArgs());
+      SmallVector<StringInit *, 8> Names(Dag->getArgNames());
+      Args[*ArgNo] = RHS;
+      return DagInit::get(Dag->getOperator(), Dag->getName(), Args, Names);
+    }
+    break;
+  }
+
+  case SETDAGNAME: {
+    DagInit *Dag = dyn_cast<DagInit>(LHS);
+    if (Dag && isa<IntInit, StringInit>(MHS)) {
+      std::string Error;
+      auto ArgNo = getDagArgNoByKey(Dag, MHS, Error);
+      if (!ArgNo)
+        PrintFatalError(CurRec->getLoc(), "!setdagname " + Error);
+
+      assert(*ArgNo < Dag->getNumArgs());
+
+      SmallVector<Init *, 8> Args(Dag->getArgs());
+      SmallVector<StringInit *, 8> Names(Dag->getArgNames());
+      Names[*ArgNo] = dyn_cast<StringInit>(RHS);
+      return DagInit::get(Dag->getOperator(), Dag->getName(), Args, Names);
+    }
+    break;
+  }
   }
 
   return const_cast<TernOpInit *>(this);
@@ -1748,6 +1826,12 @@ std::string TernOpInit::getAsString() const {
   case SUBST: Result = "!subst"; break;
   case SUBSTR: Result = "!substr"; break;
   case FIND: Result = "!find"; break;
+  case SETDAGARG:
+    Result = "!setdagarg";
+    break;
+  case SETDAGNAME:
+    Result = "!setdagname";
+    break;
   }
   return (Result + "(" +
           (UnquotedLHS ? LHS->getAsUnquotedString() : LHS->getAsString()) +
@@ -2088,9 +2172,8 @@ RecTy *DefInit::getFieldType(StringInit *FieldName) const {
 
 std::string DefInit::getAsString() const { return std::string(Def->getName()); }
 
-static void ProfileVarDefInit(FoldingSetNodeID &ID,
-                              Record *Class,
-                              ArrayRef<Init *> Args) {
+static void ProfileVarDefInit(FoldingSetNodeID &ID, Record *Class,
+                              ArrayRef<ArgumentInit *> Args) {
   ID.AddInteger(Args.size());
   ID.AddPointer(Class);
 
@@ -2102,7 +2185,7 @@ VarDefInit::VarDefInit(Record *Class, unsigned N)
     : TypedInit(IK_VarDefInit, RecordRecTy::get(Class)), Class(Class),
       NumArgs(N) {}
 
-VarDefInit *VarDefInit::get(Record *Class, ArrayRef<Init *> Args) {
+VarDefInit *VarDefInit::get(Record *Class, ArrayRef<ArgumentInit *> Args) {
   FoldingSetNodeID ID;
   ProfileVarDefInit(ID, Class, Args);
 
@@ -2111,11 +2194,11 @@ VarDefInit *VarDefInit::get(Record *Class, ArrayRef<Init *> Args) {
   if (VarDefInit *I = RK.TheVarDefInitPool.FindNodeOrInsertPos(ID, IP))
     return I;
 
-  void *Mem = RK.Allocator.Allocate(totalSizeToAlloc<Init *>(Args.size()),
-                                    alignof(VarDefInit));
+  void *Mem = RK.Allocator.Allocate(
+      totalSizeToAlloc<ArgumentInit *>(Args.size()), alignof(VarDefInit));
   VarDefInit *I = new (Mem) VarDefInit(Class, Args.size());
   std::uninitialized_copy(Args.begin(), Args.end(),
-                          I->getTrailingObjects<Init *>());
+                          I->getTrailingObjects<ArgumentInit *>());
   RK.TheVarDefInitPool.InsertNode(I, IP);
   return I;
 }
@@ -2143,13 +2226,16 @@ DefInit *VarDefInit::instantiate() {
     ArrayRef<Init *> TArgs = Class->getTemplateArgs();
     MapResolver R(NewRec);
 
-    for (unsigned i = 0, e = TArgs.size(); i != e; ++i) {
-      if (i < args_size())
-        R.set(TArgs[i], getArg(i));
-      else
-        R.set(TArgs[i], NewRec->getValue(TArgs[i])->getValue());
+    for (unsigned I = 0, E = TArgs.size(); I != E; ++I) {
+      R.set(TArgs[I], NewRec->getValue(TArgs[I])->getValue());
+      NewRec->removeValue(TArgs[I]);
+    }
 
-      NewRec->removeValue(TArgs[i]);
+    for (auto *Arg : args()) {
+      if (Arg->isPositional())
+        R.set(TArgs[Arg->getIndex()], Arg->getValue());
+      if (Arg->isNamed())
+        R.set(Arg->getName(), Arg->getValue());
     }
 
     NewRec->resolveReferences(R);
@@ -2179,11 +2265,11 @@ DefInit *VarDefInit::instantiate() {
 Init *VarDefInit::resolveReferences(Resolver &R) const {
   TrackUnresolvedResolver UR(&R);
   bool Changed = false;
-  SmallVector<Init *, 8> NewArgs;
+  SmallVector<ArgumentInit *, 8> NewArgs;
   NewArgs.reserve(args_size());
 
-  for (Init *Arg : args()) {
-    Init *NewArg = Arg->resolveReferences(UR);
+  for (ArgumentInit *Arg : args()) {
+    auto *NewArg = cast<ArgumentInit>(Arg->resolveReferences(UR));
     NewArgs.push_back(NewArg);
     Changed |= NewArg != Arg;
   }
@@ -2460,6 +2546,15 @@ Record *DagInit::getOperatorAsDef(ArrayRef<SMLoc> Loc) const {
     return DefI->getDef();
   PrintFatalError(Loc, "Expected record as operator");
   return nullptr;
+}
+
+std::optional<unsigned> DagInit::getArgNo(StringRef Name) const {
+  for (unsigned i = 0, e = getNumArgs(); i < e; ++i) {
+    StringInit *ArgName = getArgName(i);
+    if (ArgName && ArgName->getValue() == Name)
+      return i;
+  }
+  return std::nullopt;
 }
 
 Init *DagInit::resolveReferences(Resolver &R) const {

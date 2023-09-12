@@ -78,8 +78,8 @@ createAMDGPUAsmPrinterPass(TargetMachine &tm,
   return new AMDGPUAsmPrinter(tm, std::move(Streamer));
 }
 
-extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeAMDGPUAsmPrinter() {
-  TargetRegistry::RegisterAsmPrinter(getTheAMDGPUTarget(),
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUAsmPrinter() {
+  TargetRegistry::RegisterAsmPrinter(getTheR600Target(),
                                      llvm::createR600AsmPrinterPass);
   TargetRegistry::RegisterAsmPrinter(getTheGCNTarget(),
                                      createAMDGPUAsmPrinterPass);
@@ -1045,10 +1045,6 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
         MD->setRsrc2(CC, S_00B84C_SCRATCH_EN(1));
     }
   } else {
-    // Priority?
-    MD->setHwStage(CC, ".float_mode", CurrentProgramInfo.FloatMode);
-    // Priv?
-    // DX10Clamp?
     MD->setHwStage(CC, ".debug_mode", (bool)CurrentProgramInfo.DebugMode);
     MD->setHwStage(CC, ".ieee_mode", (bool)CurrentProgramInfo.IEEEMode);
     MD->setHwStage(CC, ".wgp_mode", (bool)CurrentProgramInfo.WgpMode);
@@ -1082,7 +1078,12 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
       MD->setSpiPsInputAddr(MFI->getPSInputAddr());
     } else {
       // Graphics registers
-      MD->setGraphicsRegisters(".ps_extra_lds_size", ExtraLDSSize);
+      const unsigned ExtraLdsDwGranularity =
+          STM.getGeneration() >= AMDGPUSubtarget::GFX11 ? 256 : 128;
+      MD->setGraphicsRegisters(
+          ".ps_extra_lds_size",
+          (unsigned)(ExtraLDSSize * ExtraLdsDwGranularity * sizeof(uint32_t)));
+
       // Set PsInputEna and PsInputAddr .spi_ps_input_ena and .spi_ps_input_addr
       static StringLiteral const PsInputFields[] = {
           ".persp_sample_ena",    ".persp_center_ena",
@@ -1112,7 +1113,8 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
 void AMDGPUAsmPrinter::emitPALFunctionMetadata(const MachineFunction &MF) {
   auto *MD = getTargetStreamer()->getPALMetadata();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  MD->setFunctionScratchSize(MF, MFI.getStackSize());
+  StringRef FnName = MF.getFunction().getName();
+  MD->setFunctionScratchSize(FnName, MFI.getStackSize());
 
   // Set compute registers
   MD->setRsrc1(CallingConv::AMDGPU_CS,
@@ -1120,9 +1122,9 @@ void AMDGPUAsmPrinter::emitPALFunctionMetadata(const MachineFunction &MF) {
   MD->setRsrc2(CallingConv::AMDGPU_CS, CurrentProgramInfo.getComputePGMRSrc2());
 
   // Set optional info
-  MD->setFunctionLdsSize(MF, CurrentProgramInfo.LDSSize);
-  MD->setFunctionNumUsedVgprs(MF, CurrentProgramInfo.NumVGPRsForWavesPerEU);
-  MD->setFunctionNumUsedSgprs(MF, CurrentProgramInfo.NumSGPRsForWavesPerEU);
+  MD->setFunctionLdsSize(FnName, CurrentProgramInfo.LDSSize);
+  MD->setFunctionNumUsedVgprs(FnName, CurrentProgramInfo.NumVGPRsForWavesPerEU);
+  MD->setFunctionNumUsedSgprs(FnName, CurrentProgramInfo.NumSGPRsForWavesPerEU);
 }
 
 // This is supposed to be log2(Size)
@@ -1292,6 +1294,9 @@ void AMDGPUAsmPrinter::emitResourceUsageRemarks(
     EmitResourceUsageRemark("NumAGPR", "AGPRs", CurrentProgramInfo.NumAccVGPR);
   EmitResourceUsageRemark("ScratchSize", "ScratchSize [bytes/lane]",
                           CurrentProgramInfo.ScratchSize);
+  StringRef DynamicStackStr =
+      CurrentProgramInfo.DynamicCallStack ? "True" : "False";
+  EmitResourceUsageRemark("DynamicStack", "Dynamic Stack", DynamicStackStr);
   EmitResourceUsageRemark("Occupancy", "Occupancy [waves/SIMD]",
                           CurrentProgramInfo.Occupancy);
   EmitResourceUsageRemark("SGPRSpill", "SGPRs Spill",

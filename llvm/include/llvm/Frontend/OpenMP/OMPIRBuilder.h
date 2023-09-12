@@ -84,11 +84,10 @@ class OpenMPIRBuilderConfig {
 public:
   /// Flag for specifying if the compilation is done for embedded device code
   /// or host code.
-  std::optional<bool> IsEmbedded;
+  std::optional<bool> IsTargetDevice;
 
-  /// Flag for specifying if the compilation is done for an offloading target,
-  /// like GPU.
-  std::optional<bool> IsTargetCodegen;
+  /// Flag for specifying if the compilation is done for an accelerator.
+  std::optional<bool> IsGPU;
 
   /// Flag for specifying weather a requires unified_shared_memory
   /// directive is present or not.
@@ -103,22 +102,22 @@ public:
   std::optional<StringRef> Separator;
 
   OpenMPIRBuilderConfig() {}
-  OpenMPIRBuilderConfig(bool IsEmbedded, bool IsTargetCodegen,
+  OpenMPIRBuilderConfig(bool IsTargetDevice, bool IsGPU,
                         bool HasRequiresUnifiedSharedMemory,
                         bool OpenMPOffloadMandatory)
-      : IsEmbedded(IsEmbedded), IsTargetCodegen(IsTargetCodegen),
+      : IsTargetDevice(IsTargetDevice), IsGPU(IsGPU),
         HasRequiresUnifiedSharedMemory(HasRequiresUnifiedSharedMemory),
         OpenMPOffloadMandatory(OpenMPOffloadMandatory) {}
 
   // Getters functions that assert if the required values are not present.
-  bool isEmbedded() const {
-    assert(IsEmbedded.has_value() && "IsEmbedded is not set");
-    return *IsEmbedded;
+  bool isTargetDevice() const {
+    assert(IsTargetDevice.has_value() && "IsTargetDevice is not set");
+    return *IsTargetDevice;
   }
 
-  bool isTargetCodegen() const {
-    assert(IsTargetCodegen.has_value() && "IsTargetCodegen is not set");
-    return *IsTargetCodegen;
+  bool isGPU() const {
+    assert(IsGPU.has_value() && "IsGPU is not set");
+    return *IsGPU;
   }
 
   bool hasRequiresUnifiedSharedMemory() const {
@@ -132,28 +131,28 @@ public:
            "OpenMPOffloadMandatory is not set");
     return *OpenMPOffloadMandatory;
   }
-  // Returns the FirstSeparator if set, otherwise use the default
-  // separator depending on isTargetCodegen
+  // Returns the FirstSeparator if set, otherwise use the default separator
+  // depending on isGPU
   StringRef firstSeparator() const {
     if (FirstSeparator.has_value())
       return *FirstSeparator;
-    if (isTargetCodegen())
+    if (isGPU())
       return "_";
     return ".";
   }
 
-  // Returns the Separator if set, otherwise use the default
-  // separator depending on isTargetCodegen
+  // Returns the Separator if set, otherwise use the default separator depending
+  // on isGPU
   StringRef separator() const {
     if (Separator.has_value())
       return *Separator;
-    if (isTargetCodegen())
+    if (isGPU())
       return "$";
     return ".";
   }
 
-  void setIsEmbedded(bool Value) { IsEmbedded = Value; }
-  void setIsTargetCodegen(bool Value) { IsTargetCodegen = Value; }
+  void setIsTargetDevice(bool Value) { IsTargetDevice = Value; }
+  void setIsGPU(bool Value) { IsGPU = Value; }
   void setHasRequiresUnifiedSharedMemory(bool Value) {
     HasRequiresUnifiedSharedMemory = Value;
   }
@@ -323,6 +322,28 @@ public:
     OMPTargetGlobalVarEntryTo = 0x0,
     /// Mark the entry as a to declare target link.
     OMPTargetGlobalVarEntryLink = 0x1,
+    /// Mark the entry as a declare target enter.
+    OMPTargetGlobalVarEntryEnter = 0x2,
+    /// Mark the entry as having no declare target entry kind.
+    OMPTargetGlobalVarEntryNone = 0x3,
+    /// Mark the entry as a declare target indirect global.
+    OMPTargetGlobalVarEntryIndirect = 0x8,
+  };
+
+  /// Kind of device clause for declare target variables
+  /// and functions
+  /// NOTE: Currently not used as a part of a variable entry
+  /// used for Flang and Clang to interface with the variable
+  /// related registration functions
+  enum OMPTargetDeviceClauseKind : uint32_t {
+    /// The target is marked for all devices
+    OMPTargetDeviceClauseAny = 0x0,
+    /// The target is marked for non-host devices
+    OMPTargetDeviceClauseNoHost = 0x1,
+    /// The target is marked for host devices
+    OMPTargetDeviceClauseHost = 0x2,
+    /// The target is marked as having no clause
+    OMPTargetDeviceClauseNone = 0x3
   };
 
   /// Device global variable entries info.
@@ -330,6 +351,7 @@ public:
     /// Type of the global variable.
     int64_t VarSize;
     GlobalValue::LinkageTypes Linkage;
+    const std::string VarName;
 
   public:
     OffloadEntryInfoDeviceGlobalVar()
@@ -340,13 +362,15 @@ public:
     explicit OffloadEntryInfoDeviceGlobalVar(unsigned Order, Constant *Addr,
                                              int64_t VarSize,
                                              OMPTargetGlobalVarEntryKind Flags,
-                                             GlobalValue::LinkageTypes Linkage)
+                                             GlobalValue::LinkageTypes Linkage,
+                                             const std::string &VarName)
         : OffloadEntryInfo(OffloadingEntryInfoDeviceGlobalVar, Order, Flags),
-          VarSize(VarSize), Linkage(Linkage) {
+          VarSize(VarSize), Linkage(Linkage), VarName(VarName) {
       setAddress(Addr);
     }
 
     int64_t getVarSize() const { return VarSize; }
+    StringRef getVarName() const { return VarName; }
     void setVarSize(int64_t Size) { VarSize = Size; }
     GlobalValue::LinkageTypes getLinkage() const { return Linkage; }
     void setLinkage(GlobalValue::LinkageTypes LT) { Linkage = LT; }
@@ -761,6 +785,95 @@ public:
   static unsigned getOpenMPDefaultSimdAlign(const Triple &TargetTriple,
                                             const StringMap<bool> &Features);
 
+  /// Retrieve (or create if non-existent) the address of a declare
+  /// target variable, used in conjunction with registerTargetGlobalVariable
+  /// to create declare target global variables.
+  ///
+  /// \param CaptureClause - enumerator corresponding to the OpenMP capture
+  /// clause used in conjunction with the variable being registered (link,
+  /// to, enter).
+  /// \param DeviceClause - enumerator corresponding to the OpenMP capture
+  /// clause used in conjunction with the variable being registered (nohost,
+  /// host, any)
+  /// \param IsDeclaration - boolean stating if the variable being registered
+  /// is a declaration-only and not a definition
+  /// \param IsExternallyVisible - boolean stating if the variable is externally
+  /// visible
+  /// \param EntryInfo - Unique entry information for the value generated
+  /// using getTargetEntryUniqueInfo, used to name generated pointer references
+  /// to the declare target variable
+  /// \param MangledName - the mangled name of the variable being registered
+  /// \param GeneratedRefs - references generated by invocations of
+  /// registerTargetGlobalVariable invoked from getAddrOfDeclareTargetVar,
+  /// these are required by Clang for book keeping.
+  /// \param OpenMPSIMD - if OpenMP SIMD mode is currently enabled
+  /// \param TargetTriple - The OpenMP device target triple we are compiling
+  /// for
+  /// \param LlvmPtrTy - The type of the variable we are generating or
+  /// retrieving an address for
+  /// \param GlobalInitializer - a lambda function which creates a constant
+  /// used for initializing a pointer reference to the variable in certain
+  /// cases. If a nullptr is passed, it will default to utilising the original
+  /// variable to initialize the pointer reference.
+  /// \param VariableLinkage - a lambda function which returns the variables
+  /// linkage type, if unspecified and a nullptr is given, it will instead
+  /// utilise the linkage stored on the existing global variable in the
+  /// LLVMModule.
+  Constant *getAddrOfDeclareTargetVar(
+      OffloadEntriesInfoManager::OMPTargetGlobalVarEntryKind CaptureClause,
+      OffloadEntriesInfoManager::OMPTargetDeviceClauseKind DeviceClause,
+      bool IsDeclaration, bool IsExternallyVisible,
+      TargetRegionEntryInfo EntryInfo, StringRef MangledName,
+      std::vector<GlobalVariable *> &GeneratedRefs, bool OpenMPSIMD,
+      std::vector<Triple> TargetTriple, Type *LlvmPtrTy,
+      std::function<Constant *()> GlobalInitializer,
+      std::function<GlobalValue::LinkageTypes()> VariableLinkage);
+
+  /// Registers a target variable for device or host.
+  ///
+  /// \param CaptureClause - enumerator corresponding to the OpenMP capture
+  /// clause used in conjunction with the variable being registered (link,
+  /// to, enter).
+  /// \param DeviceClause - enumerator corresponding to the OpenMP capture
+  /// clause used in conjunction with the variable being registered (nohost,
+  /// host, any)
+  /// \param IsDeclaration - boolean stating if the variable being registered
+  /// is a declaration-only and not a definition
+  /// \param IsExternallyVisible - boolean stating if the variable is externally
+  /// visible
+  /// \param EntryInfo - Unique entry information for the value generated
+  /// using getTargetEntryUniqueInfo, used to name generated pointer references
+  /// to the declare target variable
+  /// \param MangledName - the mangled name of the variable being registered
+  /// \param GeneratedRefs - references generated by invocations of
+  /// registerTargetGlobalVariable these are required by Clang for book
+  /// keeping.
+  /// \param OpenMPSIMD - if OpenMP SIMD mode is currently enabled
+  /// \param TargetTriple - The OpenMP device target triple we are compiling
+  /// for
+  /// \param GlobalInitializer - a lambda function which creates a constant
+  /// used for initializing a pointer reference to the variable in certain
+  /// cases. If a nullptr is passed, it will default to utilising the original
+  /// variable to initialize the pointer reference.
+  /// \param VariableLinkage - a lambda function which returns the variables
+  /// linkage type, if unspecified and a nullptr is given, it will instead
+  /// utilise the linkage stored on the existing global variable in the
+  /// LLVMModule.
+  /// \param LlvmPtrTy - The type of the variable we are generating or
+  /// retrieving an address for
+  /// \param Addr - the original llvm value (addr) of the variable to be
+  /// registered
+  void registerTargetGlobalVariable(
+      OffloadEntriesInfoManager::OMPTargetGlobalVarEntryKind CaptureClause,
+      OffloadEntriesInfoManager::OMPTargetDeviceClauseKind DeviceClause,
+      bool IsDeclaration, bool IsExternallyVisible,
+      TargetRegionEntryInfo EntryInfo, StringRef MangledName,
+      std::vector<GlobalVariable *> &GeneratedRefs, bool OpenMPSIMD,
+      std::vector<Triple> TargetTriple,
+      std::function<Constant *()> GlobalInitializer,
+      std::function<GlobalValue::LinkageTypes()> VariableLinkage,
+      Type *LlvmPtrTy, Constant *Addr);
+
 private:
   /// Modifies the canonical loop to be a statically-scheduled workshare loop.
   ///
@@ -1046,6 +1159,20 @@ public:
                                 InsertPointTy AllocaIP,
                                 BodyGenCallbackTy BodyGenCB);
 
+
+  using FileIdentifierInfoCallbackTy = std::function<std::tuple<std::string, uint64_t>()>;
+
+  /// Creates a unique info for a target entry when provided a filename and
+  /// line number from.
+  ///
+  /// \param CallBack A callback function which should return filename the entry
+  /// resides in as well as the line number for the target entry
+  /// \param ParentName The name of the parent the target entry resides in, if
+  /// any.
+  static TargetRegionEntryInfo
+  getTargetEntryUniqueInfo(FileIdentifierInfoCallbackTy CallBack,
+                           StringRef ParentName = "");
+
   /// Functions used to generate reductions. Such functions take two Values
   /// representing LHS and RHS of the reduction, respectively, and a reference
   /// to the value that is updated to refer to the reduction result.
@@ -1066,10 +1193,7 @@ public:
                   AtomicReductionGenTy AtomicReductionGen)
         : ElementType(ElementType), Variable(Variable),
           PrivateVariable(PrivateVariable), ReductionGen(ReductionGen),
-          AtomicReductionGen(AtomicReductionGen) {
-      assert(cast<PointerType>(Variable->getType())
-          ->isOpaqueOrPointeeTypeMatches(ElementType) && "Invalid elem type");
-    }
+          AtomicReductionGen(AtomicReductionGen) {}
 
     /// Reduction element type, must match pointee type of variable.
     Type *ElementType;
@@ -1350,10 +1474,29 @@ public:
   /// <critical_section_name> + ".var" for "omp critical" directives; 2)
   /// <mangled_name_for_global_var> + ".cache." for cache for threadprivate
   /// variables.
-  StringMap<Constant*, BumpPtrAllocator> InternalVars;
+  StringMap<GlobalVariable *, BumpPtrAllocator> InternalVars;
 
   /// Computes the size of type in bytes.
   Value *getSizeInBytes(Value *BasePtr);
+
+  // Emit a branch from the current block to the Target block only if
+  // the current block has a terminator.
+  void emitBranch(BasicBlock *Target);
+
+  // If BB has no use then delete it and return. Else place BB after the current
+  // block, if possible, or else at the end of the function. Also add a branch
+  // from current block to BB if current block does not have a terminator.
+  void emitBlock(BasicBlock *BB, Function *CurFn, bool IsFinished = false);
+
+  /// Emits code for OpenMP 'if' clause using specified \a BodyGenCallbackTy
+  /// Here is the logic:
+  /// if (Cond) {
+  ///   ThenGen();
+  /// } else {
+  ///   ElseGen();
+  /// }
+  void emitIfClause(Value *Cond, BodyGenCallbackTy ThenGen,
+                    BodyGenCallbackTy ElseGen, InsertPointTy AllocaIP = {});
 
   /// Create the global variable holding the offload mappings information.
   GlobalVariable *createOffloadMaptypes(SmallVectorImpl<uint64_t> &Mappings,
@@ -1391,7 +1534,6 @@ public:
 
   /// Container for the arguments used to pass data to the runtime library.
   struct TargetDataRTArgs {
-    explicit TargetDataRTArgs() {}
     /// The array of base pointer passed to the runtime library.
     Value *BasePointersArray = nullptr;
     /// The array of section pointers passed to the runtime library.
@@ -1411,7 +1553,52 @@ public:
     /// The array of original declaration names of mapped pointers sent to the
     /// runtime library for debugging
     Value *MapNamesArray = nullptr;
+
+    explicit TargetDataRTArgs() {}
+    explicit TargetDataRTArgs(Value *BasePointersArray, Value *PointersArray,
+                              Value *SizesArray, Value *MapTypesArray,
+                              Value *MapTypesArrayEnd, Value *MappersArray,
+                              Value *MapNamesArray)
+        : BasePointersArray(BasePointersArray), PointersArray(PointersArray),
+          SizesArray(SizesArray), MapTypesArray(MapTypesArray),
+          MapTypesArrayEnd(MapTypesArrayEnd), MappersArray(MappersArray),
+          MapNamesArray(MapNamesArray) {}
   };
+
+  /// Data structure that contains the needed information to construct the
+  /// kernel args vector.
+  struct TargetKernelArgs {
+    /// Number of arguments passed to the runtime library.
+    unsigned NumTargetItems;
+    /// Arguments passed to the runtime library
+    TargetDataRTArgs RTArgs;
+    /// The number of iterations
+    Value *NumIterations;
+    /// The number of teams.
+    Value *NumTeams;
+    /// The number of threads.
+    Value *NumThreads;
+    /// The size of the dynamic shared memory.
+    Value *DynCGGroupMem;
+    /// True if the kernel has 'no wait' clause.
+    bool HasNoWait;
+
+    /// Constructor for TargetKernelArgs
+    TargetKernelArgs(unsigned NumTargetItems, TargetDataRTArgs RTArgs,
+                     Value *NumIterations, Value *NumTeams, Value *NumThreads,
+                     Value *DynCGGroupMem, bool HasNoWait)
+        : NumTargetItems(NumTargetItems), RTArgs(RTArgs),
+          NumIterations(NumIterations), NumTeams(NumTeams),
+          NumThreads(NumThreads), DynCGGroupMem(DynCGGroupMem),
+          HasNoWait(HasNoWait) {}
+  };
+
+  /// Create the kernel args vector used by emitTargetKernel. This function
+  /// creates various constant values that are used in the resulting args
+  /// vector.
+  static void getKernelArgsVector(TargetKernelArgs &KernelArgs,
+                                  IRBuilderBase &Builder,
+                                  SmallVector<Value *> &ArgsVector);
 
   /// Struct that keeps the information that should be kept throughout
   /// a 'target data' region.
@@ -1424,6 +1611,9 @@ public:
 
   public:
     TargetDataRTArgs RTArgs;
+
+    SmallMapVector<const Value *, std::pair<Value *, Value *>, 4>
+        DevicePtrInfoMap;
 
     /// Indicate whether any user-defined mapper exists.
     bool HasMapper = false;
@@ -1451,7 +1641,9 @@ public:
     bool separateBeginEndCalls() { return SeparateBeginEndCalls; }
   };
 
+  enum class DeviceInfoTy { None, Pointer, Address };
   using MapValuesArrayTy = SmallVector<Value *, 4>;
+  using MapDeviceInfoArrayTy = SmallVector<DeviceInfoTy, 4>;
   using MapFlagsArrayTy = SmallVector<omp::OpenMPOffloadMappingFlags, 4>;
   using MapNamesArrayTy = SmallVector<Constant *, 4>;
   using MapDimArrayTy = SmallVector<uint64_t, 4>;
@@ -1470,6 +1662,7 @@ public:
     };
     MapValuesArrayTy BasePointers;
     MapValuesArrayTy Pointers;
+    MapDeviceInfoArrayTy DevicePointers;
     MapValuesArrayTy Sizes;
     MapFlagsArrayTy Types;
     MapNamesArrayTy Names;
@@ -1480,6 +1673,8 @@ public:
       BasePointers.append(CurInfo.BasePointers.begin(),
                           CurInfo.BasePointers.end());
       Pointers.append(CurInfo.Pointers.begin(), CurInfo.Pointers.end());
+      DevicePointers.append(CurInfo.DevicePointers.begin(),
+                            CurInfo.DevicePointers.end());
       Sizes.append(CurInfo.Sizes.begin(), CurInfo.Sizes.end());
       Types.append(CurInfo.Types.begin(), CurInfo.Types.end());
       Names.append(CurInfo.Names.begin(), CurInfo.Names.end());
@@ -1494,6 +1689,28 @@ public:
     }
   };
 
+  /// Callback function type for functions emitting the host fallback code that
+  /// is executed when the kernel launch fails. It takes an insertion point as
+  /// parameter where the code should be emitted. It returns an insertion point
+  /// that points right after after the emitted code.
+  using EmitFallbackCallbackTy = function_ref<InsertPointTy(InsertPointTy)>;
+
+  /// Generate a target region entry call and host fallback call.
+  ///
+  /// \param Loc The location at which the request originated and is fulfilled.
+  /// \param OutlinedFn The outlined kernel function.
+  /// \param OutlinedFnID The ooulined function ID.
+  /// \param EmitTargetCallFallbackCB Call back function to generate host
+  ///        fallback code.
+  /// \param Args Data structure holding information about the kernel arguments.
+  /// \param DeviceID Identifier for the device via the 'device' clause.
+  /// \param RTLoc Source location identifier
+  /// \param AllocaIP The insertion point to be used for alloca instructions.
+  InsertPointTy emitKernelLaunch(
+      const LocationDescription &Loc, Function *OutlinedFn, Value *OutlinedFnID,
+      EmitFallbackCallbackTy EmitTargetCallFallbackCB, TargetKernelArgs &Args,
+      Value *DeviceID, Value *RTLoc, InsertPointTy AllocaIP);
+
   /// Emit the arguments to be passed to the runtime library based on the
   /// arrays of base pointers, pointers, sizes, map types, and mappers.  If
   /// ForEndCall, emit map types to be passed for the end of the region instead
@@ -1504,10 +1721,26 @@ public:
                                     bool EmitDebug = false,
                                     bool ForEndCall = false);
 
+  /// Emit an array of struct descriptors to be assigned to the offload args.
+  void emitNonContiguousDescriptor(InsertPointTy AllocaIP,
+                                   InsertPointTy CodeGenIP,
+                                   MapInfosTy &CombinedInfo,
+                                   TargetDataInfo &Info);
+
+  /// Emit the arrays used to pass the captures and map information to the
+  /// offloading runtime library. If there is no map or capture information,
+  /// return nullptr by reference.
+  void emitOffloadingArrays(
+      InsertPointTy AllocaIP, InsertPointTy CodeGenIP, MapInfosTy &CombinedInfo,
+      TargetDataInfo &Info, bool IsNonContiguous = false,
+      function_ref<void(unsigned int, Value *)> DeviceAddrCB = nullptr,
+      function_ref<Value *(unsigned int)> CustomMapperCB = nullptr);
+
   /// Creates offloading entry for the provided entry ID \a ID, address \a
   /// Addr, size \a Size, and flags \a Flags.
   void createOffloadEntry(Constant *ID, Constant *Addr, uint64_t Size,
-                          int32_t Flags, GlobalValue::LinkageTypes);
+                          int32_t Flags, GlobalValue::LinkageTypes,
+                          StringRef Name = "");
 
   /// The kind of errors that can occur when emitting the offload entries and
   /// metadata.
@@ -1770,8 +2003,7 @@ public:
   /// Create a runtime call for kmpc_target_deinit
   ///
   /// \param Loc The insert and source location description.
-  /// \param IsSPMD Flag to indicate if the kernel is an SPMD kernel or not.
-  void createTargetDeinit(const LocationDescription &Loc, bool IsSPMD);
+  void createTargetDeinit(const LocationDescription &Loc);
 
   ///}
 
@@ -1849,29 +2081,53 @@ public:
                                          StringRef EntryFnName,
                                          StringRef EntryFnIDName,
                                          int32_t NumTeams, int32_t NumThreads);
+  /// Type of BodyGen to use for region codegen
+  ///
+  /// Priv: If device pointer privatization is required, emit the body of the
+  /// region here. It will have to be duplicated: with and without
+  /// privatization.
+  /// DupNoPriv: If we need device pointer privatization, we need
+  /// to emit the body of the region with no privatization in the 'else' branch
+  /// of the conditional.
+  /// NoPriv: If we don't require privatization of device
+  /// pointers, we emit the body in between the runtime calls. This avoids
+  /// duplicating the body code.
+  enum BodyGenTy { Priv, DupNoPriv, NoPriv };
+
+  /// Callback type for creating the map infos for the kernel parameters.
+  /// \param CodeGenIP is the insertion point where code should be generated,
+  ///        if any.
+  using GenMapInfoCallbackTy =
+      function_ref<MapInfosTy &(InsertPointTy CodeGenIP)>;
 
   /// Generator for '#omp target data'
   ///
   /// \param Loc The location where the target data construct was encountered.
+  /// \param AllocaIP The insertion points to be used for alloca instructions.
   /// \param CodeGenIP The insertion point at which the target directive code
   /// should be placed.
-  /// \param MapTypeFlags BitVector storing the mapType flags for the
-  /// mapOperands.
-  /// \param MapNames Names for the mapOperands.
-  /// \param MapperAllocas Pointers to the AllocInsts for the map clause.
   /// \param IsBegin If true then emits begin mapper call otherwise emits
   /// end mapper call.
   /// \param DeviceID Stores the DeviceID from the device clause.
   /// \param IfCond Value which corresponds to the if clause condition.
-  /// \param ProcessMapOpCB Callback that generates code for the map clause.
-  /// \param BodyGenCB Callback that will generate the region code.
+  /// \param Info Stores all information realted to the Target Data directive.
+  /// \param GenMapInfoCB Callback that populates the MapInfos and returns.
+  /// \param BodyGenCB Optional Callback to generate the region code.
+  /// \param DeviceAddrCB Optional callback to generate code related to
+  /// use_device_ptr and use_device_addr.
+  /// \param CustomMapperCB Optional callback to generate code related to
+  /// custom mappers.
   OpenMPIRBuilder::InsertPointTy createTargetData(
-      const LocationDescription &Loc, OpenMPIRBuilder::InsertPointTy CodeGenIP,
-      SmallVectorImpl<uint64_t> &MapTypeFlags,
-      SmallVectorImpl<Constant *> &MapNames,
-      struct MapperAllocas &MapperAllocas, bool IsBegin, int64_t DeviceID,
-      Value *IfCond, BodyGenCallbackTy ProcessMapOpCB,
-      BodyGenCallbackTy BodyGenCB = {});
+      const LocationDescription &Loc, InsertPointTy AllocaIP,
+      InsertPointTy CodeGenIP, Value *DeviceID, Value *IfCond,
+      TargetDataInfo &Info, GenMapInfoCallbackTy GenMapInfoCB,
+      omp::RuntimeFunction *MapperFunc = nullptr,
+      function_ref<InsertPointTy(InsertPointTy CodeGenIP,
+                                 BodyGenTy BodyGenType)>
+          BodyGenCB = nullptr,
+      function_ref<void(unsigned int, Value *)> DeviceAddrCB = nullptr,
+      function_ref<Value *(unsigned int)> CustomMapperCB = nullptr,
+      Value *SrcLocInfo = nullptr);
 
   using TargetBodyGenCallbackTy = function_ref<InsertPointTy(
       InsertPointTy AllocaIP, InsertPointTy CodeGenIP)>;
@@ -1888,11 +2144,31 @@ public:
   /// as arguments to the outlined function.
   /// \param BodyGenCB Callback that will generate the region code.
   InsertPointTy createTarget(const LocationDescription &Loc,
+                             OpenMPIRBuilder::InsertPointTy AllocaIP,
                              OpenMPIRBuilder::InsertPointTy CodeGenIP,
                              TargetRegionEntryInfo &EntryInfo, int32_t NumTeams,
                              int32_t NumThreads,
                              SmallVectorImpl<Value *> &Inputs,
+                             GenMapInfoCallbackTy GenMapInfoCB,
                              TargetBodyGenCallbackTy BodyGenCB);
+
+  /// Returns __kmpc_for_static_init_* runtime function for the specified
+  /// size \a IVSize and sign \a IVSigned. Will create a distribute call
+  /// __kmpc_distribute_static_init* if \a IsGPUDistribute is set.
+  FunctionCallee createForStaticInitFunction(unsigned IVSize, bool IVSigned,
+                                             bool IsGPUDistribute);
+
+  /// Returns __kmpc_dispatch_init_* runtime function for the specified
+  /// size \a IVSize and sign \a IVSigned.
+  FunctionCallee createDispatchInitFunction(unsigned IVSize, bool IVSigned);
+
+  /// Returns __kmpc_dispatch_next_* runtime function for the specified
+  /// size \a IVSize and sign \a IVSigned.
+  FunctionCallee createDispatchNextFunction(unsigned IVSize, bool IVSigned);
+
+  /// Returns __kmpc_dispatch_fini_* runtime function for the specified
+  /// size \a IVSize and sign \a IVSigned.
+  FunctionCallee createDispatchFiniFunction(unsigned IVSize, bool IVSigned);
 
   /// Declarations for LLVM-IR types (simple, array, function and structure) are
   /// generated below. Their names are defined and used in OpenMPKinds.def. Here

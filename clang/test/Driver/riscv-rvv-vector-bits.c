@@ -31,15 +31,15 @@
 
 // Error out if an unsupported value is passed to -mrvv-vector-bits.
 // -----------------------------------------------------------------------------
-// RUN: %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
+// RUN: not %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
 // RUN:  -mrvv-vector-bits=16 2>&1 | FileCheck --check-prefix=CHECK-BAD-VALUE-ERROR %s
-// RUN: %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
+// RUN: not %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
 // RUN:  -mrvv-vector-bits=A 2>&1 | FileCheck --check-prefix=CHECK-BAD-VALUE-ERROR %s
-// RUN: %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
+// RUN: not %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc_zve64x \
 // RUN:  -mrvv-vector-bits=131072 2>&1 | FileCheck --check-prefix=CHECK-BAD-VALUE-ERROR %s
-// RUN: %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc \
+// RUN: not %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gc \
 // RUN:  -mrvv-vector-bits=zvl 2>&1 | FileCheck --check-prefix=CHECK-BAD-VALUE-ERROR %s
-// RUN: %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gcv \
+// RUN: not %clang -c %s -### --target=riscv64-linux-gnu -march=rv64gcv \
 // RUN:  -mrvv-vector-bits=64 2>&1 | FileCheck --check-prefix=CHECK-BAD-VALUE-ERROR %s
 
 // CHECK-BAD-VALUE-ERROR: error: unsupported argument '{{.*}}' to option '-mrvv-vector-bits='
@@ -63,4 +63,4 @@ typedef vint32m1_t noflag __attribute__((riscv_rvv_vector_bits(256)));
 
 typedef vint32_t bad_vector_size __attribute__((riscv_rvv_vector_bits(256)));
 
-// CHECK-BAD-VECTOR-SIZE-ERROR: error: invalid RVV vector size '256', must match value set by '-mrvv-vector-bits' ('128')
+// CHECK-BAD-VECTOR-SIZE-ERROR: error: invalid RVV vector size '256', expected size is '128' based on LMUL of type and '-mrvv-vector-bits'

@@ -10,7 +10,7 @@
 // UNSUPPORTED: libcpp-has-no-incomplete-pstl
 
 // Having a customization point outside the module doesn't work, so this test is inherintly module-hostile.
-// UNSUPPORTED: modules-build
+// UNSUPPORTED: clang-modules-build
 
 // Make sure that the customization points get called properly when overloaded
 
@@ -42,6 +42,24 @@ bool __pstl_all_of(TestBackend, ForwardIterator, ForwardIterator, Pred) {
   return true;
 }
 
+bool pstl_copy_called = false;
+
+template <class, class ForwardIterator, class ForwardOutIterator>
+ForwardIterator __pstl_copy(TestBackend, ForwardIterator, ForwardIterator, ForwardOutIterator) {
+  assert(!pstl_copy_called);
+  pstl_copy_called = true;
+  return 0;
+}
+
+bool pstl_copy_n_called = false;
+
+template <class, class ForwardIterator, class Size, class ForwardOutIterator>
+ForwardIterator __pstl_copy_n(TestBackend, ForwardIterator, Size, ForwardOutIterator) {
+  assert(!pstl_copy_n_called);
+  pstl_copy_n_called = true;
+  return 0;
+}
+
 bool pstl_count_called = false;
 
 template <class, class ForwardIterator, class T>
@@ -60,6 +78,22 @@ __pstl_count_if(TestBackend, ForwardIterator, ForwardIterator, Pred) {
   assert(!pstl_count_if_called);
   pstl_count_if_called = true;
   return 0;
+}
+
+bool pstl_generate_called = false;
+
+template <class, class ForwardIterator, class Gen>
+void __pstl_generate(TestBackend, ForwardIterator, ForwardIterator, Gen) {
+  assert(!pstl_generate_called);
+  pstl_generate_called = true;
+}
+
+bool pstl_generate_n_called = false;
+
+template <class, class ForwardIterator, class Size, class Gen>
+void __pstl_generate_n(TestBackend, Size, ForwardIterator, Gen) {
+  assert(!pstl_generate_n_called);
+  pstl_generate_n_called = true;
 }
 
 bool pstl_none_of_called = false;
@@ -128,6 +162,15 @@ template <class, class ForwardIterator, class Size, class Func>
 void __pstl_fill_n(TestBackend, ForwardIterator, Size, Func) {
   assert(!pstl_fill_n_called);
   pstl_fill_n_called = true;
+}
+
+bool pstl_is_partitioned_called = false;
+
+template <class, class ForwardIterator, class Func>
+bool __pstl_is_partitioned(TestBackend, ForwardIterator, ForwardIterator, Func) {
+  assert(!pstl_is_partitioned_called);
+  pstl_is_partitioned_called = true;
+  return {};
 }
 
 bool pstl_replace_called = false;
@@ -200,6 +243,22 @@ __pstl_reduce(TestBackend, ForwardIterator, ForwardIterator) {
   return {};
 }
 
+bool pstl_sort_called = false;
+
+template <class, class RandomAccessIterator, class Comp>
+void __pstl_sort(TestBackend, RandomAccessIterator, RandomAccessIterator, Comp) {
+  assert(!pstl_sort_called);
+  pstl_sort_called = true;
+}
+
+bool pstl_stable_sort_called = false;
+
+template <class, class RandomAccessIterator, class Comp>
+void __pstl_stable_sort(TestBackend, RandomAccessIterator, RandomAccessIterator, Comp) {
+  assert(!pstl_stable_sort_called);
+  pstl_stable_sort_called = true;
+}
+
 bool pstl_unary_transform_reduce_called = false;
 
 template <class, class ForwardIterator, class T, class UnaryOperation, class BinaryOperation>
@@ -249,6 +308,10 @@ int main(int, char**) {
   assert(std::pstl_all_of_called);
   (void)std::none_of(TestPolicy{}, std::begin(a), std::end(a), pred);
   assert(std::pstl_none_of_called);
+  std::copy(TestPolicy{}, std::begin(a), std::end(a), std::begin(a));
+  assert(std::pstl_copy_called);
+  std::copy_n(TestPolicy{}, std::begin(a), 1, std::begin(a));
+  assert(std::pstl_copy_n_called);
   (void)std::count(TestPolicy{}, std::begin(a), std::end(a), 0);
   assert(std::pstl_count_called);
   (void)std::count_if(TestPolicy{}, std::begin(a), std::end(a), pred);
@@ -267,6 +330,12 @@ int main(int, char**) {
   assert(std::pstl_for_each_called);
   (void)std::for_each_n(TestPolicy{}, std::begin(a), std::size(a), pred);
   assert(std::pstl_for_each_n_called);
+  (void)std::generate(TestPolicy{}, std::begin(a), std::end(a), pred);
+  assert(std::pstl_generate_called);
+  (void)std::generate_n(TestPolicy{}, std::begin(a), std::size(a), pred);
+  assert(std::pstl_generate_n_called);
+  (void)std::is_partitioned(TestPolicy{}, std::begin(a), std::end(a), pred);
+  assert(std::pstl_generate_n_called);
   (void)std::replace(TestPolicy{}, std::begin(a), std::end(a), 0, 0);
   assert(std::pstl_replace_called);
   (void)std::replace_if(TestPolicy{}, std::begin(a), std::end(a), pred, 0);
@@ -283,6 +352,10 @@ int main(int, char**) {
   assert(std::pstl_reduce_with_init_called);
   (void)std::reduce(TestPolicy{}, std::begin(a), std::end(a));
   assert(std::pstl_reduce_without_init_called);
+  (void)std::sort(TestPolicy{}, std::begin(a), std::end(a));
+  assert(std::pstl_sort_called);
+  (void)std::stable_sort(TestPolicy{}, std::begin(a), std::end(a));
+  assert(std::pstl_stable_sort_called);
   (void)std::transform_reduce(TestPolicy{}, std::begin(a), std::end(a), 0, pred, pred);
   assert(std::pstl_unary_transform_reduce_called);
   (void)std::transform_reduce(TestPolicy{}, std::begin(a), std::end(a), std::begin(a), 0, pred, pred);

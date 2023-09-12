@@ -8,14 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/detail/boost/mp11.hpp>
+#include <sycl/detail/boost/mp11/algorithm.hpp>        // for mp_sort_q
+#include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
+#include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
+#include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
+#include <sycl/ext/oneapi/properties/property.hpp> // for PropertyID, IsRun...
 
-#include <tuple>
+#include <array>       // for tuple_element
+#include <stddef.h>    // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for false_type, true_...
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 // Forward declaration
@@ -207,7 +213,7 @@ template <char... Sizes> struct CharList {};
 
 // Helper for converting characters to a constexpr string.
 template <char... Chars> struct CharsToStr {
-  static inline constexpr const char value[] = {Chars..., '\0'};
+  static constexpr const char value[] = {Chars..., '\0'};
 };
 
 // Helper for converting a list of size_t values to a comma-separated string
@@ -338,5 +344,5 @@ struct NoConflictingProperties
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

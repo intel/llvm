@@ -15,25 +15,29 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/context.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/device.hpp>
-#include <sycl/event.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
+#include <sycl/backend_types.hpp>         // for backend
+#include <sycl/context.hpp>               // for context
+#include <sycl/detail/backend_traits.hpp> // for BackendInput, BackendReturn
+#include <sycl/detail/cl.h>               // for _cl_event, cl_event, cl_de...
+#include <sycl/detail/pi.hpp>             // for assertion, PiDevice, PiPro...
+#include <sycl/device.hpp>                // for device
+#include <sycl/event.hpp>                 // for event
+#include <sycl/handler.hpp>               // for buffer
+#include <sycl/kernel.hpp>                // for kernel
+#include <sycl/kernel_bundle.hpp>         // for kernel_bundle
+#include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
+#include <sycl/platform.hpp>              // for platform
+#include <sycl/queue.hpp>                 // for queue
+
+#include <vector> // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
 // may be removed after removing the deprecated 'get_native()' methods
-// from the corresponding classes. The interop<backend, queue> specialization
-// is also used in the get_queue() method of the deprecated class
-// interop_handler and also can be removed after API cleanup.
+// from the corresponding classes.
 template <> struct interop<backend::opencl, context> {
   using type = cl_context;
 };
@@ -48,29 +52,6 @@ template <> struct interop<backend::opencl, queue> {
 
 template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
-};
-
-// TODO the interops for accessor is used in the already deprecated class
-// interop_handler and can be removed after API cleanup.
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl,
-               accessor<DataT, Dimensions, AccessMode, access::target::device,
-                        access::placeholder::false_t>> {
-  using type = cl_mem;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl, accessor<DataT, Dimensions, AccessMode,
-                                         access::target::constant_buffer,
-                                         access::placeholder::false_t>> {
-  using type = cl_mem;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode>
-struct interop<backend::opencl,
-               accessor<DataT, Dimensions, AccessMode, access::target::image,
-                        access::placeholder::false_t>> {
-  using type = cl_mem;
 };
 
 template <typename DataT, int Dimensions, typename AllocatorT>
@@ -179,5 +160,5 @@ inline PiDevice
     cast(cl_device_id) = delete; // Use piextCreateDeviceWithNativeHandle
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

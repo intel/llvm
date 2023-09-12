@@ -16,7 +16,7 @@
 #define SYCL_EXT_ONEAPI_ROOT_GROUP 1
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace info::kernel_queue_specific {
@@ -93,7 +93,7 @@ group<Dimensions> get_child_group(root_group<Dimensions> g) {
   return this_group<Dimensions>();
 }
 
-template <int Dimensions> sub_group get_child_group(group<Dimensions> g) {
+template <int Dimensions> sycl::sub_group get_child_group(group<Dimensions> g) {
   (void)g;
   return this_sub_group();
 }
@@ -136,5 +136,5 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
 #endif
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

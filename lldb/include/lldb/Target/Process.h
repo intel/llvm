@@ -25,6 +25,7 @@
 #include "lldb/Breakpoint/BreakpointSiteList.h"
 #include "lldb/Core/LoadedModuleInfoList.h"
 #include "lldb/Core/PluginInterface.h"
+#include "lldb/Core/SourceManager.h"
 #include "lldb/Core/ThreadSafeValue.h"
 #include "lldb/Core/ThreadedCommunication.h"
 #include "lldb/Core/UserSettingsController.h"
@@ -147,8 +148,8 @@ public:
 
   void SetResumeCount(uint32_t c) { m_resume_count = c; }
 
-  const char *GetProcessPluginName() const {
-    return (m_plugin_name.empty() ? nullptr : m_plugin_name.c_str());
+  llvm::StringRef GetProcessPluginName() const {
+    return llvm::StringRef(m_plugin_name);
   }
 
   void SetProcessPluginName(llvm::StringRef plugin) {
@@ -351,6 +352,14 @@ public:
     eBroadcastBitProfileData = (1 << 4),
     eBroadcastBitStructuredData = (1 << 5),
   };
+  // This is all the event bits the public process broadcaster broadcasts.
+  // The process shadow listener signs up for all these bits...
+  static constexpr int g_all_event_bits = eBroadcastBitStateChanged 
+                                        | eBroadcastBitInterrupt
+                                        | eBroadcastBitSTDOUT 
+                                        | eBroadcastBitSTDERR
+                                        | eBroadcastBitProfileData 
+                                        | eBroadcastBitStructuredData;
 
   enum {
     eBroadcastInternalStateControlStop = (1 << 0),
@@ -381,11 +390,7 @@ public:
   ConstString &GetBroadcasterClass() const override {
     return GetStaticBroadcasterClass();
   }
-
-  void SetShadowListener(lldb::ListenerSP listener_sp) override {
-    Broadcaster::SetShadowListener(listener_sp);
-  }
-
+  
 /// A notification structure that can be used by clients to listen
 /// for changes in a process's lifetime.
 ///
@@ -574,6 +579,10 @@ public:
   ///     of CommandObject like CommandObjectRaw, CommandObjectParsed,
   ///     or CommandObjectMultiword.
   virtual CommandObject *GetPluginCommandObject() { return nullptr; }
+  
+  /// The underlying plugin might store the low-level communication history for
+  /// this session.  Dump it into the provided stream.
+  virtual void DumpPluginHistory(Stream &s) { return; }
 
   /// Launch a new process.
   ///
@@ -603,6 +612,15 @@ public:
     error.SetErrorStringWithFormatv(
         "error: {0} does not support loading core files.", GetPluginName());
     return error;
+  }
+
+  /// The "ShadowListener" for a process is just an ordinary Listener that 
+  /// listens for all the Process event bits.  It's convenient because you can
+  /// specify it in the LaunchInfo or AttachInfo, so it will get events from
+  /// the very start of the process.
+  void SetShadowListener(lldb::ListenerSP shadow_listener_sp) {
+    if (shadow_listener_sp)
+      AddListener(shadow_listener_sp, g_all_event_bits);
   }
 
   // FUTURE WORK: GetLoadImageUtilityFunction are the first use we've
@@ -1206,7 +1224,7 @@ public:
   /// this function if the platform fails to identify the host OS version. The
   /// platform should be checked first in case you are running a simulator
   /// platform that might itself be running natively, but have different
-  /// heuristics for figuring out which OS is is emulating.
+  /// heuristics for figuring out which OS is emulating.
   ///
   /// \return
   ///     Returns the version tuple of the host OS. In case of failure an empty
@@ -1376,21 +1394,27 @@ public:
   lldb::addr_t GetHighmemCodeAddressMask();
   lldb::addr_t GetHighmemDataAddressMask();
 
-  void SetCodeAddressMask(lldb::addr_t code_address_mask) {
-    m_code_address_mask = code_address_mask;
-  }
+  void SetCodeAddressMask(lldb::addr_t code_address_mask);
+  void SetDataAddressMask(lldb::addr_t data_address_mask);
 
-  void SetDataAddressMask(lldb::addr_t data_address_mask) {
-    m_data_address_mask = data_address_mask;
-  }
+  void SetHighmemCodeAddressMask(lldb::addr_t code_address_mask);
+  void SetHighmemDataAddressMask(lldb::addr_t data_address_mask);
 
-  void SetHighmemCodeAddressMask(lldb::addr_t code_address_mask) {
-    m_highmem_code_address_mask = code_address_mask;
-  }
+  /// Some targets might use bits in a code address to indicate a mode switch,
+  /// ARM uses bit zero to signify a code address is thumb, so any ARM ABI
+  /// plug-ins would strip those bits.
+  /// Or use the high bits to authenticate a pointer value.
+  lldb::addr_t FixCodeAddress(lldb::addr_t pc);
+  lldb::addr_t FixDataAddress(lldb::addr_t pc);
 
-  void SetHighmemDataAddressMask(lldb::addr_t data_address_mask) {
-    m_highmem_data_address_mask = data_address_mask;
-  }
+  /// Use this method when you do not know, or do not care what kind of address
+  /// you are fixing. On platforms where there would be a difference between the
+  /// two types, it will pick the safest option.
+  ///
+  /// Its purpose is to signal that no specific choice was made and provide an
+  /// alternative to randomly picking FixCode/FixData address. Which could break
+  /// platforms where there is a difference (only Arm Thumb at this time).
+  lldb::addr_t FixAnyAddress(lldb::addr_t pc);
 
   /// Get the Modification ID of the process.
   ///
@@ -1428,8 +1452,13 @@ public:
   /// \param[in] exit_status
   ///     The value for the process's return code.
   ///
-  /// \see lldb::StateType
-  virtual bool SetExitStatus(int exit_status, const char *cstr);
+  /// \param[in] exit_string
+  ///     A StringRef containing the reason for exiting. May be empty.
+  ///
+  /// \return
+  ///     Returns \b false if the process was already in an exited state, \b
+  ///     true otherwise.
+  virtual bool SetExitStatus(int exit_status, llvm::StringRef exit_string);
 
   /// Check if a process is still alive.
   ///
@@ -1811,7 +1840,7 @@ public:
   ///
   /// \param[in] load_addr
   ///     The load address to query the range_info for. May include non
-  ///     address bits, these will be removed by the the ABI plugin if there is
+  ///     address bits, these will be removed by the ABI plugin if there is
   ///     one.
   ///
   /// \param[out] range_info
@@ -2531,7 +2560,7 @@ void PruneThreadPlans();
   /// \return
   ///     Returns the result of attempting to configure the feature.
   virtual Status
-  ConfigureStructuredData(ConstString type_name,
+  ConfigureStructuredData(llvm::StringRef type_name,
                           const StructuredData::ObjectSP &config_sp);
 
   /// Broadcasts the given structured data object from the given plugin.
@@ -2566,6 +2595,10 @@ void PruneThreadPlans();
   virtual void *GetImplementation() { return nullptr; }
 
   virtual void ForceScriptedState(lldb::StateType state) {}
+
+  SourceManager::SourceFileCache &GetSourceFileCache() {
+    return m_source_file_cache;
+  }
 
 protected:
   friend class Trace;
@@ -2827,7 +2860,7 @@ protected:
   ///
   ///     virtual void
   ///     HandleArrivalOfStructuredData(Process &process,
-  ///                                   ConstString type_name,
+  ///                                   llvm::StringRef type_name,
   ///                                   const StructuredData::ObjectSP
   ///                                   &object_sp)
   ///
@@ -2959,8 +2992,6 @@ protected:
   std::vector<Notifications> m_notifications; ///< The list of notifications
                                               ///that this process can deliver.
   std::vector<lldb::addr_t> m_image_tokens;
-  lldb::ListenerSP m_listener_sp; ///< Shared pointer to the listener used for
-                                  ///public events.  Can not be empty.
   BreakpointSiteList m_breakpoint_site_list; ///< This is the list of breakpoint
                                              ///locations we intend to insert in
                                              ///the target.
@@ -2977,6 +3008,7 @@ protected:
       m_unix_signals_sp; /// This is the current signal set for this process.
   lldb::ABISP m_abi_sp;
   lldb::IOHandlerSP m_process_input_reader;
+  mutable std::mutex m_process_input_reader_mutex;
   ThreadedCommunication m_stdio_communication;
   std::recursive_mutex m_stdio_communication_mutex;
   bool m_stdin_forward; /// Remember if stdin must be forwarded to remote debug
@@ -3036,6 +3068,9 @@ protected:
 
   std::unique_ptr<UtilityFunction> m_dlopen_utility_func_up;
   llvm::once_flag m_dlopen_utility_func_flag_once;
+
+  /// Per process source file cache.
+  SourceManager::SourceFileCache m_source_file_cache;
 
   size_t RemoveBreakpointOpcodesFromBuffer(lldb::addr_t addr, size_t size,
                                            uint8_t *buf) const;
@@ -3099,6 +3134,7 @@ protected:
   bool ProcessIOHandlerIsActive();
 
   bool ProcessIOHandlerExists() const {
+    std::lock_guard<std::mutex> guard(m_process_input_reader_mutex);
     return static_cast<bool>(m_process_input_reader);
   }
 

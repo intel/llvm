@@ -23,7 +23,7 @@
 #include <mutex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -146,26 +146,25 @@ program_impl::program_impl(ContextImplPtr Context,
                                             sizeof(sycl::detail::pi::PiDevice) *
                                                 NumDevices,
                                             PiDevices.data(), nullptr);
-  std::vector<device> SyclContextDevices =
-      MContext->get_info<info::context::devices>();
 
+  std::vector<device> PlatformDevices =
+      MContext->getPlatformImpl()->get_devices();
   // Keep only the subset of the devices (associated with context) that
   // were actually used to create the program.
   // This is possible when clCreateProgramWithBinary is used.
   auto NewEnd = std::remove_if(
-      SyclContextDevices.begin(), SyclContextDevices.end(),
+      PlatformDevices.begin(), PlatformDevices.end(),
       [&PiDevices](const sycl::device &Dev) {
         return PiDevices.end() ==
                std::find(PiDevices.begin(), PiDevices.end(),
                          detail::getSyclObjImpl(Dev)->getHandleRef());
       });
-  SyclContextDevices.erase(NewEnd, SyclContextDevices.end());
-  MDevices = SyclContextDevices;
+  PlatformDevices.erase(NewEnd, PlatformDevices.end());
+  MDevices = PlatformDevices;
   assert(!MDevices.empty() && "No device found for this program");
-  sycl::detail::pi::PiDevice Device =
-      getSyclObjImpl(MDevices[0])->getHandleRef();
+  sycl::detail::pi::PiDevice Device = PiDevices[0];
   // TODO check build for each device instead
-  cl_program_binary_type BinaryType;
+  cl_program_binary_type BinaryType = PI_PROGRAM_BINARY_TYPE_NONE;
   Plugin->call<PiApiKind::piProgramGetBuildInfo>(
       MProgram, Device, PI_PROGRAM_BUILD_INFO_BINARY_TYPE,
       sizeof(cl_program_binary_type), &BinaryType, nullptr);
@@ -184,20 +183,19 @@ program_impl::program_impl(ContextImplPtr Context,
       OptionsVector.data(), nullptr);
   std::string Options(OptionsVector.begin(), OptionsVector.end());
   switch (BinaryType) {
-  case PI_PROGRAM_BINARY_TYPE_NONE:
-    assert(false);
-    break;
   case PI_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
     MState = program_state::compiled;
     MCompileOptions = Options;
     MBuildOptions = Options;
-    break;
+    return;
   case PI_PROGRAM_BINARY_TYPE_LIBRARY:
   case PI_PROGRAM_BINARY_TYPE_EXECUTABLE:
     MState = program_state::linked;
     MLinkOptions = "";
     MBuildOptions = Options;
+    return;
   }
+  assert(false && "BinaryType is invalid.");
 }
 
 program_impl::program_impl(ContextImplPtr Context,
@@ -240,19 +238,6 @@ void program_impl::compile_with_kernel_name(std::string KernelName,
   MState = program_state::compiled;
 }
 
-void program_impl::compile_with_source(std::string KernelSource,
-                                       std::string CompileOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    compile(CompileOptions);
-  }
-  MState = program_state::compiled;
-  MIsInterop = true;
-}
-
 void program_impl::build_with_kernel_name(std::string KernelName,
                                           std::string BuildOptions) {
   std::lock_guard<std::mutex> Lock(MMutex);
@@ -268,19 +253,6 @@ void program_impl::build_with_kernel_name(std::string KernelName,
     Plugin->call<PiApiKind::piProgramRetain>(MProgram);
   }
   MState = program_state::linked;
-}
-
-void program_impl::build_with_source(std::string KernelSource,
-                                     std::string BuildOptions) {
-  std::lock_guard<std::mutex> Lock(MMutex);
-  throw_if_state_is_not(program_state::none);
-  // TODO should it throw if it's host?
-  if (!is_host()) {
-    create_cl_program_with_source(KernelSource);
-    build(BuildOptions);
-  }
-  MState = program_state::linked;
-  MIsInterop = true;
 }
 
 void program_impl::link(std::string LinkOptions) {
@@ -378,26 +350,6 @@ std::vector<std::vector<char>> program_impl::get_binaries() const {
                                             sizeof(char *) * Pointers.size(),
                                             Pointers.data(), nullptr);
   return Result;
-}
-
-void program_impl::create_cl_program_with_source(const std::string &Source) {
-  assert(!MProgram && "This program already has an encapsulated cl_program");
-  const char *Src = Source.c_str();
-  size_t Size = Source.size();
-  const PluginPtr &Plugin = getPlugin();
-  sycl::detail::pi::PiResult Err =
-      Plugin->call_nocheck<PiApiKind::piclProgramCreateWithSource>(
-          MContext->getHandleRef(), 1, &Src, &Size, &MProgram);
-
-  if (Err == PI_ERROR_INVALID_OPERATION) {
-    throw feature_not_supported(
-        "program::compile_with_source is not supported by the selected backend",
-        PI_ERROR_INVALID_OPERATION);
-  }
-
-  if (Err != PI_SUCCESS) {
-    Plugin->reportPiError(Err, "create_cl_program_with_source()");
-  }
 }
 
 void program_impl::compile(const std::string &Options) {
@@ -564,5 +516,5 @@ pi_native_handle program_impl::getNative() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

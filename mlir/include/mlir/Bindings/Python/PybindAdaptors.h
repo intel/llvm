@@ -97,7 +97,19 @@ struct type_caster<MlirAttribute> {
     return py::module::import(MAKE_MLIR_PYTHON_QUALNAME("ir"))
         .attr("Attribute")
         .attr(MLIR_PYTHON_CAPI_FACTORY_ATTR)(capsule)
+        .attr(MLIR_PYTHON_MAYBE_DOWNCAST_ATTR)()
         .release();
+  }
+};
+
+/// Casts object -> MlirBlock.
+template <>
+struct type_caster<MlirBlock> {
+  PYBIND11_TYPE_CASTER(MlirBlock, _("MlirBlock"));
+  bool load(handle src, bool) {
+    py::object capsule = mlirApiObjectToCapsule(src);
+    value = mlirPythonCapsuleToBlock(capsule.ptr());
+    return !mlirBlockIsNull(value);
   }
 };
 

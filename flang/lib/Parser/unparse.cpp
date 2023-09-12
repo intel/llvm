@@ -1890,10 +1890,8 @@ public:
   }
   void Unparse(const AccBindClause &x) {
     common::visit(common::visitors{
-                      [&](const Name &y) { Put('('), Walk(y), Put(')'); },
-                      [&](const ScalarDefaultCharExpr &y) {
-                        Put('('), Walk(y), Put(')');
-                      },
+                      [&](const Name &y) { Walk(y); },
+                      [&](const ScalarDefaultCharExpr &y) { Walk(y); },
                   },
         x.u);
   }
@@ -1908,9 +1906,27 @@ public:
     }
   }
   void Unparse(const AccClauseList &x) { Walk(" ", x.v, " "); }
-  void Unparse(const AccGangArgument &x) {
-    Walk("NUM:", std::get<std::optional<ScalarIntExpr>>(x.t));
-    Walk(", STATIC:", std::get<std::optional<AccSizeExpr>>(x.t));
+  void Unparse(const AccGangArgList &x) { Walk(x.v, ","); }
+  void Before(const AccSizeExpr &x) {
+    if (!x.v)
+      Put("*");
+  }
+  void Before(const AccGangArg &x) {
+    common::visit(common::visitors{
+                      [&](const AccGangArg::Num &) { Word("NUM:"); },
+                      [&](const AccGangArg::Dim &) { Word("DIM:"); },
+                      [&](const AccGangArg::Static &) { Word("STATIC:"); },
+                      [](const StatOrErrmsg &) {},
+                  },
+        x.u);
+  }
+  void Unparse(const AccCollapseArg &x) {
+    const auto &force{std::get<bool>(x.t)};
+    const auto &collapseValue{std::get<parser::ScalarIntConstantExpr>(x.t)};
+    if (force) {
+      Put("FORCE:");
+    }
+    Walk(collapseValue);
   }
   void Unparse(const OpenACCBlockConstruct &x) {
     BeginOpenACC();
@@ -1931,7 +1947,7 @@ public:
     Walk(std::get<AccBeginLoopDirective>(x.t));
     Put("\n");
     EndOpenACC();
-    Walk(std::get<std::optional<DoConstruct>>(x.t));
+    Walk(std::get<DoConstruct>(x.t));
   }
   void Unparse(const AccBeginLoopDirective &x) {
     Walk(std::get<AccLoopDirective>(x.t));
@@ -2037,7 +2053,8 @@ public:
     Walk(std::get<ScalarIntExpr>(x.t));
   }
   void Unparse(const OmpAlignedClause &x) {
-    Walk(std::get<std::list<Name>>(x.t), ",");
+    Walk(std::get<OmpObjectList>(x.t));
+    Put(",");
     Walk(std::get<std::optional<ScalarIntConstantExpr>>(x.t));
   }
   void Unparse(const OmpIfClause &x) {

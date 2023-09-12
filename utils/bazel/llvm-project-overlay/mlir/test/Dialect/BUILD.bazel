@@ -15,19 +15,21 @@ package(default_visibility = ["//visibility:public"])
             "//mlir/test:lit_data",
         ] + glob([
             "IRDL/*.irdl.mlir",
+            "LLVM/*-symbol-def.mlir",
             "Transform/*-source.mlir",
             "Transform/*-symbol-def.mlir",
             "Transform/*-symbol-decl-and-schedule.mlir",
-        ])
+        ]),
     )
     for src in glob(
-        include=["**/*.mlir"],
-        exclude=[
+        include = ["**/*.mlir"],
+        exclude = [
             "IRDL/*.irdl.mlir",
+            "LLVM/*-symbol-def.mlir",
             "Transform/*-source.mlir",
             "Transform/*-symbol-def.mlir",
             "Transform/*-symbol-decl-and-schedule.mlir",
             "Transform/test-repro-dump.mlir",
-        ]
+        ],
     )
 ]

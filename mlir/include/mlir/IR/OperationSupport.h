@@ -18,6 +18,7 @@
 #include "mlir/IR/BlockSupport.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/DialectRegistry.h"
 #include "mlir/IR/Location.h"
 #include "mlir/IR/TypeRange.h"
 #include "mlir/IR/Types.h"
@@ -46,7 +47,6 @@ class NamedAttrList;
 class Operation;
 struct OperationState;
 class OpAsmParser;
-class OpAsmParserResult;
 class OpAsmPrinter;
 class OperandRange;
 class OperandRangeRange;
@@ -136,7 +136,8 @@ public:
     virtual void deleteProperties(OpaqueProperties) = 0;
     virtual void populateDefaultProperties(OperationName opName,
                                            OpaqueProperties properties) = 0;
-    virtual LogicalResult setPropertiesFromAttr(Operation *, Attribute,
+    virtual LogicalResult setPropertiesFromAttr(OperationName, OpaqueProperties,
+                                                Attribute,
                                                 InFlightDiagnostic *) = 0;
     virtual Attribute getPropertiesAsAttr(Operation *) = 0;
     virtual void copyProperties(OpaqueProperties, OpaqueProperties) = 0;
@@ -215,8 +216,8 @@ protected:
     void deleteProperties(OpaqueProperties) final;
     void populateDefaultProperties(OperationName opName,
                                    OpaqueProperties properties) final;
-    LogicalResult setPropertiesFromAttr(Operation *, Attribute,
-                                        InFlightDiagnostic *) final;
+    LogicalResult setPropertiesFromAttr(OperationName, OpaqueProperties,
+                                        Attribute, InFlightDiagnostic *) final;
     Attribute getPropertiesAsAttr(Operation *) final;
     void copyProperties(OpaqueProperties, OpaqueProperties) final;
     llvm::hash_code hashProperties(OpaqueProperties) final;
@@ -348,7 +349,21 @@ public:
   /// interfaces for the concrete operation.
   template <typename... Models>
   void attachInterface() {
+    // Handle the case where the models resolve a promised interface.
+    (dialect_extension_detail::handleAdditionOfUndefinedPromisedInterface(
+         *getDialect(), getTypeID(), Models::Interface::getInterfaceID()),
+     ...);
+
     getImpl()->getInterfaceMap().insertModels<Models...>();
+  }
+
+  /// Returns true if `InterfaceT` has been promised by the dialect or
+  /// implemented.
+  template <typename InterfaceT>
+  bool hasPromiseOrImplementsInterface() const {
+    return dialect_extension_detail::hasPromisedInterface(
+               getDialect(), getTypeID(), InterfaceT::getInterfaceID()) ||
+           hasInterface<InterfaceT>();
   }
 
   /// Returns true if this operation has the given interface registered to it.
@@ -420,9 +435,11 @@ public:
 
   /// Define the op properties from the provided Attribute.
   LogicalResult
-  setOpPropertiesFromAttribute(Operation *op, Attribute properties,
+  setOpPropertiesFromAttribute(OperationName opName,
+                               OpaqueProperties properties, Attribute attr,
                                InFlightDiagnostic *diagnostic) const {
-    return getImpl()->setPropertiesFromAttr(op, properties, diagnostic);
+    return getImpl()->setPropertiesFromAttr(opName, properties, attr,
+                                            diagnostic);
   }
 
   void copyOpProperties(OpaqueProperties lhs, OpaqueProperties rhs) const {
@@ -547,7 +564,8 @@ public:
                                              StringRef name) final {
       if constexpr (hasProperties) {
         auto concreteOp = cast<ConcreteOp>(op);
-        return ConcreteOp::getInherentAttr(concreteOp.getProperties(), name);
+        return ConcreteOp::getInherentAttr(concreteOp->getContext(),
+                                           concreteOp.getProperties(), name);
       }
       // If the op does not have support for properties, we dispatch back to the
       // dictionnary of discardable attributes for now.
@@ -567,7 +585,8 @@ public:
     void populateInherentAttrs(Operation *op, NamedAttrList &attrs) final {
       if constexpr (hasProperties) {
         auto concreteOp = cast<ConcreteOp>(op);
-        ConcreteOp::populateInherentAttrs(concreteOp.getProperties(), attrs);
+        ConcreteOp::populateInherentAttrs(concreteOp->getContext(),
+                                          concreteOp.getProperties(), attrs);
       }
     }
     LogicalResult
@@ -609,11 +628,14 @@ public:
                                               *properties.as<Properties *>());
     }
 
-    LogicalResult setPropertiesFromAttr(Operation *op, Attribute attr,
+    LogicalResult setPropertiesFromAttr(OperationName opName,
+                                        OpaqueProperties properties,
+                                        Attribute attr,
                                         InFlightDiagnostic *diag) final {
-      if constexpr (hasProperties)
-        return ConcreteOp::setPropertiesFromAttr(
-            cast<ConcreteOp>(op).getProperties(), attr, diag);
+      if constexpr (hasProperties) {
+        auto p = properties.as<Properties *>();
+        return ConcreteOp::setPropertiesFromAttr(*p, attr, diag);
+      }
       if (diag)
         *diag << "This operation does not support properties";
       return failure();
@@ -1126,6 +1148,9 @@ public:
   /// Return the size limit for printing large ElementsAttr.
   std::optional<int64_t> getLargeElementsAttrLimit() const;
 
+  /// Return the size limit in chars for printing large resources.
+  std::optional<uint64_t> getLargeResourceStringLimit() const;
+
   /// Return if debug information should be printed.
   bool shouldPrintDebugInfo() const;
 
@@ -1151,6 +1176,9 @@ private:
   /// Elide large elements attributes if the number of elements is larger than
   /// the upper limit.
   std::optional<int64_t> elementsAttrElementLimit;
+
+  /// Elide printing large resources based on size of string.
+  std::optional<uint64_t> resourceStringCharLimit;
 
   /// Print debug information.
   bool printDebugInfoFlag : 1;

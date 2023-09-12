@@ -1783,7 +1783,7 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
 
           AttributeCommonInfo::Syntax Syntax =
               IsCXX ? AttributeCommonInfo::Syntax::AS_CXX11
-                    : AttributeCommonInfo::Syntax::AS_C2x;
+                    : AttributeCommonInfo::Syntax::AS_C23;
           return II ? hasAttribute(Syntax, ScopeII, II, getTargetInfo(),
                                    getLangOpts())
                     : 0;
@@ -1871,7 +1871,8 @@ void Preprocessor::ExpandBuiltinMacro(Token &Tok) {
     if (!Tok.isAnnotation() && Tok.getIdentifierInfo())
       Tok.setKind(tok::identifier);
     else if (Tok.is(tok::string_literal) && !Tok.hasUDSuffix()) {
-      StringLiteralParser Literal(Tok, *this);
+      StringLiteralParser Literal(Tok, *this,
+                                  StringLiteralEvalMethod::Unevaluated);
       if (Literal.hadError)
         return;
 

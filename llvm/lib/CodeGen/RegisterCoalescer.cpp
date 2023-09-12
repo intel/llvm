@@ -398,14 +398,14 @@ char RegisterCoalescer::ID = 0;
 
 char &llvm::RegisterCoalescerID = RegisterCoalescer::ID;
 
-INITIALIZE_PASS_BEGIN(RegisterCoalescer, "simple-register-coalescing",
-                      "Simple Register Coalescing", false, false)
+INITIALIZE_PASS_BEGIN(RegisterCoalescer, "register-coalescer",
+                      "Register Coalescer", false, false)
 INITIALIZE_PASS_DEPENDENCY(LiveIntervals)
 INITIALIZE_PASS_DEPENDENCY(SlotIndexes)
 INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
 INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
-INITIALIZE_PASS_END(RegisterCoalescer, "simple-register-coalescing",
-                    "Simple Register Coalescing", false, false)
+INITIALIZE_PASS_END(RegisterCoalescer, "register-coalescer",
+                    "Register Coalescer", false, false)
 
 [[nodiscard]] static bool isMoveInstr(const TargetRegisterInfo &tri,
                                       const MachineInstr *MI, Register &Src,
@@ -1396,9 +1396,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
     MachineOperand &MO = CopyMI->getOperand(I);
     if (MO.isReg()) {
       assert(MO.isImplicit() && "No explicit operands after implicit operands.");
-      // Discard VReg implicit defs.
-      if (MO.getReg().isPhysical())
-        ImplicitOps.push_back(MO);
+      assert(MO.getReg().isPhysical() && "unexpected implicit virtual register def");
+      ImplicitOps.push_back(MO);
     }
   }
 
@@ -1496,11 +1495,18 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
           LLVM_DEBUG(dbgs()
                      << "Removing undefined SubRange "
                      << PrintLaneMask(SR.LaneMask) << " : " << SR << "\n");
-          // VNI is in ValNo - remove any segments in this SubRange that have this ValNo
+
           if (VNInfo *RmValNo = SR.getVNInfoAt(CurrIdx.getRegSlot())) {
+            // VNI is in ValNo - remove any segments in this SubRange that have
+            // this ValNo
             SR.removeValNo(RmValNo);
-            UpdatedSubRanges = true;
           }
+
+          // We may not have a defined value at this point, but still need to
+          // clear out any empty subranges tentatively created by
+          // updateRegDefUses. The original subrange def may have only undefed
+          // some lanes.
+          UpdatedSubRanges = true;
         } else {
           // We know that this lane is defined by this instruction,
           // but at this point it may be empty because it is not used by
@@ -1539,9 +1545,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
     // no live-ranges would have been created for ECX.
     // Fix that!
     SlotIndex NewMIIdx = LIS->getInstructionIndex(NewMI);
-    for (MCRegUnitIterator Units(NewMI.getOperand(0).getReg(), TRI);
-         Units.isValid(); ++Units)
-      if (LiveRange *LR = LIS->getCachedRegUnit(*Units))
+    for (MCRegUnit Unit : TRI->regunits(NewMI.getOperand(0).getReg()))
+      if (LiveRange *LR = LIS->getCachedRegUnit(Unit))
         LR->createDeadDef(NewMIIdx.getRegSlot(), LIS->getVNInfoAllocator());
   }
 
@@ -1555,8 +1560,8 @@ bool RegisterCoalescer::reMaterializeTrivialDef(const CoalescerPair &CP,
   SlotIndex NewMIIdx = LIS->getInstructionIndex(NewMI);
   for (unsigned i = 0, e = NewMIImplDefs.size(); i != e; ++i) {
     MCRegister Reg = NewMIImplDefs[i];
-    for (MCRegUnitIterator Units(Reg, TRI); Units.isValid(); ++Units)
-      if (LiveRange *LR = LIS->getCachedRegUnit(*Units))
+    for (MCRegUnit Unit : TRI->regunits(Reg))
+      if (LiveRange *LR = LIS->getCachedRegUnit(Unit))
         LR->createDeadDef(NewMIIdx.getRegSlot(), LIS->getVNInfoAllocator());
   }
 
@@ -2158,14 +2163,14 @@ bool RegisterCoalescer::joinReservedPhysReg(CoalescerPair &CP) {
   // Deny any overlapping intervals.  This depends on all the reserved
   // register live ranges to look like dead defs.
   if (!MRI->isConstantPhysReg(DstReg)) {
-    for (MCRegUnitIterator UI(DstReg, TRI); UI.isValid(); ++UI) {
+    for (MCRegUnit Unit : TRI->regunits(DstReg)) {
       // Abort if not all the regunits are reserved.
-      for (MCRegUnitRootIterator RI(*UI, TRI); RI.isValid(); ++RI) {
+      for (MCRegUnitRootIterator RI(Unit, TRI); RI.isValid(); ++RI) {
         if (!MRI->isReserved(*RI))
           return false;
       }
-      if (RHS.overlaps(LIS->getRegUnit(*UI))) {
-        LLVM_DEBUG(dbgs() << "\t\tInterference: " << printRegUnit(*UI, TRI)
+      if (RHS.overlaps(LIS->getRegUnit(Unit))) {
+        LLVM_DEBUG(dbgs() << "\t\tInterference: " << printRegUnit(Unit, TRI)
                           << '\n');
         return false;
       }
@@ -2244,8 +2249,8 @@ bool RegisterCoalescer::joinReservedPhysReg(CoalescerPair &CP) {
     deleteInstr(CopyMI);
 
     // Create a new dead def at the new def location.
-    for (MCRegUnitIterator UI(DstReg, TRI); UI.isValid(); ++UI) {
-      LiveRange &LR = LIS->getRegUnit(*UI);
+    for (MCRegUnit Unit : TRI->regunits(DstReg)) {
+      LiveRange &LR = LIS->getRegUnit(Unit);
       LR.createDeadDef(DestRegIdx, LIS->getVNInfoAllocator());
     }
   }
@@ -2956,7 +2961,7 @@ void JoinVals::computeAssignment(unsigned ValNo, JoinVals &Other) {
     // its lanes.
     if (OtherV.ErasableImplicitDef &&
         TrackSubRegLiveness &&
-        (OtherV.WriteLanes & ~V.ValidLanes).any()) {
+        (OtherV.ValidLanes & ~V.ValidLanes).any()) {
       LLVM_DEBUG(dbgs() << "Cannot erase implicit_def with missing values\n");
 
       OtherV.ErasableImplicitDef = false;
@@ -4094,7 +4099,7 @@ void RegisterCoalescer::releaseMemory() {
 }
 
 bool RegisterCoalescer::runOnMachineFunction(MachineFunction &fn) {
-  LLVM_DEBUG(dbgs() << "********** SIMPLE REGISTER COALESCING **********\n"
+  LLVM_DEBUG(dbgs() << "********** REGISTER COALESCER **********\n"
                     << "********** Function: " << fn.getName() << '\n');
 
   // Variables changed between a setjmp and a longjump can have undefined value

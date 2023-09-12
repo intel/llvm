@@ -19,7 +19,7 @@
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -324,12 +324,13 @@ public:
   ///   argument.
   /// @param acc The accessor to read from.
   /// @param offset offset in bytes of the first element.
-  template <
-      typename AccessorT, typename Flags = element_aligned_tag,
-      typename = std::enable_if_t<
-          detail::is_sycl_accessor_with<AccessorT, accessor_mode_cap::can_read,
-                                        sycl::access::target::device>::value &&
-          is_simd_flag_type_v<Flags>>>
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            typename = std::enable_if_t<
+                (sycl::detail::acc_properties::is_local_accessor_v<AccessorT> ||
+                 detail::is_sycl_accessor_with<
+                     AccessorT, accessor_mode_cap::can_read,
+                     sycl::access::target::device>::value) &&
+                is_simd_flag_type_v<Flags>>>
   simd_obj_impl(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                 uint64_t offset,
@@ -929,5 +930,5 @@ template <>
 struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
 };
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -13,7 +13,6 @@
 
 #include "WebAssemblyTypeUtilities.h"
 #include "llvm/ADT/StringSwitch.h"
-#include "llvm/CodeGen/TargetRegisterInfo.h"
 
 // Get register classes enum.
 #define GET_REGINFO_ENUM
@@ -63,11 +62,6 @@ wasm::ValType WebAssembly::toValType(MVT Type) {
   }
 }
 
-wasm::ValType WebAssembly::regClassToValType(const TargetRegisterClass *RC) {
-  assert(RC != nullptr);
-  return regClassToValType(RC->getID());
-}
-
 void WebAssembly::wasmSymbolSetType(MCSymbolWasm *Sym, const Type *GlobalVT,
                                     const ArrayRef<MVT> &VTs) {
   assert(!Sym->getType());
@@ -77,13 +71,13 @@ void WebAssembly::wasmSymbolSetType(MCSymbolWasm *Sym, const Type *GlobalVT,
   // that is a reference type.
   wasm::ValType ValTy;
   bool IsTable = false;
-  if (GlobalVT->isArrayTy() &&
-      WebAssembly::isRefType(GlobalVT->getArrayElementType())) {
+  if (GlobalVT->isArrayTy() && WebAssembly::isWebAssemblyReferenceType(
+                                   GlobalVT->getArrayElementType())) {
     IsTable = true;
     const Type *ElTy = GlobalVT->getArrayElementType();
-    if (WebAssembly::isExternrefType(ElTy))
+    if (WebAssembly::isWebAssemblyExternrefType(ElTy))
       ValTy = wasm::ValType::EXTERNREF;
-    else if (WebAssembly::isFuncrefType(ElTy))
+    else if (WebAssembly::isWebAssemblyFuncrefType(ElTy))
       ValTy = wasm::ValType::FUNCREF;
     else
       report_fatal_error("unhandled reference type");

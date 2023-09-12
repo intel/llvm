@@ -131,9 +131,14 @@ static llvm::cl::opt<bool> enableOpenMP("fopenmp",
                                         llvm::cl::init(false));
 
 static llvm::cl::opt<bool>
-    enableOpenMPDevice("fopenmp-is-device",
+    enableOpenMPDevice("fopenmp-is-target-device",
                        llvm::cl::desc("enable openmp device compilation"),
                        llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    enableOpenMPGPU("fopenmp-is-gpu",
+                    llvm::cl::desc("enable openmp GPU target codegen"),
+                    llvm::cl::init(false));
 
 // A simplified subset of the OpenMP RTL Flags from Flang, only the primary
 // positive options are available, no negative options e.g. fopen_assume* vs
@@ -181,9 +186,18 @@ static llvm::cl::opt<bool> enablePolymorphic(
     llvm::cl::desc("enable polymorphic type lowering (experimental)"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<bool> enableNoPPCNativeVecElemOrder(
+    "fno-ppc-native-vector-element-order",
+    llvm::cl::desc("no PowerPC native vector element order."),
+    llvm::cl::init(false));
+
 static llvm::cl::opt<bool> useHLFIR("hlfir",
                                     llvm::cl::desc("Lower to high level FIR"),
                                     llvm::cl::init(false));
+
+static llvm::cl::opt<bool> enableCUDA("fcuda",
+                                      llvm::cl::desc("enable CUDA Fortran"),
+                                      llvm::cl::init(false));
 
 #define FLANG_EXCLUDE_CODEGEN
 #include "flang/Tools/CLOptions.inc"
@@ -280,6 +294,7 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
   // Use default lowering options for bbc.
   Fortran::lower::LoweringOptions loweringOptions{};
   loweringOptions.setPolymorphicTypeImpl(enablePolymorphic);
+  loweringOptions.setNoPPCNativeVecElemOrder(enableNoPPCNativeVecElemOrder);
   loweringOptions.setLowerToHighLevelFIR(useHLFIR || emitHLFIR);
   auto burnside = Fortran::lower::LoweringBridge::create(
       ctx, semanticsContext, defKinds, semanticsContext.intrinsics(),
@@ -288,10 +303,16 @@ static mlir::LogicalResult convertFortranSourceToMLIR(
   burnside.lower(parseTree, semanticsContext);
   mlir::ModuleOp mlirModule = burnside.getModule();
   if (enableOpenMP) {
-    auto offloadModuleOpts = OffloadModuleOpts(
-        setOpenMPTargetDebug, setOpenMPTeamSubscription,
-        setOpenMPThreadSubscription, setOpenMPNoThreadState,
-        setOpenMPNoNestedParallelism, enableOpenMPDevice, setOpenMPVersion);
+    if (enableOpenMPGPU && !enableOpenMPDevice) {
+      llvm::errs() << "FATAL: -fopenmp-is-gpu can only be set if "
+                      "-fopenmp-is-target-device is also set";
+      return mlir::failure();
+    }
+    auto offloadModuleOpts =
+        OffloadModuleOpts(setOpenMPTargetDebug, setOpenMPTeamSubscription,
+                          setOpenMPThreadSubscription, setOpenMPNoThreadState,
+                          setOpenMPNoNestedParallelism, enableOpenMPDevice,
+                          enableOpenMPGPU, setOpenMPVersion);
     setOffloadModuleInterfaceAttributes(mlirModule, offloadModuleOpts);
     setOpenMPVersionAttribute(mlirModule, setOpenMPVersion);
   }
@@ -398,7 +419,12 @@ int main(int argc, char **argv) {
   // enable parsing of OpenACC
   if (enableOpenACC) {
     options.features.Enable(Fortran::common::LanguageFeature::OpenACC);
-    options.predefinitions.emplace_back("_OPENACC", "202011");
+    options.predefinitions.emplace_back("_OPENACC", "202211");
+  }
+
+  // enable parsing of CUDA Fortran
+  if (enableCUDA) {
+    options.features.Enable(Fortran::common::LanguageFeature::CUDA);
   }
 
   Fortran::common::IntrinsicTypeDefaultKinds defaultKinds;
@@ -421,6 +447,8 @@ int main(int argc, char **argv) {
     semanticsContext.targetCharacteristics().DisableType(
         Fortran::common::TypeCategory::Real, /*kind=*/10);
   }
+  if (targetTriple.isPPC())
+    semanticsContext.targetCharacteristics().set_isPPC(true);
 
   return mlir::failed(convertFortranSourceToMLIR(
       inputFilename, options, programPrefix, semanticsContext, passPipe));

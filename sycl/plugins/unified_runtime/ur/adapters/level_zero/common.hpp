@@ -1,10 +1,10 @@
-//===--------- common.hpp - Level Zero Adapter -----------------------===//
+//===--------- common.hpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -21,7 +21,7 @@
 #include <ze_api.h>
 #include <zes_api.h>
 
-#include <ur/usm_allocator_config.hpp>
+#include <umf_pools/disjoint_pool_config_parser.hpp>
 
 struct _ur_platform_handle_t;
 
@@ -336,7 +336,7 @@ struct ReferenceCounter {
   // Used when retaining an object.
   void increment() { RefCount++; }
 
-  // Supposed to be used in pi*GetInfo* methods where ref count value is
+  // Supposed to be used in ur*GetInfo* methods where ref count value is
   // requested.
   uint32_t load() { return RefCount.load(); }
 
@@ -376,7 +376,7 @@ struct _ur_object {
   // To get exclusive access to the object in a scope use std::scoped_lock:
   //    std::scoped_lock Lock(Obj->Mutex);
   //
-  // If several pi objects are accessed in a scope then each object's mutex must
+  // If several UR objects are accessed in a scope then each object's mutex must
   // be locked. For example, to get write access to Obj1 and Obj2 and read
   // access to Obj3 in a scope use the following approach:
   //   std::shared_lock Obj3Lock(Obj3->Mutex, std::defer_lock);
@@ -403,7 +403,7 @@ struct MemAllocRecord : _ur_object {
   ur_context_handle_t Context;
 };
 
-extern usm_settings::USMAllocatorConfig USMAllocatorConfigInstance;
+extern usm::DisjointPoolAllConfigs DisjointPoolConfigInstance;
 extern const bool UseUSMAllocator;
 
 // Controls support of the indirect access kernels and deferred memory release.
@@ -436,10 +436,13 @@ class ZeUSMImportExtension {
                                                  void *) = nullptr;
 
 public:
-  // Whether user has requested Import/Release, and platform supports it.
+  // Whether platform supports Import/Release.
+  bool Supported;
+
+  // Whether user has requested Import/Release for buffers.
   bool Enabled;
 
-  ZeUSMImportExtension() : Enabled{false} {}
+  ZeUSMImportExtension() : Supported{false}, Enabled{false} {}
 
   void setZeUSMImport(ur_platform_handle_t_ *Platform);
   void doZeUSMImport(ze_driver_handle_t DriverHandle, void *HostPtr,
@@ -451,7 +454,7 @@ public:
 extern ZeUSMImportExtension ZeUSMImport;
 
 // This will count the calls to Level-Zero
-extern std::map<const char *, int> *ZeCallCount;
+extern std::map<std::string, int> *ZeCallCount;
 
 // Some opencl extensions we know are supported by all Level Zero devices.
 constexpr char ZE_SUPPORTED_EXTENSIONS[] =

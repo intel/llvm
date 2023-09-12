@@ -464,8 +464,8 @@ const char *LLVMGetModuleInlineAsm(LLVMModuleRef M, size_t *Len) {
   return Str.c_str();
 }
 
-LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty, char *AsmString,
-                              size_t AsmStringSize, char *Constraints,
+LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty, const char *AsmString,
+                              size_t AsmStringSize, const char *Constraints,
                               size_t ConstraintsSize, LLVMBool HasSideEffects,
                               LLVMBool IsAlignStack,
                               LLVMInlineAsmDialect Dialect, LLVMBool CanThrow) {
@@ -482,6 +482,61 @@ LLVMValueRef LLVMGetInlineAsm(LLVMTypeRef Ty, char *AsmString,
                              StringRef(AsmString, AsmStringSize),
                              StringRef(Constraints, ConstraintsSize),
                              HasSideEffects, IsAlignStack, AD, CanThrow));
+}
+
+const char *LLVMGetInlineAsmAsmString(LLVMValueRef InlineAsmVal, size_t *Len) {
+
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  const std::string &AsmString = cast<InlineAsm>(Val)->getAsmString();
+
+  *Len = AsmString.length();
+  return AsmString.c_str();
+}
+
+const char *LLVMGetInlineAsmConstraintString(LLVMValueRef InlineAsmVal,
+                                             size_t *Len) {
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  const std::string &ConstraintString =
+      cast<InlineAsm>(Val)->getConstraintString();
+
+  *Len = ConstraintString.length();
+  return ConstraintString.c_str();
+}
+
+LLVMInlineAsmDialect LLVMGetInlineAsmDialect(LLVMValueRef InlineAsmVal) {
+
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  InlineAsm::AsmDialect Dialect = cast<InlineAsm>(Val)->getDialect();
+
+  switch (Dialect) {
+  case InlineAsm::AD_ATT:
+    return LLVMInlineAsmDialectATT;
+  case InlineAsm::AD_Intel:
+    return LLVMInlineAsmDialectIntel;
+  }
+
+  llvm_unreachable("Unrecognized inline assembly dialect");
+  return LLVMInlineAsmDialectATT;
+}
+
+LLVMTypeRef LLVMGetInlineAsmFunctionType(LLVMValueRef InlineAsmVal) {
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  return (LLVMTypeRef)cast<InlineAsm>(Val)->getFunctionType();
+}
+
+LLVMBool LLVMGetInlineAsmHasSideEffects(LLVMValueRef InlineAsmVal) {
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  return cast<InlineAsm>(Val)->hasSideEffects();
+}
+
+LLVMBool LLVMGetInlineAsmNeedsAlignedStack(LLVMValueRef InlineAsmVal) {
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  return cast<InlineAsm>(Val)->isAlignStack();
+}
+
+LLVMBool LLVMGetInlineAsmCanUnwind(LLVMValueRef InlineAsmVal) {
+  Value *Val = unwrap<Value>(InlineAsmVal);
+  return cast<InlineAsm>(Val)->canThrow();
 }
 
 /*--.. Operations on module contexts ......................................--*/
@@ -796,9 +851,7 @@ LLVMTypeRef LLVMPointerType(LLVMTypeRef ElementType, unsigned AddressSpace) {
   return wrap(PointerType::get(unwrap(ElementType), AddressSpace));
 }
 
-LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty) {
-  return unwrap(Ty)->isOpaquePointerTy();
-}
+LLVMBool LLVMPointerTypeIsOpaque(LLVMTypeRef Ty) { return true; }
 
 LLVMTypeRef LLVMVectorType(LLVMTypeRef ElementType, unsigned ElementCount) {
   return wrap(FixedVectorType::get(unwrap(ElementType), ElementCount));
@@ -1635,16 +1688,6 @@ LLVMValueRef LLVMConstNUWMul(LLVMValueRef LHSConstant,
                              LLVMValueRef RHSConstant) {
   return wrap(ConstantExpr::getNUWMul(unwrap<Constant>(LHSConstant),
                                       unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstAnd(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getAnd(unwrap<Constant>(LHSConstant),
-                                   unwrap<Constant>(RHSConstant)));
-}
-
-LLVMValueRef LLVMConstOr(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
-  return wrap(ConstantExpr::getOr(unwrap<Constant>(LHSConstant),
-                                  unwrap<Constant>(RHSConstant)));
 }
 
 LLVMValueRef LLVMConstXor(LLVMValueRef LHSConstant, LLVMValueRef RHSConstant) {
@@ -2900,6 +2943,14 @@ void LLVMSetTailCall(LLVMValueRef Call, LLVMBool isTailCall) {
   unwrap<CallInst>(Call)->setTailCall(isTailCall);
 }
 
+LLVMTailCallKind LLVMGetTailCallKind(LLVMValueRef Call) {
+  return (LLVMTailCallKind)unwrap<CallInst>(Call)->getTailCallKind();
+}
+
+void LLVMSetTailCallKind(LLVMValueRef Call, LLVMTailCallKind kind) {
+  unwrap<CallInst>(Call)->setTailCallKind((CallInst::TailCallKind)kind);
+}
+
 /*--.. Operations on invoke instructions (only) ............................--*/
 
 LLVMBasicBlockRef LLVMGetNormalDest(LLVMValueRef Invoke) {
@@ -3446,6 +3497,36 @@ LLVMValueRef LLVMBuildFNeg(LLVMBuilderRef B, LLVMValueRef V, const char *Name) {
 
 LLVMValueRef LLVMBuildNot(LLVMBuilderRef B, LLVMValueRef V, const char *Name) {
   return wrap(unwrap(B)->CreateNot(unwrap(V), Name));
+}
+
+LLVMBool LLVMGetNUW(LLVMValueRef ArithInst) {
+  Value *P = unwrap<Value>(ArithInst);
+  return cast<Instruction>(P)->hasNoUnsignedWrap();
+}
+
+void LLVMSetNUW(LLVMValueRef ArithInst, LLVMBool HasNUW) {
+  Value *P = unwrap<Value>(ArithInst);
+  cast<Instruction>(P)->setHasNoUnsignedWrap(HasNUW);
+}
+
+LLVMBool LLVMGetNSW(LLVMValueRef ArithInst) {
+  Value *P = unwrap<Value>(ArithInst);
+  return cast<Instruction>(P)->hasNoSignedWrap();
+}
+
+void LLVMSetNSW(LLVMValueRef ArithInst, LLVMBool HasNSW) {
+  Value *P = unwrap<Value>(ArithInst);
+  cast<Instruction>(P)->setHasNoSignedWrap(HasNSW);
+}
+
+LLVMBool LLVMGetExact(LLVMValueRef DivOrShrInst) {
+  Value *P = unwrap<Value>(DivOrShrInst);
+  return cast<Instruction>(P)->isExact();
+}
+
+void LLVMSetExact(LLVMValueRef DivOrShrInst, LLVMBool IsExact) {
+  Value *P = unwrap<Value>(DivOrShrInst);
+  cast<Instruction>(P)->setIsExact(IsExact);
 }
 
 /*--.. Memory ..............................................................--*/

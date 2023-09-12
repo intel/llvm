@@ -4780,8 +4780,12 @@ def t2CDP2 : T2Cop<0b1111, (outs), (ins p_imm:$cop, imm0_15:$opc1,
 
 
 // Reading thread pointer from coprocessor register
+def : T2Pat<(ARMthread_pointer), (t2MRC 15, 0, 13, 0, 2)>,
+      Requires<[IsThumb2, IsReadTPTPIDRURW]>;
 def : T2Pat<(ARMthread_pointer), (t2MRC 15, 0, 13, 0, 3)>,
-      Requires<[IsThumb2, IsReadTPHard]>;
+      Requires<[IsThumb2, IsReadTPTPIDRURO]>;
+def : T2Pat<(ARMthread_pointer), (t2MRC 15, 0, 13, 0, 4)>,
+      Requires<[IsThumb2, IsReadTPTPIDRPRW]>;
 
 //===----------------------------------------------------------------------===//
 // ARMv8.1 Privilege Access Never extension
@@ -4889,23 +4893,23 @@ def : T2Pat<(atomic_load_32  t2addrmode_negimm8:$addr),
             (t2LDRi8    t2addrmode_negimm8:$addr)>;
 def : T2Pat<(atomic_load_32  t2addrmode_so_reg:$addr),
             (t2LDRs     t2addrmode_so_reg:$addr)>;
-def : T2Pat<(atomic_store_8  t2addrmode_imm12:$addr, GPR:$val),
+def : T2Pat<(atomic_store_8  GPR:$val, t2addrmode_imm12:$addr),
             (t2STRBi12  GPR:$val, t2addrmode_imm12:$addr)>;
-def : T2Pat<(atomic_store_8  t2addrmode_negimm8:$addr, GPR:$val),
+def : T2Pat<(atomic_store_8  GPR:$val, t2addrmode_negimm8:$addr),
             (t2STRBi8   GPR:$val, t2addrmode_negimm8:$addr)>;
-def : T2Pat<(atomic_store_8  t2addrmode_so_reg:$addr, GPR:$val),
+def : T2Pat<(atomic_store_8  GPR:$val, t2addrmode_so_reg:$addr),
             (t2STRBs    GPR:$val, t2addrmode_so_reg:$addr)>;
-def : T2Pat<(atomic_store_16 t2addrmode_imm12:$addr, GPR:$val),
+def : T2Pat<(atomic_store_16 GPR:$val, t2addrmode_imm12:$addr),
             (t2STRHi12  GPR:$val, t2addrmode_imm12:$addr)>;
-def : T2Pat<(atomic_store_16 t2addrmode_negimm8:$addr, GPR:$val),
+def : T2Pat<(atomic_store_16 GPR:$val, t2addrmode_negimm8:$addr),
             (t2STRHi8   GPR:$val, t2addrmode_negimm8:$addr)>;
-def : T2Pat<(atomic_store_16 t2addrmode_so_reg:$addr, GPR:$val),
+def : T2Pat<(atomic_store_16 GPR:$val, t2addrmode_so_reg:$addr),
             (t2STRHs    GPR:$val, t2addrmode_so_reg:$addr)>;
-def : T2Pat<(atomic_store_32 t2addrmode_imm12:$addr, GPR:$val),
+def : T2Pat<(atomic_store_32 GPR:$val,t2addrmode_imm12:$addr),
             (t2STRi12   GPR:$val, t2addrmode_imm12:$addr)>;
-def : T2Pat<(atomic_store_32 t2addrmode_negimm8:$addr, GPR:$val),
+def : T2Pat<(atomic_store_32 GPR:$val, t2addrmode_negimm8:$addr),
             (t2STRi8    GPR:$val, t2addrmode_negimm8:$addr)>;
-def : T2Pat<(atomic_store_32 t2addrmode_so_reg:$addr, GPR:$val),
+def : T2Pat<(atomic_store_32 GPR:$val, t2addrmode_so_reg:$addr),
             (t2STRs     GPR:$val, t2addrmode_so_reg:$addr)>;
 
 let AddedComplexity = 8, Predicates = [IsThumb, HasAcquireRelease, HasV7Clrex] in {

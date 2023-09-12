@@ -29,6 +29,12 @@ DEVICE_EXTERN_C_INLINE
 lldiv_t lldiv(long long x, long long y) { return __devicelib_lldiv(x, y); }
 
 DEVICE_EXTERN_C_INLINE
+float roundf(float x) { return __devicelib_roundf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float floorf(float x) { return __devicelib_floorf(x); }
+
+DEVICE_EXTERN_C_INLINE
 float scalbnf(float x, int n) { return __devicelib_scalbnf(x, n); }
 
 DEVICE_EXTERN_C_INLINE

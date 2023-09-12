@@ -64,7 +64,6 @@ _PI_API(piextMemCreateWithNativeHandle)
 _PI_API(piextMemImageCreateWithNativeHandle)
 // Program
 _PI_API(piProgramCreate)
-_PI_API(piclProgramCreateWithSource)
 _PI_API(piProgramCreateWithBinary)
 _PI_API(piProgramGetInfo)
 _PI_API(piProgramCompile)
@@ -106,7 +105,6 @@ _PI_API(piSamplerRetain)
 _PI_API(piSamplerRelease)
 // Queue commands
 _PI_API(piEnqueueKernelLaunch)
-_PI_API(piEnqueueNativeKernel)
 _PI_API(piEnqueueEventsWait)
 _PI_API(piEnqueueEventsWaitWithBarrier)
 _PI_API(piEnqueueMemBufferRead)
@@ -145,7 +143,6 @@ _PI_API(piPluginGetLastError)
 
 _PI_API(piTearDown)
 
-
 _PI_API(piextUSMEnqueueFill2D)
 _PI_API(piextUSMEnqueueMemset2D)
 _PI_API(piextUSMEnqueueMemcpy2D)
@@ -157,6 +154,14 @@ _PI_API(piextEnqueueDeviceGlobalVariableWrite)
 _PI_API(piextEnqueueDeviceGlobalVariableRead)
 
 _PI_API(piPluginGetBackendOption)
+
+_PI_API(piextEnablePeerAccess)
+_PI_API(piextDisablePeerAccess)
+_PI_API(piextPeerAccessGetInfo)
+
+// USM import/release APIs
+_PI_API(piextUSMImport)
+_PI_API(piextUSMRelease)
 
 // command-buffer Extension
 _PI_API(piextCommandBufferCreate)
@@ -172,5 +177,29 @@ _PI_API(piextCommandBufferMemBufferWriteRect)
 _PI_API(piextCommandBufferMemBufferRead)
 _PI_API(piextCommandBufferMemBufferReadRect)
 _PI_API(piextEnqueueCommandBuffer)
+
+_PI_API(piextUSMPitchedAlloc)
+
+// Bindless Images
+_PI_API(piextMemUnsampledImageHandleDestroy)
+_PI_API(piextMemSampledImageHandleDestroy)
+_PI_API(piextBindlessImageSamplerCreate)
+_PI_API(piextMemImageAllocate)
+_PI_API(piextMemImageFree)
+_PI_API(piextMemUnsampledImageCreate)
+_PI_API(piextMemSampledImageCreate)
+_PI_API(piextMemImageCopy)
+_PI_API(piextMemImageGetInfo)
+_PI_API(piextMemMipmapGetLevel)
+_PI_API(piextMemMipmapFree)
+
+// Interop
+_PI_API(piextMemImportOpaqueFD)
+_PI_API(piextMemReleaseInterop)
+_PI_API(piextMemMapExternalArray)
+_PI_API(piextImportExternalSemaphoreOpaqueFD)
+_PI_API(piextDestroyExternalSemaphore)
+_PI_API(piextWaitExternalSemaphore)
+_PI_API(piextSignalExternalSemaphore)
 
 #undef _PI_API

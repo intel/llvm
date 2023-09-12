@@ -14,12 +14,13 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <unordered_set>
 
 #include <detail/pi_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Forward declaration
@@ -27,6 +28,8 @@ class context_impl;
 class device_impl;
 class platform_impl;
 class queue_impl;
+class event_impl;
+using EventImplPtr = std::shared_ptr<sycl::detail::event_impl>;
 
 struct DeviceGlobalUSMMem {
   DeviceGlobalUSMMem(void *Ptr) : MPtr(Ptr) {}
@@ -51,11 +54,11 @@ struct DeviceGlobalMapEntry {
   std::string MUniqueId;
   // Pointer to the device_global on host.
   const void *MDeviceGlobalPtr = nullptr;
+  // Images device_global are used by.
+  std::unordered_set<RTDeviceBinaryImage *> MImages;
   // The image identifiers for the images using the device_global used by in the
   // cache.
   std::set<std::uintptr_t> MImageIdentifiers;
-  // The kernel-set IDs for the images using the device_global.
-  std::set<KernelSetId> MKSIds;
   // Size of the underlying type in the device_global.
   std::uint32_t MDeviceGlobalTSize = 0;
   // True if the device_global has been decorated with device_image_scope.
@@ -68,10 +71,11 @@ struct DeviceGlobalMapEntry {
 
   // Constructor for only initializing ID, type size, and device image scope
   // flag. The pointer to the device global will be initialized later.
-  DeviceGlobalMapEntry(std::string UniqueId, std::uintptr_t ImgId,
-                       KernelSetId KSId, std::uint32_t DeviceGlobalTSize,
+  DeviceGlobalMapEntry(std::string UniqueId, RTDeviceBinaryImage *Img,
+                       std::uint32_t DeviceGlobalTSize,
                        bool IsDeviceImageScopeDecorated)
-      : MUniqueId(UniqueId), MImageIdentifiers{ImgId}, MKSIds{KSId},
+      : MUniqueId(UniqueId), MImages{Img},
+        MImageIdentifiers{reinterpret_cast<uintptr_t>(Img)},
         MDeviceGlobalTSize(DeviceGlobalTSize),
         MIsDeviceImageScopeDecorated(IsDeviceImageScopeDecorated) {}
 
@@ -85,8 +89,7 @@ struct DeviceGlobalMapEntry {
 
   // Initialize the device_global's element type size and the flag signalling
   // if the device_global has the device_image_scope property.
-  void initialize(std::uintptr_t ImgId, KernelSetId KSId,
-                  std::uint32_t DeviceGlobalTSize,
+  void initialize(RTDeviceBinaryImage *Img, std::uint32_t DeviceGlobalTSize,
                   bool IsDeviceImageScopeDecorated) {
     if (MDeviceGlobalTSize != 0) {
       // The device global entry has already been initialized. This can happen
@@ -99,8 +102,8 @@ struct DeviceGlobalMapEntry {
           "Device global intializations disagree on image scope decoration.");
       return;
     }
-    MImageIdentifiers.insert(ImgId);
-    MKSIds.insert(KSId);
+    MImages.insert(Img);
+    MImageIdentifiers.insert(reinterpret_cast<uintptr_t>(Img));
     MDeviceGlobalTSize = DeviceGlobalTSize;
     MIsDeviceImageScopeDecorated = IsDeviceImageScopeDecorated;
   }
@@ -123,5 +126,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

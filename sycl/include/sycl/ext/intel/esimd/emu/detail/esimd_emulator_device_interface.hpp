@@ -29,7 +29,7 @@
 #include <mutex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// This is the device interface version required (and used) by this
@@ -71,7 +71,7 @@ struct ESIMDEmuPluginOpaqueData {
 __SYCL_EXPORT ESIMDDeviceInterface *getESIMDDeviceInterface();
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_EMU

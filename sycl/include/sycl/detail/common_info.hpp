@@ -8,15 +8,17 @@
 
 #pragma once
 #include <sycl/detail/export.hpp>
-#include <sycl/stl.hpp>
+
+#include <string>
+#include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 std::vector<std::string> __SYCL_EXPORT split_string(const std::string &str,
                                                     char delimeter);
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -26,7 +26,7 @@
 #include <memory>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 static const PluginPtr &getPlugin(backend Backend) {
@@ -37,6 +37,8 @@ static const PluginPtr &getPlugin(backend Backend) {
     return pi::getPlugin<backend::ext_oneapi_level_zero>();
   case backend::ext_oneapi_cuda:
     return pi::getPlugin<backend::ext_oneapi_cuda>();
+  case backend::ext_oneapi_hip:
+    return pi::getPlugin<backend::ext_oneapi_hip>();
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
                           "getPlugin: Unsupported backend " +
@@ -299,5 +301,5 @@ kernel make_kernel(pi_native_handle NativeHandle, const context &TargetContext,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

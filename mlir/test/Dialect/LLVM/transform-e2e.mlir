@@ -16,7 +16,7 @@ transform.sequence failures(propagate) {
 ^bb1(%module_op: !transform.any_op):
   %0 = transform.structured.match ops{["linalg.matmul"]} in %module_op : (!transform.any_op) -> !transform.any_op
   %1, %loops:3 = transform.structured.tile %0 [2, 2, 2] : (!transform.any_op) -> (!transform.any_op, !transform.any_op, !transform.any_op, !transform.any_op)
-  %2 = get_closest_isolated_parent %1 : (!transform.any_op) -> !transform.any_op
+  %2 = get_parent_op %1 {isolated_from_above} : (!transform.any_op) -> !transform.any_op
   transform.structured.vectorize %2 : (!transform.any_op) -> !transform.any_op
   %b = transform.bufferization.one_shot_bufferize layout{IdentityLayoutMap}
       %module_op {bufferize_function_boundaries = true}
@@ -32,7 +32,7 @@ transform.sequence failures(propagate) {
   } : !transform.any_op
 
   transform.apply_patterns to %f {
-    transform.apply_patterns.vector.apply_transfer_permutation_patterns
+    transform.apply_patterns.vector.transfer_permutation_patterns
   } : !transform.any_op
 
   transform.apply_patterns to %f {

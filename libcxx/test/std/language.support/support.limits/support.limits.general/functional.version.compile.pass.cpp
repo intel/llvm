@@ -17,14 +17,18 @@
 
 /*  Constant                           Value
     __cpp_lib_bind_back                202202L [C++23]
+                                       202306L [C++26]
     __cpp_lib_bind_front               201907L [C++20]
+                                       202306L [C++26]
     __cpp_lib_boyer_moore_searcher     201603L [C++17]
     __cpp_lib_constexpr_functional     201907L [C++20]
+    __cpp_lib_copyable_function        202306L [C++26]
+    __cpp_lib_function_ref             202306L [C++26]
     __cpp_lib_invoke                   201411L [C++17]
     __cpp_lib_invoke_r                 202106L [C++23]
     __cpp_lib_move_only_function       202110L [C++23]
     __cpp_lib_not_fn                   201603L [C++17]
-    __cpp_lib_ranges                   202106L [C++20]
+    __cpp_lib_ranges                   202207L [C++20]
     __cpp_lib_result_of_sfinae         201210L [C++14]
     __cpp_lib_transparent_operators    201210L [C++14]
                                        201510L [C++17]
@@ -50,6 +54,14 @@
 
 # ifdef __cpp_lib_constexpr_functional
 #   error "__cpp_lib_constexpr_functional should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_invoke
@@ -100,6 +112,14 @@
 
 # ifdef __cpp_lib_constexpr_functional
 #   error "__cpp_lib_constexpr_functional should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifdef __cpp_lib_invoke
@@ -159,6 +179,14 @@
 
 # ifdef __cpp_lib_constexpr_functional
 #   error "__cpp_lib_constexpr_functional should not be defined before c++20"
+# endif
+
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
 # endif
 
 # ifndef __cpp_lib_invoke
@@ -232,6 +260,14 @@
 #   error "__cpp_lib_constexpr_functional should have the value 201907L in c++20"
 # endif
 
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
+# endif
+
 # ifndef __cpp_lib_invoke
 #   error "__cpp_lib_invoke should be defined in c++20"
 # endif
@@ -257,8 +293,8 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++20"
 # endif
-# if __cpp_lib_ranges != 202106L
-#   error "__cpp_lib_ranges should have the value 202106L in c++20"
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++20"
 # endif
 
 # ifndef __cpp_lib_result_of_sfinae
@@ -318,6 +354,14 @@
 #   error "__cpp_lib_constexpr_functional should have the value 201907L in c++23"
 # endif
 
+# ifdef __cpp_lib_copyable_function
+#   error "__cpp_lib_copyable_function should not be defined before c++26"
+# endif
+
+# ifdef __cpp_lib_function_ref
+#   error "__cpp_lib_function_ref should not be defined before c++26"
+# endif
+
 # ifndef __cpp_lib_invoke
 #   error "__cpp_lib_invoke should be defined in c++23"
 # endif
@@ -355,8 +399,8 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++23"
 # endif
-# if __cpp_lib_ranges != 202106L
-#   error "__cpp_lib_ranges should have the value 202106L in c++23"
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++23"
 # endif
 
 # ifndef __cpp_lib_result_of_sfinae
@@ -386,8 +430,8 @@
 #   ifndef __cpp_lib_bind_back
 #     error "__cpp_lib_bind_back should be defined in c++26"
 #   endif
-#   if __cpp_lib_bind_back != 202202L
-#     error "__cpp_lib_bind_back should have the value 202202L in c++26"
+#   if __cpp_lib_bind_back != 202306L
+#     error "__cpp_lib_bind_back should have the value 202306L in c++26"
 #   endif
 # else // _LIBCPP_VERSION
 #   ifdef __cpp_lib_bind_back
@@ -398,8 +442,8 @@
 # ifndef __cpp_lib_bind_front
 #   error "__cpp_lib_bind_front should be defined in c++26"
 # endif
-# if __cpp_lib_bind_front != 201907L
-#   error "__cpp_lib_bind_front should have the value 201907L in c++26"
+# if __cpp_lib_bind_front != 202306L
+#   error "__cpp_lib_bind_front should have the value 202306L in c++26"
 # endif
 
 # ifndef __cpp_lib_boyer_moore_searcher
@@ -414,6 +458,32 @@
 # endif
 # if __cpp_lib_constexpr_functional != 201907L
 #   error "__cpp_lib_constexpr_functional should have the value 201907L in c++26"
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_copyable_function
+#     error "__cpp_lib_copyable_function should be defined in c++26"
+#   endif
+#   if __cpp_lib_copyable_function != 202306L
+#     error "__cpp_lib_copyable_function should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_copyable_function
+#     error "__cpp_lib_copyable_function should not be defined because it is unimplemented in libc++!"
+#   endif
+# endif
+
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_function_ref
+#     error "__cpp_lib_function_ref should be defined in c++26"
+#   endif
+#   if __cpp_lib_function_ref != 202306L
+#     error "__cpp_lib_function_ref should have the value 202306L in c++26"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_function_ref
+#     error "__cpp_lib_function_ref should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # ifndef __cpp_lib_invoke
@@ -453,8 +523,8 @@
 # ifndef __cpp_lib_ranges
 #   error "__cpp_lib_ranges should be defined in c++26"
 # endif
-# if __cpp_lib_ranges != 202106L
-#   error "__cpp_lib_ranges should have the value 202106L in c++26"
+# if __cpp_lib_ranges != 202207L
+#   error "__cpp_lib_ranges should have the value 202207L in c++26"
 # endif
 
 # ifndef __cpp_lib_result_of_sfinae

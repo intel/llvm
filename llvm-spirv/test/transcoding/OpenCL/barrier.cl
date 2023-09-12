@@ -2,7 +2,7 @@
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
 // RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-// RUN: llvm-spirv %t.spv -r -emit-opaque-pointers --spirv-target-env=CL1.2 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv %t.spv -r --spirv-target-env=CL1.2 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // This test checks that the translator is capable to correctly translate
 // barrier OpenCL C 1.2 built-in function [1] into corresponding SPIR-V
@@ -28,7 +28,7 @@ __kernel void test_barrier_non_const_flags(cl_mem_fence_flags flags) {
   // barrier(flags);
 }
 
-// CHECK-SPIRV: EntryPoint {{[0-9]+}} [[TEST_CONST_FLAGS:[0-9]+]] "test_barrier_const_flags"
+// CHECK-SPIRV: EntryPoint [[#]] [[TEST_CONST_FLAGS:[0-9]+]] "test_barrier_const_flags"
 // CHECK-SPIRV: TypeInt [[UINT:[0-9]+]] 32 0
 //
 // In SPIR-V, barrier is represented as OpControlBarrier [3] and OpenCL

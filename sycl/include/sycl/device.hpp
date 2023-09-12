@@ -8,24 +8,27 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/platform.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/aspects.hpp>                                     // for aspect
+#include <sycl/backend_types.hpp>                               // for backend
+#include <sycl/detail/defines_elementary.hpp>                   // for __SY...
+#include <sycl/detail/export.hpp>                               // for __SY...
+#include <sycl/detail/info_desc_helpers.hpp>                    // for is_d...
+#include <sycl/detail/owner_less_base.hpp>                      // for Owne...
+#include <sycl/detail/pi.h>                                     // for pi_n...
+#include <sycl/device_selector.hpp>                             // for Enab...
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
+#include <sycl/info/info_desc.hpp>                              // for part...
+#include <sycl/platform.hpp>                                    // for plat...
 
-#include <memory>
-#include <utility>
+#include <cstddef>     // for size_t
+#include <memory>      // for shar...
+#include <string>      // for string
+#include <type_traits> // for add_...
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device_selector;
 template <backend BackendName, class SyclObjectT>
@@ -41,6 +44,12 @@ enum class aspect;
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
+
+enum class peer_access {
+  access_supported = 0x0,
+  atomics_supported = 0x1,
+};
+
 } // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
@@ -89,6 +98,13 @@ public:
   device &operator=(const device &rhs) = default;
 
   device &operator=(device &&rhs) = default;
+
+  void ext_oneapi_enable_peer_access(const device &peer);
+  void ext_oneapi_disable_peer_access(const device &peer);
+  bool
+  ext_oneapi_can_access_peer(const device &peer,
+                             ext::oneapi::peer_access value =
+                                 ext::oneapi::peer_access::access_supported);
 
   /// Get instance of device
   ///
@@ -277,7 +293,7 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

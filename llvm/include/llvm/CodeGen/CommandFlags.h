@@ -94,6 +94,8 @@ std::string getTrapFuncName();
 
 bool getUseCtors();
 
+bool getDisableIntegratedAS();
+
 bool getRelaxELFRelocations();
 
 bool getDataSections();
@@ -136,7 +138,7 @@ std::optional<bool> getExplicitValueTrackingVariableLocations();
 
 bool getForceDwarfFrameSection();
 
-bool getXRayOmitFunctionIndex();
+bool getXRayFunctionIndex();
 
 bool getDebugStrictDwarf();
 

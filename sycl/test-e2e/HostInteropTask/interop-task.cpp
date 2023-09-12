@@ -19,7 +19,7 @@ template <typename T> class Init;
 
 template <typename BufferT, typename ValueT>
 void checkBufferValues(BufferT Buffer, ValueT Value) {
-  auto Acc = Buffer.template get_access<mode::read>();
+  auto Acc = Buffer.get_host_access();
   for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
     if (Acc[Idx] != Value) {
       std::cerr << "buffer[" << Idx << "] = " << Acc[Idx]

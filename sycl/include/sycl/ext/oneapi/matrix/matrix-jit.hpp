@@ -15,7 +15,7 @@
 #include <sycl/feature_test.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental::matrix {
 
 enum class matrix_layout { row_major, col_major, packed_a, packed_b };
@@ -643,5 +643,5 @@ public:
 #undef SPV_MATRIX_LAYOUT_TRAITS
 
 } // namespace ext::oneapi::experimental::matrix
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

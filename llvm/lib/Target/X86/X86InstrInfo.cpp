@@ -185,7 +185,7 @@ bool X86InstrInfo::isDataInvariant(MachineInstr &MI) {
       isSBB(Opcode) || isSUB(Opcode) || isXOR(Opcode))
     return true;
   // Arithmetic with just 32-bit and 64-bit variants and no immediates.
-  if (isADCX(Opcode) || isADOX(Opcode) || isANDN(Opcode))
+  if (isANDN(Opcode))
     return true;
   // Unary arithmetic operations.
   if (isDEC(Opcode) || isINC(Opcode) || isNEG(Opcode))
@@ -284,14 +284,10 @@ bool X86InstrInfo::isDataInvariantLoad(MachineInstr &MI) {
   case X86::ADC16rm:
   case X86::ADC32rm:
   case X86::ADC64rm:
-  case X86::ADCX32rm:
-  case X86::ADCX64rm:
   case X86::ADD8rm:
   case X86::ADD16rm:
   case X86::ADD32rm:
   case X86::ADD64rm:
-  case X86::ADOX32rm:
-  case X86::ADOX64rm:
   case X86::AND8rm:
   case X86::AND16rm:
   case X86::AND32rm:
@@ -871,13 +867,14 @@ bool X86InstrInfo::isReallyTriviallyReMaterializable(
       if (BaseReg == 0 || BaseReg == X86::RIP)
         return true;
       // Allow re-materialization of PIC load.
-      if (!ReMatPICStubLoad && MI.getOperand(1 + X86::AddrDisp).isGlobal())
-        return false;
-      const MachineFunction &MF = *MI.getParent()->getParent();
-      const MachineRegisterInfo &MRI = MF.getRegInfo();
-      return regIsPICBase(BaseReg, MRI);
+      if (!(!ReMatPICStubLoad && MI.getOperand(1 + X86::AddrDisp).isGlobal())) {
+        const MachineFunction &MF = *MI.getParent()->getParent();
+        const MachineRegisterInfo &MRI = MF.getRegInfo();
+        if (regIsPICBase(BaseReg, MRI))
+          return true;
+      }
     }
-    return false;
+    break;
   }
 
   case X86::LEA32r:
@@ -895,11 +892,13 @@ bool X86InstrInfo::isReallyTriviallyReMaterializable(
       // Allow re-materialization of lea PICBase + x.
       const MachineFunction &MF = *MI.getParent()->getParent();
       const MachineRegisterInfo &MRI = MF.getRegInfo();
-      return regIsPICBase(BaseReg, MRI);
+      if (regIsPICBase(BaseReg, MRI))
+        return true;
     }
-    return false;
+    break;
   }
   }
+  return TargetInstrInfo::isReallyTriviallyReMaterializable(MI);
 }
 
 void X86InstrInfo::reMaterialize(MachineBasicBlock &MBB,
@@ -971,18 +970,19 @@ static bool findRedundantFlagInstr(MachineInstr &CmpInstr,
                                    MachineInstr **AndInstr,
                                    const TargetRegisterInfo *TRI,
                                    bool &NoSignFlag, bool &ClearsOverflowFlag) {
-  if (CmpValDefInstr.getOpcode() != X86::SUBREG_TO_REG)
+  if (!(CmpValDefInstr.getOpcode() == X86::SUBREG_TO_REG &&
+        CmpInstr.getOpcode() == X86::TEST64rr) &&
+      !(CmpValDefInstr.getOpcode() == X86::COPY &&
+        CmpInstr.getOpcode() == X86::TEST16rr))
     return false;
 
-  if (CmpInstr.getOpcode() != X86::TEST64rr)
-    return false;
-
-  // CmpInstr is a TEST64rr instruction, and `X86InstrInfo::analyzeCompare`
-  // guarantees that it's analyzable only if two registers are identical.
-  assert(
-      (CmpInstr.getOperand(0).getReg() == CmpInstr.getOperand(1).getReg()) &&
-      "CmpInstr is an analyzable TEST64rr, and `X86InstrInfo::analyzeCompare` "
-      "requires two reg operands are the same.");
+  // CmpInstr is a TEST16rr/TEST64rr instruction, and
+  // `X86InstrInfo::analyzeCompare` guarantees that it's analyzable only if two
+  // registers are identical.
+  assert((CmpInstr.getOperand(0).getReg() == CmpInstr.getOperand(1).getReg()) &&
+         "CmpInstr is an analyzable TEST16rr/TEST64rr, and "
+         "`X86InstrInfo::analyzeCompare` requires two reg operands are the"
+         "same.");
 
   // Caller (`X86InstrInfo::optimizeCompareInstr`) guarantees that
   // `CmpValDefInstr` defines the value that's used by `CmpInstr`; in this case
@@ -990,20 +990,37 @@ static bool findRedundantFlagInstr(MachineInstr &CmpInstr,
   // redundant.
   assert(
       (MRI->getVRegDef(CmpInstr.getOperand(0).getReg()) == &CmpValDefInstr) &&
-      "Caller guarantees that TEST64rr is a user of SUBREG_TO_REG.");
+      "Caller guarantees that TEST64rr is a user of SUBREG_TO_REG or TEST16rr "
+      "is a user of COPY sub16bit.");
+  MachineInstr *VregDefInstr = nullptr;
+  if (CmpInstr.getOpcode() == X86::TEST16rr) {
+    if (!CmpValDefInstr.getOperand(1).getReg().isVirtual())
+      return false;
+    VregDefInstr = MRI->getVRegDef(CmpValDefInstr.getOperand(1).getReg());
+    if (!VregDefInstr)
+      return false;
+    // We can only remove test when AND32ri or AND64ri32 whose imm can fit 16bit
+    // size, others 32/64 bit ops would test higher bits which test16rr don't
+    // want to.
+    if (!((VregDefInstr->getOpcode() == X86::AND32ri ||
+           VregDefInstr->getOpcode() == X86::AND64ri32) &&
+          isUInt<16>(VregDefInstr->getOperand(2).getImm())))
+      return false;
+  }
 
-  // As seen in X86 td files, CmpValDefInstr.getOperand(1).getImm() is typically
-  // 0.
-  if (CmpValDefInstr.getOperand(1).getImm() != 0)
-    return false;
+  if (CmpInstr.getOpcode() == X86::TEST64rr) {
+    // As seen in X86 td files, CmpValDefInstr.getOperand(1).getImm() is
+    // typically 0.
+    if (CmpValDefInstr.getOperand(1).getImm() != 0)
+      return false;
 
-  // As seen in X86 td files, CmpValDefInstr.getOperand(3) is typically
-  // sub_32bit or sub_xmm.
-  if (CmpValDefInstr.getOperand(3).getImm() != X86::sub_32bit)
-    return false;
+    // As seen in X86 td files, CmpValDefInstr.getOperand(3) is typically
+    // sub_32bit or sub_xmm.
+    if (CmpValDefInstr.getOperand(3).getImm() != X86::sub_32bit)
+      return false;
 
-  MachineInstr *VregDefInstr =
-      MRI->getVRegDef(CmpValDefInstr.getOperand(2).getReg());
+    VregDefInstr = MRI->getVRegDef(CmpValDefInstr.getOperand(2).getReg());
+  }
 
   assert(VregDefInstr && "Must have a definition (SSA)");
 
@@ -1021,6 +1038,11 @@ static bool findRedundantFlagInstr(MachineInstr &CmpInstr,
     //   ...                                // EFLAGS not changed
     //   %extended_reg = subreg_to_reg 0, %reg, %subreg.sub_32bit
     //   test64rr %extended_reg, %extended_reg, implicit-def $eflags
+    // or
+    //   %reg = and32* ...
+    //   ...                         // EFLAGS not changed.
+    //   %src_reg = copy %reg.sub_16bit:gr32
+    //   test16rr %src_reg, %src_reg, implicit-def $eflags
     //
     // If subsequent readers use a subset of bits that don't change
     // after `and*` instructions, it's likely that the test64rr could
@@ -2542,6 +2564,10 @@ bool X86InstrInfo::findCommutedOpIndices(const MachineInstr &MI,
   case X86::VPDPWSSDrr:
   case X86::VPDPWSSDSYrr:
   case X86::VPDPWSSDSrr:
+  case X86::VPDPWUUDrr:
+  case X86::VPDPWUUDYrr:
+  case X86::VPDPWUUDSrr:
+  case X86::VPDPWUUDSYrr:
   case X86::VPDPBSSDSrr:
   case X86::VPDPBSSDSYrr:
   case X86::VPDPBSSDrr:
@@ -3621,8 +3647,15 @@ void X86InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
 
 std::optional<DestSourcePair>
 X86InstrInfo::isCopyInstrImpl(const MachineInstr &MI) const {
-  if (MI.isMoveReg())
+  if (MI.isMoveReg()) {
+    // FIXME: Dirty hack for apparent invariant that doesn't hold when
+    // subreg_to_reg is coalesced with ordinary copies, such that the bits that
+    // were asserted as 0 are now undef.
+    if (MI.getOperand(0).isUndef() && MI.getOperand(0).getSubReg())
+      return std::nullopt;
+
     return DestSourcePair{MI.getOperand(0), MI.getOperand(1)};
+  }
   return std::nullopt;
 }
 
@@ -4421,10 +4454,15 @@ bool X86InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr, Register SrcReg,
           break;
         }
 
-        // Look back for the following pattern, in which case the test64rr
-        // instruction could be erased.
+        // Look back for the following pattern, in which case the
+        // test16rr/test64rr instruction could be erased.
         //
-        // Example:
+        // Example for test16rr:
+        //  %reg = and32ri %in_reg, 5
+        //  ...                         // EFLAGS not changed.
+        //  %src_reg = copy %reg.sub_16bit:gr32
+        //  test16rr %src_reg, %src_reg, implicit-def $eflags
+        // Example for test64rr:
         //  %reg = and32ri %in_reg, 5
         //  ...                         // EFLAGS not changed.
         //  %src_reg = subreg_to_reg 0, %reg, %subreg.sub_index
@@ -8405,6 +8443,12 @@ void X86InstrInfo::setExecutionDomain(MachineInstr &MI, unsigned Domain) const {
   MI.setDesc(get(table[Domain - 1]));
 }
 
+void X86InstrInfo::insertNoop(MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MI) const {
+  DebugLoc DL;
+  BuildMI(MBB, MI, DL, get(X86::NOOP));
+}
+
 /// Return the noop instruction to use for a noop.
 MCInst X86InstrInfo::getNop() const {
   MCInst Nop;
@@ -9199,7 +9243,7 @@ X86InstrInfo::describeLoadedValue(const MachineInstr &MI, Register Reg) const {
     DIExpression::appendOffset(Ops, Offset);
     Expr = DIExpression::get(MI.getMF()->getFunction().getContext(), Ops);
 
-    return ParamLoadedValue(*Op, Expr);;
+    return ParamLoadedValue(*Op, Expr);
   }
   case X86::MOV8ri:
   case X86::MOV16ri:

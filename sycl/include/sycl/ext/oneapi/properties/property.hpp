@@ -78,7 +78,7 @@ template <> struct IsCompileTimeProperty<bar_key> : std::true_type {};
 
 // (7.)
 template <> struct PropertyMetaInfo<bar_key::value_t> {
-  static constexpr const char *value = "sycl-bar";
+  static constexpr const char *name = "sycl-bar";
   static constexpr int value = 5;
 };
 
@@ -154,8 +154,12 @@ template <> struct IsRuntimeProperty<foo> : std::true_type {};
 
 #pragma once
 
+#include <iosfwd>      // for nullptr_t
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for false_type
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
@@ -233,5 +237,5 @@ template <typename, typename> struct is_property_key_of : std::false_type {};
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -18,7 +18,7 @@
 #include <algorithm>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 void force_type(info::device_type &t, const info::device_type &ft) {
   if (t == info::device_type::all) {
@@ -208,10 +208,56 @@ pi_native_handle device::getNative() const { return impl->getNative(); }
 
 bool device::has(aspect Aspect) const { return impl->has(Aspect); }
 
+void device::ext_oneapi_enable_peer_access(const device &peer) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  if (Device != Peer) {
+    auto Plugin = impl->getPlugin();
+    Plugin->call<detail::PiApiKind::piextEnablePeerAccess>(Device, Peer);
+  }
+}
+
+void device::ext_oneapi_disable_peer_access(const device &peer) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+  if (Device != Peer) {
+    auto Plugin = impl->getPlugin();
+    Plugin->call<detail::PiApiKind::piextDisablePeerAccess>(Device, Peer);
+  }
+}
+
+bool device::ext_oneapi_can_access_peer(const device &peer,
+                                        ext::oneapi::peer_access attr) {
+  const sycl::detail::pi::PiDevice Device = impl->getHandleRef();
+  const sycl::detail::pi::PiDevice Peer = peer.impl->getHandleRef();
+
+  if (Device == Peer) {
+    return true;
+  }
+
+  size_t returnSize;
+  int value;
+
+  sycl::detail::pi::PiPeerAttr PiAttr = [&]() {
+    switch (attr) {
+    case ext::oneapi::peer_access::access_supported:
+      return PI_PEER_ACCESS_SUPPORTED;
+    case ext::oneapi::peer_access::atomics_supported:
+      return PI_PEER_ATOMICS_SUPPORTED;
+    }
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unrecognized peer access attribute.");
+  }();
+  auto Plugin = impl->getPlugin();
+  Plugin->call<detail::PiApiKind::piextPeerAccessGetInfo>(
+      Device, Peer, PiAttr, sizeof(int), &value, &returnSize);
+
+  return value == 1;
+}
 bool device::ext_oneapi_architecture_is(
     ext::oneapi::experimental::architecture arch) {
   return impl->extOneapiArchitectureIs(arch);
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

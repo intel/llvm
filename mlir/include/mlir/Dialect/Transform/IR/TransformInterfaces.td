@@ -41,10 +41,15 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
         transformation represented by the current op is targeted. Returns a
         special status object indicating whether the transformation succeeded
         or failed, and, if it failed, whether the failure is recoverable or not.
+
+        IR must be created, modified and deleted with the provided rewriter.
+        implementations are responsible for setting the insertion point of the
+        rewriter to the desired location.
       }],
       /*returnType=*/"::mlir::DiagnosedSilenceableFailure",
       /*name=*/"apply",
       /*arguments=*/(ins
+          "::mlir::transform::TransformRewriter &":$rewriter,
           "::mlir::transform::TransformResults &":$transformResults,
           "::mlir::transform::TransformState &":$state
     )>,
@@ -99,6 +104,11 @@ def TransformOpInterface : OpInterface<"TransformOpInterface"> {
       diag << $_op->getName() << " failed to apply";
       diag.attachNote(target->getLoc()) << "when applied to this op";
       return diag;
+    }
+
+    /// Returns all operands that are handles and being consumed by this op.
+    ::llvm::SmallVector<OpOperand *> getConsumedHandleOpOperands() {
+      return ::mlir::transform::detail::getConsumedHandleOpOperands($_op);
     }
   }];
 
@@ -189,6 +199,10 @@ def ParamProducerTransformOpTrait : NativeOpTrait<"ParamProducerTransformOpTrait
   let cppNamespace = "::mlir::transform";
 }
 
+def ReportTrackingListenerFailuresOpTrait : NativeOpTrait<"ReportTrackingListenerFailuresOpTrait"> {
+  let cppNamespace = "::mlir::transform";
+}
+
 def FindPayloadReplacementOpInterface
     : OpInterface<"FindPayloadReplacementOpInterface"> {
   let description = [{
@@ -226,9 +240,13 @@ def FindPayloadReplacementOpInterface
 
 def PatternDescriptorOpInterface : OpInterface<"PatternDescriptorOpInterface"> {
   let description = [{
-    This interface should be implemented by ops that select patterns of a
-    `transform.apply_patterns` op. It provides a method to populate a rewrite
+    This interface should be implemented by ops that select rewrite patterns of
+    a `transform.apply_patterns` op. It provides a method to populate a rewrite
     pattern set with patterns.
+
+    Note: Conversion patterns are rewrite patterns in MLIR, but they should not
+    be populated with `PatternDescriptorOpInterface` because they cannot be
+    used in a greedy pattern rewrite.
   }];
 
   let cppNamespace = "::mlir::transform";
@@ -236,11 +254,107 @@ def PatternDescriptorOpInterface : OpInterface<"PatternDescriptorOpInterface"> {
   let methods = [
     InterfaceMethod<
       /*desc=*/[{
-        Populate patterns into the given pattern set.
+        Populate rewrite patterns into the given pattern set.
       }],
       /*returnType=*/"void",
       /*name=*/"populatePatterns",
-      /*arguments=*/(ins "RewritePatternSet &":$patterns)
+      /*arguments=*/(ins "::mlir::RewritePatternSet &":$patterns)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Populate rewrite patterns into the given pattern set taking into account
+        the transform state.
+      }],
+      /*returnType=*/"void",
+      /*name=*/"populatePatternsWithState",
+      /*arguments=*/(ins "::mlir::RewritePatternSet &":$patterns,
+                         "::mlir::transform::TransformState &":$state),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{ $_op.populatePatterns(patterns); }]
+    >
+  ];
+}
+
+def TypeConverterBuilderOpInterface
+    : OpInterface<"TypeConverterBuilderOpInterface"> {
+  let description = [{
+    This interface should be implemented by ops that specify a type converter
+    for a dialect conversion. Such ops can be used with
+    "apply_conversion_patterns".
+  }];
+
+  let cppNamespace = "::mlir::transform";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the type converter to be used with a dialect conversion.
+      }],
+      /*returnType=*/"std::unique_ptr<::mlir::TypeConverter>",
+      /*name=*/"getTypeConverter",
+      /*arguments=*/(ins)
+    >,
+    StaticInterfaceMethod<
+      /*desc=*/[{
+        Return the type of type converter that this `getTypeConverter` returns.
+        This function is used for op verification.
+      }],
+      /*returnType=*/"StringRef",
+      /*name=*/"getTypeConverterType",
+      /*arguments=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/[{ return "TypeConverter"; }]
+    >,
+  ];
+}
+
+def ConversionPatternDescriptorOpInterface
+    : OpInterface<"ConversionPatternDescriptorOpInterface"> {
+  let description = [{
+    This interface should be implemented by ops that select conversion patterns
+    of a `transform.apply_patterns` op. It provides a method to populate a
+    rewrite pattern set with conversion patterns.
+
+    Note: Non-conversion rewrite patterns should not be populated with
+    `ConversionPatternDescriptorOpInterface` because it is not generally safe
+    to use non-conversion rewrite patterns as part of a dialect conversion.
+  }];
+
+  let cppNamespace = "::mlir::transform";
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        Populate conversion patterns into the given pattern set with the
+        given type converter.
+      }],
+      /*returnType=*/"void",
+      /*name=*/"populatePatterns",
+      /*arguments=*/(ins "::mlir::TypeConverter &":$typeConverter,
+                         "::mlir::RewritePatternSet &":$patterns)
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Return the type converter to be used with this pattern set. If no
+        type converter is specified, the default type converter of the enclosing
+        "apply_conversion_patterns" op is used.
+      }],
+      /*returnType=*/"std::unique_ptr<::mlir::TypeConverter>",
+      /*name=*/"getTypeConverter",
+      /*arguments=*/(ins),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/"return nullptr;"
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        Verify the default type converter that is provided by the enclosing
+        "apply_conversion_patterns" op.
+      }],
+      /*returnType=*/"::mlir::LogicalResult",
+      /*name=*/"verifyTypeConverter",
+      /*arguments=*/(ins "TypeConverterBuilderOpInterface":$builder),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/"return success();"
     >,
   ];
 }

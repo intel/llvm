@@ -39,6 +39,7 @@
 #include "clang/Serialization/ASTReader.h"
 #include "clang/Serialization/GlobalModuleIndex.h"
 #include "clang/Serialization/InMemoryModuleCache.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Config/llvm-config.h"
@@ -113,7 +114,7 @@ bool CompilerInstance::createTarget() {
   // Check whether AuxTarget exists, if not, then create TargetInfo for the
   // other side of CUDA/OpenMP/SYCL compilation.
   if (!getAuxTarget() &&
-      (getLangOpts().CUDA || getLangOpts().OpenMPIsDevice ||
+      (getLangOpts().CUDA || getLangOpts().OpenMPIsTargetDevice ||
        getLangOpts().isSYCL()) &&
       !getFrontendOpts().AuxTriple.empty()) {
     auto TO = std::make_shared<TargetOptions>();
@@ -897,10 +898,12 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
     TempPath += "-%%%%%%%%";
     TempPath += OutputExtension;
     TempPath += ".tmp";
+    llvm::sys::fs::OpenFlags BinaryFlags =
+        Binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text;
     Expected<llvm::sys::fs::TempFile> ExpectedFile =
         llvm::sys::fs::TempFile::create(
             TempPath, llvm::sys::fs::all_read | llvm::sys::fs::all_write,
-            Binary ? llvm::sys::fs::OF_None : llvm::sys::fs::OF_Text);
+            BinaryFlags);
 
     llvm::Error E = handleErrors(
         ExpectedFile.takeError(), [&](const llvm::ECError &E) -> llvm::Error {
@@ -910,7 +913,9 @@ CompilerInstance::createOutputFileImpl(StringRef OutputPath, bool Binary,
             StringRef Parent = llvm::sys::path::parent_path(OutputPath);
             EC = llvm::sys::fs::create_directories(Parent);
             if (!EC) {
-              ExpectedFile = llvm::sys::fs::TempFile::create(TempPath);
+              ExpectedFile = llvm::sys::fs::TempFile::create(
+                  TempPath, llvm::sys::fs::all_read | llvm::sys::fs::all_write,
+                  BinaryFlags);
               if (!ExpectedFile)
                 return llvm::errorCodeToError(
                     llvm::errc::no_such_file_or_directory);
@@ -1182,11 +1187,11 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
                  });
 
   // If the original compiler invocation had -fmodule-name, pass it through.
-  Invocation->getLangOpts()->ModuleName =
-      ImportingInstance.getInvocation().getLangOpts()->ModuleName;
+  Invocation->getLangOpts().ModuleName =
+      ImportingInstance.getInvocation().getLangOpts().ModuleName;
 
   // Note the name of the module we're building.
-  Invocation->getLangOpts()->CurrentModule = std::string(ModuleName);
+  Invocation->getLangOpts().CurrentModule = std::string(ModuleName);
 
   // Make sure that the failed-module structure has been allocated in
   // the importing instance, and propagate the pointer to the newly-created
@@ -1214,7 +1219,9 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
   // Don't free the remapped file buffers; they are owned by our caller.
   PPOpts.RetainRemappedFileBuffers = true;
 
-  Invocation->getDiagnosticOpts().VerifyDiagnostics = 0;
+  DiagnosticOptions &DiagOpts = Invocation->getDiagnosticOpts();
+
+  DiagOpts.VerifyDiagnostics = 0;
   assert(ImportingInstance.getInvocation().getModuleHash() ==
          Invocation->getModuleHash() && "Module hash mismatch!");
 
@@ -1230,6 +1237,9 @@ compileModuleImpl(CompilerInstance &ImportingInstance, SourceLocation ImportLoc,
   Instance.createDiagnostics(new ForwardingDiagnosticConsumer(
                                    ImportingInstance.getDiagnosticClient()),
                              /*ShouldOwnClient=*/true);
+
+  if (llvm::is_contained(DiagOpts.SystemHeaderWarningsModules, ModuleName))
+    Instance.getDiagnostics().setSuppressSystemWarnings(false);
 
   if (FrontendOpts.ModulesShareFileManager) {
     Instance.setFileManager(&ImportingInstance.getFileManager());
@@ -2167,7 +2177,7 @@ void CompilerInstance::createModuleFromSource(SourceLocation ImportLoc,
 
   FrontendInputFile Input(
       ModuleMapFileName,
-      InputKind(getLanguageFromOptions(*Invocation->getLangOpts()),
+      InputKind(getLanguageFromOptions(Invocation->getLangOpts()),
                 InputKind::ModuleMap, /*Preprocessed*/true));
 
   std::string NullTerminatedSource(Source.str());

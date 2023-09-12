@@ -42,10 +42,13 @@ static bool isZeroValue(Value val) {
 }
 
 // Helper to detect a sparse tensor type operand.
-static bool isSparseTensor(OpOperand *op) {
-  auto enc = getSparseTensorEncoding(op->get().getType());
-  return enc && llvm::is_contained(enc.getLvlTypes(), DimLevelType::Compressed);
+static bool isSparseTensor(Value v) {
+  auto enc = getSparseTensorEncoding(v.getType());
+  return enc && !llvm::all_of(enc.getLvlTypes(), [](auto dlt) {
+           return dlt == DimLevelType::Dense;
+         });
 }
+static bool isSparseTensor(OpOperand *op) { return isSparseTensor(op->get()); }
 
 // Helper method to find zero/uninitialized allocation.
 static bool isAlloc(OpOperand *op, bool isZero) {
@@ -384,6 +387,221 @@ public:
     }
     // Fail otherwise.
     return failure();
+  }
+};
+
+/// Rewrites a sequence of operations for sparse tensor selections in to
+/// semi-ring operations such that they can be compiled correctly by the sparse
+/// compiler. E.g., transforming the following sequence
+///
+/// %sel = arith.select %cond, %sp1, %sp2
+///
+/// to
+///
+/// %sel = binary %sp1, %sp2:
+///         both  (%l, %r) {yield select %cond, %l, %r}
+///         left  (%l)     {yield select %cond, %l,  0}
+///         right (%r)     {yield select %cond,  0, %r}
+///
+/// TODO: We require that the tensor used for extracting conditions to be dense
+/// to sparsify the code. To support a sparse condition tensor, we need a
+/// tri-nary operation.
+struct GenSemiRingSelect : public OpRewritePattern<GenericOp> {
+public:
+  using OpRewritePattern<GenericOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    // Rejects non sparse kernels.
+    if (!op.hasTensorSemantics() || !hasAnySparseOperand(op))
+      return failure();
+
+    Location loc = op.getLoc();
+    SmallVector<std::pair<Operation *, sparse_tensor::BinaryOp>> semiRings;
+    for (Operation &inst : *op.getBody()) {
+      // Matches pattern.
+      auto matched = isRewritablePattern(op, &inst);
+      if (!matched.has_value())
+        continue;
+
+      rewriter.setInsertionPoint(&inst);
+      auto [c, t, f] = matched.value();
+      assert(t.getType() == f.getType());
+      auto selTp = t.getType();
+      auto c0 = constantZero(rewriter, loc, selTp);
+      auto binOp = rewriter.create<sparse_tensor::BinaryOp>(loc, selTp, t, f);
+      // Initializes all the blocks.
+      rewriter.createBlock(&binOp.getOverlapRegion(), {}, {selTp, selTp},
+                           {t.getLoc(), f.getLoc()});
+      rewriter.createBlock(&binOp.getRightRegion(), {}, selTp, f.getLoc());
+      rewriter.createBlock(&binOp.getLeftRegion(), {}, selTp, t.getLoc());
+
+      for (auto *r : binOp.getRegions()) {
+        Block *b = &r->front();
+        rewriter.setInsertionPointToStart(b);
+
+        IRMapping irMap;
+        // Clones the cmp operations into the region to make the binary op
+        // admissible.
+        Value newC = c;
+        if (auto *def = c.getDefiningOp())
+          newC = rewriter.clone(*def, irMap)->getResult(0);
+
+        irMap.map(c, newC);
+        if (r == &binOp.getLeftRegion()) {
+          irMap.map(t, b->getArgument(0));
+          irMap.map(f, c0);
+        } else if (r == &binOp.getRightRegion()) {
+          irMap.map(t, c0);
+          irMap.map(f, b->getArgument(0));
+        } else {
+          irMap.map(t, b->getArgument(0));
+          irMap.map(f, b->getArgument(1));
+        }
+        auto y = rewriter.clone(inst, irMap)->getResult(0);
+        rewriter.create<sparse_tensor::YieldOp>(loc, y);
+      }
+
+      // We successfully rewrited a operation. We can not do replacement here
+      // becuase it invalidate the iterator for the current loop to traverse
+      // the instructions.
+      semiRings.emplace_back(&inst, binOp);
+    }
+
+    // Finalizes the replacement.
+    for (auto [sel, semi] : semiRings)
+      rewriter.replaceOp(sel, semi->getResults());
+
+    return success(!semiRings.empty());
+  }
+
+private:
+  static std::optional<std::tuple<Value, BlockArgument, BlockArgument>>
+  isRewritablePattern(GenericOp op, Operation *v) {
+    auto sel = dyn_cast<arith::SelectOp>(v);
+    if (!sel)
+      return std::nullopt;
+
+    auto tVal = sel.getTrueValue().dyn_cast<BlockArgument>();
+    auto fVal = sel.getFalseValue().dyn_cast<BlockArgument>();
+    // TODO: For simplicity, we only handle cases where both true/false value
+    // are directly loaded the input tensor. We can probably admit more cases
+    // in theory.
+    if (!tVal || !fVal)
+      return std::nullopt;
+
+    // Helper lambda to determine whether the value is loaded from a dense input
+    // or is a loop invariant.
+    auto isValFromDenseInputOrInvariant = [&op](Value v) -> bool {
+      if (auto bArg = v.dyn_cast<BlockArgument>();
+          bArg && !isSparseTensor(op.getDpsInputOperand(bArg.getArgNumber())))
+        return true;
+      // If the value is defined outside the loop, it is a loop invariant.
+      return v.getDefiningOp() && v.getDefiningOp()->getBlock() != op.getBody();
+    };
+
+    // If the condition value is load directly from a dense tensor or
+    // loop-invariants, we can sparsify the kernel.
+    auto cond = sel.getCondition();
+    if (isValFromDenseInputOrInvariant(cond))
+      return std::make_tuple(cond, tVal, fVal);
+
+    Value cmpL, cmpR;
+    if (matchPattern(cond, m_Op<arith::CmpIOp>(matchers::m_Any(&cmpL),
+                                               matchers::m_Any(&cmpR))) ||
+        matchPattern(cond, m_Op<arith::CmpFOp>(matchers::m_Any(&cmpL),
+                                               matchers::m_Any(&cmpR)))) {
+      // TODO: we can do it recursively to check whether all the leaf values are
+      // loaded from dense tensors or are loop invariants.
+      if (isValFromDenseInputOrInvariant(cmpL) ||
+          isValFromDenseInputOrInvariant(cmpR))
+        return std::make_tuple(cond, tVal, fVal);
+    }
+
+    return std::nullopt;
+  };
+};
+
+/// Rewrites a sparse reduction that would not sparsify directly since
+/// doing so would only iterate over the stored elements, ignoring the
+/// implicit zeros, into a semi-ring. Applies to all prod/and/min/max
+/// (note that reductions like add/sub/or/xor can directly be sparsified
+/// since the implicit zeros do not contribute to the final result).
+/// Note that prod/and are still included since, even though they often
+/// are nullified in sparse data, they may still occur for special
+/// situations in which e.g. some rows in a sparse matrix are fully
+/// dense. For min/max, including the implicit zeros is a much more
+/// common situation.
+///
+/// TODO: this essentially "densifies" the operation; we want to implement
+///       this much more efficiently by performing the reduction over the
+///       stored values, and feed in the zero once if there were *any*
+///       implicit zeros as well; but for now, at least we provide
+///       the functionality
+///
+struct GenSemiRingReduction : public OpRewritePattern<GenericOp> {
+public:
+  using OpRewritePattern<GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    // Reject non-reductions.
+    if (!op.hasTensorSemantics() || op.getNumDpsInputs() != 1 ||
+        op.getNumReductionLoops() == 0 || op.getNumResults() != 1)
+      return failure();
+    auto inp = op.getDpsInputOperand(0);
+    auto init = op.getDpsInitOperand(0);
+    if (!isSparseTensor(inp))
+      return failure();
+    // Look for direct x = x OP y for semi-ring ready reductions.
+    auto red = cast<linalg::YieldOp>(op.getRegion().front().getTerminator())
+                   .getOperand(0)
+                   .getDefiningOp();
+    if (!isa<arith::AndIOp, arith::MulIOp, arith::MulFOp, arith::MinFOp,
+             arith::MinSIOp, arith::MinUIOp, arith::MaxFOp, arith::MaxSIOp,
+             arith::MaxUIOp>(red))
+      return failure();
+    Value s0 = op.getBlock()->getArgument(0);
+    Value s1 = op.getBlock()->getArgument(1);
+    if ((red->getOperand(0) != s0 || red->getOperand(1) != s1) &&
+        (red->getOperand(0) != s1 || red->getOperand(1) != s0))
+      return failure();
+    // Identity.
+    Location loc = op.getLoc();
+    Value identity =
+        rewriter.create<tensor::ExtractOp>(loc, init->get(), ValueRange());
+    // Unary {
+    //    present -> value
+    //    absent  -> zero.
+    // }
+    Type rtp = s0.getType();
+    rewriter.setInsertionPointToStart(&op.getRegion().front());
+    auto semiring = rewriter.create<sparse_tensor::UnaryOp>(loc, rtp, s0);
+    Block *present =
+        rewriter.createBlock(&semiring.getPresentRegion(), {}, rtp, loc);
+    rewriter.setInsertionPointToStart(&semiring.getPresentRegion().front());
+    rewriter.create<sparse_tensor::YieldOp>(loc, present->getArgument(0));
+    rewriter.createBlock(&semiring.getAbsentRegion(), {}, {}, {});
+    rewriter.setInsertionPointToStart(&semiring.getAbsentRegion().front());
+    auto zero =
+        rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(rtp));
+    rewriter.create<sparse_tensor::YieldOp>(loc, zero);
+    rewriter.setInsertionPointAfter(semiring);
+    // CustomReduce {
+    //    x = x REDUC y, identity
+    // }
+    auto custom = rewriter.create<sparse_tensor::ReduceOp>(
+        loc, rtp, semiring.getResult(), s1, identity);
+    Block *region =
+        rewriter.createBlock(&custom.getRegion(), {}, {rtp, rtp}, {loc, loc});
+    rewriter.setInsertionPointToStart(&custom.getRegion().front());
+    IRMapping irMap;
+    irMap.map(red->getOperand(0), region->getArgument(0));
+    irMap.map(red->getOperand(1), region->getArgument(1));
+    auto cloned = rewriter.clone(*red, irMap);
+    rewriter.create<sparse_tensor::YieldOp>(loc, cloned->getResult(0));
+    rewriter.setInsertionPointAfter(custom);
+    rewriter.replaceOp(red, custom.getResult());
+    return success();
   }
 };
 
@@ -1096,13 +1314,11 @@ public:
       loopEmitter.enterNewLoopSeq(rewriter, loc, tidLvls);
       // Note that reduc will be taken care of by loop emitter and get updated
       // in place.
-      loopEmitter.enterLoopOverTensorAtLvl(rewriter, loc, tidLvls, reduc);
+      loopEmitter.enterCoIterationOverTensorsAtLvls(rewriter, loc, tidLvls,
+                                                    reduc);
     }
 
-    SmallVector<Value> lcvs;
-    lcvs.reserve(lvlRank);
-    loopEmitter.getLoopIVs(lcvs);
-
+    SmallVector<Value> lcvs = loopEmitter.getLoopIVs();
     if (op.getOrder()) {
       // FIXME: There is some dim/lvl confusion here since `dimRank != lvlRank`
       SmallVector<Value> dcvs = lcvs; // keep a copy
@@ -1262,8 +1478,8 @@ struct OutRewriter : public OpRewritePattern<OutOp> {
 //===---------------------------------------------------------------------===//
 
 void mlir::populatePreSparsificationRewriting(RewritePatternSet &patterns) {
-  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd, FuseTensorCast>(
-      patterns.getContext());
+  patterns.add<FoldInvariantYield, FuseSparseMultiplyOverAdd, FuseTensorCast,
+               GenSemiRingReduction, GenSemiRingSelect>(patterns.getContext());
 }
 
 void mlir::populatePostSparsificationRewriting(RewritePatternSet &patterns,

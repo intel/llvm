@@ -9,7 +9,8 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
-// CHECK-NEGATIVE-DAG: error: function 'int* sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
+// CHECK-NEGATIVE-DAG: error: function 'sycl::_V1::multi_ptr<{{.+}}> sycl::_V1::accessor<{{.+}}>::get_pointer<{{.+}}>() const' is not supported in ESIMD context
+// CHECK-NEGATIVE-DAG: error: function 'std::conditional<true, sycl::_V1::multi_ptr{{.+}}>::type sycl::_V1::accessor<{{.+}}>::get_multi_ptr<{{.+}}>() const' is not supported in ESIMD context
 // CHECK-NEGATIVE-DAG: error: function '{{.+}} sycl::_V1::accessor<{{.+}}>::operator[]<{{.+}}>({{.+}}) const' is not supported in ESIMD context
 // CHECK-NEGATIVE-DAG: error: function '{{.+}}combine(int const&)' is not supported in ESIMD context
 
@@ -21,13 +22,19 @@ test0(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
   return acc.get_pointer();
 }
 
-SYCL_EXTERNAL void
+SYCL_EXTERNAL auto
 test1(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
+    SYCL_ESIMD_FUNCTION {
+  return acc.get_multi_ptr<access::decorated::no>();
+}
+
+SYCL_EXTERNAL void
+test2(accessor<int, 1, access::mode::read_write, access::target::device> &acc)
     SYCL_ESIMD_FUNCTION {
   acc[0] = 0;
 }
 
-void test2(sycl::handler &cgh, int *buf) {
+void test3(sycl::handler &cgh, int *buf) {
   auto reduction = sycl::reduction(buf, sycl::plus<int>());
   cgh.parallel_for<class Test2>(sycl::range<1>(1), reduction,
                                 [=](sycl::id<1>, auto &reducer)

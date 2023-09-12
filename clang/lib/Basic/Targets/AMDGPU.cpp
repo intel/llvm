@@ -244,6 +244,9 @@ AMDGPUTargetInfo::AMDGPUTargetInfo(const llvm::Triple &Triple,
 
   MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
   CUMode = !(GPUFeatures & llvm::AMDGPU::FEATURE_WGP);
+  for (auto F : {"image-insts", "gws"})
+    ReadOnlyFeatures.insert(F);
+  HalfArgsAndReturns = true;
 }
 
 void AMDGPUTargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
@@ -315,6 +318,8 @@ void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
   if (hasFastFMA())
     Builder.defineMacro("FP_FAST_FMA");
 
+  Builder.defineMacro("__AMDGCN_WAVEFRONT_SIZE__", Twine(WavefrontSize));
+  // ToDo: deprecate this macro for naming consistency.
   Builder.defineMacro("__AMDGCN_WAVEFRONT_SIZE", Twine(WavefrontSize));
   Builder.defineMacro("__AMDGCN_CUMODE__", Twine(CUMode));
 }

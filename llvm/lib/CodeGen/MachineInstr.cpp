@@ -96,7 +96,8 @@ void MachineInstr::addImplicitDefUseOperands(MachineFunction &MF) {
 /// the MCInstrDesc.
 MachineInstr::MachineInstr(MachineFunction &MF, const MCInstrDesc &TID,
                            DebugLoc DL, bool NoImp)
-    : MCID(&TID), DbgLoc(std::move(DL)), DebugInstrNum(0) {
+    : MCID(&TID), NumOperands(0), Flags(0), AsmPrinterFlags(0),
+      DbgLoc(std::move(DL)), DebugInstrNum(0) {
   assert(DbgLoc.hasTrivialDestructor() && "Expected trivial destructor");
 
   // Reserve space for the expected number of operands.
@@ -114,8 +115,8 @@ MachineInstr::MachineInstr(MachineFunction &MF, const MCInstrDesc &TID,
 /// Does not copy the number from debug instruction numbering, to preserve
 /// uniqueness.
 MachineInstr::MachineInstr(MachineFunction &MF, const MachineInstr &MI)
-    : MCID(&MI.getDesc()), Info(MI.Info), DbgLoc(MI.getDebugLoc()),
-      DebugInstrNum(0) {
+    : MCID(&MI.getDesc()), NumOperands(0), Flags(0), AsmPrinterFlags(0),
+      Info(MI.Info), DbgLoc(MI.getDebugLoc()), DebugInstrNum(0) {
   assert(DbgLoc.hasTrivialDestructor() && "Expected trivial destructor");
 
   CapOperands = OperandCapacity::get(MI.getNumOperands());
@@ -192,7 +193,8 @@ static void moveOperands(MachineOperand *Dst, MachineOperand *Src,
 /// an explicit operand it is added at the end of the explicit operand list
 /// (before the first implicit operand).
 void MachineInstr::addOperand(MachineFunction &MF, const MachineOperand &Op) {
-  assert(NumOperands < USHRT_MAX && "Cannot add more operands.");
+  assert(isUInt<LLVM_MI_NUMOPERANDS_BITS>(NumOperands + 1) &&
+         "Cannot add more operands.");
   assert(MCID && "Cannot add operands before providing an instr descriptor");
 
   // Check if we're adding one of our existing operands.
@@ -922,14 +924,14 @@ MachineInstr::getRegClassConstraint(unsigned OpIdx,
 
   unsigned Flag = getOperand(FlagIdx).getImm();
   unsigned RCID;
-  if ((InlineAsm::getKind(Flag) == InlineAsm::Kind_RegUse ||
-       InlineAsm::getKind(Flag) == InlineAsm::Kind_RegDef ||
-       InlineAsm::getKind(Flag) == InlineAsm::Kind_RegDefEarlyClobber) &&
+  if ((InlineAsm::getKind(Flag) == InlineAsm::Kind::RegUse ||
+       InlineAsm::getKind(Flag) == InlineAsm::Kind::RegDef ||
+       InlineAsm::getKind(Flag) == InlineAsm::Kind::RegDefEarlyClobber) &&
       InlineAsm::hasRegClassConstraint(Flag, RCID))
     return TRI->getRegClass(RCID);
 
   // Assume that all registers in a memory operand are pointers.
-  if (InlineAsm::getKind(Flag) == InlineAsm::Kind_Mem)
+  if (InlineAsm::getKind(Flag) == InlineAsm::Kind::Mem)
     return TRI->getPointerRegClass(MF);
 
   return nullptr;
@@ -1261,7 +1263,8 @@ bool MachineInstr::isSafeToMove(AAResults *AA, bool &SawStore) const {
   }
 
   if (isPosition() || isDebugInstr() || isTerminator() ||
-      mayRaiseFPException() || hasUnmodeledSideEffects())
+      mayRaiseFPException() || hasUnmodeledSideEffects() ||
+      isJumpTableDebugInfo())
     return false;
 
   // See if this instruction does a load.  If so, we have to guarantee that the
@@ -1487,6 +1490,16 @@ bool MachineInstr::isLoadFoldBarrier() const {
 ///
 bool MachineInstr::allDefsAreDead() const {
   for (const MachineOperand &MO : operands()) {
+    if (!MO.isReg() || MO.isUse())
+      continue;
+    if (!MO.isDead())
+      return false;
+  }
+  return true;
+}
+
+bool MachineInstr::allImplicitDefsAreDead() const {
+  for (const MachineOperand &MO : implicit_operands()) {
     if (!MO.isReg() || MO.isUse())
       continue;
     if (!MO.isDead())
@@ -1881,16 +1894,20 @@ void MachineInstr::print(raw_ostream &OS, ModuleSlotTracker &MST,
     DL.print(OS);
   }
 
-  // Print extra comments for DEBUG_VALUE.
-  if (isDebugValueLike() && getDebugVariableOp().isMetadata()) {
-    if (!HaveSemi) {
-      OS << ";";
-      HaveSemi = true;
+  // Print extra comments for DEBUG_VALUE and friends if they are well-formed.
+  if ((isNonListDebugValue() && getNumOperands() >= 4) ||
+      (isDebugValueList() && getNumOperands() >= 2) ||
+      (isDebugRef() && getNumOperands() >= 3)) {
+    if (getDebugVariableOp().isMetadata()) {
+      if (!HaveSemi) {
+        OS << ";";
+        HaveSemi = true;
+      }
+      auto *DV = getDebugVariable();
+      OS << " line no:" << DV->getLine();
+      if (isIndirectDebugValue())
+        OS << " indirect";
     }
-    auto *DV = getDebugVariable();
-    OS << " line no:" <<  DV->getLine();
-    if (isIndirectDebugValue())
-      OS << " indirect";
   }
   // TODO: DBG_LABEL
 

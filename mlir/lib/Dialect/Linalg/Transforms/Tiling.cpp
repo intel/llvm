@@ -45,18 +45,6 @@ using namespace mlir::scf;
 
 #define DEBUG_TYPE "linalg-tiling"
 
-static bool isZero(OpFoldResult v) {
-  if (!v)
-    return false;
-  if (auto attr = llvm::dyn_cast_if_present<Attribute>(v)) {
-    IntegerAttr intAttr = dyn_cast<IntegerAttr>(attr);
-    return intAttr && intAttr.getValue().isZero();
-  }
-  if (auto cst = v.get<Value>().getDefiningOp<arith::ConstantIndexOp>())
-    return cst.value() == 0;
-  return false;
-}
-
 std::tuple<SmallVector<Range, 4>, LoopIndexToRangeIndexMap>
 mlir::linalg::makeTiledLoopRanges(RewriterBase &b, Location loc, AffineMap map,
                                   ArrayRef<OpFoldResult> allShapeSizes,
@@ -70,7 +58,8 @@ mlir::linalg::makeTiledLoopRanges(RewriterBase &b, Location loc, AffineMap map,
   // Traverse the tile sizes, which are in loop order, erase zeros everywhere.
   LoopIndexToRangeIndexMap loopIndexToRangeIndex;
   for (int idx = 0, e = tileSizes.size(), zerosCount = 0; idx < e; ++idx) {
-    if (isZero(tileSizes[idx - zerosCount])) {
+    if (getConstantIntValue(tileSizes[idx - zerosCount]) ==
+        static_cast<int64_t>(0)) {
       shapeSizes.erase(shapeSizes.begin() + idx - zerosCount);
       tileSizes.erase(tileSizes.begin() + idx - zerosCount);
       ++zerosCount;
@@ -178,8 +167,8 @@ mlir::linalg::computeMultiTileSizes(OpBuilder &builder, LinalgOp op,
   AffineExpr s0 = b.getAffineSymbolExpr(0);
   AffineExpr s1 = b.getAffineSymbolExpr(1);
   AffineExpr s2 = b.getAffineSymbolExpr(2);
-  auto apply = [&](AffineExpr expr, ValueRange values) -> Value {
-    return affine::makeComposedAffineApply(b, b.getLoc(), expr, values);
+  auto apply = [&](AffineExpr expr, ArrayRef<OpFoldResult> ofrs) -> Value {
+    return affine::makeComposedAffineApply(b, b.getLoc(), expr, ofrs);
   };
   Value a = apply(s0.floorDiv(s1), {tripCount, divisorValue});
   Value t = apply((s0 + s1 - 1).floorDiv(s1), {targetSizeValue, divisorValue});
@@ -380,11 +369,14 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
     auto destinationStyleOp = dyn_cast<DestinationStyleOpInterface>(clonedOp);
     if (destinationStyleOp) {
       for (OpOperand *outOperand : destinationStyleOp.getDpsInitOperands()) {
-        auto *it = llvm::find(dest, outOperand->get());
-        if (it == dest.end())
-          return op->emitOpError("must have \"tensor semantic\" for tiling");
-        unsigned destNum = std::distance(dest.begin(), it);
-        outOperand->set(destBbArgs[destNum]);
+        // Swap tensor inits with the corresponding block argument of the
+        // scf.forall op. Memref inits remain as is.
+        if (outOperand->get().getType().isa<TensorType>()) {
+          auto *it = llvm::find(dest, outOperand->get());
+          assert(it != dest.end() && "could not find destination tensor");
+          unsigned destNum = std::distance(dest.begin(), it);
+          outOperand->set(destBbArgs[destNum]);
+        }
       }
     }
 
@@ -392,9 +384,14 @@ static FailureOr<ForallTilingResult> tileToForallOpImpl(
     FailureOr<TilingResult> tilingResult =
         cast<TilingInterface>(clonedOp).getTiledImplementation(b, tiledOffsets,
                                                                tiledSizes);
+    if (failed(tilingResult))
+      return clonedOp->emitError("Failed to tile op: ");
+    if (tilingResult->tiledOps.size() != 1) {
+      return clonedOp->emitError("expected a single produced tiled op, got ")
+             << tilingResult->tiledOps.size();
+    }
+
     b.eraseOp(clonedOp);
-    assert(tilingResult->tiledOps.size() == 1 &&
-           "expected a single produced tiled op");
     tiledOp = tilingResult->tiledOps.front();
     tiledValues = tilingResult->tiledValues;
   }
@@ -465,7 +462,9 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ArrayRef<OpFoldResult> tileSizes,
   // Initial tile sizes may be too big, only take the first nLoops.
   tileSizes = tileSizes.take_front(nLoops);
 
-  if (llvm::all_of(tileSizes, isZero)) {
+  if (llvm::all_of(tileSizes, [](OpFoldResult ofr) {
+        return getConstantIntValue(ofr) == static_cast<int64_t>(0);
+      })) {
     TiledLinalgOp tiledOp;
     tiledOp.op = cast<LinalgOp>(b.clone(*op.getOperation()));
     tiledOp.tensorResults.assign(tiledOp.op->result_begin(),
@@ -521,7 +520,7 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ArrayRef<OpFoldResult> tileSizes,
     procInfo.resize(
         iteratorTypes.size(),
         linalg::ProcInfo{nullptr, nullptr, linalg::DistributionMethod::None});
-    // Collect loop ranges of tiled loopss, loops that are parallel.
+    // Collect loop ranges of tiled loops, loops that are parallel.
     SmallVector<Range> parallelLoopRanges;
     for (const auto &iteratorType : llvm::enumerate(iteratorTypes)) {
       if (!isParallelIterator(iteratorType.value()))
@@ -551,10 +550,13 @@ tileLinalgOpImpl(RewriterBase &b, LinalgOp op, ArrayRef<OpFoldResult> tileSizes,
     // loop ranges and the iterator types. Apply its inverse to the
     // resulting loop `ivs` to match the op definition.
     SmallVector<Value, 4> interchangedIvs;
-    if (!options.interchangeVector.empty())
-      interchangedIvs = applyMapToValues(b, loc, invPermutationMap, ivs);
-    else
+    if (!options.interchangeVector.empty()) {
+      for (AffineExpr result : invPermutationMap.getResults())
+        interchangedIvs.push_back(
+            ivs[result.cast<AffineDimExpr>().getPosition()]);
+    } else {
       interchangedIvs.assign(ivs.begin(), ivs.end());
+    }
 
     // Tile the `operandValuesToUse` that either match the `op` operands
     // themselves or the tile loop arguments forwarding them.
@@ -733,8 +735,12 @@ FailureOr<linalg::ForallReductionTilingResult> linalg::tileReductionUsingForall(
       FailureOr<TilingResult> tilingResult =
           cast<TilingInterface>(clonedOp).getTiledImplementation(
               b, tiledOffsets, tiledSizes);
-      assert(tilingResult->tiledOps.size() == 1 &&
-             "expected a single produced tiled op");
+      if (failed(tilingResult))
+        return clonedOp->emitError("Failed to tile op: ");
+      if (tilingResult->tiledOps.size() != 1) {
+        return clonedOp->emitError("expected a single produced tiled op, got ")
+               << tilingResult->tiledOps.size();
+      }
       tiledOp = tilingResult->tiledOps.front();
       tilingResults = tilingResult->tiledValues;
     } else {
@@ -747,8 +753,9 @@ FailureOr<linalg::ForallReductionTilingResult> linalg::tileReductionUsingForall(
       SmallVector<Value> ids = forallOp.getInductionVars();
       mapLoopToProcessorIds(cast<scf::ForOp>(maybeTiled->loops.back()), ids,
                             materializedNonZeroNumThreads);
-      assert(maybeTiled->loops.size() == 1 &&
-             "expected a single produced loop");
+      if (maybeTiled->loops.size() != 1) {
+        return clonedOp->emitError("expected a single produced loop");
+      }
       tiledOp = maybeTiled->op;
       tilingResults = maybeTiled->loops.front()->getResults();
     }

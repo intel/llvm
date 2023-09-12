@@ -125,6 +125,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::GlobalTLSAddress:           return "GlobalTLSAddress";
   case ISD::FrameIndex:                 return "FrameIndex";
   case ISD::JumpTable:                  return "JumpTable";
+  case ISD::JUMP_TABLE_DEBUG_INFO:
+    return "JUMP_TABLE_DEBUG_INFO";
   case ISD::GLOBAL_OFFSET_TABLE:        return "GLOBAL_OFFSET_TABLE";
   case ISD::RETURNADDR:                 return "RETURNADDR";
   case ISD::ADDROFRETURNADDR:           return "ADDROFRETURNADDR";
@@ -222,6 +224,7 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::STRICT_FEXP:                return "strict_fexp";
   case ISD::FEXP2:                      return "fexp2";
   case ISD::STRICT_FEXP2:               return "strict_fexp2";
+  case ISD::FEXP10:                     return "fexp10";
   case ISD::FLOG:                       return "flog";
   case ISD::STRICT_FLOG:                return "strict_flog";
   case ISD::FLOG2:                      return "flog2";
@@ -283,6 +286,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::UMIN:                       return "umin";
   case ISD::UMAX:                       return "umax";
 
+  case ISD::FLDEXP:                     return "fldexp";
+  case ISD::STRICT_FLDEXP:              return "strict_fldexp";
+  case ISD::FFREXP:                     return "ffrexp";
   case ISD::FPOWI:                      return "fpowi";
   case ISD::STRICT_FPOWI:               return "strict_fpowi";
   case ISD::SETCC:                      return "setcc";
@@ -436,6 +442,9 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::RESET_FPENV:                return "reset_fpenv";
   case ISD::GET_FPENV_MEM:              return "get_fpenv_mem";
   case ISD::SET_FPENV_MEM:              return "set_fpenv_mem";
+  case ISD::GET_FPMODE:                 return "get_fpmode";
+  case ISD::SET_FPMODE:                 return "set_fpmode";
+  case ISD::RESET_FPMODE:               return "reset_fpmode";
 
   // Bit manipulation
   case ISD::ABS:                        return "abs";
@@ -498,6 +507,8 @@ std::string SDNode::getOperationName(const SelectionDAG *G) const {
   case ISD::VECREDUCE_UMIN:             return "vecreduce_umin";
   case ISD::VECREDUCE_FMAX:             return "vecreduce_fmax";
   case ISD::VECREDUCE_FMIN:             return "vecreduce_fmin";
+  case ISD::VECREDUCE_FMAXIMUM:         return "vecreduce_fmaximum";
+  case ISD::VECREDUCE_FMINIMUM:         return "vecreduce_fminimum";
   case ISD::STACKMAP:
     return "stackmap";
   case ISD::PATCHPOINT:
