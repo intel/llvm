@@ -546,6 +546,16 @@ piEnqueueKernelLaunch(pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
       NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
+pi_result piextEnqueueCooperativeKernelLaunch(
+    pi_queue Queue, pi_kernel Kernel, pi_uint32 WorkDim,
+    const size_t *GlobalWorkOffset, const size_t *GlobalWorkSize,
+    const size_t *LocalWorkSize, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *OutEvent) {
+  return pi2ur::piEnqueueKernelLaunch(
+      Queue, Kernel, WorkDim, GlobalWorkOffset, GlobalWorkSize, LocalWorkSize,
+      NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
 pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
                                             pi_context Context,
                                             pi_program Program,
@@ -559,6 +569,13 @@ pi_result piextKernelCreateWithNativeHandle(pi_native_handle NativeHandle,
 pi_result piextKernelGetNativeHandle(pi_kernel Kernel,
                                      pi_native_handle *NativeHandle) {
   return pi2ur::piextKernelGetNativeHandle(Kernel, NativeHandle);
+}
+
+pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
+                                                     pi_uint32 *GroupCountRet) {
+  (void)kernel;
+  *group_count_ret = 1;
+  return PI_SUCCESS;
 }
 
 pi_result piEventCreate(pi_context Context, pi_event *RetEvent) {
