@@ -14,5 +14,7 @@
    core/INTRO.rst
    core/PROG.rst
    core/CONTRIB.rst
+   core/CUDA.rst
+   core/HIP.rst
    exp-features.rst
    api.rst
