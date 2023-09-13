@@ -20,7 +20,7 @@ static_assert(scalar_int.get() == 5);
 // static_assert(aggr_int[1] == arr[1]);
 
 // Copy constructor
-static constexpr intel::fpga_mem<int[3], decltype(oneapi::properties(oneapi::num_banks<888>))> mem1 {1, 8, 7};
+static constexpr intel::fpga_mem<int[3], decltype(oneapi::properties(intel::num_banks<888>))> mem1 {1, 8, 7};
 static constexpr auto mem2 = mem1;
 static_assert(mem1[1] == mem2[1]);
 static_assert(mem1.has_property<oneapi::num_banks_key>());

@@ -11,7 +11,7 @@ namespace oneapi = sycl::ext::oneapi::experimental; // for properties
 // CHECK: %[[fpga_mem:.*fpga_mem.*]] = type { %[[fpga_mem_base:.*fpga_mem_base.*]] }
 // CHECK: %[[fpga_mem_base]] = type { [2 x i32] }
 
-constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(oneapi::num_banks<4>))> global {9, 14};
+constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(intel::num_banks<4>))> global {9, 14};
 // CHECK: @{{.*}}global = internal addrspace(1) constant { [2 x i32] } { [2 x i32] [i32 9, i32 14] }, align 4, !spirv.Decorations ![[GlobalProps:[0-9]+]]
 
 // CHECK: @[[str:.*]] = private unnamed_addr addrspace(1) constant [27 x i8] c"{5826:\22DEFAULT\22}{5827:\222\22}\00"
@@ -27,10 +27,10 @@ int main() {
   foo b {2, 5.4f};
 
   // FIXME: Artem
-  // constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(oneapi::num_banks<8>))> host {3, -9};
+  // constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(intel::num_banks<8>))> host {3, -9};
 
   Q.single_task([=]() {
-    constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(oneapi::num_banks<2>))> kernel {7, -1298};
+    constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(intel::num_banks<2>))> kernel {7, -1298};
   // CHECK: %[[kernel:kernel.*]] = alloca %[[fpga_mem]], align 8
   // CHECK: %[[kernel_acast:.*]] = addrspacecast ptr %[[kernel]] to ptr addrspace(4)
   // CHECK: %[[kernel_annot:.*]] = call dereferenceable(8) ptr addrspace(4) @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %[[kernel_acast]], ptr addrspace(1) @[[str]]
