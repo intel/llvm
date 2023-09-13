@@ -199,12 +199,15 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
 });
 ```
 
-=== Load/Store/Fill With Out-of-Bounds Checks 
+=== Load/Store/Fill With Out-of-Bounds Checks
 `joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
 operations do not do bounds checking. When the global matrix size does
 not multiply `Rows` and `Cols` of the joint matrix, this extension
-adds a new form of API to load, store, and fill joint matrix while checking
-the bounds. These functions are similar to the existing ones but they
+adds a new form of API to load, store, and fill joint matrix while
+checking the bounds. For load and fill, the out-of-bounds elements are
+set to 0. For the store, they are dropped out.
+
+These functions are similar to the existing ones but they
 take extra arguments to determine the global bounds `Height` and `Width` of the
 two-dimensional region to load to or store from.
 
