@@ -52,13 +52,7 @@ requirements.
 
 The `vecz::RunVeczPass` does not delete the original scalar kernel after
 vectorization, nor does it transfer the scalar kernel name to the vectorized
-function. However, the `mux-kernel` attributes will be transferred. This
-attribute is present for a kernel and has the special value `"entry-point"` for
-a "kernel entry point", which latter is a kernel that is intended to be
-directly executed. The barrier pass works only on kernel entry points, so Vecz
-will steal entry point status from the scalar kernel and set entry point status
-on its own output instead. This behaviour is at time of writing still subject
-to change while the details of multiple vectorization are worked out.
+function.
 
 ## Target specialization
 
