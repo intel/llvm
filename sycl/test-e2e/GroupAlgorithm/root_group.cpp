@@ -1,4 +1,8 @@
-// RUN: %{build} -I . -o %t.out
+// UNSUPPORTED: level_zero
+// Disable for L0 since maxWGs > 1 but ControlBarrier with Device scope is not
+// supported.
+
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include <cassert>
@@ -7,7 +11,7 @@
 
 #include <sycl/sycl.hpp>
 
-static constexpr int WorkGroupSize = 32;
+static constexpr int WorkGroupSize = 16;
 
 void testFeatureMacro() {
   static_assert(SYCL_EXT_ONEAPI_ROOT_GROUP == 1,
