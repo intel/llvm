@@ -10,76 +10,74 @@
 
 #include <sycl/access/access.hpp>                       // for address_space
 #include <sycl/exception.hpp>                           // for make_error_code
-#include <sycl/ext/intel/experimental/fpga_mem/fpga_mem.hpp>
-#include <sycl/ext/oneapi/properties/properties.hpp>    // for properties_t
-#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
-#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
-
-#include <cstddef>     // for ptrdiff_t
-#include <type_traits> // for enable_if_t
-#include <utility>     // for declval
-
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::intel::experimental {
-  // shorthand used with properties
-  namespace oneapi_exp = ext::oneapi::experimental;
-namespace detail {
-
-// Non-user accessible or documented property. Internal use only.
-// Implementation detail used in-order to limit 
-// duplication of code between fpga_mem and fpga_datapath.
-struct datapath_key {
-  using value_t = oneapi_exp::property_value<datapath_key>;
-};
-
-} // namespace detail
-} // namespace ext::intel::experimental
-
-namespace ext::oneapi::experimental::detail {
-// Note: Property 'datapath' is not a user accessible property. It is only used 
-// to generate appropriate IR pointer annotations on the fpga_datapath object.
-// Therefore it doesn't need to override user quires, ie. is_property_key_of. 
-
-using datapath_key = ext::intel::experimental::detail::datapath_key;
-
-// Map Property to a PropKind enum
-template <> struct PropertyToKind<datapath_key> {
-  static constexpr PropKind Kind = PropKind::Datapath;
-};
-
-template <> struct IsCompileTimeProperty<datapath_key> : std::true_type {};
-
-template <> struct PropertyMetaInfo<datapath_key::value_t> {
-  static constexpr const char *name = "sycl-datapath";
-  static constexpr std::nullptr_t value = nullptr;
-};
-
-} // namespace ext::oneapi::experimental::detail
-
-namespace ext::intel::experimental {
-// alias for proper namespace
-template <typename... Props>
-using properties_t = oneapi_exp::detail::properties_t<Props...>;
 
 template <typename T>
 class 
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_attributes_global_variable(
-          oneapi_exp::detail::PropertyMetaInfo<detail::datapath_key::value_t>::name, 
-          oneapi_exp::detail::PropertyMetaInfo<detail::datapath_key::value_t>::value)]]
+          "sycl-datapath", "")]]
 #endif
-fpga_datapath
-    : public detail::fpga_mem_base<T, detail::datapath_key> {
+fpga_datapath {
+protected:
+  T val
+#ifdef __SYCL_DEVICE_ONLY__
+      // Ju
+      [[__sycl_detail__::add_ir_annotations_member(
+          "sycl-datapath", "")]]
+#endif
+      ;
 
-  // Inherits the base class' constructors
-  using detail::fpga_mem_base<T, detail::datapath_key>::fpga_mem_base;
+  T *get_ptr() noexcept {
+    return &val; 
+  }
+  constexpr const T *get_ptr() const noexcept { 
+    return &val;
+  }
+
+public:
+  // All the initialization
+  // constexpr is used as a hint to the compiler to try and evaluate the 
+  // constructor at compile-time
+  template<typename ... S>
+  constexpr fpga_datapath(S ... args) : val{args...} {}
+
+  //Note: copy and move semantics should work for fpga_datapath
+
+  T &get() noexcept {
+    return *this->get_ptr();
+  }
+
+  constexpr const T &get() const noexcept {
+    return *this->get_ptr();
+  }
+
+  // Allows for implicit conversion from this to T
+  operator T &() noexcept {
+    return get();
+  }
+
+  // Allows for implicit conversion from this to T
+  constexpr operator const T &() const noexcept {
+    return get();
+  }
+
+  fpga_datapath &operator=(const T &newValue) noexcept {
+    *this->get_ptr() = newValue;
+    return *this;
+  }
+
+  // Note that there is no need for "fpga_datapath" to define member functions
+  // for operators like "++", "[]", "->", comparison, etc. Instead, the type
+  // "T" need only define these operators as non-member functions. Because
+  // there is an implicit conversion from "fpga_datapath" to "T&".
 
 };
 
 } // namespace ext::intel::experimental
-
 } // namespace _V1
 } // namespace sycl
 
