@@ -1157,7 +1157,7 @@ private:
         return Default;
       }
     }();
-    auto M = (std::numeric_limits<int32_t>::max)();
+    auto M = (std::numeric_limits<uint32_t>::max)();
     range<Dims> MaxRange;
     for (int i = 0; i < Dims; ++i) {
       auto desired_size = MaxNWGs[i] * GoodFactor;
