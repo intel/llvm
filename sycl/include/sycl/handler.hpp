@@ -2883,9 +2883,6 @@ public:
     context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
     usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
 
-    bool supported = supportsUSMFill2D();
-    std::cout << "USM FILL 2D: " << supported << std::endl;
-
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
     // kernel. If the target is on host we will always do the operation on host.
     if (DestAllocType == usm::alloc::unknown ||
