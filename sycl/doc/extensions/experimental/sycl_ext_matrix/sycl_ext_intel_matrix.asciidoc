@@ -198,6 +198,64 @@ joint_matrix_apply(sg, A, [=](T &val, size_t row, size_t  col) {
    sum_local_rows[row] += val;
 });
 ```
+
+=== Load/Store/Fill With Out-of-Bounds Checks 
+`joint_matrix_load`, `joint_matrix_store`, and `joint_matrix_fill`
+operations do not do bounds checking. When the global matrix size does
+not multiply `Rows` and `Cols` of the joint matrix, this extension
+adds a new form of API to load, store, and fill joint matrix while checking
+the bounds. These functions are similar to the existing ones but they
+take extra arguments to determine the global bounds `Height` and `Width` of the
+two-dimensional region to load to or store from.
+
+```c++
+namespace sycl::ext::intel::experimental::matrix {
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout, typename Tv>
+void joint_matrix_fill_checked(Group g, joint_matrix<Group, T, Use, Rows,
+          Cols, Layout> &m, Tv v, size_t Height, size_t Width);
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   multi_ptr<T2, Space, IsDecorated> src, size_t stride,
+   layout Layout, size_t Height, size_t Width);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load_checked(Group g,
+   joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+   multi_ptr<T2, Space, IsDecorated> src, size_t stride,
+   size_t Height, size_t Width);
+
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, use::accumulator, Rows, Cols, layout::dynamic> &res, 
+   multi_ptr<T, Space, IsDecorated> dest, size_t stride, layout Layout,
+   size_t Height, size_t Width);
+
+// Only available when Layout != layout::dynamic
+template <typename Group, typename T, size_t Rows, size_t Cols,
+          use Use, layout Layout, access::address_space Space,
+          access::decorated IsDecorated>
+void joint_matrix_store_checked(Group g,
+   const joint_matrix<Group, T, Use, Rows, Cols, Layout> &res,
+   multi_ptr<T, Space, IsDecorated> src, size_t stride,
+   size_t Height, size_t Width);
+
+} // namespace sycl::ext::intel::experimental::matrix
+```
+
+
 === New Device Information Descriptor
 Besides the query we provide in
 link:sycl_ext_oneapi_matrix.asciidoc[sycl_ext_oneapi_matrix],
