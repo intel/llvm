@@ -91,5 +91,15 @@ bool AccessorPtrValue::classof(Value v) {
   return isPtrOf<sycl::AccessorType>(v.getType());
 }
 
+bool isBaseClass(Type baseType, Type derivedType) {
+  return TypeSwitch<Type, bool>(baseType)
+      .Case<ArrayType, AccessorCommonType, LocalAccessorBaseType,
+            OwnerLessBaseType>([&](auto bt) {
+        return derivedType
+            .hasTrait<SYCLInheritanceTypeTrait<decltype(bt)>::template Trait>();
+      })
+      .Default(false);
+}
+
 } // namespace sycl
 } // namespace mlir

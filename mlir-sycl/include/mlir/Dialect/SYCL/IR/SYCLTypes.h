@@ -72,6 +72,9 @@ public:
 };
 using AccessorPtrPair = std::pair<AccessorPtrValue, AccessorPtrValue>;
 
+/// Return whether \p baseType is a base type of \p derivedType
+bool isBaseClass(Type baseType, Type derivedType);
+
 } // namespace sycl
 } // namespace mlir
 

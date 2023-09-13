@@ -1277,21 +1277,9 @@ static bool isSYCLInheritType(Type &Ty, Value &Val) {
   if (!isa<MemRefType>(Ty))
     return false;
 
-  Type ElemTy = cast<MemRefType>(Ty).getElementType();
-  return TypeSwitch<Type, bool>(
-             cast<MemRefType>(Val.getType()).getElementType())
-      .Case<sycl::AccessorType>([&](auto) {
-        return isa<sycl::AccessorCommonType>(ElemTy) ||
-               isa<sycl::LocalAccessorBaseType>(ElemTy) ||
-               isa<sycl::OwnerLessBaseType>(ElemTy);
-      })
-      .Case<sycl::LocalAccessorBaseType>(
-          [&](auto) { return isa<sycl::AccessorCommonType>(ElemTy); })
-      .Case<sycl::LocalAccessorType>(
-          [&](auto) { return isa<sycl::LocalAccessorBaseType>(ElemTy); })
-      .Case<sycl::IDType, sycl::RangeType>(
-          [&](auto) { return isa<sycl::ArrayType>(ElemTy); })
-      .Default(false);
+  Type OutputTy = cast<MemRefType>(Ty).getElementType();
+  Type InputTy = cast<MemRefType>(Val.getType()).getElementType();
+  return sycl::isBaseClass(OutputTy, InputTy);
 }
 
 Value MLIRScanner::GetAddressOfDerivedClass(
