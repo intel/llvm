@@ -81,7 +81,7 @@ guidelines.
 
 ## Late-outline OpenMP\* and OpenMP\* Offload
 
-See [openmp](/tree/openmp) branch.
+See [openmp](./openmp/README.rst) subproject documentation.
 
 # License
 
