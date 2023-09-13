@@ -6,17 +6,21 @@
 // RUN: %{build} -DSYCL_DISABLE_FALLBACK_ASSERT=1 -Xsycl-target-linker=spir64 -DBAR -Xsycl-target-frontend=spir64 -DBAR_COMPILE -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 SYCL_PROGRAM_COMPILE_OPTIONS=-DENV_COMPILE_OPTS SYCL_PROGRAM_LINK_OPTIONS=-DENV_LINK_OPTS %{run} %t.out | FileCheck %s
 // UNSUPPORTED: hip
-
 #include "kernel-bundle-merge-options.hpp"
-
 // CHECK: piProgramBuild
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
-// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
+// CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}
 
 // CHECK: piProgramCompile(
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK-NEXT: <unknown>
 // CHECK: <const char *>:{{[^bar]*}}-DENV_COMPILE_OPTS{{[^bar]*}}
+
+// CHECK: piProgramLink(
+// CHECK-NEXT: <unknown>
+// CHECK-NEXT: <unknown>
+// CHECK-NEXT: <unknown>
+// CHECK: <const char *>:{{[^bar]*}}-DENV_LINK_OPTS{{[^bar]*}}
