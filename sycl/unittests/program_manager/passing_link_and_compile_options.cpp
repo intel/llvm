@@ -7,7 +7,9 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/sycl.hpp>
+
 #include <sycl/detail/defines_elementary.hpp>
+
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
@@ -19,12 +21,15 @@ std::string current_link_options, current_compile_options, current_build_opts;
 class EAMTestKernel1;
 const char EAMTestKernelName1[] = "LinkCompileTestKernel1";
 constexpr unsigned EAMTestKernelNumArgs1 = 4;
+
 class EAMTestKernel2;
 const char EAMTestKernelName2[] = "LinkCompileTestKernel2";
 constexpr unsigned EAMTestKernelNumArgs2 = 4;
+
 class EAMTestKernel3;
 const char EAMTestKernelName3[] = "LinkCompileTestKernel3";
 constexpr unsigned EAMTestKernelNumArgs3 = 4;
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -33,16 +38,19 @@ struct KernelInfo<EAMTestKernel1> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs1; }
   static constexpr const char *getName() { return EAMTestKernelName1; }
 };
+
 template <>
 struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs2; }
   static constexpr const char *getName() { return EAMTestKernelName2; }
 };
+
 template <>
 struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs3; }
   static constexpr const char *getName() { return EAMTestKernelName3; }
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
@@ -57,6 +65,7 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
       makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
                              EAMTestKernelNumArgs1, KernelEAM1);
   PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
+
   PiPropertySet PropSet;
   PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
                  std::move(ImgKPOI));
@@ -105,6 +114,7 @@ inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
   }
   return PI_SUCCESS;
 }
+
 inline pi_result redefinedProgramBuild(
     pi_program prog, pi_uint32, const pi_device *, const char *options,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
@@ -112,6 +122,7 @@ inline pi_result redefinedProgramBuild(
   current_build_opts = std::string(options);
   return PI_SUCCESS;
 }
+
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
@@ -173,6 +184,7 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // According to kernel_bundle_impl.hpp:205 sycl::link now is not linking
 // any two device images together
 // TODO : Add check for linking 2 device images together when implemented.
+
 TEST(Link_Compile_Options, check_sycl_build) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();

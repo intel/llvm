@@ -5,16 +5,21 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===---------------------------------------------------------------------===//
+
 #define SYCL2020_DISABLE_DEPRECATION_WARNINGS
 #ifndef __SYCL_INTERNAL_API
 #define __SYCL_INTERNAL_API
 #endif
+
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/PiImage.hpp>
 #include <helpers/PiMock.hpp>
 #include <sycl/sycl.hpp>
+
 #include <gtest/gtest.h>
+
 class BuildOptsTestKernel;
+
 static std::string BuildOpts;
 namespace sycl {
 inline namespace _V1 {
@@ -24,9 +29,11 @@ struct KernelInfo<BuildOptsTestKernel> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return "BuildOptsTestKernel"; }
   static constexpr bool isESIMD() { return true; }
 };
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
+
 static pi_result redefinedProgramBuild(
     pi_program prog, pi_uint32, const pi_device *, const char *options,
     void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
@@ -39,6 +46,7 @@ static pi_result redefinedProgramBuild(
   }
   return PI_SUCCESS;
 }
+
 static pi_result redefinedProgramCompile(pi_program, pi_uint32,
                                          const pi_device *, const char *options,
                                          pi_uint32, const pi_program *,
@@ -50,6 +58,7 @@ static pi_result redefinedProgramCompile(pi_program, pi_uint32,
     BuildOpts = "";
   return PI_SUCCESS;
 }
+
 static pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
                                       const char *options, pi_uint32,
                                       const pi_program *,
@@ -61,18 +70,23 @@ static pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
     BuildOpts = "";
   return PI_SUCCESS;
 }
+
 static void setupCommonMockAPIs(sycl::unittest::PiMock &Mock) {
   using namespace sycl::detail;
   Mock.redefineBefore<PiApiKind::piProgramCompile>(redefinedProgramCompile);
   Mock.redefineBefore<PiApiKind::piProgramLink>(redefinedProgramLink);
   Mock.redefineBefore<PiApiKind::piProgramBuild>(redefinedProgramBuild);
 }
+
 static sycl::unittest::PiImage generateDefaultImage() {
   using namespace sycl::unittest;
+
   PiPropertySet PropSet;
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+
   PiArray<PiOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
+
   PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
               __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
               "-compile-img",                         // Compile options
@@ -80,17 +94,24 @@ static sycl::unittest::PiImage generateDefaultImage() {
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
+
   return Img;
 }
+
 sycl::unittest::PiImage Img = generateDefaultImage();
 sycl::unittest::PiImageArray<1> ImgArray{&Img};
+
 TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::unittest::PiMock Mock;
   sycl::platform Plt = Mock.getPlatform();
   setupCommonMockAPIs(Mock);
+
   const sycl::device Dev = Plt.get_devices()[0];
+
   sycl::queue Queue{Dev};
+
   const sycl::context Ctx = Queue.get_context();
+
   auto KernelID = sycl::get_kernel_id<BuildOptsTestKernel>();
   sycl::kernel_bundle KernelBundle =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(Ctx, {Dev},
