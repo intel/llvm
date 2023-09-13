@@ -9,6 +9,14 @@ struct test {
   int *b;
 };
 
+class device_copyable_class {
+  int a;
+  device_copyable_class(const device_copyable_class &other) : a(other.a) {};
+};
+
+template <>
+struct is_device_copyable<device_copyable_class> : std::true_type {};
+
 int main() {
   queue Q;
 
@@ -78,6 +86,12 @@ int main() {
   assert(*c_ptr->b == 5 && "c_ptr[0].b value does not match.");
 
   assert(d_ptr[3] == -1 && "d_ptr[3] value does not match.");
+
+  assert(!std::is_trivially_copyable<device_copyable_class>::value && "device_copyable_class should not be trivially_copyable.");
+  using device_copyable_annotated_arg = annotated_arg<device_copyable_class>;
+  assert(is_device_copyable<device_copyable_annotated_arg>::value && "annotated_arg<device_copyable_class> is not device copyable.");
+  using device_copyable_annotated_arg_with_properties = annotated_arg<device_copyable_class, decltype(properties{conduit})>;
+  assert(is_device_copyable<device_copyable_annotated_arg_with_properties>::value && "annotated_arg<device_copyable_class, properties> is not device copyable.");
 
   free(a, Q);
   free(b, Q);
