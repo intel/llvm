@@ -90,15 +90,15 @@ void testRootGroupFunctions() {
                                ? root.get_local_id() == sycl::id<1>(0)
                                : root.get_local_id() == sycl::id<1>(3);
           testResults[2] = root.get_group_range() == sycl::range<1>(1);
-          testResults[3] =
-              root.get_local_range() == sycl::range<1>(WorkGroupSize);
-          testResults[4] =
-              root.get_max_local_range() == sycl::range<1>(WorkGroupSize);
+          testResults[3] = root.get_local_range() == it.get_global_range();
+          testResults[4] = root.get_max_local_range() == root.get_local_range();
           testResults[5] = root.get_group_linear_id() == 0;
           testResults[6] =
-              root.get_local_linear_id() == root.get_local_id().get(0);
-          testResults[7] = root.get_group_linear_range() == 1;
-          testResults[8] = root.get_local_linear_range() == WorkGroupSize;
+              root.get_local_linear_id() == it.get_global_linear_id();
+          testResults[7] =
+              root.get_group_linear_range() == root.get_group_range().size();
+          testResults[8] =
+              root.get_local_linear_range() == root.get_local_range().size();
 
           const auto child =
               sycl::ext::oneapi::experimental::get_child_group(root);
