@@ -1094,10 +1094,10 @@ void Options::splitCommandLineOptions(int argc, char **argv) {
 
     llvm::ArrayRef<const char *> Argv{Args};
     const llvm::opt::OptTable &OptTbl = clang::driver::getDriverOptTable();
-    const unsigned IncludedFlagsBitmask = clang::driver::options::CC1AsOption;
+    llvm::opt::Visibility VisibilityMask(clang::driver::options::CC1AsOption);
     unsigned MissingArgIndex, MissingArgCount;
     llvm::opt::InputArgList InputArgs = OptTbl.ParseArgs(
-        Argv, MissingArgIndex, MissingArgCount, IncludedFlagsBitmask);
+        Argv, MissingArgIndex, MissingArgCount, VisibilityMask);
 
     LLVMOpts.push_back(Argv[0]);
     for (const llvm::opt::Arg *InputArg :
