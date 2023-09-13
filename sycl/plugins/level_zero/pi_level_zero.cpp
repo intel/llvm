@@ -18,6 +18,8 @@
 void enableZeTracing();
 void disableZeTracing();
 
+// TODO: Move these functions to the UR plugin once it's updated to include the
+// changes from oneapi-src/unified-runtime#849.
 namespace pi2ur {
 pi_result piextKernelSuggestMaxCooperativeGroupCount(pi_kernel Kernel,
                                                      pi_uint32 *GroupCountRet) {
