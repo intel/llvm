@@ -82,3 +82,24 @@ func.func @test(%arg1: index) -> index {
 //  CHECK-NEXT:     scf.env_region_yield %[[ARG1]] : index
 //  CHECK-NEXT:   }
 //  CHECK-NEXT:   return %[[RES]] : index
+
+// -----
+
+func.func @test(%arg1: index) -> index {
+  %0 = scf.env_region "test1" %arg1 : index -> index {
+    %1 = scf.env_region "test2" %arg1 : index -> index {
+      scf.env_region_yield %arg1: index
+    }
+    scf.env_region_yield %1: index
+  }
+  return %0: index
+}
+// CHECK-LABEL: func @test
+//  CHECK-SAME:   (%[[ARG1:.*]]: index)
+//  CHECK-NEXT:   %[[RES:.*]] = scf.env_region "test1" %[[ARG1]] : index -> index {
+//  CHECK-NEXT:     %[[RES1:.*]] = scf.env_region "test2" %[[ARG1]] : index -> index {
+//  CHECK-NEXT:       scf.env_region_yield %[[ARG1]] : index
+//  CHECK-NEXT:     }
+//  CHECK-NEXT:   scf.env_region_yield %[[RES1]] : index
+//  CHECK-NEXT:   }
+//  CHECK-NEXT:   return %[[RES]] : index
