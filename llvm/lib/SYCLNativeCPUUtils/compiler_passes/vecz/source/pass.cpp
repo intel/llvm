@@ -168,23 +168,14 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   // Fix up the metadata and clean out any dead kernels
   for (auto &P : Results) {
-    Function *Fn = P.first;
     auto &Result = P.second;
-    bool const IsKernel = compiler::utils::isKernel(*Fn);
-    bool DropScalarMDs = IsKernel && !Result.empty();
     for (auto &R : Result) {
       VectorizationUnit *VU = R.first;
       trackVeczSuccessFailure(*VU);
       if (!createVectorizedFunctionMetadata(*VU)) {
-        // We only drop the metadata from the scalar kernel when the number of
-        // Results is non-zero and they all succeeded
-        DropScalarMDs = false;
-        LLVM_DEBUG(dbgs() << Fn->getName() << " failed to vectorize\n");
+        LLVM_DEBUG(dbgs() << P.first->getName() << " failed to vectorize\n");
         eraseFailed(VU);
       }
-    }
-    if (DropScalarMDs) {
-      compiler::utils::dropIsKernel(*Fn);
     }
   }
   return PreservedAnalyses::none();
