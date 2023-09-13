@@ -178,15 +178,9 @@ public:
         MTraceType(0) {
     detail::tls_code_loc_t Tls;
     auto TData = Tls.query();
-    // If TLS is not set, we can still generate universal IDs with user data
-    // and CodePtr information
-    const char *FuncName = UserData;
-    // Keep UserData as high priority
-    if ((!FuncName || !std::strlen(FuncName)) && TData.functionName())
-      FuncName = TData.functionName();
     // Create a tracepoint object that has a lifetime of this class
-    MTP = new TracePoint(TData.fileName(), FuncName, TData.lineNumber(),
-                         TData.columnNumber(), CodePtr);
+    MTP = new TracePoint(TData.fileName(), TData.functionName(),
+                         TData.lineNumber(), TData.columnNumber(), CodePtr);
     if (TraceType == (uint16_t)xpti::trace_point_type_t::graph_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::node_create ||
         TraceType == (uint16_t)xpti::trace_point_type_t::edge_create)
