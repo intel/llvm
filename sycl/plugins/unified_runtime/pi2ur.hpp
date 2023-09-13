@@ -787,11 +787,6 @@ inline pi_result piTearDown(void *PluginParameter) {
     }
   });
   HANDLE_ERRORS(Ret);
-
-  // TODO: Dont check for errors in urTearDown, since
-  // when using Level Zero plugin, the second urTearDown
-  // will fail as ur_loader.so has already been unloaded,
-  urLoaderTearDown();
   return PI_SUCCESS;
 }
 
@@ -799,8 +794,6 @@ inline pi_result piTearDown(void *PluginParameter) {
 // Platform
 inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                                 pi_uint32 *NumPlatforms) {
-
-  urLoaderInit(0, nullptr);
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.

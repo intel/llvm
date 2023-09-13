@@ -35,5 +35,4 @@ add_sycl_plugin(native_cpu
   LIBRARIES
     sycl
     UnifiedRuntime-Headers
-    UnifiedRuntimeLoader
 )
