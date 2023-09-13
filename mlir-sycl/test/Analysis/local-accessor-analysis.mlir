@@ -1,4 +1,4 @@
-// RUN: polygeist-opt -split-input-file -test-accessor-analysis %s 2>&1 | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -test-accessor-analysis %s 2>&1 | FileCheck %s
 
 llvm.func @__gxx_personality_v0(...) -> i32
 

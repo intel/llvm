@@ -30,6 +30,24 @@
 using namespace llvm;
 using namespace mlir;
 
+namespace mlir {
+namespace test {
+void registerTestAccessorAnalysisPass();
+void registerTestBufferAnalysisPass();
+void registerTestIDAndRangeAnalysisPass();
+void registerTestNDRangeAnalysisPass();
+} // namespace test
+} // namespace mlir
+
+#ifdef MLIR_INCLUDE_TESTS
+void registerTestPasses() {
+  mlir::test::registerTestAccessorAnalysisPass();
+  mlir::test::registerTestBufferAnalysisPass();
+  mlir::test::registerTestIDAndRangeAnalysisPass();
+  mlir::test::registerTestNDRangeAnalysisPass();
+}
+#endif
+
 int main(int argc, char **argv) {
   InitLLVM y(argc, argv);
 
@@ -42,6 +60,9 @@ int main(int argc, char **argv) {
   registerAllPasses();
   sycl::registerSYCLPasses();
   sycl::registerConversionPasses();
+#ifdef MLIR_INCLUDE_TESTS
+  registerTestPasses();
+#endif
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "SYCL MLIR optimizer driver\n", registry));

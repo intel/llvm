@@ -74,7 +74,10 @@ include(AddMLIRSYCL)
 
 add_subdirectory(include/mlir)
 add_subdirectory(lib)
-add_subdirectory(test)
+if (MLIR_INCLUDE_TESTS)
+  add_definitions(-DMLIR_INCLUDE_TESTS)
+  add_subdirectory(test)
+endif()
 add_subdirectory(tools)
 
 install(DIRECTORY include/

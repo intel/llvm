@@ -50,11 +50,7 @@ struct PtrElementModel
 
 namespace mlir {
 namespace test {
-void registerTestAccessorAnalysisPass();
-void registerTestBufferAnalysisPass();
-void registerTestIDAndRangeAnalysisPass();
 void registerTestMemoryAccessAnalysisPass();
-void registerTestNDRangeAnalysisPass();
 void registerTestReachingDefinitionAnalysisPass();
 void registerTestUniformityAnalysisPass();
 } // namespace test
@@ -62,11 +58,7 @@ void registerTestUniformityAnalysisPass();
 
 #ifdef MLIR_INCLUDE_TESTS
 void registerTestPasses() {
-  mlir::test::registerTestAccessorAnalysisPass();
-  mlir::test::registerTestBufferAnalysisPass();
-  mlir::test::registerTestIDAndRangeAnalysisPass();
   mlir::test::registerTestMemoryAccessAnalysisPass();
-  mlir::test::registerTestNDRangeAnalysisPass();
   mlir::test::registerTestReachingDefinitionAnalysisPass();
   mlir::test::registerTestUniformityAnalysisPass();
 }
