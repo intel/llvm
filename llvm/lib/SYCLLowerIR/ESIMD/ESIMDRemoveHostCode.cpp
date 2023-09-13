@@ -27,10 +27,14 @@ using namespace llvm::esimd;
 namespace id = itanium_demangle;
 PreservedAnalyses ESIMDRemoveHostCodePass::run(Module &M,
                                                ModuleAnalysisManager &) {
+  // TODO: Remove this pass once ESIMD headers are updated to
+  // guard vectors to be device only.
   bool Modified = false;
   assert(!Triple(M.getTargetTriple()).isSPIR() &&
          "Pass should not be run for SPIR targets");
   for (auto &F : M.functions()) {
+    if (F.isDeclaration())
+      continue;
     StringRef MangledName = F.getName();
     id::ManglingParser<SimpleAllocator> Parser(MangledName.begin(),
                                                MangledName.end());
@@ -50,12 +54,12 @@ PreservedAnalyses ESIMDRemoveHostCodePass::run(Module &M,
         !Name.startswith("sycl::_V1::ext::intel::experimental::esimd::"))
       continue;
     SmallVector<BasicBlock *> BBV;
-    for (BasicBlock &BB : F)
+    for (BasicBlock &BB : F) {
+      BB.dropAllReferences();
       BBV.push_back(&BB);
-    for (auto *BB : BBV) {
-      BB->dropAllReferences();
-      BB->removeFromParent();
     }
+    for (auto *BB : BBV)
+      BB->eraseFromParent();
 
     Value *Ret = nullptr;
     Type *RetTy = F.getFunctionType()->getReturnType();

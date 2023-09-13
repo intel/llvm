@@ -3621,6 +3621,8 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
             "Disabled by default. (experimental)">,
     NegFlag<SetFalse, [], [ClangOption], "Do not enforce using stateless memory accesses. (experimental)">,
     BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
+// TODO: Remove this option once ESIMD headers are updated to
+// guard vectors to be device only.
 defm sycl_esimd_build_host_code : BoolFOption<"sycl-esimd-build-host-code",
     LangOpts<"SYCLESIMDBuildHostCode">, DefaultTrue,
     PosFlag<SetTrue, [], [ClangOption], "Build the host implementation of ESIMD functions."
