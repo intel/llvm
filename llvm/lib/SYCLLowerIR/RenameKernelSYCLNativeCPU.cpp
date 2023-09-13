@@ -18,11 +18,10 @@ using namespace llvm;
 
 PreservedAnalyses
 RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  bool ModuleChanged = false;
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
     }
   }
-  return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
+  return PreservedAnalyses::all();
 }
