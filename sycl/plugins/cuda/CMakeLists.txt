@@ -101,7 +101,6 @@ add_sycl_plugin(cuda
     UnifiedRuntime-Headers
     UnifiedRuntimeCommon
     UnifiedMallocFramework
-    UnifiedRuntimeLoader
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 
