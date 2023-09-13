@@ -2606,13 +2606,18 @@ public:
     if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
                   ((Dims <= 1) || isImageOrImageArray(AccessTarget))) {
       StageFillCG(Dst, Pattern);
+    } else if constexpr (Dims == 0) {
+      // Special case for zero-dim accessors.
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+          range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       // Dim > 1
       bool OffsetUsable = (Dst.get_offset() == sycl::id<Dims>{});
       detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
       bool RangesUsable =
           (AccBase->getAccessRange() == AccBase->getMemoryRange());
-      if (OffsetUsable && RangesUsable) {
+      if (OffsetUsable && RangesUsable &&
+          isBackendSupportedFillSize(sizeof(T))) {
         StageFillCG(Dst, Pattern);
       } else {
         range<Dims> Range = Dst.get_range();
