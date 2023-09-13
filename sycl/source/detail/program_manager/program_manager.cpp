@@ -521,7 +521,8 @@ applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
   return CompileOpts;
 }
 
-static std::string_view  applyLinkOptionsFromEnvironment(std::string_view LinkOpts) {
+static std::string_view
+applyLinkOptionsFromEnvironment(std::string_view LinkOpts) {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
@@ -534,11 +535,10 @@ static std::string_view  applyLinkOptionsFromEnvironment(std::string_view LinkOp
 }
 
 std::pair<sycl::detail::pi::PiProgram, bool>
-ProgramManager::getOrCreatePIProgram(const RTDeviceBinaryImage &Img,
-                                     const context &Context,
-                                     const device &Device,
-                                     const std::string_view CompileAndLinkOptions,
-                                     SerializedObj SpecConsts) {
+ProgramManager::getOrCreatePIProgram(
+    const RTDeviceBinaryImage &Img, const context &Context,
+    const device &Device, const std::string_view CompileAndLinkOptions,
+    SerializedObj SpecConsts) {
   sycl::detail::pi::PiProgram NativePrg;
 
   auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
@@ -576,7 +576,7 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts,LinkOpts;
+  std::string_view CompileOpts, LinkOpts;
 
   if (Prg) {
     CompileOpts = Prg->get_build_options();
@@ -616,21 +616,23 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
   // Check that device supports all aspects used by the kernel
   if (auto exception = checkDevSupportDeviceRequirements(Device, Img))
     throw *exception;
-  std::string CompileOptsString,LinkOptsString;
+  std::string CompileOptsString, LinkOptsString;
   if (!CompileOpts.empty())
     CompileOptsString = std::string(CompileOpts);
   if (!LinkOpts.empty())
     LinkOptsString = std::string(LinkOpts);
 
   auto BuildF = [this, &Img, &Context, &ContextImpl, &Device, Prg,
-                 &CompileOptsString,&LinkOptsString ,SpecConsts] {
+                 &CompileOptsString, &LinkOptsString, SpecConsts] {
     const PluginPtr &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOptsString,LinkOptsString, Img, {Device}, Plugin);
+    applyOptionsFromImage(CompileOptsString, LinkOptsString, Img, {Device},
+                          Plugin);
     std::string_view CompileOptsupdated(CompileOptsString);
     std::string_view LinkOptsupdated(LinkOptsString);
 
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
-        Img, Context, Device, std::string_view(CompileOptsString+LinkOptsString), SpecConsts);
+        Img, Context, Device,
+        std::string_view(CompileOptsString + LinkOptsString), SpecConsts);
 
     if (!DeviceCodeWasInCache) {
       if (Prg)
@@ -655,8 +657,9 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOptsupdated,LinkOptsupdated,
-              getRawSyclObjImpl(Device)->getHandleRef(), DeviceLibReqMask);
+        build(std::move(ProgramManaged), ContextImpl, CompileOptsupdated,
+              LinkOptsupdated, getRawSyclObjImpl(Device)->getHandleRef(),
+              DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -668,10 +671,12 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     ContextImpl->addDeviceGlobalInitializer(BuiltProgram.get(), {Device}, &Img);
 
     // Save program to persistent cache if it is not there
-    if (!DeviceCodeWasInCache) 
+    if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
-          Device, Img, SpecConsts, std::string_view(CompileOptsString+LinkOptsString), BuiltProgram.get());
-    
+          Device, Img, SpecConsts,
+          std::string_view(CompileOptsString + LinkOptsString),
+          BuiltProgram.get());
+
     return BuiltProgram.release();
   };
 
@@ -710,7 +715,7 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts,LinkOpts;
+  std::string_view CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
   if (Prg) {
     CompileOpts = Prg->get_build_options();
@@ -1243,16 +1248,15 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
-ProgramManager::ProgramPtr
-ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
-                      const std::string_view CompileOptions,
-		       const std::string_view LinkOptions,
-                      const sycl::detail::pi::PiDevice &Device,
-                      uint32_t DeviceLibReqMask) {
+ProgramManager::ProgramPtr ProgramManager::build(
+    ProgramPtr Program, const ContextImplPtr Context,
+    const std::string_view CompileOptions, const std::string_view LinkOptions,
+    const sycl::detail::pi::PiDevice &Device, uint32_t DeviceLibReqMask) {
 
   if (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
-              << CompileOptions.data() << ", " << LinkOptions.data() << ", ... " <<Device << ")\n";
+              << CompileOptions.data() << ", " << LinkOptions.data() << ", ... "
+              << Device << ")\n";
   }
 
   // TODO: old sycl compiler always marks cassert fallback device library as
@@ -1287,13 +1291,14 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   std::string LinkOptionsString(LinkOptions);
 
   if (LinkPrograms.empty() && !ForceLink) {
-	  const std::string &Options = LinkOptionsString.empty()
-                                     ? CompileOptionsString
-                                     : (CompileOptionsString + " " + LinkOptionsString);
+    const std::string &Options =
+        LinkOptionsString.empty()
+            ? CompileOptionsString
+            : (CompileOptionsString + " " + LinkOptionsString);
     sycl::detail::pi::PiResult Error =
         Plugin->call_nocheck<PiApiKind::piProgramBuild>(
-            Program.get(), /*num devices =*/1, &Device,
-            Options.c_str(), nullptr, nullptr);
+            Program.get(), /*num devices =*/1, &Device, Options.c_str(),
+            nullptr, nullptr);
     if (Error != PI_SUCCESS)
       throw compile_program_error(getProgramBuildLog(Program.get(), Context),
                                   Error);
@@ -1309,9 +1314,9 @@ ProgramManager::build(ProgramPtr Program, const ContextImplPtr Context,
   sycl::detail::pi::PiProgram LinkedProg = nullptr;
   sycl::detail::pi::PiResult Error =
       Plugin->call_nocheck<PiApiKind::piProgramLink>(
-          Context->getHandleRef(), /*num devices =*/1, &Device, LinkOptionsString.c_str(),
-          LinkPrograms.size(), LinkPrograms.data(), nullptr, nullptr,
-          &LinkedProg);
+          Context->getHandleRef(), /*num devices =*/1, &Device,
+          LinkOptionsString.c_str(), LinkPrograms.size(), LinkPrograms.data(),
+          nullptr, nullptr, &LinkedProg);
 
   // Link program call returns a new program object if all parameters are valid,
   // or NULL otherwise. Release the original (user) program.
@@ -2279,8 +2284,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
   std::string_view CompileOpts =
       applyCompileOptionsFromEnvironment(CompileOpts);
-  std::string_view LinkOpts =
-      applyLinkOptionsFromEnvironment(LinkOpts);
+  std::string_view LinkOpts = applyLinkOptionsFromEnvironment(LinkOpts);
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
@@ -2296,12 +2300,12 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   // TODO: Unify this code with getBuiltPIProgram
 
   auto BuildF = [this, &Context, &Img, &Devs, CompileOpts, &InputImpl,
-                 SpecConsts, &CompileOptsString,&LinkOptsString] {
+                 SpecConsts, &CompileOptsString, &LinkOptsString] {
     ContextImplPtr ContextImpl = getSyclObjImpl(Context);
     const PluginPtr &Plugin = ContextImpl->getPlugin();
-    applyOptionsFromImage(CompileOptsString,LinkOptsString, Img, Devs, Plugin);
+    applyOptionsFromImage(CompileOptsString, LinkOptsString, Img, Devs, Plugin);
     std::string_view CompileOptsUpdated(CompileOptsString);
-     std::string_view LinkOptsUpdated(LinkOptsString);
+    std::string_view LinkOptsUpdated(LinkOptsString);
 
     // TODO: Add support for creating non-SPIRV programs from multiple devices.
     if (InputImpl->get_bin_image_ref()->getFormat() !=
@@ -2315,7 +2319,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreatePIProgram(
-        Img, Context, Devs[0], std::string_view(CompileOptsString+LinkOptsString), SpecConsts);
+        Img, Context, Devs[0],
+        std::string_view(CompileOptsString + LinkOptsString), SpecConsts);
 
     if (!DeviceCodeWasInCache &&
         InputImpl->get_bin_image_ref()->supportsSpecConstants())
@@ -2335,8 +2340,9 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     ProgramPtr BuiltProgram =
-        build(std::move(ProgramManaged), ContextImpl, CompileOptsUpdated,LinkOptsUpdated,
-              getRawSyclObjImpl(Devs[0])->getHandleRef(), DeviceLibReqMask);
+        build(std::move(ProgramManaged), ContextImpl, CompileOptsUpdated,
+              LinkOptsUpdated, getRawSyclObjImpl(Devs[0])->getHandleRef(),
+              DeviceLibReqMask);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -2350,8 +2356,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
       PersistentDeviceCodeCache::putItemToDisc(
-          Devs[0], Img, SpecConsts, std::string_view(CompileOptsString+LinkOptsString),BuiltProgram.get());
-    
+          Devs[0], Img, SpecConsts,
+          std::string_view(CompileOptsString + LinkOptsString),
+          BuiltProgram.get());
+
     return BuiltProgram.release();
   };
 

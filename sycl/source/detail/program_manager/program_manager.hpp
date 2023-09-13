@@ -312,7 +312,7 @@ private:
                       decltype(&::piProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string_view CompileOptions,
-		   const std::string_view LinkOptions,
+                   const std::string_view LinkOptions,
                    const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
   /// Dumps image to current directory
