@@ -556,8 +556,8 @@ public:
     auto red = cast<linalg::YieldOp>(op.getRegion().front().getTerminator())
                    .getOperand(0)
                    .getDefiningOp();
-    if (!isa<arith::AndIOp, arith::MulIOp, arith::MulFOp, arith::MinFOp,
-             arith::MinSIOp, arith::MinUIOp, arith::MaxFOp, arith::MaxSIOp,
+    if (!isa<arith::AndIOp, arith::MulIOp, arith::MulFOp, arith::MinimumFOp,
+             arith::MinSIOp, arith::MinUIOp, arith::MaximumFOp, arith::MaxSIOp,
              arith::MaxUIOp>(red))
       return failure();
     Value s0 = op.getBlock()->getArgument(0);
@@ -1120,8 +1120,6 @@ private:
     sizesForTensor(rewriter, sizes, loc, srcTp, src);
 
     Value dst = allocDenseTensor(rewriter, loc, dstTp, sizes);
-    Block *insertionBlock = rewriter.getInsertionBlock();
-    bool noEscape = bufferization::allocationDoesNotEscape(op->getOpResult(0));
 
     rewriter.create<ForeachOp>(loc, src, std::nullopt,
                                [&](OpBuilder &builder, Location loc,
@@ -1132,12 +1130,6 @@ private:
                                });
 
     rewriter.replaceOpWithNewOp<bufferization::ToTensorOp>(op, dstTp, dst);
-
-    // Deallocate the buffer.
-    if (noEscape) {
-      rewriter.setInsertionPoint(insertionBlock->getTerminator());
-      deallocDenseTensor(rewriter, loc, dst);
-    }
     return success();
   }
 
