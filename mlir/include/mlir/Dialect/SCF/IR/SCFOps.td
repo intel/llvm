@@ -1231,6 +1231,9 @@ def EnvironmentRegionOp : SCF_Op<"env_region", [
 
     Values can be yielded from "env_region" region using "env_region_yield" op.
     Values yielded from this op's region define the op's results.
+
+    Regions can be arbitrarily nested into each other, it is up to specific
+    passes how to interpret nested env regions.
   }];
 
 
