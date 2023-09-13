@@ -2576,11 +2576,17 @@ public:
     // TODO add check:T must be an integral scalar value or a SYCL vector type
     static_assert(isValidTargetForExplicitOp(AccessTarget),
                   "Invalid accessor target for the fill method.");
-    if constexpr (isBackendSupportedFillSize(sizeof(T)) &&
-                  (Dims <= 1 || isImageOrImageArray(AccessTarget))) {
+    // CG::Fill will result in piEnqueuFillBuffer/Image which requires that mem
+    // data is contiguous. For that reason we check range and offset when dim >
+    // 1 Images don't allow ranged accessors and are fine.
+    bool OffsetUsable = (Dims <= 1) || (Dst.get_offset() == sycl::id<Dims>{});
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+    bool RangesUsable =
+        (Dims <= 1) || (AccBase->getAccessRange() == AccBase->getMemoryRange());
+    if (isBackendSupportedFillSize(sizeof(T)) &&
+        ((OffsetUsable && RangesUsable) || isImageOrImageArray(AccessTarget))) {
       setType(detail::CG::Fill);
 
-      detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
       detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
 
       MDstPtr = static_cast<void *>(AccImpl.get());
@@ -2590,10 +2596,6 @@ public:
       MPattern.resize(sizeof(T));
       auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
       *PatternPtr = Pattern;
-    } else if constexpr (Dims == 0) {
-      // Special case for zero-dim accessors.
-      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
-          range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
       parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
@@ -2861,6 +2863,9 @@ public:
 
     context Ctx = detail::createSyclObjFromImpl<context>(getContextImplPtr());
     usm::alloc DestAllocType = get_pointer_type(Dest, Ctx);
+
+    bool supported = supportsUSMFill2D();
+    std::cout << "USM FILL 2D: " << supported << std::endl;
 
     // If the backends supports 2D fill we use that. Otherwise we use a fallback
     // kernel. If the target is on host we will always do the operation on host.
