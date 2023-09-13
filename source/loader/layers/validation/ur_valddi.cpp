@@ -566,6 +566,10 @@ __urdlllocal ur_result_t UR_APICALL urDevicePartition(
         if (NULL == pProperties) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
+
+        if (NULL == pProperties->pProperties) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
     }
 
     ur_result_t result = pfnPartition(hDevice, pProperties, NumDevices,
@@ -738,6 +742,10 @@ __urdlllocal ur_result_t UR_APICALL urContextCreate(
 
         if (NULL == phContext) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pProperties && UR_CONTEXT_FLAGS_MASK & pProperties->flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -1616,6 +1624,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
+        if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
         if (pUSMDesc && pUSMDesc->align != 0 &&
             ((pUSMDesc->align & (pUSMDesc->align - 1)) != 0)) {
             return UR_RESULT_ERROR_INVALID_VALUE;
@@ -1661,6 +1673,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 
         if (NULL == ppMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (pUSMDesc && pUSMDesc->align != 0 &&
@@ -1709,6 +1725,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 
         if (NULL == ppMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (pUSMDesc && pUSMDesc->align != 0 &&
@@ -2235,6 +2255,11 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemCreate(
 
         if (NULL == phPhysicalMem) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pProperties &&
+            UR_PHYSICAL_MEM_FLAGS_MASK & pProperties->flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
     }
 
@@ -3208,6 +3233,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
         if (NULL == hKernel) {
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
+
+        if (NULL != pProperties &&
+            UR_MEM_FLAGS_MASK & pProperties->memoryAccess) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
     }
 
     ur_result_t result =
@@ -3397,6 +3427,22 @@ __urdlllocal ur_result_t UR_APICALL urQueueCreate(
 
         if (NULL == phQueue) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pProperties && UR_QUEUE_FLAGS_MASK & pProperties->flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (pProperties != NULL &&
+            pProperties->flags & UR_QUEUE_FLAG_PRIORITY_HIGH &&
+            pProperties->flags & UR_QUEUE_FLAG_PRIORITY_LOW) {
+            return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
+        }
+
+        if (pProperties != NULL &&
+            pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_BATCHED &&
+            pProperties->flags & UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE) {
+            return UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES;
         }
     }
 
@@ -5554,6 +5600,10 @@ __urdlllocal ur_result_t UR_APICALL urUSMPitchedAllocExp(
 
         if (NULL == pResultPitch) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL != pUSMDesc && UR_USM_ADVICE_FLAGS_MASK & pUSMDesc->hints) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
         if (pUSMDesc && pUSMDesc->align != 0 &&
