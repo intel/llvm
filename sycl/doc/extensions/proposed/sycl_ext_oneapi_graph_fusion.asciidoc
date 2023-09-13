@@ -55,6 +55,13 @@ This extension builds on top of the experimental SYCL graphs
 https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc[extension
 proposal]. All references to the "graphs proposal" refer to this proposal.
 
+In addition, this extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
+extension.
+* link:../experimental/sycl_ext_oneapi_annotated_ptr.asciidoc[sycl_ext_oneapi_annotated_ptr]
+extension.
+
 == Status
 
 This is a proposed extension specification, intended to gather community
@@ -198,9 +205,8 @@ different APIs, namely:
 * The `accessor` constructor, giving a more granular control.
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
-* The `property_list` parameter of `sycl::malloc_device()`,
-`sycl::aligned_alloc_device()`, `sycl::malloc_shared()`, or
-`sycl::aligned_alloc_shared()` to apply the property to an USM pointer.
+* The property list parameter of `annotated_ptr`, to apply the property to a
+USM pointer.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::property{
@@ -248,6 +254,13 @@ Implementations can provide a diagnostic message in case internalization was
 not performed through an implementation-specified mechanism, but are not
 required to do so.
 
+In case the `access_scope` property is attached to `annotated_ptr`, the
+properties should be inspected by an implementation when the `annotated_ptr` is
+captured by a kernel lambda or otherwise passed as an argument to a kernel
+function. Implementations are not required to track internalization-related
+information from other USM pointers that may be used by a kernel, such as those
+stored inside of structs or other data structures.
+
 ===== Internal memory property
 
 The following property can be passed to three different APIs, namely:
@@ -255,9 +268,8 @@ The following property can be passed to three different APIs, namely:
 * The `accessor` constructor, giving a more granular control.
 * The `buffer` constructor, in which case all the `accessors` derived from 
 this buffer will inherit this property (unless overridden).
-* The `property_list` parameter of `sycl::malloc_device()`,
-`sycl::aligned_alloc_device()`, `sycl::malloc_shared()`, or
-`sycl::aligned_alloc_shared()` to apply the property to an USM pointer.
+* The property list parameter of `annotated_ptr`, to apply the property to a
+USM pointer.
 
 ```c++ 
 sycl::ext::oneapi::experimental::property::fusion_internal_memory 
@@ -276,6 +288,14 @@ internalization and it is no error if they do not perform internalization.
 Implementations can provide a diagnostic message in case internalization was
 not performed through an implementation-specified mechanism, but are not
 required to do so.
+
+In case the `fusion_internal_memory` property is attached to `annotated_ptr`,
+the properties should be inspected by an implementation when the
+`annotated_ptr` is captured by a kernel lambda or otherwise passed as an
+argument to a kernel function. Implementations are not required to track
+internalization-related information from other USM pointers that may be used by
+a kernel, such as those stored inside of structs or other data structures.
+
 
 ==== Device aspect 
 
@@ -418,9 +438,13 @@ https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_propertie
 
 To this end, this extension allows the use of the property in more places than
 defined in Table 52 in the SYCL specification. More concretely, this extension
-allows to use the property in the buffer constructor or the `property_list`
-parameter of `sycl::malloc_device()`, `sycl::aligned_alloc_device()`,
-`sycl::malloc_shared()` and `sycl::aligned_alloc_shared()`.
+allows to use the property in the buffer constructor or the property list
+parameter of `annotated_ptr<...>`. In case the `no_init` property is attached to 
+`annotated_ptr`, the properties should be inspected by an implementation when
+the `annotated_ptr` is captured by a kernel lambda or otherwise passed as an
+argument to a kernel function. Implementations are not required to track
+internalization-related information from other USM pointers that may be used by
+a kernel, such as those stored inside of structs or other data structures.
 
 If the implementation's fusion compiler is not able to guarantee write-back of
 the final result after internalization, values stored to an internalized
@@ -444,6 +468,14 @@ pattern, suitable information must be provided by the user. To this end,
 specializations of the `access_scope` property template defined in this
 proposal can be used to inform the fusion compiler about the access pattern of
 the kernels involved in fusion.
+
+If an `annotated_ptr` is created with any of the properties relating to
+internalization and captured by a kernel lambda or otherwise passed as an
+argument to a kernel function participating in fusion, the underlying memory
+must only be accessed via pointers that are also captured or passed as kernel
+argument. Access to the underlying memory via a different pointer, such as
+pointers stored inside of structs or other data structures results in undefined
+behavior.
 
 As already stated above, it depends on the implementation's capabilities which
 properties need to be applied to a buffer or allocated device memory to enable
@@ -506,11 +538,12 @@ properties must be combined as follows:
 |===
 
 In case different internalization targets are used for accessors to the same
-buffer, the following (commutative and associative) rules are followed:
+buffer or for `annotated_ptr` pointing to the same underlying memory, the
+following (commutative and associative) rules are followed:
 
 [options="header"]
 |===
-|Accessor~1~ Access Scope|Accessor~2~ Access Scope|Resulting Access Scope 
+|Accessor/Ptr~1~ Access Scope|Accessor/Ptr~2~ Access Scope|Resulting Access Scope 
 
 |None
 |_Any_
@@ -528,7 +561,7 @@ buffer, the following (commutative and associative) rules are followed:
 |Work Item
 |===
 
-If no work-group size is specified or two accessors specify different
+If no work-group size is specified or two kernels specify different
 work-group sizes when attempting local internalization for any of the
 kernels involved in the fusion, no internalization will be
 performed. If there is a mismatch between the two accessors (access
@@ -672,10 +705,10 @@ int main() {
   dOut = malloc_device<int>(q, dataSize);
 
   // Specify internalization for an USM pointer
-  dTmp = malloc_device<int>(
-      q, dataSize,
-      {sycl_ext::property::access_scope_work_item{},
-        sycl_ext::property::fusion_internal_memory{}, no_init});
+  dTmp = malloc_device<int>(q, dataSize)
+  auto annotatedTmp = sycl_ext::annotated_ptr(
+      dTmp, sycl_ext::property::access_scope_work_item{},
+             sycl_ext::property::fusion_internal_memory{}, no_init);
 
   // This explicit memory operation is compatible with fusion, as it can be
   // linearized before any device kernel in the graph.
@@ -690,7 +723,7 @@ int main() {
   auto kernel1 = graph.add(
       [&](handler &cgh) {
         cgh.parallel_for<class KernelOne>(
-            dataSize, [=](id<1> i) { tmp[i] = in1[i] + in2[i]; });
+            dataSize, [=](id<1> i) { annotatedTmp[i] = in1[i] + in2[i]; });
       },
       {sycl_ext::property::node::depends_on(copy_in1, copy_in2)});
 
@@ -702,7 +735,7 @@ int main() {
   auto kernel2 = graph.add(
       [&](handler &cgh) {
         cgh.parallel_for<class KernelTwo>(
-            dataSize, [=](id<1> i) { out[i] = tmp[i] * in3[i]; });
+            dataSize, [=](id<1> i) { out[i] = annotatedTmp[i] * in3[i]; });
       },
       {sycl_ext::property::node::depends_on(copy_in3, kernel1)});
 
@@ -740,4 +773,5 @@ int main() {
 |3|2023-04-11|Lukas Sommer|*Update usage examples for graph API changes*
 |4|2023-08-17|Lukas Sommer|*Update after graph extension has been merged*
 |5|2023-09-01|Lukas Sommer|*Split internalization properties and change barrier*
+|6|2023-09-13|Lukas Sommer|*Use annotated_ptr for USM internalization*
 |========================================
