@@ -8,32 +8,50 @@
 
 #pragma once
 
-#include <sycl/detail/assert_happened.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/service_kernel_names.hpp>
-#include <sycl/device.hpp>
-#include <sycl/device_selector.hpp>
-#include <sycl/event.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/exception_list.hpp>
-#include <sycl/ext/oneapi/device_global/device_global.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/access/access.hpp>             // for target, access...
+#include <sycl/accessor.hpp>                  // for accessor
+#include <sycl/aspects.hpp>                   // for aspect
+#include <sycl/async_handler.hpp>             // for async_handler
+#include <sycl/backend_types.hpp>             // for backend, backe...
+#include <sycl/buffer.hpp>                    // for buffer
+#include <sycl/context.hpp>                   // for context
+#include <sycl/detail/assert_happened.hpp>    // for AssertHappened
+#include <sycl/detail/cg_types.hpp>           // for check_fn_signa...
+#include <sycl/detail/common.hpp>             // for code_location
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
+#include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_mem_advice
+#include <sycl/device.hpp>                    // for device
+#include <sycl/device_selector.hpp>           // for device_selector
+#include <sycl/event.hpp>                     // for event
+#include <sycl/exception.hpp>                 // for make_error_code
+#include <sycl/exception_list.hpp>            // for defaultAsyncHa...
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp> // for image_descriptor
+#include <sycl/ext/oneapi/bindless_images_interop.hpp> // for interop_semaph...
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>  // for image_mem_handle
+#include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
+#include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
+#include <sycl/ext/oneapi/experimental/graph.hpp>       // for graph_state
+#include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
+#include <sycl/handler.hpp>                             // for handler, isDev...
+#include <sycl/id.hpp>                                  // for id
+#include <sycl/kernel.hpp>                              // for auto_name
+#include <sycl/kernel_handler.hpp>                      // for kernel_handler
+#include <sycl/nd_range.hpp>                            // for nd_range
+#include <sycl/property_list.hpp>                       // for property_list
+#include <sycl/range.hpp>                               // for range
 
-// Explicitly request format macros
-#ifndef __STDC_FORMAT_MACROS
-#define __STDC_FORMAT_MACROS 1
-#endif
-#include <cinttypes>
-#include <type_traits>
-#include <utility>
+#include <cstddef>     // for size_t
+#include <functional>  // for function
+#include <memory>      // for shared_ptr, hash
+#include <stdint.h>    // for int32_t
+#include <tuple>       // for tuple
+#include <type_traits> // for remove_all_ext...
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 // having _TWO_ mid-param #ifdefs makes the functions very difficult to read.
 // Here we simplify the KernelFunc param is simplified to be
@@ -56,11 +74,12 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 class context;
 class device;
+class event;
 class queue;
 
 template <backend BackendName, class SyclObjectT>
@@ -1446,6 +1465,683 @@ public:
                         StartIndex * sizeof(std::remove_all_extents_t<T>));
   }
 
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param DestImgDesc is the image descriptor (format, order, dimensions).
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, DestImgDesc); },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. An exception is thrown if either \p
+  /// Src is nullptr or \p CopyExtent is incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///                   measured in pixels as determined by \p DestImgDesc
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
+                              DestImgDesc, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. An exception is thrown if either \p
+  /// Src is nullptr or \p Dest is incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels as determined by \p DestImgDesc
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
+                              DestImgDesc, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle wrapper. An exception
+  /// is thrown if either \p Src is nullptr or \p Dest is incomplete. The
+  /// behavior is undefined if \p DestImgDesc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a wrapper for an opaque image memory handle to the
+  /// destination memory.
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, Dest, DestImgDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. An exception is thrown if either \p
+  /// Src is nullptr or \p Dest is incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels as determined by \p DestImgDesc
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcExtent, Dest, DestOffset,
+                              DestImgDesc, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
+  /// the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the source image descriptor.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) { CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc); },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region.  Pixel size is determined by \p
+  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
+  /// is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                              DestExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
+  /// the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region.  Pixel size is determined by \p
+  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
+  /// is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                              DestExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p SrcImgDesc is inconsistent with
+  /// the allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, Dest, SrcImgDesc);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region.  Pixel size is determined by \p
+  /// SrcImgDesc An exception is thrown if either \p Src is nullptr or \p Dest
+  /// is incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, SrcOffset, SrcImgDesc, Dest, DestOffset,
+                              DestExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor
+  /// \param DeviceRowPitch is the DeviceRowPitch of the rows on the device.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the device image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the host memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
+                              DeviceRowPitch, HostExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the destination image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the host memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent, event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
+                              DeviceRowPitch, HostExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p DeviceImgDesc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, Dest, DeviceImgDesc, DeviceRowPitch);
+        },
+        CodeLoc);
+  }
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the destination image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the host memory to copy, measured in
+  ///                   pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  /// \param DepEvents is a vector of events that specifies the kernel
+  ///                  dependencies.
+  /// \return an event representing the copy operation.
+  event ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent, const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_copy(Src, SrcOffset, Dest, DestOffset, DeviceImgDesc,
+                              DeviceRowPitch, HostExtent, CopyExtent);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the wait operation.
+  event ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_wait_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvent is an event that specifies the kernel dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      event DepEvent,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvent);
+          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  /// \param DepEvents is a vector of events that specifies the kernel
+  /// dependencies.
+  /// \return an event representing the signal operation.
+  event ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle,
+      const std::vector<event> &DepEvents,
+      const detail::code_location &CodeLoc = detail::code_location::current()) {
+    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+    return submit(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          CGH.ext_oneapi_signal_external_semaphore(SemaphoreHandle);
+        },
+        CodeLoc);
+  }
+
   /// single_task version with a kernel represented as a lambda.
   ///
   /// \param Properties is the kernel properties.
@@ -2282,9 +2978,35 @@ private:
                                const std::vector<event> &DepEvents);
 };
 
-namespace detail {
+} // namespace _V1
+} // namespace sycl
+
+namespace std {
+template <> struct hash<sycl::queue> {
+  size_t operator()(const sycl::queue &Q) const {
+    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
+        sycl::detail::getSyclObjImpl(Q));
+  }
+};
+} // namespace std
+
 #if __SYCL_USE_FALLBACK_ASSERT
+// Explicitly request format macros
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS 1
+#endif
+#include <cinttypes>
+
+namespace sycl {
+inline namespace _V1 {
+
+namespace detail {
 #define __SYCL_ASSERT_START 1
+
+namespace __sycl_service_kernel__ {
+class AssertInfoCopier;
+} // namespace __sycl_service_kernel__
+
 /**
  * Submit copy task for assert failure flag and host-task to check the flag
  * \param Event kernel's event to depend on i.e. the event represents the
@@ -2363,19 +3085,10 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
   return CheckerEv;
 }
 #undef __SYCL_ASSERT_START
-#endif // __SYCL_USE_FALLBACK_ASSERT
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
-
-namespace std {
-template <> struct hash<sycl::queue> {
-  size_t operator()(const sycl::queue &Q) const {
-    return std::hash<std::shared_ptr<sycl::detail::queue_impl>>()(
-        sycl::detail::getSyclObjImpl(Q));
-  }
-};
-} // namespace std
+#endif // __SYCL_USE_FALLBACK_ASSERT
 
 #undef __SYCL_USE_FALLBACK_ASSERT

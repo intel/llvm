@@ -1,14 +1,14 @@
 // RUN: %clang_cc1 -fsycl-is-device -triple spir64-unknown-unknown -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes \
-// RUN:      -opaque-pointers -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEVICE
+// RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-DEVICE
 //
 // RUN: %clang_cc1 -triple x86_64-unknown-linux-gnu -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes \
-// RUN:      -opaque-pointers -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-LIN
+// RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-LIN
 //
 // RUN: %clang_cc1 -triple x86_64-pc-windows-msvc -I%S \
 // RUN:      -fcxx-exceptions -fexceptions -disable-llvm-passes \
-// RUN:      -opaque-pointers -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-WIN
+// RUN:      -emit-llvm %s -o - | FileCheck %s -check-prefix CHECK-HOST-WIN
 
 // The test checks that exception handling code is generated only for host and not for device.
 

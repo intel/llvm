@@ -1,10 +1,10 @@
-//===--------- event.cpp - Level Zero Adapter ------------------------===//
+//===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -37,7 +37,7 @@ static const bool UseMultipleCmdlistBarriers = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMultipleCmdlistBarriersFlag)
     return true;
-  return std::stoi(UseMultipleCmdlistBarriersFlag) > 0;
+  return std::atoi(UseMultipleCmdlistBarriersFlag) > 0;
 }();
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
@@ -152,15 +152,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       [&Queue](ur_command_list_ptr_t CmdList,
                const _ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal) {
-        // For in-order queue and empty wait-list just use the last command
-        // event as the barrier event.
-        if (Queue->isInOrderQueue() && !EventWaitList.Length &&
-            Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
-          UR_CALL(urEventRetain(Queue->LastCommandEvent));
-          Event = Queue->LastCommandEvent;
-          return UR_RESULT_SUCCESS;
-        }
-
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
             IsInternal));
@@ -203,6 +194,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   ur_event_handle_t InternalEvent;
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+
+  auto WaitListEmptyOrAllEventsFromSameQueue = [Queue, NumEventsInWaitList,
+                                                EventWaitList]() {
+    if (!NumEventsInWaitList)
+      return true;
+
+    for (uint32_t I = 0; I < NumEventsInWaitList; ++I)
+      if (Queue != EventWaitList[I]->UrQueue)
+        return false;
+
+    return true;
+  };
+
+  // For in-order queue and wait-list which is empty or has events from
+  // the same queue just use the last command event as the barrier event.
+  if (Queue->isInOrderQueue() && WaitListEmptyOrAllEventsFromSameQueue() &&
+      Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
+    UR_CALL(urEventRetain(Queue->LastCommandEvent));
+    *Event = Queue->LastCommandEvent;
+    return UR_RESULT_SUCCESS;
+  }
 
   // Indicator for whether batching is allowed. This may be changed later in
   // this function, but allow it by default.
@@ -480,7 +492,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventGetProfilingInfo(
   case UR_PROFILING_INFO_COMMAND_SUBMIT:
     // Note: No users for this case
     // The "command_submit" time is implemented by recording submission
-    // timestamp with a call to piGetDeviceAndHostTimer before command enqueue.
+    // timestamp with a call to urDeviceGetGlobalTimestamps before command
+    // enqueue.
     //
     return ReturnValue(uint64_t{0});
   default:
@@ -572,7 +585,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
       {
         std::shared_lock<ur_shared_mutex> EventLock(Event->Mutex);
         if (!Event->hasExternalRefs())
-          die("piEventsWait must not be called for an internal event");
+          die("urEventWait must not be called for an internal event");
 
         if (!Event->Completed) {
           auto HostVisibleEvent = Event->HostVisibleEvent;
@@ -594,7 +607,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventWait(
               reinterpret_cast<ur_event_handle_t>(Event));
         else {
           // NOTE: we are cleaning up after the event here to free resources
-          // sooner in case run-time is not calling piEventRelease soon enough.
+          // sooner in case run-time is not calling urEventRelease soon enough.
           CleanupCompletedEvent(reinterpret_cast<ur_event_handle_t>(Event));
           // For the case when we have out-of-order queue or regular command
           // lists its more efficient to check fences so put the queue in the
@@ -679,7 +692,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 ) {
 
   // we dont have urEventCreate, so use this check for now to know that
-  // the call comes from piEventCreate()
+  // the call comes from urEventCreate()
   if (NativeEvent == nullptr) {
     UR_CALL(EventCreate(Context, nullptr, true, Event));
 
@@ -689,9 +702,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
   }
 
   auto ZeEvent = ur_cast<ze_event_handle_t>(NativeEvent);
-  ur_event_handle_t_ *UrEvent{};
+  ur_event_handle_t_ *UREvent{};
   try {
-    UrEvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
+    UREvent = new ur_event_handle_t_(ZeEvent, nullptr /* ZeEventPool */,
                                      Context, UR_EXT_COMMAND_TYPE_USER,
                                      Properties->isNativeHandleOwned);
 
@@ -703,16 +716,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEventCreateWithNativeHandle(
 
   // Assume native event is host-visible, or otherwise we'd
   // need to create a host-visible proxy for it.
-  UrEvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  UREvent->HostVisibleEvent = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   // Unlike regular events managed by SYCL RT we don't have to wait for interop
   // events completion, and not need to do the their `cleanup()`. This in
-  // particular guarantees that the extra `piEventRelease` is not called on
-  // them. That release is needed to match the `piEventRetain` of regular events
+  // particular guarantees that the extra `urEventRelease` is not called on
+  // them. That release is needed to match the `urEventRetain` of regular events
   // made for waiting for event completion, but not this interop event.
-  UrEvent->CleanedUp = true;
+  UREvent->CleanedUp = true;
 
-  *Event = reinterpret_cast<ur_event_handle_t>(UrEvent);
+  *Event = reinterpret_cast<ur_event_handle_t>(UREvent);
 
   return UR_RESULT_SUCCESS;
 }
@@ -737,7 +750,7 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
     return UR_RESULT_SUCCESS;
 
   if (Event->CommandType == UR_COMMAND_MEM_UNMAP && Event->CommandData) {
-    // Free the memory allocated in the piEnqueueMemBufferMap.
+    // Free the memory allocated in the urEnqueueMemBufferMap.
     if (auto Res = ZeMemFreeHelper(Event->Context, Event->CommandData))
       return Res;
     Event->CommandData = nullptr;
@@ -773,9 +786,9 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event) {
   }
 
   // We intentionally incremented the reference counter when an event is
-  // created so that we can avoid pi_queue is released before the associated
-  // pi_event is released. Here we have to decrement it so pi_queue
-  // can be released successfully.
+  // created so that we can avoid ur_queue_handle_t is released before the
+  // associated ur_event_handle_t is released. Here we have to decrement it so
+  // ur_queue_handle_t can be released successfully.
   if (Queue) {
     UR_CALL(urQueueReleaseInternal(Queue));
   }
@@ -816,13 +829,16 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle) {
 // the event, updates the last command event in the queue and cleans up all dep
 // events of the event.
 // If the caller locks queue mutex then it must pass 'true' to QueueLocked.
-ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
+ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
+                                  bool SetEventCompleted) {
   ur_kernel_handle_t AssociatedKernel = nullptr;
   // List of dependent events.
   std::list<ur_event_handle_t> EventsToBeReleased;
   ur_queue_handle_t AssociatedQueue = nullptr;
   {
     std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
+    if (SetEventCompleted)
+      Event->Completed = true;
     // Exit early of event was already cleanedup.
     if (Event->CleanedUp)
       return UR_RESULT_SUCCESS;
@@ -839,7 +855,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
 
     // Make a list of all the dependent events that must have signalled
     // because this event was dependent on them.
-    Event->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+    Event->WaitList.collectEventsForReleaseAndDestroyUrZeEventList(
         EventsToBeReleased);
 
     Event->CleanedUp = true;
@@ -847,7 +863,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
 
   auto ReleaseIndirectMem = [](ur_kernel_handle_t Kernel) {
     if (IndirectAccessTrackingEnabled) {
-      // piKernelRelease is called by CleanupCompletedEvent(Event) as soon as
+      // urKernelRelease is called by CleanupCompletedEvent(Event) as soon as
       // kernel execution has finished. This is the place where we need to
       // release memory allocations. If kernel is not in use (not submitted by
       // some other thread) then release referenced memory allocations. As a
@@ -913,7 +929,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
     ur_kernel_handle_t DepEventKernel = nullptr;
     {
       std::scoped_lock<ur_shared_mutex> DepEventLock(DepEvent->Mutex);
-      DepEvent->WaitList.collectEventsForReleaseAndDestroyPiZeEventList(
+      DepEvent->WaitList.collectEventsForReleaseAndDestroyUrZeEventList(
           EventsToBeReleased);
       if (IndirectAccessTrackingEnabled) {
         // DepEvent has finished, we can release the associated kernel if there
@@ -931,7 +947,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked) {
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      // UR_CALL(piKernelRelease(DepEventKernel));
+      UR_CALL(urKernelRelease(DepEventKernel));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }
@@ -1085,6 +1101,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
       std::shared_lock<ur_shared_mutex> Lock(CurQueue->LastCommandEvent->Mutex);
       this->ZeEventList[0] = CurQueue->LastCommandEvent->ZeEvent;
       this->UrEventList[0] = CurQueue->LastCommandEvent;
+      this->UrEventList[0]->RefCount.increment();
       TmpListLength = 1;
     } else if (EventListLength > 0) {
       this->ZeEventList = new ze_event_handle_t[EventListLength];
@@ -1165,6 +1182,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
         this->ZeEventList[TmpListLength] = EventList[I]->ZeEvent;
         this->UrEventList[TmpListLength] = EventList[I];
+        this->UrEventList[TmpListLength]->RefCount.increment();
         TmpListLength += 1;
       }
     }
@@ -1173,10 +1191,6 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
 
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-  }
-
-  for (uint32_t I = 0; I < this->Length; I++) {
-    this->UrEventList[I]->RefCount.increment();
   }
 
   return UR_RESULT_SUCCESS;
@@ -1220,43 +1234,23 @@ ur_result_t _ur_ze_event_list_t::insert(_ur_ze_event_list_t &Other) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyPiZeEventList(
+ur_result_t _ur_ze_event_list_t::collectEventsForReleaseAndDestroyUrZeEventList(
     std::list<ur_event_handle_t> &EventsToBeReleased) {
-  // acquire a lock before reading the length and list fields.
-  // Acquire the lock, copy the needed data locally, and reset
-  // the fields, then release the lock.
-  // Only then do we do the actual actions to release and destroy,
-  // holding the lock for the minimum time necessary.
-  uint32_t LocLength = 0;
-  ze_event_handle_t *LocZeEventList = nullptr;
-  ur_event_handle_t *LocPiEventList = nullptr;
-
-  {
-    // acquire the lock and copy fields locally
-    // Lock automatically releases when this goes out of scope.
-    std::scoped_lock<ur_mutex> lock(this->UrZeEventListMutex);
-
-    LocLength = Length;
-    LocZeEventList = ZeEventList;
-    LocPiEventList = UrEventList;
-
-    Length = 0;
-    ZeEventList = nullptr;
-    UrEventList = nullptr;
-
-    // release lock by ending scope.
-  }
-
-  for (uint32_t I = 0; I < LocLength; I++) {
+  // event wait lists are owned by events, this function is called with owning
+  // event lock taken, hence it is thread safe
+  for (uint32_t I = 0; I < Length; I++) {
     // Add the event to be released to the list
-    EventsToBeReleased.push_back(LocPiEventList[I]);
+    EventsToBeReleased.push_back(UrEventList[I]);
   }
+  Length = 0;
 
-  if (LocZeEventList != nullptr) {
-    delete[] LocZeEventList;
+  if (ZeEventList != nullptr) {
+    delete[] ZeEventList;
+    ZeEventList = nullptr;
   }
-  if (LocPiEventList != nullptr) {
-    delete[] LocPiEventList;
+  if (UrEventList != nullptr) {
+    delete[] UrEventList;
+    UrEventList = nullptr;
   }
 
   return UR_RESULT_SUCCESS;

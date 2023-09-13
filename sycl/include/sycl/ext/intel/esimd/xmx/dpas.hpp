@@ -17,7 +17,7 @@
 #include <sycl/ext/oneapi/bfloat16.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace ext::intel::esimd::xmx {
 
@@ -343,5 +343,5 @@ auto dpasw(__ESIMD_NS::simd<BT, BN> B, __ESIMD_NS::simd<AT, AN> A) {
 /// @} sycl_esimd_xmx_systolic_array_api
 
 } // namespace ext::intel::esimd::xmx
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

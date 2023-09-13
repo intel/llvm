@@ -8,25 +8,58 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/atomic_ref.hpp>
-#include <sycl/detail/reduction_forward.hpp>
-#include <sycl/detail/tuple.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/group_algorithm.hpp>
-#include <sycl/handler.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/known_identity.hpp>
-#include <sycl/properties/reduction_properties.hpp>
-#include <sycl/usm.hpp>
+#include <sycl/access/access.hpp>              // for address_s...
+#include <sycl/accessor.hpp>                   // for local_acc...
+#include <sycl/aspects.hpp>                    // for aspect
+#include <sycl/atomic.hpp>                     // for IsValidAt...
+#include <sycl/atomic_ref.hpp>                 // for atomic_ref
+#include <sycl/buffer.hpp>                     // for buffer
+#include <sycl/builtins.hpp>                   // for min
+#include <sycl/detail/export.hpp>              // for __SYCL_EX...
+#include <sycl/detail/generic_type_traits.hpp> // for is_sgenfloat
+#include <sycl/detail/impl_utils.hpp>          // for createSyc...
+#include <sycl/detail/item_base.hpp>           // for id
+#include <sycl/detail/reduction_forward.hpp>   // for strategy
+#include <sycl/detail/tuple.hpp>               // for make_tuple
+#include <sycl/device.hpp>                     // for device
+#include <sycl/event.hpp>                      // for event
+#include <sycl/exception.hpp>                  // for make_erro...
+#include <sycl/exception_list.hpp>             // for queue_impl
+#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
+#include <sycl/group.hpp>                           // for workGroup...
+#include <sycl/group_algorithm.hpp>                 // for reduce_ov...
+#include <sycl/handler.hpp>                         // for handler
+#include <sycl/id.hpp>                              // for getDeline...
+#include <sycl/kernel.hpp>                          // for auto_name
+#include <sycl/known_identity.hpp>                  // for IsKnownId...
+#include <sycl/marray.hpp>                          // for marray
+#include <sycl/memory_enums.hpp>                    // for memory_order
+#include <sycl/multi_ptr.hpp>                       // for address_s...
+#include <sycl/nd_item.hpp>                         // for nd_item
+#include <sycl/nd_range.hpp>                        // for nd_range
+#include <sycl/properties/accessor_properties.hpp>  // for no_init
+#include <sycl/properties/reduction_properties.hpp> // for initializ...
+#include <sycl/property_list.hpp>                   // for property_...
+#include <sycl/queue.hpp>                           // for queue
+#include <sycl/range.hpp>                           // for range
+#include <sycl/sycl_span.hpp>                       // for dynamic_e...
+#include <sycl/usm.hpp>                             // for malloc_de...
 
-#include <optional>
-#include <tuple>
+#include <algorithm>   // for min
+#include <array>       // for array
+#include <assert.h>    // for assert
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <optional>    // for nullopt
+#include <stdint.h>    // for uint32_t
+#include <string>      // for operator+
+#include <tuple>       // for _Swallow_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_seq...
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /// Base non-template class which is a base class for all reduction
@@ -957,7 +990,7 @@ public:
     // instantiated for the code below.
     auto DoIt = [&](auto &Out) {
       auto RWReduVal = std::make_shared<std::array<T, num_elements>>();
-      for (int i = 0; i < num_elements; ++i) {
+      for (size_t i = 0; i < num_elements; ++i) {
         (*RWReduVal)[i] = decltype(MIdentityContainer)::getIdentity();
       }
       auto Buf = std::make_shared<buffer<T, 1>>(RWReduVal.get()->data(),
@@ -988,7 +1021,7 @@ public:
           size_t NElements = num_elements;
 
           CopyHandler.single_task<__sycl_init_mem_for<KernelName>>([=] {
-            for (int i = 0; i < NElements; ++i) {
+            for (size_t i = 0; i < NElements; ++i) {
               if (IsUpdateOfUserVar)
                 Out[i] = BOp(Out[i], Mem[i]);
               else
@@ -1172,7 +1205,7 @@ void reduSaveFinalResultToUserMem(handler &CGH, Reduction &Redu) {
   bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
   auto BOp = Redu.getBinaryOperation();
   CGH.single_task<KernelName>([=] {
-    for (int i = 0; i < NElements; ++i) {
+    for (size_t i = 0; i < NElements; ++i) {
       auto Elem = InAcc[i];
       if (IsUpdateOfUserVar)
         UserVarPtr[i] = BOp(UserVarPtr[i], *Elem);
@@ -1295,7 +1328,7 @@ struct NDRangeReduction<
         // If there are multiple values, reduce each separately
         // reduce_over_group is only defined for each T, not for span<T, ...>
         size_t LID = NDId.get_local_id(0);
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &RedElem = *getReducerAccess(Reducer).getElement(E);
           RedElem = reduce_over_group(Group, RedElem, BOp);
           if (LID == 0) {
@@ -1316,20 +1349,24 @@ struct NDRangeReduction<
           // We're done.
           return;
 
-        // Signal this work-group has finished after all values are reduced
+        // Signal this work-group has finished after all values are reduced. We
+        // had an implicit work-group barrier in reduce_over_group and all the
+        // work since has been done in (LID == 0) work-item, so no extra sync is
+        // needed.
         if (LID == 0) {
           auto NFinished =
               sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
                                access::address_space::global_space>(
                   NWorkGroupsFinished[0]);
-          DoReducePartialSumsInLastWG[0] = ++NFinished == NWorkGroups;
+          DoReducePartialSumsInLastWG[0] =
+              ++NFinished == static_cast<int>(NWorkGroups);
         }
 
         workGroupBarrier();
         if (DoReducePartialSumsInLastWG[0]) {
           // Reduce each result separately
           // TODO: Opportunity to parallelize across elements.
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             auto LocalSum = getReducerAccess(Reducer).getIdentity();
             for (size_t I = LID; I < NWorkGroups; I += WGSize)
               LocalSum = BOp(LocalSum, PartialSums[I * NElements + E]);
@@ -1505,7 +1542,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       // If there are multiple values, reduce each separately
       // This prevents local memory from scaling with elements
       size_t LID = NDId.get_local_linear_id();
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
 
         doTreeReduction<WorkSizeGuarantees::Equal>(
             WGSize, NDId, LocalReds, ElementCombiner,
@@ -1527,7 +1564,10 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         }
       }
 
-      // Signal this work-group has finished after all values are reduced
+      // Signal this work-group has finished after all values are reduced. We
+      // had an implicit work-group barrier in doTreeReduction and all the
+      // work since has been done in (LID == 0) work-item, so no extra sync is
+      // needed.
       if (LID == 0) {
         auto NFinished =
             sycl::atomic_ref<int, memory_order::acq_rel, memory_scope::device,
@@ -1541,7 +1581,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       if (DoReducePartialSumsInLastWG[0]) {
         // Reduce each result separately
         // TODO: Opportunity to parallelize across elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           doTreeReduction<WorkSizeGuarantees::None>(
               NWorkGroups, NDId, LocalReds, ElementCombiner,
               [&](size_t I) { return PartialSums[I * NElements + E]; });
@@ -1581,7 +1621,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
         KernelFunc(NDIt, Reducer);
 
         typename Reduction::binary_operation BOp;
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
           auto &ReducerElem = getReducerAccess(Reducer).getElement(E);
           *ReducerElem = reduce_over_group(NDIt.get_group(), *ReducerElem, BOp);
         }
@@ -1630,7 +1670,7 @@ struct NDRangeReduction<
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -1705,7 +1745,7 @@ struct NDRangeReduction<
       // Compute the partial sum/reduction for the work-group.
       size_t WGID = NDIt.get_group_linear_id();
       typename Reduction::binary_operation BOp;
-      for (int E = 0; E < NElements; ++E) {
+      for (size_t E = 0; E < NElements; ++E) {
         typename Reduction::result_type PSum;
         PSum = *getReducerAccess(Reducer).getElement(E);
         PSum = reduce_over_group(NDIt.get_group(), PSum, BOp);
@@ -1767,7 +1807,7 @@ struct NDRangeReduction<
           size_t WGID = NDIt.get_group_linear_id();
           size_t GID = NDIt.get_global_linear_id();
 
-          for (int E = 0; E < NElements; ++E) {
+          for (size_t E = 0; E < NElements; ++E) {
             typename Reduction::result_type PSum =
                 (HasUniformWG || (GID < NWorkItems))
                     ? *In[GID * NElements + E]
@@ -1864,7 +1904,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
 
         // If there are multiple values, reduce each separately
         // This prevents local memory from scaling with elements
-        for (int E = 0; E < NElements; ++E) {
+        for (size_t E = 0; E < NElements; ++E) {
 
           doTreeReduction<WorkSizeGuarantees::Equal>(
               WGSize, NDIt, LocalReds, ElementCombiner,
@@ -1971,7 +2011,7 @@ template <> struct NDRangeReduction<reduction::strategy::basic> {
               return LHS.combine(BOp, RHS);
             };
 
-            for (int E = 0; E < NElements; ++E) {
+            for (size_t E = 0; E < NElements; ++E) {
 
               doTreeReduction<WorkSizeGuarantees::LessOrEqual>(
                   RemainingWorkSize, NDIt, LocalReds, ElementCombiner,
@@ -2884,5 +2924,5 @@ auto reduction(span<T, Extent> Span, const T &Identity,
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(
       Span.data(), Identity, Combiner, InitializeToIdentity);
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

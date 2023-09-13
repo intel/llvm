@@ -7,11 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
-// TODO: Enable the test when GPU driver is ready/fixed.
-// XFAIL: opencl || windows || gpu-intel-pvc
-// TODO: add support for local_accessors to esimd_emulator.
-// UNSUPPORTED: esimd_emulator
+// TODO: Reenable the test for Gen12 once driver issue is fixed
+// REQUIRES: gpu-intel-pvc
 // This test verifies usage of block_load/block_store for local_accessor.
 
 #include "esimd_test_utils.hpp"
@@ -24,16 +21,18 @@
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
 
-constexpr int VL = 16;
+template <typename T, int VL, int Align = 16> bool test(queue Q) {
+  std::cout << "Running case: T=" << esimd_test::type_name<T>() << ", VL=" << VL
+            << ", Align=" << Align << std::endl;
 
-template <typename T>
-bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
-  std::cout << "Running case: T=" << esimd_test::type_name<T>() << std::endl;
+  constexpr uint32_t LocalRange = 16;
+  constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
 
   // The test is going to use (LocalRange * VL) elements of T type.
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
-  if (DeviceSLMSize < LocalRange * VL * sizeof(T)) {
+  constexpr uint32_t UsedSLMSize = LocalRange * VL * sizeof(T) + Align;
+  if (DeviceSLMSize < UsedSLMSize) {
     // Report an error - the test needs a fix.
     std::cerr << "Error: Test needs more SLM memory than device has!"
               << std::endl;
@@ -47,22 +46,24 @@ bool test(queue Q, uint32_t LocalRange, uint32_t GlobalRange) {
   try {
     nd_range<1> NDRange{range<1>{GlobalRange}, range<1>{LocalRange}};
     Q.submit([&](handler &CGH) {
-       auto LocalAcc = local_accessor<T, 1>(LocalRange * VL, CGH);
+       auto LocalAcc = local_accessor<T, 1>(UsedSLMSize / sizeof(T), CGH);
 
        CGH.parallel_for(NDRange, [=](nd_item<1> Item) SYCL_ESIMD_KERNEL {
          uint32_t GID = Item.get_global_id(0);
          uint32_t LID = Item.get_local_id(0);
+         overaligned_tag<Align> AlignTag;
 
          simd<int, VL> IntValues(GID * 100, 1);
          simd<T, VL> ValuesToSLM = IntValues;
-         block_store(LocalAcc, LID * VL * sizeof(T), ValuesToSLM);
+         block_store(LocalAcc, Align + LID * VL * sizeof(T), ValuesToSLM,
+                     AlignTag);
 
          Item.barrier();
 
          if (LID == 0) {
            for (int LID = 0; LID < LocalRange; LID++) {
-             simd<T, VL> ValuesFromSLM =
-                 block_load<T, VL>(LocalAcc, LID * VL * sizeof(T));
+             simd<T, VL> ValuesFromSLM = block_load<T, VL>(
+                 LocalAcc, Align + LID * VL * sizeof(T), AlignTag);
              ValuesFromSLM.copy_to(Out + (GID + LID) * VL);
            } // end for (int LID = 0; LID < LocalRange; LID++)
          }   // end if (LID == 0)
@@ -97,17 +98,31 @@ int main() {
   auto Q = queue{gpu_selector_v};
   auto Dev = Q.get_device();
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
-  std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
-            << ", Local memory size available : " << DeviceSLMSize << std::endl;
+  esimd_test::printTestLabel(Q, "Local memory size available", DeviceSLMSize);
 
-  constexpr uint32_t LocalRange = 16;
-  constexpr uint32_t GlobalRange = LocalRange * 2; // 2 groups.
+  if (!isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows, "26690",
+                     "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26690 or newer.\n";
+    return 0;
+  }
+
+  constexpr size_t Align4 = 4;
+  constexpr size_t Align8 = 8;
+  constexpr size_t Align16 = 16;
 
   bool Pass = true;
-  Pass &= test<int>(Q, LocalRange, GlobalRange);
-  Pass &= test<float>(Q, LocalRange, GlobalRange);
-  if (Dev.has(aspect::fp16))
-    Pass &= test<sycl::half>(Q, LocalRange, GlobalRange);
+  Pass &= test<int, 16, Align16>(Q);
+  Pass &= test<float, 16, Align16>(Q);
+
+  if (Dev.has(aspect::fp16) &&
+      esimd_test::isGPUDriverGE(Q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                "26032", "101.4502"))
+    Pass &= test<sycl::half, 16, Align16>(Q);
+
+  // Check SLM load/store with vector size that is not power of 2
+  // and/or is too big for 1 flat-load/store.
+  Pass &= test<int, 16, Align4>(Q);
+  Pass &= test<float, 16, Align8>(Q);
 
   std::cout << "Test result: " << (Pass ? "Pass" : "Fail") << std::endl;
   return Pass ? 0 : 1;

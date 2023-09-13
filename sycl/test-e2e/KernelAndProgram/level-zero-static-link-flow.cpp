@@ -1,4 +1,5 @@
 // REQUIRES: level_zero
+// UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=-1 ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
@@ -31,9 +32,11 @@ class MyKernel;
 void test() {
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
+  sycl::device Device = Queue.get_device();
 
   auto BundleInput =
-      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context);
+      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context,
+                                                                   {Device});
   auto BundleObject = sycl::compile(BundleInput);
   sycl::link(BundleObject);
 

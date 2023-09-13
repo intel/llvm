@@ -52,20 +52,6 @@ public:
 FunctionPass *createESIMDLowerLoadStorePass();
 void initializeESIMDLowerLoadStorePass(PassRegistry &);
 
-// Pass converts simd* function parameters and globals to
-// llvm's first-class vector* type.
-class ESIMDLowerVecArgPass : public PassInfoMixin<ESIMDLowerVecArgPass> {
-public:
-  PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-
-private:
-  Function *rewriteFunc(Function &F);
-  Type *getSimdArgPtrTyOrNull(Value *arg);
-};
-
-ModulePass *createESIMDLowerVecArgPass();
-void initializeESIMDLowerVecArgLegacyPassPass(PassRegistry &);
-
 // - Converts simd* function parameters and return values passed by pointer to
 // pass-by-value
 //   (where possible)

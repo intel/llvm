@@ -42,7 +42,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // forward declaration
 
@@ -151,16 +151,16 @@ public:
         throw sycl::exception(make_error_code(errc::invalid),
                               "Queue cannot be constructed with both of "
                               "discard_events and enable_profiling.");
-      if (!MDevice->has(aspect::queue_profiling)) {
-        // TODO temporary workaround, see MLimitedProfiling
-        if (MDevice->is_accelerator() && checkNativeQueueProfiling(MDevice)) {
-          MLimitedProfiling = true;
-        } else {
-          throw sycl::exception(
-              make_error_code(errc::feature_not_supported),
-              "Cannot enable profiling, the associated device "
-              "does not have the queue_profiling aspect");
-        }
+      // fallback profiling support. See MFallbackProfiling
+      if (MDevice->has(aspect::queue_profiling)) {
+        // When piGetDeviceAndHostTimer is not supported, compute the
+        // profiling time OpenCL version < 2.1 case
+        if (!getDeviceImplPtr()->isGetDeviceAndHostTimerSupported())
+          MFallbackProfiling = true;
+      } else {
+        throw sycl::exception(make_error_code(errc::feature_not_supported),
+                              "Cannot enable profiling, the associated device "
+                              "does not have the queue_profiling aspect");
       }
     }
     if (has_property<ext::intel::property::queue::compute_index>()) {
@@ -616,7 +616,8 @@ public:
   /// \return an event representing copy operation.
   event memcpy(const std::shared_ptr<queue_impl> &Self, void *Dest,
                const void *Src, size_t Count,
-               const std::vector<event> &DepEvents);
+               const std::vector<event> &DepEvents,
+               const code_location &CodeLoc);
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -679,16 +680,17 @@ public:
                                size_t Offset,
                                const std::vector<event> &DepEvents);
 
-  bool isProfilingLimited() { return MLimitedProfiling; }
+  bool isProfilingFallback() { return MFallbackProfiling; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
+    std::lock_guard<std::mutex> Lock(MMutex);
     MGraph = Graph;
   }
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
-    return MGraph;
+    return MGraph.lock();
   }
 
 protected:
@@ -842,15 +844,12 @@ protected:
   // SYCL app are not the same.
   void *MTraceEvent = nullptr;
   /// The stream under which the traces are emitted from the queue object
-  uint8_t MStreamID;
+  uint8_t MStreamID = 0;
   /// The instance ID of the trace event for queue object
   uint64_t MInstanceID = 0;
 
-  // TODO this is a temporary workaround to allow use of start & end info
-  // on FPGA OpenCL 1.2 (current implementation of profiling does not
-  // support submit time stamps on this OpenCL version). Remove once
-  // the fallback implementation of profiling info is in place.
-  bool MLimitedProfiling = false;
+  // the fallback implementation of profiling info
+  bool MFallbackProfiling = false;
 
 public:
   // Queue constructed with the discard_events property
@@ -867,12 +866,11 @@ protected:
 
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph =
-      nullptr;
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

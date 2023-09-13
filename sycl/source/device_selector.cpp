@@ -25,7 +25,7 @@
 #include <regex>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -349,5 +349,5 @@ device filter_selector::select_device() const {
   return ext::oneapi::filter_selector::select_device();
 }
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

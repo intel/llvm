@@ -1,22 +1,24 @@
-//===--------- device.cpp - CUDA Adapter -----------------------------===//
+//===--------- device.cpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
+#include <array>
 #include <cassert>
 #include <sstream>
 
+#include "adapter.hpp"
 #include "context.hpp"
 #include "device.hpp"
 #include "platform.hpp"
 
 int getAttribute(ur_device_handle_t device, CUdevice_attribute attribute) {
   int value;
-  detail::ur::assertion(
-      cuDeviceGetAttribute(&value, attribute, device->get()) == CUDA_SUCCESS);
+
+  UR_CHECK_ERROR(cuDeviceGetAttribute(&value, attribute, device->get()));
   return value;
 }
 
@@ -52,10 +54,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS: {
     int ComputeUnits = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&ComputeUnits,
-                             CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &ComputeUnits, CU_DEVICE_ATTRIBUTE_MULTIPROCESSOR_COUNT,
+        hDevice->get()));
     detail::ur::assertion(ComputeUnits >= 0);
     return ReturnValue(static_cast<uint32_t>(ComputeUnits));
   }
@@ -68,19 +69,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     } ReturnSizes;
 
     int MaxX = 0, MaxY = 0, MaxZ = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxX, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_X, hDevice->get()));
     detail::ur::assertion(MaxX >= 0);
 
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxY, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Y, hDevice->get()));
     detail::ur::assertion(MaxY >= 0);
 
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxZ, CU_DEVICE_ATTRIBUTE_MAX_BLOCK_DIM_Z, hDevice->get()));
     detail::ur::assertion(MaxZ >= 0);
 
     ReturnSizes.Sizes[0] = size_t(MaxX);
@@ -94,19 +92,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
       size_t Sizes[MaxWorkItemDimensions];
     } ReturnSizes;
     int MaxX = 0, MaxY = 0, MaxZ = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxX, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_X, hDevice->get()));
     detail::ur::assertion(MaxX >= 0);
 
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxY, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Y, hDevice->get()));
     detail::ur::assertion(MaxY >= 0);
 
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxZ, CU_DEVICE_ATTRIBUTE_MAX_GRID_DIM_Z, hDevice->get()));
     detail::ur::assertion(MaxZ >= 0);
 
     ReturnSizes.Sizes[0] = size_t(MaxX);
@@ -117,10 +112,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE: {
     int MaxWorkGroupSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxWorkGroupSize,
-                             CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxWorkGroupSize, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        hDevice->get()));
 
     detail::ur::assertion(MaxWorkGroupSize >= 0);
 
@@ -171,14 +165,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int MaxThreads = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MaxThreads,
-                             CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &MaxThreads, CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
+        hDevice->get()));
     int WarpSize = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
-                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE, hDevice->get()));
     int MaxWarps = (MaxThreads + WarpSize - 1) / WarpSize;
     return ReturnValue(MaxWarps);
   }
@@ -186,37 +178,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // Volta provides independent thread scheduling
     // TODO: Revisit for previous generation GPUs
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
     bool IFP = (Major >= 7);
     return ReturnValue(IFP);
   }
 
   case UR_DEVICE_INFO_ATOMIC_64: {
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
 
     bool Atomic64 = (Major >= 6) ? true : false;
     return ReturnValue(Atomic64);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    uint64_t Capabilities = UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-                            UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
     return ReturnValue(Capabilities);
   }
   case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
     uint64_t Capabilities =
         (Major >= 7) ? UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
@@ -254,10 +241,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_BFLOAT16: {
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
 
     bool BFloat16 = (Major >= 8) ? true : false;
     return ReturnValue(BFloat16);
@@ -265,17 +250,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_SUB_GROUP_SIZES_INTEL: {
     // NVIDIA devices only support one sub-group size (the warp size)
     int WarpSize = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&WarpSize,
-                                               CU_DEVICE_ATTRIBUTE_WARP_SIZE,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &WarpSize, CU_DEVICE_ATTRIBUTE_WARP_SIZE, hDevice->get()));
     size_t Sizes[1] = {static_cast<size_t>(WarpSize)};
     return ReturnValue(Sizes, 1);
   }
   case UR_DEVICE_INFO_MAX_CLOCK_FREQUENCY: {
     int ClockFreq = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&ClockFreq,
-                                               CU_DEVICE_ATTRIBUTE_CLOCK_RATE,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &ClockFreq, CU_DEVICE_ATTRIBUTE_CLOCK_RATE, hDevice->get()));
     detail::ur::assertion(ClockFreq >= 0);
     return ReturnValue(static_cast<uint32_t>(ClockFreq) / 1000u);
   }
@@ -284,27 +267,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(Bits);
   }
   case UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE: {
-    // Max size of memory object allocation in bytes.
-    // The minimum value is max(min(1024 × 1024 ×
-    // 1024, 1/4th of CL_DEVICE_GLOBAL_MEM_SIZE),
-    // 32 × 1024 × 1024) for devices that are not of type
-    // CL_DEVICE_TYPE_CUSTOM.
-
-    size_t Global = 0;
-    detail::ur::assertion(cuDeviceTotalMem(&Global, hDevice->get()) ==
-                          CUDA_SUCCESS);
-
-    auto QuarterGlobal = static_cast<uint32_t>(Global / 4u);
-
-    auto MaxAlloc = std::max(std::min(1024u * 1024u * 1024u, QuarterGlobal),
-                             32u * 1024u * 1024u);
-
-    return ReturnValue(uint64_t{MaxAlloc});
+    return ReturnValue(uint64_t{hDevice->getMaxAllocSize()});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
     bool Enabled = false;
 
-    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
+    if (std::getenv("SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr ||
+        std::getenv("UR_CUDA_ENABLE_IMAGE_SUPPORT") != nullptr) {
       Enabled = true;
     } else {
       detail::ur::cuPrint(
@@ -314,7 +283,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
           "runtime.");
     }
 
-    return ReturnValue(uint32_t{Enabled});
+    return ReturnValue(Enabled);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to CUDA as it doesn't have images, but instead
@@ -331,16 +300,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexHeight,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexHeight, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_HEIGHT,
+        hDevice->get()));
     detail::ur::assertion(TexHeight >= 0);
     int SurfHeight = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfHeight,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfHeight, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_HEIGHT,
+        hDevice->get()));
     detail::ur::assertion(SurfHeight >= 0);
 
     int Min = std::min(TexHeight, SurfHeight);
@@ -350,16 +317,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE2D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -369,16 +334,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_HEIGHT: {
     // Take the smaller of maximum surface and maximum texture height.
     int TexHeight = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexHeight,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexHeight, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_HEIGHT,
+        hDevice->get()));
     detail::ur::assertion(TexHeight >= 0);
     int SurfHeight = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfHeight,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfHeight, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_HEIGHT,
+        hDevice->get()));
     detail::ur::assertion(SurfHeight >= 0);
 
     int Min = std::min(TexHeight, SurfHeight);
@@ -388,16 +351,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_WIDTH: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -407,16 +368,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH: {
     // Take the smaller of maximum surface and maximum texture depth.
     int TexDepth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexDepth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexDepth, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE3D_DEPTH,
+        hDevice->get()));
     detail::ur::assertion(TexDepth >= 0);
     int SurfDepth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfDepth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfDepth, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE3D_DEPTH,
+        hDevice->get()));
     detail::ur::assertion(SurfDepth >= 0);
 
     int Min = std::min(TexDepth, SurfDepth);
@@ -426,16 +385,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE: {
     // Take the smaller of maximum surface and maximum texture width.
     int TexWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&TexWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &TexWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE1D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(TexWidth >= 0);
     int SurfWidth = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&SurfWidth,
-                             CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &SurfWidth, CU_DEVICE_ATTRIBUTE_MAXIMUM_SURFACE1D_WIDTH,
+        hDevice->get()));
     detail::ur::assertion(SurfWidth >= 0);
 
     int Min = std::min(TexWidth, SurfWidth);
@@ -458,10 +415,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN: {
     int MemBaseAddrAlign = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&MemBaseAddrAlign,
-                             CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(&MemBaseAddrAlign,
+                                        CU_DEVICE_ATTRIBUTE_TEXTURE_ALIGNMENT,
+                                        hDevice->get()));
     // Multiply by 8 as clGetDeviceInfo returns this value in bits
     MemBaseAddrAlign *= 8;
     return ReturnValue(MemBaseAddrAlign);
@@ -472,7 +428,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config =
+    ur_device_fp_capability_flags_t Config =
         UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
         UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
         UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
@@ -484,12 +440,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
     // TODO: is this config consistent across all NVIDIA GPUs?
-    uint64_t Config = UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
-                      UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+    ur_device_fp_capability_flags_t Config =
+        UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+        UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_ZERO |
+        UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_INF |
+        UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
     return ReturnValue(Config);
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_TYPE: {
@@ -503,9 +460,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_GLOBAL_MEM_CACHE_SIZE: {
     int CacheSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&CacheSize, CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &CacheSize, CU_DEVICE_ATTRIBUTE_L2_CACHE_SIZE, hDevice->get()));
     detail::ur::assertion(CacheSize >= 0);
     // The L2 cache is global to the GPU.
     return ReturnValue(static_cast<uint64_t>(CacheSize));
@@ -519,10 +475,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE: {
     int ConstantMemory = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&ConstantMemory,
-                             CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &ConstantMemory, CU_DEVICE_ATTRIBUTE_TOTAL_CONSTANT_MEMORY,
+        hDevice->get()));
     detail::ur::assertion(ConstantMemory >= 0);
 
     return ReturnValue(static_cast<uint64_t>(ConstantMemory));
@@ -540,19 +495,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // OpenCL's "local memory" maps most closely to CUDA's "shared memory".
     // CUDA has its own definition of "local memory", which maps to OpenCL's
     // "private memory".
-    int LocalMemSize = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&LocalMemSize,
-                             CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(LocalMemSize >= 0);
-    return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    if (hDevice->maxLocalMemSizeChosen()) {
+      return ReturnValue(
+          static_cast<uint64_t>(hDevice->getMaxChosenLocalMem()));
+    } else {
+      int LocalMemSize = 0;
+      UR_CHECK_ERROR(cuDeviceGetAttribute(
+          &LocalMemSize, CU_DEVICE_ATTRIBUTE_MAX_SHARED_MEMORY_PER_BLOCK,
+          hDevice->get()));
+      detail::ur::assertion(LocalMemSize >= 0);
+      return ReturnValue(static_cast<uint64_t>(LocalMemSize));
+    }
   }
   case UR_DEVICE_INFO_ERROR_CORRECTION_SUPPORT: {
     int ECCEnabled = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&ECCEnabled,
-                                               CU_DEVICE_ATTRIBUTE_ECC_ENABLED,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &ECCEnabled, CU_DEVICE_ATTRIBUTE_ECC_ENABLED, hDevice->get()));
 
     detail::ur::assertion((ECCEnabled == 0) | (ECCEnabled == 1));
     auto Result = static_cast<bool>(ECCEnabled);
@@ -560,9 +518,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY: {
     int IsIntegrated = 0;
-    detail::ur::assertion(cuDeviceGetAttribute(&IsIntegrated,
-                                               CU_DEVICE_ATTRIBUTE_INTEGRATED,
-                                               hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &IsIntegrated, CU_DEVICE_ATTRIBUTE_INTEGRATED, hDevice->get()));
 
     detail::ur::assertion((IsIntegrated == 0) | (IsIntegrated == 1));
     auto result = static_cast<bool>(IsIntegrated);
@@ -599,13 +556,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                         UR_QUEUE_FLAG_PROFILING_ENABLE));
   case UR_DEVICE_INFO_QUEUE_ON_DEVICE_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
-                          UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE |
+                                  UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_QUEUE_ON_HOST_PROPERTIES: {
     // The mandated minimum capability:
-    uint64_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
+    ur_queue_flags_t Capability = UR_QUEUE_FLAG_PROFILING_ENABLE;
     return ReturnValue(Capability);
   }
   case UR_DEVICE_INFO_BUILT_IN_KERNELS: {
@@ -619,8 +576,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_NAME: {
     static constexpr size_t MaxDeviceNameLength = 256u;
     char Name[MaxDeviceNameLength];
-    detail::ur::assertion(cuDeviceGetName(Name, MaxDeviceNameLength,
-                                          hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetName(Name, MaxDeviceNameLength, hDevice->get()));
     return ReturnValue(Name, strlen(Name) + 1);
   }
   case UR_DEVICE_INFO_VENDOR: {
@@ -639,16 +595,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_VERSION: {
     std::stringstream SS;
     int Major;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
     SS << Major;
     int Minor;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
     SS << "." << Minor;
     return ReturnValue(SS.str().c_str());
   }
@@ -664,14 +616,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     int Major = 0;
     int Minor = 0;
 
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
 
     if ((Major >= 6) || ((Major == 5) && (Minor >= 3))) {
       SupportedExtensions += "cl_khr_fp16 ";
@@ -693,13 +641,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_SUPPORTED_PARTITIONS: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
+
   case UR_DEVICE_INFO_PARTITION_AFFINITY_DOMAIN: {
     return ReturnValue(0u);
   }
   case UR_DEVICE_INFO_PARTITION_TYPE: {
-    return ReturnValue(static_cast<ur_device_partition_t>(0u));
+    if (pPropSizeRet) {
+      *pPropSizeRet = 0;
+    }
+    return UR_RESULT_SUCCESS;
   }
 
     // Intel USM extensions
@@ -852,30 +807,104 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
     int Value = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Value, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Value, CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE, hDevice->get()));
     detail::ur::assertion(Value >= 0);
     // Convert kilohertz to megahertz when returning.
     return ReturnValue(Value / 1000);
   }
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH: {
     int Value = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Value,
-                             CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Value, CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH, hDevice->get()));
     detail::ur::assertion(Value >= 0);
     return ReturnValue(Value);
   }
   case UR_DEVICE_INFO_MAX_COMPUTE_QUEUE_INDICES: {
     return ReturnValue(int32_t{1});
   }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
+    // On CUDA bindless images are supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
+    // On CUDA bindless images can be backed by shared (managed) USM.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
+    // On CUDA 1D bindless image USM is not supported.
+    // More specifically, linear filtering is not supported.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
+    // On CUDA 2D bindless image USM is supported.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP: {
+    int32_t tex_pitch_align = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &tex_pitch_align, CU_DEVICE_ATTRIBUTE_TEXTURE_PITCH_ALIGNMENT,
+        hDevice->get()));
+    return ReturnValue(tex_pitch_align);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP: {
+    int32_t tex_max_linear_width = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &tex_max_linear_width,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_WIDTH, hDevice->get()));
+    return ReturnValue(tex_max_linear_width);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_HEIGHT_EXP: {
+    int32_t tex_max_linear_height = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &tex_max_linear_height,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_HEIGHT, hDevice->get()));
+    return ReturnValue(tex_max_linear_height);
+  }
+  case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_PITCH_EXP: {
+    int32_t tex_max_linear_pitch = 0;
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &tex_max_linear_pitch,
+        CU_DEVICE_ATTRIBUTE_MAXIMUM_TEXTURE2D_LINEAR_PITCH, hDevice->get()));
+    return ReturnValue(tex_max_linear_pitch);
+  }
+  case UR_DEVICE_INFO_MIPMAP_SUPPORT_EXP: {
+    // CUDA supports mipmaps.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_ANISOTROPY_SUPPORT_EXP: {
+    // CUDA supports anisotropic filtering.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_MIPMAP_MAX_ANISOTROPY_EXP: {
+    // CUDA has no query for this, but documentation states max value is 16.
+    return ReturnValue(16.f);
+  }
+  case UR_DEVICE_INFO_MIPMAP_LEVEL_REFERENCE_SUPPORT_EXP: {
+    // CUDA supports creation of images from individual mipmap levels.
+    return ReturnValue(true);
+  }
+
+  case UR_DEVICE_INFO_INTEROP_MEMORY_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external memory.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_MEMORY_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting it's own device memory.
+    return ReturnValue(false);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_IMPORT_SUPPORT_EXP: {
+    // CUDA supports importing external semaphores.
+    return ReturnValue(true);
+  }
+  case UR_DEVICE_INFO_INTEROP_SEMAPHORE_EXPORT_SUPPORT_EXP: {
+    // CUDA does not support exporting semaphores or events.
+    return ReturnValue(false);
+  }
   case UR_DEVICE_INFO_DEVICE_ID: {
     int Value = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Value, CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Value, CU_DEVICE_ATTRIBUTE_PCI_DEVICE_ID, hDevice->get()));
     detail::ur::assertion(Value >= 0);
     return ReturnValue(Value);
   }
@@ -894,16 +923,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH: {
     int Major = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Major,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Major, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, hDevice->get()));
 
     int Minor = 0;
-    detail::ur::assertion(
-        cuDeviceGetAttribute(&Minor,
-                             CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR,
-                             hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(cuDeviceGetAttribute(
+        &Minor, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, hDevice->get()));
 
     // Some specific devices seem to need special handling. See reference
     // https://github.com/jeffhammond/HPCInfo/blob/master/cuda/gpu-detect.cu
@@ -916,23 +941,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     } else if (IsOrinAGX) {
       MemoryClockKHz = 3200000;
     } else {
-      detail::ur::assertion(
-          cuDeviceGetAttribute(&MemoryClockKHz,
-                               CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
-                               hDevice->get()) == CUDA_SUCCESS);
+      UR_CHECK_ERROR(cuDeviceGetAttribute(&MemoryClockKHz,
+                                          CU_DEVICE_ATTRIBUTE_MEMORY_CLOCK_RATE,
+                                          hDevice->get()));
     }
 
     int MemoryBusWidth = 0;
     if (IsOrinAGX) {
       MemoryBusWidth = 256;
     } else {
-      detail::ur::assertion(
-          cuDeviceGetAttribute(&MemoryBusWidth,
-                               CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
-                               hDevice->get()) == CUDA_SUCCESS);
+      UR_CHECK_ERROR(cuDeviceGetAttribute(
+          &MemoryBusWidth, CU_DEVICE_ATTRIBUTE_GLOBAL_MEMORY_BUS_WIDTH,
+          hDevice->get()));
     }
 
-    uint64_t MemoryBandwidth = uint64_t(MemoryClockKHz) * MemoryBusWidth * 250;
+    uint32_t MemoryBandwidth = MemoryClockKHz * MemoryBusWidth * 250;
 
     return ReturnValue(MemoryBandwidth);
   }
@@ -982,8 +1005,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
-    detail::ur::assertion(cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize,
-                                              hDevice->get()) == CUDA_SUCCESS);
+    UR_CHECK_ERROR(
+        cuDeviceGetPCIBusId(AddressBuffer, AddressBufferSize, hDevice->get()));
     // CUDA API (8.x - 12.1) guarantees 12 bytes + \0 are written
     detail::ur::assertion(strnlen(AddressBuffer, AddressBufferSize) == 12);
     return ReturnValue(AddressBuffer,
@@ -992,13 +1015,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
     // TODO: Investigate if this information is available on CUDA.
+  case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
+    return ReturnValue(false);
+  case UR_DEVICE_INFO_MAX_READ_WRITE_IMAGE_ARGS:
   case UR_DEVICE_INFO_GPU_EU_COUNT:
   case UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH:
   case UR_DEVICE_INFO_GPU_EU_SLICES:
   case UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE:
   case UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE:
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
-    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
@@ -1090,7 +1116,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   // We can't cast between ur_native_handle_t and CUdevice, so memcpy the bits
   // instead
   CUdevice CuDevice = 0;
-  memcpy(&CuDevice, hNativeDevice, sizeof(CUdevice));
+  memcpy(&CuDevice, &hNativeDevice, sizeof(CUdevice));
 
   auto IsDevice = [=](std::unique_ptr<ur_device_handle_t_> &Dev) {
     return Dev->get() == CuDevice;
@@ -1108,13 +1134,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 
   // Get list of platforms
   uint32_t NumPlatforms = 0;
-  ur_result_t Result = urPlatformGet(0, nullptr, &NumPlatforms);
+  ur_adapter_handle_t AdapterHandle = &adapter;
+  ur_result_t Result =
+      urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 
   ur_platform_handle_t *Plat = static_cast<ur_platform_handle_t *>(
       malloc(NumPlatforms * sizeof(ur_platform_handle_t)));
-  Result = urPlatformGet(NumPlatforms, Plat, nullptr);
+  Result = urPlatformGet(&AdapterHandle, 1, NumPlatforms, Plat, nullptr);
   if (Result != UR_RESULT_SUCCESS)
     return Result;
 

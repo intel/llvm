@@ -1,10 +1,10 @@
-//===--------- program.cpp - Level Zero Adapter ----------------------===//
+//===--------- program.cpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "program.hpp"
 #include "ur_level_zero.hpp"
@@ -85,7 +85,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   // following: "program executable", "compiled program", or "library of
   // compiled programs".  In addition, the loaded program can be either
   // IL (SPIR-v) or native device code.  For now, we assume that
-  // piProgramCreateWithBinary() is only used to load a "program executable"
+  // urProgramCreateWithBinary() is only used to load a "program executable"
   // as native device code.
   // If we wanted to support all the same cases as OpenCL, we would need to
   // somehow examine the binary image to distinguish the cases.  Alternatively,
@@ -150,8 +150,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
       ZE_CALL_NOCHECK(zeModuleCreate, (ZeContext, ZeDevice, &ZeModuleDesc,
                                        &ZeModule, &Program->ZeBuildLog));
   if (ZeResult != ZE_RESULT_SUCCESS) {
-    // We adjust pi_program below to avoid attempting to release zeModule when
-    // RT calls piProgramRelease().
+    // We adjust ur_program below to avoid attempting to release zeModule when
+    // RT calls urProgramRelease().
     Program->State = ur_program_handle_t_::Invalid;
     Result = ze2urResult(ZeResult);
     if (ZeModule) {
@@ -162,7 +162,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
     // The call to zeModuleCreate does not report an error if there are
     // unresolved symbols because it thinks these could be resolved later via a
     // call to zeModuleDynamicLink.  However, modules created with
-    // piProgramBuild are supposed to be fully linked and ready to use.
+    // urProgramBuild are supposed to be fully linked and ready to use.
     // Therefore, do an extra check now for unresolved symbols.
     ZeResult = checkUnresolvedSymbols(ZeModule, &Program->ZeBuildLog);
     if (ZeResult != ZE_RESULT_SUCCESS) {
@@ -202,7 +202,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
   // We don't compile anything now.  Instead, we delay compilation until
-  // piProgramLink, where we do both compilation and linking as a single step.
+  // urProgramLink, where we do both compilation and linking as a single step.
   // This produces better code because the driver can do cross-module
   // optimizations.  Therefore, we just remember the compilation flags, so we
   // can use them later.
@@ -223,9 +223,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     ur_program_handle_t
         *Program ///< [out] pointer to handle of program object created.
 ) {
-  // TODO
-  // UR_ASSERT(Context->isValidDevice(Context->Devices[0]),
-  // UR_RESULT_ERROR_INVALID_DEVICE);
+  UR_ASSERT(Context->isValidDevice(Context->Devices[0]),
+            UR_RESULT_ERROR_INVALID_DEVICE);
 
   // We do not support any link flags at this time because the Level Zero API
   // does not have any way to pass flags that are specific to linking.
@@ -246,7 +245,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
     // that they are all in Object state.
     //
     // There is no danger of deadlock here even if two threads call
-    // piProgramLink simultaneously with the same input programs in a different
+    // urProgramLink simultaneously with the same input programs in a different
     // order.  If we were acquiring these with "exclusive" access, this could
     // lead to a classic lock ordering deadlock.  However, there is no such
     // deadlock potential with "shared" access.  There could also be a deadlock
@@ -262,7 +261,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
       }
     }
 
-    // Previous calls to piProgramCompile did not actually compile the SPIR-V.
+    // Previous calls to urProgramCompile did not actually compile the SPIR-V.
     // Instead, we postpone compilation until this point, when all the modules
     // are linked together.  By doing compilation and linking together, the JIT
     // compiler is able see all modules and do cross-module optimizations.
@@ -635,9 +634,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
   if (PropName == UR_PROGRAM_BUILD_INFO_OPTIONS) {
     // TODO: how to get module build options out of Level Zero?
     // For the programs that we compiled we can remember the options
-    // passed with piProgramCompile/piProgramBuild, but what can we
+    // passed with urProgramCompile/urProgramBuild, but what can we
     // return for programs that were built outside and registered
-    // with piProgramRegister?
+    // with urProgramRegister?
     return ReturnValue("");
   } else if (PropName == UR_PROGRAM_BUILD_INFO_LOG) {
     // Check first to see if the plugin code recorded an error message.
@@ -654,12 +653,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
         *PropSizeRet = LogSize;
       }
       if (PropValue) {
-        // When the program build fails in piProgramBuild(), we delayed cleaning
+        // When the program build fails in urProgramBuild(), we delayed cleaning
         // up the build log because RT later calls this routine to get the
         // failed build log.
         // To avoid memory leaks, we should clean up the failed build log here
-        // because RT does not create sycl::program when piProgramBuild() fails,
-        // thus it won't call piProgramRelease() to clean up the build log.
+        // because RT does not create sycl::program when urProgramBuild() fails,
+        // thus it won't call urProgramRelease() to clean up the build log.
         if (Program->State == ur_program_handle_t_::Invalid) {
           ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (Program->ZeBuildLog));
           Program->ZeBuildLog = nullptr;
@@ -733,7 +732,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 
   try {
     ur_program_handle_t_ *UrProgram =
-        new ur_program_handle_t_(ur_program_handle_t_::Exe, Context, ZeModule);
+        new ur_program_handle_t_(ur_program_handle_t_::Exe, Context, ZeModule,
+                                 Properties->isNativeHandleOwned);
     *Program = reinterpret_cast<ur_program_handle_t>(UrProgram);
   } catch (const std::bad_alloc &) {
     return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -747,13 +747,10 @@ ur_program_handle_t_::~ur_program_handle_t_() {
   // According to Level Zero Specification, all kernels and build logs
   // must be destroyed before the Module can be destroyed.  So, be sure
   // to destroy build log before destroying the module.
-  // printf("ZeBuildLog %lx\n", (unsigned long int)ZeBuildLog);
   if (ZeBuildLog) {
     ZE_CALL_NOCHECK(zeModuleBuildLogDestroy, (ZeBuildLog));
   }
 
-  // printf("ZeModule %lx OwnZeModule %d\n", (unsigned long int)ZeModule,
-  // OwnZeModule);
   if (ZeModule && OwnZeModule) {
     ZE_CALL_NOCHECK(zeModuleDestroy, (ZeModule));
   }

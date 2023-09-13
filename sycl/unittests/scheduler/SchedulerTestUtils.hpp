@@ -24,11 +24,11 @@
 sycl::detail::Requirement getMockRequirement();
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class Command;
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 class MockCommand : public sycl::detail::Command {
@@ -220,7 +220,8 @@ sycl::detail::Requirement getMockRequirement(const MemObjT &MemObj) {
           /*AccessMode*/ sycl::access::mode::read_write,
           /*SYCLMemObj*/ sycl::detail::getSyclObjImpl(MemObj).get(),
           /*Dims*/ 0,
-          /*ElementSize*/ 0};
+          /*ElementSize*/ 0,
+          /*Offset*/ size_t(0)};
 }
 
 class MockHandler : public sycl::handler {
@@ -241,7 +242,9 @@ public:
   std::unique_ptr<sycl::detail::HostKernelBase> &getHostKernel() {
     return MHostKernel;
   }
-  std::vector<std::vector<char>> &getArgsStorage() { return CGData.MArgsStorage; }
+  std::vector<std::vector<char>> &getArgsStorage() {
+    return CGData.MArgsStorage;
+  }
   std::vector<sycl::detail::AccessorImplPtr> &getAccStorage() {
     return CGData.MAccStorage;
   }
@@ -251,7 +254,9 @@ public:
   std::vector<sycl::detail::Requirement *> &getRequirements() {
     return CGData.MRequirements;
   }
-  std::vector<sycl::detail::EventImplPtr> &getEvents() { return CGData.MEvents; }
+  std::vector<sycl::detail::EventImplPtr> &getEvents() {
+    return CGData.MEvents;
+  }
   std::vector<sycl::detail::ArgDesc> &getArgs() { return MArgs; }
   std::string &getKernelName() { return MKernelName; }
   std::shared_ptr<sycl::detail::kernel_impl> &getKernel() { return MKernel; }

@@ -1,10 +1,10 @@
-//===--------- device.hpp - Level Zero Adapter -----------------------===//
+//===--------- device.hpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -107,6 +107,10 @@ struct ur_device_handle_t_ : _ur_object {
   // ze_device_handle_t array that are returned from zeDeviceGetSubDevices()
   // call, which will always return sub-devices in the fixed same order.
   std::vector<ur_device_handle_t> SubDevices;
+
+  // If this device is a subdevice, this variable contains the properties that
+  // were used during its creation.
+  ur_device_partition_property_t SubDeviceCreationProperty;
 
   // PI platform to which this device belongs.
   // This field is only set at _ur_device_handle_t creation time, and cannot

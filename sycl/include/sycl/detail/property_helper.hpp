@@ -8,10 +8,8 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -46,8 +44,10 @@ enum DataLessPropKind {
   GraphNoCycleCheck = 19,
   QueueSubmissionBatched = 20,
   QueueSubmissionImmediate = 21,
+  GraphAssumeDataOutlivesBuffer = 22,
+  GraphAssumeBufferOutlivesGraph = 23,
   // Indicates the last known dataless property.
-  LastKnownDataLessPropKind = 21,
+  LastKnownDataLessPropKind = 23,
   // Exceeding 32 may cause ABI breaking change on some of OSes.
   DataLessPropKindSize = 32
 };
@@ -101,5 +101,5 @@ public:
 
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

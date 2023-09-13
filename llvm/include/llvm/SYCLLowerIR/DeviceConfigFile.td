@@ -50,6 +50,17 @@ def AspectExt_intel_memory_clock_rate : Aspect<"ext_intel_memory_clock_rate">;
 def AspectExt_intel_memory_bus_width : Aspect<"ext_intel_memory_bus_width">;
 def AspectEmulated : Aspect<"emulated">;
 def AspectExt_intel_legacy_image : Aspect<"ext_intel_legacy_image">;
+def AspectExt_oneapi_bindless_images : Aspect<"ext_oneapi_bindless_images">;
+def AspectExt_oneapi_bindless_images_shared_usm : Aspect<"ext_oneapi_bindless_images_shared_usm">;
+def AspectExt_oneapi_bindless_images_1d_usm : Aspect<"ext_oneapi_bindless_images_1d_usm">;
+def AspectExt_oneapi_bindless_images_2d_usm : Aspect<"ext_oneapi_bindless_images_2d_usm">;
+def AspectExt_oneapi_interop_memory_import : Aspect<"ext_oneapi_interop_memory_import">;
+def AspectExt_oneapi_interop_memory_export : Aspect<"ext_oneapi_interop_memory_export">;
+def AspectExt_oneapi_interop_semaphore_import : Aspect<"ext_oneapi_interop_semaphore_import">;
+def AspectExt_oneapi_interop_semaphore_export : Aspect<"ext_oneapi_interop_semaphore_export">;
+def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
+def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
+def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -94,7 +105,11 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_native_assert, AspectHost_debuggable, AspectExt_intel_gpu_hw_threads_per_eu,
     AspectExt_oneapi_cuda_async_barrier, AspectExt_oneapi_bfloat16_math_functions, AspectExt_intel_free_memory,
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
-    AspectExt_intel_legacy_image],
+    AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
+    AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
+    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_memory_export,
+    AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_interop_semaphore_export,
+    AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -103,6 +118,11 @@ def : TargetInfo<"__TestDeprecatedAspectList",
     AspectUsm_restricted_shared_allocations, AspectHost],
     []>;
 
+def : TargetInfo<"spir64", [], [], "", "", 1>;
+def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
+def : TargetInfo<"spir64_x86_64", [], [], "", "", 1>;
+def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
+def : TargetInfo<"x86_64", [], [], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
 //defvar AspectList = [AspectCpu] # AllUSMAspects;
 //def : TargetInfo<"Test", AspectList, []>;

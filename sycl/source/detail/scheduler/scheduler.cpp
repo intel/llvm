@@ -22,16 +22,20 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
   for (Command *Cmd : Record->MReadLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   for (Command *Cmd : Record->MWriteLeaves) {
-    if (!Cmd->getEvent()->isCompleted())
+    if (!(Cmd->getType() == detail::Command::ALLOCA ||
+          Cmd->getType() == detail::Command::ALLOCA_SUB_BUF) &&
+        !Cmd->getEvent()->isCompleted())
       return false;
   }
   return true;
@@ -147,7 +151,7 @@ EventImplPtr Scheduler::addCG(
   if (ShouldEnqueue) {
     enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
-    for (auto StreamImplPtr : Streams) {
+    for (const auto &StreamImplPtr : Streams) {
       StreamImplPtr->flush(NewEvent);
     }
 
@@ -620,5 +624,5 @@ KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

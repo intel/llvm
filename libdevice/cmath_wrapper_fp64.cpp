@@ -19,6 +19,12 @@ DEVICE_EXTERN_C_INLINE
 double log(double x) { return __devicelib_log(x); }
 
 DEVICE_EXTERN_C_INLINE
+double round(double x) { return __devicelib_round(x); }
+
+DEVICE_EXTERN_C_INLINE
+double floor(double x) { return __devicelib_floor(x); }
+
+DEVICE_EXTERN_C_INLINE
 double exp(double x) { return __devicelib_exp(x); }
 
 DEVICE_EXTERN_C_INLINE

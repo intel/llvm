@@ -65,6 +65,7 @@ struct SemaRecord {
   bool HasMaskedOffOperand :1;
   bool HasTailPolicy : 1;
   bool HasMaskPolicy : 1;
+  bool HasFRMRoundModeOp : 1;
   bool IsTuple : 1;
   uint8_t UnMaskedPolicyScheme : 2;
   uint8_t MaskedPolicyScheme : 2;
@@ -263,13 +264,14 @@ void SemaSignatureTable::init(ArrayRef<SemaRecord> SemaRecords) {
 
   assert(!SemaRecords.empty());
 
-  llvm::for_each(SemaRecords, [&](const SemaRecord &SR) {
+  for (const SemaRecord &SR : SemaRecords) {
     InsertToSignatureSet(SR.Prototype);
     InsertToSignatureSet(SR.Suffix);
     InsertToSignatureSet(SR.OverloadedSuffix);
-  });
+  }
 
-  llvm::for_each(Signatures, [this](auto &Sig) { insert(Sig); });
+  for (auto &Sig : Signatures)
+    insert(Sig);
 }
 
 void SemaSignatureTable::insert(ArrayRef<PrototypeDescriptor> Signature) {
@@ -481,8 +483,6 @@ void RVVEmitter::createCodeGen(raw_ostream &OS) {
       PrintFatalError("Builtin with same name has different IRName");
     else if (P.first->second->getManualCodegen() != Def->getManualCodegen())
       PrintFatalError("Builtin with same name has different ManualCodegen");
-    else if (P.first->second->getNF() != Def->getNF())
-      PrintFatalError("Builtin with same name has different NF");
     else if (P.first->second->isMasked() != Def->isMasked())
       PrintFatalError("Builtin with same name has different isMasked");
     else if (P.first->second->hasVL() != Def->hasVL())
@@ -530,6 +530,7 @@ void RVVEmitter::createRVVIntrinsics(
     StringRef MaskedIRName = R->getValueAsString("MaskedIRName");
     unsigned NF = R->getValueAsInt("NF");
     bool IsTuple = R->getValueAsBit("IsTuple");
+    bool HasFRMRoundModeOp = R->getValueAsBit("HasFRMRoundModeOp");
 
     const Policy DefaultPolicy;
     SmallVector<Policy> SupportedUnMaskedPolicies =
@@ -577,7 +578,7 @@ void RVVEmitter::createRVVIntrinsics(
             /*IsMasked=*/false, /*HasMaskedOffOperand=*/false, HasVL,
             UnMaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
             ManualCodegen, *Types, IntrinsicTypes, RequiredFeatures, NF,
-            DefaultPolicy));
+            DefaultPolicy, HasFRMRoundModeOp));
         if (UnMaskedPolicyScheme != PolicyScheme::SchemeNone)
           for (auto P : SupportedUnMaskedPolicies) {
             SmallVector<PrototypeDescriptor> PolicyPrototype =
@@ -592,7 +593,7 @@ void RVVEmitter::createRVVIntrinsics(
                 /*IsMask=*/false, /*HasMaskedOffOperand=*/false, HasVL,
                 UnMaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
                 ManualCodegen, *PolicyTypes, IntrinsicTypes, RequiredFeatures,
-                NF, P));
+                NF, P, HasFRMRoundModeOp));
           }
         if (!HasMasked)
           continue;
@@ -603,7 +604,8 @@ void RVVEmitter::createRVVIntrinsics(
             Name, SuffixStr, OverloadedName, OverloadedSuffixStr, MaskedIRName,
             /*IsMasked=*/true, HasMaskedOffOperand, HasVL, MaskedPolicyScheme,
             SupportOverloading, HasBuiltinAlias, ManualCodegen, *MaskTypes,
-            IntrinsicTypes, RequiredFeatures, NF, DefaultPolicy));
+            IntrinsicTypes, RequiredFeatures, NF, DefaultPolicy,
+            HasFRMRoundModeOp));
         if (MaskedPolicyScheme == PolicyScheme::SchemeNone)
           continue;
         for (auto P : SupportedMaskedPolicies) {
@@ -618,7 +620,7 @@ void RVVEmitter::createRVVIntrinsics(
               MaskedIRName, /*IsMasked=*/true, HasMaskedOffOperand, HasVL,
               MaskedPolicyScheme, SupportOverloading, HasBuiltinAlias,
               ManualCodegen, *PolicyTypes, IntrinsicTypes, RequiredFeatures, NF,
-              P));
+              P, HasFRMRoundModeOp));
         }
       } // End for Log2LMULList
     }   // End for TypeRange
@@ -652,8 +654,16 @@ void RVVEmitter::createRVVIntrinsics(
     for (auto RequiredFeature : RequiredFeatures) {
       RVVRequire RequireExt = StringSwitch<RVVRequire>(RequiredFeature)
                                   .Case("RV64", RVV_REQ_RV64)
-                                  .Case("FullMultiply", RVV_REQ_FullMultiply)
+                                  .Case("ZvfhminOrZvfh", RVV_REQ_ZvfhminOrZvfh)
                                   .Case("Xsfvcp", RVV_REQ_Xsfvcp)
+                                  .Case("Zvbb", RVV_REQ_Zvbb)
+                                  .Case("Zvbc", RVV_REQ_Zvbc)
+                                  .Case("Zvkb", RVV_REQ_Zvkb)
+                                  .Case("Zvkg", RVV_REQ_Zvkg)
+                                  .Case("Zvkned", RVV_REQ_Zvkned)
+                                  .Case("Zvknha", RVV_REQ_Zvknha)
+                                  .Case("Zvksed", RVV_REQ_Zvksed)
+                                  .Case("Zvksh", RVV_REQ_Zvksh)
                                   .Default(RVV_REQ_None);
       assert(RequireExt != RVV_REQ_None && "Unrecognized required feature?");
       SR.RequiredExtensions |= RequireExt;
@@ -671,6 +681,7 @@ void RVVEmitter::createRVVIntrinsics(
     SR.Suffix = parsePrototypes(SuffixProto);
     SR.OverloadedSuffix = parsePrototypes(OverloadedSuffixProto);
     SR.IsTuple = IsTuple;
+    SR.HasFRMRoundModeOp = HasFRMRoundModeOp;
 
     SemaRecords->push_back(SR);
   }
@@ -713,6 +724,7 @@ void RVVEmitter::createRVVIntrinsicRecords(std::vector<RVVIntrinsicRecord> &Out,
     R.UnMaskedPolicyScheme = SR.UnMaskedPolicyScheme;
     R.MaskedPolicyScheme = SR.MaskedPolicyScheme;
     R.IsTuple = SR.IsTuple;
+    R.HasFRMRoundModeOp = SR.HasFRMRoundModeOp;
 
     assert(R.PrototypeIndex !=
            static_cast<uint16_t>(SemaSignatureTable::INVALID_INDEX));

@@ -24,7 +24,7 @@
 #include <sycl/detail/cg.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -616,7 +616,7 @@ pi_int32
 enqueueReadWriteHostPipe(const QueueImplPtr &Queue, const std::string &PipeName,
                          bool blocking, void *ptr, size_t size,
                          std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-                         sycl::detail::pi::PiEvent *OutEvent, bool read);
+                         const detail::EventImplPtr &OutEventImpl, bool read);
 
 pi_int32 enqueueImpKernel(
     const QueueImplPtr &Queue, NDRDescT &NDRDesc, std::vector<ArgDesc> &Args,
@@ -624,7 +624,7 @@ pi_int32 enqueueImpKernel(
     const std::shared_ptr<detail::kernel_impl> &MSyclKernel,
     const std::string &KernelName,
     std::vector<sycl::detail::pi::PiEvent> &RawEvents,
-    sycl::detail::pi::PiEvent *OutEvent,
+    const detail::EventImplPtr &Event,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig);
 
@@ -767,5 +767,5 @@ void applyFuncOnFilteredArgs(
 void ReverseRangeDimensionsForKernel(NDRDescT &NDR);
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

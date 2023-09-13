@@ -13,10 +13,10 @@ target triple = "spir64-unknown-unknown"
 
 define weak_odr dso_local spir_kernel void @foo() {
 %1 = call <16 x float> asm "", "=rw"()
-; CHECK: call void @llvm.genx.vstore.v16f32.p0v16f32(<16 x float> %1, <16 x float>* getelementptr inbounds (%"class.sycl::_V1::ext::intel::esimd::simd", %"class.sycl::_V1::ext::intel::esimd::simd"* bitcast (<16 x float>* @va to %"class.sycl::_V1::ext::intel::esimd::simd"*), i64 0, i32 0, i32 0))
-store <16 x float> %1, <16 x float>* getelementptr inbounds (%"class.sycl::_V1::ext::intel::esimd::simd", %"class.sycl::_V1::ext::intel::esimd::simd"* @va, i64 0, i32 0, i32 0)
-; CHECK-NEXT: @llvm.genx.vstore.v16f32.p0v16f32(<16 x float> %1, <16 x float>* getelementptr inbounds (%"class.sycl::_V1::ext::intel::esimd::simd", %"class.sycl::_V1::ext::intel::esimd::simd"* bitcast (<16 x float>* @vb to %"class.sycl::_V1::ext::intel::esimd::simd"*), i64 0, i32 0, i32 0))
-store <16 x float> %1, <16 x float>* getelementptr inbounds (%"class.sycl::_V1::ext::intel::esimd::simd", %"class.sycl::_V1::ext::intel::esimd::simd"* @vb, i64 0, i32 0, i32 0)
+; CHECK: call void @llvm.genx.vstore.v16f32.p0(<16 x float> %1, ptr @va)
+store <16 x float> %1, ptr @va
+; CHECK-NEXT: @llvm.genx.vstore.v16f32.p0(<16 x float> %1, ptr @vb)
+store <16 x float> %1, ptr @vb
 ret void
 }
 

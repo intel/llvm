@@ -1,8 +1,8 @@
-/* RUN: %clang_cc1 -opaque-pointers -std=c89 -pedantic -Wno-c11-extensions -verify -emit-llvm -o -  %s | FileCheck %s
-   RUN: %clang_cc1 -opaque-pointers -std=c99 -pedantic -Wno-c11-extensions -verify -emit-llvm -o -  %s | FileCheck %s
-   RUN: %clang_cc1 -opaque-pointers -std=c11 -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
-   RUN: %clang_cc1 -opaque-pointers -std=c17 -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
-   RUN: %clang_cc1 -opaque-pointers -std=c2x -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
+/* RUN: %clang_cc1 -std=c89 -pedantic -Wno-c11-extensions -verify -emit-llvm -o -  %s | FileCheck %s
+   RUN: %clang_cc1 -std=c99 -pedantic -Wno-c11-extensions -verify -emit-llvm -o -  %s | FileCheck %s
+   RUN: %clang_cc1 -std=c11 -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
+   RUN: %clang_cc1 -std=c17 -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
+   RUN: %clang_cc1 -std=c2x -pedantic -verify -emit-llvm -o -  %s | FileCheck %s
  */
 
 /* expected-no-diagnostics */

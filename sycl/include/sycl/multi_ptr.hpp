@@ -7,15 +7,20 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <CL/__spirv/spirv_ops.hpp>
-#include <cassert>
-#include <cstddef>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/type_traits.hpp>
+
+#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ocl_prefetch
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/aliases.hpp>                   // for half
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/type_traits.hpp>        // for const_if_const_AS
+#include <sycl/half_type.hpp>                 // for BIsRepresentationT
+
+#include <cstddef>     // for nullptr_t, ptrdiff_t, size_t
+#include <iterator>    // for random_access_iterator_tag
+#include <type_traits> // for enable_if_t, add_pointer_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -935,7 +940,7 @@ public:
                 std::is_const_v<ET> && std::is_same_v<ET, ElementType>>>
   multi_ptr(
       local_accessor<typename std::remove_const_t<ET>, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space and element type is const
   template <
@@ -1103,6 +1108,10 @@ public:
   multi_ptr(multi_ptr &&) = default;
   multi_ptr(pointer_t pointer) : m_Pointer(pointer) {}
 #ifdef __SYCL_DEVICE_ONLY__
+  template <
+      typename RelayPointerT = pointer_t,
+      typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
+                                  !std::is_same_v<RelayPointerT, void *>>>
   multi_ptr(void *pointer) : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
@@ -1133,6 +1142,10 @@ public:
     return *this;
   }
 #ifdef __SYCL_DEVICE_ONLY__
+  template <
+      typename RelayPointerT = pointer_t,
+      typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
+                                  !std::is_same_v<RelayPointerT, void *>>>
   multi_ptr &operator=(void *pointer) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
@@ -1180,7 +1193,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
   template <
@@ -1251,6 +1264,10 @@ public:
   multi_ptr(multi_ptr &&) = default;
   multi_ptr(pointer_t pointer) : m_Pointer(pointer) {}
 #ifdef __SYCL_DEVICE_ONLY__
+  template <
+      typename RelayPointerT = pointer_t,
+      typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
+                                  !std::is_same_v<RelayPointerT, const void *>>>
   multi_ptr(const void *pointer)
       : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {
     // TODO An implementation should reject an argument if the deduced
@@ -1282,6 +1299,10 @@ public:
     return *this;
   }
 #ifdef __SYCL_DEVICE_ONLY__
+  template <
+      typename RelayPointerT = pointer_t,
+      typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
+                                  !std::is_same_v<RelayPointerT, const void *>>>
   multi_ptr &operator=(const void *pointer) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
@@ -1329,7 +1350,7 @@ public:
           _Space == Space && (Space == access::address_space::generic_space ||
                               Space == access::address_space::local_space)>>
   multi_ptr(local_accessor<ElementType, dimensions> Accessor)
-      : m_Pointer(detail::cast_AS<pointer_t>(Accessor.get_pointer())) {}
+      : multi_ptr(Accessor.get_pointer()) {}
 
   // Only if Space == constant_space
   template <
@@ -1421,7 +1442,7 @@ address_space_cast(ElementType *pointer) {
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress = access::decorated::legacy,
-    typename = std::enable_if<DecorateAddress == access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress == access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
@@ -1433,7 +1454,7 @@ multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
 template <
     typename ElementType, access::address_space Space,
     access::decorated DecorateAddress,
-    typename = std::enable_if<DecorateAddress != access::decorated::legacy>>
+    typename = std::enable_if_t<DecorateAddress != access::decorated::legacy>>
 __SYCL2020_DEPRECATED("make_ptr is deprecated since SYCL 2020. Please use "
                       "address_space_cast instead.")
 multi_ptr<ElementType, Space, DecorateAddress> make_ptr(
@@ -1591,5 +1612,5 @@ bool operator<=(std::nullptr_t,
   return true;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

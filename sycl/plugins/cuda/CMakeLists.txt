@@ -11,19 +11,19 @@ add_library(cudadrv SHARED IMPORTED GLOBAL)
 
 if (WIN32)
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_IMPLIB               ${CUDA_CUDA_LIBRARY}
       INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 else()
   set_target_properties(
-    cudadrv PROPERTIES 
+    cudadrv PROPERTIES
       IMPORTED_LOCATION             ${CUDA_CUDA_LIBRARY}
       INTERFACE_INCLUDE_DIRECTORIES ${CUDA_INCLUDE_DIRS}
   )
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)                                                   
+if (SYCL_ENABLE_XPTI_TRACING)
   # The following two if's can be removed when FindCUDA -> FindCUDAToolkit.
   # CUDA_CUPTI_INCLUDE_DIR -> CUDAToolkit_CUPTI_INCLUDE_DIR
   include(FindCUDACupti)
@@ -35,7 +35,7 @@ if (SYCL_ENABLE_XPTI_TRACING)
     find_cuda_cupti_library()
   endif()
 
-  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")          
+  set(XPTI_PROXY_SRC "${CMAKE_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp")
   set(XPTI_INCLUDE
     "${CMAKE_SOURCE_DIR}/../xpti/include"
     "${CUDA_CUPTI_INCLUDE_DIR}"
@@ -53,8 +53,10 @@ add_sycl_plugin(cuda
     "../unified_runtime/pi2ur.cpp"
     "../unified_runtime/ur/ur.hpp"
     "../unified_runtime/ur/ur.cpp"
-    "../unified_runtime/ur/usm_allocator.cpp"
-    "../unified_runtime/ur/usm_allocator.hpp"
+    "../unified_runtime/ur/adapters/cuda/adapter.cpp"
+    "../unified_runtime/ur/adapters/cuda/adapter.hpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
     "../unified_runtime/ur/adapters/cuda/common.cpp"
     "../unified_runtime/ur/adapters/cuda/common.hpp"
     "../unified_runtime/ur/adapters/cuda/context.cpp"
@@ -64,6 +66,8 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/enqueue.cpp"
     "../unified_runtime/ur/adapters/cuda/event.cpp"
     "../unified_runtime/ur/adapters/cuda/event.hpp"
+    "../unified_runtime/ur/adapters/cuda/image.cpp"
+    "../unified_runtime/ur/adapters/cuda/image.hpp"
     "../unified_runtime/ur/adapters/cuda/kernel.cpp"
     "../unified_runtime/ur/adapters/cuda/kernel.hpp"
     "../unified_runtime/ur/adapters/cuda/memory.cpp"
@@ -79,10 +83,9 @@ add_sycl_plugin(cuda
     "../unified_runtime/ur/adapters/cuda/tracing.cpp"
     "../unified_runtime/ur/adapters/cuda/ur_interface_loader.cpp"
     "../unified_runtime/ur/adapters/cuda/usm.cpp"
-    "../unified_runtime/ur/adapters/cuda/command_buffer.hpp"
-    "../unified_runtime/ur/adapters/cuda/command_buffer.cpp"
+    "../unified_runtime/ur/adapters/cuda/usm.hpp"
     "../unified_runtime/ur/adapters/cuda/usm_p2p.cpp"
-    # --- 
+    # ---
     "${sycl_inc_dir}/sycl/detail/pi.h"
     "${sycl_inc_dir}/sycl/detail/pi.hpp"
     "pi_cuda.hpp"
@@ -96,6 +99,8 @@ add_sycl_plugin(cuda
     cudadrv
     ${XPTI_LIBS}
     UnifiedRuntime-Headers
+    UnifiedRuntimeCommon
+    UnifiedMallocFramework
   HEADER "${CMAKE_CURRENT_SOURCE_DIR}/include/features.hpp"
 )
 

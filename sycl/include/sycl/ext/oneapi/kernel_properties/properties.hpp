@@ -8,15 +8,19 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/aspects.hpp>                              // for aspect
+#include <sycl/ext/oneapi/properties/property.hpp>       // for PropKind
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for SizeListToStr
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
 
-#include <array>
+#include <array>       // for array
+#include <stddef.h>    // for size_t
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for true_type
+#include <utility>     // for declval
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 // Trait for checking that all size_t values are non-zero.
@@ -183,7 +187,7 @@ struct HasKernelPropertiesGetMethod<T,
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__

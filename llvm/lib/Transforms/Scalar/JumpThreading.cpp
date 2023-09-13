@@ -246,7 +246,7 @@ PreservedAnalyses JumpThreadingPass::run(Function &F,
                                          FunctionAnalysisManager &AM) {
   auto &TTI = AM.getResult<TargetIRAnalysis>(F);
   // Jump Threading has no sense for the targets with divergent CF
-  if (TTI.hasBranchDivergence())
+  if (TTI.hasBranchDivergence(&F))
     return PreservedAnalyses::all();
   auto &TLI = AM.getResult<TargetLibraryAnalysis>(F);
   auto &LVI = AM.getResult<LazyValueAnalysis>(F);
@@ -1269,6 +1269,7 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
     if (IsLoadCSE) {
       LoadInst *NLoadI = cast<LoadInst>(AvailableVal);
       combineMetadataForCSE(NLoadI, LoadI, false);
+      LVI->forgetValue(NLoadI);
     };
 
     // If the returned value is the load itself, replace with poison. This can
@@ -1461,6 +1462,7 @@ bool JumpThreadingPass::simplifyPartiallyRedundantLoad(LoadInst *LoadI) {
 
   for (LoadInst *PredLoadI : CSELoads) {
     combineMetadataForCSE(PredLoadI, LoadI, true);
+    LVI->forgetValue(PredLoadI);
   }
 
   LoadI->replaceAllUsesWith(PN);
@@ -1899,7 +1901,7 @@ bool JumpThreadingPass::maybeMergeBasicBlockIntoOnlyPred(BasicBlock *BB) {
     return false;
 
   const Instruction *TI = SinglePred->getTerminator();
-  if (TI->isExceptionalTerminator() || TI->getNumSuccessors() != 1 ||
+  if (TI->isSpecialTerminator() || TI->getNumSuccessors() != 1 ||
       SinglePred == BB || hasAddressTakenAndUsed(BB))
     return false;
 

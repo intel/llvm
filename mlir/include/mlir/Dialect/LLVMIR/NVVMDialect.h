@@ -15,6 +15,7 @@
 #define MLIR_DIALECT_LLVMIR_NVVMDIALECT_H_
 
 #include "mlir/Bytecode/BytecodeOpInterface.h"
+#include "mlir/Dialect/GPU/IR/CompilationInterfaces.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
@@ -25,6 +26,8 @@
 
 namespace mlir {
 namespace NVVM {
+
+#include "mlir/Dialect/LLVMIR/NVVMOpsInterface.h.inc"
 
 /// NVVM memory space identifiers.
 enum NVVMMemorySpace {

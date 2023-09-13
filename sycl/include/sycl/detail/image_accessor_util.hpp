@@ -12,19 +12,27 @@
 #pragma once
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <sycl/builtins.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/image.hpp>
-#include <sycl/sampler.hpp>
-#include <sycl/types.hpp>
 
-#include <cmath>
-#include <cstdint>
+#include <sycl/aliases.hpp>                    // for float4, int4, uint4
+#include <sycl/builtins.hpp>                   // for clamp, fmax, min
+#include <sycl/detail/array.hpp>               // for array
+#include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
+#include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
+#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
+#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
+#include <sycl/exception.hpp>                  // for invalid_parameter_error
+#include <sycl/id.hpp>                         // for id
+#include <sycl/image.hpp>                      // for image_channel_type
+#include <sycl/range.hpp>                      // for range
+#include <sycl/sampler.hpp>                    // for addressing_mode, coor...
+#include <sycl/types.hpp>                      // for vec, operator*, round...
+
+#include <cstdint>     // for int32_t, uint16_t
+#include <stddef.h>    // for size_t
+#include <type_traits> // for enable_if_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 template <typename T>
@@ -1153,6 +1161,6 @@ DataT imageReadSamplerHostImpl(const CoordT &Coords, const image_sampler &Smpl,
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif

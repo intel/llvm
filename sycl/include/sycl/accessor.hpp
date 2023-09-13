@@ -8,36 +8,56 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_iterator.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/image_accessor_util.hpp>
+#include <sycl/access/access.hpp>                     // for target, mode
+#include <sycl/aliases.hpp>                           // for float4, int4
+#include <sycl/aspects.hpp>                           // for aspect
+#include <sycl/atomic.hpp>                            // for atomic
+#include <sycl/buffer.hpp>                            // for range
+#include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
+#include <sycl/detail/common.hpp>                     // for code_location
+#include <sycl/detail/defines.hpp>                    // for __SYCL_SPECIAL...
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
+#include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
+#include <sycl/detail/helpers.hpp>                    // for loop
+#include <sycl/detail/image_accessor_util.hpp>        // for imageReadSampl...
+#include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
+#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
+#include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
+#include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
+#include <sycl/detail/type_list.hpp>                  // for is_contained
+#include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
+#include <sycl/device.hpp>                            // for device
+#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/ext/oneapi/weak_object_base.hpp>       // for getSyclWeakObj...
+#include <sycl/id.hpp>                                // for id
+#include <sycl/image.hpp>                             // for image, image_c...
+#include <sycl/multi_ptr.hpp>                         // for multi_ptr
+#include <sycl/pointers.hpp>                          // for local_ptr, glo...
+#include <sycl/properties/accessor_properties.hpp>    // for buffer_location
+#include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range
+#include <sycl/sampler.hpp>                           // for addressing_mode
+#include <sycl/types.hpp>                             // for vec
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/image_ocl_types.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/device.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/id.hpp>
-#include <sycl/image.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/properties/accessor_properties.hpp>
-#include <sycl/properties/buffer_properties.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/property_list_conversion.hpp>
-#include <sycl/sampler.hpp>
+#endif
 
-#include <iterator>
-#include <optional>
-#include <type_traits>
-
-#include <utility>
+#include <cstddef>     // for size_t
+#include <functional>  // for hash
+#include <iterator>    // for reverse_iterator
+#include <limits>      // for numeric_limits
+#include <memory>      // for shared_ptr
+#include <optional>    // for nullopt, optional
+#include <stdint.h>    // for uint32_t
+#include <tuple>       // for _Swallow_assign
+#include <type_traits> // for enable_if_t
+#include <typeinfo>    // for type_info
+#include <variant>     // for hash
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
@@ -211,7 +231,7 @@
 /// accessor(3)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class stream;
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
@@ -248,13 +268,14 @@ void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
                                            const code_location &CodeLoc);
 
 void __SYCL_EXPORT unsampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
-    access::mode Mode, const void *Type, uint32_t ElemSize,
-    const code_location &CodeLoc);
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, access::mode Mode,
+    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
 
 void __SYCL_EXPORT sampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj, std::optional<image_target> Target,
-    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
+    void *ImageObj, void *AccessorObj,
+    const std::optional<image_target> &Target, const void *Type,
+    uint32_t ElemSize, const code_location &CodeLoc);
 
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
@@ -515,15 +536,28 @@ protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
 
 public:
+  // TODO: the following function to be removed during next ABI break window
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, int OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
-
+  // TODO: the following function to be removed during next ABI break window
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {});
+
+  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, size_t OffsetInBytes = 0,
+                   bool IsSubBuffer = false,
+                   const property_list &PropertyList = {});
+
+  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
+                   access::mode AccessMode, void *SYCLMemObject, int Dims,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
@@ -539,6 +573,7 @@ public:
   const range<3> &getMemoryRange() const;
   void *getPtr() const noexcept;
   bool isPlaceholder() const;
+  bool isMemoryObjectUsedByGraph() const;
 
   detail::AccHostDataT &getAccData();
 
@@ -911,7 +946,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
+                         Dimensions, ImageElementSize, size_t(0)),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
@@ -940,7 +975,7 @@ public:
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
                          AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
+                         Dimensions, ImageElementSize, size_t(0)),
         MImageCount(ImageRef.size()),
         MImgChannelOrder(ImageRef.getChannelOrder()),
         MImgChannelType(ImageRef.getChannelType()) {
@@ -1453,6 +1488,18 @@ public:
       typename std::iterator_traits<iterator>::difference_type;
   using size_type = std::size_t;
 
+  /// If creating a host_accessor this checks to see if the underlying memory
+  /// object is currently in use by a command_graph, and throws if it is.
+  void throwIfUsedByGraph() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (IsHostBuf && AccessorBaseHost::isMemoryObjectUsedByGraph()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Host accessors cannot be created for buffers "
+                            "which are currently in use by a command graph.");
+    }
+#endif
+  }
+
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
   // Dimensions = 0
@@ -1532,6 +1579,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1571,6 +1619,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1606,6 +1655,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1642,6 +1692,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1674,6 +1725,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1709,6 +1761,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1771,6 +1824,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1805,6 +1859,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1980,6 +2035,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -2022,6 +2078,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -2093,6 +2150,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -2135,6 +2193,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
@@ -4074,7 +4133,7 @@ private:
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

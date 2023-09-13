@@ -145,6 +145,27 @@ void try_id3(size_t size) {
   check("Counter = ", Counter, size * 10 * 10);
 }
 
+void try_unnamed_lambda(size_t size) {
+  range<3> Size{size, 10, 10};
+  int Counter = 0;
+  {
+    buffer<range<3>, 1> BufRange(&Range3, 1);
+    buffer<int, 1> BufCounter(&Counter, 1);
+    queue myQueue;
+
+    myQueue.submit([&](handler &cgh) {
+      auto AccRange = BufRange.get_access<access::mode::read_write>(cgh);
+      auto AccCounter = BufCounter.get_access<access::mode::atomic>(cgh);
+      cgh.parallel_for(Size, [=](id<3> ID) {
+        AccCounter[0].fetch_add(1);
+        AccRange[0][0] = ID[0];
+      });
+    });
+    myQueue.wait();
+  }
+  check("Counter = ", Counter, size * 10 * 10);
+}
+
 int main() {
   int x;
 
@@ -155,6 +176,7 @@ int main() {
   try_id1(x);
   try_id2(x);
   try_id3(x);
+  try_unnamed_lambda(x);
 
   x = 256;
   try_item1(x);
@@ -163,6 +185,7 @@ int main() {
   try_id1(x);
   try_id2(x);
   try_id3(x);
+  try_unnamed_lambda(x);
 
   return 0;
 }
@@ -182,6 +205,8 @@ int main() {
 // CHECK-NEXT:  Counter = 15000
 // CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
 // CHECK-NEXT:  Counter = 150000
+// CHECK-NEXT:  parallel_for range adjusted from 1500 to 1504
+// CHECK-NEXT:  Counter = 150000
 // CHECK-NEXT:  Size seen by user = 256
 // CHECK-NEXT:  Counter = 256
 // CHECK-NEXT:  Size seen by user = 256
@@ -190,4 +215,5 @@ int main() {
 // CHECK-NEXT:  Counter = 25600
 // CHECK-NEXT:  Counter = 256
 // CHECK-NEXT:  Counter = 2560
+// CHECK-NEXT:  Counter = 25600
 // CHECK-NEXT:  Counter = 25600

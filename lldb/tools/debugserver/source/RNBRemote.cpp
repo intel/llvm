@@ -2585,7 +2585,7 @@ void register_value_in_hex_fixed_width(std::ostream &ostrm, nub_process_t pid,
       // fail value. If it does, return this instead in case some of
       // the registers are not available on the current system.
       if (reg->nub_info.size > 0) {
-        std::basic_string<uint8_t> zeros(reg->nub_info.size, '\0');
+        std::vector<uint8_t> zeros(reg->nub_info.size, '\0');
         append_hex_value(ostrm, zeros.data(), zeros.size(), false);
       }
     }
@@ -3630,14 +3630,8 @@ static bool attach_failed_due_to_uid_mismatch (nub_process_t pid,
 // processes and step through to find the one we're looking for
 // (as process_does_not_exist() does).
 static bool process_is_already_being_debugged (nub_process_t pid) {
-  struct kinfo_proc kinfo;
-  int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, pid};
-  size_t len = sizeof(struct kinfo_proc);
-  if (sysctl(mib, sizeof(mib) / sizeof(mib[0]), &kinfo, &len, NULL, 0) != 0) {
-    return false; // pid doesn't exist? well, it's not being debugged...
-  }
-  if (kinfo.kp_proc.p_flag & P_TRACED)
-    return true; // is being debugged already
+  if (DNBProcessIsBeingDebugged(pid) && DNBGetParentProcessID(pid) != getpid())
+    return true;
   else
     return false;
 }
@@ -4225,7 +4219,7 @@ rnb_err_t RNBRemote::HandlePacket_p(const char *p) {
     ostrm << "00000000";
   } else if (reg_entry->nub_info.reg == (uint32_t)-1) {
     if (reg_entry->nub_info.size > 0) {
-      std::basic_string<uint8_t> zeros(reg_entry->nub_info.size, '\0');
+      std::vector<uint8_t> zeros(reg_entry->nub_info.size, '\0');
       append_hex_value(ostrm, zeros.data(), zeros.size(), false);
     }
   } else {

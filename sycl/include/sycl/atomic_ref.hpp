@@ -8,23 +8,23 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/aspects.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/memory_enums.hpp>
+#include <sycl/access/access.hpp> // for address_space
+#include <sycl/bit_cast.hpp>      // for bit_cast
+#include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
+
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/spirv.hpp>
 #include <sycl/multi_ptr.hpp>
+#else
+#include <atomic> // for atomic
 #endif
 
-#ifndef __SYCL_DEVICE_ONLY__
-#include <atomic>
-#endif
-#include <type_traits>
+#include <stddef.h>    // for size_t, ptrdiff_t
+#include <stdint.h>    // for uintptr_t, uint32_t, uint64_t
+#include <type_traits> // for enable_if_t, bool_constant
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using memory_order = sycl::memory_order;
@@ -720,5 +720,5 @@ public:
                                 AddressSpace>::operator=;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

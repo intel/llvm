@@ -1,10 +1,10 @@
-//===--------- ur_level_zero.hpp - Level Zero Adapter -----------------===//
+//===--------- queue.hpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -37,7 +37,7 @@ CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue, bool QueueLocked = false,
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
 // in the same context.
-struct pi_command_list_info_t {
+struct ur_command_list_info_t {
   // The Level-Zero fence that will be signalled at completion.
   // Immediate commandlists do not have an associated fence.
   // A nullptr for the fence indicates that this is an immediate commandlist.
@@ -80,7 +80,7 @@ struct pi_command_list_info_t {
 
 // The map type that would track all command-lists in a queue.
 using ur_command_list_map_t =
-    std::unordered_map<ze_command_list_handle_t, pi_command_list_info_t>;
+    std::unordered_map<ze_command_list_handle_t, ur_command_list_info_t>;
 // The iterator pointing to a specific command-list in use.
 using ur_command_list_ptr_t = ur_command_list_map_t::iterator;
 
@@ -93,14 +93,14 @@ struct ur_queue_handle_t_ : _ur_object {
 
   using queue_type = ur_device_handle_t_::queue_group_info_t::type;
   // PI queue is in general a one to many mapping to L0 native queues.
-  struct pi_queue_group_t {
+  struct ur_queue_group_t {
     ur_queue_handle_t Queue;
-    pi_queue_group_t() = delete;
+    ur_queue_group_t() = delete;
 
     // The Queue argument captures the enclosing PI queue.
     // The Type argument specifies the type of this queue group.
     // The actual ZeQueues are populated at PI queue construction.
-    pi_queue_group_t(ur_queue_handle_t Queue, queue_type Type)
+    ur_queue_group_t(ur_queue_handle_t Queue, queue_type Type)
         : Queue(Queue), Type(Type) {}
 
     // The type of the queue group.
@@ -146,7 +146,7 @@ struct ur_queue_handle_t_ : _ur_object {
   // We maintain a hashtable of queue groups if requested to do them per-thread.
   // Otherwise it is just single entry used for all threads.
   struct pi_queue_group_by_tid_t
-      : public std::unordered_map<std::thread::id, pi_queue_group_t> {
+      : public std::unordered_map<std::thread::id, ur_queue_group_t> {
     bool PerThread = false;
 
     // Returns thread id if doing per-thread, or a generic id that represents
@@ -156,7 +156,7 @@ struct ur_queue_handle_t_ : _ur_object {
     }
 
     // Make the specified queue group be the master
-    void set(const pi_queue_group_t &QueueGroup) {
+    void set(const ur_queue_group_t &QueueGroup) {
       const auto &Device = QueueGroup.Queue->Device;
       PerThread =
           Device->ImmCommandListUsed == ur_device_handle_t_::PerThreadPerQueue;
@@ -165,7 +165,7 @@ struct ur_queue_handle_t_ : _ur_object {
     }
 
     // Get a queue group to use for this thread
-    pi_queue_group_t &get() {
+    ur_queue_group_t &get() {
       assert(!empty());
       auto It = find(tid());
       if (It != end()) {
@@ -197,13 +197,15 @@ struct ur_queue_handle_t_ : _ur_object {
   pi_queue_group_by_tid_t CopyQueueGroupsByTID;
 
   // Keeps the PI context to which this queue belongs.
-  // This field is only set at _pi_queue creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_queue.
+  // This field is only set at ur_queue_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_queue_handle_t.
   const ur_context_handle_t Context;
 
   // Keeps the PI device to which this queue belongs.
-  // This field is only set at _pi_queue creation time, and cannot change.
-  // Therefore it can be accessed without holding a lock on this _pi_queue.
+  // This field is only set at ur_queue_handle_t creation time, and cannot
+  // change. Therefore it can be accessed without holding a lock on this
+  // ur_queue_handle_t.
   const ur_device_handle_t Device;
 
   // A queue may use either standard or immediate commandlists. At queue
@@ -298,16 +300,16 @@ struct ur_queue_handle_t_ : _ur_object {
   // Operation1 = zeCommantListAppendMemoryCopy (signal ze_event1)
   // zeCommandListAppendBarrier(wait for ze_event1)
   // zeCommandListAppendEventReset(ze_event1)
-  // # Create new pi_event using ze_event1 and append to the cache.
+  // # Create new ur_event_handle_t using ze_event1 and append to the cache.
   //
   // Operation2 = zeCommandListAppendMemoryCopy (signal ze_event2)
   // zeCommandListAppendBarrier(wait for ze_event2)
   // zeCommandListAppendEventReset(ze_event2)
-  // # Create new pi_event using ze_event2 and append to the cache.
+  // # Create new ur_event_handle_t using ze_event2 and append to the cache.
   //
-  // # Get pi_event from the beginning of the cache because there are two events
-  // # there. So it is guaranteed that we do round-robin between two events -
-  // # event from the last command is appended to the cache.
+  // # Get ur_event_handle_t from the beginning of the cache because there are
+  // two events there. So it is guaranteed that we do round-robin between two
+  // # events - event from the last command is appended to the cache.
   // Operation3 = zeCommandListAppendMemoryCopy (signal ze_event1)
   // # The same ze_event1 is used for Operation1 and Operation3.
   //
@@ -372,15 +374,15 @@ struct ur_queue_handle_t_ : _ur_object {
   bool doReuseDiscardedEvents();
 
   // Append command to provided command list to wait and reset the last event if
-  // it is discarded and create new pi_event wrapper using the same native event
-  // and put it to the cache. We call this method after each command submission
-  // to make native event available to use by next commands.
+  // it is discarded and create new ur_event_handle_t wrapper using the same
+  // native event and put it to the cache. We call this method after each
+  // command submission to make native event available to use by next commands.
   ur_result_t resetDiscardedEvent(ur_command_list_ptr_t);
 
-  // Put pi_event to the cache. Provided pi_event object is not used by
-  // any command but its ZeEvent is used by many pi_event objects.
-  // Commands to wait and reset ZeEvent must be submitted to the queue before
-  // calling this method.
+  // Put ur_event_handle_t to the cache. Provided ur_event_handle_t object is
+  // not used by any command but its ZeEvent is used by many ur_event_handle_t
+  // objects. Commands to wait and reset ZeEvent must be submitted to the queue
+  // before calling this method.
   ur_result_t addEventToQueueCache(ur_event_handle_t Event);
 
   // Returns true if any commands for this queue are allowed to
@@ -428,7 +430,7 @@ struct ur_queue_handle_t_ : _ur_object {
   void CaptureIndirectAccesses();
 
   // Kernel is not necessarily submitted for execution during
-  // piEnqueueKernelLaunch, it may be batched. That's why we need to save the
+  // urEnqueueKernelLaunch, it may be batched. That's why we need to save the
   // list of kernels which is going to be submitted but have not been submitted
   // yet. This is needed to capture memory allocations for each kernel with
   // indirect access in the list at the moment when kernel is really submitted
@@ -451,7 +453,7 @@ struct ur_queue_handle_t_ : _ur_object {
 
   // Wrapper function to execute both OpenCommandLists (Copy and Compute).
   // This wrapper is helpful when all 'open' commands need to be executed.
-  // Call-sites instances: piQuueueFinish, piQueueRelease, etc.
+  // Call-sites instances: urQuueueFinish, urQueueRelease, etc.
   ur_result_t executeAllOpenCommandLists() {
     using IsCopy = bool;
     if (auto Res = executeOpenCommandList(IsCopy{false}))
@@ -484,7 +486,7 @@ struct ur_queue_handle_t_ : _ur_object {
 
   // Return the queue group to use based on standard/immediate commandlist mode,
   // and if immediate mode, the thread-specific group.
-  pi_queue_group_t &getQueueGroup(bool UseCopyEngine);
+  ur_queue_group_t &getQueueGroup(bool UseCopyEngine);
 
   // Helper function to create a new command-list to this queue and associated
   // fence tracking its completion. This command list & fence are added to the
@@ -513,11 +515,11 @@ struct ur_queue_handle_t_ : _ur_object {
   insertStartBarrierIfDiscardEventsMode(ur_command_list_ptr_t &CmdList);
 };
 
-// This helper function creates a pi_event and associate a pi_queue.
-// Note that the caller of this function must have acquired lock on the Queue
-// that is passed in.
-// \param Queue pi_queue to associate with a new event.
-// \param Event a pointer to hold the newly created pi_event
+// This helper function creates a ur_event_handle_t and associate a
+// ur_queue_handle_t. Note that the caller of this function must have acquired
+// lock on the Queue that is passed in.
+// \param Queue ur_queue_handle_t to associate with a new event.
+// \param Event a pointer to hold the newly created ur_event_handle_t
 // \param CommandType various command type determined by the caller
 // \param CommandList is the command list where the event is added
 // \param IsInternal tells if the event is internal, i.e. visible in the L0

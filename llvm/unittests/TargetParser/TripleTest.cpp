@@ -87,12 +87,6 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::ELFIAMCU, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
-  T = Triple("i386-pc-contiki-unknown");
-  EXPECT_EQ(Triple::x86, T.getArch());
-  EXPECT_EQ(Triple::PC, T.getVendor());
-  EXPECT_EQ(Triple::Contiki, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
   T = Triple("i386-pc-hurd-gnu");
   EXPECT_EQ(Triple::x86, T.getArch());
   EXPECT_EQ(Triple::PC, T.getVendor());
@@ -324,18 +318,6 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::SPIRVSubArch_v15, T.getSubArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
   EXPECT_EQ(Triple::UnknownOS, T.getOS());
-
-  T = Triple("x86_64-unknown-ananas");
-  EXPECT_EQ(Triple::x86_64, T.getArch());
-  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
-  EXPECT_EQ(Triple::Ananas, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
-
-  T = Triple("x86_64-unknown-cloudabi");
-  EXPECT_EQ(Triple::x86_64, T.getArch());
-  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
-  EXPECT_EQ(Triple::CloudABI, T.getOS());
-  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
   T = Triple("x86_64-unknown-fuchsia");
   EXPECT_EQ(Triple::x86_64, T.getArch());
@@ -1243,12 +1225,14 @@ TEST(TripleTest, BitWidthPredicates) {
   EXPECT_TRUE(T.isArch32Bit());
   EXPECT_FALSE(T.isArch64Bit());
   EXPECT_TRUE(T.isLoongArch());
+  EXPECT_TRUE(T.isLoongArch32());
 
   T.setArch(Triple::loongarch64);
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_TRUE(T.isArch64Bit());
   EXPECT_TRUE(T.isLoongArch());
+  EXPECT_TRUE(T.isLoongArch64());
 
   T.setArch(Triple::dxil);
   EXPECT_FALSE(T.isArch16Bit());

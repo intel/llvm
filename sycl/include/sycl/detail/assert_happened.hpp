@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cstdint>
+#include <cstdint> // for uint64_t, int32_t
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Reads Flag of AssertHappened on device
@@ -19,7 +17,7 @@ __devicelib_assert_read(void *);
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // NOTE Layout of this structure should be aligned with the one in
 // libdevice/include/assert-happened.hpp
@@ -40,5 +38,5 @@ struct AssertHappened {
   uint64_t LID2 = 0;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

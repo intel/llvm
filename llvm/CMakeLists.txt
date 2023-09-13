@@ -9,7 +9,7 @@ include(${LLVM_COMMON_CMAKE_UTILS}/Modules/CMakePolicy.cmake
 set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 
 if(NOT DEFINED LLVM_VERSION_MAJOR)
-  set(LLVM_VERSION_MAJOR 17)
+  set(LLVM_VERSION_MAJOR 18)
 endif()
 if(NOT DEFINED LLVM_VERSION_MINOR)
   set(LLVM_VERSION_MINOR 0)
@@ -449,6 +449,15 @@ set(LLVM_ALL_TARGETS
   XCore
   )
 
+set(LLVM_ALL_EXPERIMENTAL_TARGETS
+  ARC
+  CSKY
+  DirectX
+  M68k
+  SPIRV
+  Xtensa
+)
+
 # List of targets with JIT support:
 set(LLVM_TARGETS_WITH_JIT X86 PowerPC AArch64 ARM Mips SystemZ)
 
@@ -456,7 +465,7 @@ set(LLVM_TARGETS_TO_BUILD "all"
     CACHE STRING "Semicolon-separated list of targets to build, or \"all\".")
 
 set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD ""
-    CACHE STRING "Semicolon-separated list of experimental targets to build.")
+    CACHE STRING "Semicolon-separated list of experimental targets to build, or \"all\".")
 
 option(BUILD_SHARED_LIBS
   "Build all libraries as shared libraries instead of static" OFF)
@@ -543,6 +552,10 @@ set(LLVM_ENABLE_Z3_SOLVER_DEFAULT "${Z3_FOUND}")
 
 if( LLVM_TARGETS_TO_BUILD STREQUAL "all" )
   set( LLVM_TARGETS_TO_BUILD ${LLVM_ALL_TARGETS} )
+endif()
+
+if(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD STREQUAL "all")
+  set(LLVM_EXPERIMENTAL_TARGETS_TO_BUILD ${LLVM_ALL_EXPERIMENTAL_TARGETS})
 endif()
 
 set(LLVM_TARGETS_TO_BUILD
@@ -664,6 +677,9 @@ set(LIT_ARGS_DEFAULT "-sv")
 if (MSVC_IDE OR XCODE)
   set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --no-progress-bar")
 endif()
+if(LLVM_INDIVIDUAL_TEST_COVERAGE)
+   set(LIT_ARGS_DEFAULT "${LIT_ARGS_DEFAULT} --per-test-coverage")
+endif()
 set(LLVM_LIT_ARGS "${LIT_ARGS_DEFAULT}" CACHE STRING "Default options for lit")
 
 # On Win32 hosts, provide an option to specify the path to the GnuWin32 tools.
@@ -672,7 +688,7 @@ if( WIN32 AND NOT CYGWIN )
 endif()
 set(LLVM_NATIVE_TOOL_DIR "" CACHE PATH "Path to a directory containing prebuilt matching native tools (such as llvm-tblgen)")
 
-set(LLVM_INTEGRATED_CRT_ALLOC "" CACHE PATH "Replace the Windows CRT allocator with any of {rpmalloc|mimalloc|snmalloc}. Only works with /MT enabled.")
+set(LLVM_INTEGRATED_CRT_ALLOC "" CACHE PATH "Replace the Windows CRT allocator with any of {rpmalloc|mimalloc|snmalloc}. Only works with CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded.")
 if(LLVM_INTEGRATED_CRT_ALLOC)
   if(NOT WIN32)
     message(FATAL_ERROR "LLVM_INTEGRATED_CRT_ALLOC is only supported on Windows.")
@@ -785,24 +801,25 @@ if (MSVC_IDE)
   option(LLVM_ADD_NATIVE_VISUALIZERS_TO_SOLUTION "Configure project to use Visual Studio native visualizers" TRUE)
 endif()
 
-if (LLVM_BUILD_INSTRUMENTED OR LLVM_BUILD_INSTRUMENTED_COVERAGE OR
-    LLVM_ENABLE_IR_PGO)
-  if(NOT LLVM_PROFILE_MERGE_POOL_SIZE)
-    # A pool size of 1-2 is probably sufficient on a SSD. 3-4 should be fine
-    # for spining disks. Anything higher may only help on slower mediums.
-    set(LLVM_PROFILE_MERGE_POOL_SIZE "4")
-  endif()
-  if(NOT LLVM_PROFILE_FILE_PATTERN)
-    if(NOT LLVM_PROFILE_DATA_DIR)
-      file(TO_NATIVE_PATH "${LLVM_BINARY_DIR}/profiles" LLVM_PROFILE_DATA_DIR)
+if(NOT LLVM_INDIVIDUAL_TEST_COVERAGE)
+  if(LLVM_BUILD_INSTRUMENTED OR LLVM_BUILD_INSTRUMENTED_COVERAGE OR LLVM_ENABLE_IR_PGO)
+    if(NOT LLVM_PROFILE_MERGE_POOL_SIZE)
+      # A pool size of 1-2 is probably sufficient on an SSD. 3-4 should be fine
+      # for spinning disks. Anything higher may only help on slower mediums.
+      set(LLVM_PROFILE_MERGE_POOL_SIZE "4")
     endif()
-    file(TO_NATIVE_PATH "${LLVM_PROFILE_DATA_DIR}/%${LLVM_PROFILE_MERGE_POOL_SIZE}m.profraw" LLVM_PROFILE_FILE_PATTERN)
-  endif()
-  if(NOT LLVM_CSPROFILE_FILE_PATTERN)
-    if(NOT LLVM_CSPROFILE_DATA_DIR)
-      file(TO_NATIVE_PATH "${LLVM_BINARY_DIR}/csprofiles" LLVM_CSPROFILE_DATA_DIR)
+    if(NOT LLVM_PROFILE_FILE_PATTERN)
+      if(NOT LLVM_PROFILE_DATA_DIR)
+        file(TO_NATIVE_PATH "${LLVM_BINARY_DIR}/profiles" LLVM_PROFILE_DATA_DIR)
+      endif()
+      file(TO_NATIVE_PATH "${LLVM_PROFILE_DATA_DIR}/%${LLVM_PROFILE_MERGE_POOL_SIZE}m.profraw" LLVM_PROFILE_FILE_PATTERN)
     endif()
-    file(TO_NATIVE_PATH "${LLVM_CSPROFILE_DATA_DIR}/%${LLVM_PROFILE_MERGE_POOL_SIZE}m.profraw" LLVM_CSPROFILE_FILE_PATTERN)
+    if(NOT LLVM_CSPROFILE_FILE_PATTERN)
+      if(NOT LLVM_CSPROFILE_DATA_DIR)
+        file(TO_NATIVE_PATH "${LLVM_BINARY_DIR}/csprofiles" LLVM_CSPROFILE_DATA_DIR)
+      endif()
+      file(TO_NATIVE_PATH "${LLVM_CSPROFILE_DATA_DIR}/%${LLVM_PROFILE_MERGE_POOL_SIZE}m.profraw" LLVM_CSPROFILE_FILE_PATTERN)
+    endif()
   endif()
 endif()
 
@@ -888,17 +905,6 @@ if(NOT LLVM_ENABLE_NEW_PASS_MANAGER)
                       " no longer supported.")
 endif()
 
-set(DPCPP_ENABLE_OPAQUE_POINTERS TRUE CACHE BOOL
-   "Enable opaque pointers by default.")
-if (DPCPP_ENABLE_OPAQUE_POINTERS)
-  add_definitions("-DENABLE_OPAQUE_POINTERS=1")
-endif(DPCPP_ENABLE_OPAQUE_POINTERS)
-set(SPIRV_ENABLE_OPAQUE_POINTERS FALSE CACHE BOOL
-    "Enable opaque pointers for SPIR-V offload by default.")
-if(SPIRV_ENABLE_OPAQUE_POINTERS)
-  add_definitions("-DSPIRV_ENABLE_OPAQUE_POINTERS=1")
-endif()
-
 include(HandleLLVMOptions)
 
 ######
@@ -914,15 +920,21 @@ set(LLVM_ENUM_EXEGESIS "")
 foreach(t ${LLVM_TARGETS_TO_BUILD})
   set( td ${LLVM_MAIN_SRC_DIR}/lib/Target/${t} )
 
-  list(FIND LLVM_ALL_TARGETS ${t} idx)
-  list(FIND LLVM_EXPERIMENTAL_TARGETS_TO_BUILD ${t} idy)
-  # At this point, LLVMBUILDTOOL already checked all the targets passed in
-  # LLVM_TARGETS_TO_BUILD and LLVM_EXPERIMENTAL_TARGETS_TO_BUILD, so
-  # this test just makes sure that any experimental targets were passed via
+  # Make sure that any experimental targets were passed via
   # LLVM_EXPERIMENTAL_TARGETS_TO_BUILD, not LLVM_TARGETS_TO_BUILD.
-  if( idx LESS 0 AND idy LESS 0 )
-    message(FATAL_ERROR "The target `${t}' is experimental and must be passed "
-      "via LLVM_EXPERIMENTAL_TARGETS_TO_BUILD.")
+  # We allow experimental targets that are not in LLVM_ALL_EXPERIMENTAL_TARGETS,
+  # as long as they are passed via LLVM_EXPERIMENTAL_TARGETS_TO_BUILD.
+  if ( NOT ${t} IN_LIST LLVM_ALL_TARGETS AND NOT ${t} IN_LIST LLVM_EXPERIMENTAL_TARGETS_TO_BUILD )
+    if( ${t} IN_LIST LLVM_ALL_EXPERIMENTAL_TARGETS )
+      message(FATAL_ERROR "The target `${t}' is experimental and must be passed "
+        "via LLVM_EXPERIMENTAL_TARGETS_TO_BUILD.")
+    else()
+      message(FATAL_ERROR "The target `${t}' is not a core tier target. It may be "
+        "experimental, if so it must be passed via "
+        "LLVM_EXPERIMENTAL_TARGETS_TO_BUILD.\n"
+        "Core tier targets: ${LLVM_ALL_TARGETS}\n"
+        "Known experimental targets: ${LLVM_ALL_EXPERIMENTAL_TARGETS}")
+    endif()
   else()
     set(LLVM_ENUM_TARGETS "${LLVM_ENUM_TARGETS}LLVM_TARGET(${t})\n")
   endif()

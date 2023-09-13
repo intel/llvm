@@ -8,14 +8,20 @@
 
 #pragma once
 
+#include <sycl/detail/item_base.hpp> // for range
+#include <sycl/id.hpp>               // for id
+#include <sycl/item.hpp>             // for getDelinearizedItem, item
+#include <sycl/nd_range.hpp>         // for nd_range
+#include <sycl/range.hpp>            // for range
+
+#include <stddef.h> // for size_t
+
 // To be included in <sycl/handler.hpp>. Note that reductions implementation
 // need complete sycl::handler type so we cannot include whole
 // <sycl/reduction.hpp> there.
 
-#include <sycl/detail/common.hpp>
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 template <typename T, class BinaryOperation, int Dims, size_t Extent,
           bool ExplicitIdentity, typename RedOutVar>
@@ -65,5 +71,5 @@ template <typename T> struct IsReduction;
 template <typename FirstT, typename... RestT> struct AreAllButLastReductions;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

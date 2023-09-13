@@ -389,7 +389,7 @@ AArch64RegisterBankInfo::getInstrAlternativeMappings(
 }
 
 void AArch64RegisterBankInfo::applyMappingImpl(
-    const OperandsMapper &OpdMapper) const {
+    MachineIRBuilder &Builder, const OperandsMapper &OpdMapper) const {
   switch (OpdMapper.getMI().getOpcode()) {
   case TargetOpcode::G_OR:
   case TargetOpcode::G_BITCAST:
@@ -431,6 +431,7 @@ static bool isPreISelGenericFloatingPointOpcode(unsigned Opc) {
   case TargetOpcode::G_FRINT:
   case TargetOpcode::G_INTRINSIC_TRUNC:
   case TargetOpcode::G_INTRINSIC_ROUND:
+  case TargetOpcode::G_INTRINSIC_ROUNDEVEN:
   case TargetOpcode::G_FMAXNUM:
   case TargetOpcode::G_FMINNUM:
   case TargetOpcode::G_FMAXIMUM:
@@ -486,15 +487,18 @@ AArch64RegisterBankInfo::getSameKindOfOperandsMapping(
 /// \returns true if a given intrinsic only uses and defines FPRs.
 static bool isFPIntrinsic(const MachineRegisterInfo &MRI,
                           const MachineInstr &MI) {
-  assert(MI.getOpcode() == TargetOpcode::G_INTRINSIC);
   // TODO: Add more intrinsics.
-  switch (MI.getIntrinsicID()) {
+  switch (cast<GIntrinsic>(MI).getIntrinsicID()) {
   default:
     return false;
   case Intrinsic::aarch64_neon_uaddlv:
   case Intrinsic::aarch64_neon_uaddv:
+  case Intrinsic::aarch64_neon_saddv:
   case Intrinsic::aarch64_neon_umaxv:
+  case Intrinsic::aarch64_neon_smaxv:
   case Intrinsic::aarch64_neon_uminv:
+  case Intrinsic::aarch64_neon_sminv:
+  case Intrinsic::aarch64_neon_faddv:
   case Intrinsic::aarch64_neon_fmaxv:
   case Intrinsic::aarch64_neon_fminv:
   case Intrinsic::aarch64_neon_fmaxnmv:
@@ -504,13 +508,6 @@ static bool isFPIntrinsic(const MachineRegisterInfo &MRI,
     const LLT SrcTy = MRI.getType(MI.getOperand(2).getReg());
     return SrcTy.getElementType().getSizeInBits() >= 16 &&
            SrcTy.getElementCount().getFixedValue() >= 4;
-  }
-  case Intrinsic::aarch64_neon_saddv:
-  case Intrinsic::aarch64_neon_smaxv:
-  case Intrinsic::aarch64_neon_sminv: {
-    const LLT SrcTy = MRI.getType(MI.getOperand(2).getReg());
-    return SrcTy.getElementType().getSizeInBits() >= 32 &&
-           SrcTy.getElementCount().getFixedValue() >= 2;
   }
   }
 }
@@ -997,6 +994,8 @@ AArch64RegisterBankInfo::getInstrMapping(const MachineInstr &MI) const {
   case TargetOpcode::G_VECREDUCE_FMUL:
   case TargetOpcode::G_VECREDUCE_FMAX:
   case TargetOpcode::G_VECREDUCE_FMIN:
+  case TargetOpcode::G_VECREDUCE_FMAXIMUM:
+  case TargetOpcode::G_VECREDUCE_FMINIMUM:
   case TargetOpcode::G_VECREDUCE_ADD:
   case TargetOpcode::G_VECREDUCE_MUL:
   case TargetOpcode::G_VECREDUCE_AND:

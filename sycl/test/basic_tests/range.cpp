@@ -62,4 +62,12 @@ int main() {
   assert((two_dim_range--) == (two_dim_range_copy + 1));
   assert((three_dim_range++) == (three_dim_range_copy));
   assert((three_dim_range--) == (three_dim_range_copy + 1));
+
+  sycl::range<3> default3;
+  sycl::range<2> default2;
+  sycl::range<1> default1;
+
+  assert(default3[0] == 0 && default3[1] == 0 && default3[2] == 0);
+  assert(default2[0] == 0 && default2[1] == 0);
+  assert(default1[0] == 0);
 }

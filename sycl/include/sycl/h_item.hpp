@@ -8,13 +8,16 @@
 
 #pragma once
 
-#include <sycl/detail/helpers.hpp>
-#include <sycl/id.hpp>
-#include <sycl/item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/detail/helpers.hpp>   // for Builder, group
+#include <sycl/detail/item_base.hpp> // for id, range
+#include <sycl/id.hpp>               // for id
+#include <sycl/item.hpp>             // for item
+#include <sycl/range.hpp>            // for range
+
+#include <stddef.h> // for size_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 class Builder;
@@ -136,5 +139,5 @@ private:
   item<Dimensions, false> logicalLocalItem;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

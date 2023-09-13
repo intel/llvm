@@ -277,6 +277,12 @@ void CheckHelper::Check(const Symbol &symbol) {
     CheckContiguous(symbol);
   }
   CheckGlobalName(symbol);
+  if (symbol.attrs().test(Attr::ASYNCHRONOUS) &&
+      !evaluate::IsVariable(symbol)) {
+    messages_.Say(
+        "An entity may not have the ASYNCHRONOUS attribute unless it is a variable"_err_en_US);
+  }
+
   if (isDone) {
     return; // following checks do not apply
   }
@@ -391,7 +397,8 @@ void CheckHelper::Check(const Symbol &symbol) {
         messages_.Say(
             "An assumed-length CHARACTER(*) function cannot return a POINTER"_err_en_US);
       }
-    } else if (IsProcedurePointer(symbol) && IsDummy(symbol)) {
+    }
+    if (IsProcedurePointer(symbol) && IsDummy(symbol)) {
       messages_.Say(
           "A dummy procedure pointer should not have assumed-length CHARACTER(*) result type"_port_en_US);
       // The non-dummy case is a hard error that's caught elsewhere.
@@ -428,11 +435,6 @@ void CheckHelper::Check(const Symbol &symbol) {
           "Procedure '%s' may not be an array without an explicit interface"_err_en_US,
           symbol.name());
     }
-  }
-  if (symbol.attrs().test(Attr::ASYNCHRONOUS) &&
-      !evaluate::IsVariable(symbol)) {
-    messages_.Say(
-        "An entity may not have the ASYNCHRONOUS attribute unless it is a variable"_err_en_US);
   }
 }
 
@@ -729,7 +731,7 @@ void CheckHelper::CheckObjectEntity(
             "!DIR$ IGNORE_TKR(R) may not apply in an ELEMENTAL procedure"_err_en_US);
       }
       if (IsPassedViaDescriptor(symbol)) {
-        if (IsAllocatableOrPointer(symbol)) {
+        if (IsAllocatableOrObjectPointer(&symbol)) {
           if (inExplicitInterface) {
             WarnIfNotInModuleFile(
                 "!DIR$ IGNORE_TKR should not apply to an allocatable or pointer"_warn_en_US);
@@ -823,13 +825,6 @@ void CheckHelper::CheckObjectEntity(
       messages_.Say(
           "An initialized variable in BLOCK DATA must be in a COMMON block"_err_en_US);
     }
-  }
-  if (type && type->IsPolymorphic() &&
-      !(type->IsAssumedType() || IsAllocatableOrPointer(symbol) ||
-          IsDummy(symbol))) { // C708
-    messages_.Say("CLASS entity '%s' must be a dummy argument or have "
-                  "ALLOCATABLE or POINTER attribute"_err_en_US,
-        symbol.name());
   }
   if (derived && InPure() && !InInterface() &&
       IsAutomaticallyDestroyed(symbol) &&
@@ -1029,7 +1024,7 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
         if (auto designator{evaluate::AsGenericExpr(symbol)}) {
           auto restorer{messages_.SetLocation(symbol.name())};
           context_.set_location(symbol.name());
-          CheckInitialTarget(
+          CheckInitialDataPointerTarget(
               context_, *designator, *object->init(), DEREF(scope_));
         }
       }
@@ -1038,28 +1033,36 @@ void CheckHelper::CheckPointerInitialization(const Symbol &symbol) {
         // C1519 - must be nonelemental external or module procedure,
         // or an unrestricted specific intrinsic function.
         const Symbol &ultimate{(*proc->init())->GetUltimate()};
+        bool checkTarget{true};
         if (ultimate.attrs().test(Attr::INTRINSIC)) {
-          if (const auto intrinsic{
-                  context_.intrinsics().IsSpecificIntrinsicFunction(
-                      ultimate.name().ToString())};
+          if (auto intrinsic{context_.intrinsics().IsSpecificIntrinsicFunction(
+                  ultimate.name().ToString())};
               !intrinsic || intrinsic->isRestrictedSpecific) { // C1030
             context_.Say(
                 "Intrinsic procedure '%s' is not an unrestricted specific "
                 "intrinsic permitted for use as the initializer for procedure "
                 "pointer '%s'"_err_en_US,
                 ultimate.name(), symbol.name());
+            checkTarget = false;
           }
-        } else if (!ultimate.attrs().test(Attr::EXTERNAL) &&
-            ultimate.owner().kind() != Scope::Kind::Module) {
+        } else if ((!ultimate.attrs().test(Attr::EXTERNAL) &&
+                       ultimate.owner().kind() != Scope::Kind::Module) ||
+            IsDummy(ultimate) || IsPointer(ultimate)) {
           context_.Say("Procedure pointer '%s' initializer '%s' is neither "
                        "an external nor a module procedure"_err_en_US,
               symbol.name(), ultimate.name());
+          checkTarget = false;
         } else if (IsElementalProcedure(ultimate)) {
           context_.Say("Procedure pointer '%s' cannot be initialized with the "
-                       "elemental procedure '%s"_err_en_US,
+                       "elemental procedure '%s'"_err_en_US,
               symbol.name(), ultimate.name());
-        } else {
-          // TODO: Check the "shalls" in the 15.4.3.6 paragraphs 7-10.
+          checkTarget = false;
+        }
+        if (checkTarget) {
+          SomeExpr lhs{evaluate::ProcedureDesignator{symbol}};
+          SomeExpr rhs{evaluate::ProcedureDesignator{**proc->init()}};
+          CheckPointerAssignment(context_, lhs, rhs,
+              GetProgramUnitOrBlockConstructContaining(symbol));
         }
       }
     }
@@ -1153,6 +1156,9 @@ void CheckHelper::CheckArraySpec(
 void CheckHelper::CheckProcEntity(
     const Symbol &symbol, const ProcEntityDetails &details) {
   CheckSymbolType(symbol);
+  const Symbol *interface {
+    details.procInterface() ? &details.procInterface()->GetUltimate() : nullptr
+  };
   if (details.isDummy()) {
     if (!symbol.attrs().test(Attr::POINTER) && // C843
         (symbol.attrs().test(Attr::INTENT_IN) ||
@@ -1165,20 +1171,19 @@ void CheckHelper::CheckProcEntity(
       messages_.Say(
           "An ELEMENTAL subprogram may not have a dummy procedure"_err_en_US);
     }
-    const Symbol *interface {
-      details.procInterface()
-    };
-    if (!symbol.attrs().test(Attr::INTRINSIC) &&
-        (IsElementalProcedure(symbol) ||
-            (interface && !interface->attrs().test(Attr::INTRINSIC) &&
-                IsElementalProcedure(*interface)))) {
+    if (interface && IsElementalProcedure(*interface)) {
       // There's no explicit constraint or "shall" that we can find in the
       // standard for this check, but it seems to be implied in multiple
       // sites, and ELEMENTAL non-intrinsic actual arguments *are*
       // explicitly forbidden.  But we allow "PROCEDURE(SIN)::dummy"
       // because it is explicitly legal to *pass* the specific intrinsic
       // function SIN as an actual argument.
-      messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
+      if (interface->attrs().test(Attr::INTRINSIC)) {
+        messages_.Say(
+            "A dummy procedure should not have an ELEMENTAL intrinsic as its interface"_port_en_US);
+      } else {
+        messages_.Say("A dummy procedure may not be ELEMENTAL"_err_en_US);
+      }
     }
   } else if (symbol.attrs().test(Attr::INTENT_IN) ||
       symbol.attrs().test(Attr::INTENT_OUT) ||
@@ -1188,35 +1193,35 @@ void CheckHelper::CheckProcEntity(
   } else if (IsOptional(symbol)) {
     messages_.Say("OPTIONAL attribute may apply only to a dummy "
                   "argument"_err_en_US); // C849
-  } else if (symbol.owner().IsDerivedType()) {
-    if (!symbol.attrs().test(Attr::POINTER)) { // C756
-      const auto &name{symbol.name()};
-      messages_.Say(name,
-          "Procedure component '%s' must have POINTER attribute"_err_en_US,
-          name);
-    }
-    CheckPassArg(symbol, details.procInterface(), details);
-  }
-  if (IsPointer(symbol)) {
+  } else if (IsPointer(symbol)) {
     CheckPointerInitialization(symbol);
-    if (const Symbol * interface{details.procInterface()}) {
-      const Symbol &ultimate{interface->GetUltimate()};
-      if (ultimate.attrs().test(Attr::INTRINSIC)) {
-        if (const auto intrinsic{
-                context_.intrinsics().IsSpecificIntrinsicFunction(
-                    ultimate.name().ToString())};
-            !intrinsic || intrinsic->isRestrictedSpecific) { // C1515
+    if (interface) {
+      if (interface->attrs().test(Attr::INTRINSIC)) {
+        auto intrinsic{context_.intrinsics().IsSpecificIntrinsicFunction(
+            interface->name().ToString())};
+        if (!intrinsic || intrinsic->isRestrictedSpecific) { // C1515
           messages_.Say(
               "Intrinsic procedure '%s' is not an unrestricted specific "
               "intrinsic permitted for use as the definition of the interface "
               "to procedure pointer '%s'"_err_en_US,
-              ultimate.name(), symbol.name());
+              interface->name(), symbol.name());
+        } else if (IsElementalProcedure(*interface)) {
+          messages_.Say(
+              "Procedure pointer '%s' should not have an ELEMENTAL intrinsic as its interface"_port_en_US,
+              symbol.name()); // C1517
         }
       } else if (IsElementalProcedure(*interface)) {
         messages_.Say("Procedure pointer '%s' may not be ELEMENTAL"_err_en_US,
             symbol.name()); // C1517
       }
     }
+    if (symbol.owner().IsDerivedType()) {
+      CheckPassArg(symbol, interface, details);
+    }
+  } else if (symbol.owner().IsDerivedType()) {
+    const auto &name{symbol.name()};
+    messages_.Say(name,
+        "Procedure component '%s' must have POINTER attribute"_err_en_US, name);
   }
   CheckExternal(symbol);
 }
@@ -1731,12 +1736,25 @@ void CheckHelper::CheckSpecifics(
       continue;
     }
     if (specific.attrs().test(Attr::INTRINSIC)) {
-      if (auto *msg{messages_.Say(specific.name(),
-              "Specific procedure '%s' of generic interface '%s' may not be INTRINSIC"_err_en_US,
-              specific.name(), generic.name())}) {
-        msg->Attach(generic.name(), "Definition of '%s'"_en_US, generic.name());
+      // GNU Fortran allows INTRINSIC procedures in generics.
+      auto intrinsic{context_.intrinsics().IsSpecificIntrinsicFunction(
+          specific.name().ToString())};
+      if (intrinsic && !intrinsic->isRestrictedSpecific) {
+        if (auto *msg{messages_.Say(specific.name(),
+                "Specific procedure '%s' of generic interface '%s' should not be INTRINSIC"_port_en_US,
+                specific.name(), generic.name())}) {
+          msg->Attach(
+              generic.name(), "Definition of '%s'"_en_US, generic.name());
+        }
+      } else {
+        if (auto *msg{messages_.Say(specific.name(),
+                "Procedure '%s' of generic interface '%s' is INTRINSIC but not an unrestricted specific intrinsic function"_port_en_US,
+                specific.name(), generic.name())}) {
+          msg->Attach(
+              generic.name(), "Definition of '%s'"_en_US, generic.name());
+        }
+        continue;
       }
-      continue;
     }
     if (IsStmtFunction(specific)) {
       if (auto *msg{messages_.Say(specific.name(),
@@ -2552,7 +2570,8 @@ static std::optional<std::string> DefinesGlobalName(const Symbol &symbol) {
   } else {
     const std::string *bindC{symbol.GetBindName()};
     if (symbol.has<CommonBlockDetails>() ||
-        IsExternalProcedureDefinition(symbol)) {
+        IsExternalProcedureDefinition(symbol) ||
+        (symbol.owner().IsGlobal() && IsExternal(symbol))) {
       return bindC ? *bindC : symbol.name().ToString();
     } else if (bindC &&
         (symbol.has<ObjectEntityDetails>() || IsModuleProcedure(symbol))) {
@@ -2711,13 +2730,23 @@ void CheckHelper::CheckBindC(const Symbol &symbol) {
       WarnIfNotInModuleFile(symbol.name(),
           "An interoperable procedure with an OPTIONAL dummy argument might not be portable"_port_en_US);
     }
-  } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
-    if (!proc->isDummy() &&
-        (!proc->procInterface() ||
-            !proc->procInterface()->attrs().test(Attr::BIND_C))) {
+    if (IsDescriptor(symbol) && IsPointer(symbol) &&
+        symbol.attrs().test(Attr::CONTIGUOUS)) {
       messages_.Say(symbol.name(),
-          "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
-      context_.SetError(symbol);
+          "An interoperable pointer must not be CONTIGUOUS"_err_en_US);
+    }
+  } else if (const auto *proc{symbol.detailsIf<ProcEntityDetails>()}) {
+    if (!proc->procInterface() ||
+        !proc->procInterface()->attrs().test(Attr::BIND_C)) {
+      if (proc->isDummy()) {
+        messages_.Say(symbol.name(),
+            "A dummy procedure to an interoperable procedure must also be interoperable"_err_en_US);
+        context_.SetError(symbol);
+      } else {
+        messages_.Say(symbol.name(),
+            "An interface name with BIND attribute must be specified if the BIND attribute is specified in a procedure declaration statement"_err_en_US);
+        context_.SetError(symbol);
+      }
     }
   } else if (const auto *subp{symbol.detailsIf<SubprogramDetails>()}) {
     for (const Symbol *dummy : subp->dummyArgs()) {
@@ -3087,15 +3116,22 @@ void CheckHelper::CheckDefinedIoProc(const Symbol &symbol,
 }
 
 void CheckHelper::CheckSymbolType(const Symbol &symbol) {
-  if (!IsAllocatable(symbol) &&
-      (!IsPointer(symbol) ||
-          (IsProcedure(symbol) && !symbol.HasExplicitInterface()))) { // C702
-    if (auto dyType{evaluate::DynamicType::From(symbol)}) {
-      if (dyType->HasDeferredTypeParameter()) {
-        messages_.Say(
-            "'%s' has a type %s with a deferred type parameter but is neither an allocatable nor an object pointer"_err_en_US,
-            symbol.name(), dyType->AsFortran());
-      }
+  const Symbol *result{FindFunctionResult(symbol)};
+  const Symbol &relevant{result ? *result : symbol};
+  if (IsAllocatable(relevant)) { // always ok
+  } else if (IsPointer(relevant) && !IsProcedure(relevant)) {
+    // object pointers are always ok
+  } else if (auto dyType{evaluate::DynamicType::From(relevant)}) {
+    if (dyType->IsPolymorphic() && !dyType->IsAssumedType() &&
+        !(IsDummy(symbol) && !IsProcedure(relevant))) { // C708
+      messages_.Say(
+          "CLASS entity '%s' must be a dummy argument, allocatable, or object pointer"_err_en_US,
+          symbol.name());
+    }
+    if (dyType->HasDeferredTypeParameter()) { // C702
+      messages_.Say(
+          "'%s' has a type %s with a deferred type parameter but is neither an allocatable nor an object pointer"_err_en_US,
+          symbol.name(), dyType->AsFortran());
     }
   }
 }
@@ -3107,26 +3143,22 @@ void CheckHelper::CheckModuleProcedureDef(const Symbol &symbol) {
       (procClass == ProcedureDefinitionClass::Module &&
           symbol.attrs().test(Attr::MODULE)) &&
       !subprogram->bindName() && !subprogram->isInterface()) {
-    const Symbol *module{nullptr};
-    if (const Scope * moduleScope{FindModuleContaining(symbol.owner())};
-        moduleScope && moduleScope->symbol()) {
-      if (const auto *details{
-              moduleScope->symbol()->detailsIf<ModuleDetails>()}) {
-        if (details->parent()) {
-          moduleScope = details->parent();
-        }
-        module = moduleScope->symbol();
-      }
-    }
-    if (module) {
+    const Symbol &interface {
+      subprogram->moduleInterface() ? *subprogram->moduleInterface() : symbol
+    };
+    if (const Symbol *
+            module{interface.owner().kind() == Scope::Kind::Module
+                    ? interface.owner().symbol()
+                    : nullptr};
+        module && module->has<ModuleDetails>()) {
       std::pair<SourceName, const Symbol *> key{symbol.name(), module};
       auto iter{moduleProcs_.find(key)};
       if (iter == moduleProcs_.end()) {
         moduleProcs_.emplace(std::move(key), symbol);
       } else if (
           auto *msg{messages_.Say(symbol.name(),
-              "Module procedure '%s' in module '%s' has multiple definitions"_err_en_US,
-              symbol.name(), module->name())}) {
+              "Module procedure '%s' in '%s' has multiple definitions"_err_en_US,
+              symbol.name(), GetModuleOrSubmoduleName(*module))}) {
         msg->Attach(iter->second->name(), "Previous definition of '%s'"_en_US,
             symbol.name());
       }

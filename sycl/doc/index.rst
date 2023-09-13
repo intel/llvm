@@ -13,6 +13,7 @@ Using oneAPI DPC++ for Application Development
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
+   syclcompat/README.md
    FAQ
    User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
@@ -52,6 +53,8 @@ Design Documents for the oneAPI DPC++ Compiler
    design/PropagateCompilerFlagsToRuntime
    design/SYCLNativeCPU
    design/VirtualFunctions
+   design/CommandGraph
+   design/OffloadDesign
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 

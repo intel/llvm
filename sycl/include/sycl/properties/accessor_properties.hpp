@@ -8,14 +8,19 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/properties/property_traits.hpp>
-#include <type_traits>
+#include <sycl/access/access.hpp>                     // for mode, target
+#include <sycl/detail/common.hpp>                     // for __SYCL_EBO
+#include <sycl/detail/defines.hpp>                    // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/property_helper.hpp>            // for DataLessPropKind
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for IsCompileTimeP...
+#include <sycl/image.hpp>                             // for image_accessor
+#include <sycl/properties/property_traits.hpp>        // for is_property_of
+
+#include <type_traits> // for true_type, fal...
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace property {
 
 class no_init : public detail::DataLessProperty<detail::NoInit> {};
@@ -220,5 +225,5 @@ template <>
 struct IsCompileTimePropertyInstance<
     ext::oneapi::property::no_offset::instance<>> : std::true_type {};
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

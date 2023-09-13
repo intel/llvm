@@ -1,10 +1,10 @@
-//===--------- memory.hpp - CUDA Adapter ---------------------------===//
+//===--------- memory.hpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -23,7 +23,7 @@ struct ur_mem_handle_t_ {
 
   /// Reference counting of the handler
   std::atomic_uint32_t RefCount;
-  enum class Type { Buffer, Surface } MemType;
+  enum class Type { Buffer, Surface, Texture } MemType;
 
   // Original mem flags passed
   ur_mem_flags_t MemFlags;
@@ -48,6 +48,8 @@ struct ur_mem_handle_t_ {
       void *HostPtr;
       /// Size of the allocation in bytes
       size_t Size;
+      /// Size of the active mapped region.
+      size_t MapSize;
       /// Offset of the active mapped region.
       size_t MapOffset;
       /// Pointer to the active mapped region, if any
@@ -75,13 +77,17 @@ struct ur_mem_handle_t_ {
 
       void *getMapPtr() const noexcept { return MapPtr; }
 
-      size_t getMapOffset(void *) const noexcept { return MapOffset; }
+      size_t getMapSize() const noexcept { return MapSize; }
+
+      size_t getMapOffset() const noexcept { return MapOffset; }
 
       /// Returns a pointer to data visible on the host that contains
       /// the data on the device associated with this allocation.
       /// The offset is used to index into the CUDA allocation.
-      void *mapToPtr(size_t Offset, ur_map_flags_t Flags) noexcept {
+      void *mapToPtr(size_t Size, size_t Offset,
+                     ur_map_flags_t Flags) noexcept {
         assert(MapPtr == nullptr);
+        MapSize = Size;
         MapOffset = Offset;
         MapFlags = Flags;
         if (HostPtr) {
@@ -101,6 +107,7 @@ struct ur_mem_handle_t_ {
           free(MapPtr);
         }
         MapPtr = nullptr;
+        MapSize = 0;
         MapOffset = 0;
       }
 
@@ -122,6 +129,21 @@ struct ur_mem_handle_t_ {
 
       ur_mem_type_t getImageType() const noexcept { return ImageType; }
     } SurfaceMem;
+
+    struct ImageMem {
+      CUarray Array;
+      void *Handle;
+      ur_mem_type_t ImageType;
+      ur_sampler_handle_t Sampler;
+
+      CUarray get_array() const noexcept { return Array; }
+
+      void *get_handle() const noexcept { return Handle; }
+
+      ur_mem_type_t get_image_type() const noexcept { return ImageType; }
+
+      ur_sampler_handle_t get_sampler() const noexcept { return Sampler; }
+    } ImageMem;
   } Mem;
 
   /// Constructs the UR mem handler for a non-typed allocation ("buffer")
@@ -134,6 +156,7 @@ struct ur_mem_handle_t_ {
     Mem.BufferMem.Parent = Parent;
     Mem.BufferMem.HostPtr = HostPtr;
     Mem.BufferMem.Size = Size;
+    Mem.BufferMem.MapSize = 0;
     Mem.BufferMem.MapOffset = 0;
     Mem.BufferMem.MapPtr = nullptr;
     Mem.BufferMem.MapFlags = UR_MAP_FLAG_WRITE;
@@ -156,6 +179,30 @@ struct ur_mem_handle_t_ {
     Mem.SurfaceMem.Array = Array;
     Mem.SurfaceMem.SurfObj = Surf;
     Mem.SurfaceMem.ImageType = ImageType;
+    urContextRetain(Context);
+  }
+
+  /// Constructs the UR allocation for an unsampled image object
+  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array,
+                   CUsurfObject Surf, ur_mem_type_t ImageType)
+      : Context{Context}, RefCount{1}, MemType{Type::Surface} {
+
+    Mem.ImageMem.Array = Array;
+    Mem.ImageMem.Handle = (void *)Surf;
+    Mem.ImageMem.ImageType = ImageType;
+    Mem.ImageMem.Sampler = nullptr;
+    urContextRetain(Context);
+  }
+
+  /// Constructs the UR allocation for a sampled image object
+  ur_mem_handle_t_(ur_context_handle_t Context, CUarray Array, CUtexObject Tex,
+                   ur_sampler_handle_t Sampler, ur_mem_type_t ImageType)
+      : Context{Context}, RefCount{1}, MemType{Type::Texture} {
+
+    Mem.ImageMem.Array = Array;
+    Mem.ImageMem.Handle = (void *)Tex;
+    Mem.ImageMem.ImageType = ImageType;
+    Mem.ImageMem.Sampler = Sampler;
     urContextRetain(Context);
   }
 

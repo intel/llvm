@@ -61,13 +61,13 @@ template <class T, size_t N> class PODSmallVector {
     if (isInline()) {
       auto *Tmp = static_cast<T *>(std::malloc(NewCap * sizeof(T)));
       if (Tmp == nullptr)
-        std::terminate();
+        std::abort();
       std::copy(First, Last, Tmp);
       First = Tmp;
     } else {
       First = static_cast<T *>(std::realloc(First, NewCap * sizeof(T)));
       if (First == nullptr)
-        std::terminate();
+        std::abort();
     }
     Last = First + S;
     Cap = First + NewCap;
@@ -2342,7 +2342,7 @@ public:
         Float value;
         char buf[sizeof(Float)];
       };
-      const char *t = &*Contents.begin();
+      const char *t = Contents.data();
       const char *last = t + N;
       char *e = buf;
       for (; t != last; ++t, ++e) {
@@ -3719,7 +3719,7 @@ Node *AbstractManglingParser<Derived, Alloc>::parseQualifiedType() {
       std::string_view ProtoSourceName(Qual.data() + Len, Qual.size() - Len);
       std::string_view Proto;
       {
-        ScopedOverride<const char *> SaveFirst(First, &*ProtoSourceName.begin()),
+        ScopedOverride<const char *> SaveFirst(First, ProtoSourceName.data()),
             SaveLast(Last, &*ProtoSourceName.rbegin() + 1);
         Proto = parseBareSourceName();
       }

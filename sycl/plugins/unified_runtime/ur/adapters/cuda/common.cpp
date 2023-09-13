@@ -1,10 +1,10 @@
-//===--------- common.cpp - CUDA Adapter -----------------------------===//
+//===--------- common.cpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "common.hpp"
 
@@ -39,7 +39,8 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
     return UR_RESULT_SUCCESS;
   }
 
-  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
     const char *ErrorString = nullptr;
     const char *ErrorName = nullptr;
     cuGetErrorName(Result, &ErrorName);
@@ -55,11 +56,36 @@ ur_result_t checkErrorUR(CUresult Result, const char *Function, int Line,
     std::cerr << SS.str();
   }
 
-  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+  if (std::getenv("PI_CUDA_ABORT") != nullptr ||
+      std::getenv("UR_CUDA_ABORT") != nullptr) {
     std::abort();
   }
 
   throw mapErrorUR(Result);
+}
+
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
+                         const char *File) {
+  if (Result == UR_RESULT_SUCCESS) {
+    return UR_RESULT_SUCCESS;
+  }
+
+  if (std::getenv("SYCL_PI_SUPPRESS_ERROR_MESSAGE") == nullptr &&
+      std::getenv("UR_SUPPRESS_ERROR_MESSAGE") == nullptr) {
+    std::stringstream SS;
+    SS << "\nUR ERROR:"
+       << "\n\tValue:           " << Result
+       << "\n\tFunction:        " << Function << "\n\tSource Location: " << File
+       << ":" << Line << "\n"
+       << std::endl;
+    std::cerr << SS.str();
+  }
+
+  if (std::getenv("PI_CUDA_ABORT") != nullptr) {
+    std::abort();
+  }
+
+  throw Result;
 }
 
 std::string getCudaVersionString() {
@@ -110,11 +136,4 @@ void setPluginSpecificMessage(CUresult cu_res) {
 
   setErrorMessage(message, UR_RESULT_ERROR_ADAPTER_SPECIFIC);
   free(message);
-}
-
-// Returns plugin specific error and warning messages; common implementation
-// that can be shared between adapters
-ur_result_t urGetLastResult(ur_platform_handle_t, const char **ppMessage) {
-  *ppMessage = &ErrorMessage[0];
-  return ErrorMessageCode;
 }

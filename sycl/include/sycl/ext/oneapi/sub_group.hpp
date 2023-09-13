@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/group.hpp>
-#include <sycl/sub_group.hpp>
-#include <tuple>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
+#include <sycl/sub_group.hpp>                 // for sub_group
+
+#include <tuple> // for _Swallow_assign, ignore
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 struct __SYCL_DEPRECATED("use sycl::sub_group() instead") sub_group
     : sycl::sub_group {
@@ -31,5 +32,5 @@ private:
   sub_group() = default;
 };
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

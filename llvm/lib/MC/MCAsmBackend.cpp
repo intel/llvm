@@ -22,7 +22,8 @@
 
 using namespace llvm;
 
-MCAsmBackend::MCAsmBackend(support::endianness Endian) : Endian(Endian) {}
+MCAsmBackend::MCAsmBackend(support::endianness Endian, unsigned RelaxFixupKind)
+    : Endian(Endian), RelaxFixupKind(RelaxFixupKind) {}
 
 MCAsmBackend::~MCAsmBackend() = default;
 
@@ -61,6 +62,9 @@ MCAsmBackend::createDwoObjectWriter(raw_pwrite_stream &OS,
                                     raw_pwrite_stream &DwoOS) const {
   auto TW = createObjectTargetWriter();
   switch (TW->getFormat()) {
+  case Triple::COFF:
+    return createWinCOFFDwoObjectWriter(
+        cast<MCWinCOFFObjectTargetWriter>(std::move(TW)), OS, DwoOS);
   case Triple::ELF:
     return createELFDwoObjectWriter(
         cast<MCELFObjectTargetWriter>(std::move(TW)), OS, DwoOS,
@@ -69,7 +73,7 @@ MCAsmBackend::createDwoObjectWriter(raw_pwrite_stream &OS,
     return createWasmDwoObjectWriter(
         cast<MCWasmObjectTargetWriter>(std::move(TW)), OS, DwoOS);
   default:
-    report_fatal_error("dwo only supported with ELF and Wasm");
+    report_fatal_error("dwo only supported with COFF, ELF, and Wasm");
   }
 }
 
@@ -84,7 +88,6 @@ const MCFixupKindInfo &MCAsmBackend::getFixupKindInfo(MCFixupKind Kind) const {
       {"FK_Data_2", 0, 16, 0},
       {"FK_Data_4", 0, 32, 0},
       {"FK_Data_8", 0, 64, 0},
-      {"FK_Data_6b", 0, 6, 0},
       {"FK_PCRel_1", 0, 8, MCFixupKindInfo::FKF_IsPCRel},
       {"FK_PCRel_2", 0, 16, MCFixupKindInfo::FKF_IsPCRel},
       {"FK_PCRel_4", 0, 32, MCFixupKindInfo::FKF_IsPCRel},

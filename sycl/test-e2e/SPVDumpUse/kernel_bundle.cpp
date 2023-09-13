@@ -5,14 +5,14 @@
 // RUN: %{build} -fno-sycl-dead-args-optimization -fno-sycl-instrument-device-code -DVALUE=1 -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix ONE
 // RUN: env SYCL_DUMP_IMAGES_PREFIX=%t.sycl_ SYCL_DUMP_IMAGES=1 %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix ONE
-// RUN: env SYCL_USE_KERNEL_SPV=%t.sycl_spir641.spv %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix ONE
+// RUN: env SYCL_USE_KERNEL_SPV=%t.sycl_spir64.spv %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix ONE
 //
 // This can perform dead arguments elimination, SYCL RT will ignore the
 // ArgElimMask produced by the device compiler.
 // RUN: %{build} -fno-sycl-instrument-device-code -DVALUE=2 -o %t.out
 // RUN: %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix TWO
 // FIXME: SYCL_USE_KERNEL_SPV is ignored for kernel_bundles.
-// RUN: env SYCL_USE_KERNEL_SPV=%t.sycl_spir641.spv %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix TWO
+// RUN: env SYCL_USE_KERNEL_SPV=%t.sycl_spir64.spv %{run-unfiltered-devices} %t.out | FileCheck %s --check-prefix TWO
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

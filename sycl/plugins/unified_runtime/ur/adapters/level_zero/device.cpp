@@ -1,10 +1,10 @@
-//===--------- device.cpp - Level Zero Adapter -----------------------===//
+//===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "device.hpp"
 #include "ur_level_zero.hpp"
@@ -36,9 +36,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(
 
   // Filter available devices based on input DeviceType.
   std::vector<ur_device_handle_t> MatchedDevices;
-  std::shared_lock<ur_shared_mutex> Lock(Platform->PiDevicesCacheMutex);
-  for (auto &D : Platform->PiDevicesCache) {
-    // Only ever return root-devices from piDevicesGet, but the
+  std::shared_lock<ur_shared_mutex> Lock(Platform->URDevicesCacheMutex);
+  for (auto &D : Platform->URDevicesCache) {
+    // Only ever return root-devices from urDeviceGet, but the
     // devices cache also keeps sub-devices.
     if (D->isSubDevice())
       continue;
@@ -302,15 +302,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
     }
 
     uint32_t ZeSubDeviceCount = Device->SubDevices.size();
-    if (ZeSubDeviceCount < 2) {
-      return ReturnValue((ur_device_partition_t)0);
+    if (pSize && ZeSubDeviceCount < 2) {
+      *pSize = 0;
+      return UR_RESULT_SUCCESS;
     }
     bool PartitionedByCSlice = Device->SubDevices[0]->isCCS();
 
     auto ReturnHelper = [&](auto... Partitions) {
       struct {
-        ur_device_partition_t Arr[sizeof...(Partitions) + 1];
-      } PartitionProperties = {{Partitions..., ur_device_partition_t(0)}};
+        ur_device_partition_t Arr[sizeof...(Partitions)];
+      } PartitionProperties = {{Partitions...}};
       return ReturnValue(PartitionProperties);
     };
 
@@ -334,29 +335,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
         UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE));
   case UR_DEVICE_INFO_PARTITION_TYPE: {
     // For root-device there is no partitioning to report.
-    if (!Device->isSubDevice())
-      return ReturnValue(ur_device_partition_t(0));
-
-    if (Device->isCCS()) {
-      struct {
-        ur_device_partition_t Arr[2];
-      } PartitionProperties = {
-          {UR_DEVICE_PARTITION_BY_CSLICE, ur_device_partition_t(0)}};
-      return ReturnValue(PartitionProperties);
+    if (pSize && !Device->isSubDevice()) {
+      *pSize = 0;
+      return UR_RESULT_SUCCESS;
     }
 
-    struct {
-      ur_device_partition_t Arr[3];
-    } PartitionProperties = {
-        {UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-         (ur_device_partition_t)
-             UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE,
-         ur_device_partition_t(0)}};
-    return ReturnValue(PartitionProperties);
+    if (Device->isCCS()) {
+      ur_device_partition_property_t cslice{};
+      cslice.type = UR_DEVICE_PARTITION_BY_CSLICE;
+
+      return ReturnValue(cslice);
+    }
+
+    return ReturnValue(Device->SubDeviceCreationProperty);
   }
-
-    // Everything under here is not supported yet
-
+  // Everything under here is not supported yet
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
@@ -619,12 +612,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_DEVICE_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
-    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      urPrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-    ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
-    ZE2UR_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
+    ze_pci_address_ext_t PciAddr{};
+    ZeStruct<ze_pci_ext_properties_t> ZeDevicePciProperties;
+    ZeDevicePciProperties.address = PciAddr;
+    ZE2UR_CALL(zeDevicePciGetPropertiesExt, (ZeDevice, &ZeDevicePciProperties));
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
     std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",
@@ -875,7 +866,7 @@ ur_device_handle_t_::useImmediateCommandLists() {
         UrRet ? UrRet : (PiRet ? PiRet : nullptr);
     if (!ImmediateCommandlistsSettingStr)
       return -1;
-    return std::stoi(ImmediateCommandlistsSettingStr);
+    return std::atoi(ImmediateCommandlistsSettingStr);
   }();
 
   if (ImmediateCommandlistsSetting == -1)
@@ -1068,13 +1059,10 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
 }
 
 void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
-  // Whether env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
-  // host ptr import during buffer creation.
-  const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
-  if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
-    return;
-
-  // Check if USM hostptr import feature is available.
+  // Check if USM hostptr import feature is available. If yes, save the API
+  // pointers. The pointers will be used for both import/release of SYCL buffer
+  // host ptr and the SYCL experimental APIs, prepare_for_device_copy and
+  // release_from_device_copy.
   ze_driver_handle_t DriverHandle = Platform->ZeDriver;
   if (ZE_CALL_NOCHECK(
           zeDriverGetExtensionFunctionAddress,
@@ -1084,6 +1072,15 @@ void ZeUSMImportExtension::setZeUSMImport(ur_platform_handle_t_ *Platform) {
         zeDriverGetExtensionFunctionAddress,
         (DriverHandle, "zexDriverReleaseImportedPointer",
          reinterpret_cast<void **>(&zexDriverReleaseImportedPointer)));
+    // Hostptr import/release is supported by this platform.
+    Supported = true;
+
+    // Check if env var SYCL_USM_HOSTPTR_IMPORT has been set requesting
+    // host ptr import during buffer creation.
+    const char *USMHostPtrImportStr = std::getenv("SYCL_USM_HOSTPTR_IMPORT");
+    if (!USMHostPtrImportStr || std::atoi(USMHostPtrImportStr) == 0)
+      return;
+
     // Hostptr import/release is turned on because it has been requested
     // by the env var, and this platform supports the APIs.
     Enabled = true;
@@ -1118,6 +1115,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
                             ///< according to the partitioning property.
 ) {
   // Other partitioning ways are not supported by Level Zero
+  UR_ASSERT(Properties->PropCount == 1, UR_RESULT_ERROR_INVALID_VALUE);
   if (Properties->pProperties->type == UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
     if ((Properties->pProperties->value.affinity_domain !=
              UR_DEVICE_AFFINITY_DOMAIN_FLAG_NEXT_PARTITIONABLE &&
@@ -1175,6 +1173,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     UR_ASSERT(NumDevices == EffectiveNumDevices, UR_RESULT_ERROR_INVALID_VALUE);
 
   for (uint32_t I = 0; I < NumDevices; I++) {
+    Device->SubDevices[I]->SubDeviceCreationProperty =
+        Properties->pProperties[0];
+    if (Properties->pProperties[0].type ==
+        UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN) {
+      // In case the value is NEXT_PARTITIONABLE, we need to change it to the
+      // chosen domain. This will always be NUMA since that's the only domain
+      // supported by level zero.
+      Device->SubDevices[I]->SubDeviceCreationProperty.value.affinity_domain =
+          UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA;
+    }
+
     OutDevices[I] = Device->SubDevices[I];
     // reusing the same pi_device needs to increment the reference count
     urDeviceRetain(OutDevices[I]);
@@ -1270,11 +1279,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
   //
   // TODO: maybe we should populate cache of platforms if it wasn't already.
   // For now assert that is was populated.
-  UR_ASSERT(PiPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
-  const std::lock_guard<SpinLock> Lock{*PiPlatformsCacheMutex};
+  UR_ASSERT(URPlatformCachePopulated, UR_RESULT_ERROR_INVALID_VALUE);
+  const std::lock_guard<SpinLock> Lock{*URPlatformsCacheMutex};
 
   ur_device_handle_t Dev = nullptr;
-  for (ur_platform_handle_t ThePlatform : *PiPlatformsCache) {
+  for (ur_platform_handle_t ThePlatform : *URPlatformsCache) {
     Dev = ThePlatform->getDeviceFromNativeHandle(ZeDevice);
     if (Dev) {
       // Check that the input Platform, if was given, matches the found one.

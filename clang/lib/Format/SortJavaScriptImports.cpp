@@ -217,8 +217,8 @@ public:
   }
 
 private:
-  FormatToken *Current;
-  FormatToken *LineEnd;
+  FormatToken *Current = nullptr;
+  FormatToken *LineEnd = nullptr;
 
   FormatToken invalidToken;
 
@@ -530,7 +530,7 @@ private:
           nextToken();
           if (Current->is(tok::semi))
             return true;
-          if (!Current->is(tok::period))
+          if (Current->isNot(tok::period))
             return false;
           nextToken();
         }

@@ -26,7 +26,7 @@
 #endif // __SYCL_DEVICE_ONLY__
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -205,7 +205,7 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @ingroup sycl_esimd_misc

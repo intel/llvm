@@ -14,7 +14,7 @@
 #include <detail/sycl_mem_obj_t.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 SYCLMemObjT::SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
@@ -135,7 +135,7 @@ void SYCLMemObjT::updateHostMemory(void *const Ptr) {
   const int ElemSize = 1;
 
   Requirement Req(Offset, AccessRange, MemoryRange, AccessMode, SYCLMemObject,
-                  Dims, ElemSize);
+                  Dims, ElemSize, size_t(0));
   Req.MData = Ptr;
 
   EventImplPtr Event = Scheduler::getInstance().addCopyBack(&Req);
@@ -224,5 +224,5 @@ void SYCLMemObjT::detachMemoryObject(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -316,11 +316,10 @@ getAspectUsageChain(const Function *F, const FunctionToAspectsMapTy &AspectsMap,
 }
 
 void createUsedAspectsMetadataForFunctions(
-    FunctionToAspectsMapTy &Map, const AspectsSetTy &ExcludeAspectVals) {
-  for (auto &[F, Aspects] : Map) {
-    if (Aspects.empty())
-      continue;
-
+    FunctionToAspectsMapTy &FunctionToUsedAspects,
+    FunctionToAspectsMapTy &FunctionToDeclaredAspects,
+    const AspectsSetTy &ExcludeAspectVals) {
+  for (auto &[F, Aspects] : FunctionToUsedAspects) {
     LLVMContext &C = F->getContext();
 
     // Create a set of unique aspects. First we add the ones from the found
@@ -329,6 +328,11 @@ void createUsedAspectsMetadataForFunctions(
     for (const int &A : Aspects)
       if (!ExcludeAspectVals.contains(A))
         UniqueAspects.insert(A);
+
+    // The aspects that were propagated via declared aspects are always
+    // added to the metadata.
+    for (const int &A : FunctionToDeclaredAspects[F])
+      UniqueAspects.insert(A);
 
     // If there are no new aspects, we can just keep the old metadata.
     if (UniqueAspects.empty())
@@ -547,7 +551,7 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 }
 
 /// Returns a map of functions with corresponding used aspects.
-FunctionToAspectsMapTy
+std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints,
@@ -575,10 +579,9 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   Visited.clear();
   for (Function *F : EntryPoints)
     propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
-  for (const auto &It : FunctionToDeclaredAspects)
-    FunctionToUsedAspects[It.first].insert(It.second.begin(), It.second.end());
 
-  return FunctionToUsedAspects;
+  return {std::move(FunctionToUsedAspects),
+          std::move(FunctionToDeclaredAspects)};
 }
 
 } // anonymous namespace
@@ -617,8 +620,9 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
-  FunctionToAspectsMapTy FunctionToUsedAspects = buildFunctionsToAspectsMap(
-      M, TypesWithAspects, AspectValues, EntryPoints, ValidateAspectUsage);
+  auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
+      buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
+                                 ValidateAspectUsage);
 
   // Create a set of excluded aspect values.
   AspectsSetTy ExcludedAspectVals;
@@ -629,8 +633,8 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
     ExcludedAspectVals.insert(AspectValIter->second);
   }
 
-  createUsedAspectsMetadataForFunctions(FunctionToUsedAspects,
-                                        ExcludedAspectVals);
+  createUsedAspectsMetadataForFunctions(
+      FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
 

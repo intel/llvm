@@ -18,7 +18,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @cond ESIMD_DETAIL
@@ -134,7 +134,7 @@ template <typename T, typename U> T getBaseRegion(std::pair<T, U> Reg) {
 /// @endcond ESIMD_DETAIL
 
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

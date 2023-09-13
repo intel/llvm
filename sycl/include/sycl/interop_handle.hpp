@@ -8,17 +8,29 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/access/access.hpp>     // for target, mode, place...
+#include <sycl/accessor.hpp>          // for AccessorBaseHost
+#include <sycl/backend_types.hpp>     // for backend, backend_re...
+#include <sycl/context.hpp>           // for context
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>    // for context_impl
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+#include <sycl/detail/pi.h>           // for _pi_mem, pi_native_...
+#include <sycl/device.hpp>            // for device, device_impl
+#include <sycl/exception.hpp>         // for invalid_object_error
+#include <sycl/exception_list.hpp>    // for queue_impl
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
+#include <sycl/image.hpp>                             // for image
+#include <sycl/properties/buffer_properties.hpp>      // for buffer
 
-#include <memory>
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move, pair
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 class AccessorBaseHost;
@@ -211,5 +223,5 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

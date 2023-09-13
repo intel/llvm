@@ -1,10 +1,10 @@
-//===--------- ur_interface_loader.cpp - Unified Runtime  ------------===//
+//===--------- ur_interface_loader.cpp - Unified Runtime  -----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <ur_api.h>
 #include <ur_ddi.h>
@@ -115,7 +115,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
-  pDdiTable->pfnSetArgLocal = nullptr;
+  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;
@@ -203,6 +203,12 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   pDdiTable->pfnInit = urInit;
   pDdiTable->pfnTearDown = urTearDown;
+  pDdiTable->pfnAdapterGet = urAdapterGet;
+  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
+  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnAdapterRelease = urAdapterRelease;
+  pDdiTable->pfnAdapterRetain = urAdapterRetain;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -233,10 +239,10 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolRetain = nullptr;
-  pDdiTable->pfnPoolRelease = nullptr;
-  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }

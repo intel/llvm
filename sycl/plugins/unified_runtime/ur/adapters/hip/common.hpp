@@ -1,10 +1,10 @@
-//===--------- common.hpp - HIP Adapter -----------------------------===//
+//===--------- common.hpp - HIP Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <hip/hip_runtime.h>
@@ -68,6 +68,8 @@ typedef hipArray *hipCUarray;
 ur_result_t mapErrorUR(hipError_t Result);
 
 ur_result_t checkErrorUR(hipError_t Result, const char *Function, int Line,
+                         const char *File);
+ur_result_t checkErrorUR(ur_result_t Result, const char *Function, int Line,
                          const char *File);
 
 #define UR_CHECK_ERROR(result)                                                 \

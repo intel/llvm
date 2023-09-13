@@ -23,7 +23,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 extern xpti::trace_event_data_t *GPICallEvent;
@@ -290,6 +290,7 @@ public:
   }
 
   std::shared_ptr<std::mutex> getPluginMutex() { return MPluginMutex; }
+  bool pluginReleased = false;
 
 private:
   std::shared_ptr<sycl::detail::pi::PiPlugin> MPlugin;
@@ -310,5 +311,5 @@ private:
 using PluginPtr = std::shared_ptr<plugin>;
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -359,11 +359,76 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   return true;
 }
 
+// This is a temporary workaround to deal with a graphics driver failure not
+// able to support the typed pointer reverse translation of
+// getelementptr i8, ptr @__spirv_Builtin* patterns. This replaces such
+// accesses with getelementptr i32, ptr @__spirv_Builtin instead.
+static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
+  // IGC only supports:
+  // load GV
+  // load (addrspacecast GV)
+  // load (gep (addrspacecast GV))
+  // load (gep GV)
+  // Opaque pointers will cause the optimizer to use i8 geps, or to remove
+  // 0-index geps entirely (adding bitcasts to the result). Restore these to
+  // avoid bitcasts in the resulting IR.
+  if (GV->getContext().supportsTypedPointers())
+    return;
+
+  Type *Ty = GV->getValueType();
+  Type *ScalarTy = Ty->getScalarType();
+  SmallVector<Value *, 4> Users;
+  for (auto User : GV->users()) {
+    if (auto *LI = dyn_cast<LoadInst>(User)) {
+      if (LI->getType() != Ty)
+        Users.push_back(LI);
+    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
+      if (GEP->getSourceElementType() != Ty)
+        Users.push_back(GEP);
+    }
+  }
+
+  Type *Int32Ty = Type::getInt32Ty(GV->getContext());
+  auto GetGep = [&](unsigned Offset) {
+    return ConstantExpr::getGetElementPtr(
+        Ty, GV,
+        ArrayRef<Constant *>(
+            {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
+        true, 0);
+  };
+
+  const DataLayout &DL = GV->getParent()->getDataLayout();
+  for (auto *User : Users) {
+    if (auto *LI = dyn_cast<LoadInst>(User)) {
+      LI->setOperand(0, GetGep(0));
+    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
+      APInt Offset(64, 0);
+      GEP->accumulateConstantOffset(DL, Offset);
+      APInt Index;
+      uint64_t Remainder;
+      APInt::udivrem(Offset, ScalarTy->getScalarSizeInBits() / 8, Index,
+                     Remainder);
+      assert(Remainder == 0 && "Cannot handle misaligned access to builtins");
+      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue()));
+      if (auto *Inst = dyn_cast<Instruction>(GEP))
+        Inst->eraseFromParent();
+    }
+  }
+}
+
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   expandSYCLTypeUsing(M);
 
+  for (auto &GV : M->globals()) {
+    SPIRVBuiltinVariableKind Kind;
+    if (isSPIRVBuiltinVariable(&GV, &Kind))
+      simplifyBuiltinVarAccesses(&GV);
+  }
+
+  // Kernels called by other kernels
+  std::vector<Function *> CalledKernels;
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
     if (F->isDeclaration() && F->use_empty()) {
@@ -374,10 +439,12 @@ bool SPIRVRegularizeLLVMBase::regularize() {
     std::vector<Instruction *> ToErase;
     for (BasicBlock &BB : *F) {
       for (Instruction &II : BB) {
-        if (auto Call = dyn_cast<CallInst>(&II)) {
+        if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
-          if (CF && CF->isIntrinsic()) {
+          if (CF && CF->getCallingConv() == CallingConv::SPIR_KERNEL) {
+            CalledKernels.push_back(CF);
+          } else if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
             if (II->getIntrinsicID() == Intrinsic::memset ||
@@ -407,14 +474,17 @@ bool SPIRVRegularizeLLVMBase::regularize() {
         }
 
         // Remove optimization info not supported by SPIRV
-        if (auto BO = dyn_cast<BinaryOperator>(&II)) {
+        if (auto *BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
 
         // FIXME: This is not valid handling for freeze instruction
-        if (auto FI = dyn_cast<FreezeInst>(&II)) {
-          FI->replaceAllUsesWith(FI->getOperand(0));
+        if (auto *FI = dyn_cast<FreezeInst>(&II)) {
+          auto *V = FI->getOperand(0);
+          if (isa<UndefValue>(V))
+            V = Constant::getNullValue(V->getType());
+          FI->replaceAllUsesWith(V);
           FI->dropAllReferences();
           ToErase.push_back(FI);
         }
@@ -430,32 +500,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             II.setMetadata(MDName, nullptr);
           }
         }
-        // Add an additional bitcast in case address space cast also changes
-        // pointer element type.
-        if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (!II.getContext().supportsTypedPointers())
-            continue;
-          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
-              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
-            Type *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy->getScalarType()),
-                cast<PointerType>(SrcTy->getScalarType())
-                    ->getPointerAddressSpace());
-            if (DestTy->isVectorTy())
-              InterTy = VectorType::get(
-                  InterTy, cast<VectorType>(DestTy)->getElementCount());
-            BitCastInst *NewBCast = new BitCastInst(
-                ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
-            AddrSpaceCastInst *NewASCast =
-                new AddrSpaceCastInst(NewBCast, DestTy, /*NameStr=*/"", ASCast);
-            ToErase.push_back(ASCast);
-            ASCast->dropAllReferences();
-            ASCast->replaceAllUsesWith(NewASCast);
-          }
-        }
-        if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
+        if (auto *Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
           // Transform:
           // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
           // To:

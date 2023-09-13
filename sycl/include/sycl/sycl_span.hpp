@@ -126,16 +126,17 @@ template<class Container>
 
 #include <array>       // for array
 #include <cassert>     // for assert
-#include <cstddef>     // for byte
+#include <cstddef>     // for size_t, nullptr_t, ptrdiff_t
 #include <cstdint>     // for SIZE_MAX
-#include <iterator>    // for iterators
-#include <type_traits> // for remove_cv, etc
+#include <iterator>    // for size, data, distance, reverse_iterator
+#include <type_traits> // for enable_if_t, enable_if, remove_cv_t, false_type
+#include <utility>     // for declval
 
 #define _SYCL_SPAN_TEMPLATE_VIS
 #define _SYCL_SPAN_INLINE_VISIBILITY inline
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // byte is unsigned char at sycl/image.hpp:58
 using byte = unsigned char;
@@ -632,7 +633,7 @@ span(_Container &) -> span<typename _Container::value_type>;
 template <class _Container>
 span(const _Container &) -> span<const typename _Container::value_type>;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #endif // _SYCL_SPAN

@@ -8,6 +8,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
+// UNSUPPORTED: esimd_emulator
+
 // The test checks functionality of the slm gather/scatter ESIMD intrinsics.
 // It varies element type, vector length and stride of gather/scatter operation.
 // For simplicity of calculations, workgroup size (number of work items same
@@ -438,12 +440,19 @@ template <class T, unsigned STRIDE> bool test_vl1(queue q) {
   return passed;
 }
 
-int main(int argc, char **argv) {
+int main() {
   queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
-
   auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  esimd_test::printTestLabel(q);
+
+  // GPU driver had an error in handling of SLM aligned block_loads/stores,
+  // which has been fixed only in "1.3.26816", and in win/opencl version going
+  // _after_ 101.4575.
+  if (!esimd_test::isGPUDriverGE(q, esimd_test::GPUDriverOS::LinuxAndWindows,
+                                 "26816", "101.4576")) {
+    std::cout << "Skipped. The test requires GPU driver 1.3.26816 or newer.\n";
+    return 0;
+  }
 
   bool passed = true;
   passed &= test_vl1<char, 3>(q);

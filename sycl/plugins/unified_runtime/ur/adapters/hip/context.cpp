@@ -1,12 +1,34 @@
-//===--------- context.cpp - HIP Adapter ----------------------------===//
+//===--------- context.cpp - HIP Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "usm.hpp"
+
+void ur_context_handle_t_::addPool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.insert(Pool);
+}
+
+void ur_context_handle_t_::removePool(ur_usm_pool_handle_t Pool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  PoolHandles.erase(Pool);
+}
+
+ur_usm_pool_handle_t
+ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
+  std::lock_guard<std::mutex> Lock(Mutex);
+  for (auto &Pool : PoolHandles) {
+    if (Pool->hasUMFPool(UMFPool)) {
+      return Pool;
+    }
+  }
+  return nullptr;
+}
 
 /// Create a UR HIP context.
 ///
@@ -22,15 +44,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
-    hipCtx_t Current = nullptr;
-
     // Create a scoped context.
-    hipCtx_t NewContext;
-    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
-    RetErr = UR_CHECK_ERROR(
-        hipCtxCreate(&NewContext, hipDeviceMapHost, phDevices[0]->get()));
-    ContextPtr = std::unique_ptr<ur_context_handle_t_>(new ur_context_handle_t_{
-        ur_context_handle_t_::kind::UserDefined, NewContext, *phDevices});
+    ContextPtr = std::unique_ptr<ur_context_handle_t_>(
+        new ur_context_handle_t_{*phDevices});
 
     static std::once_flag InitFlag;
     std::call_once(
@@ -42,14 +58,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
           UR_CHECK_ERROR(hipEventRecord(ur_platform_handle_t_::EvBase, 0));
         },
         RetErr);
-
-    // For non-primary scoped contexts keep the last active on top of the stack
-    // as `hipCtxCreate` replaces it implicitly otherwise.
-    // Primary contexts are kept on top of the stack, so the previous context
-    // is not queried and therefore not recovered.
-    if (Current != nullptr) {
-      UR_CHECK_ERROR(hipCtxSetCurrent(Current));
-    }
 
     *phContext = ContextPtr.release();
   } catch (ur_result_t Err) {
@@ -97,40 +105,10 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urContextRelease(ur_context_handle_t hContext) {
-  if (hContext->decrementReferenceCount() > 0) {
-    return UR_RESULT_SUCCESS;
+  if (hContext->decrementReferenceCount() == 0) {
+    delete hContext;
   }
-  hContext->invokeExtendedDeleters();
-
-  std::unique_ptr<ur_context_handle_t_> context{hContext};
-
-  if (!hContext->isPrimary()) {
-    hipCtx_t HIPCtxt = hContext->get();
-    // hipCtxSynchronize is not supported for AMD platform so we can just
-    // destroy the context, for NVIDIA make sure it's synchronized.
-#if defined(__HIP_PLATFORM_NVIDIA__)
-    hipCtx_t Current = nullptr;
-    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
-    if (HIPCtxt != Current) {
-      UR_CHECK_ERROR(hipCtxPushCurrent(HIPCtxt));
-    }
-    UR_CHECK_ERROR(hipCtxSynchronize());
-    UR_CHECK_ERROR(hipCtxGetCurrent(&Current));
-    if (HIPCtxt == Current) {
-      UR_CHECK_ERROR(hipCtxPopCurrent(&Current));
-    }
-#endif
-    return UR_CHECK_ERROR(hipCtxDestroy(HIPCtxt));
-  } else {
-    // Primary context is not destroyed, but released
-    hipDevice_t HIPDev = hContext->getDevice()->get();
-    hipCtx_t Current;
-    UR_CHECK_ERROR(hipCtxPopCurrent(&Current));
-    return UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDev));
-  }
-
-  hipCtx_t HIPCtxt = hContext->get();
-  return UR_CHECK_ERROR(hipCtxDestroy(HIPCtxt));
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -143,7 +121,8 @@ urContextRetain(ur_context_handle_t hContext) {
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
     ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(hContext->get());
+  *phNativeContext = reinterpret_cast<ur_native_handle_t>(
+      hContext->getDevice()->getNativeContext());
   return UR_RESULT_SUCCESS;
 }
 

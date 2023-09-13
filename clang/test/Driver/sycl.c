@@ -32,7 +32,7 @@
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
-// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir64
+// RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -fsycl-device-obj=spirv -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir64
 // RUN: %clang -### -target spir64-unknown-linux -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET -DSPIRARCH=spir64
 // RUN: %clang -### -target x86_64-unknown-linux-gnu -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED -DSPIRARCH=spir64
 // RUN: %clangxx -### -target x86_64-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir64
@@ -43,7 +43,7 @@
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -S %s 2>&1 | FileCheck %s --check-prefix=TEXTUAL -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fsycl  %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir
-// RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fno-sycl-use-bitcode -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir
+// RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -fsycl-device-obj=spirv -c %s 2>&1 | FileCheck %s --check-prefix=NO-BITCODE -DSPIRARCH=spir
 // RUN: %clang -### -target spir-unknown-linux -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=TARGET -DSPIRARCH=spir
 // RUN: %clang -### -target i386-unknown-linux-gnu -fsycl-device-only -c -emit-llvm %s 2>&1 | FileCheck %s --check-prefix=COMBINED -DSPIRARCH=spir
 // RUN: %clangxx -### -target i386-unknown-linux-gnu -fsycl-device-only %s 2>&1 | FileCheck %s --check-prefix=DEFAULT -DSPIRARCH=spir

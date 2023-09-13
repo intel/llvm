@@ -1,14 +1,14 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -generate-arange-section < %t.ll | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -generate-arange-section < %t.ll | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=%triple -generate-arange-section < %t.ll | FileCheck %s
 
 ; CHECK: .short  2 # DWARF Arange version number
@@ -56,7 +56,7 @@ entry:
   %call = tail call i32 @_Z3fooi(i32 2), !dbg !23
   %call1 = tail call i32 @_Z4foo2i(i32 1), !dbg !23
   %add = add nsw i32 %call1, %call, !dbg !23
-  %0 = load i32, i32* @global, align 4, !dbg !23, !tbaa !24
+  %0 = load i32, ptr @global, align 4, !dbg !23, !tbaa !24
   %add2 = add nsw i32 %add, %0, !dbg !23
   ret i32 %add2, !dbg !23
 }

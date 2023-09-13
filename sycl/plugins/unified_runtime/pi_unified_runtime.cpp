@@ -1,10 +1,10 @@
-//===--- pi_unified_runtime.cpp - Unified Runtime PI Plugin  -----------==//
+//===--- pi_unified_runtime.cpp - Unified Runtime PI Plugin  ---------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===------------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <cstring>
 
@@ -17,12 +17,34 @@ static void DieUnsupported() {
   die("Unified Runtime: functionality is not supported");
 }
 
+// Adapters may be released by piTearDown being called, or the global dtors
+// being called first. Handle releasing the adapters exactly once.
+static void releaseAdapters(std::vector<ur_adapter_handle_t> &Vec) {
+  static std::once_flag ReleaseFlag{};
+  std::call_once(ReleaseFlag, [&]() {
+    for (auto Adapter : Vec) {
+      urAdapterRelease(Adapter);
+    }
+    urTearDown(nullptr);
+  });
+}
+
+struct AdapterHolder {
+  ~AdapterHolder() { releaseAdapters(Vec); }
+  std::vector<ur_adapter_handle_t> Vec{};
+} Adapters;
+
 // All PI API interfaces are C interfaces
 extern "C" {
 __SYCL_EXPORT pi_result piPlatformsGet(pi_uint32 NumEntries,
                                        pi_platform *Platforms,
                                        pi_uint32 *NumPlatforms) {
-  return pi2ur::piPlatformsGet(NumEntries, Platforms, NumPlatforms);
+  // Get all the platforms from all available adapters
+  urPlatformGet(Adapters.Vec.data(), static_cast<uint32_t>(Adapters.Vec.size()),
+                NumEntries, reinterpret_cast<ur_platform_handle_t *>(Platforms),
+                NumPlatforms);
+
+  return PI_SUCCESS;
 }
 
 __SYCL_EXPORT pi_result piPlatformGetInfo(pi_platform Platform,
@@ -354,8 +376,28 @@ __SYCL_EXPORT pi_result piextUSMSharedAlloc(void **ResultPtr,
                                     Size, Alignment);
 }
 
+__SYCL_EXPORT pi_result piextUSMPitchedAlloc(
+    void **ResultPtr, size_t *ResultPitch, pi_context Context, pi_device Device,
+    pi_usm_mem_properties *Properties, size_t WidthInBytes, size_t Height,
+    unsigned int ElementSizeBytes) {
+
+  return pi2ur::piextUSMPitchedAlloc(ResultPtr, ResultPitch, Context, Device,
+                                     Properties, WidthInBytes, Height,
+                                     ElementSizeBytes);
+}
+
 __SYCL_EXPORT pi_result piextUSMFree(pi_context Context, void *Ptr) {
   return pi2ur::piextUSMFree(Context, Ptr);
+}
+
+__SYCL_EXPORT pi_result piextUSMImport(const void *HostPtr, size_t Size,
+                                       pi_context Context) {
+  return pi2ur::piextUSMImport(HostPtr, Size, Context);
+}
+
+__SYCL_EXPORT pi_result piextUSMRelease(const void *HostPtr,
+                                        pi_context Context) {
+  return pi2ur::piextUSMRelease(HostPtr, Context);
 }
 
 __SYCL_EXPORT pi_result piContextRetain(pi_context Context) {
@@ -1102,9 +1144,144 @@ __SYCL_EXPORT pi_result piextPeerAccessGetInfo(
                                        ParamValueSizeRet);
 }
 
-// This interface is not in Unified Runtime currently
-__SYCL_EXPORT pi_result piTearDown(void *PluginParameter) {
-  return pi2ur::piTearDown(PluginParameter);
+__SYCL_EXPORT pi_result piTearDown(void *) {
+  releaseAdapters(Adapters.Vec);
+  urTearDown(nullptr);
+  return PI_SUCCESS;
+}
+
+__SYCL_EXPORT pi_result piextMemImageAllocate(pi_context Context,
+                                              pi_device Device,
+                                              pi_image_format *ImageFormat,
+                                              pi_image_desc *ImageDesc,
+                                              pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemImageAllocate(Context, Device, ImageFormat, ImageDesc,
+                                      RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemUnsampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_mem *RetMem,
+    pi_image_handle *RetHandle) {
+  return pi2ur::piextMemUnsampledImageCreate(
+      Context, Device, ImgMem, ImageFormat, ImageDesc, RetMem, RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemSampledImageCreate(
+    pi_context Context, pi_device Device, pi_image_mem_handle ImgMem,
+    pi_image_format *ImageFormat, pi_image_desc *ImageDesc, pi_sampler Sampler,
+    pi_mem *RetMem, pi_image_handle *RetHandle) {
+  return pi2ur::piextMemSampledImageCreate(Context, Device, ImgMem, ImageFormat,
+                                           ImageDesc, Sampler, RetMem,
+                                           RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextBindlessImageSamplerCreate(
+    pi_context Context, const pi_sampler_properties *SamplerProperties,
+    float MinMipmapLevelClamp, float MaxMipmapLevelClamp, float MaxAnisotropy,
+    pi_sampler *RetSampler) {
+  return pi2ur::piextBindlessImageSamplerCreate(
+      Context, SamplerProperties, MinMipmapLevelClamp, MaxMipmapLevelClamp,
+      MaxAnisotropy, RetSampler);
+}
+
+__SYCL_EXPORT pi_result piextMemMipmapGetLevel(pi_context Context,
+                                               pi_device Device,
+                                               pi_image_mem_handle MipMem,
+                                               unsigned int Level,
+                                               pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMipmapGetLevel(Context, Device, MipMem, Level, RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemImageFree(pi_context Context, pi_device Device,
+                                          pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemImageFree(Context, Device, MemoryHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemMipmapFree(pi_context Context, pi_device Device,
+                                           pi_image_mem_handle MemoryHandle) {
+  return pi2ur::piextMemMipmapFree(Context, Device, MemoryHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemImageCopy(
+    pi_queue Queue, void *DstPtr, void *SrcPtr,
+    const pi_image_format *ImageFormat, const pi_image_desc *ImageDesc,
+    const pi_image_copy_flags Flags, pi_image_offset SrcOffset,
+    pi_image_offset DstOffset, pi_image_region CopyExtent,
+    pi_image_region HostExtent, pi_uint32 NumEventsInWaitList,
+    const pi_event *EventWaitList, pi_event *Event) {
+  return pi2ur::piextMemImageCopy(Queue, DstPtr, SrcPtr, ImageFormat, ImageDesc,
+                                  Flags, SrcOffset, DstOffset, CopyExtent,
+                                  HostExtent, NumEventsInWaitList,
+                                  EventWaitList, Event);
+}
+
+__SYCL_EXPORT pi_result piextMemUnsampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemUnsampledImageHandleDestroy(Context, Device, Handle);
+}
+
+__SYCL_EXPORT pi_result piextMemSampledImageHandleDestroy(
+    pi_context Context, pi_device Device, pi_image_handle Handle) {
+  return pi2ur::piextMemSampledImageHandleDestroy(Context, Device, Handle);
+}
+
+__SYCL_EXPORT pi_result piextMemImageGetInfo(pi_image_mem_handle MemHandle,
+                                             pi_image_info ParamName,
+                                             void *ParamValue,
+                                             size_t *ParamValueSizeRet) {
+  return pi2ur::piextMemImageGetInfo(MemHandle, ParamName, ParamValue,
+                                     ParamValueSizeRet);
+}
+
+__SYCL_EXPORT pi_result
+piextMemImportOpaqueFD(pi_context Context, pi_device Device, size_t Size,
+                       int FileDescriptor, pi_interop_mem_handle *RetHandle) {
+  return pi2ur::piextMemImportOpaqueFD(Context, Device, Size, FileDescriptor,
+                                       RetHandle);
+}
+
+__SYCL_EXPORT pi_result piextMemMapExternalArray(
+    pi_context Context, pi_device Device, pi_image_format *ImageFormat,
+    pi_image_desc *ImageDesc, pi_interop_mem_handle MemHandle,
+    pi_image_mem_handle *RetMem) {
+  return pi2ur::piextMemMapExternalArray(Context, Device, ImageFormat,
+                                         ImageDesc, MemHandle, RetMem);
+}
+
+__SYCL_EXPORT pi_result piextMemReleaseInterop(pi_context Context,
+                                               pi_device Device,
+                                               pi_interop_mem_handle ExtMem) {
+  return pi2ur::piextMemReleaseInterop(Context, Device, ExtMem);
+}
+
+__SYCL_EXPORT pi_result piextImportExternalSemaphoreOpaqueFD(
+    pi_context Context, pi_device Device, int FileDescriptor,
+    pi_interop_semaphore_handle *RetHandle) {
+  return pi2ur::piextImportExternalSemaphoreOpaqueFD(Context, Device,
+                                                     FileDescriptor, RetHandle);
+}
+
+__SYCL_EXPORT pi_result
+piextDestroyExternalSemaphore(pi_context Context, pi_device Device,
+                              pi_interop_semaphore_handle SemHandle) {
+  return pi2ur::piextDestroyExternalSemaphore(Context, Device, SemHandle);
+}
+
+__SYCL_EXPORT pi_result piextWaitExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextWaitExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
+}
+
+__SYCL_EXPORT pi_result piextSignalExternalSemaphore(
+    pi_queue Queue, pi_interop_semaphore_handle SemHandle,
+    pi_uint32 NumEventsInWaitList, const pi_event *EventWaitList,
+    pi_event *Event) {
+  return pi2ur::piextSignalExternalSemaphore(
+      Queue, SemHandle, NumEventsInWaitList, EventWaitList, Event);
 }
 
 // This interface is not in Unified Runtime currently
@@ -1124,6 +1301,15 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
             PI_ERROR_INVALID_VALUE);
 
   strncpy(PluginInit->PluginVersion, SupportedVersion, PluginVersionSize);
+
+  // Initialize UR and discover adapters
+  HANDLE_ERRORS(urInit(0, nullptr));
+  uint32_t NumAdapters;
+  HANDLE_ERRORS(urAdapterGet(0, nullptr, &NumAdapters));
+  if (NumAdapters > 0) {
+    Adapters.Vec.resize(NumAdapters);
+    HANDLE_ERRORS(urAdapterGet(NumAdapters, Adapters.Vec.data(), nullptr));
+  }
 
   // Bind interfaces that are already supported and "die" for unsupported ones
 #define _PI_API(api)                                                           \
@@ -1215,6 +1401,9 @@ __SYCL_EXPORT pi_result piPluginInit(pi_plugin *PluginInit) {
   _PI_API(piextUSMDeviceAlloc)
   _PI_API(piextUSMSharedAlloc)
   _PI_API(piextUSMFree)
+
+  _PI_API(piextUSMImport)
+  _PI_API(piextUSMRelease)
 
   _PI_API(piEnqueueKernelLaunch)
   _PI_API(piEnqueueMemImageWrite)

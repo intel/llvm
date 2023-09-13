@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/backend.hpp>
 #include <sycl/detail/defines.hpp>
 
 #include <cassert>
@@ -13,10 +14,11 @@
 #include <windows.h>
 #include <winreg.h>
 
+#include "detail/windows_os_utils.hpp"
 #include "pi_win_proxy_loader.hpp"
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 namespace pi {
 
@@ -31,7 +33,8 @@ void *loadOsLibrary(const std::string &LibraryPath) {
   if (!SetDllDirectoryA("")) {
     assert(false && "Failed to update DLL search path");
   }
-  auto Result = (void *)LoadLibraryA(LibraryPath.c_str());
+
+  auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
   (void)SetErrorMode(SavedMode);
   if (!SetDllDirectoryA(nullptr)) {
     assert(false && "Failed to restore DLL search path");
@@ -65,7 +68,40 @@ void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
       GetProcAddress((HMODULE)Library, FunctionName.c_str()));
 }
 
+static std::filesystem::path getCurrentDSODirPath() {
+  wchar_t Path[MAX_PATH];
+  auto Handle =
+      getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODirPath));
+  DWORD Ret = GetModuleFileName(
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
+      MAX_PATH);
+  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
+  assert(Ret > 0 && "GetModuleFileName failed");
+  (void)Ret;
+
+  BOOL RetCode = PathRemoveFileSpec(Path);
+  assert(RetCode && "PathRemoveFileSpec failed");
+  (void)RetCode;
+
+  return std::filesystem::path(Path);
+}
+
+// Load plugins corresponding to provided list of plugin names.
+std::vector<std::tuple<std::string, backend, void *>>
+loadPlugins(const std::vector<std::pair<std::string, backend>> &&PluginNames) {
+  std::vector<std::tuple<std::string, backend, void *>> LoadedPlugins;
+  const std::filesystem::path LibSYCLDir = getCurrentDSODirPath();
+
+  for (auto &PluginName : PluginNames) {
+    void *Library = getPreloadedPlugin(LibSYCLDir / PluginName.first);
+    LoadedPlugins.push_back(std::make_tuple(
+        std::move(PluginName.first), std::move(PluginName.second), Library));
+  }
+
+  return LoadedPlugins;
+}
+
 } // namespace pi
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

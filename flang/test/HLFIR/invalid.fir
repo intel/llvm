@@ -940,3 +940,72 @@ func.func @bad_elsewhere_3(%mask: !fir.ref<!fir.array<10x!fir.logical<4>>>, %x: 
   }
   return
 }
+
+// -----
+func.func @bad_get_length_1(%arg0: !hlfir.expr<i32>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<i32>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<i32>) -> index
+  return
+}
+
+// -----
+func.func @bad_get_length_2(%arg0: !hlfir.expr<?xi32>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<?xi32>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<?xi32>) -> index
+  return
+}
+
+// -----
+func.func @bad_get_length_3(%arg0: !hlfir.expr<!fir.boxchar<1>>) {
+  // expected-error@+1 {{'hlfir.get_length' op operand #0 must be any character scalar or array expression type, but got '!hlfir.expr<!fir.boxchar<1>>'}}
+  %1 = hlfir.get_length %arg0 : (!hlfir.expr<!fir.boxchar<1>>) -> index
+  return
+}
+
+// -----
+func.func @elemental_poly_1(%arg0: !fir.box<!fir.array<?x!fir.type<_QMtypesTt>>>, %shape : index) {
+  %3 = fir.shape %shape : (index) -> !fir.shape<1>
+  // expected-error@+1 {{'hlfir.elemental' op operand #1 must be any polymorphic object, but got '!fir.box<!fir.array<?x!fir.type<_QMtypesTt>>>'}}
+  %4 = hlfir.elemental %3 mold %arg0 unordered : (!fir.shape<1>, !fir.box<!fir.array<?x!fir.type<_QMtypesTt>>>) -> !hlfir.expr<?x!fir.type<_QMtypesTt>?> {
+  ^bb0(%arg2: index):
+    %6 = fir.undefined !hlfir.expr<!fir.type<_QMtypesTt>?>
+    hlfir.yield_element %6 : !hlfir.expr<!fir.type<_QMtypesTt>?>
+  }
+  return
+}
+
+// -----
+func.func @elemental_poly_2(%arg0: !hlfir.expr<?x!fir.type<_QMtypesTt>>, %shape : index) {
+  %3 = fir.shape %shape : (index) -> !fir.shape<1>
+  // expected-error@+1 {{'hlfir.elemental' op operand #1 must be any polymorphic object, but got '!hlfir.expr<?x!fir.type<_QMtypesTt>>'}}
+  %4 = hlfir.elemental %3 mold %arg0 unordered : (!fir.shape<1>, !hlfir.expr<?x!fir.type<_QMtypesTt>>) -> !hlfir.expr<?x!fir.type<_QMtypesTt>?> {
+  ^bb0(%arg2: index):
+    %6 = fir.undefined !hlfir.expr<!fir.type<_QMtypesTt>?>
+    hlfir.yield_element %6 : !hlfir.expr<!fir.type<_QMtypesTt>?>
+  }
+  return
+}
+
+// -----
+func.func @elemental_poly_3(%arg0: !hlfir.expr<?x!fir.type<_QMtypesTt>?>, %shape : index) {
+  %3 = fir.shape %shape : (index) -> !fir.shape<1>
+// expected-error@+1 {{'hlfir.elemental' op result must be polymorphic when mold is present and vice versa}}
+  %4 = hlfir.elemental %3 mold %arg0 unordered : (!fir.shape<1>, !hlfir.expr<?x!fir.type<_QMtypesTt>?>) -> !hlfir.expr<?x!fir.type<_QMtypesTt>> {
+  ^bb0(%arg2: index):
+    %6 = fir.undefined !hlfir.expr<!fir.type<_QMtypesTt>>
+    hlfir.yield_element %6 : !hlfir.expr<!fir.type<_QMtypesTt>>
+  }
+  return
+}
+
+// -----
+func.func @elemental_poly_4(%shape : index) {
+  %3 = fir.shape %shape : (index) -> !fir.shape<1>
+// expected-error@+1 {{'hlfir.elemental' op result must be polymorphic when mold is present and vice versa}}
+  %4 = hlfir.elemental %3 unordered : (!fir.shape<1>) -> !hlfir.expr<?x!fir.type<_QMtypesTt>?> {
+  ^bb0(%arg2: index):
+    %6 = fir.undefined !hlfir.expr<!fir.type<_QMtypesTt>?>
+    hlfir.yield_element %6 : !hlfir.expr<!fir.type<_QMtypesTt>?>
+  }
+  return
+}

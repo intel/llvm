@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include <sycl/id.hpp>
+#include <sycl/access/access.hpp> // for mode, placeholder, target
+#include <sycl/buffer.hpp>        // for range
+#include <sycl/id.hpp>            // for id
 
-#include <cstddef>
-#include <iterator>
-#include <ostream>
-#include <type_traits>
+#include <cstddef>  // for size_t
+#include <iterator> // for random_access_iterator_tag
+#include <ostream>  // for operator<<, ostream, ptrdiff_t
 
 /// \file accessor_iterator.hpp
 /// The file contains implementation of accessor iterator class.
@@ -35,7 +36,7 @@
 /// > over the elements that are within the sub-range.
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename AccessorDataT, int AccessorDimensions,
           access::mode AccessMode, access::target AccessTarget,
@@ -347,5 +348,5 @@ public:
 #endif // NDEBUG
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

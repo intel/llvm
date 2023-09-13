@@ -8,21 +8,23 @@
 
 #pragma once
 
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/context.hpp>                   // for context
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/detail/pi.h>                   // for pi_native_handle
+#include <sycl/device.hpp>                    // for device
+#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
+#include <sycl/range.hpp>                     // for range
 
-#include <memory>
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash, opera...
+#include <variant> // for hash
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declaration
 class context;
 class queue;
@@ -182,7 +184,7 @@ private:
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
 };
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

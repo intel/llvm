@@ -1,10 +1,10 @@
-//===--------- event.hpp - Level Zero Adapter ------------------------===//
+//===--------- event.hpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <cassert>
@@ -40,7 +40,7 @@ const bool DisableEventsCaching = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!DisableEventsCachingFlag)
     return false;
-  return std::stoi(DisableEventsCachingFlag) != 0;
+  return std::atoi(DisableEventsCachingFlag) != 0;
 }();
 
 // This is an experimental option that allows reset and reuse of uncompleted
@@ -52,12 +52,12 @@ const bool ReuseDiscardedEvents = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!ReuseDiscardedEventsFlag)
     return true;
-  return std::stoi(ReuseDiscardedEventsFlag) > 0;
+  return std::atoi(ReuseDiscardedEventsFlag) > 0;
 }();
 
 const bool FilterEventWaitList = [] {
   const char *Ret = std::getenv("SYCL_PI_LEVEL_ZERO_FILTER_EVENT_WAIT_LIST");
-  const bool RetVal = Ret ? std::stoi(Ret) : 1;
+  const bool RetVal = Ret ? std::stoi(Ret) : 0;
   return RetVal;
 }();
 
@@ -65,7 +65,7 @@ struct _ur_ze_event_list_t {
   // List of level zero events for this event list.
   ze_event_handle_t *ZeEventList = {nullptr};
 
-  // List of pi_events for this event list.
+  // List of ur_events for this event list.
   ur_event_handle_t *UrEventList = {nullptr};
 
   // length of both the lists.  The actual allocation of these lists
@@ -73,16 +73,9 @@ struct _ur_ze_event_list_t {
   // of elements in the above arrays that are valid.
   uint32_t Length = {0};
 
-  // A mutex is needed for destroying the event list.
-  // Creation is already thread-safe because we only create the list
-  // when an event is initially created.  However, it might be
-  // possible to have multiple threads racing to destroy the list,
-  // so this will be used to make list destruction thread-safe.
-  ur_mutex UrZeEventListMutex;
-
   // Initialize this using the array of events in EventList, and retain
-  // all the pi_events in the created data structure.
-  // CurQueue is the pi_queue that the command with this event wait
+  // all the ur_event_handle_t in the created data structure.
+  // CurQueue is the ur_queue_handle_t that the command with this event wait
   // list is going to be added to.  That is needed to flush command
   // batches for wait events that are in other queues.
   // UseCopyEngine indicates if the next command (the one that this
@@ -95,9 +88,9 @@ struct _ur_ze_event_list_t {
                                            bool UseCopyEngine);
 
   // Add all the events in this object's UrEventList to the end
-  // of the list EventsToBeReleased. Destroy pi_ze_event_list_t data
+  // of the list EventsToBeReleased. Destroy ur_ze_event_list_t data
   // structure fields making it look empty.
-  ur_result_t collectEventsForReleaseAndDestroyPiZeEventList(
+  ur_result_t collectEventsForReleaseAndDestroyUrZeEventList(
       std::list<ur_event_handle_t> &EventsToBeReleased);
 
   // Had to create custom assignment operator because the mutex is
@@ -170,7 +163,7 @@ struct ur_event_handle_t_ : _ur_object {
   // Opaque data to hold any data needed for CommandType.
   void *CommandData;
 
-  // Command list associated with the pi_event.
+  // Command list associated with the ur_event_handle_t
   std::optional<ur_command_list_ptr_t> CommandList;
 
   // List of events that were in the wait list of the command that will
@@ -213,7 +206,7 @@ struct ur_event_handle_t_ : _ur_object {
 
   bool hasExternalRefs() { return RefCountExternal != 0; }
 
-  // Reset _pi_event object.
+  // Reset ur_event_handle_t object.
   ur_result_t reset();
 
   // Tells if this event is with profiling capabilities.
@@ -244,7 +237,8 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle);
 // events of the event.
 // If the caller locks queue mutex then it must pass 'true' to QueueLocked.
 ur_result_t CleanupCompletedEvent(ur_event_handle_t Event,
-                                  bool QueueLocked = false);
+                                  bool QueueLocked = false,
+                                  bool SetEventCompleted = false);
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {

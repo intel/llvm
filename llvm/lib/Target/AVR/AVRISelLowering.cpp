@@ -976,7 +976,7 @@ SDValue AVRTargetLowering::LowerINLINEASM(SDValue Op, SelectionDAG &DAG) const {
       Ops.push_back(Operand);
     }
   }
-  unsigned Flags = InlineAsm::getFlagWord(InlineAsm::Kind_RegUse, 1);
+  unsigned Flags = InlineAsm::getFlagWord(InlineAsm::Kind::RegUse, 1);
   Ops.push_back(DAG.getTargetConstant(Flags, dl, MVT::i32));
   Ops.push_back(ZeroReg);
   if (Glue) {
@@ -2439,6 +2439,11 @@ AVRTargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
     ++I;
   MF->insert(I, trueMBB);
   MF->insert(I, falseMBB);
+
+  // Set the call frame size on entry to the new basic blocks.
+  unsigned CallFrameSize = TII.getCallFrameSizeAt(MI);
+  trueMBB->setCallFrameSize(CallFrameSize);
+  falseMBB->setCallFrameSize(CallFrameSize);
 
   // Transfer remaining instructions and all successors of the current
   // block to the block which will contain the Phi node for the

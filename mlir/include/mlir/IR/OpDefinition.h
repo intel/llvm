@@ -20,6 +20,7 @@
 #define MLIR_IR_OPDEFINITION_H
 
 #include "mlir/IR/Dialect.h"
+#include "mlir/IR/ODSSupport.h"
 #include "mlir/IR/Operation.h"
 #include "llvm/Support/PointerLikeTypeTraits.h"
 
@@ -314,6 +315,8 @@ namespace OpTrait {
 // corresponding trait classes.  This avoids them being template
 // instantiated/duplicated.
 namespace impl {
+LogicalResult foldCommutative(Operation *op, ArrayRef<Attribute> operands,
+                              SmallVectorImpl<OpFoldResult> &results);
 OpFoldResult foldIdempotent(Operation *op);
 OpFoldResult foldInvolution(Operation *op);
 LogicalResult verifyZeroOperands(Operation *op);
@@ -940,9 +943,8 @@ public:
 template <typename TerminatorOpType>
 struct SingleBlockImplicitTerminator {
   template <typename ConcreteType>
-  class Impl : public SingleBlock<ConcreteType> {
+  class Impl {
   private:
-    using Base = SingleBlock<ConcreteType>;
     /// Builds a terminator operation without relying on OpBuilder APIs to avoid
     /// cyclic header inclusion.
     static Operation *buildTerminator(OpBuilder &builder, Location loc) {
@@ -956,8 +958,6 @@ struct SingleBlockImplicitTerminator {
     using ImplicitTerminatorOpT = TerminatorOpType;
 
     static LogicalResult verifyRegionTrait(Operation *op) {
-      if (failed(Base::verifyTrait(op)))
-        return failure();
       for (unsigned i = 0, e = op->getNumRegions(); i < e; ++i) {
         Region &region = op->getRegion(i);
         // Empty regions are fine.
@@ -999,7 +999,6 @@ struct SingleBlockImplicitTerminator {
     //===------------------------------------------------------------------===//
     // Single Region Utilities
     //===------------------------------------------------------------------===//
-    using Base::getBody;
 
     template <typename OpT, typename T = void>
     using enable_if_single_region =
@@ -1008,7 +1007,8 @@ struct SingleBlockImplicitTerminator {
     /// Insert the operation into the back of the body, before the terminator.
     template <typename OpT = ConcreteType>
     enable_if_single_region<OpT> push_back(Operation *op) {
-      insert(Block::iterator(getBody()->getTerminator()), op);
+      Block *body = static_cast<SingleBlock<ConcreteType> *>(this)->getBody();
+      insert(Block::iterator(body->getTerminator()), op);
     }
 
     /// Insert the operation at the given insertion point. Note: The operation
@@ -1021,7 +1021,7 @@ struct SingleBlockImplicitTerminator {
     template <typename OpT = ConcreteType>
     enable_if_single_region<OpT> insert(Block::iterator insertPt,
                                         Operation *op) {
-      auto *body = getBody();
+      Block *body = static_cast<SingleBlock<ConcreteType> *>(this)->getBody();
       if (insertPt == body->end())
         insertPt = Block::iterator(body->getTerminator());
       body->getOperations().insert(insertPt, op);
@@ -1148,7 +1148,13 @@ public:
 
 /// This class adds property that the operation is commutative.
 template <typename ConcreteType>
-class IsCommutative : public TraitBase<ConcreteType, IsCommutative> {};
+class IsCommutative : public TraitBase<ConcreteType, IsCommutative> {
+public:
+  static LogicalResult foldTrait(Operation *op, ArrayRef<Attribute> operands,
+                                 SmallVectorImpl<OpFoldResult> &results) {
+    return impl::foldCommutative(op, operands, results);
+  }
+};
 
 /// This class adds property that the operation is an involution.
 /// This means a unary to unary operation "f" that satisfies f(f(x)) = x
@@ -1322,7 +1328,7 @@ struct HasParent {
 /// relationship is not always known statically. For such cases, we need
 /// a per-op-instance specification to divide the operands into logical groups
 /// or segments. This can be modeled by attributes. The attribute will be named
-/// as `operand_segment_sizes`.
+/// as `operandSegmentSizes`.
 ///
 /// This trait verifies the attribute for specifying operand segments has
 /// the correct type (1D vector) and values (non-negative), etc.
@@ -1330,9 +1336,7 @@ template <typename ConcreteType>
 class AttrSizedOperandSegments
     : public TraitBase<ConcreteType, AttrSizedOperandSegments> {
 public:
-  static StringRef getOperandSegmentSizeAttr() {
-    return "operand_segment_sizes";
-  }
+  static StringRef getOperandSegmentSizeAttr() { return "operandSegmentSizes"; }
 
   static LogicalResult verifyTrait(Operation *op) {
     return ::mlir::OpTrait::impl::verifyOperandSizeAttr(
@@ -1345,7 +1349,7 @@ template <typename ConcreteType>
 class AttrSizedResultSegments
     : public TraitBase<ConcreteType, AttrSizedResultSegments> {
 public:
-  static StringRef getResultSegmentSizeAttr() { return "result_segment_sizes"; }
+  static StringRef getResultSegmentSizeAttr() { return "resultSegmentSizes"; }
 
   static LogicalResult verifyTrait(Operation *op) {
     return ::mlir::OpTrait::impl::verifyResultSizeAttr(
@@ -1908,15 +1912,8 @@ private:
                        SmallVectorImpl<OpFoldResult> &results) {
     OpFoldResult result;
     if constexpr (has_fold_adaptor_single_result_v<ConcreteOpT>) {
-      if constexpr (hasProperties()) {
-        result = cast<ConcreteOpT>(op).fold(typename ConcreteOpT::FoldAdaptor(
-            operands, op->getDiscardableAttrDictionary(),
-            cast<ConcreteOpT>(op).getProperties(), op->getRegions()));
-      } else {
-        result = cast<ConcreteOpT>(op).fold(typename ConcreteOpT::FoldAdaptor(
-            operands, op->getDiscardableAttrDictionary(), {},
-            op->getRegions()));
-      }
+      result = cast<ConcreteOpT>(op).fold(
+          typename ConcreteOpT::FoldAdaptor(operands, cast<ConcreteOpT>(op)));
     } else {
       result = cast<ConcreteOpT>(op).fold(operands);
     }
@@ -1939,19 +1936,9 @@ private:
                                 SmallVectorImpl<OpFoldResult> &results) {
     auto result = LogicalResult::failure();
     if constexpr (has_fold_adaptor_v<ConcreteOpT>) {
-      if constexpr (hasProperties()) {
-        result = cast<ConcreteOpT>(op).fold(
-            typename ConcreteOpT::FoldAdaptor(
-                operands, op->getDiscardableAttrDictionary(),
-                cast<ConcreteOpT>(op).getProperties(), op->getRegions()),
-            results);
-      } else {
-        result = cast<ConcreteOpT>(op).fold(
-            typename ConcreteOpT::FoldAdaptor(
-                operands, op->getDiscardableAttrDictionary(), {},
-                op->getRegions()),
-            results);
-      }
+      result = cast<ConcreteOpT>(op).fold(
+          typename ConcreteOpT::FoldAdaptor(operands, cast<ConcreteOpT>(op)),
+          results);
     } else {
       result = cast<ConcreteOpT>(op).fold(operands, results);
     }
@@ -2088,7 +2075,7 @@ protected:
     // given operation.
     if (Dialect *dialect = name.getDialect()) {
       dialect_extension_detail::handleUseOfUndefinedPromisedInterface(
-          *dialect, ConcreteType::getInterfaceID(),
+          *dialect, name.getTypeID(), ConcreteType::getInterfaceID(),
           llvm::getTypeName<ConcreteType>());
     }
 #endif

@@ -35,45 +35,40 @@ target triple = "spir64-unknown-linux"
 
 $"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10SYCLCustom" = comdat any
 
-@_ZN11CustomClassC1Ei = dso_local unnamed_addr alias void (%class._ZTS11CustomClass.CustomClass addrspace(4)*, i32), void (%class._ZTS11CustomClass.CustomClass addrspace(4)*, i32)* @_ZN11CustomClassC2Ei
+@_ZN11CustomClassC1Ei = dso_local unnamed_addr alias void (ptr addrspace(4), i32), ptr @_ZN11CustomClassC2Ei
 
 ; Function Attrs: norecurse
 define weak_odr dso_local spir_kernel void @"_ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEE10SYCLCustom"() #0 comdat !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon", align 1
-  %1 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #4
-  %2 = addrspacecast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)*
-  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %2)
-  %3 = bitcast %"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon"* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %3) #4
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #4
+  %1 = addrspacecast ptr %0 to ptr addrspace(4)
+  call spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %1)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse
-define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(%"class._ZTSZZ4mainENK3$_0clERN2cl4sycl7handlerEEUlvE_.anon" addrspace(4)* %this) #2 align 2 {
+define internal spir_func void @"_ZZZ4mainENK3$_0clERN2cl4sycl7handlerEENKUlvE_clEv"(ptr addrspace(4) %this) #2 align 2 {
 entry:
   %dummyClass = alloca %class._ZTS11CustomClass.CustomClass, align 4
-  %0 = bitcast %class._ZTS11CustomClass.CustomClass* %dummyClass to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
-  %1 = addrspacecast %class._ZTS11CustomClass.CustomClass* %dummyClass to %class._ZTS11CustomClass.CustomClass addrspace(4)*
-  call spir_func void @_ZN11CustomClassC1Ei(%class._ZTS11CustomClass.CustomClass addrspace(4)* %1, i32 1)
-  %2 = bitcast %class._ZTS11CustomClass.CustomClass* %dummyClass to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
+  call void @llvm.lifetime.start.p0(i64 4, ptr %dummyClass) #4
+  %0 = addrspacecast ptr %dummyClass to ptr addrspace(4)
+  call spir_func void @_ZN11CustomClassC1Ei(ptr addrspace(4) %0, i32 1)
+  call void @llvm.lifetime.end.p0(i64 4, ptr %dummyClass) #4
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: norecurse nounwind
-define dso_local spir_func void @_ZN11CustomClassC2Ei(%class._ZTS11CustomClass.CustomClass addrspace(4)* %this, i32 %value) unnamed_addr #3 align 2 {
+define dso_local spir_func void @_ZN11CustomClassC2Ei(ptr addrspace(4) %this, i32 %value) unnamed_addr #3 align 2 {
 entry:
-  %data = getelementptr inbounds %class._ZTS11CustomClass.CustomClass, %class._ZTS11CustomClass.CustomClass addrspace(4)* %this, i32 0, i32 0
-  store i32 %value, i32 addrspace(4)* %data, align 4, !tbaa !5
+  store i32 %value, ptr addrspace(4) %this, align 4, !tbaa !5
   ret void
 }
 

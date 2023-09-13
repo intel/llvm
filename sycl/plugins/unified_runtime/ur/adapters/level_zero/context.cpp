@@ -1,10 +1,10 @@
-//===--------- context.cpp - Level Zero Adapter ----------------------===//
+//===--------- context.cpp - Level Zero Adapter ---------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -78,7 +78,7 @@ static const bool UseMemcpy2DOperations = [] {
       UrRet ? UrRet : (PiRet ? PiRet : nullptr);
   if (!UseMemcpy2DOperationsFlag)
     return false;
-  return std::stoi(UseMemcpy2DOperationsFlag) > 0;
+  return std::atoi(UseMemcpy2DOperationsFlag) > 0;
 }();
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
@@ -106,10 +106,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
     return ReturnValue(uint32_t{Context->RefCount.load()});
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
-    return ReturnValue(uint32_t{UseMemcpy2DOperations});
+    return ReturnValue(uint8_t{UseMemcpy2DOperations});
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
-    return ReturnValue(uint32_t{false});
+    return ReturnValue(uint8_t{false});
   case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
 
     ur_memory_order_capability_flags_t Capabilities =
@@ -182,30 +182,40 @@ ur_result_t ur_context_handle_t_::initialize() {
   // Note that the CCS devices and their respective subdevices share a
   // common ze_device_handle and therefore, also share USM allocators.
   auto createUSMAllocators = [this](ur_device_handle_t Device) {
-    SharedMemAllocContexts.emplace(
+    auto MemProvider = umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(
+                           reinterpret_cast<ur_context_handle_t>(this), Device)
+                           .second;
+    DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMSharedMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Shared]));
+        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
+                            {std::move(MemProvider)},
+                            DisjointPoolConfigInstance
+                                .Configs[usm::DisjointPoolMemType::Device])
+                            .second));
 
-    SharedReadOnlyMemAllocContexts.emplace(
+    MemProvider = umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(
+                      reinterpret_cast<ur_context_handle_t>(this), Device)
+                      .second;
+    SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
-        std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMSharedReadOnlyMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance
-                .Configs[usm_settings::MemType::SharedReadOnly]));
+        std::make_tuple(umf::poolMakeUnique<usm::DisjointPool, 1>(
+                            {std::move(MemProvider)},
+                            DisjointPoolConfigInstance
+                                .Configs[usm::DisjointPoolMemType::Shared])
+                            .second));
 
-    DeviceMemAllocContexts.emplace(
+    MemProvider =
+        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(
+            reinterpret_cast<ur_context_handle_t>(this), Device)
+            .second;
+    SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(Device->ZeDevice),
         std::make_tuple(
-            std::unique_ptr<SystemMemory>(new USMDeviceMemoryAlloc(
-                reinterpret_cast<ur_context_handle_t>(this),
-                reinterpret_cast<ur_device_handle_t>(Device))),
-            USMAllocatorConfigInstance.Configs[usm_settings::MemType::Device]));
+            umf::poolMakeUnique<usm::DisjointPool, 1>(
+                {std::move(MemProvider)},
+                DisjointPoolConfigInstance
+                    .Configs[usm::DisjointPoolMemType::SharedReadOnly])
+                .second));
   };
 
   // Recursive helper to call createUSMAllocators for all sub-devices
@@ -218,23 +228,26 @@ ur_result_t ur_context_handle_t_::initialize() {
       createUSMAllocatorsRecursive(SubDevice);
   };
 
-  // Create USM allocator context for each pair (device, context).
+  // Create USM pool for each pair (device, context).
   //
   for (auto &Device : Devices) {
     createUSMAllocatorsRecursive(Device);
   }
-  // Create USM allocator context for host. Device and Shared USM allocations
+  // Create USM pool for host. Device and Shared USM allocations
   // are device-specific. Host allocations are not device-dependent therefore
   // we don't need a map with device as key.
-  HostMemAllocContext = std::make_unique<USMAllocContext>(
-      std::unique_ptr<SystemMemory>(
-          new USMHostMemoryAlloc(reinterpret_cast<ur_context_handle_t>(this))),
-      USMAllocatorConfigInstance.Configs[usm_settings::MemType::Host]);
+  auto MemProvider = umf::memoryProviderMakeUnique<USMHostMemoryProvider>(
+                         reinterpret_cast<ur_context_handle_t>(this), nullptr)
+                         .second;
+  HostMemPool =
+      umf::poolMakeUnique<usm::DisjointPool, 1>(
+          {std::move(MemProvider)},
+          DisjointPoolConfigInstance.Configs[usm::DisjointPoolMemType::Host])
+          .second;
 
   // We may allocate memory to this root device so create allocators.
   if (SingleRootDevice &&
-      DeviceMemAllocContexts.find(SingleRootDevice->ZeDevice) ==
-          DeviceMemAllocContexts.end()) {
+      DeviceMemPools.find(SingleRootDevice->ZeDevice) == DeviceMemPools.end()) {
     createUSMAllocators(SingleRootDevice);
   }
 
@@ -323,12 +336,12 @@ ur_result_t ContextReleaseHelper(ur_context_handle_t Context) {
 
   // We must delete Context first and then destroy zeContext because
   // Context deallocation requires ZeContext in some member deallocation of
-  // pi_context.
+  // ur_context_handle_t.
   delete Context;
 
-  // Destruction of some members of pi_context uses L0 context
+  // Destruction of some members of ur_context_handle_t uses L0 context
   // and therefore it must be valid at that point.
-  // Technically it should be placed to the destructor of pi_context
+  // Technically it should be placed to the destructor of ur_context_handle_t
   // but this makes API error handling more complex.
   if (DestroyZeContext) {
     auto ZeResult = ZE_CALL_NOCHECK(zeContextDestroy, (DestroyZeContext));
@@ -345,9 +358,9 @@ ur_platform_handle_t ur_context_handle_t_::getPlatform() const {
 }
 
 ur_result_t ur_context_handle_t_::finalize() {
-  // This function is called when pi_context is deallocated, piContextRelease.
-  // There could be some memory that may have not been deallocated.
-  // For example, event and event pool caches would be still alive.
+  // This function is called when ur_context_handle_t is deallocated,
+  // urContextRelease. There could be some memory that may have not been
+  // deallocated. For example, event and event pool caches would be still alive.
 
   if (!DisableEventsCaching) {
     std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
@@ -630,7 +643,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
   // the command lists, and later are then added to the command queue.
   // Each command list is paired with an associated fence to track when the
   // command list is available for reuse.
-  ur_result_t pi_result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
+  ur_result_t ur_result = UR_RESULT_ERROR_OUT_OF_RESOURCES;
 
   // Initally, we need to check if a command list has already been created
   // on this device that is available for use. If so, then reuse that
@@ -678,7 +691,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         CommandList =
             Queue->CommandListMap
                 .emplace(ZeCommandList,
-                         pi_command_list_info_t{ZeFence, true, false,
+                         ur_command_list_info_t{ZeFence, true, false,
                                                 ZeCommandQueue, ZeQueueDesc})
                 .first;
       }
@@ -720,9 +733,9 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
 
   // If there are no available command lists nor signalled command lists,
   // then we must create another command list.
-  pi_result = Queue->createCommandList(UseCopyEngine, CommandList);
+  ur_result = Queue->createCommandList(UseCopyEngine, CommandList);
   CommandList->second.ZeFenceInUse = true;
-  return pi_result;
+  return ur_result;
 }
 
 bool ur_context_handle_t_::isValidDevice(ur_device_handle_t Device) const {

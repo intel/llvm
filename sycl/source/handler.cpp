@@ -12,6 +12,7 @@
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
+#include <detail/image_impl.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -29,7 +30,7 @@
 #include <sycl/stream.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 
@@ -38,6 +39,34 @@ bool isDeviceGlobalUsedInKernel(const void *DeviceGlobalPtr) {
       detail::ProgramManager::getInstance().getDeviceGlobalEntry(
           DeviceGlobalPtr);
   return DGEntry && !DGEntry->MImageIdentifiers.empty();
+}
+
+sycl::detail::pi::PiImageCopyFlags
+getPiImageCopyFlags(sycl::usm::alloc SrcPtrType, sycl::usm::alloc DstPtrType) {
+  if (DstPtrType == sycl::usm::alloc::device) {
+    // Dest is on device
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_DEVICE;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  if (DstPtrType == sycl::usm::alloc::host ||
+      DstPtrType == sycl::usm::alloc::unknown) {
+    // Dest is on host
+    if (SrcPtrType == sycl::usm::alloc::device)
+      return sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+    if (SrcPtrType == sycl::usm::alloc::host ||
+        SrcPtrType == sycl::usm::alloc::unknown)
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Cannot copy image from host to host");
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Unknown copy source location");
+  }
+  throw sycl::exception(make_error_code(errc::invalid),
+                        "Unknown copy destination location");
 }
 
 } // namespace detail
@@ -194,7 +223,7 @@ event handler::finalize() {
       }
     }
 
-    if (MQueue && !MQueue->getCommandGraph() && !MGraph && !MSubgraphNode &&
+    if (MQueue && !MGraph && !MSubgraphNode && !MQueue->getCommandGraph() &&
         !MQueue->is_in_fusion_mode() &&
         CGData.MRequirements.size() + CGData.MEvents.size() +
                 MStreamStorage.size() ==
@@ -206,7 +235,6 @@ event handler::finalize() {
 
       std::vector<sycl::detail::pi::PiEvent> RawEvents;
       detail::EventImplPtr NewEvent;
-      sycl::detail::pi::PiEvent *OutEvent = nullptr;
 
       auto EnqueueKernel = [&]() {
         // 'Result' for single point of return
@@ -220,6 +248,9 @@ event handler::finalize() {
         } else {
           if (MQueue->getDeviceImplPtr()->getBackend() ==
               backend::ext_intel_esimd_emulator) {
+            // Capture the host timestamp for profiling (queue time)
+            if (NewEvent != nullptr)
+              NewEvent->setHostEnqueueTime();
             MQueue->getPlugin()->call<detail::PiApiKind::piEnqueueKernelLaunch>(
                 nullptr, reinterpret_cast<pi_kernel>(MHostKernel->getPtr()),
                 MNDRDesc.Dims, &MNDRDesc.GlobalOffset[0],
@@ -229,7 +260,7 @@ event handler::finalize() {
           } else {
             Result =
                 enqueueImpKernel(MQueue, MNDRDesc, MArgs, KernelBundleImpPtr,
-                                 MKernel, MKernelName, RawEvents, OutEvent,
+                                 MKernel, MKernelName, RawEvents, NewEvent,
                                  nullptr, MImpl->MKernelCacheConfig);
           }
         }
@@ -256,8 +287,6 @@ event handler::finalize() {
         NewEvent = std::make_shared<detail::event_impl>(MQueue);
         NewEvent->setContextImpl(MQueue->getContextImplPtr());
         NewEvent->setStateIncomplete();
-        OutEvent = &NewEvent->getHandleRef();
-
         NewEvent->setSubmissionTime();
 
         if (PI_SUCCESS != EnqueueKernel())
@@ -373,6 +402,20 @@ event handler::finalize() {
       return MLastEvent;
     }
     break;
+  case detail::CG::CopyImage:
+    CommandGroup.reset(new detail::CGCopyImage(
+        MSrcPtr, MDstPtr, MImpl->MImageDesc, MImpl->MImageFormat,
+        MImpl->MImageCopyFlags, MImpl->MSrcOffset, MImpl->MDestOffset,
+        MImpl->MHostExtent, MImpl->MCopyExtent, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreWait:
+    CommandGroup.reset(new detail::CGSemaphoreWait(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+    break;
+  case detail::CG::SemaphoreSignal:
+    CommandGroup.reset(new detail::CGSemaphoreSignal(
+        MImpl->MInteropSemaphoreHandle, std::move(CGData), MCodeLoc));
+    break;
   case detail::CG::None:
     if (detail::pi::trace(detail::pi::TraceLevel::PI_TRACE_ALL)) {
       std::cout << "WARNING: An empty command group is submitted." << std::endl;
@@ -381,7 +424,7 @@ event handler::finalize() {
     // Empty nodes are handled by Graph like standard nodes
     // For Standard mode (non-graph),
     // empty nodes are not sent to the scheduler to save time
-    if (MGraph || MQueue->getCommandGraph()) {
+    if (MGraph || (MQueue && MQueue->getCommandGraph())) {
       CommandGroup.reset(
           new detail::CG(detail::CG::None, std::move(CGData), MCodeLoc));
     } else {
@@ -412,6 +455,11 @@ event handler::finalize() {
     auto EventImpl = std::make_shared<detail::event_impl>();
     std::shared_ptr<ext::oneapi::experimental::detail::node_impl> NodeImpl =
         nullptr;
+
+    // GraphImpl is read and written in this scope so we lock this graph
+    // with full priviledges.
+    ext::oneapi::experimental::detail::graph_impl::WriteLock Lock(
+        GraphImpl->MMutex);
 
     // Create a new node in the graph representing this command-group
     if (MQueue->isInOrder()) {
@@ -454,9 +502,17 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  if (getCommandGraph() &&
+      static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
+          ->needsWriteBack()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Accessors to buffers which have write_back enabled "
+                          "are not allowed to be used in command graphs.");
+  }
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
-  CGData.MRequirements.push_back(Req);
+  if (Req->MAccessRange.size() != 0)
+    CGData.MRequirements.push_back(Req);
   // Store copy of the accessor.
   CGData.MAccStorage.push_back(std::move(AccImpl));
   // Add an accessor to the handler list of associated accessors.
@@ -751,6 +807,9 @@ void handler::verifyUsedKernelBundle(const std::string &KernelName) {
 }
 
 void handler::ext_oneapi_barrier(const std::vector<event> &WaitList) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_enqueue_barrier>();
   throwIfActionIsCreated();
   MCGType = detail::CG::BarrierWaitlist;
   MEventsWaitWithBarrier.resize(WaitList.size());
@@ -842,8 +901,248 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   setType(detail::CG::Memset2DUSM);
 }
 
+void handler::ext_oneapi_copy(
+    void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+    ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src;
+  MDstPtr = Dest.raw_handle;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = DestImgDesc.width;
+  PiDesc.image_height = DestImgDesc.height;
+  PiDesc.image_depth = DestImgDesc.depth;
+  PiDesc.image_type = DestImgDesc.depth > 0
+                          ? PI_MEM_TYPE_IMAGE3D
+                          : (DestImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                    : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(DestImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MHostExtent = {SrcExtent[0], SrcExtent[1], SrcExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_HOST_TO_DEVICE;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    ext::oneapi::experimental::image_mem_handle Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src.raw_handle;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = SrcImgDesc.width;
+  PiDesc.image_height = SrcImgDesc.height;
+  PiDesc.image_depth = SrcImgDesc.depth;
+  PiDesc.image_type =
+      SrcImgDesc.depth > 0
+          ? PI_MEM_TYPE_IMAGE3D
+          : (SrcImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(SrcImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MHostExtent = {DestExtent[0], DestExtent[1], DestExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags =
+      sycl::detail::pi::PiImageCopyFlags::PI_IMAGE_COPY_DEVICE_TO_HOST;
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = Desc.width;
+  PiDesc.image_height = Desc.height;
+  PiDesc.image_depth = Desc.depth;
+  PiDesc.image_type = Desc.depth > 0 ? PI_MEM_TYPE_IMAGE3D
+                                     : (Desc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                        : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(Desc.channel_order);
+
+  MImpl->MSrcOffset = {0, 0, 0};
+  MImpl->MDestOffset = {0, 0, 0};
+  MImpl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MHostExtent = {Desc.width, Desc.height, Desc.depth};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageDesc.image_row_pitch = Pitch;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_copy(
+    void *Src, sycl::range<3> SrcOffset, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = Src;
+  MDstPtr = Dest;
+
+  sycl::detail::pi::PiMemImageDesc PiDesc = {};
+  PiDesc.image_width = DeviceImgDesc.width;
+  PiDesc.image_height = DeviceImgDesc.height;
+  PiDesc.image_depth = DeviceImgDesc.depth;
+  PiDesc.image_type = DeviceImgDesc.depth > 0
+                          ? PI_MEM_TYPE_IMAGE3D
+                          : (DeviceImgDesc.height > 0 ? PI_MEM_TYPE_IMAGE2D
+                                                      : PI_MEM_TYPE_IMAGE1D);
+
+  sycl::detail::pi::PiMemImageFormat PiFormat;
+  PiFormat.image_channel_data_type =
+      sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
+  PiFormat.image_channel_order =
+      sycl::_V1::detail::convertChannelOrder(DeviceImgDesc.channel_order);
+
+  MImpl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  MImpl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  MImpl->MHostExtent = {HostExtent[0], HostExtent[1], HostExtent[2]};
+  MImpl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  MImpl->MImageDesc = PiDesc;
+  MImpl->MImageDesc.image_row_pitch = DeviceRowPitch;
+  MImpl->MImageFormat = PiFormat;
+  MImpl->MImageCopyFlags = detail::getPiImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+  setType(detail::CG::CopyImage);
+}
+
+void handler::ext_oneapi_wait_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreWait);
+}
+
+void handler::ext_oneapi_signal_external_semaphore(
+    sycl::ext::oneapi::experimental::interop_semaphore_handle SemaphoreHandle) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MImpl->MInteropSemaphoreHandle =
+      (sycl::detail::pi::PiInteropSemaphoreHandle)SemaphoreHandle.raw_handle;
+  setType(detail::CG::SemaphoreSignal);
+}
+
 void handler::use_kernel_bundle(
     const kernel_bundle<bundle_state::executable> &ExecBundle) {
+
+  throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                             UnsupportedGraphFeatures::sycl_kernel_bundle>();
 
   std::shared_ptr<detail::queue_impl> PrimaryQueue =
       MImpl->MSubmissionPrimaryQueue;
@@ -1045,6 +1344,10 @@ void handler::ext_oneapi_graph(
         Graph) {
   MCGType = detail::CG::ExecCommandBuffer;
   auto GraphImpl = detail::getSyclObjImpl(Graph);
+  // GraphImpl is only read in this scope so we lock this graph for read only
+  ext::oneapi::experimental::detail::graph_impl::ReadLock Lock(
+      GraphImpl->MMutex);
+
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> ParentGraph;
   if (MQueue) {
     ParentGraph = MQueue->getCommandGraph();
@@ -1052,11 +1355,22 @@ void handler::ext_oneapi_graph(
     ParentGraph = MGraph;
   }
 
+  ext::oneapi::experimental::detail::graph_impl::WriteLock ParentLock;
   // If a parent graph is set that means we are adding or recording a subgraph
   if (ParentGraph) {
+    // ParentGraph is read and written in this scope so we lock this graph
+    // with full priviledges.
+    // We only lock for Record&Replay API because the graph has already been
+    // lock if this function was called from the explicit API function add
+    if (MQueue) {
+      ParentLock = ext::oneapi::experimental::detail::graph_impl::WriteLock(
+          ParentGraph->MMutex);
+    }
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+    // The nodes of the subgraph are duplicated when added to its parents.
+    // This avoids changing properties of the graph added as a subgraph.
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.
@@ -1081,5 +1395,5 @@ handler::getCommandGraph() const {
   return MQueue->getCommandGraph();
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

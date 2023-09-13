@@ -18,7 +18,7 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
@@ -105,7 +105,7 @@ inline std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

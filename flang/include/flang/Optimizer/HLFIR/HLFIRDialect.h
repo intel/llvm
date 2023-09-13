@@ -22,9 +22,12 @@ namespace hlfir {
 bool isFortranVariableType(mlir::Type);
 bool isFortranScalarCharacterType(mlir::Type);
 bool isFortranScalarCharacterExprType(mlir::Type);
+bool isFortranArrayCharacterExprType(mlir::Type);
 } // namespace hlfir
 
 #include "flang/Optimizer/HLFIR/HLFIRDialect.h.inc"
+
+#include "flang/Optimizer/HLFIR/HLFIREnums.h.inc"
 
 #define GET_TYPEDEF_CLASSES
 #include "flang/Optimizer/HLFIR/HLFIRTypes.h.inc"
@@ -84,6 +87,7 @@ bool isPassByRefOrIntegerType(mlir::Type);
 bool isI1Type(mlir::Type);
 // scalar i1 or logical, or sequence of logical (via (boxed?) array or expr)
 bool isMaskArgument(mlir::Type);
+bool isPolymorphicObject(mlir::Type);
 
 /// If an expression's extents are known at compile time, generate a fir.shape
 /// for this expression. Otherwise return {}

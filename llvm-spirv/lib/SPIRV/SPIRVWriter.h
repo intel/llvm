@@ -108,6 +108,16 @@ public:
   bool transBuiltinSet();
   bool isKnownIntrinsic(Intrinsic::ID Id);
   SPIRVValue *transIntrinsicInst(IntrinsicInst *Intrinsic, SPIRVBasicBlock *BB);
+  enum class FPBuiltinType {
+    REGULAR_MATH,
+    EXT_1OPS,
+    EXT_2OPS,
+    EXT_3OPS,
+    UNKNOWN
+  };
+  FPBuiltinType getFPBuiltinType(IntrinsicInst *II, StringRef &);
+  SPIRVValue *transFPBuiltinIntrinsicInst(IntrinsicInst *II,
+                                          SPIRVBasicBlock *BB);
   SPIRVValue *transFenceInst(FenceInst *FI, SPIRVBasicBlock *BB);
   SPIRVValue *transCallInst(CallInst *Call, SPIRVBasicBlock *BB);
   SPIRVValue *transDirectCallInst(CallInst *Call, SPIRVBasicBlock *BB);
@@ -248,6 +258,8 @@ private:
       const Function *FS,
       const std::unordered_set<const Function *> Funcs) const;
   void collectInputOutputVariables(SPIRVFunction *SF, Function *F);
+  std::vector<SPIRVId> collectEntryPointInterfaces(SPIRVFunction *BF,
+                                                   Function *F);
 };
 
 class LLVMToSPIRVPass : public PassInfoMixin<LLVMToSPIRVPass> {

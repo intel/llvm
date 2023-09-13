@@ -1,10 +1,10 @@
-//===--------- ur_interface_loader.cpp - Level Zero Adapter-----------===//
+//===--------- ur_interface_loader.cpp - Level Zero Adapter----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <ur_api.h>
 #include <ur_ddi.h>
@@ -33,6 +33,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
   pDdiTable->pfnInit = urInit;
   pDdiTable->pfnTearDown = urTearDown;
+  pDdiTable->pfnAdapterGet = urAdapterGet;
+  pDdiTable->pfnAdapterRelease = urAdapterRelease;
+  pDdiTable->pfnAdapterRetain = urAdapterRetain;
+  pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
+  pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
 
   return retVal;
 }
@@ -182,7 +187,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetPlatformProcAddrTable(
   pDdiTable->pfnCreateWithNativeHandle = urPlatformCreateWithNativeHandle;
   pDdiTable->pfnGetApiVersion = urPlatformGetApiVersion;
   pDdiTable->pfnGetBackendOption = urPlatformGetBackendOption;
-  pDdiTable->pfnGetLastError = urPlatformGetLastError;
 
   return retVal;
 }
@@ -342,4 +346,47 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetUsmP2PExpProcAddrTable(
   pDdiTable->pfnPeerAccessGetInfoExp = urUsmP2PPeerAccessGetInfoExp;
 
   return retVal;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetBindlessImagesExpProcAddrTable(
+    ur_api_version_t version, ur_bindless_images_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnUnsampledImageHandleDestroyExp =
+      urBindlessImagesUnsampledImageHandleDestroyExp;
+  pDdiTable->pfnSampledImageHandleDestroyExp =
+      urBindlessImagesSampledImageHandleDestroyExp;
+  pDdiTable->pfnImageAllocateExp = urBindlessImagesImageAllocateExp;
+  pDdiTable->pfnImageFreeExp = urBindlessImagesImageFreeExp;
+  pDdiTable->pfnUnsampledImageCreateExp =
+      urBindlessImagesUnsampledImageCreateExp;
+  pDdiTable->pfnSampledImageCreateExp = urBindlessImagesSampledImageCreateExp;
+  pDdiTable->pfnImageCopyExp = urBindlessImagesImageCopyExp;
+  pDdiTable->pfnImageGetInfoExp = urBindlessImagesImageGetInfoExp;
+  pDdiTable->pfnMipmapGetLevelExp = urBindlessImagesMipmapGetLevelExp;
+  pDdiTable->pfnMipmapFreeExp = urBindlessImagesMipmapFreeExp;
+  pDdiTable->pfnImportOpaqueFDExp = urBindlessImagesImportOpaqueFDExp;
+  pDdiTable->pfnMapExternalArrayExp = urBindlessImagesMapExternalArrayExp;
+  pDdiTable->pfnReleaseInteropExp = urBindlessImagesReleaseInteropExp;
+  pDdiTable->pfnImportExternalSemaphoreOpaqueFDExp =
+      urBindlessImagesImportExternalSemaphoreOpaqueFDExp;
+  pDdiTable->pfnDestroyExternalSemaphoreExp =
+      urBindlessImagesDestroyExternalSemaphoreExp;
+  pDdiTable->pfnWaitExternalSemaphoreExp =
+      urBindlessImagesWaitExternalSemaphoreExp;
+  pDdiTable->pfnSignalExternalSemaphoreExp =
+      urBindlessImagesSignalExternalSemaphoreExp;
+  return UR_RESULT_SUCCESS;
+}
+
+UR_DLLEXPORT ur_result_t UR_APICALL urGetUSMExpProcAddrTable(
+    ur_api_version_t version, ur_usm_exp_dditable_t *pDdiTable) {
+  auto result = validateProcInputs(version, pDdiTable);
+  if (UR_RESULT_SUCCESS != result) {
+    return result;
+  }
+  pDdiTable->pfnPitchedAllocExp = urUSMPitchedAllocExp;
+  return UR_RESULT_SUCCESS;
 }

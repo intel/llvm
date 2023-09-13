@@ -82,9 +82,10 @@ struct AMDGPUOutgoingValueHandler : public CallLowering::OutgoingValueHandler {
           ExtReg = MIRBuilder.buildBitcast(S32, ExtReg).getReg(0);
       }
 
-      auto ToSGPR = MIRBuilder.buildIntrinsic(Intrinsic::amdgcn_readfirstlane,
-                                              {MRI.getType(ExtReg)}, false)
-        .addReg(ExtReg);
+      auto ToSGPR = MIRBuilder
+                        .buildIntrinsic(Intrinsic::amdgcn_readfirstlane,
+                                        {MRI.getType(ExtReg)})
+                        .addReg(ExtReg);
       ExtReg = ToSGPR.getReg(0);
     }
 
@@ -512,8 +513,6 @@ bool AMDGPUCallLowering::lowerFormalArgumentsKernel(
   const SITargetLowering &TLI = *getTLI<SITargetLowering>();
   const DataLayout &DL = F.getParent()->getDataLayout();
 
-  Info->allocateKnownAddressLDSGlobal(F);
-
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(F.getCallingConv(), F.isVarArg(), MF, ArgLocs, F.getContext());
 
@@ -595,8 +594,6 @@ bool AMDGPUCallLowering::lowerFormalArguments(
   const GCNSubtarget &Subtarget = MF.getSubtarget<GCNSubtarget>();
   const SIRegisterInfo *TRI = Subtarget.getRegisterInfo();
   const DataLayout &DL = F.getParent()->getDataLayout();
-
-  Info->allocateKnownAddressLDSGlobal(F);
 
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CC, F.isVarArg(), MF, ArgLocs, F.getContext());
@@ -1358,6 +1355,9 @@ bool AMDGPUCallLowering::lowerCall(MachineIRBuilder &MIRBuilder,
 
   auto MIB = MIRBuilder.buildInstrNoInsert(Opc);
   MIB.addDef(TRI->getReturnAddressReg(MF));
+
+  if (!Info.IsConvergent)
+    MIB.setMIFlag(MachineInstr::NoConvergent);
 
   if (!addCallTargetOperands(MIB, MIRBuilder, Info))
     return false;

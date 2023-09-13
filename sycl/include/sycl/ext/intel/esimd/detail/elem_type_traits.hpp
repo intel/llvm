@@ -86,7 +86,7 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // -----------------------------------------------------------------------------
@@ -607,7 +607,7 @@ static inline constexpr bool is_generic_floating_point_v =
     element_type_traits<T>::is_floating_point;
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

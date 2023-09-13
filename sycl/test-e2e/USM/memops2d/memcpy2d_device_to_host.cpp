@@ -12,7 +12,7 @@
 
 // Temporarily disabled until the failure is addressed.
 // For HIP see https://github.com/intel/llvm/issues/10157.
-// UNSUPPORTED: gpu-intel-pvc || (level_zero && windows) || hip
+// UNSUPPORTED: (level_zero && windows) || hip
 
 #include "memcpy2d_common.hpp"
 

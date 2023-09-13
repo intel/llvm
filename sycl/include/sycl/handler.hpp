@@ -11,42 +11,68 @@
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
+#include <sycl/detail/array.hpp>
 #include <sycl/detail/cg.hpp>
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/cl.h>
+#include <sycl/detail/common.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/helpers.hpp>
+#include <sycl/detail/impl_utils.hpp>
+#include <sycl/detail/item_base.hpp>
+#include <sycl/detail/kernel_desc.hpp>
+#include <sycl/detail/pi.h>
+#include <sycl/detail/pi.hpp>
 #include <sycl/detail/reduction_forward.hpp>
+#include <sycl/device.hpp>
 #include <sycl/event.hpp>
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>
 #include <sycl/ext/intel/experimental/kernel_execution_properties.hpp>
+#include <sycl/ext/oneapi/bindless_images_descriptor.hpp>
+#include <sycl/ext/oneapi/bindless_images_interop.hpp>
+#include <sycl/ext/oneapi/bindless_images_memory.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
+#include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/interop_handle.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
 #include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
 #include <sycl/nd_range.hpp>
 #include <sycl/property_list.hpp>
+#include <sycl/range.hpp>
 #include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/types.hpp>
+#include <sycl/usm/usm_enums.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+
 #ifdef __SYCL_NATIVE_CPU__
 #include <sycl/detail/native_cpu.hpp>
 #endif
 
-#include <sycl/ext/oneapi/experimental/graph.hpp>
-
+#include <assert.h>
 #include <functional>
-#include <limits>
 #include <memory>
+#include <stddef.h>
+#include <stdint.h>
+#include <string>
 #include <tuple>
 #include <type_traits>
+#include <utility>
+#include <vector>
+
+// TODO: refactor this header
+// 47(!!!) includes of SYCL headers + 10 includes of standard headers.
+// 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
 #if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
@@ -62,11 +88,46 @@
 #endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
+#if defined(__SYCL_UNNAMED_LAMBDA__)
+// We can't use nested types (e.g. struct S defined inside main() routine) to
+// name kernels. At the same time, we have to provide a unique kernel name for
+// sycl::fill and the only thing we can use to introduce that uniqueness (in
+// general) is the template parameter T which might be exactly that nested type.
+// That means we cannot support sycl::fill(void *, T&, size_t) for such types in
+// general. However, we can do better than that when unnamed lambdas are
+// enabled, so do it here! See also https://github.com/intel/llvm/issues/469.
+template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
+          sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __fill = sycl::detail::auto_name;
+template <typename T> using __usmfill = sycl::detail::auto_name;
+template <typename T> using __usmfill2d = sycl::detail::auto_name;
+template <typename T> using __usmmemcpy2d = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyAcc2Ptr = sycl::detail::auto_name;
+
+template <typename T_Src, typename T_Dst, int Dims,
+          sycl::access::mode AccessMode, sycl::access::target AccessTarget,
+          sycl::access::placeholder IsPlaceholder>
+using __copyPtr2Acc = sycl::detail::auto_name;
+
+template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
+          sycl::access::target AccessTarget_Src, typename T_Dst, int Dims_Dst,
+          sycl::access::mode AccessMode_Dst,
+          sycl::access::target AccessTarget_Dst,
+          sycl::access::placeholder IsPlaceholder_Src,
+          sycl::access::placeholder IsPlaceholder_Dst>
+using __copyAcc2Acc = sycl::detail::auto_name;
+#else
+// Limited fallback path for when unnamed lambdas aren't available. Cannot
+// handle nested types.
 template <typename DataT, int Dimensions, sycl::access::mode AccessMode,
           sycl::access::target AccessTarget,
           sycl::access::placeholder IsPlaceholder>
 class __fill;
-
 template <typename T> class __usmfill;
 template <typename T> class __usmfill2d;
 template <typename T> class __usmmemcpy2d;
@@ -88,12 +149,13 @@ template <typename T_Src, int Dims_Src, sycl::access::mode AccessMode_Src,
           sycl::access::placeholder IsPlaceholder_Src,
           sycl::access::placeholder IsPlaceholder_Dst>
 class __copyAcc2Acc;
+#endif
 
 // For unit testing purposes
 class MockHandler;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declaration
 
@@ -109,7 +171,7 @@ class pipe;
 
 namespace ext::oneapi::experimental::detail {
 class graph_impl;
-}
+} // namespace ext::oneapi::experimental::detail
 namespace detail {
 
 class handler_impl;
@@ -436,8 +498,8 @@ private:
     return LambdaName == KernelName;
   }
 
-  /// Saves the location of user's code passed in \param CodeLoc for future
-  /// usage in finalize() method.
+  /// Saves the location of user's code passed in \p CodeLoc for future usage in
+  /// finalize() method.
   void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
 
   /// Constructs CG object of specific type, passes it to Scheduler and
@@ -834,9 +896,8 @@ private:
       return false;
 
     range<1> LinearizedRange(Src.size());
-    parallel_for<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    parallel_for<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                               ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         LinearizedRange, [=](id<1> Id) {
           size_t Index = Id[0];
           id<DimSrc> SrcId = detail::getDelinearizedId(Src.get_range(), Index);
@@ -863,9 +924,8 @@ private:
     if (!MIsHost)
       return false;
 
-    single_task<
-        class __copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
-                            ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
+    single_task<__copyAcc2Acc<TSrc, DimSrc, ModeSrc, TargetSrc, TDst, DimDst,
+                              ModeDst, TargetDst, IsPHSrc, IsPHDst>>(
         [=]() { *(Dst.get_pointer()) = *(Src.get_pointer()); });
     return true;
   }
@@ -882,8 +942,7 @@ private:
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
     range<Dim> Range = Src.get_range();
-    parallel_for<
-        class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
@@ -901,7 +960,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyAccToPtrHost(accessor<TSrc, Dim, AccMode, AccTarget, IsPH> Src,
                    TDst *Dst) {
-    single_task<class __copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyAcc2Ptr<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           using TSrcNonConst = typename std::remove_const_t<TSrc>;
           *(reinterpret_cast<TSrcNonConst *>(Dst)) = *(Src.get_pointer());
@@ -918,8 +977,7 @@ private:
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
     range<Dim> Range = Dst.get_range();
-    parallel_for<
-        class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    parallel_for<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         Range, [=](id<Dim> Index) {
           const size_t LinearIndex = detail::getLinearIndex(Index, Range);
           Dst[Index] = (reinterpret_cast<const TDst *>(Src))[LinearIndex];
@@ -936,7 +994,7 @@ private:
   std::enable_if_t<Dim == 0>
   copyPtrToAccHost(TSrc *Src,
                    accessor<TDst, Dim, AccMode, AccTarget, IsPH> Dst) {
-    single_task<class __copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
+    single_task<__copyPtr2Acc<TSrc, TDst, Dim, AccMode, AccTarget, IsPH>>(
         [=]() {
           *(Dst.get_pointer()) = *(reinterpret_cast<const TDst *>(Src));
         });
@@ -1011,6 +1069,10 @@ private:
         std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
         typename TransformUserItemType<Dims, LambdaArgType>::type>;
 
+    static_assert(!std::is_same_v<TransformedArgType, sycl::nd_item<Dims>>,
+                  "Kernel argument cannot have a sycl::nd_item type in "
+                  "sycl::parallel_for with sycl::range");
+
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1037,7 +1099,8 @@ private:
 
     // Disable the rounding-up optimizations under these conditions:
     // 1. The env var SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING is set.
-    // 2. The kernel is provided via an interoperability method.
+    // 2. The kernel is provided via an interoperability method (this uses a
+    // different code path).
     // 3. The range is already a multiple of the rounding factor.
     //
     // Cases 2 and 3 could be supported with extra effort.
@@ -1050,17 +1113,10 @@ private:
     // call-graph to make this_item calls kernel-specific but this is
     // not considered worthwhile.
 
-    // Get the kernel name to check condition 2.
-    std::string KName = typeid(NameT *).name();
-    using KI = detail::KernelInfo<KernelName>;
-    bool DisableRounding =
-        this->DisableRangeRounding() ||
-        (KI::getName() == nullptr || KI::getName()[0] == '\0');
-
     // Perform range rounding if rounding-up is enabled
     // and there are sufficient work-items to need rounding
     // and the user-specified range is not a multiple of a "good" value.
-    if (!DisableRounding && (NumWorkItems[0] >= MinRangeX) &&
+    if (!this->DisableRangeRounding() && (NumWorkItems[0] >= MinRangeX) &&
         (NumWorkItems[0] % MinFactorX != 0)) {
       // It is sufficient to round up just the first dimension.
       // Multiplying the rounded-up value of the first dimension
@@ -1135,10 +1191,19 @@ private:
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType =
         sycl::detail::lambda_arg_type<KernelType, nd_item<Dims>>;
+#ifdef SYCL2020_CONFORMANT_APIS
+    static_assert(
+        std::is_convertible_v<sycl::nd_item<Dims>, LambdaArgType>,
+        "Kernel argument of a sycl::parallel_for with sycl::nd_range "
+        "must be either sycl::nd_item or be convertible from sycl::nd_item");
+    using TransformedArgType = sycl::nd_item<Dims>;
+#else
     // If user type is convertible from sycl::item/sycl::nd_item, use
     // sycl::item/sycl::nd_item to transport item information
     using TransformedArgType =
         typename TransformUserItemType<Dims, LambdaArgType>::type;
+#endif
+
     (void)ExecutionRange;
     kernel_parallel_for_wrapper<NameT, TransformedArgType, KernelType,
                                 PropertiesT>(KernelFunc);
@@ -1558,6 +1623,10 @@ public:
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
 
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_specialization_constants>();
+
     setStateSpecConstSet();
 
     std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
@@ -1571,6 +1640,10 @@ public:
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const {
+
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_specialization_constants>();
 
     if (isStateExplicitKernelBundle())
       throw sycl::exception(make_error_code(errc::invalid),
@@ -1599,9 +1672,6 @@ public:
   template <typename DataT, int Dims, access::mode AccMode,
             access::target AccTarget, access::placeholder isPlaceholder>
   void require(accessor<DataT, Dims, AccMode, AccTarget, isPlaceholder> Acc) {
-    if (Acc.empty())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "require() cannot be called on empty accessors");
     if (Acc.is_placeholder())
       associateWithHandler(&Acc, AccTarget);
   }
@@ -1735,13 +1805,17 @@ public:
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     verifyUsedKernelBundle(detail::KernelInfo<NameT>::getName());
     using LambdaArgType = sycl::detail::lambda_arg_type<KernelType, item<Dims>>;
+    using TransformedArgType = std::conditional_t<
+        std::is_integral<LambdaArgType>::value && Dims == 1, item<Dims>,
+        typename TransformUserItemType<Dims, LambdaArgType>::type>;
     (void)NumWorkItems;
     (void)WorkItemOffset;
-    kernel_parallel_for_wrapper<NameT, LambdaArgType>(KernelFunc);
+    kernel_parallel_for_wrapper<NameT, TransformedArgType>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
     MNDRDesc.set(std::move(NumWorkItems), std::move(WorkItemOffset));
-    StoreLambda<NameT, KernelType, Dims, LambdaArgType>(std::move(KernelFunc));
+    StoreLambda<NameT, KernelType, Dims, TransformedArgType>(
+        std::move(KernelFunc));
     setType(detail::CG::Kernel);
 #endif
   }
@@ -2086,6 +2160,7 @@ public:
   std::enable_if_t<
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   single_task(PropertiesT Props, _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     single_task_lambda_impl<KernelName, KernelType, PropertiesT>(Props,
                                                                  KernelFunc);
   }
@@ -2096,6 +2171,7 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 1, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2106,6 +2182,7 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 2, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2116,6 +2193,7 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> NumWorkItems, PropertiesT Props,
                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_lambda_impl<KernelName, KernelType, 3, PropertiesT>(
         NumWorkItems, Props, std::move(KernelFunc));
   }
@@ -2126,6 +2204,7 @@ public:
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties,
                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_impl<KernelName>(Range, Properties, std::move(KernelFunc));
   }
 
@@ -2138,6 +2217,9 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<1> Range, PropertiesT Properties, RestT &&...Rest) {
+    throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                               UnsupportedGraphFeatures::sycl_reductions>();
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2149,6 +2231,9 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<2> Range, PropertiesT Properties, RestT &&...Rest) {
+    throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                               UnsupportedGraphFeatures::sycl_reductions>();
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2160,6 +2245,9 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(range<3> Range, PropertiesT Properties, RestT &&...Rest) {
+    throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                               UnsupportedGraphFeatures::sycl_reductions>();
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2195,6 +2283,8 @@ public:
       detail::AreAllButLastReductions<RestT...>::value &&
       ext::oneapi::experimental::is_property_list<PropertiesT>::value>
   parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+    throwIfGraphAssociated<ext::oneapi::experimental::detail::
+                               UnsupportedGraphFeatures::sycl_reductions>();
     detail::reduction_parallel_for<KernelName>(*this, Range, Properties,
                                                std::forward<RestT>(Rest)...);
   }
@@ -2214,6 +2304,7 @@ public:
             int Dims, typename PropertiesT>
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(NumWorkGroups, Props,
                                                      KernelFunc);
@@ -2224,6 +2315,7 @@ public:
   void parallel_for_work_group(range<Dims> NumWorkGroups,
                                range<Dims> WorkGroupSize, PropertiesT Props,
                                _KERNELFUNCPARAM(KernelFunc)) {
+    throwIfGraphAssociatedAndKernelProperties<PropertiesT>();
     parallel_for_work_group_lambda_impl<KernelName, KernelType, Dims,
                                         PropertiesT>(
         NumWorkGroups, WorkGroupSize, Props, KernelFunc);
@@ -2500,13 +2592,11 @@ public:
       *PatternPtr = Pattern;
     } else if constexpr (Dims == 0) {
       // Special case for zero-dim accessors.
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           range<1>(1), [=](id<1>) { Dst = Pattern; });
     } else {
       range<Dims> Range = Dst.get_range();
-      parallel_for<
-          class __fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
+      parallel_for<__fill<T, Dims, AccessMode, AccessTarget, IsPlaceholder>>(
           Range, [=](id<Dims> Index) { Dst[Index] = Pattern; });
     }
   }
@@ -2521,7 +2611,7 @@ public:
     throwIfActionIsCreated();
     static_assert(is_device_copyable<T>::value,
                   "Pattern must be device copyable");
-    parallel_for<class __usmfill<T>>(range<1>(Count), [=](id<1> Index) {
+    parallel_for<__usmfill<T>>(range<1>(Count), [=](id<1> Index) {
       T *CastedPtr = static_cast<T *>(Ptr);
       CastedPtr[Index] = Pattern;
     });
@@ -2531,6 +2621,9 @@ public:
   /// until all commands previously submitted to this queue have entered the
   /// complete state.
   void ext_oneapi_barrier() {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_enqueue_barrier>();
     throwIfActionIsCreated();
     setType(detail::CG::Barrier);
   }
@@ -2546,9 +2639,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
   /// \param Src is a USM pointer to the source memory.
@@ -2558,9 +2651,9 @@ public:
   /// Copies data from one memory region to another, each is either a host
   /// pointer or a pointer within USM allocation accessible on this handler's
   /// device.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if either \param Dest or \param Src is nullptr. The behavior is undefined
-  /// if any of the pointer parameters is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if
+  /// either \p Dest or \p Src is nullptr. The behavior is undefined if any of
+  /// the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is a USM pointer to the destination memory.
@@ -2570,9 +2663,8 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Count is zero. An exception is thrown
-  /// if \param Dest is nullptr. The behavior is undefined if \param Dest
-  /// is invalid.
+  /// No operations is done if \p Count is zero. An exception is thrown if \p
+  /// Dest is nullptr. The behavior is undefined if \p Dest is invalid.
   ///
   /// \param Dest is a USM pointer to the memory to fill.
   /// \param Value is a value to be set. Value is cast as an unsigned char.
@@ -2597,25 +2689,27 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Width is the width in bytes of the 2D region to copy.
   /// \param Height is the height in number of row of the 2D region to copy.
   template <typename T = unsigned char,
             typename = std::enable_if_t<std::is_same_v<T, unsigned char>>>
   void ext_oneapi_memcpy2d(void *Dest, size_t DestPitch, const void *Src,
                            size_t SrcPitch, size_t Width, size_t Height) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_memcpy2d>();
     throwIfActionIsCreated();
     if (Width > DestPitch)
       throw sycl::exception(sycl::make_error_code(errc::invalid),
@@ -2653,16 +2747,15 @@ public:
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than either \param DestPitch or
-  /// \param SrcPitch. The behavior is undefined if any of the pointer
-  /// parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than either \p DestPitch or \p SrcPitch. The behavior is undefined
+  /// if any of the pointer parameters is invalid.
   ///
   /// \param Src is a USM pointer to the source memory.
-  /// \param SrcPitch is the pitch of the rows in \param Src.
+  /// \param SrcPitch is the pitch of the rows in \p Src.
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Width is the width in number of elements of the 2D region to copy.
   /// \param Height is the height in number of rows of the 2D region to copy.
   template <typename T>
@@ -2704,17 +2797,17 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// NOTE: Function is dependent to prevent the fallback kernels from
   /// materializing without the use of the function.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
-  /// \param Value is the value to fill into the region in \param Dest. Value is
+  /// \param DestPitch is the pitch of the rows in \p Dest.
+  /// \param Value is the value to fill into the region in \p Dest. Value is
   /// cast as an unsigned char.
   /// \param Width is the width in number of elements of the 2D region to fill.
   /// \param Height is the height in number of rows of the 2D region to fill.
@@ -2744,13 +2837,13 @@ public:
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
-  /// No operations is done if \param Width or \param Height is zero. An
-  /// exception is thrown if either \param Dest or \param Src is nullptr or if
-  /// \param Width is strictly greater than \param DestPitch. The behavior is
-  /// undefined if any of the pointer parameters is invalid.
+  /// No operations is done if \p Width or \p Height is zero. An exception is
+  /// thrown if either \p Dest or \p Src is nullptr or if \p Width is strictly
+  /// greater than \p DestPitch. The behavior is undefined if any of the pointer
+  /// parameters is invalid.
   ///
   /// \param Dest is a USM pointer to the destination memory.
-  /// \param DestPitch is the pitch of the rows in \param Dest.
+  /// \param DestPitch is the pitch of the rows in \p Dest.
   /// \param Pattern is the pattern to fill into the memory.  T should be
   /// device copyable.
   /// \param Width is the width in number of elements of the 2D region to fill.
@@ -2783,17 +2876,19 @@ public:
 
   /// Copies data from a USM memory region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param NumBytes and
-  /// \param DestOffset.
+  /// memory range \p Dest, as specified through \p NumBytes and \p DestOffset.
   ///
   /// \param Dest is the destination device_glboal.
   /// \param Src is a USM pointer to the source memory.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param DestOffset is the offset into \param Dest to copy to.
+  /// \param DestOffset is the offset into \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void memcpy(ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
               const void *Src, size_t NumBytes = sizeof(T),
               size_t DestOffset = 0) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_device_global>();
     if (sizeof(T) < DestOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy to device_global is out of bounds.");
@@ -2814,18 +2909,20 @@ public:
 
   /// Copies data from a device_global to USM memory.
   /// Throws an exception if the copy operation intends to read outside the
-  /// memory range \param Src, as specified through \param NumBytes and
-  /// \param SrcOffset.
+  /// memory range \p Src, as specified through \p NumBytes and \p SrcOffset.
   ///
   /// \param Dest is a USM pointer to copy to.
   /// \param Src is the source device_global.
   /// \param NumBytes is a number of bytes to copy.
-  /// \param SrcOffset is the offset into \param Src to copy from.
+  /// \param SrcOffset is the offset into \p Src to copy from.
   template <typename T, typename PropertyListT>
   void
   memcpy(void *Dest,
          const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
          size_t NumBytes = sizeof(T), size_t SrcOffset = 0) {
+    throwIfGraphAssociated<
+        ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+            sycl_ext_oneapi_device_global>();
     if (sizeof(T) < SrcOffset + NumBytes)
       throw sycl::exception(make_error_code(errc::invalid),
                             "Copy from device_global is out of bounds.");
@@ -2848,13 +2945,12 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a USM memory
   /// region to a device_global.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Dest, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Dest, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is a USM pointer to the source memory.
   /// \param Dest is the destination device_glboal.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Dest to copy to.
+  /// \param StartIndex is the index of the first element in \p Dest to copy to.
   template <typename T, typename PropertyListT>
   void copy(const std::remove_all_extents_t<T> *Src,
             ext::oneapi::experimental::device_global<T, PropertyListT> &Dest,
@@ -2867,13 +2963,13 @@ public:
   /// Copies elements of type `std::remove_all_extents_t<T>` from a
   /// device_global to a USM memory region.
   /// Throws an exception if the copy operation intends to write outside the
-  /// memory range \param Src, as specified through \param Count and
-  /// \param StartIndex.
+  /// memory range \p Src, as specified through \p Count and \p StartIndex.
   ///
   /// \param Src is the source device_global.
   /// \param Dest is a USM pointer to copy to.
   /// \param Count is a number of elements to copy.
-  /// \param StartIndex is the index of the first element in Src to copy from.
+  /// \param StartIndex is the index of the first element in \p Src to copy
+  ///        from.
   template <typename T, typename PropertyListT>
   void
   copy(const ext::oneapi::experimental::device_global<T, PropertyListT> &Src,
@@ -2889,6 +2985,147 @@ public:
   void ext_oneapi_graph(ext::oneapi::experimental::command_graph<
                         ext::oneapi::experimental::graph_state::executable>
                             Graph);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. An exception is
+  /// thrown if either \p Src is nullptr or \p Dest is incomplete. The behavior
+  /// is undefined if \p Desc is inconsistent with the allocated memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestImgDesc is the image descriptor
+  void ext_oneapi_copy(
+      void *Src, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is a USM
+  /// pointer and \p Dest is an opaque image memory handle. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p CopyExtent
+  /// are used to determine the sub-region. Pixel size is determined
+  /// by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an offset from the origin where the x, y, and z
+  ///                  components are measured in bytes, rows, and slices
+  ///                  respectively
+  /// \param SrcExtent is the extent of the source memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param Dest is an opaque image memory handle to the destination memory.
+  /// \param DestOffset is an offset from the destination origin measured in
+  ///                   pixels (pixel size determined by \p DestImgDesc )
+  /// \param DestImgDesc is the destination image descriptor
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels as determined by \p DestImgDesc
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer.
+  /// An exception is thrown if either \p Src is incomplete or \p Dest is
+  /// nullptr. The behavior is undefined if \p Desc is inconsistent with the
+  /// allocated memory region.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param SrcImgDesc is the source image descriptor
+  void ext_oneapi_copy(
+      ext::oneapi::experimental::image_mem_handle Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
+
+  /// Copies data from one memory region to another, where \p Src is an opaque
+  /// image memory handle and \p Dest is a USM pointer. Allows for a
+  /// sub-region copy, where \p SrcOffset , \p DestOffset , and \p Extent are
+  /// used to determine the sub-region.  Pixel size is determined
+  /// by \p SrcImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is an opaque image memory handle to the source memory.
+  /// \param SrcOffset is an offset from the origin of source measured in pixels
+  ///                   (pixel size determined by \p SrcImgDesc )
+  /// \param SrcImgDesc is the source image descriptor
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an offset from the destination origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DestExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DestImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p SrcImgDesc )
+  void
+  ext_oneapi_copy(ext::oneapi::experimental::image_mem_handle Src,
+                  sycl::range<3> SrcOffset,
+                  const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+                  void *Dest, sycl::range<3> DestOffset,
+                  sycl::range<3> DestExtent, sycl::range<3> CopyExtent);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. An exception is thrown if either \p Src is nullptr, \p
+  /// Dest is nullptr, or \p Pitch is inconsistent with hardware requirements.
+  /// The behavior is undefined if \p Desc is inconsistent with the allocated
+  /// memory region.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DeviceImgDesc is the image descriptor (format, order, dimensions).
+  /// \param DeviceRowPitch is the pitch of the rows on the device.
+  void ext_oneapi_copy(
+      void *Src, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch);
+
+  /// Copies data from one memory region to another, where \p Src and \p Dest
+  /// are USM pointers. Allows for a sub-region copy, where \p SrcOffset ,
+  /// \p DestOffset , and \p Extent are used to determine the sub-region.
+  /// Pixel size is determined by \p DestImgDesc
+  /// An exception is thrown if either \p Src is nullptr or \p Dest is
+  /// incomplete.
+  ///
+  /// \param Src is a USM pointer to the source memory.
+  /// \param SrcOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param Dest is a USM pointer to the destination memory.
+  /// \param DestOffset is an destination offset from the origin where the
+  ///                  x, y, and z components are measured in bytes, rows,
+  ///                  and slices respectively
+  /// \param DeviceImgDesc is the device image descriptor
+  /// \param DeviceRowPitch is the row pitch on the device
+  /// \param HostExtent is the extent of the dest memory to copy, measured in
+  ///                  pixels (pixel size determined by \p DeviceImgDesc )
+  /// \param CopyExtent is the width, height, and depth of the region to copy
+  ///               measured in pixels (pixel size determined by
+  ///               \p DeviceImgDesc )
+  void ext_oneapi_copy(
+      void *Src, sycl::range<3> SrcOffset, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+      size_t DeviceRowPitch, sycl::range<3> HostExtent,
+      sycl::range<3> CopyExtent);
+
+  /// Instruct the queue with a non-blocking wait on an external semaphore.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_wait_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
+
+  /// Instruct the queue to signal the external semaphore once all previous
+  /// commands have completed execution.
+  /// An exception is thrown if \p SemaphoreHandle is incomplete.
+  ///
+  /// \param SemaphoreHandle is an opaque external interop semaphore handle
+  void ext_oneapi_signal_external_semaphore(
+      sycl::ext::oneapi::experimental::interop_semaphore_handle
+          SemaphoreHandle);
 
 private:
   std::shared_ptr<detail::handler_impl> MImpl;
@@ -3008,18 +3245,18 @@ private:
   /// Read from a host pipe given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data getting read back / to. \param Block
-  /// if read opeartion is blocking, default to false.
+  ///        expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if read operation is blocking, default to false.
   void ext_intel_read_host_pipe(const std::string &Name, void *Ptr, size_t Size,
                                 bool Block = false);
 
   /// Write to host pipes given a host address and
   /// \param Name name of the host pipe to be passed into lower level runtime
   /// \param Ptr host pointer of host pipe as identified by address of its const
-  /// expr m_Storage member \param Size the size of data getting read back / to.
-  /// /// \param Size the size of data write / to. \param Block
-  /// if write opeartion is blocking, default to false.
+  /// expr m_Storage member
+  /// \param Size the size of data getting read back / to.
+  /// \param Block if write opeartion is blocking, default to false.
   void ext_intel_write_host_pipe(const std::string &Name, void *Ptr,
                                  size_t Size, bool Block = false);
   friend class ext::oneapi::experimental::detail::graph_impl;
@@ -3073,7 +3310,7 @@ private:
     // Limit number of work items to be resistant to big copies.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmmemcpy2d<T>>(
+    parallel_for<__usmmemcpy2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           const T *CastedSrc = static_cast<const T *>(Src);
@@ -3119,7 +3356,7 @@ private:
     // Limit number of work items to be resistant to big fill operations.
     id<2> Chunk = computeFallbackKernelBounds(Height, Width);
     id<2> Iterations = (Chunk + id<2>{Height, Width} - 1) / Chunk;
-    parallel_for<class __usmfill2d<T>>(
+    parallel_for<__usmfill2d<T>>(
         range<2>{Chunk[0], Chunk[1]}, [=](id<2> Index) {
           T *CastedDest = static_cast<T *>(Dest);
           for (uint32_t I = 0; I < Iterations[0]; ++I) {
@@ -3206,8 +3443,34 @@ private:
                             "handler::require() before it can be used.");
   }
 
+  template <typename PropertiesT>
+  std::enable_if_t<
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value>
+  throwIfGraphAssociatedAndKernelProperties() const {
+    if (!std::is_same_v<PropertiesT,
+                        ext::oneapi::experimental::detail::empty_properties_t>)
+      throwIfGraphAssociated<
+          ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+              sycl_ext_oneapi_kernel_properties>();
+  }
+
   // Set value of the gpu cache configuration for the kernel.
   void setKernelCacheConfig(sycl::detail::pi::PiKernelCacheConfig);
+
+  template <
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures FeatureT>
+  void throwIfGraphAssociated() const {
+
+    if (getCommandGraph()) {
+      std::string FeatureString =
+          ext::oneapi::experimental::detail::UnsupportedFeatureToString(
+              FeatureT);
+      throw sycl::exception(sycl::make_error_code(errc::invalid),
+                            "The " + FeatureString +
+                                " feature is not yet available "
+                                "for use with the SYCL Graph extension.");
+    }
+  }
 };
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,10 +1,10 @@
-//===--------- platform.cpp - HIP Adapter ---------------------------===//
+//===--------- platform.cpp - HIP Adapter ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "platform.hpp"
 
@@ -24,7 +24,7 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
     return ReturnValue("FULL PROFILE");
   case UR_PLATFORM_INFO_VERSION: {
     std::string Version;
-    detail::ur::assertion(getHipVersionString(Version) == hipSuccess);
+    UR_CHECK_ERROR(getHipVersionString(Version));
     return ReturnValue(Version.c_str());
   }
   case UR_PLATFORM_INFO_BACKEND: {
@@ -48,8 +48,8 @@ urPlatformGetInfo(ur_platform_handle_t, ur_platform_info_t propName,
 /// However because multiple devices in a context is not currently supported,
 /// place each device in a separate platform.
 UR_APIEXPORT ur_result_t UR_APICALL
-urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
-              uint32_t *pNumPlatforms) {
+urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
+              ur_platform_handle_t *phPlatforms, uint32_t *pNumPlatforms) {
 
   try {
     static std::once_flag InitFlag;
@@ -82,8 +82,10 @@ urPlatformGet(uint32_t NumEntries, ur_platform_handle_t *phPlatforms,
             for (int i = 0; i < NumDevices; ++i) {
               hipDevice_t Device;
               Err = UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              hipCtx_t Context;
+              Err = UR_CHECK_ERROR(hipDevicePrimaryCtxRetain(&Context, Device));
               PlatformIds[i].Devices.emplace_back(
-                  new ur_device_handle_t_{Device, &PlatformIds[i]});
+                  new ur_device_handle_t_{Device, Context, &PlatformIds[i]});
             }
           } catch (const std::bad_alloc &) {
             // Signal out-of-memory situation
@@ -127,12 +129,21 @@ urPlatformGetApiVersion(ur_platform_handle_t, ur_api_version_t *pVersion) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urInit(ur_device_init_flags_t) {
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+    ur_platform_handle_t hPlatform, ur_native_handle_t *phNativePlatform) {
+  std::ignore = hPlatform;
+  std::ignore = phNativePlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urTearDown(void *) {
-  return UR_RESULT_SUCCESS;
+UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+    ur_native_handle_t hNativePlatform,
+    const ur_platform_native_properties_t *pProperties,
+    ur_platform_handle_t *phPlatform) {
+  std::ignore = hNativePlatform;
+  std::ignore = pProperties;
+  std::ignore = phPlatform;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 // Get CUDA plugin specific backend option.

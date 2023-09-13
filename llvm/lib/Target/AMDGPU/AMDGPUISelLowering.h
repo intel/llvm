@@ -60,8 +60,23 @@ protected:
   SDValue LowerFROUNDEVEN(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFROUND(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerFFLOOR(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerFLOG(SDValue Op, SelectionDAG &DAG,
-                    double Log2BaseInverted) const;
+
+  SDValue getIsLtSmallestNormal(SelectionDAG &DAG, SDValue Op,
+                                SDNodeFlags Flags) const;
+  SDValue getIsFinite(SelectionDAG &DAG, SDValue Op, SDNodeFlags Flags) const;
+  std::pair<SDValue, SDValue> getScaledLogInput(SelectionDAG &DAG,
+                                                const SDLoc SL, SDValue Op,
+                                                SDNodeFlags Flags) const;
+
+  SDValue LowerFLOG2(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOGCommon(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOG10(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerFLOGUnsafe(SDValue Op, const SDLoc &SL, SelectionDAG &DAG,
+                          bool IsLog10, SDNodeFlags Flags) const;
+  SDValue lowerFEXP2(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue lowerFEXPUnsafe(SDValue Op, const SDLoc &SL, SelectionDAG &DAG,
+                          SDNodeFlags Flags) const;
   SDValue lowerFEXP(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerCTLZ_CTTZ(SDValue Op, SelectionDAG &DAG) const;
@@ -227,9 +242,7 @@ public:
   SDValue LowerCall(CallLoweringInfo &CLI,
                     SmallVectorImpl<SDValue> &InVals) const override;
 
-  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op,
-                                  SelectionDAG &DAG) const;
-
+  SDValue LowerDYNAMIC_STACKALLOC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
   void ReplaceNodeResults(SDNode * N,
@@ -394,6 +407,10 @@ enum NodeType : unsigned {
 
   // Return with values from a non-entry function.
   RET_GLUE,
+
+  // Convert a unswizzled wave uniform stack address to an address compatible
+  // with a vector offset for use in stack access.
+  WAVE_ADDRESS,
 
   DWORDADDR,
   FRACT,

@@ -123,14 +123,6 @@ DEVICE_EXTERN_C_INLINE float __devicelib_imf_rsqrtf(float a) {
 
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_invf(float a) { return 1.0f / a; }
 
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fmaxf(float a, float b) {
-  return __fmax(a, b);
-}
-
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fminf(float a, float b) {
-  return __fmin(a, b);
-}
-
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_copysignf(float a, float b) {
   return __copysign(a, b);
 }

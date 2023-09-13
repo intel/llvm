@@ -2,14 +2,16 @@
 /// Perform several driver tests for SYCL offloading with AOT enabled
 ///
 
+
+// Check that when -fintelfpga is passed without -fsycl, no error is thrown.
 // RUN:   %clang -### -fintelfpga  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NO-FSYCL-FINTELFPGA %s
-// CHK-NO-FSYCL-FINTELFPGA: error: '-fintelfpga' must be used in conjunction with '-fsycl' to enable offloading
+// CHK-NO-FSYCL-FINTELFPGA-NOT: error: '-fintelfpga' must be used in conjunction with '-fsycl' to enable offloading
 
 /// Check error for -fsycl-targets -fintelfpga conflict
-// RUN:   %clang -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -fsycl  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
-// RUN:   %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-targets=spir64-unknown-unknown -fintelfpga -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-FPGA-CONFLICT %s
 // CHK-SYCL-FPGA-CONFLICT: error: The option -fsycl-targets= conflicts with -fintelfpga
 
@@ -19,9 +21,9 @@
 // CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "{{.*}}"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"{{.*}} "-fsycl-is-host"
 
 /// Check error for -fsycl-targets with bad triple
-// RUN:   %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
-// RUN:   %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-BAD-TRIPLE %s
 // CHK-SYCL-BAD-TRIPLE: error: SYCL target is invalid: 'spir64_bad-unknown-unknown'
 
@@ -51,9 +53,9 @@
 // CHK-TARGET: clang{{.*}} "-cc1" "-triple" "[[ARCH]]-unknown-unknown"{{.*}} "-D" "FOO"
 
 /// Check -Xsycl-target-backend triggers error when multiple triples are used.
-// RUN:   %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
+// RUN:   not %clang -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
-// RUN:   %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
+// RUN:   not %clang_cl -### -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir_fpga-unknown-unknown -Xsycl-target-backend -DFOO %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-FSYCL-TARGET-AMBIGUOUS-ERROR %s
 // CHK-FSYCL-TARGET-AMBIGUOUS-ERROR: clang{{.*}} error: cannot deduce implicit triple value for '-Xsycl-target-backend', specify triple using '-Xsycl-target-backend=<triple>'
 
