@@ -205,7 +205,7 @@
 ; LLVM IR compilation command:
 ; clang -cc1 -triple spir -disable-llvm-passes -fsycl-is-device -emit-llvm intel-fpga-local-var.cpp
 
-; RUN: llvm-as -opaque-pointers=1 %s -o %t.bc
+; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_attributes -o %t.spv
 ; RUN: llvm-spirv %t.spv --spirv-ext=+SPV_INTEL_fpga_memory_attributes -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
@@ -334,23 +334,21 @@ target triple = "spir"
 define spir_kernel void @_ZTSZ4mainE15kernel_function() #0 !kernel_arg_addr_space !4 !kernel_arg_access_qual !4 !kernel_arg_type !4 !kernel_arg_base_type !4 !kernel_arg_type_qual !4 {
 entry:
   %0 = alloca %class.anon, align 1
-  %1 = bitcast %class.anon* %0 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 1, i8* %1) #5
-  call spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* %0)
-  %2 = bitcast %class.anon* %0 to i8*
-  call void @llvm.lifetime.end.p0i8(i64 1, i8* %2) #5
+  call void @llvm.lifetime.start.p0(i64 1, ptr %0) #5
+  call spir_func void @"_ZZ4mainENK3$_0clEv"(ptr %0)
+  call void @llvm.lifetime.end.p0(i64 1, ptr %0) #5
   ret void
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse nounwind
-define internal spir_func void @"_ZZ4mainENK3$_0clEv"(%class.anon* %this) #2 align 2 {
+define internal spir_func void @"_ZZ4mainENK3$_0clEv"(ptr %this) #2 align 2 {
 entry:
-  %this.addr = alloca %class.anon*, align 4
-  store %class.anon* %this, %class.anon** %this.addr, align 4, !tbaa !5
-  %this1 = load %class.anon*, %class.anon** %this.addr, align 4
+  %this.addr = alloca ptr, align 4
+  store ptr %this, ptr %this.addr, align 4, !tbaa !5
+  %this1 = load ptr, ptr %this.addr, align 4
   call spir_func void @_Z13numbanks_attrv()
   call spir_func void @_Z19templ_numbanks_attrILi4EEvv()
   call spir_func void @_Z13register_attrv()
@@ -374,32 +372,25 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: nounwind willreturn
-declare void @llvm.var.annotation(i8*, i8*, i8*, i32, i8*) #4
+declare void @llvm.var.annotation(ptr, ptr, ptr, i32, ptr) #4
 
 ; Function Attrs: norecurse nounwind
 define spir_func void @_Z13numbanks_attrv() #3 {
 entry:
   %numbanks_var = alloca i32, align 4
   %s = alloca %struct.numbanks_st, align 4
-  %0 = bitcast i32* %numbanks_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %numbanks_var1 = bitcast i32* %numbanks_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %numbanks_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_NMB_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %numbanks_var1, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* null)
-  %1 = bitcast %struct.numbanks_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.numbanks_st* %s to i8*
+  call void @llvm.var.annotation(ptr %numbanks_var, ptr @.str, ptr @.str.1, i32 2, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_NMB_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str.2, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 6, i8* null)
-  %field = getelementptr inbounds %struct.numbanks_st, %struct.numbanks_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !9
-  %2 = bitcast %struct.numbanks_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %numbanks_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.2, ptr @.str.1, i32 6, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !9
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %numbanks_var) #5
   ret void
 }
 
@@ -408,22 +399,15 @@ define linkonce_odr spir_func void @_Z19templ_numbanks_attrILi4EEvv() #3 {
 entry:
   %templ_numbanks_var = alloca i32, align 4
   %s = alloca %struct.templ_numbanks_st, align 4
-  %0 = bitcast i32* %templ_numbanks_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_numbanks_var1 = bitcast i32* %templ_numbanks_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_numbanks_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_NMB_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_numbanks_var1, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 12, i8* null)
-  %1 = bitcast %struct.templ_numbanks_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_numbanks_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_numbanks_var, ptr @.str.3, ptr @.str.1, i32 12, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_NMB_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([41 x i8], [41 x i8]* @.str.3, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 16, i8* null)
-  %field = getelementptr inbounds %struct.templ_numbanks_st, %struct.templ_numbanks_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !12
-  %2 = bitcast %struct.templ_numbanks_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_numbanks_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.3, ptr @.str.1, i32 16, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !12
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_numbanks_var) #5
   ret void
 }
 
@@ -432,22 +416,15 @@ define spir_func void @_Z13register_attrv() #3 {
 entry:
   %register_var = alloca i32, align 4
   %s = alloca %struct.register_st, align 4
-  %0 = bitcast i32* %register_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %register_var1 = bitcast i32* %register_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %register_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_REG_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %register_var1, i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 21, i8* null)
-  %1 = bitcast %struct.register_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.register_st* %s to i8*
+  call void @llvm.var.annotation(ptr %register_var, ptr @.str.4, ptr @.str.1, i32 21, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_REG_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 25, i8* null)
-  %field = getelementptr inbounds %struct.register_st, %struct.register_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !14
-  %2 = bitcast %struct.register_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %register_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.4, ptr @.str.1, i32 25, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !14
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %register_var) #5
   ret void
 }
 
@@ -456,24 +433,15 @@ define spir_func void @_Z11memory_attrv() #3 {
 entry:
   %memory_var = alloca [500 x i32], align 4
   %s = alloca %struct.memory_st, align 4
-  %0 = bitcast [500 x i32]* %memory_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 2000, i8* %0) #5
-  %memory_var1 = bitcast [500 x i32]* %memory_var to i8*
+  call void @llvm.lifetime.start.p0(i64 2000, ptr %memory_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MEM_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %memory_var1, i8* getelementptr inbounds ([30 x i8], [30 x i8]* @.str.5, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 30, i8* null)
-  %1 = bitcast %struct.memory_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 80, i8* %1) #5
-  %s2 = bitcast %struct.memory_st* %s to i8*
+  call void @llvm.var.annotation(ptr %memory_var, ptr @.str.5, ptr @.str.1, i32 30, ptr null)
+  call void @llvm.lifetime.start.p0(i64 80, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MEM_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([32 x i8], [32 x i8]* @.str.6, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 34, i8* null)
-  %field = getelementptr inbounds %struct.memory_st, %struct.memory_st* %s, i32 0, i32 0
-  %arrayidx = getelementptr inbounds [10 x [2 x i32]], [10 x [2 x i32]]* %field, i64 0, i64 0
-  %arrayidx3 = getelementptr inbounds [2 x i32], [2 x i32]* %arrayidx, i64 0, i64 0
-  store i32 0, i32* %arrayidx3, align 4, !tbaa !16
-  %2 = bitcast %struct.memory_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 80, i8* %2) #5
-  %3 = bitcast [500 x i32]* %memory_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 2000, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.6, ptr @.str.1, i32 34, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !16
+  call void @llvm.lifetime.end.p0(i64 80, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 2000, ptr %memory_var) #5
   ret void
 }
 
@@ -482,22 +450,15 @@ define spir_func void @_Z14bankwidth_attrv() #3 {
 entry:
   %bankwidth_var = alloca i32, align 4
   %s = alloca %struct.bankwidth_st, align 4
-  %0 = bitcast i32* %bankwidth_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %bankwidth_var1 = bitcast i32* %bankwidth_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %bankwidth_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BWD_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %bankwidth_var1, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.7, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 39, i8* null)
-  %1 = bitcast %struct.bankwidth_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.bankwidth_st* %s to i8*
+  call void @llvm.var.annotation(ptr %bankwidth_var, ptr @.str.7, ptr @.str.1, i32 39, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BWD_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([42 x i8], [42 x i8]* @.str.8, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 43, i8* null)
-  %field = getelementptr inbounds %struct.bankwidth_st, %struct.bankwidth_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !17
-  %2 = bitcast %struct.bankwidth_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %bankwidth_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.8, ptr @.str.1, i32 43, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !17
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %bankwidth_var) #5
   ret void
 }
 
@@ -506,22 +467,15 @@ define linkonce_odr spir_func void @_Z20templ_bankwidth_attrILi16EEvv() #3 {
 entry:
   %templ_bankwidth_var = alloca i32, align 4
   %s = alloca %struct.templ_bankwidth_st, align 4
-  %0 = bitcast i32* %templ_bankwidth_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_bankwidth_var1 = bitcast i32* %templ_bankwidth_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_bankwidth_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BWD_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_bankwidth_var1, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 49, i8* null)
-  %1 = bitcast %struct.templ_bankwidth_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_bankwidth_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_bankwidth_var, ptr @.str.9, ptr @.str.1, i32 49, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BWD_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([43 x i8], [43 x i8]* @.str.9, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 53, i8* null)
-  %field = getelementptr inbounds %struct.templ_bankwidth_st, %struct.templ_bankwidth_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !19
-  %2 = bitcast %struct.templ_bankwidth_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_bankwidth_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.9, ptr @.str.1, i32 53, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !19
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_bankwidth_var) #5
   ret void
 }
 
@@ -530,22 +484,15 @@ define spir_func void @_Z19private_copies_attrv() #3 {
 entry:
   %priv_copies_var = alloca i32, align 4
   %s = alloca %struct.priv_copies_st, align 4
-  %0 = bitcast i32* %priv_copies_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %priv_copies_var1 = bitcast i32* %priv_copies_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %priv_copies_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_PRC_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %priv_copies_var1, i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str.10, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 58, i8* null)
-  %1 = bitcast %struct.priv_copies_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.priv_copies_st* %s to i8*
+  call void @llvm.var.annotation(ptr %priv_copies_var, ptr @.str.10, ptr @.str.1, i32 58, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_PRC_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str.11, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 62, i8* null)
-  %field = getelementptr inbounds %struct.priv_copies_st, %struct.priv_copies_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !21
-  %2 = bitcast %struct.priv_copies_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %priv_copies_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.11, ptr @.str.1, i32 62, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !21
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %priv_copies_var) #5
   ret void
 }
 
@@ -554,22 +501,15 @@ define linkonce_odr spir_func void @_Z25templ_private_copies_attrILi8EEvv() #3 {
 entry:
   %templ_priv_copies_var = alloca i32, align 4
   %s = alloca %struct.templ_priv_copies_st, align 4
-  %0 = bitcast i32* %templ_priv_copies_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_priv_copies_var1 = bitcast i32* %templ_priv_copies_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_priv_copies_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_PRC_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_priv_copies_var1, i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 68, i8* null)
-  %1 = bitcast %struct.templ_priv_copies_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_priv_copies_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_priv_copies_var, ptr @.str.12, ptr @.str.1, i32 68, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_PRC_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([47 x i8], [47 x i8]* @.str.12, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 72, i8* null)
-  %field = getelementptr inbounds %struct.templ_priv_copies_st, %struct.templ_priv_copies_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !23
-  %2 = bitcast %struct.templ_priv_copies_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_priv_copies_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.12, ptr @.str.1, i32 72, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !23
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_priv_copies_var) #5
   ret void
 }
 
@@ -578,22 +518,15 @@ define spir_func void @_Z15singlepump_attrv() #3 {
 entry:
   %singlepump_var = alloca i32, align 4
   %s = alloca %struct.singlepump_st, align 4
-  %0 = bitcast i32* %singlepump_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %singlepump_var1 = bitcast i32* %singlepump_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %singlepump_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_SNP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %singlepump_var1, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.13, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 77, i8* null)
-  %1 = bitcast %struct.singlepump_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.singlepump_st* %s to i8*
+  call void @llvm.var.annotation(ptr %singlepump_var, ptr @.str.13, ptr @.str.1, i32 77, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_SNP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.13, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 81, i8* null)
-  %field = getelementptr inbounds %struct.singlepump_st, %struct.singlepump_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !25
-  %2 = bitcast %struct.singlepump_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %singlepump_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.13, ptr @.str.1, i32 81, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !25
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %singlepump_var) #5
   ret void
 }
 
@@ -602,22 +535,15 @@ define spir_func void @_Z15doublepump_attrv() #3 {
 entry:
   %doublepump_var = alloca i32, align 4
   %s = alloca %struct.doublepump_st, align 4
-  %0 = bitcast i32* %doublepump_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %doublepump_var1 = bitcast i32* %doublepump_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %doublepump_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_DBP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %doublepump_var1, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.14, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 86, i8* null)
-  %1 = bitcast %struct.doublepump_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.doublepump_st* %s to i8*
+  call void @llvm.var.annotation(ptr %doublepump_var, ptr @.str.14, ptr @.str.1, i32 86, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_DBP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([37 x i8], [37 x i8]* @.str.14, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 90, i8* null)
-  %field = getelementptr inbounds %struct.doublepump_st, %struct.doublepump_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !27
-  %2 = bitcast %struct.doublepump_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %doublepump_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.14, ptr @.str.1, i32 90, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !27
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %doublepump_var) #5
   ret void
 }
 
@@ -626,22 +552,15 @@ define spir_func void @_Z10merge_attrv() #3 {
 entry:
   %merge_var = alloca i32, align 4
   %s = alloca %struct.merge_st, align 4
-  %0 = bitcast i32* %merge_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %merge_var1 = bitcast i32* %merge_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %merge_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MRG_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %merge_var1, i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.15, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 95, i8* null)
-  %1 = bitcast %struct.merge_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.merge_st* %s to i8*
+  call void @llvm.var.annotation(ptr %merge_var, ptr @.str.15, ptr @.str.1, i32 95, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MRG_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([46 x i8], [46 x i8]* @.str.16, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 99, i8* null)
-  %field = getelementptr inbounds %struct.merge_st, %struct.merge_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !29
-  %2 = bitcast %struct.merge_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %merge_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.16, ptr @.str.1, i32 99, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !29
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %merge_var) #5
   ret void
 }
 
@@ -650,22 +569,15 @@ define spir_func void @_Z19max_replicates_attrv() #3 {
 entry:
   %max_repl_var = alloca i32, align 4
   %s = alloca %struct.max_repl_st, align 4
-  %0 = bitcast i32* %max_repl_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %max_repl_var1 = bitcast i32* %max_repl_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %max_repl_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MXR_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %max_repl_var1, i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str.17, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 104, i8* null)
-  %1 = bitcast %struct.max_repl_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.max_repl_st* %s to i8*
+  call void @llvm.var.annotation(ptr %max_repl_var, ptr @.str.17, ptr @.str.1, i32 104, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MXR_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str.18, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 108, i8* null)
-  %field = getelementptr inbounds %struct.max_repl_st, %struct.max_repl_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !31
-  %2 = bitcast %struct.max_repl_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %max_repl_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.18, ptr @.str.1, i32 108, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !31
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %max_repl_var) #5
   ret void
 }
 
@@ -674,22 +586,15 @@ define linkonce_odr spir_func void @_Z25templ_max_replicates_attrILi8EEvv() #3 {
 entry:
   %templ_max_repl_var = alloca i32, align 4
   %s = alloca %struct.templ_max_repl_st, align 4
-  %0 = bitcast i32* %templ_max_repl_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_max_repl_var1 = bitcast i32* %templ_max_repl_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_max_repl_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MXR_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_max_repl_var1, i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str.19, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 114, i8* null)
-  %1 = bitcast %struct.templ_max_repl_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_max_repl_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_max_repl_var, ptr @.str.19, ptr @.str.1, i32 114, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_MXR_TE]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([19 x i8], [19 x i8]* @.str.19, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 118, i8* null)
-  %field = getelementptr inbounds %struct.templ_max_repl_st, %struct.templ_max_repl_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !33
-  %2 = bitcast %struct.templ_max_repl_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_max_repl_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.19, ptr @.str.1, i32 118, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !33
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_max_repl_var) #5
   ret void
 }
 
@@ -698,22 +603,15 @@ define spir_func void @_Z21simple_dual_port_attrv() #3 {
 entry:
   %simple_dual_port_var = alloca i32, align 4
   %s = alloca %struct.simple_dual_port_st, align 4
-  %0 = bitcast i32* %simple_dual_port_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %simple_dual_port_var1 = bitcast i32* %simple_dual_port_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %simple_dual_port_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_SDP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %simple_dual_port_var1, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.20, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 123, i8* null)
-  %1 = bitcast %struct.simple_dual_port_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.simple_dual_port_st* %s to i8*
+  call void @llvm.var.annotation(ptr %simple_dual_port_var, ptr @.str.20, ptr @.str.1, i32 123, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_SDP_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.20, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 127, i8* null)
-  %field = getelementptr inbounds %struct.simple_dual_port_st, %struct.simple_dual_port_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !35
-  %2 = bitcast %struct.simple_dual_port_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %simple_dual_port_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.20, ptr @.str.1, i32 127, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !35
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %simple_dual_port_var) #5
   ret void
 }
 
@@ -722,22 +620,15 @@ define spir_func void @_Z14bank_bits_attrv() #3 {
 entry:
   %bank_bits_var = alloca i32, align 4
   %s = alloca %struct.bank_bits_st, align 4
-  %0 = bitcast i32* %bank_bits_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %bank_bits_var1 = bitcast i32* %bank_bits_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %bank_bits_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BBT_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %bank_bits_var1, i8* getelementptr inbounds ([58 x i8], [58 x i8]* @.str.21, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 132, i8* null)
-  %1 = bitcast %struct.bank_bits_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.bank_bits_st* %s to i8*
+  call void @llvm.var.annotation(ptr %bank_bits_var, ptr @.str.21, ptr @.str.1, i32 132, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BBT_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str.22, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 136, i8* null)
-  %field = getelementptr inbounds %struct.bank_bits_st, %struct.bank_bits_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !37
-  %2 = bitcast %struct.bank_bits_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %bank_bits_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.22, ptr @.str.1, i32 136, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !37
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %bank_bits_var) #5
   ret void
 }
 
@@ -746,22 +637,15 @@ define linkonce_odr spir_func void @_Z20templ_bank_bits_attrILi4ELi5EEvv() #3 {
 entry:
   %templ_bank_bits_var = alloca i32, align 4
   %s = alloca %struct.templ_bank_bits_st, align 4
-  %0 = bitcast i32* %templ_bank_bits_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_bank_bits_var1 = bitcast i32* %templ_bank_bits_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_bank_bits_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BBT_TE1]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_bank_bits_var1, i8* getelementptr inbounds ([56 x i8], [56 x i8]* @.str.23, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 142, i8* null)
-  %1 = bitcast %struct.templ_bank_bits_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_bank_bits_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_bank_bits_var, ptr @.str.23, ptr @.str.1, i32 142, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_BBT_TE2]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([54 x i8], [54 x i8]* @.str.24, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 146, i8* null)
-  %field = getelementptr inbounds %struct.templ_bank_bits_st, %struct.templ_bank_bits_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !39
-  %2 = bitcast %struct.templ_bank_bits_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_bank_bits_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.24, ptr @.str.1, i32 146, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !39
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_bank_bits_var) #5
   ret void
 }
 
@@ -770,22 +654,15 @@ define spir_func void @_Z21force_pow2_depth_attrv() #3 {
 entry:
   %fp2d_var = alloca i32, align 4
   %s = alloca %struct.fp2d_st, align 4
-  %0 = bitcast i32* %fp2d_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %fp2d_var1 = bitcast i32* %fp2d_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %fp2d_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_FP2_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %fp2d_var1, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.25, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 151, i8* null)
-  %1 = bitcast %struct.fp2d_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.fp2d_st* %s to i8*
+  call void @llvm.var.annotation(ptr %fp2d_var, ptr @.str.25, ptr @.str.1, i32 151, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_FP2_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 155, i8* null)
-  %field = getelementptr inbounds %struct.fp2d_st, %struct.fp2d_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !41
-  %2 = bitcast %struct.fp2d_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %fp2d_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.26, ptr @.str.1, i32 155, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !41
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %fp2d_var) #5
   ret void
 }
 
@@ -794,22 +671,15 @@ define linkonce_odr spir_func void @_Z27templ_force_pow2_depth_attrILi1EEvv() #3
 entry:
   %templ_fp2d_var = alloca i32, align 4
   %s = alloca %struct.templ_fp2d_st, align 4
-  %0 = bitcast i32* %templ_fp2d_var to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #5
-  %templ_fp2d_var1 = bitcast i32* %templ_fp2d_var to i8*
+  call void @llvm.lifetime.start.p0(i64 4, ptr %templ_fp2d_var) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_FP2_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %templ_fp2d_var1, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 161, i8* null)
-  %1 = bitcast %struct.templ_fp2d_st* %s to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %1) #5
-  %s2 = bitcast %struct.templ_fp2d_st* %s to i8*
+  call void @llvm.var.annotation(ptr %templ_fp2d_var, ptr @.str.26, ptr @.str.1, i32 161, ptr null)
+  call void @llvm.lifetime.start.p0(i64 4, ptr %s) #5
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_]+}}, ptr [[STR_FP2_SCT]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %s2, i8* getelementptr inbounds ([49 x i8], [49 x i8]* @.str.26, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 165, i8* null)
-  %field = getelementptr inbounds %struct.templ_fp2d_st, %struct.templ_fp2d_st* %s, i32 0, i32 0
-  store i32 0, i32* %field, align 4, !tbaa !43
-  %2 = bitcast %struct.templ_fp2d_st* %s to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #5
-  %3 = bitcast i32* %templ_fp2d_var to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %3) #5
+  call void @llvm.var.annotation(ptr %s, ptr @.str.26, ptr @.str.1, i32 165, ptr null)
+  store i32 0, ptr %s, align 4, !tbaa !43
+  call void @llvm.lifetime.end.p0(i64 4, ptr %s) #5
+  call void @llvm.lifetime.end.p0(i64 4, ptr %templ_fp2d_var) #5
   ret void
 }
 
@@ -817,11 +687,10 @@ entry:
 define dso_local spir_func void @_Z25memory_attribute_on_arrayv() #2 {
 entry:
   %register_var = alloca [32 x i32], align 4
-  %register_var.ascast = addrspacecast [32 x i32]* %register_var to [32 x i32] addrspace(4)*
-  %register_var.ascast1 = bitcast [32 x i32] addrspace(4)* %register_var.ascast to i8 addrspace(4)*
-  %register_var.ascast2 = addrspacecast i8 addrspace(4)* %register_var.ascast1 to i8*
+  %register_var.ascast = addrspacecast ptr %register_var to ptr addrspace(4)
+  %register_var.ascast2 = addrspacecast ptr addrspace(4) %register_var.ascast to ptr
   ; CHECK-LLVM: call void @llvm.var.annotation.p0.p0(ptr %{{[a-zA-Z0-9_.]+}}, ptr [[STR_REG_VAR]], ptr undef, i32 undef, ptr undef)
-  call void @llvm.var.annotation(i8* %register_var.ascast2, i8* getelementptr inbounds ([13 x i8], [13 x i8]* @.str.4, i32 0, i32 0), i8* getelementptr inbounds ([25 x i8], [25 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* null)
+  call void @llvm.var.annotation(ptr %register_var.ascast2, ptr @.str.4, ptr @.str.1, i32 2, ptr null)
   ret void
 }
 

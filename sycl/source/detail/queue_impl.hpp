@@ -690,7 +690,7 @@ public:
 
   std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
   getCommandGraph() const {
-    return MGraph;
+    return MGraph.lock();
   }
 
 protected:
@@ -866,8 +866,7 @@ protected:
 
   // Command graph which is associated with this queue for the purposes of
   // recording commands to it.
-  std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph =
-      nullptr;
+  std::weak_ptr<ext::oneapi::experimental::detail::graph_impl> MGraph{};
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
 };

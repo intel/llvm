@@ -1,5 +1,5 @@
 ; Test -sanitizer-coverage-trace-compares=1 API declarations on x86_64
-; RUN: opt -opaque-pointers < %s -passes='module(sancov-module)' -sanitizer-coverage-level=1 -sanitizer-coverage-trace-compares=1  -S | FileCheck %s
+; RUN: opt < %s -passes='module(sancov-module)' -sanitizer-coverage-level=1 -sanitizer-coverage-trace-compares=1  -S | FileCheck %s
 
 target triple = "x86_64-unknown-linux-gnu"
 define i32 @foo() #0 {

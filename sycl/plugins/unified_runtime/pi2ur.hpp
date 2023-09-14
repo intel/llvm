@@ -770,7 +770,8 @@ mapPIMetadataToUR(const pi_device_binary_property *pi_metadata,
 namespace pi2ur {
 
 inline pi_result piTearDown(void *PluginParameter) {
-  std::ignore = PluginParameter;
+  bool *pluginTeardown = static_cast<bool *>(PluginParameter);
+  *pluginTeardown = true;
   // Fetch the single known adapter (the one which is statically linked) so we
   // can release it. Fetching it for a second time (after piPlatformsGet)
   // increases the reference count, so we need to release it twice.

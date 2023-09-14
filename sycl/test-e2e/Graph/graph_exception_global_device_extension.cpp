@@ -2,6 +2,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
+// UNSUPPORTED: gpu-intel-pvc
 // The test checks that invalid exception is thrown
 // when trying to use sycl_ext_oneapi_device_global
 // along with Graph.

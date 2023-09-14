@@ -40,88 +40,88 @@ target triple = "spir64-unknown-unknown"
 ; CHECK-SPV-IR: call spir_func void @_Z30__spirv_WritePipeBlockingINTEL{{.*}}(target("spirv.Pipe", 1){{.*}}, ptr addrspace(4){{.*}}, i32 2, i32 2)
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_func void @foo(target("spirv.Pipe", 0) %p, i32 addrspace(1)* %ptr) #0 {
+define spir_func void @foo(target("spirv.Pipe", 0) %p, ptr addrspace(1) %ptr) #0 {
 entry:
   %p.addr = alloca target("spirv.Pipe", 0), align 8
-  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  %ptr.addr = alloca ptr addrspace(1), align 8
   store target("spirv.Pipe", 0) %p, target("spirv.Pipe", 0)* %p.addr, align 8
-  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  store ptr addrspace(1) %ptr, ptr %ptr.addr, align 8
   %0 = load target("spirv.Pipe", 0), target("spirv.Pipe", 0)* %p.addr, align 8
-  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i32 addrspace(4)*
-  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(target("spirv.Pipe", 0) %0, i32 addrspace(4)* %2, i32 4, i32 4)
+  %1 = load ptr addrspace(1), ptr %ptr.addr, align 8
+  %2 = addrspacecast ptr addrspace(1) %1 to ptr addrspace(4)
+  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(target("spirv.Pipe", 0) %0, ptr addrspace(4) %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(target("spirv.Pipe", 0), i32 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePiii(target("spirv.Pipe", 0), ptr addrspace(4), i32, i32)
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_func void @bar(target("spirv.Pipe", 0) %p, i32 addrspace(1)* %ptr) #0 {
+define spir_func void @bar(target("spirv.Pipe", 0) %p, ptr addrspace(1) %ptr) #0 {
 entry:
   %p.addr = alloca target("spirv.Pipe", 0), align 8
-  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  %ptr.addr = alloca ptr addrspace(1), align 8
   store target("spirv.Pipe", 0) %p, target("spirv.Pipe", 0)* %p.addr, align 8
-  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  store ptr addrspace(1) %ptr, ptr %ptr.addr, align 8
   %0 = load target("spirv.Pipe", 0), target("spirv.Pipe", 0)* %p.addr, align 8
-  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(target("spirv.Pipe", 0) %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  %1 = load ptr addrspace(1), ptr %ptr.addr, align 8
+  %2 = addrspacecast ptr addrspace(1) %1 to ptr addrspace(4)
+  call spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(target("spirv.Pipe", 0) %0, ptr addrspace(4) %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(target("spirv.Pipe", 0), i8 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z29__spirv_ReadPipeBlockingINTELIiEv8ocl_pipePvii(target("spirv.Pipe", 0), ptr addrspace(4), i32, i32)
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_func void @boo(target("spirv.Pipe", 1) %p, i32 addrspace(1)* %ptr) #0 {
+define spir_func void @boo(target("spirv.Pipe", 1) %p, ptr addrspace(1) %ptr) #0 {
 entry:
   %p.addr = alloca target("spirv.Pipe", 1), align 8
-  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  %ptr.addr = alloca ptr addrspace(1), align 8
   store target("spirv.Pipe", 1) %p, target("spirv.Pipe", 1)* %p.addr, align 8
-  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  store ptr addrspace(1) %ptr, ptr %ptr.addr, align 8
   %0 = load target("spirv.Pipe", 1), target("spirv.Pipe", 1)* %p.addr, align 8
-  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i32 addrspace(4)*
-  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(target("spirv.Pipe", 1) %0, i32 addrspace(4)* %2, i32 4, i32 4)
+  %1 = load ptr addrspace(1), ptr %ptr.addr, align 8
+  %2 = addrspacecast ptr addrspace(1) %1 to ptr addrspace(4)
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(target("spirv.Pipe", 1) %0, ptr addrspace(4) %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(target("spirv.Pipe", 1), i32 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePiii(target("spirv.Pipe", 1), ptr addrspace(4), i32, i32)
 
 ; Function Attrs: convergent noinline nounwind optnone
-define spir_func void @baz(target("spirv.Pipe", 1) %p, i32 addrspace(1)* %ptr) #0 {
+define spir_func void @baz(target("spirv.Pipe", 1) %p, ptr addrspace(1) %ptr) #0 {
 entry:
   %p.addr = alloca target("spirv.Pipe", 1), align 8
-  %ptr.addr = alloca i32 addrspace(1)*, align 8
+  %ptr.addr = alloca ptr addrspace(1), align 8
   store target("spirv.Pipe", 1) %p, target("spirv.Pipe", 1)* %p.addr, align 8
-  store i32 addrspace(1)* %ptr, i32 addrspace(1)** %ptr.addr, align 8
+  store ptr addrspace(1) %ptr, ptr %ptr.addr, align 8
   %0 = load target("spirv.Pipe", 1), target("spirv.Pipe", 1)* %p.addr, align 8
-  %1 = load i32 addrspace(1)*, i32 addrspace(1)** %ptr.addr, align 8
-  %2 = addrspacecast i32 addrspace(1)* %1 to i8 addrspace(4)*
-  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(target("spirv.Pipe", 1) %0, i8 addrspace(4)* %2, i32 4, i32 4)
+  %1 = load ptr addrspace(1), ptr %ptr.addr, align 8
+  %2 = addrspacecast ptr addrspace(1) %1 to ptr addrspace(4)
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(target("spirv.Pipe", 1) %0, ptr addrspace(4) %2, i32 4, i32 4)
   ret void
 }
 
-declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(target("spirv.Pipe", 1), i8 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIKiEv8ocl_pipePvii(target("spirv.Pipe", 1), ptr addrspace(4), i32, i32)
 
 ; CHECK-LLVM: declare spir_func void @__read_pipe_2_bl(ptr addrspace(1), ptr addrspace(4), i32, i32)
 ; CHECK-LLVM: declare spir_func void @__write_pipe_2_bl(ptr addrspace(1), ptr addrspace(4), i32, i32)
 
 ; Function Attrs: convergent mustprogress norecurse nounwind
-define linkonce_odr dso_local spir_func void @WritePipeBLockingi9Pointer(i9 addrspace(4)* align 2 dereferenceable(2) %_Data) {
+define linkonce_odr dso_local spir_func void @WritePipeBLockingi9Pointer(ptr addrspace(4) align 2 dereferenceable(2) %_Data) {
 entry:
-  %_Data.addr = alloca i9 addrspace(4)*, align 8
+  %_Data.addr = alloca ptr addrspace(4), align 8
   %_WPipe = alloca target("spirv.Pipe", 1), align 8
-  %_Data.addr.ascast = addrspacecast i9 addrspace(4)** %_Data.addr to i9 addrspace(4)* addrspace(4)*
+  %_Data.addr.ascast = addrspacecast ptr %_Data.addr to ptr addrspace(4)
   %_WPipe.ascast = addrspacecast target("spirv.Pipe", 1)* %_WPipe to target("spirv.Pipe", 1) addrspace(4)*
-  store i9 addrspace(4)* %_Data, i9 addrspace(4)* addrspace(4)* %_Data.addr.ascast, align 8
-  %0 = bitcast target("spirv.Pipe", 1)* %_WPipe to i8*
+  store ptr addrspace(4) %_Data, ptr addrspace(4) %_Data.addr.ascast, align 8
+  %0 = bitcast target("spirv.Pipe", 1)* %_WPipe to ptr
   %1 = load target("spirv.Pipe", 1), target("spirv.Pipe", 1) addrspace(4)* %_WPipe.ascast, align 8
-  %2 = load i9 addrspace(4)*, i9 addrspace(4)* addrspace(4)* %_Data.addr.ascast, align 8
-  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIDU9_Ev8ocl_pipePKT_ii(target("spirv.Pipe", 1) %1, i9 addrspace(4)* %2, i32 2, i32 2)
+  %2 = load ptr addrspace(4), ptr addrspace(4) %_Data.addr.ascast, align 8
+  call spir_func void @_Z30__spirv_WritePipeBlockingINTELIDU9_Ev8ocl_pipePKT_ii(target("spirv.Pipe", 1) %1, ptr addrspace(4) %2, i32 2, i32 2)
   ret void
 }
 
-declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIDU9_Ev8ocl_pipePKT_ii(target("spirv.Pipe", 1), i9 addrspace(4)*, i32, i32)
+declare dso_local spir_func void @_Z30__spirv_WritePipeBlockingINTELIDU9_Ev8ocl_pipePKT_ii(target("spirv.Pipe", 1), ptr addrspace(4), i32, i32)
 
 attributes #0 = { convergent noinline nounwind optnone "correctly-rounded-divide-sqrt-fp-math"="false" "denorms-are-zero"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-frame-pointer-elim"="false" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "unsafe-fp-math"="false" "use-soft-float"="false" }
 

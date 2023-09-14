@@ -1015,11 +1015,7 @@ X86_32ABIInfo::addFieldToArgStruct(SmallVector<llvm::Type *, 6> &FrameFields,
   Info = ABIArgInfo::getInAlloca(FrameFields.size(), IsIndirect);
   llvm::Type *LLTy = CGT.ConvertTypeForMem(Type);
   if (IsIndirect)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     LLTy = llvm::PointerType::getUnqual(getVMContext());
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    LLTy = LLTy->getPointerTo(0);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   FrameFields.push_back(LLTy);
   StackOffset += IsIndirect ? WordSize : getContext().getTypeSizeInChars(Type);
 

@@ -620,9 +620,15 @@ scatter(AccessorTy acc, simd<Toffset, N> offsets, simd<T, N> vals,
 /// @return The loaded value.
 ///
 template <typename T, typename AccessorTy>
-__ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
+__ESIMD_API T scalar_load(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                          uint64_t offset
+#else
+                          uint32_t offset
+#endif
+) {
   const simd<T, 1> Res =
-      gather<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset));
+      gather<T, 1, AccessorTy>(acc, simd<decltype(offset), 1>(offset));
   return Res[0];
 }
 
@@ -634,8 +640,15 @@ __ESIMD_API T scalar_load(AccessorTy acc, uint32_t offset) {
 /// @param val The stored value.
 ///
 template <typename T, typename AccessorTy>
-__ESIMD_API void scalar_store(AccessorTy acc, uint32_t offset, T val) {
-  scatter<T, 1, AccessorTy>(acc, simd<uint32_t, 1>(offset), simd<T, 1>(val));
+__ESIMD_API void scalar_store(AccessorTy acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                              uint64_t offset,
+#else
+                              uint32_t offset,
+#endif
+                              T val) {
+  scatter<T, 1, AccessorTy>(acc, simd<decltype(offset), 1>(offset),
+                            simd<T, 1>(val));
 }
 
 /// @anchor usm_gather_rgba

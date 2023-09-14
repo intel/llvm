@@ -574,7 +574,7 @@ llvm::ConstantInt *
 CodeGenFunction::getUBSanFunctionTypeHash(QualType Ty) const {
   // Remove any (C++17) exception specifications, to allow calling e.g. a
   // noexcept function through a non-noexcept pointer.
-  if (!isa<FunctionNoProtoType>(Ty))
+  if (!Ty->isFunctionNoProtoType())
     Ty = getContext().getFunctionTypeWithExceptionSpec(Ty, EST_None);
   std::string Mangled;
   llvm::raw_string_ostream Out(Mangled);
@@ -2221,12 +2221,7 @@ static void emitNonZeroVLAInit(CodeGenFunction &CGF, QualType baseType,
   llvm::Value *baseSizeInChars
     = llvm::ConstantInt::get(CGF.IntPtrTy, baseSize.getQuantity());
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   Address begin = dest.withElementType(CGF.Int8Ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  Address begin =
-    Builder.CreateElementBitCast(dest, CGF.Int8Ty, "vla.begin");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Value *end = Builder.CreateInBoundsGEP(
       begin.getElementType(), begin.getPointer(), sizeInChars, "vla.end");
 
@@ -2271,12 +2266,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
   }
 
   if (DestPtr.getElementType() != Int8Ty)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     DestPtr = DestPtr.withElementType(Int8Ty);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    // Cast the dest ptr to the appropriate i8 pointer type.
-    DestPtr = Builder.CreateElementBitCast(DestPtr, Int8Ty);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   // Get size and alignment info for this aggregate.
   CharUnits size = getContext().getTypeSizeInChars(Ty);
@@ -2321,12 +2311,7 @@ CodeGenFunction::EmitNullInitialization(Address DestPtr, QualType Ty) {
                                NullConstant, Twine());
     CharUnits NullAlign = DestPtr.getAlignment();
     NullVariable->setAlignment(NullAlign.getAsAlign());
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Address SrcPtr(NullVariable, Builder.getInt8Ty(), NullAlign);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    Address SrcPtr(Builder.CreateBitCast(NullVariable, Builder.getInt8PtrTy()),
-                   Builder.getInt8Ty(), NullAlign);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
     if (vla) return emitNonZeroVLAInit(*this, Ty, DestPtr, SrcPtr, SizeVal);
 
@@ -2440,11 +2425,7 @@ llvm::Value *CodeGenFunction::emitArrayLength(const ArrayType *origArrayType,
     }
 
     llvm::Type *baseType = ConvertType(eltType);
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     addr = addr.withElementType(baseType);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-    addr = Builder.CreateElementBitCast(addr, baseType, "array.begin");
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else {
     // Create the actual GEP.
     addr = Address(Builder.CreateInBoundsGEP(
@@ -2793,7 +2774,7 @@ void CodeGenFunction::EmitVarAnnotations(const VarDecl *D, llvm::Value *V) {
   // FIXME We create a new bitcast for every annotation because that's what
   // llvm-gcc was doing.
   unsigned AS = V->getType()->getPointerAddressSpace();
-  llvm::Type *I8PtrTy = Builder.getInt8PtrTy(AS);
+  llvm::Type *I8PtrTy = Builder.getPtrTy(AS);
   for (const auto *I : D->specific_attrs<AnnotateAttr>())
     EmitAnnotationCall(CGM.getIntrinsic(llvm::Intrinsic::var_annotation,
                                         {I8PtrTy, CGM.ConstGlobalsPtrTy}),
@@ -2808,11 +2789,7 @@ Address CodeGenFunction::EmitFieldAnnotations(const FieldDecl *D,
   auto *PTy = dyn_cast<llvm::PointerType>(VTy);
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
   llvm::PointerType *IntrinTy =
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       llvm::PointerType::get(CGM.getLLVMContext(), AS);
-#else
-      llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   // llvm.ptr.annotation intrinsic accepts a pointer to integer of any width -
   // don't perform bitcasts if value is integer
   if (Addr.getElementType()->isIntegerTy()) {
@@ -2872,11 +2849,7 @@ Address CodeGenFunction::EmitFieldSYCLAnnotations(const FieldDecl *D,
   unsigned AS = PTy ? PTy->getAddressSpace() : 0;
   llvm::Type *IntrType = VTy;
   if (!Addr.getElementType()->isIntegerTy())
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     IntrType = llvm::PointerType::get(CGM.getLLVMContext(), AS);
-#else
-    IntrType = llvm::PointerType::getWithSamePointeeType(CGM.Int8PtrTy, AS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::ptr_annotation,
                                        {IntrType, CGM.ConstGlobalsPtrTy});
 
@@ -3064,8 +3037,15 @@ llvm::Value *CodeGenFunction::FormX86ResolverCondition(
     const MultiVersionResolverOption &RO) {
   llvm::Value *Condition = nullptr;
 
-  if (!RO.Conditions.Architecture.empty())
-    Condition = EmitX86CpuIs(RO.Conditions.Architecture);
+  if (!RO.Conditions.Architecture.empty()) {
+    StringRef Arch = RO.Conditions.Architecture;
+    // If arch= specifies an x86-64 micro-architecture level, test the feature
+    // with __builtin_cpu_supports, otherwise use __builtin_cpu_is.
+    if (Arch.starts_with("x86-64"))
+      Condition = EmitX86CpuSupports({Arch});
+    else
+      Condition = EmitX86CpuIs(Arch);
+  }
 
   if (!RO.Conditions.Features.empty()) {
     llvm::Value *FeatureCond = EmitX86CpuSupports(RO.Conditions.Features);

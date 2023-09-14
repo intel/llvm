@@ -1,5 +1,4 @@
 #define TM 8
-#define TN SG_SZ
 #define TK 16
 #define BF16_EPSILON 0.00781250
 
