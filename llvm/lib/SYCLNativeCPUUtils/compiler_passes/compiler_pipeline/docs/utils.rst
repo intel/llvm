@@ -315,12 +315,12 @@ Attributes>` function attributes for the outermost loops. The logic for the
 dimension unmarshalling lies in
 ``modules/compiler/utils/include/utils/vecz_order.h``.
 
-Preserving debug info is a problem for the barrier pass due to live variables
-getting stored in a struct passed as an argument to each of the generated
-kernels. As a result the memory locations pointed to by the debug info are out
-of date with respect to newly written values. By specifying the ``IsDebug``
-flag when creating the pass we can resolve this problem at the expense of
-performance.
+Preserving debug info is a problem for the ``WorkItemLoopsPass`` due to live
+variables getting stored in a struct passed as an argument to each of the
+generated kernels. As a result the memory locations pointed to by the debug
+info are out of date with respect to newly written values. By specifying the
+``IsDebug`` flag when creating the pass we can resolve this problem at the
+expense of performance.
 
 When the ``IsDebug`` flag is set the pass adds a new ``alloca`` which contains a
 pointer to the live variables struct of the currently executing work-item, since
@@ -428,8 +428,8 @@ function, as appropriate.
 Work-group scheduling (vectorized and scalar loops)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The Barrier Pass is responsible for stitching together multiple kernels to make
-a single kernel capable of correctly executing all work-items in the
+The `WorkItemLoopsPass`_ is responsible for stitching together multiple kernels
+to make a single kernel capable of correctly executing all work-items in the
 work-group.
 
 In particular, when a kernel has been vectorized with :doc:`/modules/vecz` it
@@ -438,7 +438,7 @@ vectorized dimension is known to be a multiple of the vectorization factor,
 there exists the possibility that some work-items will not be executed by the
 vectorized loop.
 
-As such, the Barrier Pass is able to stitch together kernels in several
+As such, the `WorkItemLoopsPass`_ is able to stitch together kernels in several
 different configurations:
 
 * Vector + scalar loop
@@ -453,8 +453,8 @@ The vector + scalar kernel combination is considered the default behaviour.
 Most often the work-group size is unknown at compile time and thus it must be
 assumed that the vector loop may not execute all work-items.
 
-This configuration is used if the Barrier Pass is asked to run on a vectorized
-function which has :ref:`\!codeplay_ca_vecz.derived
+This configuration is used if the `WorkItemLoopsPass`_ is asked to run on a
+vectorized function which has :ref:`\!codeplay_ca_vecz.derived
 <specifications/mux-compiler-spec:Metadata>` function metadata linking it back
 to its scalar progenitor. In this case, both the vector and scalar kernel
 functions are identified and are used. The vector work-items are executed
@@ -504,7 +504,7 @@ only" mode:
       :ref:`TransferKernelMetadataPass or EncodeKernelMetadataPass
       <encodekernelmetadatapass>` to encode functions with this information.
 
-* If the Barrier pass has been created with the `ForceNoTail` option.
+* If the `WorkItemLoopsPass`_ has been created with the `ForceNoTail` option.
   * This is a global toggle for *all* kernels in the program.
 * If the kernel has been vectorized with vector predication. In this case the
   vector loop is known to handle scalar iterations itself.
@@ -543,17 +543,17 @@ perform all of the scalar iterations at once.
 Vector only
 ^^^^^^^^^^^
 
-If the Barrier Pass is run on a vectorized kernel for which no `vecz` linking
-metadata is found to identify the scalar kernel, or if a scalar kernel is found
-but one of the conditions listed above hold, then the kernel is emitted using
-the vector kernel only. It is assumed that if no scalar kernel is found it is
-because targets know that one is not required.
+If the `WorkItemLoopsPass`_ is run on a vectorized kernel for which no `vecz`
+linking metadata is found to identify the scalar kernel, or if a scalar kernel
+is found but one of the conditions listed above hold, then the kernel is
+emitted using the vector kernel only. It is assumed that if no scalar kernel is
+found it is because targets know that one is not required.
 
 Scalar only
 ^^^^^^^^^^^
 
-If the Barrier pass is run on a scalar kernel then only the scalar kernel is
-used.
+If the `WorkItemLoopsPass`_ is run on a scalar kernel then only the scalar
+kernel is used.
 
 OptimalBuiltinReplacementPass
 -----------------------------
