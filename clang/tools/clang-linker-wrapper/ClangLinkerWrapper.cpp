@@ -527,7 +527,7 @@ Expected<StringRef> runSYCLPostLink(SmallVector<StringRef, 16> &InputFiles,
 }
 
 // This table is used to manage the output table populated by sycl-post-link.
-typedef struct {
+typedef struct Table {
   typedef struct {
     std::string IRFile;
     std::string PropFile;
