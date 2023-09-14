@@ -26,9 +26,6 @@ int main() {
   int f = 0;
   foo b {2, 5.4f};
 
-  // FIXME: Artem
-  // constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(intel::num_banks<8>))> host {3, -9};
-
   Q.single_task([=]() {
     constexpr intel::fpga_mem<int[2], decltype(oneapi::properties(intel::num_banks<2>))> kernel {7, -1298};
   // CHECK: %[[kernel:kernel.*]] = alloca %[[fpga_mem]], align 8
@@ -39,13 +36,10 @@ int main() {
     // Validate values of fpga_mem at various scopes
     static_assert(global[0] == 9);
     static_assert(global[1] == 14);
-    // static_assert(host[0] == 3); // FIXME: Artem
-    // static_assert(host[1] == -9); // FIXME: Artem
     static_assert(kernel[0] == 7);
     static_assert(kernel[1] == -1298);
 
-
-    volatile int ReadVal = global[f] /*+ host[f]*/ + kernel[f] + b.f;
+    volatile int ReadVal = global[f] + kernel[f] + b.f;
   });
   return 0;
 }
