@@ -84,6 +84,9 @@ static std::mutex TempFilesMutex;
 /// Temporary files created by the linker wrapper.
 static std::list<SmallString<128>> TempFiles;
 
+/// Target triple
+static std::string TargetTriple;
+
 /// Codegen flags for LTO backend.
 static codegen::RegisterCodeGenFlags CodeGenFlags;
 
@@ -710,8 +713,7 @@ runWrapper(StringRef &InputFile, const ArgList &Args) {
     llvm::Triple HostTriple(
         Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
     CmdArgs.push_back(Saver.save("-host=" + HostTriple.str()));
-    llvm::Triple TargetTriple(Args.getLastArgValue(OPT_triple_EQ));
-    CmdArgs.push_back(Saver.save("-target=" + TargetTriple.str()));
+    CmdArgs.push_back(Saver.save("-target=" + TargetTriple));
     CmdArgs.push_back("-kind=sycl");
     CmdArgs.push_back("-batch");
     CmdArgs.push_back(InputFile);
@@ -2077,7 +2079,7 @@ int main(int Argc, char **Argv) {
   SaveTemps = Args.hasArg(OPT_save_temps);
   ExecutableName = Args.getLastArgValue(OPT_o, "a.out");
   CudaBinaryPath = Args.getLastArgValue(OPT_cuda_path_EQ).str();
-
+  TargetTriple = Args.getLastArgValue(OPT_triple_EQ).str();
   parallel::strategy = hardware_concurrency(1);
   if (auto *Arg = Args.getLastArg(OPT_wrapper_jobs)) {
     unsigned Threads = 0;

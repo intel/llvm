@@ -10322,16 +10322,9 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("--wrapper-verbose");
 
   // Pass the device triple to the linker wrapper tool for SYCL offload.
-  // Only the first triple is passed.
+  // Only spir64 is passed.
   // TODO: Pass multiple triples if needed.
-  if (Args.hasArg(options::OPT_fsycl)) {
-    auto TCRange = C.getOffloadToolChains(Action::OFK_SYCL);
-    for (auto &I : llvm::make_range(TCRange.first, TCRange.second)) {
-      const ToolChain *TC = I.second;
-      CmdArgs.push_back(Args.MakeArgString("--triple=" + TC->getTriple().str()));
-      break;
-    }
-  }
+  CmdArgs.push_back("--triple=spir64");
 
   if (const Arg *A = Args.getLastArg(options::OPT_g_Group)) {
     if (!A->getOption().matches(options::OPT_g0))
