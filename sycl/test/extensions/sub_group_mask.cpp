@@ -1,85 +1,137 @@
-// RUN: %clangxx -fsycl -fsycl-device-only -fsyntax-only %s
+// RUN: %clangxx -fsycl %s -o %t
+// RUN: %t.out
 //
 // This test is intended to check sycl::ext::oneapi::sub_group_mask interface.
-// There is a work in progress update to the spec: intel/llvm#8174
-// TODO: udpate this test once revision 2 of the extension is supported
 
 #include <sycl/sycl.hpp>
 
+#include <algorithm>
+#include <bitset>
+#include <climits>
 #include <cstdint>
 #include <type_traits>
+
+class kernel;
 
 int main() {
   using mask_type = sycl::ext::oneapi::sub_group_mask;
   using mask_reference_type = sycl::ext::oneapi::sub_group_mask &;
 
-  auto mask = sycl::detail::Builder::createSubGroupMask<mask_type>(0, 32);
-  const auto const_mask =
-      sycl::detail::Builder::createSubGroupMask<mask_type>(0, 32);
+  {
+    auto mask = sycl::detail::Builder::createSubGroupMask<mask_type>(0, 32);
+    const auto const_mask =
+        sycl::detail::Builder::createSubGroupMask<mask_type>(0, 32);
 
-  static_assert(
-      std::is_same_v<decltype(mask[sycl::id(0)]), mask_type::reference>);
-  static_assert(std::is_same_v<decltype(const_mask[sycl::id(0)]), bool>);
+    static_assert(
+        std::is_same_v<decltype(mask[sycl::id(0)]), mask_type::reference>);
+    static_assert(std::is_same_v<decltype(const_mask[sycl::id(0)]), bool>);
 
-  static_assert(std::is_same_v<decltype(const_mask.test(sycl::id(0))), bool>);
+    static_assert(std::is_same_v<decltype(const_mask.test(sycl::id(0))), bool>);
 
-  static_assert(std::is_same_v<decltype(const_mask.any()), bool>);
-  static_assert(std::is_same_v<decltype(const_mask.all()), bool>);
-  static_assert(std::is_same_v<decltype(const_mask.none()), bool>);
+    static_assert(std::is_same_v<decltype(const_mask.any()), bool>);
+    static_assert(std::is_same_v<decltype(const_mask.all()), bool>);
+    static_assert(std::is_same_v<decltype(const_mask.none()), bool>);
 
-  static_assert(std::is_same_v<decltype(const_mask.count()), std::uint32_t>);
-  static_assert(std::is_same_v<decltype(const_mask.size()), std::uint32_t>);
+    static_assert(std::is_same_v<decltype(const_mask.count()), std::uint32_t>);
+    static_assert(std::is_same_v<decltype(const_mask.size()), std::uint32_t>);
 
-  static_assert(std::is_same_v<decltype(const_mask.find_low()), sycl::id<1>>);
-  static_assert(std::is_same_v<decltype(const_mask.find_high()), sycl::id<1>>);
+    static_assert(std::is_same_v<decltype(const_mask.find_low()), sycl::id<1>>);
+    static_assert(
+        std::is_same_v<decltype(const_mask.find_high()), sycl::id<1>>);
 
-  int bits_i = 0;
-  unsigned long long bits_ull = 0;
-  sycl::marray<char, 3> bits_mc(0);
-  sycl::marray<unsigned short, 12> bits_ms(0);
+    int bits_i = 0;
+    unsigned long long bits_ull = 0;
+    sycl::marray<char, 3> bits_mc(0);
+    sycl::marray<unsigned short, 12> bits_ms(0);
 
-  mask.insert_bits(bits_i);
-  mask.insert_bits(bits_ull, sycl::id(0));
-  mask.insert_bits(bits_mc);
-  mask.insert_bits(bits_ms, sycl::id(0));
+    mask.insert_bits(bits_i);
+    mask.insert_bits(bits_ull, sycl::id(0));
+    mask.insert_bits(bits_mc);
+    mask.insert_bits(bits_ms, sycl::id(0));
 
-  const_mask.extract_bits(bits_i);
-  const_mask.extract_bits(bits_ull, sycl::id(0));
-  const_mask.extract_bits(bits_mc);
-  const_mask.extract_bits(bits_ms, sycl::id(0));
+    const_mask.extract_bits(bits_i);
+    const_mask.extract_bits(bits_ull, sycl::id(0));
+    const_mask.extract_bits(bits_mc);
+    const_mask.extract_bits(bits_ms, sycl::id(0));
 
-  mask.set();
-  mask.set(sycl::id(0));
-  mask.set(sycl::id(0), false);
+    mask.set();
+    mask.set(sycl::id(0));
+    mask.set(sycl::id(0), false);
 
-  mask.reset();
-  mask.reset(sycl::id(0));
+    mask.reset();
+    mask.reset(sycl::id(0));
 
-  mask.reset_low();
-  mask.reset_high();
+    mask.reset_low();
+    mask.reset_high();
 
-  mask.flip();
-  mask.flip(sycl::id(0));
+    mask.flip();
+    mask.flip(sycl::id(0));
 
-  static_assert(std::is_same_v<decltype(const_mask == mask), bool>);
-  static_assert(std::is_same_v<decltype(const_mask != mask), bool>);
+    static_assert(std::is_same_v<decltype(const_mask == mask), bool>);
+    static_assert(std::is_same_v<decltype(const_mask != mask), bool>);
 
-  static_assert(
-      std::is_same_v<decltype(mask &= const_mask), mask_reference_type>);
-  static_assert(
-      std::is_same_v<decltype(mask |= const_mask), mask_reference_type>);
-  static_assert(
-      std::is_same_v<decltype(mask ^= const_mask), mask_reference_type>);
-  static_assert(std::is_same_v<decltype(mask <<= 3u), mask_reference_type>);
-  static_assert(std::is_same_v<decltype(mask >>= 3u), mask_reference_type>);
+    static_assert(
+        std::is_same_v<decltype(mask &= const_mask), mask_reference_type>);
+    static_assert(
+        std::is_same_v<decltype(mask |= const_mask), mask_reference_type>);
+    static_assert(
+        std::is_same_v<decltype(mask ^= const_mask), mask_reference_type>);
+    static_assert(std::is_same_v<decltype(mask <<= 3u), mask_reference_type>);
+    static_assert(std::is_same_v<decltype(mask >>= 3u), mask_reference_type>);
 
-  static_assert(std::is_same_v<decltype(~const_mask), mask_type>);
-  static_assert(std::is_same_v<decltype(const_mask << 3u), mask_type>);
-  static_assert(std::is_same_v<decltype(const_mask >> 3u), mask_type>);
+    static_assert(std::is_same_v<decltype(~const_mask), mask_type>);
+    static_assert(std::is_same_v<decltype(const_mask << 3u), mask_type>);
+    static_assert(std::is_same_v<decltype(const_mask >> 3u), mask_type>);
 
-  static_assert(std::is_same_v<decltype(const_mask & mask), mask_type>);
-  static_assert(std::is_same_v<decltype(const_mask | mask), mask_type>);
-  static_assert(std::is_same_v<decltype(const_mask ^ mask), mask_type>);
+    static_assert(std::is_same_v<decltype(const_mask & mask), mask_type>);
+    static_assert(std::is_same_v<decltype(const_mask | mask), mask_type>);
+    static_assert(std::is_same_v<decltype(const_mask ^ mask), mask_type>);
+  }
+
+// sycl_ext_oneapi_sub_group_mask rev.2
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
+  {
+    // sub_group_mask()
+    mask_type mask;
+    assert(mask.none() && mask_type::max_bits == mask.size());
+  }
+  {
+    // sub_group_mask(unsigned long long val)
+    unsigned long long val = 4815162342;
+    mask_type mask(val);
+    std::bitset<sizeof(val) * CHAR_BIT> bs(val);
+    bool res = true;
+    for (size_t i = 0;
+         i < std::min(static_cast<size_t>(mask.size()), bs.size()); ++i)
+      res &= mask[i] == bs[i];
+    assert(res);
+  }
+  {
+    // template <typename T, std::size_t K> sub_group_mask(const sycl::marray<T,
+    // K>& &val)
+    sycl::marray<char, 4> marr{1, 2, 3, 4};
+    mask_type mask(marr);
+    std::bitset<CHAR_BIT> bs[4] = {1, 2, 3, 4};
+    bool res = true;
+    for (size_t i = 0; i < mask.size() && (i / CHAR_BIT) < 4; ++i)
+      res &= mask[i] == bs[i / CHAR_BIT][i % CHAR_BIT];
+    assert(res);
+  }
+  {
+    // sub_group_mask(const sub_group_mask &other)
+    unsigned long long val = 4815162342;
+    mask_type mask1(val);
+    mask_type mask2(mask1);
+    assert(mask1 == mask2);
+  }
+  {
+    // sub_group_mask& operator=(const sub_group_mask &other)
+    unsigned long long val = 4815162342;
+    mask_type mask1(val);
+    mask_type mask2 = mask1;
+    assert(mask1 == mask2);
+  }
+#endif
 
   return 0;
 }

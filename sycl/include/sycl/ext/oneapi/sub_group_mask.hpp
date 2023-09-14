@@ -8,13 +8,14 @@
 #pragma once
 
 #include <sycl/detail/helpers.hpp>     // for Builder
-#include <sycl/detail/type_traits.hpp> // for is_sub_group
 #include <sycl/exception.hpp>          // for errc, exception
+#include <sycl/feature_test.hpp>       // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>                 // for id
 #include <sycl/marray.hpp>             // for marray
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
+#include <cstring>      // for memcpy
 #include <stddef.h>     // for size_t
 #include <stdint.h>     // for uint32_t
 #include <system_error> // for error_code
@@ -46,7 +47,9 @@ namespace ext::oneapi {
 // need to forward declare sub_group_mask first
 struct sub_group_mask;
 template <typename Group>
-std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                 sub_group_mask>
 group_ballot(Group g, bool predicate = true);
 
 struct sub_group_mask {
@@ -89,6 +92,7 @@ struct sub_group_mask {
     BitsType RefBit;
   };
 
+#if SYCL_EXT_ONEAPI_SUB_GROUP_MASK >= 2
   sub_group_mask() : sub_group_mask(0, GetMaxLocalRangeSize()){};
 
   sub_group_mask(unsigned long long val)
@@ -99,7 +103,8 @@ struct sub_group_mask {
     std::memcpy(&Bits, &val, BytesToCopy);
   };
 
-  template <typename T, std::size_t K>
+  template <typename T, std::size_t K,
+            typename = std::enable_if_t<std::is_integral_v<T>>>
   sub_group_mask(const sycl::marray<T, K> &val)
       : sub_group_mask(0, GetMaxLocalRangeSize()) {
     for (size_t I = 0, BytesCopied = 0; I < K && BytesCopied < sizeof(Bits);
@@ -116,6 +121,7 @@ struct sub_group_mask {
 
   sub_group_mask(const sub_group_mask &other) = default;
   sub_group_mask& operator=(const sub_group_mask &other) = default;
+#endif // SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 
   bool operator[](id<1> id) const {
     return (Bits & ((id.get(0) < bits_num) ? (1UL << id.get(0)) : 0));
@@ -332,7 +338,9 @@ private:
 };
 
 template <typename Group>
-std::enable_if_t<sycl::detail::is_sub_group<Group>::value, sub_group_mask>
+std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group> ||
+                     std::is_same_v<std::decay_t<Group>, sycl::sub_group>,
+                 sub_group_mask>
 group_ballot(Group g, bool predicate) {
   (void)g;
 #ifdef __SYCL_DEVICE_ONLY__
