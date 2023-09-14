@@ -17,7 +17,7 @@ public:
   int secret;
 
   // complicated constructor
-  foo( int val) : val(val) {
+  foo(int val) : val(val) {
     secret = 0;
 
     for (int i = 0; i < val; i++) {
@@ -33,7 +33,7 @@ int main() {
   int f = 5;
 
   Q.single_task([=]() {
-    intel::fpga_datapath<foo> mem {42}; 
+    intel::fpga_datapath<foo> mem{42};
 
     volatile int ReadVal = mem.get().secret;
   });

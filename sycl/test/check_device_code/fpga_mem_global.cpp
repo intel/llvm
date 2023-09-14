@@ -6,23 +6,49 @@
 #include "sycl/sycl.hpp"
 
 using namespace sycl;
-namespace intel = sycl::ext::intel::experimental; // for fpga_mem
+namespace intel = sycl::ext::intel::experimental;   // for fpga_mem
 namespace oneapi = sycl::ext::oneapi::experimental; // for properties
 
-const intel::fpga_mem<int[10]> empty; 
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::ram_stitching_min_ram))> min_ram;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::ram_stitching_max_fmax))> max_fmax;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::clock_2x_true))> double_pumped;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::clock_2x_false))> single_pumped;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::resource_mlab))> mlab;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::bi_directional_ports_false))> simple_dual_port;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::bi_directional_ports_true))> true_dual_port;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::resource_block_ram))> block_ram;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::num_banks<4>))> banks;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::stride_size<2>))> stride;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::word_size<8>))> word;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::max_private_copies<3>))> copies;
-const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::num_replicates<5>))> replicates;
+const intel::fpga_mem<int[10]> empty;
+const intel::fpga_mem<int[10], decltype(oneapi::properties(
+                                   intel::ram_stitching_min_ram))>
+    min_ram;
+const intel::fpga_mem<int[10], decltype(oneapi::properties(
+                                   intel::ram_stitching_max_fmax))>
+    max_fmax;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::clock_2x_true))>
+    double_pumped;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::clock_2x_false))>
+    single_pumped;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::resource_mlab))>
+    mlab;
+const intel::fpga_mem<int[10], decltype(oneapi::properties(
+                                   intel::bi_directional_ports_false))>
+    simple_dual_port;
+const intel::fpga_mem<int[10], decltype(oneapi::properties(
+                                   intel::bi_directional_ports_true))>
+    true_dual_port;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::resource_block_ram))>
+    block_ram;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::num_banks<4>))>
+    banks;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::stride_size<2>))>
+    stride;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::word_size<8>))>
+    word;
+const intel::fpga_mem<int[10], decltype(oneapi::properties(
+                                   intel::max_private_copies<3>))>
+    copies;
+const intel::fpga_mem<int[10],
+                      decltype(oneapi::properties(intel::num_replicates<5>))>
+    replicates;
 
 // CHECK: {{.*}}empty = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
 // CHECK: {{.*}}min_ram = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[min_ram_md:[0-9]*]]
@@ -39,14 +65,16 @@ const intel::fpga_mem<int[10], decltype(oneapi::properties(intel::num_replicates
 // CHECK: {{.*}}copies = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[copies_md:[0-9]*]]
 // CHECK: {{.*}}replicates = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[replicates_md:[0-9]*]]
 
-
-
 int main() {
   queue Q;
   int f = 5;
 
   Q.single_task([=]() {
-    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] + double_pumped[f] + single_pumped[f] + mlab[f] + simple_dual_port[f] + true_dual_port[f] + block_ram[f] + banks[f] + stride[f] + word[f] + copies[f] + replicates[f];
+    volatile int ReadVal = empty[f] + min_ram[f] + max_fmax[f] +
+                           double_pumped[f] + single_pumped[f] + mlab[f] +
+                           simple_dual_port[f] + true_dual_port[f] +
+                           block_ram[f] + banks[f] + stride[f] + word[f] +
+                           copies[f] + replicates[f];
   });
   return 0;
 }

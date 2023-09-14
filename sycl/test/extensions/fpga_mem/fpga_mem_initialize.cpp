@@ -6,7 +6,7 @@
 #include "sycl/sycl.hpp"
 
 using namespace sycl;
-namespace intel = sycl::ext::intel::experimental; // for fpga_mem
+namespace intel = sycl::ext::intel::experimental;   // for fpga_mem
 namespace oneapi = sycl::ext::oneapi::experimental; // for properties
 
 struct foo {
@@ -23,10 +23,10 @@ int main() {
 
   constexpr intel::fpga_mem<float> scalar_float{53.6f};
   static_assert(scalar_float.get() == 53.6f);
-  
+
   constexpr intel::fpga_mem<char> scalar_char{'!'};
   static_assert(scalar_char.get() == '!');
-  
+
   constexpr intel::fpga_mem<bool> scalar_bool{true};
   static_assert(scalar_bool.get());
 
@@ -39,19 +39,22 @@ int main() {
 
   constexpr intel::fpga_mem<float[3]> aggr_float{53.6f, -2.0f, 0.0f};
   static_assert(aggr_float[2] == 0.0f);
-  
+
   constexpr intel::fpga_mem<char[3]> aggr_char{'b', 'y', 'e'};
   static_assert(aggr_char[0] == 'b');
-  
+
   constexpr intel::fpga_mem<bool[1]> aggr_bool{false};
   static_assert(aggr_bool[0] == false);
 
-  // a bit weird that there is no seperation between each individual structs 
-  constexpr intel::fpga_mem<foo[2]> aggr_struct{8, 9.11f, '$', false, 6, 6.66f, '^', true};
+  // a bit weird that there is no seperation between each individual structs
+  constexpr intel::fpga_mem<foo[2]> aggr_struct{8, 9.11f, '$', false,
+                                                6, 6.66f, '^', true};
   static_assert(aggr_struct[1].c == '^');
 
   // multi-dimensional array
-  constexpr intel::fpga_mem<int[2][3]> aggr_int_2d{7, 5, -8, 6, 7, 8,};
+  constexpr intel::fpga_mem<int[2][3]> aggr_int_2d{
+      7, 5, -8, 6, 7, 8,
+  };
   static_assert(aggr_int_2d[1][2] == 8);
 
   // default initialization
@@ -60,10 +63,10 @@ int main() {
 
   constexpr intel::fpga_mem<float> default_float;
   static_assert(default_float.get() == 0.0f);
-  
+
   constexpr intel::fpga_mem<char> default_char;
   static_assert(default_char.get() == 0);
-  
+
   constexpr intel::fpga_mem<bool> default_bool;
   static_assert(default_bool.get() == false);
 

@@ -8,7 +8,7 @@
 using namespace sycl;
 namespace intel = sycl::ext::intel::experimental; // for fpga_mem
 
-const intel::fpga_datapath<int[10]> empty; 
+const intel::fpga_datapath<int[10]> empty;
 
 // CHECK: {{.*}}empty = internal addrspace(1) constant { [10 x i32] } zeroinitializer, align 4, !spirv.Decorations ![[empty_md:[0-9]*]]
 
@@ -16,9 +16,7 @@ int main() {
   queue Q;
   int f = 5;
 
-  Q.single_task([=]() {
-    volatile int ReadVal = empty[f];
-  });
+  Q.single_task([=]() { volatile int ReadVal = empty[f]; });
   return 0;
 }
 

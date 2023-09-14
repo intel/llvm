@@ -15,7 +15,7 @@ int main() {
   int f = 5;
 
   Q.single_task([=]() {
-    intel::fpga_datapath<int[10]> empty; 
+    intel::fpga_datapath<int[10]> empty;
     // CHECK: @llvm.ptr.annotation{{.*}}(ptr addrspace(4) %empty{{.*}}, ptr addrspace(1) [[RegisterINTEL]]
     volatile int ReadVal = empty[f];
   });
