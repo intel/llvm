@@ -224,8 +224,7 @@ void KernelDisjointSpecializationPass::collectMayOverlapAccessorPairs(
         accessorPairs.insert({*i, *j});
 }
 
-void KernelDisjointSpecializationPass::versionCall(
-    CallOpInterface call) const {
+void KernelDisjointSpecializationPass::versionCall(CallOpInterface call) const {
   llvm::SmallSet<sycl::AccessorPtrPair, 4> accessorPairs;
   collectMayOverlapAccessorPairs(call, accessorPairs);
   if (accessorPairs.empty())
