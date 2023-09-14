@@ -45,8 +45,13 @@ public:
         cuDevice));
 
     // Set local mem max size if env var is present
-    static const char *LocalMemSizePtr =
+    static const char *LocalMemSizePtrUR =
+        std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtr =
+        LocalMemSizePtrUR ? LocalMemSizePtrUR
+                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
 
     if (LocalMemSizePtr) {
       cuDeviceGetAttribute(

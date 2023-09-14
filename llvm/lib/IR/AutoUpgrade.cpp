@@ -1290,25 +1290,15 @@ GlobalVariable *llvm::UpgradeGlobalVariable(GlobalVariable *GV) {
   LLVMContext &C = GV->getContext();
   IRBuilder<> IRB(C);
   auto EltTy = StructType::get(STy->getElementType(0), STy->getElementType(1),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                IRB.getPtrTy());
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-                               IRB.getInt8PtrTy());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   Constant *Init = GV->getInitializer();
   unsigned N = Init->getNumOperands();
   std::vector<Constant *> NewCtors(N);
   for (unsigned i = 0; i != N; ++i) {
     auto Ctor = cast<Constant>(Init->getOperand(i));
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     NewCtors[i] = ConstantStruct::get(EltTy, Ctor->getAggregateElement(0u),
                                       Ctor->getAggregateElement(1),
                                       Constant::getNullValue(IRB.getPtrTy()));
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-    NewCtors[i] = ConstantStruct::get(
-        EltTy, Ctor->getAggregateElement(0u), Ctor->getAggregateElement(1),
-        Constant::getNullValue(IRB.getInt8PtrTy()));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   Constant *NewInit = ConstantArray::get(ArrayType::get(EltTy, N), NewCtors);
 
@@ -4328,11 +4318,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();
@@ -4348,11 +4334,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
     NewCall =
         Builder.CreateCall(NewFn, {CI->getArgOperand(0), CI->getArgOperand(1),
                                    CI->getArgOperand(2), CI->getArgOperand(3),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
                                    Constant::getNullValue(Builder.getPtrTy())});
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-                                   Constant::getNullValue(Builder.getInt8PtrTy())});
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     NewCall->takeName(CI);
     CI->replaceAllUsesWith(NewCall);
     CI->eraseFromParent();

@@ -918,13 +918,6 @@ static std::string getMangledTypeStr(Type *Ty, bool &HasUnnamedType) {
   std::string Result;
   if (PointerType *PTyp = dyn_cast<PointerType>(Ty)) {
     Result += "p" + utostr(PTyp->getAddressSpace());
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    // Opaque pointer doesn't have pointee type information, so we just mangle
-    // address space for opaque pointer.
-    if (!PTyp->isOpaque())
-      Result += getMangledTypeStr(PTyp->getNonOpaquePointerElementType(),
-                                  HasUnnamedType);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   } else if (ArrayType *ATyp = dyn_cast<ArrayType>(Ty)) {
     Result += "a" + utostr(ATyp->getNumElements()) +
               getMangledTypeStr(ATyp->getElementType(), HasUnnamedType);
@@ -1215,26 +1208,6 @@ static void DecodeIITType(unsigned &NextElt, ArrayRef<unsigned char> Infos,
                                              ArgInfo));
     return;
   }
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  case IIT_PTR_TO_ARG: {
-    unsigned ArgInfo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
-    OutputTable.push_back(IITDescriptor::get(IITDescriptor::PtrToArgument,
-                                             ArgInfo));
-    return;
-  }
-  case IIT_PTR_TO_ELT: {
-    unsigned ArgInfo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
-    OutputTable.push_back(IITDescriptor::get(IITDescriptor::PtrToElt, ArgInfo));
-    return;
-  }
-  case IIT_ANYPTR_TO_ELT: {
-    unsigned short ArgNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
-    unsigned short RefNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
-    OutputTable.push_back(
-        IITDescriptor::get(IITDescriptor::AnyPtrToElt, ArgNo, RefNo));
-    return;
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   case IIT_VEC_OF_ANYPTRS_TO_ELT: {
     unsigned short ArgNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
     unsigned short RefNo = (NextElt == Infos.size() ? 0 : Infos[NextElt++]);
@@ -1401,20 +1374,6 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
       return VectorType::get(EltTy, VTy->getElementCount());
     return EltTy;
   }
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  case IITDescriptor::PtrToArgument: {
-    Type *Ty = Tys[D.getArgumentNumber()];
-    return PointerType::getUnqual(Ty);
-  }
-  case IITDescriptor::PtrToElt: {
-    Type *Ty = Tys[D.getArgumentNumber()];
-    VectorType *VTy = dyn_cast<VectorType>(Ty);
-    if (!VTy)
-      llvm_unreachable("Expected an argument of Vector Type");
-    Type *EltTy = VTy->getElementType();
-    return PointerType::getUnqual(EltTy);
-  }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   case IITDescriptor::VecElementArgument: {
     Type *Ty = Tys[D.getArgumentNumber()];
     if (VectorType *VTy = dyn_cast<VectorType>(Ty))
@@ -1430,11 +1389,6 @@ static Type *DecodeFixedType(ArrayRef<Intrinsic::IITDescriptor> &Infos,
   case IITDescriptor::VecOfAnyPtrsToElt:
     // Return the overloaded type (which determines the pointers address space)
     return Tys[D.getOverloadArgNumber()];
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  case IITDescriptor::AnyPtrToElt:
-    // Return the overloaded type (which determines the pointers address space)
-    return Tys[D.getOverloadArgNumber()];
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   }
   llvm_unreachable("unhandled");
 }
@@ -1663,52 +1617,6 @@ static bool matchIntrinsicType(
       return matchIntrinsicType(EltTy, Infos, ArgTys, DeferredChecks,
                                 IsDeferredCheck);
     }
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    case IITDescriptor::PtrToArgument: {
-      if (D.getArgumentNumber() >= ArgTys.size())
-        return IsDeferredCheck || DeferCheck(Ty);
-      Type * ReferenceType = ArgTys[D.getArgumentNumber()];
-      PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
-      return (!ThisArgType ||
-              !ThisArgType->isOpaqueOrPointeeTypeMatches(ReferenceType));
-    }
-    case IITDescriptor::PtrToElt: {
-      if (D.getArgumentNumber() >= ArgTys.size())
-        return IsDeferredCheck || DeferCheck(Ty);
-      VectorType * ReferenceType =
-        dyn_cast<VectorType> (ArgTys[D.getArgumentNumber()]);
-      PointerType *ThisArgType = dyn_cast<PointerType>(Ty);
-
-      if (!ThisArgType || !ReferenceType)
-        return true;
-      return !ThisArgType->isOpaqueOrPointeeTypeMatches(
-          ReferenceType->getElementType());
-    }
-    case IITDescriptor::AnyPtrToElt: {
-      unsigned RefArgNumber = D.getRefArgNumber();
-      if (RefArgNumber >= ArgTys.size()) {
-        if (IsDeferredCheck)
-          return true;
-        // If forward referencing, already add the pointer type and
-        // defer the checks for later.
-        ArgTys.push_back(Ty);
-        return DeferCheck(Ty);
-      }
-
-      if (!IsDeferredCheck) {
-        assert(D.getOverloadArgNumber() == ArgTys.size() &&
-               "Table consistency error");
-        ArgTys.push_back(Ty);
-      }
-
-      auto *ReferenceType = dyn_cast<VectorType>(ArgTys[RefArgNumber]);
-      auto *ThisArgType = dyn_cast<PointerType>(Ty);
-      if (!ThisArgType || !ReferenceType)
-        return true;
-      return !ThisArgType->isOpaqueOrPointeeTypeMatches(
-          ReferenceType->getElementType());
-    }
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     case IITDescriptor::VecOfAnyPtrsToElt: {
       unsigned RefArgNumber = D.getRefArgNumber();
       if (RefArgNumber >= ArgTys.size()) {
@@ -1876,7 +1784,8 @@ std::optional<Function *> Intrinsic::remangleIntrinsicFunction(Function *F) {
 bool Function::hasAddressTaken(const User **PutOffender,
                                bool IgnoreCallbackUses,
                                bool IgnoreAssumeLikeCalls, bool IgnoreLLVMUsed,
-                               bool IgnoreARCAttachedCall) const {
+                               bool IgnoreARCAttachedCall,
+                               bool IgnoreCastedDirectCall) const {
   for (const Use &U : uses()) {
     const User *FU = U.getUser();
     if (isa<BlockAddress>(FU))
@@ -1925,7 +1834,8 @@ bool Function::hasAddressTaken(const User **PutOffender,
           continue;
     }
 
-    if (!Call->isCallee(&U) || Call->getFunctionType() != getFunctionType()) {
+    if (!Call->isCallee(&U) || (!IgnoreCastedDirectCall &&
+                                Call->getFunctionType() != getFunctionType())) {
       if (IgnoreARCAttachedCall &&
           Call->isOperandBundleOfType(LLVMContext::OB_clang_arc_attachedcall,
                                       U.getOperandNo()))
@@ -2003,11 +1913,7 @@ void Function::allocHungoffUselist() {
   setNumHungOffUseOperands(3);
 
   // Initialize the uselist with placeholder operands to allow traversal.
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *CPN = ConstantPointerNull::get(Type::getInt1PtrTy(getContext(), 0));
-#else
   auto *CPN = ConstantPointerNull::get(PointerType::get(getContext(), 0));
-#endif
   Op<0>().set(CPN);
   Op<1>().set(CPN);
   Op<2>().set(CPN);
@@ -2019,12 +1925,7 @@ void Function::setHungoffOperand(Constant *C) {
     allocHungoffUselist();
     Op<Idx>().set(C);
   } else if (getNumOperands()) {
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-    Op<Idx>().set(
-        ConstantPointerNull::get(Type::getInt1PtrTy(getContext(), 0)));
-#else
     Op<Idx>().set(ConstantPointerNull::get(PointerType::get(getContext(), 0)));
-#endif
   }
 }
 

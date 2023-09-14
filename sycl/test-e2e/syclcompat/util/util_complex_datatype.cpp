@@ -33,7 +33,7 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
-#include <syclcompat.hpp>
+#include <syclcompat/util.hpp>
 
 void test_datatype() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;

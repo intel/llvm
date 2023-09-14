@@ -441,7 +441,7 @@ namespace detail {
 template <typename T, int NBlocks, int Height, int Width, bool Transposed,
           bool Transformed>
 constexpr int get_lsc_block_2d_data_size() {
-  if (Transformed)
+  if constexpr (Transformed)
     return detail::roundUpNextMultiple<Height, 4 / sizeof(T)>() *
            __ESIMD_DNS::getNextPowerOf2<Width>() * NBlocks;
   return Width * Height * NBlocks;
@@ -2339,6 +2339,9 @@ lsc_block_store(AccessorTy acc,
 }
 
 namespace detail {
+#ifndef __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE
+#define __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE (1)
+#endif
 // Compile-time checks for lsc_load_2d/prefetch_2d/store_2d restrictions.
 template <typename T, int BlockWidth, int BlockHeight, int NBlocks,
           bool Transposed, bool Transformed, bool IsStore = false>
@@ -2362,8 +2365,11 @@ constexpr void check_lsc_block_2d_restrictions() {
     static_assert(sizeof(T) == 8 ? BlockHeight == 8
                                  : BlockHeight >= 1 && BlockHeight <= 32,
                   "Unsupported block height");
-    static_assert(sizeof(T) == 8 ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
-                                 : BlockWidth >= 1 && BlockWidth <= 8,
+    static_assert(sizeof(T) == 8
+                      ? __ESIMD_DNS::isPowerOf2(BlockWidth, 4)
+                      : BlockWidth >= 1 &&
+                            BlockWidth <=
+                                8 * __ESIMD_DWORD_BLOCK_2D_WIDTH_SCALE,
                   "Unsupported block width");
   } else if constexpr (Transformed) {
     static_assert(sizeof(T) == 1 || sizeof(T) == 2,
@@ -2376,13 +2382,15 @@ constexpr void check_lsc_block_2d_restrictions() {
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
   } else {
-    static_assert(
-        __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
-        "Unsupported number of blocks");
-    if constexpr (IsStore)
+    if constexpr (IsStore) {
+      static_assert(NBlocks == 1, "Unsupported number of blocks for 2D store");
       static_assert(BlockHeight <= 8, "Unsupported block height for store");
-    else
+    } else {
+      static_assert(
+          __ESIMD_DNS::isPowerOf2(NBlocks, sizeof(T) == 1 ? 4 : 8 / sizeof(T)),
+          "Unsupported number of blocks for 2D load/prefetch");
       static_assert(BlockHeight <= 32, "Unsupported block height for load");
+    }
     static_assert(BlockWidth * sizeof(T) >= 4 &&
                       BlockWidth * NBlocks * sizeof(T) <= 64,
                   "Unsupported block width");
@@ -2873,7 +2881,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION __ESIMD_NS::simd<T, N> lsc_load_2d(
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
@@ -2938,7 +2946,7 @@ ESIMD_INLINE SYCL_ESIMD_FUNCTION void lsc_prefetch_2d(
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc =
       base_desc | cache_mask | transformMask | transposeMask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numDst = (N * sizeof(T)) / 64;
   raw_send<execSize, sfid, numDst>(payload.get_raw_data(), exDesc, desc);
@@ -2976,7 +2984,7 @@ lsc_store_2d(config_2d_mem_access<T, BlockWidth, BlockHeight, NBlocks> &payload,
 
   constexpr uint32_t exDesc = 0x0;
   constexpr uint32_t desc = base_desc | cache_mask;
-  constexpr uint8_t execSize = 0x0;
+  constexpr uint8_t execSize = 1;
   constexpr uint8_t sfid = 0xF;
   constexpr uint8_t numSrc0 = 0x1;
   constexpr uint8_t numSrc1 = (N * sizeof(T)) / 64;
