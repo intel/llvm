@@ -13,19 +13,23 @@ const int scalar = 5;
 constexpr intel::fpga_mem<int> scalar_int = scalar;
 static_assert(scalar_int.get() == 5);
 
-// FIXME: should this work? 
-// Array assignment
-// const int arr[3] {1, 2, 3};
-// constexpr intel::fpga_mem<int[3]> aggr_int = arr;
-// static_assert(aggr_int[1] == arr[1]);
-
 // Copy constructor
 static constexpr intel::fpga_mem<int[3], decltype(oneapi::properties(intel::num_banks<888>))> mem1 {1, 8, 7};
 static constexpr auto mem2 = mem1;
 static_assert(mem1[1] == mem2[1]);
-static_assert(mem1.has_property<oneapi::num_banks_key>());
-static_assert(mem1.get_property<oneapi::num_banks_key>().value == 888);
-static_assert(mem2.has_property<oneapi::num_banks_key>());
-static_assert(mem2.get_property<oneapi::num_banks_key>().value == 888);
+static_assert(mem1.has_property<intel::num_banks_key>());
+static_assert(mem1.get_property<intel::num_banks_key>().value == 888);
+static_assert(mem2.has_property<intel::num_banks_key>());
+static_assert(mem2.get_property<intel::num_banks_key>().value == 888);
+
+int main() {
+  sycl::queue Q;
+  int f = 0;
+
+  Q.single_task([=]() {
+    volatile int ReadVal = scalar_int.get() + mem1[f] + mem2[f];
+  });
+  return 0;
+}
 
 
