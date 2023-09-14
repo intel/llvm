@@ -292,6 +292,7 @@ ESIMD/matrix_transpose.cpp
 ESIMD/matrix_transpose2.cpp
 ESIMD/matrix_transpose_glb.cpp
 ESIMD/matrix_transpose_usm.cpp
+ESIMD/no_host_code.cpp
 ESIMD/noinline_args_size/noinline_args_char_int_size_192.cpp
 ESIMD/noinline_args_size/noinline_args_char_int_size_256.cpp
 ESIMD/noinline_args_size/noinline_args_char_int_size_512.cpp
