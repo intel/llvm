@@ -62,18 +62,18 @@ int main() {
       oneapi::is_property_value<decltype(intel::stride_size<8>)>::value);
   static_assert(
       oneapi::is_property_value<decltype(intel::word_size<32>)>::value);
-  static_assert(oneapi::is_property_value<decltype(
-                    intel::bi_directional_ports_false)>::value);
-  static_assert(oneapi::is_property_value<decltype(
-                    intel::bi_directional_ports_true)>::value);
+  static_assert(oneapi::is_property_value<
+                decltype(intel::bi_directional_ports_false)>::value);
+  static_assert(oneapi::is_property_value<
+                decltype(intel::bi_directional_ports_true)>::value);
   static_assert(
       oneapi::is_property_value<decltype(intel::clock_2x_false)>::value);
   static_assert(
       oneapi::is_property_value<decltype(intel::clock_2x_true)>::value);
   static_assert(
       oneapi::is_property_value<decltype(intel::ram_stitching_min_ram)>::value);
-  static_assert(oneapi::is_property_value<decltype(
-                    intel::ram_stitching_max_fmax)>::value);
+  static_assert(oneapi::is_property_value<
+                decltype(intel::ram_stitching_max_fmax)>::value);
   static_assert(
       oneapi::is_property_value<decltype(intel::max_private_copies<8>)>::value);
   static_assert(
