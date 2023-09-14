@@ -1643,13 +1643,6 @@ static void speculateSelectInstLoads(SelectInst &SI, LoadInst &LI,
   assert(LI.isSimple() && "We only speculate simple loads");
 
   IRB.SetInsertPoint(&LI);
-  // Fix for typed pointers
-  auto *LoadPtrType = LI.getPointerOperandType();
-  if (LoadPtrType != TV->getType())
-    TV = IRB.CreateBitCast(TV, LoadPtrType);
-  if (LoadPtrType != FV->getType())
-    FV = IRB.CreateBitCast(FV, LoadPtrType);
-
   LoadInst *TL =
       IRB.CreateAlignedLoad(LI.getType(), TV, LI.getAlign(),
                             LI.getName() + ".sroa.speculate.load.true");
