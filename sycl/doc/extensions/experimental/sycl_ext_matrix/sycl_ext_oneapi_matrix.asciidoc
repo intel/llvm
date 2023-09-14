@@ -886,19 +886,19 @@ column in the table below.
 |======================
 | A type | B type | C and D type | M | N | K | device
 .2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
 |`architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::uint8`  .2+| `matrix_type::int8` .2+|
-`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::int8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+| `matrix_type::int8`  .2+| `matrix_type::int8` .2+|
-`matrix_type::int32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
 `architecture::intel_gpu_pvc`|8|`architecture::intel_gpu_dg2_g10,
 architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
 .2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
@@ -940,11 +940,11 @@ supported parameter combination is specified in the following table.
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
-.3+| `matrix_type::int8`  .3+| `matrix_type::int32`
+.3+| `matrix_type::int8`  .3+| `matrix_type::sint32`
 |16 |16 |16 .6+| sm_72
 |8 |32 |16
 |32 |8 |16
-.3+|`matrix_type::uint8`  .3+|`matrix_type::int32`
+.3+|`matrix_type::uint8`  .3+|`matrix_type::sint32`
 |16 |16 |16
 |8 |32 |16
 |32 |8 |16
