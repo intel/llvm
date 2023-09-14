@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s %stdinclude --function=init_array -S --raise-scf-to-affine=false | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s %stdinclude --function=init_array -S -memref-fullrank --raise-scf-to-affine=false | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s %stdinclude --function=init_array -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s %stdinclude --function=init_array -S -memref-fullrank --raise-scf-to-affine=false | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O2 --function=* -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s -O2 --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 void histo_kernel(int i);
 

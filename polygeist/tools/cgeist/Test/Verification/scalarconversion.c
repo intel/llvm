@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -O0 -w | FileCheck %s
+// RUN: cgeist %s --function=* -S -O0 -w | FileCheck %s
 
 // CHECK-LABEL:   func.func @unsigned2float(
 // CHECK-SAME:                              %[[VAL_0:.*]]: i32) -> f32

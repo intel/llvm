@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s -O2 --function=whiletofor -S --raise-scf-to-affine=false | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s -O2 --function=whiletofor -S --memref-fullrank --raise-scf-to-affine=false | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s -O2 --function=whiletofor -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s -O2 --function=whiletofor -S --memref-fullrank --raise-scf-to-affine=false | FileCheck %s --check-prefix=FULLRANK
 
 void use(int a[100][100]);
 

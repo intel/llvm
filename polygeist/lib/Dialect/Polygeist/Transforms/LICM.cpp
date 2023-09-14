@@ -589,8 +589,7 @@ collectHoistableOperations(LoopLikeOpInterface loop,
 
 static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
                                     const AliasAnalysis &aliasAnalysis,
-                                    const DominanceInfo &domInfo,
-                                    bool useOpaquePointers) {
+                                    const DominanceInfo &domInfo) {
   Operation *loopOp = loop;
   if (!isa<scf::ForOp, scf::ParallelOp, affine::AffineParallelOp,
            affine::AffineForOp>(loopOp))
@@ -612,7 +611,7 @@ static size_t moveLoopInvariantCode(LoopLikeOpInterface loop,
       OpBuilder builder(loop);
       std::unique_ptr<IfCondition> condition =
           VersionConditionBuilder(accessorPairs, builder, loop->getLoc())
-              .createCondition(useOpaquePointers);
+              .createCondition();
       LoopTools::versionLoop(loop, *condition);
     }
 
@@ -656,8 +655,7 @@ void LICM::runOnOperation() {
 
     // Now use this pass to hoist more complex operations.
     {
-      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo,
-                                               useOpaquePointers);
+      size_t OpHoisted = moveLoopInvariantCode(loop, aliasAnalysis, domInfo);
       numOpHoisted += OpHoisted;
 
       LLVM_DEBUG({

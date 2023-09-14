@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S | FileCheck %s
+// RUN: cgeist %s --function=kernel_deriche -S | FileCheck %s
 
 int kernel_deriche(int *a) {
     a[3]++;

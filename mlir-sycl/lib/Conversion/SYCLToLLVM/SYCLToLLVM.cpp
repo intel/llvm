@@ -97,7 +97,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
 
   LowerToLLVMOptions options(&context);
   options.useBarePtrCallConv = true;
-  options.useOpaquePointers = useOpaquePointers;
+  options.useOpaquePointers = true;
   if (indexBitwidth != kDeriveIndexBitwidthFromDataLayout)
     options.overrideIndexBitwidth(indexBitwidth);
   LLVMTypeConverter converter(&context, options);
@@ -111,8 +111,7 @@ void ConvertSYCLToLLVMPass::runOnOperation() {
   populateReturnOpTypeConversionPattern(patterns, converter);
   populateCallOpTypeConversionPattern(patterns, converter);
   populateAnyFunctionOpInterfaceTypeConversionPattern(patterns, converter);
-  polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns,
-                                                        useOpaquePointers);
+  polygeist::populateBareMemRefToLLVMConversionPatterns(converter, patterns);
   populateSYCLToSPIRVConversionPatterns(converter, patterns);
 
   populateSYCLToLLVMConversionPatterns(syclImplementation, syclTarget,

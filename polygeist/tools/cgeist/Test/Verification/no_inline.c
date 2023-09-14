@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers -S -O0 %s | FileCheck %s
-// RUN: cgeist --use-opaque-pointers -S -O1 %s | FileCheck %s --check-prefix=OPT1
+// RUN: cgeist -S -O0 %s | FileCheck %s
+// RUN: cgeist -S -O1 %s | FileCheck %s --check-prefix=OPT1
 
 void foo(int A[10]) {
 #pragma scop

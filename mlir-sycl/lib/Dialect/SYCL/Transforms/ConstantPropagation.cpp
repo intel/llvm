@@ -563,8 +563,8 @@ void ConstantSYCLGridArgs::RewriterBase::rewrite(Operation *op,
   TypeSwitch<const RewriterBase *>(this)
       .Case<NumWorkItemsRewriter, NumWorkGroupsRewriter, WorkGroupSizeRewriter,
             GlobalOffsetRewriter>([&](const auto *rewriter) {
-        return rewriter->rewrite(cast<typename std::remove_pointer_t<
-                                     decltype(rewriter)>::operation_type>(op),
+        return rewriter->rewrite(cast<typename std::remove_pointer_t<decltype(
+                                     rewriter)>::operation_type>(op),
                                  info, builder);
       });
 }
@@ -909,13 +909,9 @@ void ConstantArrayArg::propagate(OpBuilder &builder, Region &region) {
                            << "\n";
   });
   Location loc = toReplace.getLoc();
-  Value addressof = builder.create<LLVM::AddressOfOp>(loc, newGlobal);
-  auto pt = cast<LLVM::LLVMPointerType>(toReplace.getType());
-  if (pt != addressof.getType()) {
-    assert(!pt.isOpaque() && "Opaque pointers should not differ here");
-    LLVM_DEBUG(llvm::dbgs().indent(4) << "Performing cast to " << pt << "\n");
-    addressof = builder.create<LLVM::BitcastOp>(loc, pt, addressof);
-  }
+  Value addressof = builder.create<LLVM::AddressOfOp>(
+      loc, LLVM::LLVMPointerType::get(newGlobal.getContext()),
+      newGlobal.getSymNameAttr());
   toReplace.replaceAllUsesWith(addressof);
   recordHit();
 }

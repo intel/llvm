@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers --S -O2 --function=* --memref-fullrank %s --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist --S -O2 --function=* --memref-fullrank %s --raise-scf-to-affine=false | FileCheck %s
 
 // The following should be able to fully lower to memref ops without memref
 // subviews.

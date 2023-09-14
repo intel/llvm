@@ -95,11 +95,6 @@ namespace polygeist {
 std::unique_ptr<Pass> createParallelLowerPass() {
   return std::make_unique<ParallelLower>();
 }
-
-std::unique_ptr<Pass>
-createParallelLowerPass(const ParallelLowerOptions &options) {
-  return std::make_unique<ParallelLower>(options);
-}
 } // namespace polygeist
 } // namespace mlir
 
@@ -161,19 +156,16 @@ struct AlwaysInlinerInterface : public InlinerInterface {
 };
 
 LLVM::LLVMPointerType
-getPointerType(Type elemTy, MLIRContext *ctx, bool useOpaquePointers,
+getPointerType(Type elemTy, MLIRContext *ctx,
                std::optional<unsigned> memSpace = std::nullopt) {
   if (memSpace)
-    return (useOpaquePointers) ? LLVM::LLVMPointerType::get(ctx, *memSpace)
-                               : LLVM::LLVMPointerType::get(elemTy, *memSpace);
+    return LLVM::LLVMPointerType::get(ctx, *memSpace);
 
-  return (useOpaquePointers) ? LLVM::LLVMPointerType::get(ctx)
-                             : LLVM::LLVMPointerType::get(elemTy);
+  return LLVM::LLVMPointerType::get(ctx);
 }
 
 // TODO
-mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
-                                                 bool useOpaquePointers) {
+mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
@@ -185,7 +177,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
   auto *ctx = module->getContext();
   mlir::Type types[] = {mlir::IntegerType::get(ctx, 64)};
   LLVM::LLVMPointerType VoidPtrTy =
-      getPointerType(mlir::IntegerType::get(ctx, 8), ctx, useOpaquePointers);
+      getPointerType(mlir::IntegerType::get(ctx, 8), ctx);
   auto llvmFnType = LLVM::LLVMFunctionType::get(VoidPtrTy, types, false);
 
   LLVM::Linkage lnk = LLVM::Linkage::External;
@@ -193,8 +185,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateMallocFunction(ModuleOp module,
   return builder.create<LLVM::LLVMFuncOp>(module.getLoc(), "malloc", llvmFnType,
                                           lnk);
 }
-mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module,
-                                               bool useOpaquePointers) {
+mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module) {
   static std::mutex _mutex;
   std::unique_lock<std::mutex> lock(_mutex);
 
@@ -205,7 +196,7 @@ mlir::LLVM::LLVMFuncOp GetOrCreateFreeFunction(ModuleOp module,
     return fn;
   auto *ctx = module->getContext();
   LLVM::LLVMPointerType VoidPtrTy =
-      getPointerType(mlir::IntegerType::get(ctx, 8), ctx, useOpaquePointers);
+      getPointerType(mlir::IntegerType::get(ctx, 8), ctx);
   auto llvmFnType = LLVM::LLVMFunctionType::get(
       LLVM::LLVMVoidType::get(ctx), ArrayRef<mlir::Type>(VoidPtrTy), false);
 
@@ -385,8 +376,8 @@ void ParallelLower::runOnOperation() {
       auto PT = cast<LLVM::LLVMPointerType>(alop.getType());
       if (PT.getAddressSpace() == 5) {
         builder.setInsertionPointToStart(blockB);
-        LLVM::LLVMPointerType newPtrTy = getPointerType(
-            PT.getElementType(), alop.getContext(), useOpaquePointers, 0);
+        LLVM::LLVMPointerType newPtrTy =
+            getPointerType(PT.getElementType(), alop.getContext(), 0);
         auto elemTy = (alop.getElemType()) ? alop.getElemType().value()
                                            : PT.getElementType();
         auto newAlloca = builder.create<LLVM::AllocaOp>(
@@ -506,7 +497,7 @@ void ParallelLower::runOnOperation() {
       call.erase();
     } else if (call.getCallee().value() == "cudaMalloc" ||
                call.getCallee().value() == "cudaMallocHost") {
-      auto mf = GetOrCreateMallocFunction(getOperation(), useOpaquePointers);
+      auto mf = GetOrCreateMallocFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(1)};
       if (cast<IntegerType>(args[0].getType()).getWidth() < 64)
@@ -525,7 +516,7 @@ void ParallelLower::runOnOperation() {
       }
     } else if (call.getCallee().value() == "cudaFree" ||
                call.getCallee().value() == "cudaFreeHost") {
-      auto mf = GetOrCreateFreeFunction(getOperation(), useOpaquePointers);
+      auto mf = GetOrCreateFreeFunction(getOperation());
       OpBuilder bz(call);
       Value args[] = {call.getOperand(0)};
       bz.create<mlir::LLVM::CallOp>(call.getLoc(), mf, args);

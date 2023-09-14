@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O2 --function=create_matrix -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=create_matrix -S | FileCheck %s
 
 void create_matrix(float *m, int size) {
   float coe[2 * size + 1];

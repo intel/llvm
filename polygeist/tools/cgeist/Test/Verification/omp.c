@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -fopenmp -S | FileCheck %s
+// RUN: cgeist %s --function=* -fopenmp -S | FileCheck %s
 
 void square(double* x, int sstart, int send, int sinc) {
     #pragma omp parallel for

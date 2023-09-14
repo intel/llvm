@@ -110,8 +110,7 @@ private:
 
 /// Version \p Loop, if candidate in \p Candidates require versioning.
 static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
-                                ArrayRef<ReductionOp> Candidates,
-                                bool useOpaquePointers) {
+                                ArrayRef<ReductionOp> Candidates) {
   for (const ReductionOp &Candidate : Candidates) {
     const llvm::SmallSet<sycl::AccessorPtrPair, 4> &accessorPairs =
         Candidate.getRequireNoOverlapAccessorPairs();
@@ -122,7 +121,7 @@ static void versionLoopIfNeeded(LoopLikeOpInterface Loop,
     std::unique_ptr<polygeist::IfCondition> condition =
         polygeist::VersionConditionBuilder(accessorPairs, builder,
                                            Loop->getLoc())
-            .createCondition(useOpaquePointers);
+            .createCondition();
     polygeist::VersionBuilder(Loop).version(*condition);
   }
 }
@@ -138,9 +137,9 @@ protected:
   Pass::Statistic &numReductionsDetected;
 
   LoopReductionIter(Pass::Statistic &numReductionsDetected,
-                    AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
+                    AliasAnalysis &aliasAnalysis)
       : numReductionsDetected(numReductionsDetected),
-        aliasAnalysis(aliasAnalysis), opaquePointers(useOpaquePointers) {}
+        aliasAnalysis(aliasAnalysis) {}
   virtual ~LoopReductionIter() = default;
 
   Block::BlockArgListType getRegionIterArgs(LoopLikeOpInterface Loop) const {
@@ -182,7 +181,7 @@ protected:
       llvm::dbgs() << "\n";
     });
 
-    versionLoopIfNeeded(Loop, ReductionOps, opaquePointers);
+    versionLoopIfNeeded(Loop, ReductionOps);
 
     // Move the load outside the loop (recall that the load is loop invariant).
     // The load result is passed to the new loop as an iter argument.
@@ -523,8 +522,6 @@ private:
   }
 
   AliasAnalysis &aliasAnalysis;
-
-  bool opaquePointers;
 };
 
 class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
@@ -532,10 +529,9 @@ class SCFForReductionIter : public OpRewritePattern<scf::ForOp>,
 public:
   SCFForReductionIter(MLIRContext *context,
                       Pass::Statistic &numReductionsDetected,
-                      AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
+                      AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<scf::ForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis,
-                          useOpaquePointers) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(scf::ForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -569,10 +565,9 @@ class AffineForReductionIter : public OpRewritePattern<affine::AffineForOp>,
 public:
   AffineForReductionIter(MLIRContext *context,
                          Pass::Statistic &numReductionsDetected,
-                         AliasAnalysis &aliasAnalysis, bool useOpaquePointers)
+                         AliasAnalysis &aliasAnalysis)
       : OpRewritePattern<affine::AffineForOp>(context),
-        LoopReductionIter(numReductionsDetected, aliasAnalysis,
-                          useOpaquePointers) {}
+        LoopReductionIter(numReductionsDetected, aliasAnalysis) {}
 
   LogicalResult matchAndRewrite(affine::AffineForOp Loop,
                                 PatternRewriter &Rewriter) const final {
@@ -609,8 +604,8 @@ void DetectReductionPass::runOnOperation() {
   AliasAnalysis &aliasAnalysis = getAnalysis<AliasAnalysis>();
   aliasAnalysis.addAnalysisImplementation(sycl::AliasAnalysis(relaxedAliasing));
   RewritePatternSet RPS(ctx);
-  RPS.add<AffineForReductionIter, SCFForReductionIter>(
-      ctx, numReductions, aliasAnalysis, useOpaquePointers);
+  RPS.add<AffineForReductionIter, SCFForReductionIter>(ctx, numReductions,
+                                                       aliasAnalysis);
   GreedyRewriteConfig Config;
   // Only apply patterns on the original list of LoopLikeOpInterface, to avoid
   // reevaluating loops created within the patterns (e.g., from loop

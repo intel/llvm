@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S -emit-llvm | FileCheck %s --check-prefix=LLVM
+// RUN: cgeist %s --function=kernel_deriche -S | FileCheck %s
+// RUN: cgeist %s --function=kernel_deriche -S -emit-llvm | FileCheck %s --check-prefix=LLVM
 
 int local;
 int local_init = 4;

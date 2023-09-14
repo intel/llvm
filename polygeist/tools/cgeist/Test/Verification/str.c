@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O0 -w %s --function=meta -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=meta -S | FileCheck %s
 
 int foo(const char*);
 

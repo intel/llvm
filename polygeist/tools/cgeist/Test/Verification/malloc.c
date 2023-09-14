@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=caller %stdinclude -S | FileCheck %s
+// RUN: cgeist %s --function=caller %stdinclude -S | FileCheck %s
 
 #include <stdlib.h>
 

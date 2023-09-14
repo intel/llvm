@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -S --function=* --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s -S --function=* --raise-scf-to-affine=false | FileCheck %s
 
   float glob_A[][4] = {
       {1.0f, 2.0, 3.0, 4.0}, 

@@ -1140,8 +1140,7 @@ public:
                                                  rewriter.getI64Type(), idx[0]);
 
     auto PtrTy = cast<LLVM::LLVMPointerType>(op.getType());
-    if (!PtrTy.isOpaque())
-      PtrTy = LLVM::LLVMPointerType::get(MET, PtrTy.getAddressSpace());
+    assert(PtrTy.isOpaque() && "Expecting only opaque pointers");
 
     Value GEP = rewriter.create<LLVM::GEPOp>(
         op->getLoc(), PtrTy, MET,
@@ -1477,14 +1476,6 @@ public:
         return failure();
 
     Value val = src.getSource();
-    auto PtrTy = cast<LLVM::LLVMPointerType>(val.getType());
-    if (!PtrTy.isOpaque() && PtrTy.getElementType() != mt.getElementType())
-      val = rewriter.create<LLVM::BitcastOp>(
-          op.getLoc(),
-          LLVM::LLVMPointerType::get(mt.getElementType(),
-                                     PtrTy.getAddressSpace()),
-          val);
-
     Value idx = nullptr;
     auto shape = mt.getShape();
     for (size_t i = 0; i < shape.size(); i++) {

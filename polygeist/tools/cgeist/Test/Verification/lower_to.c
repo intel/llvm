@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=foo -S | FileCheck %s
+// RUN: cgeist %s --function=foo -S | FileCheck %s
 
 #pragma lower_to(bar, "arith.addf")
 extern float bar(float a, float b);

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -S -memref-fullrank -O0 | FileCheck %s
+// RUN: cgeist %s -S -memref-fullrank -O0 | FileCheck %s
 
 #include <stdio.h>
 

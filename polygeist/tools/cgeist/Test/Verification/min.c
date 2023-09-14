@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=min -S | FileCheck %s
+// RUN: cgeist %s --function=min -S | FileCheck %s
 
 // TODO combine selects
 

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O2 %stdinclude --function=alloc -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s -O2 %stdinclude --function=alloc -S --raise-scf-to-affine=false | FileCheck %s
 
 #include <stdio.h>
 #include <stdlib.h>

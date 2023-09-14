@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --detect-reduction='use-opaque-pointers=1' --split-input-file %s | FileCheck %s
+// RUN: polygeist-opt --detect-reduction --split-input-file %s | FileCheck %s
 
 // Original loop:
 // for(size_t i = 0; i < 8; i++)

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O2 %s --function=* -S -enable-attributes | FileCheck %s
+// RUN: cgeist -O2 %s --function=* -S -enable-attributes | FileCheck %s
 
 void sum(double * __restrict__ result, double * __restrict__ array) {
     result[0] = 0;

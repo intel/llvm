@@ -428,15 +428,14 @@ public:
       llvm::SmallSet<sycl::AccessorPtrPair, 4> requireNoOverlapAccessorPairs,
       OpBuilder builder, Location loc);
 
-  std::unique_ptr<IfCondition> createCondition(bool useOpaquePointers) const {
-    Value scfCond = createSCFCondition(builder, loc, useOpaquePointers);
+  std::unique_ptr<IfCondition> createCondition() const {
+    Value scfCond = createSCFCondition(builder, loc);
     return std::make_unique<IfCondition>(scfCond);
   }
 
 private:
   /// Create a versioning condition suitable for scf::IfOp.
-  Value createSCFCondition(OpBuilder builder, Location loc,
-                           bool useOpaquePointers) const;
+  Value createSCFCondition(OpBuilder builder, Location loc) const;
 
   llvm::SmallSet<sycl::AccessorPtrPair, 4> accessorPairs;
   mutable OpBuilder builder;

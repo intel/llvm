@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -fopenmp -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s --function=* -fopenmp -S --raise-scf-to-affine=false | FileCheck %s
 
 void square(double* x) {
     int i;

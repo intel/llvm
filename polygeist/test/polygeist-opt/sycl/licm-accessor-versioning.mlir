@@ -1,5 +1,5 @@
-// RUN: polygeist-opt -licm='use-opaque-pointers=1' -licm-enable-sycl-accessor-versioning --split-input-file %s | FileCheck %s --check-prefixes=CHECK,1PAIR
-// RUN: polygeist-opt -licm='use-opaque-pointers=1' -licm-enable-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
+// RUN: polygeist-opt -licm -licm-enable-sycl-accessor-versioning --split-input-file %s | FileCheck %s --check-prefixes=CHECK,1PAIR
+// RUN: polygeist-opt -licm -licm-enable-sycl-accessor-versioning -licm-sycl-accessor-pairs-limit=2 --split-input-file %s | FileCheck %s --check-prefixes=CHECK,2PAIRS
 
 // Original loop:
 // for(size_t i = 0; i < 8; i++)

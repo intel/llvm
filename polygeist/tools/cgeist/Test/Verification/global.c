@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s %stdinclude -S | FileCheck %s
+// RUN: cgeist %s %stdinclude -S | FileCheck %s
 
 float A[64][32];
 

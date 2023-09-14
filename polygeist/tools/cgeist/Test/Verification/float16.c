@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -march=x86-64         2>&1 | FileCheck %s --check-prefix=CHECK-EXTEND
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -march=sapphirerapids 2>&1 | FileCheck %s --check-prefix=CHECK-NATIVE
+// RUN: cgeist %s --function=* -S -march=x86-64         2>&1 | FileCheck %s --check-prefix=CHECK-EXTEND
+// RUN: cgeist %s --function=* -S -march=sapphirerapids 2>&1 | FileCheck %s --check-prefix=CHECK-NATIVE
 
 // COM: sapphirerapids supports _Float16 natively
 

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -o - | FileCheck %s
+// RUN: cgeist %s --function=* -S -o - | FileCheck %s
 
 // COM: Checking evaluation order of binary operations.
 // COM: Each operation must be further tested in separate files.

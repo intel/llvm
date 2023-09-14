@@ -140,19 +140,19 @@ inline bool canBeLoweredToBarePtr(mlir::MemRefType memRefType) {
 inline LLVM::LLVMFuncOp getFreeFn(const LLVMTypeConverter &typeConverter,
                                   ModuleOp module) {
   return typeConverter.getOptions().useGenericFunctions
-             ? LLVM::lookupOrCreateGenericFreeFn(
-                   module, typeConverter.useOpaquePointers())
+             ? LLVM::lookupOrCreateGenericFreeFn(module,
+                                                 /* opaquePointers */ true)
              : LLVM::lookupOrCreateFreeFn(module,
-                                          typeConverter.useOpaquePointers());
+                                          /* opaquePointers */ true);
 }
 
 inline LLVM::LLVMFuncOp getAllocFn(const LLVMTypeConverter &typeConverter,
                                    ModuleOp module, Type indexType) {
   return typeConverter.getOptions().useGenericFunctions
-             ? LLVM::lookupOrCreateGenericAllocFn(
-                   module, indexType, typeConverter.useOpaquePointers())
+             ? LLVM::lookupOrCreateGenericAllocFn(module, indexType,
+                                                  /* opaquePointers */ true)
              : LLVM::lookupOrCreateMallocFn(module, indexType,
-                                            typeConverter.useOpaquePointers());
+                                            /* opaquePointers */ true);
 }
 
 } // namespace mlir

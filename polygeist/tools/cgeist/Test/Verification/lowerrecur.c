@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -emit-llvm -S | FileCheck %s
+// RUN: cgeist %s --function=* -emit-llvm -S | FileCheck %s
 
 // TODO: This test case does not yet work with opaque pointers,
 // as it requires the Polygeist transformations to work correctly

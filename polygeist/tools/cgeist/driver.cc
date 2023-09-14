@@ -420,7 +420,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
     }
     PM.addPass(polygeist::createArgumentPromotionPass());
     PM.addPass(polygeist::createKernelDisjointSpecializationPass(
-        {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+        {options.getCgeistOpts().getRelaxedAliasing()}));
 
     // If the module includes the LLVM IR to MLIR translated SYCL host code, we
     // want to run optimizations, apart from the raising on the host code
@@ -444,7 +444,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
       OptPM.addPass(mlir::createCSEPass());
       if (EnableLICM)
         OptPM.addPass(polygeist::createLICMPass(
-            {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+            {options.getCgeistOpts().getRelaxedAliasing()}));
       else
         OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     }
@@ -457,7 +457,7 @@ static LogicalResult optimize(mlir::MLIRContext &Ctx,
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (DetectReduction)
       OptPM.addPass(polygeist::createDetectReductionPass(
-          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+          {options.getCgeistOpts().getRelaxedAliasing()}));
 
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     OptPM.addPass(mlir::createCSEPass());
@@ -503,8 +503,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   GreedyRewriteConfig CanonicalizerConfig;
   CanonicalizerConfig.maxIterations = CanonicalizeIterations;
 
-  polygeist::LICMOptions LICMOpt{options.getCgeistOpts().getRelaxedAliasing(),
-                                 UseOpaquePointers};
+  polygeist::LICMOptions LICMOpt{options.getCgeistOpts().getRelaxedAliasing()};
 
   mlir::PassManager PM(&Ctx);
   if (mlir::failed(enableOptionsPM(PM)))
@@ -521,7 +520,7 @@ static LogicalResult optimizeCUDA(mlir::MLIRContext &Ctx,
   OptPM.addPass(mlir::createLowerAffinePass());
   OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
   if (!SYCLRaiseHost) {
-    PM.addPass(polygeist::createParallelLowerPass({UseOpaquePointers}));
+    PM.addPass(polygeist::createParallelLowerPass());
     PM.addPass(mlir::createSymbolDCEPass());
   }
   // If the module includes the LLVM IR to MLIR translated SYCL host code, we
@@ -690,7 +689,7 @@ static LogicalResult finalizeCUDA(mlir::PassManager &PM, Options &options) {
     OptPM.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
     if (EnableLICM)
       OptPM.addPass(polygeist::createLICMPass(
-          {options.getCgeistOpts().getRelaxedAliasing(), UseOpaquePointers}));
+          {options.getCgeistOpts().getRelaxedAliasing()}));
     else
       OptPM.addPass(mlir::createLoopInvariantCodeMotionPass());
     OptPM.addPass(polygeist::createRaiseSCFToAffinePass());
@@ -781,7 +780,7 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
     mlir::PassManager PM2(&Ctx);
     if (SCFOpenMP) {
       ConvertSCFToOpenMPPassOptions Options;
-      Options.useOpaquePointers = UseOpaquePointers;
+      Options.useOpaquePointers = true;
       PM2.addPass(createConvertSCFToOpenMPPass(Options));
     }
     PM2.addPass(mlir::createCanonicalizerPass(CanonicalizerConfig, {}, {}));
@@ -813,7 +812,6 @@ static LogicalResult finalize(mlir::MLIRContext &Ctx,
       mlir::PassManager PM3(&Ctx);
       ConvertPolygeistToLLVMOptions ConvertOptions;
       ConvertOptions.dataLayout = DL.getStringRepresentation();
-      ConvertOptions.useOpaquePointers = UseOpaquePointers;
       if (options.getCgeistOpts().getSYCLIsDevice()) {
         ConvertOptions.syclImplementation = SYCLImplementation;
         ConvertOptions.syclTarget = ExitOnErr(getSYCLTargetFromTriple(Triple));
@@ -946,7 +944,6 @@ static LogicalResult compileModule(mlir::OwningOpRef<mlir::ModuleOp> &Module,
   } else {
     // Generate LLVM IR.
     llvm::LLVMContext LLVMCtx;
-    LLVMCtx.setOpaquePointers(UseOpaquePointers);
     auto LLVMModule =
         mlir::translateModuleToLLVMIR(Module.get(), LLVMCtx, ModuleId);
     if (!LLVMModule) {

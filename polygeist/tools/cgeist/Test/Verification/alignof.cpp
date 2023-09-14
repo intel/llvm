@@ -1,4 +1,4 @@
-// RUN: cgeist -use-opaque-pointers -std=c++11 %s --function=* -S | FileCheck %s
+// RUN: cgeist -std=c++11 %s --function=* -S | FileCheck %s
 
 struct Meta {
     float* f;

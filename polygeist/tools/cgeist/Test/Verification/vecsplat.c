@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
 
 typedef int int_t_vec __attribute__((ext_vector_type(3)));
 typedef float float_t_vec __attribute__((ext_vector_type(4)));

@@ -223,16 +223,8 @@ LogicalResult SYCLAccessorSubscriptOp::verify() {
         .Case<MemRefType>(
             [&](auto Ty) { return VerifyElemType(Ty.getElementType()); })
         .Case<LLVM::LLVMPointerType>([&](auto Ty) {
-          if (!Ty.getElementType()) {
-            // With opaque pointers, there is no element type to inspect.
-            return success();
-          }
-          const Type ElemType = Ty.getElementType();
-          return (!isa<LLVM::LLVMStructType>(ElemType))
-                     ? emitOpError(
-                           "Expecting pointer to struct return type. Got ")
-                           << ResultType
-                     : VerifyElemType(ElemType);
+          // With opaque pointers, there is no element type to inspect.
+          return success();
         })
         .Case<sycl::AtomicType>(
             [&](auto Ty) { return VerifyElemType(Ty.getDataType()); })

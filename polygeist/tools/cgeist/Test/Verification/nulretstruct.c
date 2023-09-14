@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -S --function=* %s | FileCheck %s
+// RUN: cgeist -S --function=* %s | FileCheck %s
 
 struct C {
   int a;

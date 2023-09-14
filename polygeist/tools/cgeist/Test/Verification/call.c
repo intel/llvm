@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 void sub0(int a[2]);
 void sub(int a[2]) { a[2]++; }
