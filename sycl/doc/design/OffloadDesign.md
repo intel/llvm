@@ -220,7 +220,7 @@ tool are provided by the driver via the `--sycl-post-link-options=<arg>` option.
 Options that will be used by clang-linker-wrapper when invoking `llvm-spirv`
 tool are provided by the driver via the `--llvm-spirv-options=<arg>` option.
 
-SPIR-V binary is thn sent to the Ahead of Time compilation step to produce the
+SPIR-V binary is then sent to the Ahead of Time compilation step to produce the
 final device binary or is wrapped before being linked into the final executable.
 
 ### Ahead Of Time Compilation
