@@ -13,9 +13,10 @@
                OpName %r3 "r3"
                OpName %r4 "r4"
                OpName %r5 "r5"
+               OpName %r6 "r6"
                OpDecorate %dec FPFastMathMode NotNaN|Fast
         %dec = OpDecorationGroup
-               OpGroupDecorate %dec %r1 %r2 %r3 %r4 %r5
+               OpGroupDecorate %dec %r1 %r2 %r3 %r4 %r5 %r6
        %void = OpTypeVoid
       %float = OpTypeFloat 32
           %5 = OpTypeFunction %void %float %float
@@ -28,6 +29,7 @@
          %r3 = OpFMul %float %a %b
          %r4 = OpFDiv %float %a %b
          %r5 = OpFRem %float %a %b
+         %r6 = OpFNegate %float %a
                OpReturn
                OpFunctionEnd
 
@@ -36,3 +38,4 @@
 ; CHECK: %r3 = fmul fast float %a, %b
 ; CHECK: %r4 = fdiv fast float %a, %b
 ; CHECK: %r5 = frem fast float %a, %b
+; CHECK: %r6 = fneg fast float %a
