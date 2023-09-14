@@ -687,6 +687,8 @@ static Triple::SubArchType parseSubArch(StringRef SubArchName) {
         return Triple::SPIRSubArch_fpga;
       else if (SA == "gen")
         return Triple::SPIRSubArch_gen;
+      else if (SA == "gen_image")
+        return Triple::SPIRSubArch_gen_image;
       else if (SA == "x86_64")
         return Triple::SPIRSubArch_x86_64;
     }

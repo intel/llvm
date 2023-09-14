@@ -9174,21 +9174,10 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
            Cur++, Prev++) {
         std::string PrevArg(*Prev);
         std::string CurArg(*Cur);
-        auto replacechar = [](std::string Arg) -> std::string {
-          int Len = Arg.size();
-          for (int I = 0; I < Len; I++) {
-            if (Arg[I] == '-' || Arg[I] == ',' || Arg[I] == ':')
-              Arg[I] = '_';
-            else if (Arg[I] == '*')
-              Arg[I] = 'x';
-          }
-          return Arg;
-        };
         if (PrevArg.compare("-device") == 0) {
-          // Previous arg is -device, the current arg is considered for the
-          // string to return.
-          // Do some simple conversions to make a valid string.
-          DeviceArch = std::string(replacechar(CurArg));
+          // Previous arg is -device, the current arg is considered the target
+          // extension. Use the string 'image' as a designator string to return.
+          DeviceArch = std::string("image");
         }
       }
     }

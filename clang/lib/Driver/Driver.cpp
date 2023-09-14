@@ -6228,10 +6228,10 @@ class OffloadingActionBuilder final {
       }
     }
 
-    // Go through the offload sections of the provided binarye.  Gather all
+    // Go through the offload sections of the provided binary.  Gather all
     // all of the sections which match the expected format of the triple
     // generated when creating fat objects that contain full device binaries.
-    // Expected format is sycl-<aot_arch>_device-unknown-unknown.
+    // Expected format is sycl-<aot_arch>_image-unknown-unknown.
     //   <aot_arch> values:  spir64_gen, spir64_x86_64, spir64_fpga
     SmallVector<std::string, 4> deviceBinarySections(Compilation &C,
                                                      const StringRef &Input) {
@@ -6241,7 +6241,7 @@ class OffloadingActionBuilder final {
         SmallVector<std::string, 3> ArchList = {"spir64_gen", "spir64_fpga",
                                                 "spir64_x86_64"};
         for (auto A : ArchList) {
-          std::string Arch("sycl-" + A + "_");
+          std::string Arch("sycl-" + A + "_image");
           if (S.find(Arch) != std::string::npos)
             FinalDeviceSections.push_back(S);
         }
