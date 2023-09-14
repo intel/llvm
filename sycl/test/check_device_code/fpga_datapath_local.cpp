@@ -8,7 +8,7 @@
 using namespace sycl;
 namespace intel = sycl::ext::intel::experimental; // for fpga_datapath
 
-// CHECK: [[RegisterINTEL:@.*]] = private unnamed_addr addrspace(1) constant [13 x i8] c"{register:1}\00"
+// CHECK: [[RegisterINTEL:@.*]] = private unnamed_addr addrspace(1) constant [7 x i8] c"{5825}\00"
 
 int main() {
   queue Q;
