@@ -115,7 +115,7 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
   pDdiTable->pfnGetSubGroupInfo = urKernelGetSubGroupInfo;
   pDdiTable->pfnRelease = urKernelRelease;
   pDdiTable->pfnRetain = urKernelRetain;
-  pDdiTable->pfnSetArgLocal = nullptr;
+  pDdiTable->pfnSetArgLocal = urKernelSetArgLocal;
   pDdiTable->pfnSetArgMemObj = urKernelSetArgMemObj;
   pDdiTable->pfnSetArgPointer = urKernelSetArgPointer;
   pDdiTable->pfnSetArgSampler = urKernelSetArgSampler;

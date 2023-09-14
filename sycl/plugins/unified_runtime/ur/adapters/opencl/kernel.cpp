@@ -29,6 +29,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
+                    size_t argSize, const ur_kernel_arg_local_properties_t *) {
+
+  CL_RETURN_ON_FAILURE(clSetKernelArg(cl_adapter::cast<cl_kernel>(hKernel),
+                                      cl_adapter::cast<cl_uint>(argIndex),
+                                      argSize, nullptr));
+
+  return UR_RESULT_SUCCESS;
+}
+
 static cl_int mapURKernelInfoToCL(ur_kernel_info_t URPropName) {
 
   switch (static_cast<uint32_t>(URPropName)) {
