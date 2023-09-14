@@ -62,6 +62,14 @@ void test_logical_group() {
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
   sycl::queue q_ct1 = *dev_ct1.default_queue();
+  if (auto sg_sizes =
+          q_ct1.get_device().get_info<sycl::info::device::sub_group_sizes>();
+      std::find(sg_sizes.begin(), sg_sizes.end(), 32) == sg_sizes.end()) {
+    std::cout << "Test skipped due to missing support for sub-group size 32."
+              << std::endl;
+    return;
+  }
+
   unsigned int result_host[4];
   unsigned int *result_device;
   result_device = sycl::malloc_device<unsigned int>(4, q_ct1);

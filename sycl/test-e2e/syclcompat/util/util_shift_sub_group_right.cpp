@@ -81,6 +81,13 @@ void test_shift_sub_group_right() {
 
   syclcompat::device_ext &dev_ct1 = syclcompat::get_current_device();
   sycl::queue *q_ct1 = dev_ct1.default_queue();
+  if (auto sg_sizes =
+          q_ct1->get_device().get_info<sycl::info::device::sub_group_sizes>();
+      std::find(sg_sizes.begin(), sg_sizes.end(), 32) == sg_sizes.end()) {
+    std::cout << "Test skipped due to missing support for sub-group size 32."
+              << std::endl;
+    return;
+  }
   bool Result = true;
   int *dev_data = nullptr;
   unsigned int *dev_data_u = nullptr;
