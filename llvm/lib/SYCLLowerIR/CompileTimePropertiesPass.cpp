@@ -307,10 +307,7 @@ parseSYCLPropertiesString(Module &M, IntrinsicInst *IntrInst) {
 
   auto AnnotValsIntrOpd = IntrInst->getArgOperand(4);
   const GlobalVariable *AnnotValsGV = nullptr;
-  if (AnnotValsIntrOpd->getType()->isOpaquePointerTy())
-    AnnotValsGV = dyn_cast<GlobalVariable>(AnnotValsIntrOpd);
-  else if (const auto *Cast = dyn_cast<BitCastOperator>(AnnotValsIntrOpd))
-    AnnotValsGV = dyn_cast<GlobalVariable>(Cast->getOperand(0));
+  AnnotValsGV = dyn_cast<GlobalVariable>(AnnotValsIntrOpd);
   if (AnnotValsGV) {
     if (const auto *AnnotValsAggr =
             dyn_cast<ConstantAggregate>(AnnotValsGV->getInitializer())) {
@@ -525,10 +522,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (IntrAnnotStringArg->getType()->isOpaquePointerTy())
-    AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
-  else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
-    AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
+  AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
   if (!AnnotStrArgGV)
     return;
 
@@ -594,10 +588,7 @@ bool CompileTimePropertiesPass::transformSYCLPropertiesAnnotation(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (IntrAnnotStringArg->getType()->isOpaquePointerTy())
-    AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
-  else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
-    AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
+  AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
   if (!AnnotStrArgGV)
     return false;
 

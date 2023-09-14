@@ -239,6 +239,4 @@ OptPassGate &LLVMContextImpl::getOptPassGate() const {
   return *OPG;
 }
 
-void LLVMContextImpl::setOptPassGate(OptPassGate& OPG) {
-  this->OPG = &OPG;
-}
+void LLVMContextImpl::setOptPassGate(OptPassGate &OPG) { this->OPG = &OPG; }
