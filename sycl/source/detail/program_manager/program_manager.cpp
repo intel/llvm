@@ -508,11 +508,12 @@ static void applyOptionsFromImage(std::string &CompileOpts,
 }
 
 static std::string_view
-applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
+applyCompileOptionsFromEnvironment() {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *CompileOptsEnv =
       SYCLConfig<SYCL_PROGRAM_COMPILE_OPTIONS>::get();
+  std:: string_view CompileOpts;
   if (CompileOptsEnv) {
     CompileOpts = std::string_view(CompileOptsEnv);
   } else {
@@ -522,10 +523,11 @@ applyCompileOptionsFromEnvironment(std::string_view &CompileOpts) {
 }
 
 static std::string_view
-applyLinkOptionsFromEnvironment(std::string_view LinkOpts) {
+applyLinkOptionsFromEnvironment() {
   // Environment variables are not changed during program lifecycle so it
   // is reasonable to use static here to read them only once.
   static const char *LinkOptsEnv = SYCLConfig<SYCL_PROGRAM_LINK_OPTIONS>::get();
+  std::string_view LinkOpts;
   if (LinkOptsEnv) {
     LinkOpts = std::string_view(LinkOptsEnv);
   } else {
@@ -576,14 +578,13 @@ sycl::detail::pi::PiProgram ProgramManager::getBuiltPIProgram(
     bool JITCompilationIsRequired) {
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts, LinkOpts;
-
+  std::string_view CompileOpts,LinkOpts;
   if (Prg) {
     CompileOpts = Prg->get_build_options();
   }
 
-  CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
-  LinkOpts = applyLinkOptionsFromEnvironment(LinkOpts);
+  CompileOpts = applyCompileOptionsFromEnvironment();
+  LinkOpts = applyLinkOptionsFromEnvironment();
 
   SerializedObj SpecConsts;
   if (Prg)
@@ -715,14 +716,14 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
-  std::string_view CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
+  std::string_view CompileOpts,LinkOpts;
   if (Prg) {
     CompileOpts = Prg->get_build_options();
     Prg->stableSerializeSpecConstRegistry(SpecConsts);
   }
-  CompileOpts = applyCompileOptionsFromEnvironment(CompileOpts);
-  LinkOpts = applyLinkOptionsFromEnvironment(LinkOpts);
+  CompileOpts = applyCompileOptionsFromEnvironment();
+  LinkOpts = applyLinkOptionsFromEnvironment();
 
   const sycl::detail::pi::PiDevice PiDevice = DeviceImpl->getHandleRef();
 
@@ -2145,7 +2146,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
 
   // TODO: Handle zero sized Device list.
   std::string_view CompileOptions =
-      applyCompileOptionsFromEnvironment(CompileOptions);
+      applyCompileOptionsFromEnvironment();
   std::string CompileOptionsStr(CompileOptions);
   appendCompileOptionsFromImage(
       CompileOptionsStr, *(InputImpl->get_bin_image_ref()), Devs, Plugin);
@@ -2179,7 +2180,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
   for (const device &Dev : Devs)
     PIDevices.push_back(getSyclObjImpl(Dev)->getHandleRef());
 
-  std::string_view LinkOptions = applyLinkOptionsFromEnvironment(LinkOptions);
+  std::string_view LinkOptions = applyLinkOptionsFromEnvironment();
   std::string LinkOptionsStr(LinkOptions);
   if (LinkOptionsStr.empty()) {
     const std::shared_ptr<device_image_impl> &InputImpl =
@@ -2283,8 +2284,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   std::string_view CompileOpts =
-      applyCompileOptionsFromEnvironment(CompileOpts);
-  std::string_view LinkOpts = applyLinkOptionsFromEnvironment(LinkOpts);
+      applyCompileOptionsFromEnvironment();
+  std::string_view LinkOpts = applyLinkOptionsFromEnvironment();
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
