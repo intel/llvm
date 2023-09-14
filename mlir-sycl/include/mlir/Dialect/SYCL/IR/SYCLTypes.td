@@ -33,6 +33,8 @@ class SYCL_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
+// NOTE: Handle new `SYCLInheritanceTypeTrait` not present in
+// `mlir::sycl::isBaseType`.
 class SYCLInheritanceTypeTrait<string ParentClass>
     : NativeTypeTrait<"SYCLInheritanceTypeTrait<" # ParentClass # ">::Trait"> {
   let cppNamespace = "::mlir::sycl";

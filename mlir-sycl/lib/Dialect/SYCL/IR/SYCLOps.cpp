@@ -136,24 +136,7 @@ bool SYCLCastOp::areCastCompatible(TypeRange Inputs, TypeRange Outputs) {
   Type InputElemType = Input.getElementType();
   Type OutputElemType = Output.getElementType();
 
-  return TypeSwitch<Type, bool>(OutputElemType)
-      .template Case<ArrayType>([&](auto) {
-        return InputElemType
-            .hasTrait<SYCLInheritanceTypeTrait<ArrayType>::Trait>();
-      })
-      .template Case<AccessorCommonType>([&](auto) {
-        return InputElemType
-            .hasTrait<SYCLInheritanceTypeTrait<AccessorCommonType>::Trait>();
-      })
-      .template Case<LocalAccessorBaseType>([&](auto) {
-        return InputElemType
-            .hasTrait<SYCLInheritanceTypeTrait<LocalAccessorBaseType>::Trait>();
-      })
-      .template Case<OwnerLessBaseType>([&](auto) {
-        return InputElemType
-            .hasTrait<SYCLInheritanceTypeTrait<OwnerLessBaseType>::Trait>();
-      })
-      .Default(false);
+  return isBaseClass(OutputElemType, InputElemType);
 }
 
 bool SYCLAddrSpaceCastOp::areCastCompatible(TypeRange inputs,

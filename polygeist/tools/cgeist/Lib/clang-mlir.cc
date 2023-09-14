@@ -1272,26 +1272,8 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
   return ValueCategory(Result, /*isReference*/ true, InnerTy);
 }
 
-static bool isSYCLInheritType(Type &Ty, Value &Val) {
-  assert(isa<MemRefType>(Val.getType()));
-  if (!isa<MemRefType>(Ty))
-    return false;
-
-  Type ElemTy = cast<MemRefType>(Ty).getElementType();
-  return TypeSwitch<Type, bool>(
-             cast<MemRefType>(Val.getType()).getElementType())
-      .Case<sycl::AccessorType>([&](auto) {
-        return isa<sycl::AccessorCommonType>(ElemTy) ||
-               isa<sycl::LocalAccessorBaseType>(ElemTy) ||
-               isa<sycl::OwnerLessBaseType>(ElemTy);
-      })
-      .Case<sycl::LocalAccessorBaseType>(
-          [&](auto) { return isa<sycl::AccessorCommonType>(ElemTy); })
-      .Case<sycl::LocalAccessorType>(
-          [&](auto) { return isa<sycl::LocalAccessorBaseType>(ElemTy); })
-      .Case<sycl::IDType, sycl::RangeType>(
-          [&](auto) { return isa<sycl::ArrayType>(ElemTy); })
-      .Default(false);
+static bool isSYCLInheritType(Type Ty, Value Val) {
+  return sycl::SYCLCastOp::areCastCompatible(Val.getType(), Ty);
 }
 
 Value MLIRScanner::GetAddressOfDerivedClass(
