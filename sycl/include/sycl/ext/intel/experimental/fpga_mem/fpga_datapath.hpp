@@ -16,7 +16,8 @@ inline namespace _V1 {
 namespace ext::intel::experimental {
 
 template <typename T>
-class 
+class
+// Annotation when object is instantiated in global scope 
 #ifdef __SYCL_DEVICE_ONLY__
       [[__sycl_detail__::add_ir_attributes_global_variable(
           "sycl-datapath", "")]]
@@ -25,7 +26,7 @@ fpga_datapath {
 protected:
   T val
 #ifdef __SYCL_DEVICE_ONLY__
-      // Ju
+      // Annotation when object is instantiated in function scope
       [[__sycl_detail__::add_ir_annotations_member(
           "sycl-datapath", "")]]
 #endif
