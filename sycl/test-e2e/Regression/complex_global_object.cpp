@@ -6,7 +6,6 @@
 // such objects do not cause problems if the first call to SYCL is inside main
 // and the last call is in global destructor.
 
-
 // Disable test due to flacky failures
 #include <sycl/sycl.hpp>
 
