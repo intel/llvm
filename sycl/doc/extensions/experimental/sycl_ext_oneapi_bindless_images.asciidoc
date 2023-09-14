@@ -388,20 +388,30 @@ namespace sycl::ext::oneapi {
 sycl::range<3> get_image_range(const image_mem_handle memHandle,
                                const sycl::device &syclDevice,
                                const sycl::context &syclContext);
+sycl::range<3> get_image_range(const image_mem_handle memHandle,
+                               const sycl::queue &syclQueue);
 
 sycl::image_channel_type
 get_image_channel_type(const image_mem_handle memHandle,
                        const sycl::device &syclDevice,
                        const sycl::context &syclContext);
+sycl::image_channel_type
+get_image_channel_type(const image_mem_handle memHandle,
+                       const sycl::queue &syclQueue);
 
 unsigned int get_image_num_channels(const image_mem_handle memHandle,
                                     const sycl::device &syclDevice,
                                     const sycl::context &syclContext);
+unsigned int get_image_num_channels(const image_mem_handle memHandle,
+                                    const sycl::queue &syclQueue);
 
 image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
                                           unsigned int level, 
                                           const sycl::device &syclDevice,
                                           const sycl::context &syclContext);
+image_mem_handle get_mip_level_mem_handle(const image_mem_handle mipMemHandle,
+                                          unsigned int level,
+                                          const sycl::queue &syclQueue);
 }
 ```
 
@@ -1964,5 +1974,6 @@ These features still need to be handled:
 |4.3|2023-09-08| - Clarify how normalized image formats are read
                  - Remove support for packed normalized image formats 
                    (`unorm_short_555`, `unorm_short_565`, `unorm_int_101010`)
-|4.4|2023-09-12| - Update wording for allocating images + fix typo
+|4.4|2023-09-12| - Added overload with `sycl::queue` to standalone functions
+|4.5|2023-09-14| - Update wording for allocating images + fix typo
 |======================

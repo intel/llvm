@@ -289,27 +289,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMHostAlloc(
     ContextLock.lock();
   }
 
+  // There is a single allocator for Host USM allocations, so we don't need to
+  // find the allocator depending on context as we do for Shared and Device
+  // allocations.
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Align & (Align - 1)) != 0)) {
-    ur_usm_host_mem_flags_t Flags{};
-    ur_result_t Res = USMHostAllocImpl(RetMem, Context, &Flags, Size, Align);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
-
-  // There is a single allocator for Host USM allocations, so we don't need to
-  // find the allocator depending on context as we do for Shared and Device
-  // allocations.
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = Context->HostMemProxyPool.get();
+  } else if (Pool) {
     hPoolInternal = Pool->HostMemPool.get();
   } else {
     hPoolInternal = Context->HostMemPool.get();
@@ -373,24 +363,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMDeviceAlloc(
     ContextLock.lock();
   }
 
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res =
-        USMDeviceAllocImpl(RetMem, Context, Device, nullptr, Size, Alignment);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
+    auto It = Context->DeviceMemProxyPools.find(Device->ZeDevice);
+    if (It == Context->DeviceMemProxyPools.end())
+      return UR_RESULT_ERROR_INVALID_VALUE;
 
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = It->second.get();
+  } else if (Pool) {
     hPoolInternal = Pool->DeviceMemPools[Device].get();
   } else {
     auto It = Context->DeviceMemPools.find(Device->ZeDevice);
@@ -449,6 +433,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
       const ur_usm_host_desc_t *UsmHostDesc =
           reinterpret_cast<const ur_usm_host_desc_t *>(pNext);
       UsmHostFlags = UsmHostDesc->flags;
+      std::ignore = UsmHostFlags;
     }
     pNext = const_cast<void *>(BaseDesc->pNext);
   }
@@ -478,24 +463,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     UR_CALL(urContextRetain(Context));
   }
 
+  umf_memory_pool_handle_t hPoolInternal = nullptr;
   if (!UseUSMAllocator ||
       // L0 spec says that allocation fails if Alignment != 2^n, in order to
       // keep the same behavior for the allocator, just call L0 API directly and
       // return the error code.
       ((Alignment & (Alignment - 1)) != 0)) {
-    ur_result_t Res = USMSharedAllocImpl(RetMem, Context, Device, &UsmHostFlags,
-                                         &UsmDeviceFlags, Size, Alignment);
-    if (IndirectAccessTrackingEnabled) {
-      // Keep track of all memory allocations in the context
-      Context->MemAllocs.emplace(std::piecewise_construct,
-                                 std::forward_as_tuple(*RetMem),
-                                 std::forward_as_tuple(Context));
-    }
-    return Res;
-  }
+    auto &Allocator = (DeviceReadOnly ? Context->SharedReadOnlyMemProxyPools
+                                      : Context->SharedMemProxyPools);
+    auto It = Allocator.find(Device->ZeDevice);
+    if (It == Allocator.end())
+      return UR_RESULT_ERROR_INVALID_VALUE;
 
-  umf_memory_pool_handle_t hPoolInternal = nullptr;
-  if (Pool) {
+    hPoolInternal = It->second.get();
+  } else if (Pool) {
     hPoolInternal = (DeviceReadOnly)
                         ? Pool->SharedReadOnlyMemPools[Device].get()
                         : Pool->SharedMemPools[Device].get();
@@ -515,9 +496,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMSharedAlloc(
     return umf2urResult(umfRet);
   }
 
-  if (DeviceReadOnly) {
-    Context->SharedReadOnlyAllocs.insert(*RetMem);
-  }
   if (IndirectAccessTrackingEnabled) {
     // Keep track of all memory allocations in the context
     Context->MemAllocs.emplace(std::piecewise_construct,
@@ -607,8 +585,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 }
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
-  ZE2UR_CALL(zeMemFree, (Context->ZeContext, Ptr));
-  return UR_RESULT_SUCCESS;
+  auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+  // Handle When the driver is already released
+  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+    return UR_RESULT_SUCCESS;
+  } else {
+    return ze2urResult(ZeResult);
+  }
 }
 
 static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,
@@ -621,37 +604,16 @@ static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,
   return UR_RESULT_SUCCESS;
 }
 
-umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
-                                           ur_device_handle_t Dev) {
+umf_result_t L0MemoryProvider::initialize(ur_context_handle_t Ctx,
+                                          ur_device_handle_t Dev) {
   Context = Ctx;
   Device = Dev;
 
-  // Query L0 for the minimal page size and cache it in 'MinPageSize'
-  void *Ptr;
-  auto Res = allocateImpl(&Ptr, 1, 0);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
-  Res = USMQueryPageSize(Context, Ptr, &MinPageSize);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
-  Res = USMFreeImpl(Context, Ptr);
-  if (Res != UR_RESULT_SUCCESS) {
-    goto err_set_status;
-  }
-
   return UMF_RESULT_SUCCESS;
-
-err_set_status:
-  getLastStatusRef() = Res;
-  return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
-                                           void **Ptr) {
+enum umf_result_t L0MemoryProvider::alloc(size_t Size, size_t Align,
+                                          void **Ptr) {
   auto Res = allocateImpl(Ptr, Size, Align);
   if (Res != UR_RESULT_SUCCESS) {
     getLastStatusRef() = Res;
@@ -661,7 +623,7 @@ enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
   return UMF_RESULT_SUCCESS;
 }
 
-enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
+enum umf_result_t L0MemoryProvider::free(void *Ptr, size_t Size) {
   (void)Size;
 
   auto Res = USMFreeImpl(Context, Ptr);
@@ -673,27 +635,76 @@ enum umf_result_t USMMemoryProvider::free(void *Ptr, size_t Size) {
   return UMF_RESULT_SUCCESS;
 }
 
-void USMMemoryProvider::get_last_native_error(const char **ErrMsg,
-                                              int32_t *ErrCode) {
-  (void)ErrMsg;
-  *ErrCode = static_cast<int32_t>(getLastStatusRef());
+umf_result_t L0MemoryProvider::GetL0MinPageSize(void *Mem, size_t *PageSize) {
+  ur_result_t Res = UR_RESULT_SUCCESS;
+  void *Ptr = Mem;
+
+  if (!Mem) {
+    Res = allocateImpl(&Ptr, 1, 0);
+    if (Res != UR_RESULT_SUCCESS) {
+      goto err_set_status;
+    }
+  }
+
+  // Query L0 for the minimal page size.
+  Res = USMQueryPageSize(Context, Ptr, PageSize);
+  if (Res != UR_RESULT_SUCCESS) {
+    goto err_dealloc;
+  }
+
+  if (!Mem) {
+    Res = USMFreeImpl(Context, Ptr);
+    if (Res != UR_RESULT_SUCCESS) {
+      goto err_set_status;
+    }
+  }
+
+  return UMF_RESULT_SUCCESS;
+
+err_dealloc:
+  if (!Mem) {
+    USMFreeImpl(Context, Ptr);
+  }
+err_set_status:
+  getLastStatusRef() = Res;
+  return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
-umf_result_t USMMemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
-  (void)Ptr;
+umf_result_t L0MemoryProvider::get_min_page_size(void *Ptr, size_t *PageSize) {
+  std::ignore = Ptr;
+
+  // Query L0 for min page size. Use provided 'Ptr'.
+  if (Ptr) {
+    return GetL0MinPageSize(Ptr, PageSize);
+  }
+
+  // Return cached min page size.
+  if (MinPageSizeCached) {
+    *PageSize = MinPageSize;
+    return UMF_RESULT_SUCCESS;
+  }
+
+  // Query L0 for min page size and cache it in 'MinPageSize'.
+  auto Ret = GetL0MinPageSize(nullptr, &MinPageSize);
+  if (Ret) {
+    return Ret;
+  }
+
   *PageSize = MinPageSize;
+  MinPageSizeCached = true;
+
   return UMF_RESULT_SUCCESS;
 }
 
-ur_result_t USMSharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
+ur_result_t L0SharedMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                                 uint32_t Alignment) {
   return USMSharedAllocImpl(ResultPtr, Context, Device, nullptr, nullptr, Size,
                             Alignment);
 }
 
-ur_result_t USMSharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
-                                                          size_t Size,
-                                                          uint32_t Alignment) {
+ur_result_t L0SharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
+                                                         size_t Size,
+                                                         uint32_t Alignment) {
   ur_usm_device_desc_t UsmDeviceDesc{};
   UsmDeviceDesc.flags = UR_USM_DEVICE_MEM_FLAG_DEVICE_READ_ONLY;
   ur_usm_host_desc_t UsmHostDesc{};
@@ -701,14 +712,14 @@ ur_result_t USMSharedReadOnlyMemoryProvider::allocateImpl(void **ResultPtr,
                             &UsmHostDesc.flags, Size, Alignment);
 }
 
-ur_result_t USMDeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                  uint32_t Alignment) {
+ur_result_t L0DeviceMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                                 uint32_t Alignment) {
   return USMDeviceAllocImpl(ResultPtr, Context, Device, nullptr, Size,
                             Alignment);
 }
 
-ur_result_t USMHostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
-                                                uint32_t Alignment) {
+ur_result_t L0HostMemoryProvider::allocateImpl(void **ResultPtr, size_t Size,
+                                               uint32_t Alignment) {
   return USMHostAllocImpl(ResultPtr, Context, nullptr, Size, Alignment);
 }
 
@@ -741,7 +752,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
   }
 
   auto MemProvider =
-      umf::memoryProviderMakeUnique<USMHostMemoryProvider>(Context, nullptr)
+      umf::memoryProviderMakeUnique<L0HostMemoryProvider>(Context, nullptr)
           .second;
 
   HostMemPool =
@@ -752,7 +763,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
 
   for (auto device : Context->Devices) {
     MemProvider =
-        umf::memoryProviderMakeUnique<USMDeviceMemoryProvider>(Context, device)
+        umf::memoryProviderMakeUnique<L0DeviceMemoryProvider>(Context, device)
             .second;
     DeviceMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
@@ -763,7 +774,7 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                             .second));
 
     MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedMemoryProvider>(Context, device)
+        umf::memoryProviderMakeUnique<L0SharedMemoryProvider>(Context, device)
             .second;
     SharedMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
@@ -773,10 +784,9 @@ ur_usm_pool_handle_t_::ur_usm_pool_handle_t_(ur_context_handle_t Context,
                                 .Configs[usm::DisjointPoolMemType::Shared])
                             .second));
 
-    MemProvider =
-        umf::memoryProviderMakeUnique<USMSharedReadOnlyMemoryProvider>(Context,
-                                                                       device)
-            .second;
+    MemProvider = umf::memoryProviderMakeUnique<L0SharedReadOnlyMemoryProvider>(
+                      Context, device)
+                      .second;
     SharedReadOnlyMemPools.emplace(
         std::piecewise_construct, std::make_tuple(device),
         std::make_tuple(
@@ -908,97 +918,17 @@ ur_result_t USMFreeHelper(ur_context_handle_t Context, void *Ptr,
     Context->MemAllocs.erase(It);
   }
 
-  if (!UseUSMAllocator) {
-    ur_result_t Res = USMFreeImpl(Context, Ptr);
+  auto hPool = umfPoolByPtr(Ptr);
+  if (!hPool) {
     if (IndirectAccessTrackingEnabled)
       UR_CALL(ContextReleaseHelper(Context));
-    return Res;
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   }
 
-  // Query the device of the allocation to determine the right allocator context
-  ze_device_handle_t ZeDeviceHandle;
-  ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-
-  // Query memory type of the pointer we're freeing to determine the correct
-  // way to do it(directly or via an allocator)
-  auto ZeResult =
-      ZE_CALL_NOCHECK(zeMemGetAllocProperties,
-                      (Context->ZeContext, Ptr, &ZeMemoryAllocationProperties,
-                       &ZeDeviceHandle));
-
-  // Handle the case that L0 RT was already unloaded
-  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
-    if (IndirectAccessTrackingEnabled)
-      UR_CALL(ContextReleaseHelper(Context));
-    return UR_RESULT_SUCCESS;
-  } else if (ZeResult) {
-    return ze2urResult(ZeResult);
-  }
-
-  // If memory type is host release from host pool
-  if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_HOST) {
-    auto umfRet = umfPoolFree(Context->HostMemPool.get(), Ptr);
-
-    if (IndirectAccessTrackingEnabled)
-      UR_CALL(ContextReleaseHelper(Context));
-    return umf2urResult(umfRet);
-  }
-
-  // Points out an allocation in SharedReadOnlyMemPools
-  auto SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.end();
-
-  if (!ZeDeviceHandle) {
-    // The only case where it is OK not have device identified is
-    // if the memory is not known to the driver. We should not ever get
-    // this either, probably.
-    UR_ASSERT(ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN,
-              UR_RESULT_ERROR_INVALID_DEVICE);
-  } else {
-    ur_device_handle_t Device;
-    // All context member devices or their descendants are of the same platform.
-    auto Platform = Context->getPlatform();
-    Device = Platform->getDeviceFromNativeHandle(ZeDeviceHandle);
-    UR_ASSERT(Device, UR_RESULT_ERROR_INVALID_DEVICE);
-
-    auto DeallocationHelper =
-        [Context, Device,
-         Ptr](std::unordered_map<ze_device_handle_t, umf::pool_unique_handle_t>
-                  &PoolMap) {
-          auto It = PoolMap.find(Device->ZeDevice);
-          if (It == PoolMap.end())
-            return UR_RESULT_ERROR_INVALID_VALUE;
-
-          // The right pool is found, deallocate the pointer
-          auto umfRet = umfPoolFree(It->second.get(), Ptr);
-
-          if (IndirectAccessTrackingEnabled)
-            UR_CALL(ContextReleaseHelper(Context));
-          return umf2urResult(umfRet);
-        };
-
-    switch (ZeMemoryAllocationProperties.type) {
-    case ZE_MEMORY_TYPE_SHARED:
-      // Distinguish device_read_only allocations since they have own pool.
-      SharedReadOnlyAllocsIterator = Context->SharedReadOnlyAllocs.find(Ptr);
-      return DeallocationHelper(SharedReadOnlyAllocsIterator !=
-                                        Context->SharedReadOnlyAllocs.end()
-                                    ? Context->SharedReadOnlyMemPools
-                                    : Context->SharedMemPools);
-    case ZE_MEMORY_TYPE_DEVICE:
-      return DeallocationHelper(Context->DeviceMemPools);
-    default:
-      // Handled below
-      break;
-    }
-  }
-
-  ur_result_t Res = USMFreeImpl(Context, Ptr);
-  if (SharedReadOnlyAllocsIterator != Context->SharedReadOnlyAllocs.end()) {
-    Context->SharedReadOnlyAllocs.erase(SharedReadOnlyAllocsIterator);
-  }
+  auto umfRet = umfPoolFree(hPool, Ptr);
   if (IndirectAccessTrackingEnabled)
     UR_CALL(ContextReleaseHelper(Context));
-  return Res;
+  return umf2urResult(umfRet);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMImportExp(ur_context_handle_t Context,
