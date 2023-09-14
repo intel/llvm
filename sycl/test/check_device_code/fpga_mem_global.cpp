@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -c -fsycl-device-only -S -emit-llvm %s -o - | FileCheck %s
 
-// Test appropriate llvm.ptr.annotation is applied to each fpga_mem.
+// Test appropriate !spirv.Decorations is applied to each fpga_mem.
 // Make sure the mapping from property to SPIR-V decoration is correct
 
 #include "sycl/sycl.hpp"
