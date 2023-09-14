@@ -3710,8 +3710,8 @@ void ItaniumRTTIBuilder::BuildVTablePointer(const Type *Ty) {
   if (CGM.getItaniumVTableContext().isRelativeLayout())
     VTable = CGM.getModule().getNamedAlias(VTableName);
   if (!VTable) {
-    llvm::Type *Ty = llvm::ArrayType::get(CGM.GlobalsInt8PtrTy, 0);
-    VTable = CGM.getModule().getOrInsertGlobal(VTableName, Ty);
+    llvm::Type *Ty = llvm::ArrayType::get(CGM.DefaultInt8PtrTy, 0);
+    VTable = CGM.CreateRuntimeVariable(Ty, VTableName);
   }
 
   CGM.setDSOLocal(cast<llvm::GlobalValue>(VTable->stripPointerCasts()));
