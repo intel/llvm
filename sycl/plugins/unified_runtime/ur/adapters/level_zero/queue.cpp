@@ -279,6 +279,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *Queue ///< [out] pointer to handle of queue object created
 ) {
+  Context->Devices[0] = Device;
+
   ur_queue_flags_t Flags{};
   if (Props) {
     Flags = Props->flags;
