@@ -16,6 +16,7 @@ template <size_t PartitionSize> void test() {
   if (std::find(SGSizes.begin(), SGSizes.end(), 32) == SGSizes.end()) {
     std::cout << "Test skipped due to missing support for sub-group size 32."
               << std::endl;
+    return;
   }
 
   sycl::buffer<bool, 1> MatchBuf{sycl::range{32}};

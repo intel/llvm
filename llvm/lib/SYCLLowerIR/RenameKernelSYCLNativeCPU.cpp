@@ -22,6 +22,7 @@ RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   for (auto &F : M) {
     if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
       F.setName(sycl::utils::addSYCLNativeCPUSuffix(F.getName()));
+      ModuleChanged |= true;
     }
   }
   return ModuleChanged ? PreservedAnalyses::none() : PreservedAnalyses::all();
