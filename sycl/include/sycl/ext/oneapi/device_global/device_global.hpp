@@ -63,6 +63,8 @@ protected:
   constexpr pointer_t get_ptr() const noexcept { return usmptr; }
 
 public:
+  device_global_base() = default;
+
   template <access::decorated IsDecorated>
   multi_ptr<T, access::address_space::global_space, IsDecorated>
   get_multi_ptr() noexcept {
