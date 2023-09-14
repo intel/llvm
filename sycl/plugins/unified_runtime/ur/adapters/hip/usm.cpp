@@ -76,7 +76,7 @@ UR_APIEXPORT ur_result_t UR_APICALL USMFreeImpl(ur_context_handle_t hContext,
     UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
     if (Type == hipMemoryTypeDevice) {
-     Result = UR_CHECK_ERROR(hipFree(pMem));
+      Result = UR_CHECK_ERROR(hipFree(pMem));
     }
     if (Type == hipMemoryTypeHost) {
       Result = UR_CHECK_ERROR(hipHostFree(pMem));
