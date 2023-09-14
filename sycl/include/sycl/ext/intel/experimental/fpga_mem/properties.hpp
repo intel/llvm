@@ -13,8 +13,8 @@
 
 #include <cstdint>     // for uint16_t
 #include <iosfwd>      // for nullptr_t
-#include <type_traits> // for true_type
 #include <string_view> // for string_view
+#include <type_traits> // for true_type
 
 namespace sycl {
 inline namespace _V1 {
@@ -37,7 +37,7 @@ struct resource_key {
   template <resource_enum Resource>
   using value_t =
       property_value<resource_key,
-                      std::integral_constant<resource_enum, Resource>>;
+                     std::integral_constant<resource_enum, Resource>>;
 };
 
 struct num_banks_key {
@@ -60,8 +60,8 @@ struct word_size_key {
 
 struct bi_directional_ports_key {
   template <bool Enable>
-  using value_t = property_value<
-      bi_directional_ports_key, std::bool_constant<Enable>>;
+  using value_t =
+      property_value<bi_directional_ports_key, std::bool_constant<Enable>>;
 };
 
 struct clock_2x_key {
@@ -109,8 +109,7 @@ inline constexpr bi_directional_ports_key::value_t<false>
 inline constexpr bi_directional_ports_key::value_t<true>
     bi_directional_ports_true;
 
-template <bool b>
-inline constexpr clock_2x_key::value_t<b> clock_2x;
+template <bool b> inline constexpr clock_2x_key::value_t<b> clock_2x;
 inline constexpr clock_2x_key::value_t<true> clock_2x_true;
 inline constexpr clock_2x_key::value_t<false> clock_2x_false;
 
@@ -133,44 +132,67 @@ inline constexpr num_replicates_key::value_t<n> num_replicates;
 namespace oneapi {
 namespace experimental {
 
-template <> struct is_property_key<intel::experimental::resource_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::num_banks_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::stride_size_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::word_size_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::bi_directional_ports_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::clock_2x_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::ram_stitching_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::max_private_copies_key> : std::true_type {};
-template <> struct is_property_key<intel::experimental::num_replicates_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::resource_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::num_banks_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::stride_size_key> : std::true_type {
+};
+template <>
+struct is_property_key<intel::experimental::word_size_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::bi_directional_ports_key>
+    : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::clock_2x_key> : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::ram_stitching_key>
+    : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::max_private_copies_key>
+    : std::true_type {};
+template <>
+struct is_property_key<intel::experimental::num_replicates_key>
+    : std::true_type {};
 
 // Associate properties with fpga_mem
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::resource_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::num_banks_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::stride_size_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::word_size_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::bi_directional_ports_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::clock_2x_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::ram_stitching_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::max_private_copies_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::num_replicates_key,
-                          intel::experimental::fpga_mem<T, PropertyListT>> : std::true_type {};
+                          intel::experimental::fpga_mem<T, PropertyListT>>
+    : std::true_type {};
 
 namespace detail {
 // Map Property to a PropKind enum
@@ -186,7 +208,8 @@ template <> struct PropertyToKind<intel::experimental::stride_size_key> {
 template <> struct PropertyToKind<intel::experimental::word_size_key> {
   static constexpr PropKind Kind = PropKind::WordSize;
 };
-template <> struct PropertyToKind<intel::experimental::bi_directional_ports_key> {
+template <>
+struct PropertyToKind<intel::experimental::bi_directional_ports_key> {
   static constexpr PropKind Kind = PropKind::BiDirectionalPorts;
 };
 template <> struct PropertyToKind<intel::experimental::clock_2x_key> {
@@ -202,22 +225,42 @@ template <> struct PropertyToKind<intel::experimental::num_replicates_key> {
   static constexpr PropKind Kind = PropKind::NumReplicates;
 };
 
-// Mark the properties as compile-time 
-template <> struct IsCompileTimeProperty<intel::experimental::resource_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::num_banks_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::stride_size_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::word_size_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::bi_directional_ports_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::clock_2x_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::ram_stitching_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::max_private_copies_key> : std::true_type {};
-template <> struct IsCompileTimeProperty<intel::experimental::num_replicates_key> : std::true_type {};
+// Mark the properties as compile-time
+template <>
+struct IsCompileTimeProperty<intel::experimental::resource_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::num_banks_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::stride_size_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::word_size_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::bi_directional_ports_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::clock_2x_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::ram_stitching_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::max_private_copies_key>
+    : std::true_type {};
+template <>
+struct IsCompileTimeProperty<intel::experimental::num_replicates_key>
+    : std::true_type {};
 
 // Map Property to MetaInfo
 template <intel::experimental::resource_enum Value>
 struct PropertyMetaInfo<intel::experimental::resource_key::value_t<Value>> {
   static constexpr const char *name = "sycl-resource";
-  static constexpr const char *value = ((Value==intel::experimental::resource_enum::mlab)?"mlab":"block_ram");
+  static constexpr const char *value =
+      ((Value == intel::experimental::resource_enum::mlab) ? "mlab"
+                                                           : "block_ram");
 };
 template <size_t Value>
 struct PropertyMetaInfo<intel::experimental::num_banks_key::value_t<Value>> {
@@ -235,30 +278,39 @@ struct PropertyMetaInfo<intel::experimental::word_size_key::value_t<Value>> {
   static constexpr size_t value = Value;
 };
 template <bool Value>
-struct PropertyMetaInfo<intel::experimental::bi_directional_ports_key::value_t<Value>> {
-  // historical uglyness: single property maps to different SPIRV decorations 
-  static constexpr const char *name = (Value?"sycl-bi-directional-ports-true":"sycl-bi-directional-ports-false");
+struct PropertyMetaInfo<
+    intel::experimental::bi_directional_ports_key::value_t<Value>> {
+  // historical uglyness: single property maps to different SPIRV decorations
+  static constexpr const char *name =
+      (Value ? "sycl-bi-directional-ports-true"
+             : "sycl-bi-directional-ports-false");
   static constexpr std::nullptr_t value = nullptr;
 };
 template <bool Value>
 struct PropertyMetaInfo<intel::experimental::clock_2x_key::value_t<Value>> {
-  // historical uglyness: single property maps to different SPIRV decorations 
-  static constexpr const char *name = (Value?"sycl-clock-2x-true":"sycl-clock-2x-false");
+  // historical uglyness: single property maps to different SPIRV decorations
+  static constexpr const char *name =
+      (Value ? "sycl-clock-2x-true" : "sycl-clock-2x-false");
   static constexpr std::nullptr_t value = nullptr;
 };
 template <intel::experimental::ram_stitching_enum Value>
-struct PropertyMetaInfo<intel::experimental::ram_stitching_key::value_t<Value>> {
+struct PropertyMetaInfo<
+    intel::experimental::ram_stitching_key::value_t<Value>> {
   static constexpr const char *name = "sycl-ram-stitching";
-  // enum to bool conversion to match with the SPIR-V decoration ForcePow2DepthINTEL
-  static constexpr bool value = (Value==intel::experimental::ram_stitching_enum::max_fmax);
+  // enum to bool conversion to match with the SPIR-V decoration
+  // ForcePow2DepthINTEL
+  static constexpr bool value =
+      (Value == intel::experimental::ram_stitching_enum::max_fmax);
 };
 template <size_t Value>
-struct PropertyMetaInfo<intel::experimental::max_private_copies_key::value_t<Value>> {
+struct PropertyMetaInfo<
+    intel::experimental::max_private_copies_key::value_t<Value>> {
   static constexpr const char *name = "sycl-max-private-copies";
   static constexpr size_t value = Value;
 };
 template <size_t Value>
-struct PropertyMetaInfo<intel::experimental::num_replicates_key::value_t<Value>> {
+struct PropertyMetaInfo<
+    intel::experimental::num_replicates_key::value_t<Value>> {
   static constexpr const char *name = "sycl-num-replicates";
   static constexpr size_t value = Value;
 };

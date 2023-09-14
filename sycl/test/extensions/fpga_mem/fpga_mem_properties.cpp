@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
-// expected-no-diagnostics
+// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang
+// -verify -Xclang -verify-ignore-unexpected=note %s expected-no-diagnostics
 
 // Test memory properties can be applied to fpga_mem
 
