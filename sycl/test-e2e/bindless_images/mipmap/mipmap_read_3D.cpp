@@ -8,7 +8,7 @@
 #include <sycl/sycl.hpp>
 
 // Uncomment to print additional test information
- #define VERBOSE_PRINT
+#define VERBOSE_PRINT
 
 template <typename DType, sycl::image_channel_type CType> class kernel;
 
@@ -172,8 +172,7 @@ int main() {
 
   if (failed) {
     std::cout << "Test failed!" << std::endl;
-  }
-  else {
+  } else {
     std::cout << "Test passed!" << std::endl;
   }
 

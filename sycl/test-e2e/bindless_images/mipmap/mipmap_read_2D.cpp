@@ -180,8 +180,7 @@ int main() {
 
   if (failed) {
     std::cout << "Test failed!" << std::endl;
-  }
-  else {
+  } else {
     std::cout << "Test passed!" << std::endl;
   }
 
