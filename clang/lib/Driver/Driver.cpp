@@ -4953,9 +4953,9 @@ class OffloadingActionBuilder final {
           // Add any of the device linking steps when -ftarget-device-link is
           // specified. Device linking is only available for spir64_gen at this
           // time.
-          bool isGen = TargetInfo.TC->getTriple().getSubArch() ==
+          bool IsGen = TargetInfo.TC->getTriple().getSubArch() ==
                        llvm::Triple::SPIRSubArch_gen;
-          if (Args.hasArg(options::OPT_ftarget_device_link) && isGen &&
+          if (Args.hasArg(options::OPT_ftarget_device_link) && IsGen &&
               FinalPhase != phases::Link) {
             ActionList CAList;
             CAList.push_back(A);
@@ -5236,10 +5236,10 @@ class OffloadingActionBuilder final {
     void appendSYCLDeviceLink(ActionList &LI, const ToolChain *TC,
                               OffloadAction::DeviceDependences &DA,
                               ActionList &AL, const char *BoundArch,
-                              bool addOffloadAction = false) {
-      auto addDeps = [&](Action *A, const ToolChain *TC,
+                              bool AddOffloadAction = false) {
+      auto AddDeps = [&](Action *A, const ToolChain *TC,
                          const char *BoundArch) {
-        if (addOffloadAction) {
+        if (AddOffloadAction) {
           OffloadAction::DeviceDependences Deps;
           Deps.add(*A, *TC, BoundArch, Action::OFK_SYCL);
           AL.push_back(C.MakeAction<OffloadAction>(Deps, A->getType()));
@@ -5289,13 +5289,17 @@ class OffloadingActionBuilder final {
             FPGAAOTAction = Input;
           else
             llvm_unreachable("Unexpected FPGA input type.");
+          // Rename the column within the table.  The list of files that is
+          // produced from the AOT offline complation step is just a list of
+          // files.  Rename with the [Code] designator to be processed by
+          // the offload-wrapper in -batch mode.
           auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
               FPGAAOTAction, types::TY_Tempfilelist, types::TY_Tempfilelist);
           RenameAction->addRenameColumnTform(FileTableTformJobAction::COL_ZERO,
                                              FileTableTformJobAction::COL_CODE);
           auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
               RenameAction, types::TY_Object);
-          addDeps(DeviceWrappingAction, TC, BoundArch);
+          AddDeps(DeviceWrappingAction, TC, BoundArch);
           continue;
         } else if (!types::isFPGA(Input->getType())) {
           // No need for any conversion if we are coming in from the
@@ -5329,7 +5333,7 @@ class OffloadingActionBuilder final {
           UA->setTargetString(TargetString.str());
 
           // Add lists to the final link.
-          addDeps(UA, TC, "");
+          AddDeps(UA, TC, "");
         }
       }
       if (!LinkObjects.empty()) {
@@ -5547,7 +5551,7 @@ class OffloadingActionBuilder final {
             // application.
             auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
                 PostLinkAction, types::TY_Object, true);
-            addDeps(WrapBitcodeAction, TC, BoundArch);
+            AddDeps(WrapBitcodeAction, TC, BoundArch);
           }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
@@ -5663,10 +5667,10 @@ class OffloadingActionBuilder final {
           if (IsSpirvAOT) {
             bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
                           BoundArch != nullptr);
-            addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
+            AddDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              addDeps(DeviceWrappingAction, TC, BoundArch);
+              AddDeps(DeviceWrappingAction, TC, BoundArch);
             });
           }
         }
