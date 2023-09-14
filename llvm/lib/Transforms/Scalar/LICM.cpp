@@ -1039,7 +1039,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
 // invariant.start has no uses.
 static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
                                   Loop *CurLoop) {
-  Value *Addr = LI->getOperand(0);
+  Value *Addr = LI->getPointerOperand();
   const DataLayout &DL = LI->getModule()->getDataLayout();
   const TypeSize LocSizeInBits = DL.getTypeSizeInBits(LI->getType());
 
