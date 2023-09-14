@@ -360,7 +360,7 @@ fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
 namespace sycl {
 // This utility function is used to gather all SYCL device library files that
 // will be linked with input device files.
-// The list of files and its location is passed from driver.
+// The list of files and its location are passed from driver.
 Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
                         const ArgList &Args) {
   StringRef SYCLDeviceLibLoc;
@@ -850,51 +850,6 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
   return *DeviceLinkedFile;
 }
 
-Expected<StringRef>
-fatbinary(ArrayRef<std::pair<StringRef, StringRef>> InputFiles,
-          const ArgList &Args) {
-  llvm::TimeTraceScope TimeScope("SYCL Fatbinary");
-
-  // SYCL uses the clang-offload-bundler to bundle the linked images.
-  Expected<std::string> OffloadBundlerPath = findProgram(
-      "clang-offload-bundler", {getMainExecutable("clang-offload-bundler")});
-  if (!OffloadBundlerPath)
-    return OffloadBundlerPath.takeError();
-
-  llvm::Triple Triple(
-      Args.getLastArgValue(OPT_host_triple_EQ, sys::getDefaultTargetTriple()));
-
-  // Create a new file to write the linked device image to.
-  auto TempFileOrErr =
-      createOutputFile(sys::path::filename(ExecutableName), "syclfb");
-  if (!TempFileOrErr)
-    return TempFileOrErr.takeError();
-
-  BumpPtrAllocator Alloc;
-  StringSaver Saver(Alloc);
-
-  SmallVector<StringRef, 16> CmdArgs;
-  CmdArgs.push_back(*OffloadBundlerPath);
-  CmdArgs.push_back("-type=o");
-  CmdArgs.push_back("-bundle-align=4096");
-
-  SmallVector<StringRef> Targets = {"-targets=host-x86_64-unknown-linux"};
-  for (const auto &[File, Arch] : InputFiles)
-    Targets.push_back(Saver.save("sycl-spir64-unknown-unknown" + Arch));
-  CmdArgs.push_back(Saver.save(llvm::join(Targets, ",")));
-
-  CmdArgs.push_back("-input=/dev/null");
-  for (const auto &[File, Arch] : InputFiles)
-    CmdArgs.push_back(Saver.save("-input=" + File));
-
-  CmdArgs.push_back(Saver.save("-output=" + *TempFileOrErr));
-
-  if (Error Err = executeCommands(*OffloadBundlerPath, CmdArgs))
-    return std::move(Err);
-
-  return *TempFileOrErr;
-}
-
 } // namespace sycl
 
 namespace generic {
@@ -1012,6 +967,8 @@ Expected<StringRef> linkDevice(ArrayRef<StringRef> InputFiles,
       auto SPVFile = sycl::runLLVMToSPIRVTranslation(*SYCLPostLinkFile, Args);
       if (!SPVFile)
         return SPVFile.takeError();
+      // TODO(NOM6): Add AOT support if needed
+      // TODO(NOM7): Remove this call and use community flow for bundle/wrap
       auto OutputFile = sycl::runWrapper(*SPVFile, Args);
       if (!OutputFile)
         return OutputFile.takeError();
@@ -1493,7 +1450,7 @@ bundleCuda(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
 
   llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
       llvm::MemoryBuffer::getFileOrSTDIN(*FileOrErr);
-  
+
   SmallVector<std::unique_ptr<MemoryBuffer>> Buffers;
   if (std::error_code EC = ImageOrError.getError())
     return createFileError(*FileOrErr, EC);
@@ -1525,29 +1482,6 @@ bundleHIP(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
   return std::move(Buffers);
 }
 
-Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
-bundleSYCL(ArrayRef<OffloadingImage> Images, const ArgList &Args) {
-  SmallVector<std::pair<StringRef, StringRef>, 4> InputFiles;
-  for (const OffloadingImage &Image : Images)
-    InputFiles.emplace_back(std::make_pair(Image.Image->getBufferIdentifier(),
-                                           Image.StringData.lookup("arch")));
-
-  Triple TheTriple = Triple(Images.front().StringData.lookup("triple"));
-  auto FileOrErr = sycl::fatbinary(InputFiles, Args);
-  if (!FileOrErr)
-    return FileOrErr.takeError();
-
-  llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> ImageOrError =
-      llvm::MemoryBuffer::getFileOrSTDIN(*FileOrErr);
-
-  SmallVector<std::unique_ptr<MemoryBuffer>> Buffers;
-  if (std::error_code EC = ImageOrError.getError())
-    return createFileError(*FileOrErr, EC);
-  Buffers.emplace_back(std::move(*ImageOrError));
-
-  return std::move(Buffers);
-}
-
 /// Transforms the input \p Images into the binary format the runtime expects
 /// for the given \p Kind.
 Expected<SmallVector<std::unique_ptr<MemoryBuffer>>>
@@ -1561,8 +1495,6 @@ bundleLinkedOutput(ArrayRef<OffloadingImage> Images, const ArgList &Args,
     return bundleCuda(Images, Args);
   case OFK_HIP:
     return bundleHIP(Images, Args);
-  case OFK_SYCL:
-    return bundleSYCL(Images, Args);
   default:
     return createStringError(inconvertibleErrorCode(),
                              getOffloadKindName(Kind) +

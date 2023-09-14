@@ -73,9 +73,6 @@ public:
     uint32_t Flags;
     MapVector<StringRef, StringRef> StringData;
     std::unique_ptr<MemoryBuffer> Image;
-    // For SYCL offload kind
-    std::string PropFile;
-    std::string SymFile;
   };
 
   /// Attempt to parse the offloading binary stored in \p Data.
