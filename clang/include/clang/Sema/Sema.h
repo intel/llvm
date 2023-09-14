@@ -14187,7 +14187,7 @@ public:
                                    SourceLocation RParenLoc);
 
   template <typename AttrTy>
-  bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
+  static bool isTypeDecoratedWithDeclAttribute(QualType Ty) {
     const CXXRecordDecl *RecTy = Ty->getAsCXXRecordDecl();
     if (!RecTy)
       return false;
