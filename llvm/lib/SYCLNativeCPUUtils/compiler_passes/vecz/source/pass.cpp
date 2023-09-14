@@ -128,6 +128,14 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
     ResultTy T;
     Results.insert(std::make_pair(Fn, std::move(T)));
     for (auto &Opts : P.second) {
+      // If we've been given an auto width, try and fit it to any requirements
+      // that the kernel places on its sub-groups.
+      if (Opts.vecz_auto) {
+        if (auto ReqdSGOpts = getReqdSubgroupSizeOpts(*Fn)) {
+          Opts = *ReqdSGOpts;
+        }
+      }
+
       auto *const VU =
           createVectorizationUnit(Ctx, Fn, Opts, Mach.getFAM(), Check);
       if (!VU) {
