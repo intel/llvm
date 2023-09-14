@@ -159,7 +159,8 @@ def SYCL_LocalAccessorBaseType
 
 def SYCL_LocalAccessorType
     : SYCL_Type<"LocalAccessor", "local_accessor",
-        [SYCLInheritanceTypeTrait<"LocalAccessorBaseType">]> {
+        [SYCLInheritanceTypeTrait<"LocalAccessorBaseType">,
+         SYCLInheritanceTypeTrait<"OwnerLessBaseType">]> {
   let summary = "Local Accessor";
   let description = [{ Accessor to a local buffer.}];
   let parameters = (ins "::mlir::Type":$type,
