@@ -1,3 +1,5 @@
+// REQUIRES: system-linux
+
 /// ########################################################################
 
 /// Check the phases for SYCL compilation using new offload model
