@@ -371,7 +371,7 @@ Error getSYCLDeviceLibs(SmallVector<std::string, 16> &DeviceLibFiles,
     if (A->getValues().size() == 0) {
       llvm::errs()
           << "Need to emit equivalent of warn_drv_empty_joined_argument\n";
-      createStringError(
+      return createStringError(
           inconvertibleErrorCode(),
           "Need to emit equivalent of warn_drv_empty_joined_argument.");
     } else {
