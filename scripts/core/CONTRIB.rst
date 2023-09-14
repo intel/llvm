@@ -39,6 +39,62 @@ accepted into the project.
     Runtime team via the `GitHub issue tracker
     <https://github.com/oneapi-src/unified-runtime/issues/new>`_.
 
+Build Environment
+=================
+
+To be able to generate the source from the YAML files, the build environment
+must be configured correctly and all dependencies must be installed. The
+instructions for a basic setup are available in the `README
+<https://github.com/oneapi-src/unified-runtime/blob/main/README.md#building>`_.
+
+The following additional dependencies are required to support the ``generate``
+target:
+
+*    Doxygen (>= 1.8)
+
+*    The Python script requirements listed in `thirdparty/requirements.txt`_
+
+Doxygen can be installed via your system's package manager, e.g. on Ubuntu
+``sudo apt install doxygen``, or by downloading it from the Doxygen website. It
+must be available on the current ``PATH`` when the script is run.
+
+One way to install the requirements for the script is using a Python virtual
+environment. This can be set up by running the following commands from the
+project root:
+
+.. code-block:: console
+
+    $ python3 -m venv .local
+    $ source .local/bin/activate
+    $ pip install -r third_party/requirements.txt
+
+The virtual environment can be subsequently reactivated before any builds
+without needing to reinstall the requirements:
+
+.. code-block:: console
+
+    $ source .local/bin/activate
+
+Alternatively, a Docker container can be used instead of a virtual environment.
+Instructions on building and using a Docker image can be found in
+`.github/docker`_
+
+You *must* also enable the ``UR_FORMAT_CPP_STYLE`` CMake option to allow
+formatting of the generated code, or the ``generate`` target will not be
+available.
+
+.. code-block:: console
+
+    $ cmake build/ -DUR_FORMAT_CPP_STYLE=ON
+
+You can then follow the instructions below to use the ``generate`` target to
+regenerate the source.
+
+.. _thirdparty/requirements.txt:
+   https://github.com/oneapi-src/unified-runtime/blob/main/third_party/requirements.txt
+.. _.github/docker:
+   https://github.com/oneapi-src/unified-runtime/blob/main/.github/docker
+
 Generating Source
 =================
 
@@ -46,10 +102,9 @@ The specification and many other components in the Unified Runtime repository
 are generated from a set of YAML_ files which are used as inputs to a Mako_
 based templating system. The YAML file syntax is defined in `YAML syntax`_. To
 generate the outputs of the Mako templates a build directory must be
-configured, instructions are available in the `README
-<https://github.com/oneapi-src/unified-runtime/blob/main/README.md>`_ file.
-Upon successfully configuring a build directory, generate the outputs with the
-following command (or suitable build system equivalent):
+configured as detailed above. Upon successfully configuring a build directory,
+generate the outputs with the following command (or suitable build system
+equivalent):
 
 .. code-block:: console
 
