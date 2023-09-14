@@ -13,12 +13,13 @@
 #ifndef LLVM_LIB_TARGET_NVPTX_NVPTXISELDAGTODAG_H
 #define LLVM_LIB_TARGET_NVPTX_NVPTXISELDAGTODAG_H
 
+#include "MCTargetDesc/NVPTXBaseInfo.h"
 #include "NVPTX.h"
 #include "NVPTXISelLowering.h"
 #include "NVPTXRegisterInfo.h"
 #include "NVPTXTargetMachine.h"
-#include "MCTargetDesc/NVPTXBaseInfo.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
+#include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/Support/Compiler.h"
 

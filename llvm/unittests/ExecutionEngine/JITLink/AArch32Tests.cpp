@@ -183,7 +183,7 @@ TEST(AArch32_Relocations, Arm_Call_Bare) {
       0xffffffff, // ones
   };
 
-  auto EncodeDecode = [](int64_t In, MutableWord &Mem) {
+  auto EncodeDecode = [=](int64_t In, MutableWord &Mem) {
     Mem.patch(encodeImmBA1BlA1BlxA2(In), ImmMask);
     return decodeImmBA1BlA1BlxA2(Mem.Wd);
   };
@@ -234,7 +234,7 @@ TEST(AArch32_Relocations, Thumb_MovtAbs) {
       EXPECT_EQ(EncodeDecode(0xffff, Mem), 0xffff);   // Maximum value
       EXPECT_NE(EncodeDecode(0x10000, Mem), 0x10000); // First overflow
 
-      // Destination register as well as unaffacted bits should be intact
+      // Destination register as well as unaffected bits should be intact
       EXPECT_EQ(decodeRegMovtT1MovwT3(Mem.Hi, Mem.Lo), Reg);
       EXPECT_TRUE(UnaffectedBits.Hi == (Mem.Hi & ~(ImmMask.Hi | RegMask.Hi)) &&
                   UnaffectedBits.Lo == (Mem.Lo & ~(ImmMask.Lo | RegMask.Lo)))
