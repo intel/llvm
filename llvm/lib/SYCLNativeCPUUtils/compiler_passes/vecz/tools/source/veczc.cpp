@@ -19,6 +19,7 @@
 #include <compiler/utils/metadata.h>
 #include <compiler/utils/optimal_builtin_replacement_pass.h>
 #include <compiler/utils/pass_machinery.h>
+#include <compiler/utils/sub_group_analysis.h>
 #include <compiler/utils/vectorization_factor.h>
 #include <llvm/ADT/Statistic.h>
 #include <llvm/ADT/StringSwitch.h>
@@ -110,6 +111,11 @@ static llvm::cl::opt<bool> DoubleSupport(
     "vecz-double-support", llvm::cl::init(true),
     llvm::cl::desc(
         "Assume the target has double-precision floating point support"));
+
+static llvm::cl::list<unsigned> SGSizes(
+    "device-sg-sizes",
+    llvm::cl::desc("Comma-separated list of supported sub-group sizes"),
+    llvm::cl::CommaSeparated);
 
 static llvm::TargetMachine *initLLVMTarget(llvm::StringRef triple_string,
                                            llvm::StringRef cpu_model,
@@ -372,10 +378,15 @@ int main(const int argc, const char *const argv[]) {
       [&] { return vecz::TargetInfoAnalysis(TICallback); });
   passMach.getMAM().registerPass(
       [&] { return compiler::utils::BuiltinInfoAnalysis(); });
+  passMach.getMAM().registerPass(
+      [&] { return compiler::utils::SubgroupAnalysis(); });
   passMach.getFAM().registerPass([] { return llvm::TargetIRAnalysis(); });
   passMach.getMAM().registerPass([] {
     compiler::utils::DeviceInfo Info{/*half*/ 0, /*float*/ 0, DoubleSupport,
                                      /*MaxWorthWidth*/ 64};
+    for (const auto S : SGSizes) {
+      Info.reqd_sub_group_sizes.push_back(S);
+    }
     return compiler::utils::DeviceInfoAnalysis(Info);
   });
   passMach.getMAM().registerPass([&kernelOpts] {

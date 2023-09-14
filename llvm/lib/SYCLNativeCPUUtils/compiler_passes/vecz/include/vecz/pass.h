@@ -66,7 +66,23 @@ struct VeczPassOptions {
   uint64_t local_size;
 };
 
+/// @brief Returns the vectorization options that would vectorize the provided
+/// function to its required sub-group size.
 std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(llvm::Function &);
+
+/// @brief Returns the vectorization options that would vectorize the provided
+/// function to its required sub-group size (if set) or one of the device's
+/// sub-group sizes.
+///
+/// Only returns options if the function uses sub-group operations, as
+/// determined by the SubGroupAnalysis pass.
+///
+/// Tries to find a good fit that produces one of the device's sub-group sizes,
+/// preferring ones which fit the known local work-group size and powers of
+/// two. The device's sub-group sizes can be sorted such that preferable sizes
+/// are placed towards the front.
+std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
+    llvm::Function &, llvm::ModuleAnalysisManager &);
 
 /// @brief Analysis pass which determines on which functions @ref RunVeczPass
 /// should operate.

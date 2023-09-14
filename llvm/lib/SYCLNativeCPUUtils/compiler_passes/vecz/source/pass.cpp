@@ -20,6 +20,7 @@
 #include <compiler/utils/builtin_info.h>
 #include <compiler/utils/device_info.h>
 #include <compiler/utils/metadata.h>
+#include <compiler/utils/sub_group_analysis.h>
 #include <compiler/utils/vectorization_factor.h>
 #include <llvm/IR/DebugInfoMetadata.h>
 #include <llvm/IR/LLVMContext.h>
@@ -129,10 +130,10 @@ PreservedAnalyses RunVeczPass::run(Module &M, ModuleAnalysisManager &MAM) {
     Results.insert(std::make_pair(Fn, std::move(T)));
     for (auto &Opts : P.second) {
       // If we've been given an auto width, try and fit it to any requirements
-      // that the kernel places on its sub-groups.
+      // that the kernel/device places on its sub-groups.
       if (Opts.vecz_auto) {
-        if (auto ReqdSGOpts = getReqdSubgroupSizeOpts(*Fn)) {
-          Opts = *ReqdSGOpts;
+        if (auto AutoSGOpts = getAutoSubgroupSizeOpts(*Fn, MAM)) {
+          Opts = *AutoSGOpts;
         }
       }
 
@@ -268,6 +269,98 @@ std::optional<VeczPassOptions> getReqdSubgroupSizeOpts(Function &F) {
     return vecz_opts;
   }
   return std::nullopt;
+}
+
+std::optional<VeczPassOptions> getAutoSubgroupSizeOpts(
+    Function &F, ModuleAnalysisManager &AM) {
+  // If there's a required sub-group size, we must return a vectorization
+  // factor that gets us there.
+  if (auto opts = getReqdSubgroupSizeOpts(F)) {
+    return opts;
+  }
+
+  auto &M = *F.getParent();
+  const auto &GSGI = AM.getResult<compiler::utils::SubgroupAnalysis>(M);
+
+  // If the function doesn't use sub-groups (from the user's perspective) then
+  // we don't need to adhere to a specific sub-group size.
+  if (!GSGI.usesSubgroups(F)) {
+    return std::nullopt;
+  }
+
+  // Use the device's sub-group sizes to determine which to vectorize to.
+  auto &DI = AM.getResult<compiler::utils::DeviceInfoAnalysis>(M);
+
+  // We don't force devices to support any sub-group sizes.
+  if (DI.reqd_sub_group_sizes.empty()) {
+    return std::nullopt;
+  }
+
+  vecz::VeczPassOptions vecz_opts;
+  vecz_opts.vec_dim_idx = 0;
+  // Disable auto - we want a specific width
+  vecz_opts.vecz_auto = false;
+  // Enable some default choices
+  vecz_opts.choices.enable(vecz::VectorizationChoices::eDivisionExceptions);
+
+  // Now try and choose the best width.
+  std::optional<unsigned> best_width;
+  auto const mux_sub_group_size = compiler::utils::getMuxSubgroupSize(F);
+
+  auto can_produce_legal_width = [&mux_sub_group_size](unsigned size) {
+    // We only support vectorization widths where there's a clean multiple, and
+    // we can vectorize *up* to the desired size - we can't shrink the
+    // sub-group size by vectorizing.
+    return size >= mux_sub_group_size && (size % mux_sub_group_size) == 0;
+  };
+
+  for (auto size : DI.reqd_sub_group_sizes) {
+    if (!can_produce_legal_width(size)) {
+      continue;
+    }
+    unsigned const candidate_width = size / mux_sub_group_size;
+    // Try and choose at least one width.
+    if (!best_width) {
+      best_width = candidate_width;
+      continue;
+    }
+
+    // Prefer non-scalar widths.
+    if (best_width == 1 && candidate_width > 1) {
+      best_width = candidate_width;
+      continue;
+    }
+
+    // If we have a required work-group size, prefer one that will fit well
+    // with that.
+    if (auto wgs = compiler::utils::parseRequiredWGSMetadata(F)) {
+      uint64_t local_size_x = wgs.value()[0];
+      bool const best_fits = !(local_size_x % *best_width);
+      bool const cand_fits = !(local_size_x % candidate_width);
+      if (!best_fits && cand_fits) {
+        best_width = candidate_width;
+        continue;
+      } else if (best_fits && !cand_fits) {
+        continue;
+      }
+    }
+
+    // Else, prefer powers of two.
+    if (!isPowerOf2_32(*best_width) && isPowerOf2_32(candidate_width)) {
+      best_width = candidate_width;
+      continue;
+    }
+  }
+
+  // Return nothing if we couldn't find a good, legal, width.
+  if (!best_width) {
+    return std::nullopt;
+  }
+
+  vecz_opts.factor =
+      compiler::utils::VectorizationFactor::getFixedWidth(*best_width);
+
+  return vecz_opts;
 }
 
 }  // namespace vecz
