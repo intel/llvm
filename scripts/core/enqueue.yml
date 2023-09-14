@@ -1088,6 +1088,9 @@ desc: "Enqueue a command to prefetch USM memory"
 class: $xEnqueue
 name: USMPrefetch
 ordinal: "0"
+details:
+    - "Prefetching may not be supported for all devices or allocation types. If memory prefetching 
+    is not supported, the prefetch hint will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
@@ -1128,10 +1131,13 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to set USM memory advice" 
+desc: "Enqueue a command to set USM memory advice"
 class: $xEnqueue
 name: USMAdvise
 ordinal: "0"
+details:
+    - "Not all memory advice hints may be supported for all devices or allocation types. 
+    If a memory advice hint is not supported, it will be ignored."
 params:
     - type: $x_queue_handle_t
       name: hQueue
