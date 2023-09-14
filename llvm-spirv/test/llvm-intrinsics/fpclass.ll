@@ -114,8 +114,7 @@ define i1 @test_class_issnan_f32(float %x) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int32Ty]] [[#Abs:]] [[#]] s_abs [[#BitCast]]
-; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#]] [[#GECheck:]] [[#Abs]] [[#QNanBitConst]]
+; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#]] [[#GECheck:]] [[#BitCast]] [[#QNanBitConst]]
 ; CHECK-SPIRV-NEXT: IsNan [[#BoolTy]] [[#IsNan:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalNot [[#]] [[#Not:]] [[#GECheck]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#]] [[#And:]] [[#IsNan]] [[#Not]]
@@ -131,8 +130,7 @@ define i1 @test_class_isqnan_f32(float %x) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int32Ty]] [[#Abs:]] [[#]] s_abs [[#BitCast]]
-; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#]] [[#GECheck:]] [[#Abs]] [[#QNanBitConst]]
+; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#]] [[#GECheck:]] [[#BitCast]] [[#QNanBitConst]]
 ; CHECK-SPIRV-NEXT: ReturnValue [[#GECheck]]
   %val = call i1 @llvm.is.fpclass.f32(float %x, i32 2)
   ret i1 %val
@@ -262,8 +260,7 @@ define i1 @test_class_subnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int32Ty]] [[#Abs:]] [[#]] s_abs [[#BitCast]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#Abs]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: ReturnValue [[#Less]]
   %val = call i1 @llvm.is.fpclass.f32(float %arg, i32 144)
@@ -277,8 +274,7 @@ define i1 @test_class_possubnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int32Ty]] [[#Abs:]] [[#]] s_abs [[#BitCast]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#Abs]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not:]] [[#Sign]]
@@ -295,8 +291,7 @@ define i1 @test_class_negsubnormal(float %arg) {
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int32Ty]] [[#BitCast:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int32Ty]] [[#Abs:]] [[#]] s_abs [[#BitCast]]
-; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#Abs]] [[#MantissaConst:]]
+; CHECK-SPIRV-NEXT: ISub [[#Int32Ty]] [[#Sub:]] [[#BitCast]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst:]]
 ; CHECK-SPIRV-NEXT: SignBitSet [[#BoolTy]] [[#Sign:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And:]] [[#Sign]] [[#Less]]
@@ -372,8 +367,7 @@ define i1 @test_class_neginf_posnormal_negsubnormal_poszero_snan_f64(double %arg
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int64Ty]] [[#BitCast1:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int64Ty]] [[#Abs1:]] [[#]] s_abs [[#BitCast1]]
-; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#BoolTy]] [[#GECheck:]] [[#Abs1]] [[#QNanBitConst64]]
+; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#BoolTy]] [[#GECheck:]] [[#BitCast1]] [[#QNanBitConst64]]
 ; CHECK-SPIRV-NEXT: IsNan [[#BoolTy]] [[#IsNan:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not1:]] [[#GECheck]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And1:]] [[#IsNan]] [[#Not1]]
@@ -384,8 +378,7 @@ define i1 @test_class_neginf_posnormal_negsubnormal_poszero_snan_f64(double %arg
 ; CHECK-SPIRV-NEXT: LogicalNot [[#BoolTy]] [[#Not2:]] [[#Sign]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And3:]] [[#Not2]] [[#IsNormal]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int64Ty]] [[#BitCast2:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int64Ty]] [[#Abs2:]] [[#]] s_abs [[#BitCast2]]
-; CHECK-SPIRV-NEXT: ISub [[#Int64Ty]] [[#Sub:]] [[#Abs2]] [[#MantissaConst64]]
+; CHECK-SPIRV-NEXT: ISub [[#Int64Ty]] [[#Sub:]] [[#BitCast2]] [[#MantissaConst64]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#BoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConst64]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#BoolTy]] [[#And4:]] [[#Sign]] [[#Less]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int64Ty]] [[#BitCast3:]] [[#Val]]
@@ -407,8 +400,7 @@ define <2 x i1> @test_class_neginf_posnormal_negsubnormal_poszero_snan_v2f16(<2 
 ; CHECK-SPIRV-EMPTY:
 ; CHECK-SPIRV-NEXT: Label
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int16VecTy]] [[#BitCast1:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int16VecTy]] [[#Abs1:]] [[#]] s_abs [[#BitCast1]]
-; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#VecBoolTy]] [[#GECheck:]] [[#Abs1]] [[#QNanBitConstVec16]]
+; CHECK-SPIRV-NEXT: UGreaterThanEqual [[#VecBoolTy]] [[#GECheck:]] [[#BitCast1]] [[#QNanBitConstVec16]]
 ; CHECK-SPIRV-NEXT: IsNan [[#VecBoolTy]] [[#IsNan:]] [[#Val]]
 ; CHECK-SPIRV-NEXT: LogicalNot [[#VecBoolTy]] [[#Not1:]] [[#GECheck]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#VecBoolTy]] [[#And1:]] [[#IsNan]] [[#Not1]]
@@ -419,8 +411,7 @@ define <2 x i1> @test_class_neginf_posnormal_negsubnormal_poszero_snan_v2f16(<2 
 ; CHECK-SPIRV-NEXT: LogicalNot [[#VecBoolTy]] [[#Not2:]] [[#Sign]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#VecBoolTy]] [[#And3:]] [[#Not2]] [[#IsNormal]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int16VecTy]] [[#BitCast2:]] [[#Val]]
-; CHECK-SPIRV-NEXT: ExtInst [[#Int16VecTy]] [[#Abs2:]] [[#]] s_abs [[#BitCast2]]
-; CHECK-SPIRV-NEXT: ISub [[#Int16VecTy]] [[#Sub:]] [[#Abs2]] [[#MantissaConstVec16]]
+; CHECK-SPIRV-NEXT: ISub [[#Int16VecTy]] [[#Sub:]] [[#BitCast2]] [[#MantissaConstVec16]]
 ; CHECK-SPIRV-NEXT: ULessThan [[#VecBoolTy]] [[#Less:]] [[#Sub]] [[#MantissaConstVec16]]
 ; CHECK-SPIRV-NEXT: LogicalAnd [[#VecBoolTy]] [[#And4:]] [[#Sign]] [[#Less]]
 ; CHECK-SPIRV-NEXT: Bitcast [[#Int16VecTy]] [[#BitCast3:]] [[#Val]]

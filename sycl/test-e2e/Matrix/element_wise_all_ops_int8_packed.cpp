@@ -21,5 +21,6 @@ using namespace sycl::ext::intel;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
 #define SG_SZ 16
+constexpr size_t TN = 16;
 
 #include "element_wise_all_ops_int8_packed_impl.hpp"

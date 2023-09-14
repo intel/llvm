@@ -18,12 +18,12 @@ target triple = "spir"
 ; LLVM-DAG: attributes #[[IN_ATTR]]{{[^0-9].*"VCByteOffset"="1".*"VCGlobalVariable".*"VCVolatile"}}
 
 @in = internal global <256 x i8> undef, align 256 #0
-declare <256 x i8> @llvm.genx.vload(<256 x i8>* nonnull %aaa)
+declare <256 x i8> @llvm.genx.vload(ptr nonnull %aaa)
 
 ; Function Attrs: noinline norecurse nounwind readnone
 define dso_local dllexport spir_kernel void @k_rte(i32 %ibuf, i32 %obuf) local_unnamed_addr #1 {
 entry:
-  %gload53 = tail call <256 x i8> @llvm.genx.vload(<256 x i8>* nonnull @in)
+  %gload53 = tail call <256 x i8> @llvm.genx.vload(ptr nonnull @in)
   ret void
 }
 

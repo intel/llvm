@@ -23,6 +23,7 @@
 // similar approach.
 
 #include <cassert>
+#include <filesystem>
 
 #ifdef _WIN32
 
@@ -42,22 +43,6 @@
 #ifdef _WIN32
 
 // ------------------------------------
-
-static constexpr const char *DirSep = "\\";
-
-// cribbed from sycl/source/detail/os_util.cpp
-std::string getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // Remove trailing directory separators
-  Tmp.erase(Tmp.find_last_not_of("/\\") + 1, std::string::npos);
-
-  size_t pos = Tmp.find_last_of("/\\");
-  if (pos != std::string::npos)
-    return Tmp.substr(0, pos);
-
-  // If no directory separator is present return initial path like dirname does
-  return Tmp;
-}
 
 // cribbed from sycl/source/detail/os_util.cpp
 // TODO: Just inline it.
@@ -80,20 +65,18 @@ static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
 
 // cribbed from sycl/source/detail/os_util.cpp
 /// Returns an absolute path where the object was found.
-std::string getCurrentDSODir() {
-  char Path[MAX_PATH];
-  Path[0] = '\0';
-  Path[sizeof(Path) - 1] = '\0';
+std::wstring getCurrentDSODir() {
+  wchar_t Path[MAX_PATH];
   auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
-  DWORD Ret = GetModuleFileNameA(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle),
-      reinterpret_cast<LPSTR>(&Path), sizeof(Path));
-  assert(Ret < sizeof(Path) && "Path is longer than PATH_MAX?");
-  assert(Ret > 0 && "GetModuleFileNameA failed");
+  DWORD Ret = GetModuleFileName(
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
+      MAX_PATH);
+  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
+  assert(Ret > 0 && "GetModuleFileName failed");
   (void)Ret;
 
-  BOOL RetCode = PathRemoveFileSpecA(reinterpret_cast<LPSTR>(&Path));
-  assert(RetCode && "PathRemoveFileSpecA failed");
+  BOOL RetCode = PathRemoveFileSpec(Path);
+  assert(RetCode && "PathRemoveFileSpec failed");
   (void)RetCode;
 
   return Path;
@@ -121,7 +104,7 @@ std::string getCurrentDSODir() {
 
 // ------------------------------------
 
-using MapT = std::map<std::string, void *>;
+using MapT = std::map<std::filesystem::path, void *>;
 
 MapT &getDllMap() {
   static MapT dllMap;
@@ -141,46 +124,52 @@ void preloadLibraries() {
   //
   UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
   // Exclude current directory from DLL search path
-  if (!SetDllDirectoryA("")) {
+  if (!SetDllDirectory(L"")) {
     assert(false && "Failed to update DLL search path");
   }
 
   // this path duplicates sycl/detail/pi.cpp:initializePlugins
-  const std::string LibSYCLDir = getCurrentDSODir() + DirSep;
+  std::filesystem::path LibSYCLDir(getCurrentDSODir());
 
   MapT &dllMap = getDllMap();
 
-  std::string ocl_path = LibSYCLDir + __SYCL_OPENCL_PLUGIN_NAME;
-  dllMap.emplace(ocl_path, LoadLibraryA(ocl_path.c_str()));
+  auto ocl_path = LibSYCLDir / __SYCL_OPENCL_PLUGIN_NAME;
+  dllMap.emplace(ocl_path,
+                 LoadLibraryEx(ocl_path.wstring().c_str(), NULL, NULL));
 
-  std::string l0_path = LibSYCLDir + __SYCL_LEVEL_ZERO_PLUGIN_NAME;
-  dllMap.emplace(l0_path, LoadLibraryA(l0_path.c_str()));
+  auto l0_path = LibSYCLDir / __SYCL_LEVEL_ZERO_PLUGIN_NAME;
+  dllMap.emplace(l0_path, LoadLibraryEx(l0_path.wstring().c_str(), NULL, NULL));
 
-  std::string cuda_path = LibSYCLDir + __SYCL_CUDA_PLUGIN_NAME;
-  dllMap.emplace(cuda_path, LoadLibraryA(cuda_path.c_str()));
+  auto cuda_path = LibSYCLDir / __SYCL_CUDA_PLUGIN_NAME;
+  dllMap.emplace(cuda_path,
+                 LoadLibraryEx(cuda_path.wstring().c_str(), NULL, NULL));
 
-  std::string esimd_path = LibSYCLDir + __SYCL_ESIMD_EMULATOR_PLUGIN_NAME;
-  dllMap.emplace(esimd_path, LoadLibraryA(esimd_path.c_str()));
+  auto esimd_path = LibSYCLDir / __SYCL_ESIMD_EMULATOR_PLUGIN_NAME;
+  dllMap.emplace(esimd_path,
+                 LoadLibraryEx(esimd_path.wstring().c_str(), NULL, NULL));
 
-  std::string hip_path = LibSYCLDir + __SYCL_HIP_PLUGIN_NAME;
-  dllMap.emplace(hip_path, LoadLibraryA(hip_path.c_str()));
+  auto hip_path = LibSYCLDir / __SYCL_HIP_PLUGIN_NAME;
+  dllMap.emplace(hip_path,
+                 LoadLibraryEx(hip_path.wstring().c_str(), NULL, NULL));
 
-  std::string ur_path = LibSYCLDir + __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
-  dllMap.emplace(ur_path, LoadLibraryA(ur_path.c_str()));
+  auto ur_path = LibSYCLDir / __SYCL_UNIFIED_RUNTIME_PLUGIN_NAME;
+  dllMap.emplace(ur_path, LoadLibraryEx(ur_path.wstring().c_str(), NULL, NULL));
 
-  std::string nativecpu_path = LibSYCLDir + __SYCL_NATIVE_CPU_PLUGIN_NAME;
-  dllMap.emplace(nativecpu_path, LoadLibraryA(nativecpu_path.c_str()));
+  auto nativecpu_path = LibSYCLDir / __SYCL_NATIVE_CPU_PLUGIN_NAME;
+  dllMap.emplace(nativecpu_path,
+                 LoadLibraryEx(nativecpu_path.wstring().c_str(), NULL, NULL));
 
   // Restore system error handling.
   (void)SetErrorMode(SavedMode);
-  if (!SetDllDirectoryA(nullptr)) {
+  if (!SetDllDirectory(nullptr)) {
     assert(false && "Failed to restore DLL search path");
   }
 }
 
 /// windows_pi.cpp:loadOsPluginLibrary() calls this to get the DLL loaded
 /// earlier.
-__declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
+__declspec(dllexport) void *getPreloadedPlugin(
+    const std::filesystem::path &PluginPath) {
 
   MapT &dllMap = getDllMap();
 
@@ -188,7 +177,7 @@ __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
                                         // which is perfectly valid.
   if (match == dllMap.end()) {
     // unit testing? return nullptr (not found) rather than risk asserting below
-    if (PluginPath.find("unittests") != std::string::npos)
+    if (PluginPath.string().find("unittests") != std::string::npos)
       return nullptr;
 
     // Otherwise, asking for something we don't know about at all, is an issue.
@@ -197,6 +186,10 @@ __declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
     return nullptr;
   }
   return match->second;
+}
+
+__declspec(dllexport) void *getPreloadedPlugin(const std::string &PluginPath) {
+  return getPreloadedPlugin(std::filesystem::path(PluginPath));
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, // handle to DLL module

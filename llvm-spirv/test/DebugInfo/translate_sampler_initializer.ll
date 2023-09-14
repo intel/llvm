@@ -39,12 +39,12 @@ target triple = "spir"
 ; Function Attrs: norecurse nounwind
 define spir_func void @foo() local_unnamed_addr #0 !dbg !7 {
 entry:
-  %0 = tail call %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32 20) #2, !dbg !17
-  call void @llvm.dbg.value(metadata %opencl.sampler_t addrspace(2)* %0, metadata !12, metadata !DIExpression()), !dbg !18
+  %0 = tail call ptr addrspace(2) @__translate_sampler_initializer(i32 20) #2, !dbg !17
+  call void @llvm.dbg.value(metadata ptr addrspace(2) %0, metadata !12, metadata !DIExpression()), !dbg !18
   ret void, !dbg !19
 }
 
-declare %opencl.sampler_t addrspace(2)* @__translate_sampler_initializer(i32) local_unnamed_addr
+declare ptr addrspace(2) @__translate_sampler_initializer(i32) local_unnamed_addr
 
 ; Function Attrs: nounwind readnone speculatable willreturn
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1

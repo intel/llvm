@@ -5,7 +5,6 @@ on:
     branches:
     - sycl
     - sycl-devops-pr/**
-    - llvmspirv_pulldown
 
   pull_request:
     branches:
@@ -27,7 +26,7 @@ jobs:
       build_cache_root: "/__w/llvm"
       build_cache_suffix: sprod_shared
       build_artifact_suffix: sprod_shared
-      build_configure_extra_args: --shared-libs --no-assertions --hip --cuda --enable-esimd-emulator --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
+      build_configure_extra_args: --shared-libs --no-assertions --hip --cuda --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
       cc: clang
@@ -50,21 +49,10 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
 
-  # This job generates matrix of tests for SYCL End-to-End tests on Windows
-  test_matrix:
-    name: Generate Test Matrix
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      lts_config: "win_l0_gen12"
-
   windows_default:
     name: Windows
-    needs: test_matrix
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
 
   macos_default:
     name: macOS

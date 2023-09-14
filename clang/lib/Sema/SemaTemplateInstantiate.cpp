@@ -2370,9 +2370,9 @@ QualType TemplateInstantiator::TransformSubstTemplateTypeParmPackType(
       getPackIndex(Pack), Arg, TL.getNameLoc());
 }
 
-template<typename EntityPrinter>
 static concepts::Requirement::SubstitutionDiagnostic *
-createSubstDiag(Sema &S, TemplateDeductionInfo &Info, EntityPrinter Printer) {
+createSubstDiag(Sema &S, TemplateDeductionInfo &Info,
+                concepts::EntityPrinter Printer) {
   SmallString<128> Message;
   SourceLocation ErrorLoc;
   if (Info.hasSFINAEDiagnostic()) {
@@ -2394,6 +2394,19 @@ createSubstDiag(Sema &S, TemplateDeductionInfo &Info, EntityPrinter Printer) {
   return new (S.Context) concepts::Requirement::SubstitutionDiagnostic{
       StringRef(EntityBuf, Entity.size()), ErrorLoc,
       StringRef(MessageBuf, Message.size())};
+}
+
+concepts::Requirement::SubstitutionDiagnostic *
+concepts::createSubstDiagAt(Sema &S, SourceLocation Location,
+                            EntityPrinter Printer) {
+  SmallString<128> Entity;
+  llvm::raw_svector_ostream OS(Entity);
+  Printer(OS);
+  char *EntityBuf = new (S.Context) char[Entity.size()];
+  llvm::copy(Entity, EntityBuf);
+  return new (S.Context) concepts::Requirement::SubstitutionDiagnostic{
+      /*SubstitutedEntity=*/StringRef(EntityBuf, Entity.size()),
+      /*DiagLoc=*/Location, /*DiagMessage=*/StringRef()};
 }
 
 ExprResult TemplateInstantiator::TransformRequiresTypeParams(
@@ -2863,11 +2876,9 @@ bool Sema::SubstTypeConstraint(
       TC->getTemplateArgsAsWritten();
 
   if (!EvaluateConstraints) {
-    Inst->setTypeConstraint(TC->getNestedNameSpecifierLoc(),
-                            TC->getConceptNameInfo(), TC->getNamedConcept(),
-                            TC->getNamedConcept(), TemplArgInfo,
-                            TC->getImmediatelyDeclaredConstraint());
-    return false;
+      Inst->setTypeConstraint(TC->getConceptReference(),
+                              TC->getImmediatelyDeclaredConstraint());
+      return false;
   }
 
   TemplateArgumentListInfo InstArgs;
@@ -4272,7 +4283,7 @@ void LocalInstantiationScope::InstantiatedLocal(const Decl *D, Decl *Inst) {
     LocalInstantiationScope *Current = this;
     while (Current->CombineWithOuterScope && Current->Outer) {
       Current = Current->Outer;
-      assert(Current->LocalDecls.find(D) == Current->LocalDecls.end() &&
+      assert(!Current->LocalDecls.contains(D) &&
              "Instantiated local in inner and outer scopes");
     }
 #endif
@@ -4296,7 +4307,7 @@ void LocalInstantiationScope::MakeInstantiatedLocalArgPack(const Decl *D) {
   // This should be the first time we've been told about this decl.
   for (LocalInstantiationScope *Current = this;
        Current && Current->CombineWithOuterScope; Current = Current->Outer)
-    assert(Current->LocalDecls.find(D) == Current->LocalDecls.end() &&
+    assert(!Current->LocalDecls.contains(D) &&
            "Creating local pack after instantiation of local");
 #endif
 

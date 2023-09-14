@@ -936,7 +936,7 @@ sycl_builtins = {# Math functions
                  "(min)": [Def("genfloat", ["genfloat", "genfloat"], invoke_name="fmin_common", template_scalar_args=True),
                            Def("vfloatn", ["vfloatn", "float"], invoke_name="fmin_common", convert_args=[(1,0)]),
                            Def("vdoublen", ["vdoublen", "double"], invoke_name="fmin_common", convert_args=[(1,0)]),
-                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmax_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
+                           Def("vhalfn", ["vhalfn", "half"], invoke_name="fmin_common", convert_args=[(1,0)]), # Non-standard. Deprecated.
                            Def("igeninteger", ["igeninteger", "igeninteger"], invoke_name="s_min", marray_use_loop=True),
                            Def("ugeninteger", ["ugeninteger", "ugeninteger"], invoke_name="u_min", marray_use_loop=True),
                            Def("vigeninteger", ["vigeninteger", "elementtype0"], invoke_name="s_min"),

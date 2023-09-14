@@ -15,13 +15,12 @@ target triple = "spir64-unknown-unknown"
 define spir_kernel void @lifetime_simple()
 {
   %1 = alloca i32
-  %2 = bitcast i32* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 -1, i8* %2), !noalias !1
+  call void @llvm.lifetime.start.p0(i64 -1, ptr %1), !noalias !1
   ret void
 }
 
 ; Function Attrs: nounwind
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #0
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #0
 
 attributes #0 = { nounwind }
 

@@ -4,8 +4,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG v0.7.1)
+  set(UNIFIED_RUNTIME_TAG b3cc9ae3f99ca7faff1ba765dd36652fef2cfddd)
 
+  set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
@@ -45,7 +46,6 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
-
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 
@@ -178,11 +178,13 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/cuda/tracing.cpp"
       "ur/adapters/cuda/ur_interface_loader.cpp"
       "ur/adapters/cuda/usm.cpp"
+      "ur/adapters/cuda/usm.hpp"
       "ur/adapters/cuda/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
       Threads::Threads
       cudadrv
   )
@@ -191,6 +193,13 @@ if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+
+  if(UMF_ENABLE_POOL_TRACKING)
+    target_compile_definitions("ur_adapter_cuda" PRIVATE
+      UMF_ENABLE_POOL_TRACKING)
+  else()
+    message(WARNING "CUDA adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+  endif()
 endif()
 
 if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
@@ -227,11 +236,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/hip/sampler.hpp"
       "ur/adapters/hip/ur_interface_loader.cpp"
       "ur/adapters/hip/usm.cpp"
+      "ur/adapters/hip/usm.hpp"
       "ur/adapters/hip/usm_p2p.cpp"
     INCLUDE_DIRS
       ${sycl_inc_dir}
     LIBRARIES
       UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
       Threads::Threads
   )
 
@@ -239,6 +250,13 @@ if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
     VERSION "0.0.0"
     SOVERSION "0"
   )
+
+  if(UMF_ENABLE_POOL_TRACKING)
+    target_compile_definitions("ur_adapter_hip" PRIVATE
+      UMF_ENABLE_POOL_TRACKING)
+  else()
+    message(WARNING "HIP adapter USM pools are disabled, set UMF_ENABLE_POOL_TRACKING to enable them")
+  endif()
 
   if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
     target_link_libraries(ur_adapter_hip PUBLIC rocmdrv)
@@ -306,6 +324,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/ur.cpp"
       "ur/ur.hpp"
       "ur/adapters/native_cpu/adapter.cpp"
+      "ur/adapters/native_cpu/command_buffer.cpp"
       "ur/adapters/native_cpu/common.cpp"
       "ur/adapters/native_cpu/common.hpp"
       "ur/adapters/native_cpu/context.cpp"
@@ -314,6 +333,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       "ur/adapters/native_cpu/device.hpp"
       "ur/adapters/native_cpu/enqueue.cpp"
       "ur/adapters/native_cpu/event.cpp"
+      "ur/adapters/native_cpu/image.cpp"
       "ur/adapters/native_cpu/kernel.cpp"
       "ur/adapters/native_cpu/kernel.hpp"
       "ur/adapters/native_cpu/memory.cpp"
@@ -334,6 +354,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
       UnifiedRuntime-Headers
       Threads::Threads
       sycl
+      OpenCL-Headers
   )
 
   set_target_properties("ur_adapter_native_cpu" PROPERTIES

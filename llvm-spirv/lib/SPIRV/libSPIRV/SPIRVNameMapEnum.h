@@ -211,6 +211,7 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
   add(DecorationLatencyControlLabelINTEL, "LatencyControlLabelINTEL");
   add(DecorationLatencyControlConstraintINTEL, "LatencyControlConstraintINTEL");
+  add(DecorationFPMaxErrorDecorationINTEL, "FPMaxErrorDecorationINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -221,6 +222,8 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(internal::DecorationInitModeINTEL, "InitModeINTEL");
   add(internal::DecorationImplementInCSRINTEL, "ImplementInCSRINTEL");
   add(internal::DecorationArgumentAttributeINTEL, "ArgumentAttributeINTEL");
+  add(internal::DecorationCacheControlLoadINTEL, "CacheControlLoadINTEL");
+  add(internal::DecorationCacheControlStoreINTEL, "CacheControlStoreINTEL");
 
   add(DecorationMax, "Max");
 }
@@ -637,6 +640,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityMax, "Max");
   add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGALatencyControlINTEL, "FPGALatencyControlINTEL");
+  add(CapabilityFPMaxErrorINTEL, "FPMaxErrorINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
@@ -661,6 +665,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "JointMatrixPackedInt2ComponentTypeINTEL");
   add(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
       "JointMatrixPackedInt4ComponentTypeINTEL");
+  add(internal::CapabilityCacheControlsINTEL, "CacheControlsINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
 
