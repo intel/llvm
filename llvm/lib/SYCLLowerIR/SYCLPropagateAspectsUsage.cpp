@@ -239,8 +239,8 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
     ReturnType = AI->getAllocatedType();
   }
   AspectsSetTy Result = getAspectsFromType(ReturnType, Types);
-  auto AddAspectsFromType = [&](auto type) {
-    const AspectsSetTy &Aspects = getAspectsFromType(type, Types);
+  auto AddAspectsFromType = [&](Type *Ty) {
+    const AspectsSetTy &Aspects = getAspectsFromType(Ty, Types);
     Result.insert(Aspects.begin(), Aspects.end());
   };
   for (const auto &OperandIt : I.operands()) {
