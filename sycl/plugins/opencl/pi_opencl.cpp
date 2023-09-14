@@ -754,8 +754,10 @@ pi_result piDeviceGetInfo(pi_device device, pi_device_info paramName,
                           sizeof(vendorId), &vendorId, nullptr);
     if (res != CL_SUCCESS)
       return static_cast<pi_result>(res);
+    // ESIMD is only supported by Intel GPUs.
     result = devType == CL_DEVICE_TYPE_GPU && vendorId == 0x8086;
-    std::memcpy(paramValue, &result, sizeof(result));
+    if (paramValue)
+      std::memcpy(paramValue, &result, sizeof(result));
     return PI_SUCCESS;
   }
   default:

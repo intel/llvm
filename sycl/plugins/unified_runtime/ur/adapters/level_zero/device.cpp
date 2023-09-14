@@ -789,6 +789,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_ESIMD_SUPPORT: {
+    // ESIMD is only supported by Intel GPUs.
     uint32_t result = Device->ZeDeviceProperties->type == ZE_DEVICE_TYPE_GPU &&
                       Device->ZeDeviceProperties->vendorId == 0x8086;
     return ReturnValue(result);
