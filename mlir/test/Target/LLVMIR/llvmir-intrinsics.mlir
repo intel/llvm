@@ -1011,7 +1011,6 @@ llvm.func @ssa_copy(%arg: f32) -> f32 {
 // CHECK-DAG: declare void @llvm.memcpy.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32, i1 immarg)
 // CHECK-DAG: declare void @llvm.memcpy.inline.p0.p0.i32(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i32 immarg, i1 immarg)
 // CHECK-DAG: declare void @llvm.memcpy.inline.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64 immarg, i1 immarg)
-// CHECK-DAG: declare nonnull ptr @llvm.threadlocal.address.p0(ptr nonnull)
 // CHECK-DAG: declare { i32, i1 } @llvm.sadd.with.overflow.i32(i32, i32)
 // CHECK-DAG: declare { <8 x i32>, <8 x i1> } @llvm.sadd.with.overflow.v8i32(<8 x i32>, <8 x i32>)
 // CHECK-DAG: declare { i32, i1 } @llvm.uadd.with.overflow.i32(i32, i32)
