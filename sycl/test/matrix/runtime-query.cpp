@@ -12,7 +12,7 @@ template <matrix_type Ta, matrix_type Tb, matrix_type Tc, matrix_type Td>
 void matrix_runtime_query(queue q) {
 
   std::vector<combination> combinations =
-      q.get_device().get_info<sycl::info::device::matrix::combinations>();
+      q.get_device().get_info<sycl::info::device::matrix_combinations>();
 
   std::cout << "The matrix hardware implementation in this device provides "
                "this number of combinations: "
