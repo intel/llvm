@@ -498,10 +498,11 @@ class DefCommon:
     implementation used when possible.
   template_scalar_args - A bool specifying if the builtin should combine the
     scalar arguments into common template types.
+  deprecation_message - A message that will appear in a declaration warning.
   """
   def __init__(self, return_type, arg_types, invoke_name, invoke_prefix,
                custom_invoke, size_alias, marray_use_loop,
-               template_scalar_args):
+               template_scalar_args, deprecation_message=""):
     self.return_type = return_type
     self.arg_types = arg_types
     self.invoke_name = invoke_name
@@ -510,6 +511,7 @@ class DefCommon:
     self.size_alias = size_alias
     self.marray_use_loop = marray_use_loop
     self.template_scalar_args = template_scalar_args
+    self.deprecation_message = deprecation_message
 
   def require_size_alias(self, alternative_name, marray_type):
     """
@@ -645,10 +647,9 @@ class Def(DefCommon):
                deprecation_message=None):
     super().__init__(return_type, arg_types, invoke_name, invoke_prefix,
                      custom_invoke, size_alias, marray_use_loop,
-                     template_scalar_args)
+                     template_scalar_args, deprecation_message)
     self.fast_math_invoke_name = fast_math_invoke_name
     self.fast_math_custom_invoke = fast_math_custom_invoke
-    self.deprecation_message = deprecation_message
     # List of tuples with mappings for arguments to cast to argument types.
     # First element in a tuple is the index of the argument to cast and the
     # second element is the index of the argument type to convert to.
@@ -1281,7 +1282,7 @@ def get_template_args(arg_types):
 
 def get_deprecation(builtin, return_type, arg_types):
   """Gets the deprecation statement for a given builtin."""
-  if hasattr(builtin, 'deprecation_message') and builtin.deprecation_message:
+  if builtin.deprecation_message:
     return f'__SYCL_DEPRECATED("{builtin.deprecation_message}")\n'
   for t in [return_type] + arg_types:
     if hasattr(t, 'deprecation_message') and t.deprecation_message:
