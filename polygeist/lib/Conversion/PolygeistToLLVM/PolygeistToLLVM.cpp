@@ -60,6 +60,42 @@ namespace mlir {
 #undef GEN_PASS_DEF_CONVERTPOLYGEISTTOLLVM
 } // namespace mlir
 
+/// Return \p mrTy's address space as an integer (being 0 the default).
+static std::optional<unsigned>
+getMemorySpaceAsInt(const TypeConverter &converter, MemRefType mrTy) {
+  Attribute memorySpace = mrTy.getMemorySpace();
+  if (!memorySpace)
+    return 0;
+  std::optional<Attribute> convAttr =
+      converter.convertTypeAttribute(mrTy, memorySpace);
+  if (!convAttr)
+    return std::nullopt;
+  return cast<IntegerAttr>(*convAttr).getInt();
+}
+
+/// Returns failure if \p mrTy memory space is not compatible with \p ptrTy's
+/// address space.
+///
+/// This is actually an extension to `polygeist.pointer2memref` and
+/// `polygeist.memref2pointer` verification, as we do not have the required
+/// information to check non-integer memory spaces compatibility with llvm.ptr
+/// address spaces.
+static LogicalResult verifyPtrMemrefConversion(const TypeConverter &converter,
+                                               Operation *op,
+                                               LLVM::LLVMPointerType ptrTy,
+                                               MemRefType mrTy) {
+  std::optional<unsigned> memorySpaceAsInt =
+      getMemorySpaceAsInt(converter, mrTy);
+  if (!memorySpaceAsInt)
+    return op->emitOpError()
+           << "Cannot convert memory space '" << mrTy.getMemorySpace() << "'";
+  if (*memorySpaceAsInt == ptrTy.getAddressSpace())
+    return success();
+  return op->emitOpError() << "Incompatible address space '"
+                           << ptrTy.getAddressSpace() << "' and memory space '"
+                           << mrTy.getMemorySpace() << "'";
+}
+
 struct BaseSubIndexOpLowering : public ConvertOpToLLVMPattern<SubIndexOp> {
   using ConvertOpToLLVMPattern<SubIndexOp>::ConvertOpToLLVMPattern;
 
@@ -302,6 +338,11 @@ struct Memref2PointerOpLowering
   LogicalResult
   matchAndRewrite(Memref2PointerOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+            *getTypeConverter(), op, op.getType(), op.getSource().getType());
+        failed(verifResult))
+      return verifResult;
+
     auto loc = op.getLoc();
 
     // MemRefDescriptor sourceMemRef(operands.front());
@@ -316,10 +357,6 @@ struct Memref2PointerOpLowering
     auto elemType = getTypeConverter()->convertType(
         op.getSource().getType().getElementType());
     ptr = rewriter.create<LLVM::GEPOp>(loc, ptr.getType(), elemType, ptr, idxs);
-    assert(cast<LLVM::LLVMPointerType>(ptr.getType()).getAddressSpace() ==
-               op.getType().getAddressSpace() &&
-           "Expecting Memref2PointerOp source and result types to have the "
-           "same address space");
 
     rewriter.replaceOp(op, {ptr});
     return success();
@@ -333,17 +370,17 @@ struct Pointer2MemrefOpLowering
   LogicalResult
   matchAndRewrite(Pointer2MemrefOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+            *getTypeConverter(), op, op.getSource().getType(), op.getType());
+        failed(verifResult))
+      return verifResult;
+
     auto loc = op.getLoc();
 
     // MemRefDescriptor sourceMemRef(operands.front());
     auto convertedType = getTypeConverter()->convertType(op.getType());
     assert(convertedType && "unexpected failure in memref type conversion");
     auto descr = MemRefDescriptor::undef(rewriter, loc, convertedType);
-    assert(cast<LLVM::LLVMPointerType>(adaptor.getSource().getType())
-                   .getAddressSpace() ==
-               cast<MemRefType>(op.getType()).getMemorySpaceAsInt() &&
-           "Expecting Pointer2MemrefOp source and result types to have the "
-           "same address space");
     auto ptr = adaptor.getSource();
 
     // Extract all strides and offsets and verify they are static.
@@ -403,6 +440,11 @@ struct BareMemref2PointerOpLowering
     if (!canBeLoweredToBarePtr(op.getSource().getType()))
       return failure();
 
+    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+            *getTypeConverter(), op, op.getType(), op.getSource().getType());
+        failed(verifResult))
+      return verifResult;
+
     const auto target = transformed.getSource();
     // In an opaque pointer world, a bitcast is a no-op, so no need to insert
     // one here.
@@ -422,11 +464,11 @@ struct BarePointer2MemrefOpLowering
                   ConversionPatternRewriter &rewriter) const override {
     if (!canBeLoweredToBarePtr(op.getType()))
       return failure();
-    assert(cast<LLVM::LLVMPointerType>(adaptor.getSource().getType())
-                   .getAddressSpace() ==
-               cast<MemRefType>(op.getType()).getMemorySpaceAsInt() &&
-           "Expecting Pointer2MemrefOp source and result types to have the "
-           "same address space");
+
+    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+            *getTypeConverter(), op, op.getSource().getType(), op.getType());
+        failed(verifResult))
+      return verifResult;
 
     const auto convertedType = getTypeConverter()->convertType(op.getType());
     if (!convertedType)
