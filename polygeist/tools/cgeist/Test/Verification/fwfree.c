@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s %stdinclude -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s %stdinclude -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s %stdinclude -S | FileCheck %s
+// RUN: cgeist %s %stdinclude -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 #include <stdio.h>
 #include <unistd.h>

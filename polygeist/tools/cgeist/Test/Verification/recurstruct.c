@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=sum -S | FileCheck %s
+// RUN: cgeist %s --function=sum -S | FileCheck %s
 
 struct Node {
     struct Node* next;

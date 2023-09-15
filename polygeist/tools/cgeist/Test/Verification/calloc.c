@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 void* calloc(unsigned long a, unsigned long b);
 

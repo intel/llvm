@@ -1,4 +1,4 @@
-// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xclang -opaque-pointers -Xcgeist -print-pipeline 2>&1 | FileCheck %s
+// RUN: clang++ -O2 %s -S -emit-mlir -o - -fsycl -fsycl-raise-host -Xcgeist -print-pipeline 2>&1 | FileCheck %s
 
 // CHECK-LABEL: Canonicalization pipeline:
 // CHECK:       Pass Manager with 2 passes:
@@ -12,7 +12,7 @@
 // CHECK-SAME:    sycl-raise-host{ }
 // CHECK-SAME:    sycl-constant-propagation{relaxed-aliasing=false}
 // CHECK-SAME:    arg-promotion
-// CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false use-opaque-pointers=true}
+// CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false}
 // CHECK-SAME:    gpu.module(any({{.*}})),loop-internalization{relaxed-aliasing=false shared-memory-size=32000 unroll-factor=4}
 // CHECK-SAME:    gpu.module(any({{.*}}))
 // CHECK-SAME:    inliner{max-num-iters=3 mode=alwaysinline remove-dead-callees=true})

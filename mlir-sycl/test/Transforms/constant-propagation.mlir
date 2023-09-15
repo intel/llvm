@@ -1493,20 +1493,19 @@ gpu.module @kernels {
 
 // CHECK-LABEL:     gpu.func @k(
 // CHECK-SAME:                  %[[VAL_0:.*]]: memref<?xf32, 1>,
-// CHECK-SAME:                  %[[VAL_1:.*]]: !llvm.ptr<struct<(array<49 x f32>)>> {llvm.align = 4 : i64, llvm.byval = !llvm.struct<(array<49 x f32>)>, llvm.noundef}) kernel {
-// CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.addressof @constant_array : !llvm.ptr<array<49 x f32>>
-// CHECK-NEXT:        %[[VAL_3:.*]] = llvm.bitcast %[[VAL_2]] : !llvm.ptr<array<49 x f32>> to !llvm.ptr<struct<(array<49 x f32>)>>
+// CHECK-SAME:                  %[[VAL_1:.*]]: !llvm.ptr {llvm.align = 4 : i64, llvm.byval = !llvm.struct<(array<49 x f32>)>, llvm.noundef}) kernel {
+// CHECK-NEXT:        %[[VAL_2:.*]] = llvm.mlir.addressof @constant_array : !llvm.ptr
 // CHECK-NEXT:        %[[VAL_4:.*]] = arith.constant 49 : index
 // CHECK-NEXT:        affine.for %[[VAL_5:.*]] = 0 to %[[VAL_4]] {
 // CHECK-NEXT:          %[[VAL_6:.*]] = arith.index_cast %[[VAL_5]] : index to i64
-// CHECK-NEXT:          %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_3]][0, 0, %[[VAL_6]]] : (!llvm.ptr<struct<(array<49 x f32>)>>, i64) -> !llvm.ptr<f32>
-// CHECK-NEXT:          %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr<f32>
+// CHECK-NEXT:          %[[VAL_7:.*]] = llvm.getelementptr %[[VAL_2]][0, 0, %[[VAL_6]]] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(array<49 x f32>)>
+// CHECK-NEXT:          %[[VAL_8:.*]] = llvm.load %[[VAL_7]] : !llvm.ptr -> f32
 // CHECK-NEXT:          affine.store %[[VAL_8]], %[[VAL_0]]{{\[}}%[[VAL_5]]] : memref<?xf32, 1>
 // CHECK-NEXT:        }
 // CHECK-NEXT:        gpu.return
 // CHECK-NEXT:      }
   gpu.func @k(%ptr: memref<?xf32, 1>,
-              %const_arr: !llvm.ptr<struct<(array<49 x f32>)>>
+              %const_arr: !llvm.ptr
                   {llvm.align = 4 : i64,
                    llvm.byval = !llvm.struct<(array<49 x f32>)>,
                    llvm.noundef})
@@ -1514,8 +1513,8 @@ gpu.module @kernels {
     %c48 = arith.constant 49 : index
     affine.for %i = 0 to %c48 {
       %i_i32 = arith.index_cast %i : index to i64
-      %arr_ptr = llvm.getelementptr %const_arr[0, 0, %i_i32] : (!llvm.ptr<struct<(array<49 x f32>)>>, i64) -> !llvm.ptr<f32>
-      %val = llvm.load %arr_ptr : !llvm.ptr<f32>
+      %arr_ptr = llvm.getelementptr %const_arr[0, 0, %i_i32] : (!llvm.ptr, i64) -> !llvm.ptr, !llvm.struct<(array<49 x f32>)>
+      %val = llvm.load %arr_ptr : !llvm.ptr -> f32
       affine.store %val, %ptr[%i] : memref<?xf32, 1>
     }
     gpu.return

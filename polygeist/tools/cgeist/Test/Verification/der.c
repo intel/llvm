@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S | FileCheck %s
+// RUN: cgeist %s --function=kernel_deriche -S | FileCheck %s
 
 float kernel_deriche() {
     float a2, a6;

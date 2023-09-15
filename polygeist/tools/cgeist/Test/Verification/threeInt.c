@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O0 -w %s --function=struct_pass_all_same -S | FileCheck %s
+// RUN: cgeist -O0 -w %s --function=struct_pass_all_same -S | FileCheck %s
 
 typedef struct {
   int a, b, c;

@@ -1,4 +1,4 @@
-// RUN: cgeist -use-opaque-pointers %s --function=okernel_2mm -S | FileCheck %s
+// RUN: cgeist %s --function=okernel_2mm -S | FileCheck %s
 
 void okernel_2mm(unsigned int ni,
                  double *tmp) {

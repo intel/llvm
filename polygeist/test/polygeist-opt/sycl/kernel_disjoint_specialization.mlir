@@ -1,4 +1,4 @@
-// RUN: polygeist-opt --kernel-disjoint-specialization="relaxed-aliasing=false use-opaque-pointers=1" %s | FileCheck %s
+// RUN: polygeist-opt --kernel-disjoint-specialization="relaxed-aliasing=false" %s | FileCheck %s
 
 !sycl_array_1_ = !sycl.array<[1], (memref<1xi64, 4>)>
 !sycl_range_1_ = !sycl.range<[1], (!sycl_array_1_)>

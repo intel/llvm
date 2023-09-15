@@ -574,15 +574,9 @@ Value MLIRScanner::castToMemSpace(Value Val, unsigned MemSpace) {
       .Case<LLVM::LLVMPointerType>([&](LLVM::LLVMPointerType ValType) -> Value {
         if (ValType.getAddressSpace() == MemSpace)
           return Val;
-        if (UseOpaquePointers) {
-          // Do not evaluate ValType.getElementType() in opaque pointer case.
-          return Builder.create<LLVM::AddrSpaceCastOp>(
-              Loc, LLVM::LLVMPointerType::get(ValType.getContext(), MemSpace),
-              Val);
-        }
+        // Do not evaluate ValType.getElementType() in opaque pointer case.
         return Builder.create<LLVM::AddrSpaceCastOp>(
-            Loc,
-            Glob.getTypes().getPointerType(ValType.getElementType(), MemSpace),
+            Loc, LLVM::LLVMPointerType::get(ValType.getContext(), MemSpace),
             Val);
       });
 }
@@ -1350,17 +1344,8 @@ Value MLIRScanner::GetAddressOfDerivedClass(
                                       Ptr, ValueRange({Offset}),
                                       /* inbounds */ true);
 
-    if (auto PT = dyn_cast<LLVM::LLVMPointerType>(NT)) {
-      if (!UseOpaquePointers)
-        Val = Builder.create<LLVM::BitcastOp>(
-            Loc,
-            Glob.getTypes().getPointerType(
-                PT.getElementType(),
-                cast<LLVM::LLVMPointerType>(Ptr.getType()).getAddressSpace()),
-            Ptr);
-    } else {
+    if (!isa<LLVM::LLVMPointerType>(NT))
       Val = Builder.create<polygeist::Pointer2MemrefOp>(Loc, NT, Ptr);
-    }
   }
 
   return Val;
@@ -1500,9 +1485,7 @@ LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateMallocFunction() {
     return LLVMFunctions[Name];
 
   MLIRContext *Ctx = Module->getContext();
-  auto PtrTy = (UseOpaquePointers)
-                   ? LLVM::LLVMPointerType::get(Ctx)
-                   : LLVM::LLVMPointerType::get(IntegerType::get(Ctx, 8));
+  auto PtrTy = LLVM::LLVMPointerType::get(Ctx);
   auto LLVMFnType = LLVM::LLVMFunctionType::get(
       PtrTy, ArrayRef<Type>(IntegerType::get(Ctx, 64)), false);
 
@@ -1519,9 +1502,7 @@ LLVM::LLVMFuncOp MLIRASTConsumer::getOrCreateFreeFunction() {
     return LLVMFunctions[Name];
 
   MLIRContext *Ctx = Module->getContext();
-  auto PtrTy = (UseOpaquePointers)
-                   ? LLVM::LLVMPointerType::get(Ctx)
-                   : LLVM::LLVMPointerType::get(IntegerType::get(Ctx, 8));
+  auto PtrTy = LLVM::LLVMPointerType::get(Ctx);
   auto LLVMFnType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(Ctx),
                                                 ArrayRef<Type>({PtrTy}), false);
 
@@ -1550,9 +1531,8 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
         mlirclang::anonymize(mlirclang::getLLVMType(CC->getThisType(), CGM))));
 
   for (auto *Parm : FD->parameters()) {
-    if (UseOpaquePointers &&
-        isa<clang::PointerType>(
-            Parm->getOriginalType()->getUnqualifiedDesugaredType())) {
+    if (isa<clang::PointerType>(
+            Parm->getOriginalType()->getUnqualifiedDesugaredType()))
       Types.push_back(LLVM::LLVMPointerType::get(
           Module->getContext(),
           CGM.getContext().getTargetAddressSpace(
@@ -1560,21 +1540,13 @@ MLIRASTConsumer::getOrCreateLLVMFunction(const clang::FunctionDecl *FD,
                   Parm->getOriginalType()->getUnqualifiedDesugaredType())
                   ->getPointeeType()
                   .getAddressSpace())));
-    } else {
+    else
       Types.push_back(TypeTranslator.translateType(mlirclang::anonymize(
           mlirclang::getLLVMType(Parm->getOriginalType(), CGM))));
-    }
   }
 
   auto RT = TypeTranslator.translateType(
       mlirclang::anonymize(mlirclang::getLLVMType(FD->getReturnType(), CGM)));
-  if (auto RTPtrTy = dyn_cast<LLVM::LLVMPointerType>(RT);
-      RTPtrTy && !RTPtrTy.isOpaque()) {
-    // Temporary workaround until the translation to LLVM/MLIR types from Clang
-    // types completes migration to opaque pointers.
-    RT = getTypes().getPointerType(RTPtrTy.getElementType(),
-                                   RTPtrTy.getAddressSpace());
-  }
   auto LLVMFnType = LLVM::LLVMFunctionType::get(RT, Types,
                                                 /*isVarArg=*/FD->isVariadic());
   // Insert the function into the body of the parent module.
@@ -2613,12 +2585,7 @@ public:
   }
   std::unique_ptr<clang::ASTConsumer>
   CreateASTConsumer(clang::CompilerInstance &CI, StringRef InFile) override {
-    // To make opaque vs. typed pointer configurable, we have to set the
-    // opaque/typed pointer mode on the context before passing it to the
-    // contructor of MLIRASTConsumer, to avoid the pointer mode to be set to the
-    // default, which is configured through CMake.
     auto LCtx = std::make_unique<llvm::LLVMContext>();
-    LCtx->setOpaquePointers(UseOpaquePointers);
     return std::unique_ptr<clang::ASTConsumer>(new MLIRASTConsumer(
         EmitIfFound, Done, LLVMStringGlobals, Globals, Functions,
         DeviceFunctions, LLVMGlobals, LLVMFunctions, CI.getPreprocessor(),

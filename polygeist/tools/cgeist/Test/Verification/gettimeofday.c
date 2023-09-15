@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O0 -w %s %stdinclude --function=alloc -S | FileCheck %s
+// RUN: cgeist -O0 -w %s %stdinclude --function=alloc -S | FileCheck %s
 
 #include <time.h>
 #include <sys/time.h>

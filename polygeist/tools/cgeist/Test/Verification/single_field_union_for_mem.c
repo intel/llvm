@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s -O0 --function=* -S | FileCheck %s --check-prefix=CHECK-MLIR
-// RUN: cgeist --use-opaque-pointers %s -O0 --function=* -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: cgeist %s -O0 --function=* -S | FileCheck %s --check-prefix=CHECK-MLIR
+// RUN: cgeist %s -O0 --function=* -S -emit-llvm | FileCheck %s --check-prefix=CHECK-LLVM
 
 struct foo {
   union int_wrapper {

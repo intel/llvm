@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s --function=kernel_deriche -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
+// RUN: cgeist %s --function=kernel_deriche -S | FileCheck %s
+// RUN: cgeist %s --function=kernel_deriche -S -memref-fullrank | FileCheck %s --check-prefix=FULLRANK
 
 int kernel_deriche(int a[30]) {
     a[0]++;

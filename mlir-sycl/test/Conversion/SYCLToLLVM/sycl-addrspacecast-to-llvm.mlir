@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm='use-opaque-pointers=1' -verify-diagnostics %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
 // CHECK-LABEL: llvm.func @PtrCastToGeneric(%arg0: !llvm.ptr) -> !llvm.ptr<4> {
 // CHECK-NEXT:    %0 = llvm.addrspacecast %arg0 : !llvm.ptr to !llvm.ptr<4>

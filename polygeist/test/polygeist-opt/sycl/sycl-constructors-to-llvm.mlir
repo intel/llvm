@@ -1,4 +1,4 @@
-// RUN: polygeist-opt -convert-polygeist-to-llvm='use-opaque-pointers=1' -reconcile-unrealized-casts %s | FileCheck %s
+// RUN: polygeist-opt -convert-polygeist-to-llvm -reconcile-unrealized-casts %s | FileCheck %s
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64>)>)>
 !sycl_id_2_ = !sycl.id<[2], (!sycl.array<[2], (memref<2xi64>)>)>

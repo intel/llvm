@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -S | FileCheck %s
+// RUN: cgeist %s -S | FileCheck %s
 
 #pragma lower_to(copy_op, "memref.copy") "input"(a), "output"(b)
 void copy_op(int b[3][3], int a[3][3]) {

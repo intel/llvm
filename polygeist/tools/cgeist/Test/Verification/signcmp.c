@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O2 --function=* -S | FileCheck %s
+// RUN: cgeist %s -O2 --function=* -S | FileCheck %s
 
 void run();
 unsigned int cmp(int a, int b) {

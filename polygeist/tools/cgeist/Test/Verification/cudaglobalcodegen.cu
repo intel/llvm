@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s -O0 -w --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
+// RUN: cgeist %s -O0 -w --cuda-gpu-arch=sm_60 -nocudalib -nocudainc %resourcedir --function=* -S | FileCheck %s
 
 #include "Inputs/cuda.h"
 

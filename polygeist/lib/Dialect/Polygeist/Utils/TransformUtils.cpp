@@ -909,15 +909,12 @@ VersionConditionBuilder::VersionConditionBuilder(
          "Expecting accessorPairs to have at least one pair");
 }
 
-Value VersionConditionBuilder::createSCFCondition(
-    OpBuilder builder, Location loc, bool useOpaquePointers) const {
+Value VersionConditionBuilder::createSCFCondition(OpBuilder builder,
+                                                  Location loc) const {
   auto GetMemref2PointerOp = [&](Value op) {
     auto MT = cast<MemRefType>(op.getType());
-    auto PtrTy = (useOpaquePointers)
-                     ? LLVM::LLVMPointerType::get(MT.getContext(),
-                                                  MT.getMemorySpaceAsInt())
-                     : LLVM::LLVMPointerType::get(MT.getElementType(),
-                                                  MT.getMemorySpaceAsInt());
+    auto PtrTy =
+        LLVM::LLVMPointerType::get(MT.getContext(), MT.getMemorySpaceAsInt());
     return builder.create<polygeist::Memref2PointerOp>(loc, PtrTy, op);
   };
 

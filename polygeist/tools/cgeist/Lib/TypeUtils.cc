@@ -23,7 +23,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 
-extern llvm::cl::opt<bool> UseOpaquePointers;
 namespace mlirclang {
 
 using namespace llvm;
@@ -117,12 +116,8 @@ bool isRecursiveStruct(
 }
 
 Type *anonymize(Type *T) {
-  if (auto *PT = dyn_cast<PointerType>(T)) {
-    if (PT->isOpaque())
-      return PT;
-    return PointerType::get(anonymize(PT->getNonOpaquePointerElementType()),
-                            PT->getAddressSpace());
-  }
+  if (auto *PT = dyn_cast<PointerType>(T))
+    return PT;
 
   if (auto *AT = dyn_cast<ArrayType>(T))
     return ArrayType::get(anonymize(AT->getElementType()),
@@ -172,11 +167,8 @@ mlir::Type getPtrTyWithNewType(mlir::Type Orig, mlir::Type NewElementType) {
                                      Ty.getLayout(), Ty.getMemorySpace());
       })
       .Case<mlir::LLVM::LLVMPointerType>([NewElementType](auto Ty) {
-        return (UseOpaquePointers)
-                   ? mlir::LLVM::LLVMPointerType::get(
-                         NewElementType.getContext(), Ty.getAddressSpace())
-                   : mlir::LLVM::LLVMPointerType::get(NewElementType,
-                                                      Ty.getAddressSpace());
+        return mlir::LLVM::LLVMPointerType::get(NewElementType.getContext(),
+                                                Ty.getAddressSpace());
       });
 }
 

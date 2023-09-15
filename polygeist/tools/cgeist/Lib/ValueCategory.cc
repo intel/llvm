@@ -27,8 +27,6 @@
 using namespace mlir;
 using namespace mlir::arith;
 
-extern llvm::cl::opt<bool> UseOpaquePointers;
-
 ValueCategory::ValueCategory(mlir::Value val, bool isReference,
                              std::optional<mlir::Type> elementType)
     : val(val), isReference(isReference), ElementType{elementType} {
@@ -938,8 +936,5 @@ ValueCategory ValueCategory::Reshape(OpBuilder &Builder, Location Loc,
 
 mlir::Type ValueCategory::getPointerType(mlir::Type ElementType,
                                          unsigned AddressSpace) const {
-  return (UseOpaquePointers)
-             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
-                                          AddressSpace)
-             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
+  return LLVM::LLVMPointerType::get(ElementType.getContext(), AddressSpace);
 }

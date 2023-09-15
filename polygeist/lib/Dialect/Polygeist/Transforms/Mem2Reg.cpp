@@ -1834,14 +1834,8 @@ static Type getElementType(mlir::Operation *AllocOp) {
         return AllocOp.getMemref().getType().getElementType();
       })
       .Case<LLVM::AllocaOp>([](auto AllocOp) {
-        if (std::optional<Type> optElemTy = AllocOp.getElemType())
-          // Opaque pointer case.
-          return *optElemTy;
-
-        // Typed pointer case.
-        assert(!AllocOp.getType().isOpaque() &&
-               "Opaque alloca did not specify an element type");
-        return AllocOp.getType().getElementType();
+        assert(AllocOp.getElemType() && "Expecting element type");
+        return *AllocOp.getElemType();
       })
       .Case<memref::GetGlobalOp>([](auto GlobalOp) {
         return GlobalOp.getResult().getType().getElementType();

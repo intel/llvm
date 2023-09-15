@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers -O0 %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
+// RUN: cgeist -O0 %s --function=* -S --raise-scf-to-affine=false | FileCheck %s
 
 typedef char char_vec __attribute__((ext_vector_type(3)));
 typedef short short_vec __attribute__((ext_vector_type(3)));

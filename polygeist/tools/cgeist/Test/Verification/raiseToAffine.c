@@ -1,7 +1,7 @@
 // RUN: split-file %s %t
 
-// RUN: cgeist --use-opaque-pointers %t/matmul_signed_cmp.c --function=matmul --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMSIGNED
-// RUN: cgeist --use-opaque-pointers %t/matmul_unsigned_cmp.c --function=matmul_unsigned_cmp --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMUNSIGNED
+// RUN: cgeist %t/matmul_signed_cmp.c --function=matmul --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMSIGNED
+// RUN: cgeist %t/matmul_unsigned_cmp.c --function=matmul_unsigned_cmp --raise-scf-to-affine -S | FileCheck %s -check-prefix=GEMMUNSIGNED
 
 //--- matmul_signed_cmp.c
 #define N 200

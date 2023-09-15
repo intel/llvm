@@ -1,5 +1,5 @@
-// RUN: cgeist --use-opaque-pointers %s -w -O0 --function=* -S | FileCheck %s
-// RUN: cgeist --use-opaque-pointers %s -w -O0 --memref-fullrank --function=* -S | FileCheck %s --check-prefix=CHECK-FULLRANK
+// RUN: cgeist %s -w -O0 --function=* -S | FileCheck %s
+// RUN: cgeist %s -w -O0 --memref-fullrank --function=* -S | FileCheck %s --check-prefix=CHECK-FULLRANK
 
 #include <stdbool.h>
 #include <stdlib.h>

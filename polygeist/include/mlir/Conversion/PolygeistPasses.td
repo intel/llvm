@@ -25,9 +25,6 @@ def ConvertPolygeistToLLVM : Pass<"convert-polygeist-to-llvm", "mlir::ModuleOp">
            /*default=*/"\"\"",
            "String description (LLVM format) of the data layout that is "
            "expected on the produced module">,
-    Option<"useOpaquePointers", "use-opaque-pointers", "bool",
-            /*default=*/"false", "Generate LLVM IR using opaque pointers "
-            "instead of typed pointers">,
     // TODO: These two options should be dropped once this pass is made a proper
     // partial conversion pass and -convert-sycl-to-llvm is not launched from it.
     Option<"syclImplementation", "sycl-implementation",

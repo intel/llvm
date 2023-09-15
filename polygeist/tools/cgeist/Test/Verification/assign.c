@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S -o - | FileCheck %s
+// RUN: cgeist %s --function=* -S -o - | FileCheck %s
 
 // CHECK-LABEL: func.func @f0(%arg0: memref<?xi32>) attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK-NEXT:    %c0_i32 = arith.constant 0 : i32

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=test -S | FileCheck %s
+// RUN: cgeist %s --function=test -S | FileCheck %s
 
 int test() {
     return -3;

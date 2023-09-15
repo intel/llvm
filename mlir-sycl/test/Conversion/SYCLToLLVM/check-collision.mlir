@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm='use-opaque-pointers=1' %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm %s | FileCheck %s
 
 !sycl_id_1_ = !sycl.id<[1], (!sycl.array<[1], (memref<1xi64, 4>)>)>
 

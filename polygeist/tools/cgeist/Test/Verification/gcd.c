@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=gcd -S | FileCheck %s
+// RUN: cgeist %s --function=gcd -S | FileCheck %s
 
 int gcd(int m, int n) {
   while (n > 0) {

@@ -236,10 +236,6 @@ static llvm::cl::opt<std::string>
                       llvm::cl::desc("Use input file as host SYCL module"),
                       llvm::cl::cat(ToolOptions));
 
-llvm::cl::opt<bool>
-    UseOpaquePointers("use-opaque-pointers", llvm::cl::init(true),
-                      llvm::cl::desc("Whether to use opaque pointers in MLIR"));
-
 static llvm::cl::opt<bool>
     SYCLDeviceOnly("sycl-device-only", llvm::cl::init(true),
                    llvm::cl::desc("Only emit device code in MLIR output"));

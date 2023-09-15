@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S | FileCheck %s
 
 // TODO handle negation on if combine
 // TODO remove unused cyclic phi

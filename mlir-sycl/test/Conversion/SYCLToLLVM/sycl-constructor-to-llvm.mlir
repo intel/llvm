@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm='use-opaque-pointers=1' -verify-diagnostics %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm -verify-diagnostics %s | FileCheck %s
 
 //===-------------------------------------------------------------------------------------------------===//
 // Constructors for sycl::accessor<t, d, m, t, p>::accessor()

@@ -21,7 +21,6 @@ using namespace mlir;
 
 extern llvm::cl::opt<bool> CudaLower;
 extern llvm::cl::opt<bool> GenerateAllSYCLFuncs;
-extern llvm::cl::opt<bool> UseOpaquePointers;
 
 /******************************************************************************/
 /*                           Utility Functions                                */
@@ -668,11 +667,6 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *Expr) {
       auto Nt = cast<LLVM::LLVMPointerType>(
           TypeTranslator.translateType(mlirclang::anonymize(
               mlirclang::getLLVMType(E->getType(), Glob.getCGM()))));
-      if (UseOpaquePointers) {
-        // Temporary workaround, until the move to opaque pointers is completed
-        // and we can put the LLVMContext into opaque pointer mode.
-        Nt = LLVM::LLVMPointerType::get(Nt.getContext(), Nt.getAddressSpace());
-      }
       assert(Nt.getAddressSpace() == MT.getMemorySpaceAsInt() &&
              "val does not have the same memory space as nt");
       Val = Builder.create<polygeist::Memref2PointerOp>(Loc, Nt, Val);

@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S | FileCheck %s
 
 int compute_tran_temp(int total_iterations, int num_iterations)
 {

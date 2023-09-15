@@ -1,4 +1,4 @@
-// RUN: cgeist -use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S | FileCheck %s
 
 // CHECK:  func.func @test() -> memref<?xi32, 4> attributes {llvm.linkage = #llvm.linkage<external>} {
 // CHECK:    [[CALL:%.*]] = call @foo() : () -> memref<?xi32, 1>

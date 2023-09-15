@@ -1,4 +1,4 @@
-// RUN: cgeist --use-opaque-pointers %s --function=* -S | FileCheck %s
+// RUN: cgeist %s --function=* -S | FileCheck %s
 
 int adder(int x) {
     static int cur = 0;

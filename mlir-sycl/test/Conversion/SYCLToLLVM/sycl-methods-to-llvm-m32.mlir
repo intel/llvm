@@ -1,4 +1,4 @@
-// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="index-bitwidth=32 use-opaque-pointers=1" %s | FileCheck %s
+// RUN: sycl-mlir-opt -split-input-file -convert-sycl-to-llvm="index-bitwidth=32" %s | FileCheck %s
 
 //===----------------------------------------------------------------------===//
 // sycl.accessor.get_pointer

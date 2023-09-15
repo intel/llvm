@@ -55,8 +55,6 @@ static cl::opt<bool>
                             cl::desc("Whether to allow types in the sycl "
                                      "namespace and not in the SYCL dialect"));
 
-extern llvm::cl::opt<bool> UseOpaquePointers;
-
 /******************************************************************************/
 /*            Flags affecting code generation of function types.              */
 /******************************************************************************/
@@ -1529,15 +1527,11 @@ mlir::Type CodeGenTypes::getMLIRType(clang::QualType QT, bool *ImplicitRef,
     const clang::Type *PTT = PointeeType->getUnqualifiedDesugaredType();
 
     if (PTT->isVoidType()) {
-      if (UseOpaquePointers) {
-        // No need to determine the correct element type for void* in an opaque
-        // pointer world.
-        return LLVM::LLVMPointerType::get(
-            TheModule->getContext(), CGM.getContext().getTargetAddressSpace(
-                                         PointeeType.getAddressSpace()));
-      }
-      llvm::Type *Ty = CGM.getTypes().ConvertType(QualType(T, 0));
-      return TypeTranslator.translateType(Ty);
+      // No need to determine the correct element type for void* in an opaque
+      // pointer world.
+      return LLVM::LLVMPointerType::get(TheModule->getContext(),
+                                        CGM.getContext().getTargetAddressSpace(
+                                            PointeeType.getAddressSpace()));
     }
 
     bool SubRef = false;
@@ -1722,11 +1716,6 @@ mlir::Type CodeGenTypes::getMLIRType(const clang::BuiltinType *BT) const {
   case BuiltinType::OCLQueue:
   case BuiltinType::OCLReserveID: {
     auto *OCLTy = CGM.getOpenCLRuntime().convertOpenCLSpecificType(BT);
-    if (UseOpaquePointers && isa<llvm::PointerType>(OCLTy))
-      return LLVM::LLVMPointerType::get(
-          TheModule->getContext(),
-          cast<llvm::PointerType>(OCLTy)->getAddressSpace());
-
     return TypeTranslator.translateType(OCLTy);
   }
 
@@ -1819,10 +1808,7 @@ mlir::Type CodeGenTypes::getPointerOrMemRefType(mlir::Type Ty,
 LLVM::LLVMPointerType
 CodeGenTypes::getPointerType(mlir::Type ElementType,
                              unsigned int AddressSpace) const {
-  return (UseOpaquePointers)
-             ? LLVM::LLVMPointerType::get(ElementType.getContext(),
-                                          AddressSpace)
-             : LLVM::LLVMPointerType::get(ElementType, AddressSpace);
+  return LLVM::LLVMPointerType::get(ElementType.getContext(), AddressSpace);
 }
 
 const clang::CodeGen::CGFunctionInfo &
