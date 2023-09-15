@@ -866,8 +866,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
   try {
     UR_ASSERT(pNumDevices || phDevices, UR_RESULT_ERROR_INVALID_VALUE);
-    UR_ASSERT((NumEntries == 0 && !phDevices) || (NumEntries > 0 && phDevices),
-              UR_RESULT_ERROR_INVALID_SIZE);
 
     if (pNumDevices) {
       *pNumDevices = NumDevices;
