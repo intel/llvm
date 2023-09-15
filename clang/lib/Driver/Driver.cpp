@@ -5237,7 +5237,7 @@ class OffloadingActionBuilder final {
                               OffloadAction::DeviceDependences &DA,
                               ActionList &AL, const char *BoundArch,
                               bool AddOffloadAction = false) {
-      auto AddDeps = [&](Action *A, const ToolChain *TC,
+      auto addDeps = [&](Action *A, const ToolChain *TC,
                          const char *BoundArch) {
         if (AddOffloadAction) {
           OffloadAction::DeviceDependences Deps;
@@ -5299,7 +5299,7 @@ class OffloadingActionBuilder final {
                                              FileTableTformJobAction::COL_CODE);
           auto *DeviceWrappingAction = C.MakeAction<OffloadWrapperJobAction>(
               RenameAction, types::TY_Object);
-          AddDeps(DeviceWrappingAction, TC, BoundArch);
+          addDeps(DeviceWrappingAction, TC, BoundArch);
           continue;
         } else if (!types::isFPGA(Input->getType())) {
           // No need for any conversion if we are coming in from the
@@ -5333,7 +5333,7 @@ class OffloadingActionBuilder final {
           UA->setTargetString(TargetString.str());
 
           // Add lists to the final link.
-          AddDeps(UA, TC, "");
+          addDeps(UA, TC, "");
         }
       }
       if (!LinkObjects.empty()) {
@@ -5551,7 +5551,7 @@ class OffloadingActionBuilder final {
             // application.
             auto *WrapBitcodeAction = C.MakeAction<OffloadWrapperJobAction>(
                 PostLinkAction, types::TY_Object, true);
-            AddDeps(WrapBitcodeAction, TC, BoundArch);
+            addDeps(WrapBitcodeAction, TC, BoundArch);
           }
           bool NoRDCFatStaticArchive =
               !IsRDC &&
@@ -5667,10 +5667,10 @@ class OffloadingActionBuilder final {
           if (IsSpirvAOT) {
             bool AddBA = (TT.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
                           BoundArch != nullptr);
-            AddDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
+            addDeps(DeviceWrappingAction, TC, AddBA ? BoundArch : nullptr);
           } else {
             withBoundArchForToolChain(TC, [&](const char *BoundArch) {
-              AddDeps(DeviceWrappingAction, TC, BoundArch);
+              addDeps(DeviceWrappingAction, TC, BoundArch);
             });
           }
         }
