@@ -568,6 +568,39 @@ typedef ur_result_t(UR_APICALL *ur_pfnGetKernelProcAddrTable_t)(
     ur_kernel_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urKernelSuggestMaxCooperativeGroupCountExp
+typedef ur_result_t(UR_APICALL *ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t)(
+    ur_kernel_handle_t,
+    uint32_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of KernelExp functions pointers
+typedef struct ur_kernel_exp_dditable_t {
+    ur_pfnKernelSuggestMaxCooperativeGroupCountExp_t pfnSuggestMaxCooperativeGroupCountExp;
+} ur_kernel_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's KernelExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetKernelExpProcAddrTable(
+    ur_api_version_t version,           ///< [in] API version requested
+    ur_kernel_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetKernelExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetKernelExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_kernel_exp_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urSamplerCreate
 typedef ur_result_t(UR_APICALL *ur_pfnSamplerCreate_t)(
     ur_context_handle_t,
@@ -1245,6 +1278,46 @@ urGetEnqueueProcAddrTable(
 typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueProcAddrTable_t)(
     ur_api_version_t,
     ur_enqueue_dditable_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueCooperativeKernelLaunchExp
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueCooperativeKernelLaunchExp_t)(
+    ur_queue_handle_t,
+    ur_kernel_handle_t,
+    uint32_t,
+    const size_t *,
+    const size_t *,
+    const size_t *,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Table of EnqueueExp functions pointers
+typedef struct ur_enqueue_exp_dditable_t {
+    ur_pfnEnqueueCooperativeKernelLaunchExp_t pfnCooperativeKernelLaunchExp;
+} ur_enqueue_exp_dditable_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL
+urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version,            ///< [in] API version requested
+    ur_enqueue_exp_dditable_t *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urGetEnqueueExpProcAddrTable
+typedef ur_result_t(UR_APICALL *ur_pfnGetEnqueueExpProcAddrTable_t)(
+    ur_api_version_t,
+    ur_enqueue_exp_dditable_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urQueueGetInfo
@@ -2154,11 +2227,13 @@ typedef struct ur_dditable_t {
     ur_event_dditable_t Event;
     ur_program_dditable_t Program;
     ur_kernel_dditable_t Kernel;
+    ur_kernel_exp_dditable_t KernelExp;
     ur_sampler_dditable_t Sampler;
     ur_mem_dditable_t Mem;
     ur_physical_mem_dditable_t PhysicalMem;
     ur_global_dditable_t Global;
     ur_enqueue_dditable_t Enqueue;
+    ur_enqueue_exp_dditable_t EnqueueExp;
     ur_queue_dditable_t Queue;
     ur_bindless_images_exp_dditable_t BindlessImagesExp;
     ur_usm_dditable_t USM;

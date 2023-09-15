@@ -207,6 +207,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 190,         ///< Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 191,          ///< Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 192,               ///< Enumerator for ::urCommandBufferAppendMemBufferFillExp
+    UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 193,                   ///< Enumerator for ::urEnqueueCooperativeKernelLaunchExp
+    UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 194,          ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -8174,6 +8176,90 @@ urCommandBufferEnqueueExp(
 #if !defined(__GNUC__)
 #pragma endregion
 #endif
+// Intel 'oneAPI' Unified Runtime Experimental APIs for Cooperative Kernels
+#if !defined(__GNUC__)
+#pragma region cooperative kernels(experimental)
+#endif
+///////////////////////////////////////////////////////////////////////////////
+#ifndef UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
+/// @brief The extension string which defines support for cooperative-kernels
+///        which is returned when querying device extensions.
+#define UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP "ur_exp_cooperative_kernels"
+#endif // UR_COOPERATIVE_KERNELS_EXTENSION_STRING_EXP
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Enqueue a command to execute a cooperative kernel
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hQueue`
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
+///         + `NULL == pGlobalWorkSize`
+///     - ::UR_RESULT_ERROR_INVALID_QUEUE
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue,                 ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel,               ///< [in] handle of the kernel object
+    uint32_t workDim,                         ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                                              ///< work-group work-items
+    const size_t *pGlobalWorkOffset,          ///< [in] pointer to an array of workDim unsigned values that specify the
+                                              ///< offset used to calculate the global ID of a work-item
+    const size_t *pGlobalWorkSize,            ///< [in] pointer to an array of workDim unsigned values that specify the
+                                              ///< number of global work-items in workDim that will execute the kernel
+                                              ///< function
+    const size_t *pLocalWorkSize,             ///< [in][optional] pointer to an array of workDim unsigned values that
+                                              ///< specify the number of local work-items forming a work-group that will
+                                              ///< execute the kernel function.
+                                              ///< If nullptr, the runtime implementation will choose the work-group
+                                              ///< size.
+    uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
+    const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                              ///< events that must be complete before the kernel execution.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+                                              ///< event.
+    ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
+                                              ///< kernel execution instance.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Query the maximum number of work groups for a cooperative kernel
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hKernel`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGroupCountRet`
+///     - ::UR_RESULT_ERROR_INVALID_KERNEL
+UR_APIEXPORT ur_result_t UR_APICALL
+urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+);
+
+#if !defined(__GNUC__)
+#pragma endregion
+#endif
 // Intel 'oneAPI' USM Import/Release Extension APIs
 #if !defined(__GNUC__)
 #pragma region usm import release(experimental)
@@ -8940,6 +9026,15 @@ typedef struct ur_kernel_set_specialization_constants_params_t {
 } ur_kernel_set_specialization_constants_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urKernelSuggestMaxCooperativeGroupCountExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t {
+    ur_kernel_handle_t *phKernel;
+    uint32_t **ppGroupCountRet;
+} ur_kernel_suggest_max_cooperative_group_count_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urSamplerCreate
 /// @details Each entry is a pointer to the parameter passed to the function;
 ///     allowing the callback the ability to modify the parameter's value
@@ -9585,6 +9680,22 @@ typedef struct ur_enqueue_write_host_pipe_params_t {
     const ur_event_handle_t **pphEventWaitList;
     ur_event_handle_t **pphEvent;
 } ur_enqueue_write_host_pipe_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urEnqueueCooperativeKernelLaunchExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_enqueue_cooperative_kernel_launch_exp_params_t {
+    ur_queue_handle_t *phQueue;
+    ur_kernel_handle_t *phKernel;
+    uint32_t *pworkDim;
+    const size_t **ppGlobalWorkOffset;
+    const size_t **ppGlobalWorkSize;
+    const size_t **ppLocalWorkSize;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+    ur_event_handle_t **pphEvent;
+} ur_enqueue_cooperative_kernel_launch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urQueueGetInfo

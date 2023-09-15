@@ -1152,6 +1152,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP";
         break;
+
+    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP:
+        os << "UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP";
+        break;
+
+    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP:
+        os << "UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -12952,6 +12960,65 @@ operator<<(std::ostream &os,
     return os;
 }
 
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur_params::serializePtr(os, *(params->phQueue));
+
+    os << ", ";
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".workDim = ";
+
+    os << *(params->pworkDim);
+
+    os << ", ";
+    os << ".pGlobalWorkOffset = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkOffset));
+
+    os << ", ";
+    os << ".pGlobalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppGlobalWorkSize));
+
+    os << ", ";
+    os << ".pLocalWorkSize = ";
+
+    ur_params::serializePtr(os, *(params->ppLocalWorkSize));
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = {";
+    for (size_t i = 0; *(params->pphEventWaitList) != NULL &&
+                       i < *params->pnumEventsInWaitList;
+         ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur_params::serializePtr(os, (*(params->pphEventWaitList))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur_params::serializePtr(os, *(params->pphEvent));
+
+    return os;
+}
+
 inline std::ostream &
 operator<<(std::ostream &os, const struct ur_event_get_info_params_t *params) {
 
@@ -13495,6 +13562,23 @@ inline std::ostream &operator<<(
     os << ".pSpecConstants = ";
 
     ur_params::serializePtr(os, *(params->ppSpecConstants));
+
+    return os;
+}
+
+inline std::ostream &operator<<(
+    std::ostream &os,
+    const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t
+        *params) {
+
+    os << ".hKernel = ";
+
+    ur_params::serializePtr(os, *(params->phKernel));
+
+    os << ", ";
+    os << ".pGroupCountRet = ";
+
+    ur_params::serializePtr(os, *(params->ppGroupCountRet));
 
     return os;
 }
@@ -15718,6 +15802,10 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     case UR_FUNCTION_ENQUEUE_WRITE_HOST_PIPE: {
         os << (const struct ur_enqueue_write_host_pipe_params_t *)params;
     } break;
+    case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
+        os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)
+                params;
+    } break;
     case UR_FUNCTION_EVENT_GET_INFO: {
         os << (const struct ur_event_get_info_params_t *)params;
     } break;
@@ -15788,6 +15876,11 @@ inline int serializeFunctionParams(std::ostream &os, uint32_t function,
     } break;
     case UR_FUNCTION_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
         os << (const struct ur_kernel_set_specialization_constants_params_t *)
+                params;
+    } break;
+    case UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP: {
+        os << (const struct
+               ur_kernel_suggest_max_cooperative_group_count_exp_params_t *)
                 params;
     } break;
     case UR_FUNCTION_LOADER_INIT: {

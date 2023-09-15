@@ -6847,6 +6847,109 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function.
+    ///< If nullptr, the runtime implementation will choose the work-group
+    ///< size.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    ///< event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_queue_object_t *>(hQueue)->dditable;
+    auto pfnCooperativeKernelLaunchExp =
+        dditable->ur.EnqueueExp.pfnCooperativeKernelLaunchExp;
+    if (nullptr == pfnCooperativeKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hQueue = reinterpret_cast<ur_queue_object_t *>(hQueue)->handle;
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result = pfnCooperativeKernelLaunchExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numEventsInWaitList, phEventWaitListLocal.data(),
+        phEvent);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                ur_event_factory.getInstance(*phEvent, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // extract platform's function pointer table
+    auto dditable = reinterpret_cast<ur_kernel_object_t *>(hKernel)->dditable;
+    auto pfnSuggestMaxCooperativeGroupCountExp =
+        dditable->ur.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
+    if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
+
+    // forward to device-platform
+    result = pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -7377,6 +7480,61 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_enqueue_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetEnqueueExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetEnqueueExpProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.EnqueueExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnCooperativeKernelLaunchExp =
+                ur_loader::urEnqueueCooperativeKernelLaunchExp;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.EnqueueExp;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Event table
 ///        with current process' addresses
 ///
@@ -7500,6 +7658,61 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelProcAddrTable(
             // return pointers directly to platform's DDIs
             *pDdiTable =
                 ur_loader::context->platforms.front().dditable.ur.Kernel;
+        }
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's KernelExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+UR_DLLEXPORT ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_kernel_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (ur_loader::context->version < version) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    // Load the device-platform DDI tables
+    for (auto &platform : ur_loader::context->platforms) {
+        if (platform.initStatus != UR_RESULT_SUCCESS) {
+            continue;
+        }
+        auto getTable = reinterpret_cast<ur_pfnGetKernelExpProcAddrTable_t>(
+            ur_loader::LibLoader::getFunctionPtr(
+                platform.handle.get(), "urGetKernelExpProcAddrTable"));
+        if (!getTable) {
+            continue;
+        }
+        platform.initStatus =
+            getTable(version, &platform.dditable.ur.KernelExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        if (ur_loader::context->platforms.size() != 1 ||
+            ur_loader::context->forceIntercept) {
+            // return pointers to loader's DDIs
+            pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
+                ur_loader::urKernelSuggestMaxCooperativeGroupCountExp;
+        } else {
+            // return pointers directly to platform's DDIs
+            *pDdiTable =
+                ur_loader::context->platforms.front().dditable.ur.KernelExp;
         }
     }
 
