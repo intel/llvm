@@ -1128,8 +1128,15 @@ void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
   llvm::sys::path::append(P, "include");
   SmallString<128> SYCLP(P);
   llvm::sys::path::append(SYCLP, "sycl");
+  // This is used to provide our wrappers around STL headers that provide
+  // additional functions/template specializations when the user includes those
+  // STL headers in their programs (e.g., <complex>).
+  SmallString<128> STL_WRAPPERS_PATH(SYCLP);
+  llvm::sys::path::append(STL_WRAPPERS_PATH, "stl_wrappers");
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(SYCLP));
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(STL_WRAPPERS_PATH));
   CC1Args.push_back("-internal-isystem");
   CC1Args.push_back(DriverArgs.MakeArgString(P));
 }
