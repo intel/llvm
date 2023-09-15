@@ -227,17 +227,50 @@ static cl_int mapURProgramBuildInfoToCL(ur_program_build_info_t URPropName) {
   }
 }
 
+static ur_program_binary_type_t
+mapCLBinaryTypeToUR(cl_program_binary_type binaryType) {
+  switch (binaryType) {
+  case CL_PROGRAM_BINARY_TYPE_NONE:
+    return UR_PROGRAM_BINARY_TYPE_NONE;
+  case CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT:
+    return UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
+  case CL_PROGRAM_BINARY_TYPE_LIBRARY:
+    return UR_PROGRAM_BINARY_TYPE_LIBRARY;
+  case CL_PROGRAM_BINARY_TYPE_EXECUTABLE:
+    return UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
+  default:
+    return UR_PROGRAM_BINARY_TYPE_FORCE_UINT32;
+  }
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramGetBuildInfo(ur_program_handle_t hProgram, ur_device_handle_t hDevice,
                       ur_program_build_info_t propName, size_t propSize,
                       void *pPropValue, size_t *pPropSizeRet) {
 
-  CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
-      cl_adapter::cast<cl_program>(hProgram),
-      cl_adapter::cast<cl_device_id>(hDevice),
-      mapURProgramBuildInfoToCL(propName), propSize, pPropValue, pPropSizeRet));
+  UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  return UR_RESULT_SUCCESS;
+  switch (propName) {
+  case UR_PROGRAM_BUILD_INFO_BINARY_TYPE:
+    cl_program_binary_type cl_value;
+    CL_RETURN_ON_FAILURE(clGetProgramBuildInfo(
+        cl_adapter::cast<cl_program>(hProgram),
+        cl_adapter::cast<cl_device_id>(hDevice),
+        mapURProgramBuildInfoToCL(propName), sizeof(cl_program_binary_type),
+        &cl_value, nullptr));
+    return ReturnValue(mapCLBinaryTypeToUR(cl_value));
+  case UR_PROGRAM_BUILD_INFO_LOG:
+  case UR_PROGRAM_BUILD_INFO_OPTIONS:
+  case UR_PROGRAM_BUILD_INFO_STATUS:
+    CL_RETURN_ON_FAILURE(
+        clGetProgramBuildInfo(cl_adapter::cast<cl_program>(hProgram),
+                              cl_adapter::cast<cl_device_id>(hDevice),
+                              mapURProgramBuildInfoToCL(propName), propSize,
+                              pPropValue, pPropSizeRet));
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
