@@ -80,7 +80,7 @@ int main() {
 }
 
 // CHECK: ![[empty_md]] = !{![[mem_default:[0-9]*]]}
-// CHECK: ![[mem_default]] = !{i32 5826, [8 x i8] c"DEFAULT\00"}
+// CHECK: ![[mem_default]] = !{i32 5826, !"DEFAULT"}
 // CHECK: ![[min_ram_md]] = !{![[min_ram:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[min_ram]] = !{i32 5836, i32 0}
 // CHECK: ![[max_fmax_md]] = !{![[max_fmax:[0-9]*]], ![[mem_default]]}
@@ -90,13 +90,13 @@ int main() {
 // CHECK: ![[single_pumped_md]] = !{![[single_pumped:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[single_pumped]] = !{i32 5830}
 // CHECK: ![[mlab_md]] = !{![[mlab:[0-9]*]]}
-// CHECK: ![[mlab]] = !{i32 5826, [5 x i8] c"mlab\00"}
+// CHECK: ![[mlab]] = !{i32 5826, !"mlab"}
 // CHECK: ![[simple_dual_port_md]] = !{![[simple_dual_port:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[simple_dual_port]] = !{i32 5833}
 // CHECK: ![[true_dual_port_md]] = !{![[true_dual_port:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[true_dual_port]] = !{i32 5885}
 // CHECK: ![[block_ram_md]] = !{![[block_ram:[0-9]*]]}
-// CHECK: ![[block_ram]] = !{i32 5826, [10 x i8] c"block_ram\00"}
+// CHECK: ![[block_ram]] = !{i32 5826, !"block_ram"}
 // CHECK: ![[banks_md]] = !{![[banks:[0-9]*]], ![[mem_default]]}
 // CHECK: ![[banks]] = !{i32 5827, i32 4}
 // CHECK: ![[stride_md]] = !{![[mem_default]], ![[stride:[0-9]*]]}

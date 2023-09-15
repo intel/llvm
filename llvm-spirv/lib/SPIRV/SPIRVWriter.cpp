@@ -2490,14 +2490,11 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
   case NAMESPACE::Decoration##NAME: {                                          \
     ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,             \
                       #NAME " requires exactly 1 extra operand");              \
-    auto *ValDeco = dyn_cast<ValueAsMetadata>(DecoMD->getOperand(1).get());    \
-    ErrLog.checkError(ValDeco, SPIRVEC_InvalidLlvmModule,                      \
-                      #NAME " requires extra operand to be a value");          \
-    auto *StrDeco = dyn_cast<ConstantDataArray>(ValDeco->getValue());          \
-    ErrLog.checkError(StrDeco, SPIRVEC_InvalidLlvmModule,                      \
+    auto *StrDecoEO = dyn_cast<MDString>(DecoMD->getOperand(1));               \
+    ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,                    \
                       #NAME " requires extra operand to be a string");         \
     Target->addDecorate(                                                       \
-        new SPIRVDecorate##NAME##Attr(Target, StrDeco->getAsString().data())); \
+        new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));\
     break;                                                                     \
   }
 
