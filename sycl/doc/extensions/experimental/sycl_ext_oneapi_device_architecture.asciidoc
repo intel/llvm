@@ -196,6 +196,10 @@ of these enumerators, and it provides a brief description of their meanings.
 |-
 |Any CPU device with the x86_64 instruction set.
 
+|`intel_cpu_spr`
+|-
+|Intel Xeon processor codenamed Sapphire Rapids.
+
 |`intel_gpu_bdw`
 |-
 |Broadwell Intel graphics architecture.
@@ -589,6 +593,7 @@ feature, the application must be compiled in ahead-of-time (AOT) mode using
 "special target values" listed in the link:../../UsersManual.md[users manual]
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
+The support of AOT compilation for `intel_cpu_spr` is currently unavailable.
 
 == Future direction
 

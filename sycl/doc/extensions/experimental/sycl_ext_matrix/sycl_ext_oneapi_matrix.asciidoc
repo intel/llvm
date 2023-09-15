@@ -741,12 +741,12 @@ descriptors that can be queried using `get_info` API.
 [frame="none",options="header"]
 |======================
 | Device descriptors | Return type| Description
-|`ext::oneapi::experimental::info::device::matrix::combinations` |
+|`ext::oneapi::experimental::info::device::matrix_combinations` |
 `std::vector<combination>`| tells the set of supported matrix sizes
 and types on this device
 |======================
 
-The runtime query returns a vector of `combinations` of `combination`
+The runtime query returns a vector of `matrix_combinations` of `combination`
 type. Each combination includes the sizes and the types for the
 matrices A, B, C, and D. Note that for each matrix hardware,
 the query returns `max_msize, max_nsize, max_ksize` or `msize, nsize,
@@ -790,7 +790,7 @@ struct combination {
 } // namespace sycl::ext::oneapi::experimental::matrix
 ```
 
-Each combination of the `combinations` vector composes the types and
+Each combination of the `matrix_combinations` vector composes the types and
 sizes of A, B, C, and D matrices supported by the device
 implementation. The table below provides a description of each member
 of the `combination` struct.
@@ -832,7 +832,7 @@ the `T` template parameter as follows: +
 ```c++
 // Ta, Tb, Tc, and Td are the types used in applications
 std::vector<combination> combinations =
-           device.get_info<info::device::matrix::combinations>();
+           device.get_info<info::device::matrix_combinations>();
 for (int i = 0; sizeof(combinations); i++) {
   if (Ta == combinations[i].atype &&
       Tb == combinations[i].btype &&
@@ -849,7 +849,7 @@ for (int i = 0; sizeof(combinations); i++) {
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
-`ext::oneapi::experimental::info::device::matrix::combinations`.
+`ext::oneapi::experimental::info::device::matrix_combinations`.
 
 ==== Intel AMX Supported Combinations
 This is currently available in devices with the architecture
