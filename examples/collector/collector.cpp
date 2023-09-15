@@ -82,10 +82,10 @@ static std::unordered_map<
  * On begin, it prints the function declaration with the call arguments specified,
  * and on end it prints the function name with the result of the call.
  */
-XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
-                                xpti::trace_event_data_t *parent,
-                                xpti::trace_event_data_t *event,
-                                uint64_t instance, const void *user_data) {
+XPTI_CALLBACK_API void
+trace_cb(uint16_t trace_type, [[maybe_unused]] xpti::trace_event_data_t *parent,
+         [[maybe_unused]] xpti::trace_event_data_t *event, uint64_t instance,
+         const void *user_data) {
     auto *args = static_cast<const xpti::function_with_args_t *>(user_data);
     std::ostringstream out;
     if (trace_type == TRACE_FN_BEGIN) {
@@ -120,7 +120,7 @@ XPTI_CALLBACK_API void trace_cb(uint16_t trace_type,
  */
 XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
                                      unsigned int minor_version,
-                                     const char *version_str,
+                                     [[maybe_unused]] const char *version_str,
                                      const char *stream_name) {
     if (stream_name == nullptr) {
         std::cout << "Stream name not provided. Aborting." << std::endl;
@@ -158,5 +158,6 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
  *
  * Can be used to cleanup state or resources.
  */
-XPTI_CALLBACK_API void xptiTraceFinish(const char *stream_name) { /* noop */
+XPTI_CALLBACK_API void
+xptiTraceFinish([[maybe_unused]] const char *stream_name) { /* noop */
 }
