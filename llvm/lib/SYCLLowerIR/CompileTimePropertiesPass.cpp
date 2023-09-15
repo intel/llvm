@@ -112,9 +112,6 @@ MDNode *buildSpirvDecorMetadata(LLVMContext &Ctx, uint32_t OpCode,
   SmallVector<Metadata *, 2> MD;
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, OpCode))));
-  // MD.push_back(
-  //     ConstantAsMetadata::get(ConstantDataArray::getString(Ctx, Value,
-  //                                                          /*AddNull=*/true)));
   MD.push_back(MDString::get(Ctx, Value));
   return MDNode::get(Ctx, MD);
 }
