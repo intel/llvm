@@ -454,17 +454,16 @@ inline std::ostream &operator<<(std::ostream &os,
                                 enum ur_exp_image_copy_flag_t value);
 inline std::ostream &
 operator<<(std::ostream &os,
-           const struct ur_exp_sampler_mip_properties_t params);
-inline std::ostream &
-operator<<(std::ostream &os, const struct ur_exp_sampler_addr_modes_t params);
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_exp_interop_mem_desc_t params);
+           [[maybe_unused]] const struct ur_exp_file_descriptor_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_win32_handle_t params);
 inline std::ostream &operator<<(
     std::ostream &os,
     [[maybe_unused]] const struct ur_exp_sampler_mip_properties_t params);
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_exp_sampler_addr_modes_t params);
 inline std::ostream &
 operator<<(std::ostream &os,
            [[maybe_unused]] const struct ur_exp_interop_mem_desc_t params);
@@ -13048,9 +13047,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_enqueue_cooperative_kernel_launch_exp_params_t *params) {
 
     os << ".hQueue = ";
 
@@ -13667,10 +13666,9 @@ operator<<(std::ostream &os, [[maybe_unused]] const struct
     return os;
 }
 
-inline std::ostream &operator<<(
-    std::ostream &os,
-    const struct ur_kernel_suggest_max_cooperative_group_count_exp_params_t
-        *params) {
+inline std::ostream &
+operator<<(std::ostream &os, [[maybe_unused]] const struct
+           ur_kernel_suggest_max_cooperative_group_count_exp_params_t *params) {
 
     os << ".hKernel = ";
 
@@ -13684,8 +13682,9 @@ inline std::ostream &operator<<(
     return os;
 }
 
-inline std::ostream &operator<<(std::ostream &os,
-                                const struct ur_loader_init_params_t *params) {
+inline std::ostream &
+operator<<(std::ostream &os,
+           [[maybe_unused]] const struct ur_loader_init_params_t *params) {
 
     os << ".device_flags = ";
 
