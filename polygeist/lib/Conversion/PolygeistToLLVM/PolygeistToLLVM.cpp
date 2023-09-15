@@ -338,10 +338,10 @@ struct Memref2PointerOpLowering
   LogicalResult
   matchAndRewrite(Memref2PointerOp op, OpAdaptor transformed,
                   ConversionPatternRewriter &rewriter) const override {
-    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+    if (LogicalResult verifyResult = verifyPtrMemrefConversion(
             *getTypeConverter(), op, op.getType(), op.getSource().getType());
-        failed(verifResult))
-      return verifResult;
+        failed(verifyResult))
+      return verifyResult;
 
     auto loc = op.getLoc();
 
@@ -370,10 +370,10 @@ struct Pointer2MemrefOpLowering
   LogicalResult
   matchAndRewrite(Pointer2MemrefOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+    if (LogicalResult verifyResult = verifyPtrMemrefConversion(
             *getTypeConverter(), op, op.getSource().getType(), op.getType());
-        failed(verifResult))
-      return verifResult;
+        failed(verifyResult))
+      return verifyResult;
 
     auto loc = op.getLoc();
 
@@ -440,10 +440,10 @@ struct BareMemref2PointerOpLowering
     if (!canBeLoweredToBarePtr(op.getSource().getType()))
       return failure();
 
-    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+    if (LogicalResult verifyResult = verifyPtrMemrefConversion(
             *getTypeConverter(), op, op.getType(), op.getSource().getType());
-        failed(verifResult))
-      return verifResult;
+        failed(verifyResult))
+      return verifyResult;
 
     const auto target = transformed.getSource();
     // In an opaque pointer world, a bitcast is a no-op, so no need to insert
@@ -465,10 +465,10 @@ struct BarePointer2MemrefOpLowering
     if (!canBeLoweredToBarePtr(op.getType()))
       return failure();
 
-    if (LogicalResult verifResult = verifyPtrMemrefConversion(
+    if (LogicalResult verifyResult = verifyPtrMemrefConversion(
             *getTypeConverter(), op, op.getSource().getType(), op.getType());
-        failed(verifResult))
-      return verifResult;
+        failed(verifyResult))
+      return verifyResult;
 
     const auto convertedType = getTypeConverter()->convertType(op.getType());
     if (!convertedType)
