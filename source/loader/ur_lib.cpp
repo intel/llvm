@@ -70,7 +70,7 @@ void context_t::tearDownLayers() const {
 
 //////////////////////////////////////////////////////////////////////////
 __urdlllocal ur_result_t
-context_t::Init(ur_device_init_flags_t device_flags,
+context_t::Init([[maybe_unused]] ur_device_init_flags_t device_flags,
                 ur_loader_config_handle_t hLoaderConfig) {
     ur_result_t result;
     const char *logger_name = "loader";

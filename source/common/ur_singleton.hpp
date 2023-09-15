@@ -31,7 +31,8 @@ template <typename singleton_tn, typename key_tn> class singleton_factory_t {
 
     //////////////////////////////////////////////////////////////////////////
     /// extract the key from parameter list and if necessary, convert type
-    template <typename... Ts> key_t getKey(key_tn key, Ts &&...params) {
+    template <typename... Ts>
+    key_t getKey(key_tn key, [[maybe_unused]] Ts &&...params) {
         return reinterpret_cast<key_t>(key);
     }
 

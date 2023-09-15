@@ -15,7 +15,8 @@
 
 #if defined(UMF_SHARED_LIBRARY)
 critnib *TRACKER = NULL;
-BOOL APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
+BOOL APIENTRY DllMain([[maybe_unused]] HINSTANCE hinstDLL, DWORD fdwReason,
+                      LPVOID lpvReserved) {
     if (fdwReason == DLL_PROCESS_DETACH) {
         critnib_delete(TRACKER);
     } else if (fdwReason == DLL_PROCESS_ATTACH) {
