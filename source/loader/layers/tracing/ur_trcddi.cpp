@@ -5696,6 +5696,99 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueCooperativeKernelLaunchExp
+__urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
+    ur_queue_handle_t hQueue,   ///< [in] handle of the queue object
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t
+        workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
+                 ///< work-group work-items
+    const size_t *
+        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< offset used to calculate the global ID of a work-item
+    const size_t *
+        pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
+    ///< number of global work-items in workDim that will execute the kernel
+    ///< function
+    const size_t *
+        pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
+    ///< specify the number of local work-items forming a work-group that will
+    ///< execute the kernel function.
+    ///< If nullptr, the runtime implementation will choose the work-group
+    ///< size.
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the kernel execution.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
+    ///< event.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+                ///< kernel execution instance.
+) {
+    auto pfnCooperativeKernelLaunchExp =
+        context.urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
+
+    if (nullptr == pfnCooperativeKernelLaunchExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_cooperative_kernel_launch_exp_params_t params = {
+        &hQueue,
+        &hKernel,
+        &workDim,
+        &pGlobalWorkOffset,
+        &pGlobalWorkSize,
+        &pLocalWorkSize,
+        &numEventsInWaitList,
+        &phEventWaitList,
+        &phEvent};
+    uint64_t instance =
+        context.notify_begin(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
+                             "urEnqueueCooperativeKernelLaunchExp", &params);
+
+    ur_result_t result = pfnCooperativeKernelLaunchExp(
+        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
+        pLocalWorkSize, numEventsInWaitList, phEventWaitList, phEvent);
+
+    context.notify_end(UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP,
+                       "urEnqueueCooperativeKernelLaunchExp", &params, &result,
+                       instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urKernelSuggestMaxCooperativeGroupCountExp
+__urdlllocal ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
+    ur_kernel_handle_t hKernel, ///< [in] handle of the kernel object
+    uint32_t *pGroupCountRet    ///< [out] pointer to maximum number of groups
+) {
+    auto pfnSuggestMaxCooperativeGroupCountExp =
+        context.urDdiTable.KernelExp.pfnSuggestMaxCooperativeGroupCountExp;
+
+    if (nullptr == pfnSuggestMaxCooperativeGroupCountExp) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_kernel_suggest_max_cooperative_group_count_exp_params_t params = {
+        &hKernel, &pGroupCountRet};
+    uint64_t instance = context.notify_begin(
+        UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
+        "urKernelSuggestMaxCooperativeGroupCountExp", &params);
+
+    ur_result_t result =
+        pfnSuggestMaxCooperativeGroupCountExp(hKernel, pGroupCountRet);
+
+    context.notify_end(
+        UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP,
+        "urKernelSuggestMaxCooperativeGroupCountExp", &params, &result,
+        instance);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urUSMImportExp
 __urdlllocal ur_result_t UR_APICALL urUSMImportExp(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -6247,6 +6340,41 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     return result;
 }
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's EnqueueExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetEnqueueExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_enqueue_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_tracing_layer::context.urDdiTable.EnqueueExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnCooperativeKernelLaunchExp =
+        pDdiTable->pfnCooperativeKernelLaunchExp;
+    pDdiTable->pfnCooperativeKernelLaunchExp =
+        ur_tracing_layer::urEnqueueCooperativeKernelLaunchExp;
+
+    return result;
+}
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Exported function for filling application's Event table
 ///        with current process' addresses
 ///
@@ -6376,6 +6504,41 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
         pDdiTable->pfnSetSpecializationConstants;
     pDdiTable->pfnSetSpecializationConstants =
         ur_tracing_layer::urKernelSetSpecializationConstants;
+
+    return result;
+}
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Exported function for filling application's KernelExp table
+///        with current process' addresses
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_VERSION
+__urdlllocal ur_result_t UR_APICALL urGetKernelExpProcAddrTable(
+    ur_api_version_t version, ///< [in] API version requested
+    ur_kernel_exp_dditable_t
+        *pDdiTable ///< [in,out] pointer to table of DDI function pointers
+) {
+    auto &dditable = ur_tracing_layer::context.urDdiTable.KernelExp;
+
+    if (nullptr == pDdiTable) {
+        return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+
+    if (UR_MAJOR_VERSION(ur_tracing_layer::context.version) !=
+            UR_MAJOR_VERSION(version) ||
+        UR_MINOR_VERSION(ur_tracing_layer::context.version) >
+            UR_MINOR_VERSION(version)) {
+        return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
+    }
+
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    dditable.pfnSuggestMaxCooperativeGroupCountExp =
+        pDdiTable->pfnSuggestMaxCooperativeGroupCountExp;
+    pDdiTable->pfnSuggestMaxCooperativeGroupCountExp =
+        ur_tracing_layer::urKernelSuggestMaxCooperativeGroupCountExp;
 
     return result;
 }
@@ -6994,6 +7157,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     }
 
     if (UR_RESULT_SUCCESS == result) {
+        result = ur_tracing_layer::urGetEnqueueExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->EnqueueExp);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetEventProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Event);
     }
@@ -7001,6 +7169,11 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
     if (UR_RESULT_SUCCESS == result) {
         result = ur_tracing_layer::urGetKernelProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Kernel);
+    }
+
+    if (UR_RESULT_SUCCESS == result) {
+        result = ur_tracing_layer::urGetKernelExpProcAddrTable(
+            UR_API_VERSION_CURRENT, &dditable->KernelExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {
