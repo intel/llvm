@@ -26,38 +26,40 @@ bool isSpirvSyclBuiltin(StringRef FName) {
   return FName.startswith("__spirv_") || FName.startswith("__sycl_");
 }
 
-void buildCalledSet(Function *F, std::set<Function *> &CalledSet) {
-  // skip SPIRV builtins and LLVM intrinsics
-  if (isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
-    return;
-  auto Inserted = CalledSet.insert(F);
-  if (!Inserted.second)
-    return;
+PreservedAnalyses
+RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
+  bool ModuleChanged = false;
+  // Build the set of functions with sycl-module-id attr and functions
+  // called by them
+  std::set<Function *> CalledSet;
+  SmallVector<Function *> workList;
+  for (auto &F : M) {
+    if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
+      workList.push_back(&F);
+    }
+  }
+  while(!workList.empty()) {
+    auto *F = workList.pop_back_val();
+    // skip SPIRV builtins and LLVM intrinsics
+    if (isSpirvSyclBuiltin(F->getName()) || F->isIntrinsic())
+      continue;
+    auto Inserted = CalledSet.insert(F);
+    if (!Inserted.second)
+      continue;
 
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (auto *CBI = dyn_cast<CallBase>(&I)) {
-        auto *Called = CBI->getCalledOperand();
-        if (auto *CalledF = dyn_cast<Function>(Called)) {
-          buildCalledSet(CalledF, CalledSet);
+    for (auto &BB : *F) {
+      for (auto &I : BB) {
+        if (auto *CBI = dyn_cast<CallBase>(&I)) {
+          auto *Called = CBI->getCalledOperand();
+          if (auto *CalledF = dyn_cast<Function>(Called)) {
+            workList.push_back(CalledF);
+          }
         }
       }
     }
   }
-}
 
-PreservedAnalyses
-RenameKernelSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
-  bool ModuleChanged = false;
-  std::set<Function *> Called;
-  // Rename functions with sycl-module-id attr and built the set of functions
-  // called by them
-  for (auto &F : M) {
-    if (F.hasFnAttribute(sycl::utils::ATTR_SYCL_MODULE_ID)) {
-      buildCalledSet(&F, Called);
-    }
-  }
-  for (auto &F : Called) {
+  for (auto &F : CalledSet) {
     F->setName(sycl::utils::addSYCLNativeCPUSuffix(F->getName()));
     ModuleChanged |= true;
   }
