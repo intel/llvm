@@ -34,7 +34,6 @@
 // CHECK-NEXT:   kernel_name : virtual_node[{{.*}}]
 // CHECK-NEXT: Edge create
 // CHECK-NEXT:   event : {{.*}}
-// CHECK-NEXT:   kernel_name : virtual_node[{{.*}}]
 // CHECK-NEXT: Task begin
 // CHECK-DAG:    sym_line_no : {{.*}}
 // CHECK-DAG:    sym_source_file_name : {{.*}}
