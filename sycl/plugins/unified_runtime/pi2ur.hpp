@@ -787,11 +787,6 @@ inline pi_result piTearDown(void *PluginParameter) {
     }
   });
   HANDLE_ERRORS(Ret);
-
-  // TODO: Dont check for errors in urTearDown, since
-  // when using Level Zero plugin, the second urTearDown
-  // will fail as ur_loader.so has already been unloaded,
-  urTearDown(nullptr);
   return PI_SUCCESS;
 }
 
@@ -799,8 +794,6 @@ inline pi_result piTearDown(void *PluginParameter) {
 // Platform
 inline pi_result piPlatformsGet(pi_uint32 NumEntries, pi_platform *Platforms,
                                 pi_uint32 *NumPlatforms) {
-
-  urInit(0, nullptr);
   // We're not going through the UR loader so we're guaranteed to have exactly
   // one adapter (whichever is statically linked). The PI plugin for UR has its
   // own implementation of piPlatformsGet.
@@ -4347,7 +4340,7 @@ inline pi_result piextCommandBufferMemcpyUSM(
   ur_exp_command_buffer_handle_t UrCommandBuffer =
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
 
-  HANDLE_ERRORS(urCommandBufferAppendMemcpyUSMExp(
+  HANDLE_ERRORS(urCommandBufferAppendUSMMemcpyExp(
       UrCommandBuffer, DstPtr, SrcPtr, Size, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
 
@@ -4365,7 +4358,7 @@ inline pi_result piextCommandBufferMemBufferCopy(
   ur_mem_handle_t UrSrcMem = reinterpret_cast<ur_mem_handle_t>(SrcMem);
   ur_mem_handle_t UrDstMem = reinterpret_cast<ur_mem_handle_t>(DstMem);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, SrcOffset, DstOffset, Size,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
 
@@ -4393,7 +4386,7 @@ inline pi_result piextCommandBufferMemBufferCopyRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferCopyRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferCopyRectExp(
       UrCommandBuffer, UrSrcMem, UrDstMem, UrSrcOrigin, UrDstOrigin, UrRegion,
       SrcRowPitch, SrcSlicePitch, DstRowPitch, DstSlicePitch,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
@@ -4423,7 +4416,7 @@ inline pi_result piextCommandBufferMemBufferReadRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferReadRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferReadRectExp(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch, Ptr,
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
@@ -4441,7 +4434,7 @@ inline pi_result piextCommandBufferMemBufferRead(
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Src);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferReadExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferReadExp(
       UrCommandBuffer, UrBuffer, Offset, Size, Dst, NumSyncPointsInWaitList,
       SyncPointWaitList, SyncPoint));
 
@@ -4470,7 +4463,7 @@ inline pi_result piextCommandBufferMemBufferWriteRect(
   UrRegion.height = Region->height_scalar;
   UrRegion.width = Region->width_bytes;
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteRectExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferWriteRectExp(
       UrCommandBuffer, UrBuffer, UrBufferOffset, UrHostOffset, UrRegion,
       BufferRowPitch, BufferSlicePitch, HostRowPitch, HostSlicePitch,
       const_cast<void *>(Ptr), NumSyncPointsInWaitList, SyncPointWaitList,
@@ -4490,7 +4483,7 @@ inline pi_result piextCommandBufferMemBufferWrite(
       reinterpret_cast<ur_exp_command_buffer_handle_t>(CommandBuffer);
   ur_mem_handle_t UrBuffer = reinterpret_cast<ur_mem_handle_t>(Buffer);
 
-  HANDLE_ERRORS(urCommandBufferAppendMembufferWriteExp(
+  HANDLE_ERRORS(urCommandBufferAppendMemBufferWriteExp(
       UrCommandBuffer, UrBuffer, Offset, Size, const_cast<void *>(Ptr),
       NumSyncPointsInWaitList, SyncPointWaitList, SyncPoint));
 
