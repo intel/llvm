@@ -146,6 +146,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NumEntries == 0 && phDevices != NULL`"
+    - $X_RESULT_ERROR_INVALID_NULL_POINTER:
+        - "`NumEntries > 0 && phDevices == NULL`"
     - $X_RESULT_ERROR_INVALID_VALUE
 --- #--------------------------------------------------------------------------
 type: enum
