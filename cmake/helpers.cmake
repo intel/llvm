@@ -64,6 +64,7 @@ function(add_ur_target_compile_options name)
             -Wall
             -Wpedantic
             -Wempty-body
+            -Wunused-parameter
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
