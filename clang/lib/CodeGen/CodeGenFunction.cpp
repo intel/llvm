@@ -758,6 +758,25 @@ void CodeGenFunction::EmitKernelMetadata(const FunctionDecl *FD,
                     llvm::MDNode::get(Context, AttrMDArgs));
   }
 
+  if (const auto *A = FD->getAttr<SYCLIntelMinWorkGroupsPerComputeUnitAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("min_work_groups_per_cu",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
+  if (const auto *A =
+          FD->getAttr<SYCLIntelMaxWorkGroupsPerMultiprocessorAttr>()) {
+    const auto *CE = cast<ConstantExpr>(A->getValue());
+    std::optional<llvm::APSInt> ArgVal = CE->getResultAsAPSInt();
+    llvm::Metadata *AttrMDArgs[] = {llvm::ConstantAsMetadata::get(
+        Builder.getInt32(ArgVal->getSExtValue()))};
+    Fn->setMetadata("max_work_groups_per_mp",
+                    llvm::MDNode::get(Context, AttrMDArgs));
+  }
+
   if (const SYCLIntelMaxWorkGroupSizeAttr *A =
           FD->getAttr<SYCLIntelMaxWorkGroupSizeAttr>()) {
 

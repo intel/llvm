@@ -1583,6 +1583,24 @@ def SYCLIntelMaxWorkGroupSize : InheritableAttr {
   let SupportsNonconformingLambdaSyntax = 1;
 }
 
+def SYCLIntelMinWorkGroupsPerComputeUnit : InheritableAttr {
+  let Spellings = [CXX11<"intel", "min_work_groups_per_cu">];
+  let Args = [ExprArgument<"Value">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
+}
+
+def SYCLIntelMaxWorkGroupsPerMultiprocessor : InheritableAttr {
+  let Spellings = [CXX11<"intel", "max_work_groups_per_mp">];
+  let Args = [ExprArgument<"Value">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Function], ErrorDiag>;
+  let Documentation = [SYCLIntelMaxWorkGroupsPerMultiprocessorDocs];
+  let SupportsNonconformingLambdaSyntax = 1;
+}
+
 def SYCLIntelMaxGlobalWorkDim : InheritableAttr {
   let Spellings = [CXX11<"intel", "max_global_work_dim">];
   let Args = [ExprArgument<"Value">];

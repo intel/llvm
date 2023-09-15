@@ -3017,6 +3017,65 @@ In SYCL 2020 mode, the attribute is not propagated to the kernel.
   }];
 }
 
+def SYCLIntelMinWorkGroupsPerComputeUnitAttrDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::min_work_groups_per_cu";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired minimum
+number of resident work_groups per multiprocessor. It complies to the
+.minnctapersm PTX directive.
+
+.. code-block:: c++
+
+  [[intel::min_work_groups_per_cu(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::min_work_groups_per_cu(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::min_work_groups_per_cu(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::min_work_groups_per_cu(N)]] void func() {}
+
+  }];
+}
+
+def SYCLIntelMaxWorkGroupsPerMultiprocessorDocs: Documentation {
+  let Category = DocCatFunction;
+  let Heading = "intel::max_work_groups_per_mp";
+  let Content = [{
+Applies to a device function/lambda function. Indicates the desired maximum
+number work_groups per cluster with which the application will ever launch. It
+complies to the .maxclusterrank PTX directive. Note, that the feature requires
+SM_90 or higher.
+
+.. code-block:: c++
+
+  [[intel::max_work_groups_per_mp(2)]] void foo() {}
+
+  class Foo {
+  public:
+    [[intel::max_work_groups_per_mp(2)]] void operator()() const {}
+  };
+
+  template <int N>
+  class Functor {
+  public:
+    [[intel::max_work_groups_per_mp(N)]] void operator()() const {}
+  };
+
+  template <int N>
+  [[intel::max_work_groups_per_mp(N)]] void func() {}
+
+  }];
+}
+
 def SYCLIntelMaxGlobalWorkDimAttrDocs : Documentation {
   let Category = DocCatFunction;
   let Heading = "intel::max_global_work_dim";
