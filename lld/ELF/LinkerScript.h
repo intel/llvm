@@ -105,6 +105,9 @@ struct SymbolAssignment : SectionCommand {
   bool provide = false;
   bool hidden = false;
 
+  // This assignment references DATA_SEGMENT_RELRO_END.
+  bool dataSegmentRelroEnd = false;
+
   unsigned symOrder;
 
   // Holds file name and line number for error reporting.
@@ -351,6 +354,8 @@ public:
   SmallVector<PhdrsCommand, 0> phdrsCommands;
 
   bool hasSectionsCommand = false;
+  bool seenDataAlign = false;
+  bool seenRelroEnd = false;
   bool errorOnMissingSection = false;
 
   // List of section patterns specified with KEEP commands. They will
