@@ -1,4 +1,5 @@
-// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o compile-time-query %s
+// RUN: %clangxx -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -fsycl -o compile-time-query
+// %s
 #include <iostream>
 #include <sycl/sycl.hpp>
 
