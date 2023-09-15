@@ -135,37 +135,46 @@ protected:
 // capabilities.
 class USMProxyPool {
 public:
-  umf_result_t initialize(umf_memory_provider_handle_t *providers,
-                          size_t numProviders) noexcept {
-    this->hProvider = providers[0];
+  umf_result_t initialize(umf_memory_provider_handle_t *Providers,
+                          size_t NumProviders) noexcept {
+    std::ignore = NumProviders;
+
+    this->hProvider = Providers[0];
     return UMF_RESULT_SUCCESS;
   }
-  void *malloc(size_t size) noexcept { return aligned_malloc(size, 0); }
-  void *calloc(size_t num, size_t size) noexcept {
+  void *malloc(size_t Size) noexcept { return aligned_malloc(Size, 0); }
+  void *calloc(size_t Num, size_t Size) noexcept {
+    std::ignore = Num;
+    std::ignore = Size;
+
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return nullptr;
   }
-  void *realloc(void *ptr, size_t size) noexcept {
+  void *realloc(void *Ptr, size_t Size) noexcept {
+    std::ignore = Ptr;
+    std::ignore = Size;
+
     // Currently not needed
     umf::getPoolLastStatusRef<USMProxyPool>() = UMF_RESULT_ERROR_NOT_SUPPORTED;
     return nullptr;
   }
-  void *aligned_malloc(size_t size, size_t alignment) noexcept {
-    void *ptr = nullptr;
-    auto ret = umfMemoryProviderAlloc(hProvider, size, alignment, &ptr);
-    if (ret != UMF_RESULT_SUCCESS) {
-      umf::getPoolLastStatusRef<USMProxyPool>() = ret;
+  void *aligned_malloc(size_t Size, size_t Alignment) noexcept {
+    void *Ptr = nullptr;
+    auto Ret = umfMemoryProviderAlloc(hProvider, Size, Alignment, &Ptr);
+    if (Ret != UMF_RESULT_SUCCESS) {
+      umf::getPoolLastStatusRef<USMProxyPool>() = Ret;
     }
-    return ptr;
+    return Ptr;
   }
-  size_t malloc_usable_size(void *ptr) noexcept {
+  size_t malloc_usable_size(void *Ptr) noexcept {
+    std::ignore = Ptr;
+
     // Currently not needed
     return 0;
   }
-  enum umf_result_t free(void *ptr) noexcept {
-    auto ret = umfMemoryProviderFree(hProvider, ptr, 0);
-    return ret;
+  enum umf_result_t free(void *Ptr) noexcept {
+    return umfMemoryProviderFree(hProvider, Ptr, 0);
   }
   enum umf_result_t get_last_allocation_error() {
     return umf::getPoolLastStatusRef<USMProxyPool>();
