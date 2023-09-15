@@ -4180,6 +4180,16 @@ TEST_F(FormatTest, FormatsNamespaces) {
                "void foo() {}\n"
                "} // namespace ns",
                Style);
+
+  FormatStyle LLVMWithCompactInnerNamespace = getLLVMStyle();
+  LLVMWithCompactInnerNamespace.CompactNamespaces = true;
+  LLVMWithCompactInnerNamespace.NamespaceIndentation = FormatStyle::NI_Inner;
+  verifyFormat("namespace ns1 { namespace ns2 { namespace ns3 {\n"
+               "// block for debug mode\n"
+               "#ifndef NDEBUG\n"
+               "#endif\n"
+               "}}} // namespace ns1::ns2::ns3",
+               LLVMWithCompactInnerNamespace);
 }
 
 TEST_F(FormatTest, NamespaceMacros) {
@@ -20651,6 +20661,15 @@ TEST_F(FormatTest, CatchAlignArrayOfStructuresRightAlignment) {
                "});",
                Style);
 
+  Style.Cpp11BracedListStyle = false;
+  verifyFormat("struct test demo[] = {\n"
+               "  { 56,    23, \"hello\" },\n"
+               "  { -1, 93463, \"world\" },\n"
+               "  {  7,     5,    \"!!\" }\n"
+               "};",
+               Style);
+  Style.Cpp11BracedListStyle = true;
+
   Style.ColumnLimit = 0;
   verifyFormat(
       "test demo[] = {\n"
@@ -20881,6 +20900,15 @@ TEST_F(FormatTest, CatchAlignArrayOfStructuresLeftAlignment) {
                "{\"dy\", \"sign\"}},\n"
                "});",
                Style);
+
+  Style.Cpp11BracedListStyle = false;
+  verifyFormat("struct test demo[] = {\n"
+               "  { 56, 23,    \"hello\" },\n"
+               "  { -1, 93463, \"world\" },\n"
+               "  { 7,  5,     \"!!\"    }\n"
+               "};",
+               Style);
+  Style.Cpp11BracedListStyle = true;
 
   Style.ColumnLimit = 0;
   verifyFormat(

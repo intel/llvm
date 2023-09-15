@@ -5274,6 +5274,53 @@ class OffloadingActionBuilder final {
       return needLibs;
     }
 
+    bool addSYCLNativeCPULibs(const ToolChain *TC,
+                              ActionList &DeviceLinkObjects) {
+      std::string LibSpirvFile;
+      if (Args.hasArg(options::OPT_fsycl_libspirv_path_EQ)) {
+        auto ProvidedPath =
+            Args.getLastArgValue(options::OPT_fsycl_libspirv_path_EQ).str();
+        if (llvm::sys::fs::exists(ProvidedPath))
+          LibSpirvFile = ProvidedPath;
+      } else {
+        SmallVector<StringRef, 8> LibraryPaths;
+
+        // Expected path w/out install.
+        SmallString<256> WithoutInstallPath(C.getDriver().ResourceDir);
+        llvm::sys::path::append(WithoutInstallPath, Twine("../../clc"));
+        LibraryPaths.emplace_back(WithoutInstallPath.c_str());
+
+        // Expected path w/ install.
+        SmallString<256> WithInstallPath(C.getDriver().ResourceDir);
+        llvm::sys::path::append(WithInstallPath, Twine("../../../share/clc"));
+        LibraryPaths.emplace_back(WithInstallPath.c_str());
+
+        // Select libclc variant based on target triple
+        std::string LibSpirvTargetName = "builtins.link.libspirv-";
+        LibSpirvTargetName.append(TC->getTripleString() + ".bc");
+
+        for (StringRef LibraryPath : LibraryPaths) {
+          SmallString<128> LibSpirvTargetFile(LibraryPath);
+          llvm::sys::path::append(LibSpirvTargetFile, LibSpirvTargetName);
+          if (llvm::sys::fs::exists(LibSpirvTargetFile) ||
+              Args.hasArg(options::OPT__HASH_HASH_HASH)) {
+            LibSpirvFile = std::string(LibSpirvTargetFile.str());
+            break;
+          }
+        }
+      }
+
+      if (!LibSpirvFile.empty()) {
+        Arg *LibClcInputArg = MakeInputArg(Args, C.getDriver().getOpts(),
+                                           Args.MakeArgString(LibSpirvFile));
+        auto *SYCLLibClcInputAction =
+            C.MakeAction<InputAction>(*LibClcInputArg, types::TY_LLVM_BC);
+        DeviceLinkObjects.push_back(SYCLLibClcInputAction);
+        return true;
+      }
+      return false;
+    }
+
     bool addSYCLDeviceLibs(const ToolChain *TC, ActionList &DeviceLinkObjects,
                            bool isSpirvAOT, bool isMSVCEnv) {
       struct DeviceLibOptInfo {
@@ -5683,6 +5730,9 @@ class OffloadingActionBuilder final {
           SYCLDeviceLibLinked = addSYCLDeviceLibs(
               TC, DeviceLibs, UseAOTLink,
               C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment());
+        }
+        if (isSYCLNativeCPU) {
+          SYCLDeviceLibLinked |= addSYCLNativeCPULibs(TC, DeviceLibs);
         }
         JobAction *LinkSYCLLibs =
             C.MakeAction<LinkJobAction>(DeviceLibs, types::TY_LLVM_BC);
@@ -8044,6 +8094,12 @@ void Driver::BuildJobs(Compilation &C) const {
   (void)C.getArgs().hasArg(options::OPT_driver_mode);
   (void)C.getArgs().hasArg(options::OPT_rsp_quoting);
 
+  bool HasAssembleJob = llvm::any_of(C.getJobs(), [](auto &J) {
+    // Match ClangAs and other derived assemblers of Tool. ClangAs uses a
+    // longer ShortName "clang integrated assembler" while other assemblers just
+    // use "assembler".
+    return strstr(J.getCreator().getShortName(), "assembler");
+  });
   for (Arg *A : C.getArgs()) {
     // FIXME: It would be nice to be able to send the argument to the
     // DiagnosticsEngine, so that extra values, position, and so on could be
@@ -8073,7 +8129,7 @@ void Driver::BuildJobs(Compilation &C) const {
       // already been warned about.
       if (!IsCLMode() || !A->getOption().matches(options::OPT_UNKNOWN)) {
         if (A->getOption().hasFlag(options::TargetSpecific) &&
-            !A->isIgnoredTargetSpecific()) {
+            !A->isIgnoredTargetSpecific() && !HasAssembleJob) {
           Diag(diag::err_drv_unsupported_opt_for_target)
               << A->getSpelling() << getTargetTriple();
         } else {

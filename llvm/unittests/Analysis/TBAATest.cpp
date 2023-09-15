@@ -36,11 +36,7 @@ static StoreInst *getFunctionWithSingleStore(Module *M, StringRef Name) {
   auto *F = Function::Create(FTy, Function::ExternalLinkage, Name, M);
   auto *BB = BasicBlock::Create(C, "entry", F);
   auto *IntType = Type::getInt32Ty(C);
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PtrType = Type::getInt32PtrTy(C);
-#else
   auto *PtrType = PointerType::get(C, 0);
-#endif
   auto *SI = new StoreInst(ConstantInt::get(IntType, 42),
                            ConstantPointerNull::get(PtrType), BB);
   ReturnInst::Create(C, nullptr, BB);

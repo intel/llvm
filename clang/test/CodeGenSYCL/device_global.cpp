@@ -1,4 +1,5 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -fgpu-rdc -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-RDC
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -fsycl-unique-prefix=THE_PREFIX -std=c++17 -fno-gpu-rdc -emit-llvm %s -o - | FileCheck %s --check-prefixes=CHECK,CHECK-NORDC
 #include "sycl.hpp"
 
 // Test cases below show that 'sycl-unique-id' LLVM IR attribute is attached to the
@@ -10,14 +11,16 @@ using namespace sycl;
 queue q;
 
 device_global<int> A;
+#ifdef SYCL_EXTERNAL
 SYCL_EXTERNAL device_global<int> AExt;
+#endif
 static device_global<int> B;
 
 struct Foo {
   static device_global<int> C;
 };
 device_global<int> Foo::C;
-// CHECK: @AExt = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
+// CHECK-RDC: @AExt = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[AEXT_ATTRS:[0-9]+]]
 // CHECK: @A = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[A_ATTRS:[0-9]+]]
 // CHECK: @_ZL1B = internal addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[B_ATTRS:[0-9]+]]
 // CHECK: @_ZN3Foo1CE = addrspace(1) global %"class.sycl::_V1::ext::oneapi::device_global" zeroinitializer, align 8 #[[C_ATTRS:[0-9]+]]
@@ -44,7 +47,8 @@ private:
 // check that we don't generate `sycl-unique-id` IR attribute if class does not use
 // [[__sycl_detail__::device_global]]
 only_global_var_allowed<int> no_device_global;
-// CHECK: @no_device_global = addrspace(1) global %class.only_global_var_allowed zeroinitializer, align 8{{$}}
+// CHECK-RDC: @no_device_global = linkonce_odr addrspace(1) global %class.only_global_var_allowed zeroinitializer, align 8{{$}}
+// CHECK-NORDC: @no_device_global = internal addrspace(1) global %class.only_global_var_allowed zeroinitializer, align 8{{$}}
 
 inline namespace Bar {
 device_global<float> InlineNS;
@@ -97,7 +101,7 @@ void bar() {
 // CHECK-SAME: @_ZL1B
 // CHECK-SAME: @_ZN12_GLOBAL__N_19same_nameE
 
-// CHECK: attributes #[[AEXT_ATTRS]] = { "sycl-unique-id"="_Z4AExt" }
+// CHECK-RDC: attributes #[[AEXT_ATTRS]] = { "sycl-unique-id"="_Z4AExt" }
 // CHECK: attributes #[[A_ATTRS]] = { "sycl-unique-id"="_Z1A" }
 // CHECK: attributes #[[B_ATTRS]] = { "sycl-unique-id"="THE_PREFIX____ZL1B" }
 // CHECK: attributes #[[C_ATTRS]] = { "sycl-unique-id"="_ZN3Foo1CE" }

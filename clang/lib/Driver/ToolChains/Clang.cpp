@@ -5429,6 +5429,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     else {
       for (auto &Macro : D.getSYCLTargetMacroArgs())
         CmdArgs.push_back(Args.MakeArgString(Macro));
+      if (!Args.hasFlag(options::OPT_fsycl_esimd_build_host_code,
+                        options::OPT_fno_sycl_esimd_build_host_code, true))
+        CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
     if (Args.hasFlag(options::OPT_fsycl_esimd_force_stateless_mem,
                      options::OPT_fno_sycl_esimd_force_stateless_mem, false))
@@ -6060,6 +6063,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     A->render(Args, CmdArgs);
   }
 
+  if (Arg *A = Args.getLastArg(options::OPT_faltmathlib_EQ)) {
+    StringRef Name = A->getValue();
+    A->render(Args, CmdArgs);
+  }
+
   if (Args.hasFlag(options::OPT_fmerge_all_constants,
                    options::OPT_fno_merge_all_constants, false))
     CmdArgs.push_back("-fmerge-all-constants");
@@ -6313,6 +6321,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_mms_bitfields, options::OPT_mno_ms_bitfields,
                    Triple.isWindowsGNUEnvironment())) {
     CmdArgs.push_back("-mms-bitfields");
+  }
+
+  if (Triple.isWindowsGNUEnvironment()) {
+    Args.addOptOutFlag(CmdArgs, options::OPT_fauto_import,
+                       options::OPT_fno_auto_import);
   }
 
   // Non-PIC code defaults to -fdirect-access-external-data while PIC code
@@ -6579,8 +6592,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Arg *A = Args.getLastArg(options::OPT_fsplit_machine_functions,
                                options::OPT_fno_split_machine_functions)) {
     if (!A->getOption().matches(options::OPT_fno_split_machine_functions)) {
-      // This codegen pass is only available on x86-elf targets.
-      if (Triple.isX86() && Triple.isOSBinFormatELF())
+      // This codegen pass is only available on x86 and AArch64 ELF targets.
+      if ((Triple.isX86() || Triple.isAArch64()) && Triple.isOSBinFormatELF())
         A->render(Args, CmdArgs);
       else
         D.Diag(diag::err_drv_unsupported_opt_for_target)
@@ -7571,14 +7584,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   if (Args.hasFlag(options::OPT_fpch_debuginfo, options::OPT_fno_pch_debuginfo,
                    false))
     CmdArgs.push_back("-fmodules-debuginfo");
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  if (!CLANG_ENABLE_OPAQUE_POINTERS_INTERNAL)
-    CmdArgs.push_back("-no-opaque-pointers");
-  else if ((Triple.isSPIRV() || Triple.isSPIR()) &&
-           !SPIRV_ENABLE_OPAQUE_POINTERS)
-    CmdArgs.push_back("-no-opaque-pointers");
-#endif
 
   ObjCRuntime Runtime = AddObjCRuntimeArgs(Args, Inputs, CmdArgs, rewriteKind);
   RenderObjCOptions(TC, D, RawTriple, Args, Runtime, rewriteKind != RK_None,
@@ -9839,7 +9844,11 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
         TCArgs.getLastArgValue(options::OPT_fsycl_device_obj_EQ)
             .equals_insensitive("spirv") &&
         !TCArgs.hasArg(options::OPT_fsycl_device_only);
-    if (CreatingSyclSPIRVFatObj)
+    bool ShouldPreserveMetadataInFinalImage =
+        TCArgs.hasArg(options::OPT_fsycl_preserve_device_nonsemantic_metadata);
+    bool ShouldPreserveMetadata =
+        CreatingSyclSPIRVFatObj || ShouldPreserveMetadataInFinalImage;
+    if (ShouldPreserveMetadata)
       TranslatorArgs.push_back("--spirv-preserve-auxdata");
 
     // Disable all the extensions by default
@@ -9884,7 +9893,7 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
                 ",+SPV_KHR_uniform_group_instructions"
                 ",+SPV_INTEL_masked_gather_scatter"
                 ",+SPV_INTEL_tensor_float32_conversion";
-    if (CreatingSyclSPIRVFatObj)
+    if (ShouldPreserveMetadata)
       ExtArg += ",+SPV_KHR_non_semantic_info";
 
     TranslatorArgs.push_back(TCArgs.MakeArgString(ExtArg));

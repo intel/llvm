@@ -102,6 +102,6 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {
     std::cout << "  " << xptiLookupString(Item.first) << " : "
-              << xptiLookupString(Item.second) << "\n";
+              << xpti::readMetadata(Item) << "\n";
   }
 }

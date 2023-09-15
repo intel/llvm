@@ -206,6 +206,7 @@ static inline std::string getErrorLocation(const uint8_t *loc) {
 void writePPC32GlinkSection(uint8_t *buf, size_t numEntries);
 
 unsigned getPPCDFormOp(unsigned secondaryOp);
+unsigned getPPCDSFormOp(unsigned secondaryOp);
 
 // In the PowerPC64 Elf V2 abi a function can have 2 entry points.  The first
 // is a global entry point (GEP) which typically is used to initialize the TOC

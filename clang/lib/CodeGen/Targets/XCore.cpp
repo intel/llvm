@@ -164,22 +164,14 @@ Address XCoreABIInfo::EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
     break;
   case ABIArgInfo::Extend:
   case ABIArgInfo::Direct:
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Val = AP.withElementType(ArgTy);
-#else
-    Val = Builder.CreateElementBitCast(AP, ArgTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     ArgSize = CharUnits::fromQuantity(
         getDataLayout().getTypeAllocSize(AI.getCoerceToType()));
     ArgSize = ArgSize.alignTo(SlotSize);
     break;
   case ABIArgInfo::Indirect:
   case ABIArgInfo::IndirectAliased:
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     Val = AP.withElementType(ArgPtrTy);
-#else
-    Val = Builder.CreateElementBitCast(AP, ArgPtrTy);
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     Val = Address(Builder.CreateLoad(Val), ArgTy, TypeAlign);
     ArgSize = SlotSize;
     break;

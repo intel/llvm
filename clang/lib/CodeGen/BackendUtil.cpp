@@ -45,6 +45,7 @@
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
+#include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/LowerWGLocalMemory.h"
 #include "llvm/SYCLLowerIR/MutatePrintfAddrspace.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
@@ -304,6 +305,18 @@ static TargetLibraryInfoImpl *createTLII(llvm::Triple &TargetTriple,
   case CodeGenOptions::ArmPL:
     TLII->addVectorizableFunctionsFromVecLib(TargetLibraryInfoImpl::ArmPL,
                                              TargetTriple);
+    break;
+  default:
+    break;
+  }
+  switch (CodeGenOpts.getAltMathLib()) {
+  case CodeGenOptions::TestAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::TestAltMathLibrary);
+    break;
+  case CodeGenOptions::SVMLAltMathLibrary:
+    TLII->addAltMathFunctionsFromLib(
+        TargetLibraryInfoImpl::AltMathLibrary::SVMLAltMathLibrary);
     break;
   default:
     break;
@@ -953,6 +966,11 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             MPM.addPass(
                 SYCLPropagateAspectsUsagePass(/*ExcludeAspects=*/{"fp64"}));
           });
+    else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
+      PB.registerPipelineStartEPCallback(
+          [&](ModulePassManager &MPM, OptimizationLevel Level) {
+            MPM.addPass(ESIMDRemoveHostCodePass());
+          });
 
     // Add the InferAddressSpaces pass for all the SPIR[V] targets
     if (TargetTriple.isSPIR() || TargetTriple.isSPIRV()) {
@@ -963,8 +981,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinLTO = CodeGenOpts.PrepareForThinLTO;
-    bool IsLTO = CodeGenOpts.PrepareForLTO;
+    const bool PrepareForThinLTO = CodeGenOpts.PrepareForThinLTO;
+    const bool PrepareForLTO = CodeGenOpts.PrepareForLTO;
 
     if (LangOpts.ObjCAutoRefCount) {
       PB.registerPipelineStartEPCallback(
@@ -1053,17 +1071,18 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
           });
     }
 
-    bool IsThinOrUnifiedLTO = IsThinLTO || (IsLTO && CodeGenOpts.UnifiedLTO);
+    const bool PrepareForThinOrUnifiedLTO =
+        PrepareForThinLTO || (PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
-      MPM =
-          PB.buildO0DefaultPipeline(OptimizationLevel::O0, IsLTO || IsThinLTO);
+      MPM = PB.buildO0DefaultPipeline(OptimizationLevel::O0,
+                                      PrepareForLTO || PrepareForThinLTO);
     } else if (CodeGenOpts.FatLTO) {
-      MPM = PB.buildFatLTODefaultPipeline(Level, IsThinOrUnifiedLTO,
-                                          IsThinOrUnifiedLTO ||
+      MPM = PB.buildFatLTODefaultPipeline(Level, PrepareForThinOrUnifiedLTO,
+                                          PrepareForThinOrUnifiedLTO ||
                                               shouldEmitRegularLTOSummary());
-    } else if (IsThinOrUnifiedLTO) {
+    } else if (PrepareForThinLTO) {
       MPM = PB.buildThinLTOPreLinkDefaultPipeline(Level);
-    } else if (IsLTO) {
+    } else if (PrepareForLTO) {
       MPM = PB.buildLTOPreLinkDefaultPipeline(Level);
     } else {
       MPM = PB.buildPerModuleDefaultPipeline(Level);
@@ -1156,12 +1175,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
   if (CodeGenOpts.FatLTO) {
     // Set module flags, like EnableSplitLTOUnit and UnifiedLTO, since FatLTO
     // uses a different action than Backend_EmitBC or Backend_EmitLL.
-    bool IsThinOrUnifiedLTO =
-        CodeGenOpts.PrepareForThinLTO ||
-        (CodeGenOpts.PrepareForLTO && CodeGenOpts.UnifiedLTO);
     if (!TheModule->getModuleFlag("ThinLTO"))
       TheModule->addModuleFlag(Module::Error, "ThinLTO",
-                               uint32_t(IsThinOrUnifiedLTO));
+                               uint32_t(CodeGenOpts.PrepareForThinLTO));
     if (!TheModule->getModuleFlag("EnableSplitLTOUnit"))
       TheModule->addModuleFlag(Module::Error, "EnableSplitLTOUnit",
                                uint32_t(CodeGenOpts.EnableSplitLTOUnit));
