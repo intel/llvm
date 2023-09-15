@@ -2494,7 +2494,7 @@ void addFuncPointerCallArgumentAttributes(CallInst *CI,
     ErrLog.checkError(StrDecoEO, SPIRVEC_InvalidLlvmModule,                    \
                       #NAME " requires extra operand to be a string");         \
     Target->addDecorate(                                                       \
-        new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str())); \
+        new SPIRVDecorate##NAME##Attr(Target, StrDecoEO->getString().str()));  \
     break;                                                                     \
   }
 
