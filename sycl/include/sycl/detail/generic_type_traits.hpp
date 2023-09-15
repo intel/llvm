@@ -486,8 +486,7 @@ using select_cl_scalar_float_t =
 // Use SFINAE so that std::complex specialization could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's
 // <complex> is included by users.
-template <typename T, typename = void>
-struct select_cl_scalar_complex_or_T {
+template <typename T, typename = void> struct select_cl_scalar_complex_or_T {
   using type = T;
 };
 
