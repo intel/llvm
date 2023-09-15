@@ -692,6 +692,12 @@ def OperandZeroAndResultHaveSameRank :
   let results = (outs AnyShaped:$res);
 }
 
+def OperandsAndResultHaveSameRank :
+    TEST_Op<"operands_and_result_have_same_rank", [SameOperandsAndResultRank]> {
+  let arguments = (ins AnyShaped:$x, AnyShaped:$y);
+  let results = (outs AnyShaped:$res);
+}
+
 def OperandZeroAndResultHaveSameShape :
     TEST_Op<"operand0_and_result_have_same_shape",
             [AllShapesMatch<["x", "res"]>]> {
@@ -2962,6 +2968,12 @@ def TestStoreWithALoopRegion : TEST_Op<"store_with_a_loop_region",
 def TestStoreWithARegionTerminator : TEST_Op<"store_with_a_region_terminator",
     [ReturnLike, Terminator, NoMemoryEffect]> {
   let assemblyFormat = "attr-dict";
+}
+
+def TestOpOptionallyImplementingInterface
+    : TEST_Op<"op_optionally_implementing_interface",
+        [TestOptionallyImplementedOpInterface]> {
+  let arguments = (ins BoolAttr:$implementsInterface);
 }
 
 #endif // TEST_OPS
