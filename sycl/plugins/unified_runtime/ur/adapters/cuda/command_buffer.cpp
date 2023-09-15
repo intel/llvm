@@ -622,9 +622,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     }
 
     if (phEvent) {
-      RetImplEvent =
-          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
-              UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
+      RetImplEvent = std::unique_ptr<ur_event_handle_t_>(
+          ur_event_handle_t_::makeNative(UR_COMMAND_COMMAND_BUFFER_ENQUEUE_EXP,
+                                         hQueue, CuStream, StreamToken));
       RetImplEvent->start();
     }
 
