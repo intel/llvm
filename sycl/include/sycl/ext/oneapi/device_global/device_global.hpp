@@ -30,7 +30,7 @@
 
 // Helper macro for conditional device_global property meta info filtering. This
 // lets us ignore certain properties under specified conditions, e.g. ignoring
-// host_access if device_image_scope isn't also present. 
+// host_access if device_image_scope isn't also present.
 #define __SYCL_DEVICE_GLOBAL_PROP_META_INFO(Props)                             \
   detail::ConditionalPropertyMetaInfo<                                         \
       Props, detail::DeviceGlobalMetaInfoFilter<                               \
@@ -185,16 +185,16 @@ public:
 
   template <class RelayT = T>
   std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
 
   template <class RelayT = T>
   const std::remove_reference_t<
-      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])>
-      &operator[](std::ptrdiff_t idx) const noexcept {
+      decltype(std::declval<RelayT>()[std::declval<std::ptrdiff_t>()])> &
+  operator[](std::ptrdiff_t idx) const noexcept {
     __SYCL_HOST_NOT_SUPPORTED("Subscript operator")
     return (*this->get_ptr())[idx];
   }
