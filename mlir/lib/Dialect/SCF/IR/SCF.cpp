@@ -4075,6 +4075,49 @@ void IndexSwitchOp::getRegionInvocationBounds(
 }
 
 //===----------------------------------------------------------------------===//
+// EnvironmentRegionOp
+//===----------------------------------------------------------------------===//
+
+void EnvironmentRegionOp::getSuccessorRegions(
+    RegionBranchPoint point, SmallVectorImpl<RegionSuccessor> &regions) {
+  // If the predecessor is the ExecuteRegionOp, branch into the body.
+  if (point.isParent()) {
+    regions.push_back(RegionSuccessor(&getRegion()));
+    return;
+  }
+
+  // Otherwise, the region branches back to the parent operation.
+  regions.push_back(RegionSuccessor(getResults()));
+}
+
+void EnvironmentRegionOp::inlineIntoParent(PatternRewriter &builder,
+                                           EnvironmentRegionOp op) {
+  Block *block = &op.getRegion().front();
+  auto term = cast<EnvironmentRegionYieldOp>(block->getTerminator());
+  auto args = llvm::to_vector(term.getResults());
+  builder.eraseOp(term);
+  builder.inlineBlockBefore(block, op);
+  builder.replaceOp(op, args);
+}
+
+void EnvironmentRegionOp::build(
+    OpBuilder &odsBuilder, OperationState &odsState, Attribute environment,
+    ValueRange args, TypeRange results,
+    function_ref<void(OpBuilder &, Location)> bodyBuilder) {
+  build(odsBuilder, odsState, results, environment, args);
+  Region *bodyRegion = odsState.regions.back().get();
+
+  bodyRegion->push_back(new Block);
+  Block &bodyBlock = bodyRegion->front();
+  if (bodyBuilder) {
+    OpBuilder::InsertionGuard guard(odsBuilder);
+    odsBuilder.setInsertionPointToStart(&bodyBlock);
+    bodyBuilder(odsBuilder, odsState.location);
+  }
+  ensureTerminator(*bodyRegion, odsBuilder, odsState.location);
+}
+
+//===----------------------------------------------------------------------===//
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
 
