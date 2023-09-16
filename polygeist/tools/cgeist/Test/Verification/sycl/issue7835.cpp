@@ -29,7 +29,7 @@
 // CHECK-LLVM-LABEL: define weak_odr spir_kernel void @_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EE(
 // CHECK-LLVM-SAME:        ptr noundef byval(%"class.sycl::_V1::range.1") align 8 %0, 
 // CHECK-LLVM-SAME:        ptr noundef byval({ ptr addrspace(1) }) align 8 %1)
-// CHECK-LLVM-NEXT:    call void @__itt_offload_wi_start_wrapper()
+// CHECK-LLVM-NEXT:    call spir_func void @__itt_offload_wi_start_wrapper()
 // CHECK-LLVM-NEXT:    %3 = alloca %"class.sycl::_V1::item.1.true", align 8
 // CHECK-LLVM-NEXT:    %4 = alloca { ptr addrspace(4) }, i64 1, align 8
 // CHECK-LLVM-NEXT:    %5 = alloca %"class.sycl::_V1::range.1", align 8
@@ -51,7 +51,7 @@
 // CHECK-LLVM-NEXT:    %17 = addrspacecast ptr %6 to ptr addrspace(4)
 // CHECK-LLVM-NEXT:    store %"class.sycl::_V1::item.1.true" %16, ptr %3, align 8
 // CHECK-LLVM-NEXT:    call spir_func void @_ZNK4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ4testRNS0_5queueEEUlNS0_2idILi1EEEE_EclES4_(ptr addrspace(4) %17, ptr %3)
-// CHECK-LLVM-NEXT:    call void @__itt_offload_wi_finish_wrapper()
+// CHECK-LLVM-NEXT:    call spir_func void @__itt_offload_wi_finish_wrapper()
 // CHECK-LLVM-NEXT:    ret void
 
 int test(sycl::queue &q) {

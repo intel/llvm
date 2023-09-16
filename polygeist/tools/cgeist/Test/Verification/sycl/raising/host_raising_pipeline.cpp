@@ -15,7 +15,7 @@
 // CHECK-SAME:    kernel-disjoint-specialization{relaxed-aliasing=false}
 // CHECK-SAME:    gpu.module(any({{.*}})),loop-internalization{relaxed-aliasing=false shared-memory-size=32000 unroll-factor=4}
 // CHECK-SAME:    gpu.module(any({{.*}}))
-// CHECK-SAME:    inliner{max-num-iters=3 mode=alwaysinline remove-dead-callees=true})
+// CHECK-SAME:    inliner{max-num-iters=3 mode=simple remove-dead-callees=true})
 
 #include <sycl/sycl.hpp>
 
