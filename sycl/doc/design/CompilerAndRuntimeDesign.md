@@ -423,6 +423,30 @@ Case 1 can be identified in the device binary generation stage (step 1) by
 scanning the known kernels. Case 2 must be verified by the driver by checking
 for newly introduced kernels in the final link stage (step 3).
 
+#### Device Link during compilation
+
+The `-ftarget-device-link` flag can be used in correlation with the `-c` option
+when generating fat objects. This option combination informs the compiler to
+perform a full device link stage against the device object, creating a fat
+object that contains the corresponding host object and a fully compiled device
+binary. It is expected that usage of `-ftarget-device-link` coincide with
+ahead of time compiling.
+
+When using the generated fat object in this case, the compiler will recognize
+the fat object that contains the fully linked device binary. The device binary
+will be unbundled and linked during the final host link and will not be sent
+through any additional device linking steps.
+
+1. Generation of fat object: a.cpp -> a_fat.o (contains host object and full
+device image)
+2. Linking: a_fat.o -> executable
+
+The generation of the full device image during the compilation (-c) step of
+creating the object allows for library creation that does not require full
+device linking steps which can be a burden to the user.  Providing these early
+device linking steps give the provider of the archives/objects a better user
+experience.
+
 #### Device code post-link step
 
 At link time all the device code is linked into

@@ -5,7 +5,7 @@
 // Create object that contains final device image
 // RUN: %clangxx -c -ftarget-device-link -fsycl -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
-// RUN:          "-device skl" -### %s 2>&1 \
+// RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE
 // CREATE_IMAGE: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-o" "[[DEVICE_BC:.+\.bc]]"
 // CREATE_IMAGE: llvm-link{{.*}} "[[DEVICE_BC]]"{{.*}} "-o" "[[DEVICE_BC2:.+\.bc]]"
@@ -23,7 +23,7 @@
  
 // RUN: %clangxx -c -ftarget-device-link -fsycl -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
-// RUN:          "-device skl" -ccc-print-phases %s \
+// RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -ccc-print-phases %s \
 // RUN:          -fno-sycl-device-lib=all 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE_PHASES
 // CREATE_IMAGE_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
