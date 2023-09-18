@@ -367,6 +367,31 @@ struct UrDevicePartitionPropertyTest {
     ur_device_partition_property_t prop;
 };
 
+struct UrSamplerAddressModesTest {
+    UrSamplerAddressModesTest() {
+        prop.addrModes[0] = UR_SAMPLER_ADDRESSING_MODE_CLAMP;
+        prop.addrModes[1] = UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT;
+        prop.addrModes[2] = UR_SAMPLER_ADDRESSING_MODE_REPEAT;
+        prop.pNext = nullptr;
+        prop.stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES;
+    }
+    ur_exp_sampler_addr_modes_t &get_struct() { return prop; }
+    const char *get_expected() {
+        return "\\(struct ur_exp_sampler_addr_modes_t\\)"
+               "\\{"
+               ".stype = UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES, "
+               ".pNext = nullptr, "
+               ".addrModes = \\["
+               "UR_SAMPLER_ADDRESSING_MODE_CLAMP, "
+               "UR_SAMPLER_ADDRESSING_MODE_MIRRORED_REPEAT, "
+               "UR_SAMPLER_ADDRESSING_MODE_REPEAT"
+               "\\]"
+               "\\}";
+    }
+
+    ur_exp_sampler_addr_modes_t prop;
+};
+
 using testing::Types;
 typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
               UrUsmHostAllocParamsEmpty, UrPlatformGetEmptyArray,
@@ -376,7 +401,7 @@ typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
               UrDeviceGetInfoParamsPartitionArray,
               UrContextGetInfoParamsDevicesArray,
               UrDeviceGetInfoParamsInvalidSize, UrProgramMetadataTest,
-              UrDevicePartitionPropertyTest>
+              UrDevicePartitionPropertyTest, UrSamplerAddressModesTest>
     Implementations;
 
 using ::testing::MatchesRegex;

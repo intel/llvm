@@ -7047,12 +7047,10 @@ typedef struct ur_exp_sampler_mip_properties_t {
 ///     - Specify these properties in ::urSamplerCreate via ::ur_sampler_desc_t
 ///       as part of a `pNext` chain.
 typedef struct ur_exp_sampler_addr_modes_t {
-    ur_structure_type_t stype;              ///< [in] type of this structure, must be
-                                            ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
-    void *pNext;                            ///< [in,out][optional] pointer to extension-specific structure
-    ur_sampler_addressing_mode_t addrModeX; ///< [in] Specify the addressing mode of the x-dimension.
-    ur_sampler_addressing_mode_t addrModeY; ///< [in] Specify the addressing mode of the y-dimension.
-    ur_sampler_addressing_mode_t addrModeZ; ///< [in] Specify the addressing mode of the z-dimension.
+    ur_structure_type_t stype;                 ///< [in] type of this structure, must be
+                                               ///< ::UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
+    void *pNext;                               ///< [in,out][optional] pointer to extension-specific structure
+    ur_sampler_addressing_mode_t addrModes[3]; ///< [in] Specify the address mode of the sampler per dimension
 
 } ur_exp_sampler_addr_modes_t;
 
