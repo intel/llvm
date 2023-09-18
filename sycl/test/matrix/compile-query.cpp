@@ -42,15 +42,17 @@ void query_amx_spr() {
 void query_xmx_dg2() {
 
   // generates combination assert
-  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int, int, 2, 8, 32>;
+  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int,
+  // int, 2, 8, 32>;
 
   // generate combination of type assert
-  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int, int>;
+  // using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int, int,
+  // int>;
 
   // tells whether a combination is valid or not, if valid, those will be set as
   // default
-  using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int8_t, int8_t,
-                                 int, int, 2, 8, 32>;
+  using myparams = matrix_params<architecture::intel_gpu_dg2_g10, int8_t,
+                                 int8_t, int, int, 2, 8, 32>;
 
   size_t dmsize = myparams::M;
   size_t dnsize = myparams::N;
@@ -65,8 +67,9 @@ void query_xmx_dg2() {
   dmsize = myparams2::M;
   dnsize = myparams2::N;
   dksize = myparams2::K;
-  std::cout << "Default Intel XMX of architecture::intel_gpu_dg2_g10 sizes  are: M "
-            << dmsize << " N " << dnsize << " K " << dksize << std::endl;
+  std::cout
+      << "Default Intel XMX of architecture::intel_gpu_dg2_g10 sizes  are: M "
+      << dmsize << " N " << dnsize << " K " << dksize << std::endl;
   return;
 }
 
