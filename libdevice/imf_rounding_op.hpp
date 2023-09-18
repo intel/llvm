@@ -36,9 +36,9 @@ template <typename Ty, typename UTy>
 static Ty __handling_fp_underflow(UTy z_sig, int rd, bool above_half) {
   if (z_sig == 0) {
     if ((rd == __IML_RTP) || ((rd == __IML_RTE) && above_half))
-      return __builtin_bit_cast(Ty, 0x1);
+      return __builtin_bit_cast(Ty, static_cast<UTy>(0x1));
     else
-      return __builtin_bit_cast(Ty, 0x0);
+      return __builtin_bit_cast(Ty, static_cast<UTy>(0x0));
   } else {
     if ((rd == __IML_RTN) || ((rd == __IML_RTE) && above_half))
       return __builtin_bit_cast(Ty, z_sig << (sizeof(Ty) * 8 - 1) | 0x1);
@@ -439,7 +439,6 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
   UTy z_sig = x_sig ^ y_sig;
   UTy z_exp, z_fra;
   UTy x_ib, y_ib;
-  DSUTy z_fra_temp;
   int z_exp_s = 0;
 
   if (((x_exp == __iml_fp_config<Ty>::exp_mask) && (x_fra != 0)) ||
@@ -457,9 +456,9 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
   }
 
   if ((x_exp == 0x0) && (x_fra == 0x0))
-    return __builtin_bit_cast(Ty, 0x0);
+    return __builtin_bit_cast(Ty, static_cast<UTy>(0x0));
   if ((y_exp == 0x0) && (y_fra == 0x0))
-    return __builtin_bit_cast(Ty, 0x0);
+    return __builtin_bit_cast(Ty, static_cast<UTy>(0x0));
 
   if (x_exp == 0x0) {
     x_ib = 0;
@@ -484,8 +483,10 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
   if ((x_ib == 0) && (y_ib == 0))
     return __handling_fp_underflow<Ty>(z_sig, rd, false);
 
-  DSUTy x_ib_fra = (x_ib << (std::numeric_limits<Ty>::digits - 1)) | x_fra;
-  DSUTy y_ib_fra = (y_ib << (std::numeric_limits<Ty>::digits - 1)) | y_fra;
+  DSUTy x_ib_fra = static_cast<DSUTy>(
+      (x_ib << (std::numeric_limits<Ty>::digits - 1)) | x_fra);
+  DSUTy y_ib_fra = static_cast<DSUTy>(
+      (y_ib << (std::numeric_limits<Ty>::digits - 1)) | y_fra);
   DSUTy z_ib_fra = x_ib_fra * y_ib_fra;
   unsigned g_bit = 0, r_bit = 0, s_bit = 0;
 
@@ -495,7 +496,11 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
   // has already been handled, so z_ib_fra is NON-zero and final
   // product can be represented: z_ib_fra * 2^-46 * 2^(z_exp_s) for
   // fp32 and the situation is same for fp64.
-  size_t msb_pos = get_msb_pos(z_ib_fra);
+  size_t msb_pos;
+  if constexpr (std::is_same_v<DSUTy, __iml_ui128>)
+    msb_pos = z_ib_fra.ui128_msb_pos();
+  else
+    msb_pos = get_msb_pos(z_ib_fra);
 
   // Final product can be represented: z_ib_fra * 2^-46 * 2^(z_exp_s)
   // for fp32 and for fp64, final product can be represented as:
@@ -520,26 +525,28 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
           Ty, (z_sig << (sizeof(Ty) * 8 - 1)) |
                   (z_exp << (std::numeric_limits<Ty>::digits - 1)) | z_fra);
     } else if (msb_pos == std::numeric_limits<Ty>::digits) {
-      g_bit = z_ib_fra & 0x1;
+      g_bit = static_cast<unsigned>(z_ib_fra & 0x1);
       z_fra = static_cast<UTy>(z_ib_fra);
       z_fra = (z_fra >> 1) & __iml_fp_config<Ty>::fra_mask;
     } else if (msb_pos == (std::numeric_limits<Ty>::digits + 1)) {
-      r_bit = z_ib_fra & 0x1;
-      g_bit = (z_ib_fra & 0x2) >> 1;
+      r_bit = static_cast<unsigned>(z_ib_fra & 0x1);
+      g_bit = static_cast<unsigned>((z_ib_fra & 0x2) >> 1);
       z_fra = static_cast<UTy>(z_ib_fra);
       z_fra = (z_fra >> 2) & __iml_fp_config<Ty>::fra_mask;
     } else {
-      unsigned bit_discarded = msb_pos - 23;
-      g_bit = (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 1))) >>
-              (bit_discarded - 1);
-      r_bit = (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 2))) >>
-              (bit_discarded - 2);
-      s_bit =
-          (z_ib_fra & ((static_cast<DSUTy>(0x1) << (bit_discarded - 2)) - 1))
-              ? 1
-              : 0;
-      z_fra = static_cast<UTy>((z_ib_fra >> bit_discarded) &
-                               __iml_fp_config<Ty>::fra_mask);
+      unsigned bit_discarded = msb_pos - (std::numeric_limits<Ty>::digits - 1);
+      g_bit = static_cast<unsigned>(
+          (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 1))) >>
+          (bit_discarded - 1));
+      r_bit = static_cast<unsigned>(
+          (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 2))) >>
+          (bit_discarded - 2));
+      s_bit = ((z_ib_fra &
+                ((static_cast<DSUTy>(0x1) << (bit_discarded - 2)) - 1)) != 0x0)
+                  ? 1
+                  : 0;
+      UTy temp = __iml_fp_config<Ty>::fra_mask;
+      z_fra = static_cast<UTy>((z_ib_fra >> bit_discarded) & temp);
     }
 
     int rb = __handling_rounding(z_sig, z_fra,
@@ -568,7 +575,7 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
       // In this case, the most significant bit 1 will be guard bit, if rouding
       // and sticky bit are not zero, above_half is true.
       DSUTy z_t = z_ib_fra & ((static_cast<DSUTy>(0x1) << msb_pos) - 1);
-      if (z_t > 0)
+      if (z_t > 0x0)
         above_half = true;
     }
     return __handling_fp_underflow<Ty>(z_sig, rd, above_half);
@@ -590,19 +597,21 @@ template <typename Ty> Ty __fp_mul(Ty x, Ty y, int rd) {
     unsigned bit_discarded =
         (msb_pos + 1) - (std::numeric_limits<Ty>::digits - subnormal_exp_diff);
     if (bit_discarded == 1) {
-      g_bit = z_ib_fra & 0x1;
+      g_bit = static_cast<unsigned>(z_ib_fra & 0x1);
     } else if (bit_discarded == 2) {
-      g_bit = (z_ib_fra & 0x2) >> 1;
-      r_bit = z_ib_fra & 0x1;
+      g_bit = static_cast<unsigned>((z_ib_fra & 0x2) >> 1);
+      r_bit = static_cast<unsigned>(z_ib_fra & 0x1);
     } else {
-      g_bit = (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 1))) >>
-              (bit_discarded - 1);
-      r_bit = (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 2))) >>
-              (bit_discarded - 2);
-      s_bit =
-          (z_ib_fra & ((static_cast<DSUTy>(0x1) << (bit_discarded - 2)) - 1))
-              ? 1
-              : 0;
+      g_bit = static_cast<unsigned>(
+          (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 1))) >>
+          (bit_discarded - 1));
+      r_bit = static_cast<unsigned>(
+          (z_ib_fra & (static_cast<DSUTy>(0x1) << (bit_discarded - 2))) >>
+          (bit_discarded - 2));
+      s_bit = ((z_ib_fra &
+                ((static_cast<DSUTy>(0x1) << (bit_discarded - 2)) - 1)) != 0x0)
+                  ? 1
+                  : 0;
     }
     z_ib_fra = z_ib_fra >> bit_discarded;
     z_fra = static_cast<UTy>(z_ib_fra);

@@ -441,4 +441,36 @@ DEVICE_EXTERN_C_INLINE
 double __imf_dsub_rz(double x, double y) {
   return __devicelib_imf_dsub_rz(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dmul_rd(double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_dmul_rd(double x, double y) {
+  return __devicelib_imf_dmul_rd(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dmul_rn(double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_dmul_rn(double x, double y) {
+  return __devicelib_imf_dmul_rn(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dmul_ru(double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_dmul_ru(double x, double y) {
+  return __devicelib_imf_dmul_ru(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_imf_dmul_rz(double, double);
+
+DEVICE_EXTERN_C_INLINE
+double __imf_dmul_rz(double x, double y) {
+  return __devicelib_imf_dmul_rz(x, y);
+}
 #endif // __LIBDEVICE_IMF_ENABLED__
