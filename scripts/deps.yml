@@ -1,0 +1,37 @@
+name: examples
+channels:
+  - conda-forge
+dependencies:
+  - _libgcc_mutex=0.1
+  - _openmp_mutex=4.5
+  - bzip2=1.0.8
+  - c-ares=1.19.1
+  - ca-certificates=2023.5.7
+  - cmake=3.26.4
+  - expat=2.5.0
+  - keyutils=1.6.1
+  - krb5=1.20.1
+  - level-zero=1.11.0
+  - level-zero-devel=1.11.0
+  - libcurl=8.1.2
+  - libedit=3.1.20191231
+  - libev=4.33
+  - libexpat=2.5.0
+  - libgcc-ng=13.1.0
+  - libgomp=13.1.0
+  - libllvm14=14.0.6
+  - libnghttp2=1.52.0
+  - libssh2=1.11.0
+  - libstdcxx-ng=13.1.0
+  - libuv=1.44.2
+  - libzlib=1.2.13
+  - llvm-spirv=14.0.0
+  - llvm-tools=14.0.6
+  - llvmdev=14.0.6
+  - ncurses=6.4
+  - openssl=3.1.1
+  - pkg-config=0.29.2
+  - rhash=1.4.3
+  - xz=5.2.6
+  - zlib=1.2.13
+  - zstd=1.5.2
