@@ -11,9 +11,17 @@ Corresponding language extension specification:
 New compile-time properties `indirectly_callable` and `calls_indirectly` should
 be implemented in accordance with the corresponding [design document][2].
 
-**TODO**: `calls_indirectly` requires conversion from C++ typename to a string.
-Document how it should be done. `__sycl_builtin_unique_stable_name` should
-likely be used.
+`indirectly_callable` property should lead to emission of
+`"indirectly-callable"="set"` function attribute, where "set" is a string
+representation of the property template parameter.
+
+`calls_indirectly` property should lead to emission of
+`"calls-indirectly"="set1,set2"`, where "set1" and "set2" are string
+representations of the property template parameters.
+
+In order to convert a type to a string, [\__builtin_sycl_unique_stable_name][3]
+could be used.
+
 **TODO**: `calls_indirectly` requires compile-time concatenation of strings.
 Document how it should be done.
 
@@ -173,4 +181,5 @@ functionality here?
 
 [1]: <../extensions/proposed/sycl_ext_oneapi_virtual_functions.asciidoc>
 [2]: <CompileTimeProperties.md>
+[3]: https://clang.llvm.org/docs/LanguageExtensions.html#builtin-sycl-unique-stable-name
 
