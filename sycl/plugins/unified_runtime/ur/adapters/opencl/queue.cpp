@@ -61,7 +61,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
       phQueue);
 
   cl_command_queue_properties CLProperties =
-      convertURQueuePropertiesToCL(pProperties);
+      pProperties ? convertURQueuePropertiesToCL(pProperties) : 0;
 
   // Properties supported by OpenCL backend.
   const cl_command_queue_properties SupportByOpenCL =
