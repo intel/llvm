@@ -10,8 +10,8 @@
 
 #include <sycl/builtins_utils_scalar.hpp>
 
-#include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/marray.hpp> // for marray
+#include <sycl/types.hpp>  // for vec
 
 namespace sycl {
 inline namespace _V1 {

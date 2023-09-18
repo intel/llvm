@@ -68,7 +68,6 @@ using get_select_opencl_builtin_c_arg_type = typename std::conditional_t<
                 sizeof(T) == 4, int,
                 std::conditional_t<sizeof(T) == 8, long long, void>>>>>;
 
-
 // Common utility for selecting a type based on the specified size.
 template <size_t Size, typename T8, typename T16, typename T32, typename T64>
 using select_scalar_by_size_t = std::conditional_t<
