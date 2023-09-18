@@ -34,7 +34,13 @@ template <typename Group> struct group_scope;
 
 } // namespace detail
 
+// forward decalre sycl::sub_group
+struct sub_group;
+
 namespace ext::oneapi {
+
+// forward decalre sycl::ext::oneapi::sub_group
+struct sub_group;
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__AMDGCN__) &&                    \
     (__AMDGCN_WAVEFRONT_SIZE == 64)
