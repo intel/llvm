@@ -75,4 +75,3 @@ __attribute((sycl_device)) void test() {
   fun5();
   fun6();
 }
-
