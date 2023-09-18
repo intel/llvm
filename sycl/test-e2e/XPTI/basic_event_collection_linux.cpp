@@ -61,7 +61,22 @@
 // CHECK-NEXT: Wait begin
 // CHECK-NEXT: PI Call Begin : piEventsWait
 // CHECK-NEXT: Wait end
+// CHECK-NEXT: Node create
+// CHECK-DAG:    memory_size : {{.*}}
+// CHECK-DAG:    dest_memory_ptr : {{.*}}
+// CHECK-DAG:    src_memory_ptr : {{.*}}
+// CHECK-DAG:    sycl_device : {{.*}}
+// CHECK-NEXT: Task begin
+// CHECK-DAG:    memory_size : {{.*}}
+// CHECK-DAG:    dest_memory_ptr : {{.*}}
+// CHECK-DAG:    src_memory_ptr : {{.*}}
+// CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piextUSMEnqueueMemcpy
+// CHECK-NEXT: Task end
+// CHECK-DAG:    memory_size : {{.*}}
+// CHECK-DAG:    dest_memory_ptr : {{.*}}
+// CHECK-DAG:    src_memory_ptr : {{.*}}
+// CHECK-DAG:    sycl_device : {{.*}}
 // CHECK-NEXT: PI Call Begin : piEventRelease
 // CHECK-NEXT: Wait begin
 // CHECK:        sycl_device : {{.*}}
