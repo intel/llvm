@@ -615,18 +615,18 @@ global variable is allocated for each device, and that instance is shared by
 all kernels that belong to the same context and are submitted to the same device,
 regardless of which _device image_ contains the kernel.  When this property is
 specified, it is an assertion by the user that the device global is referenced
-only from kernels that are contained by the same _device image_.  An
+only from kernels that are contained by the same _device image_ instance, a _device image_ loaded onto a specific device. An
 implementation may be able to optimize accesses to the device global when this
 property is specified (especially on an FPGA device), but the user must be aware
-of which _device image_ contains the kernels that use the variable.
+of which _device image_ instance contains the kernels that use the variable.
 
 A device global that is decorated with this property may not be accessed from
-kernels that reside in different _device images_, either by direct reference
+kernels that reside in different _device images_ instances, either by direct reference
 to the variable or indirectly by passing the variable's address to another
 kernel.  The implementation is required to diagnose an error if the kernels
-that directly access a variable do not all reside in the same _device image_,
+that directly access a variable do not all reside in the same _device image_ instance,
 however no diagnostic is required for an indirect access from another _device
-image_.
+image_ instance.
 
 When a device global is decorated with this property, the implementation
 re-initializes it whenever the _device image_ is loaded onto the device.  As a
@@ -643,7 +643,7 @@ global to be initialized immediately before the copy happens.  (Typically, the
 copy operation causes the _device image_ to be loaded onto the device also.)
 As a result, copying from a device global returns the initial value if the
 _device image_ that contains the variable is not currently loaded onto the
-device.
+device. It is undefined behavior to copy to or from a device global on a queue whose device cannot load a _device image_ that references the device global.
 
 a|
 [source,c++]
