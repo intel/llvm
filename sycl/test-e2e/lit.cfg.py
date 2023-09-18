@@ -104,6 +104,10 @@ elif platform.system() == "Linux":
     config.substitutions.append( ('%obj_ext', '.o') )
 config.substitutions.append( ('%sycl_include',  config.sycl_include ) )
 
+# If breaking change preview library is enabled we can enable the feature.
+if config.sycl_preview_lib_enabled == "ON":
+    config.available_features.add('preview-breaking-changes-lib')
+
 # Intel GPU FAMILY availability
 if lit_config.params.get('gpu-intel-gen9', False):
     config.available_features.add('gpu-intel-gen9')

@@ -56,6 +56,10 @@ if config.extra_environment:
            lit_config.note("\tUnset "+var)
            llvm_config.with_environment(var,"")
 
+# If major release preview library is enabled we can enable the feature.
+if config.sycl_preview_lib_enabled == "ON":
+    config.available_features.add('preview-breaking-changes-lib')
+
 # Configure LD_LIBRARY_PATH or corresponding os-specific alternatives
 # Add 'libcxx' feature to filter out all SYCL abi tests when SYCL runtime
 # is built with llvm libcxx. This feature is added for Linux only since MSVC
