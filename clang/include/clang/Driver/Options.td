@@ -3641,7 +3641,9 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
     BothFlags<[], [ClangOption, CLOption, DXCOption, CC1Option], "">>;
 // TODO: Remove this option once ESIMD headers are updated to
 // guard vectors to be device only.
-def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">, Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, Flags<[HelpHidden]>, HelpText<"Don't build the host implementation of ESIMD functions.">;
+def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
+  Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>, Flags<[HelpHidden]>,
+  HelpText<"Don't build the host implementation of ESIMD functions.">;
 def fsycl_targets_EQ : CommaJoined<["-"], "fsycl-targets=">, Flags<[NoXarchOption]>,
   Visibility<[ClangOption, CLOption, DXCOption, CC1Option]>,
   HelpText<"Specify comma-separated list of triples SYCL offloading targets to be supported">;
