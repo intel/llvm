@@ -36,6 +36,26 @@ using namespace mlir::arith;
 llvm::cl::opt<bool> BarrierOpt("barrier-opt", llvm::cl::init(true),
                                llvm::cl::desc("Optimize barriers"));
 
+/// Return \p mrTy's address space as an integer (being 0 the default) if it is
+/// represented as an integer attribute.
+static std::optional<unsigned> getMemorySpaceAsIntIfInteger(MemRefType mrTy) {
+  Attribute memorySpace = mrTy.getMemorySpace();
+  if (!memorySpace)
+    return 0;
+  auto intAttr = dyn_cast<IntegerAttr>(memorySpace);
+  if (!intAttr)
+    return std::nullopt;
+  return intAttr.getInt();
+}
+
+/// Return whether \p mrTy has a non-integer memory space or it is compatible
+/// with \p ptrTy's address space.
+static LogicalResult verifyPtrMemrefConversion(LLVM::LLVMPointerType ptrTy,
+                                               MemRefType mrTy) {
+  std::optional<unsigned> intMemspace = getMemorySpaceAsIntIfInteger(mrTy);
+  return success(!intMemspace || *intMemspace == ptrTy.getAddressSpace());
+}
+
 //===----------------------------------------------------------------------===//
 // BarrierOp
 //===----------------------------------------------------------------------===//
@@ -1365,6 +1385,10 @@ public:
   }
 };
 
+LogicalResult Memref2PointerOp::verify() {
+  return verifyPtrMemrefConversion(getType(), getSource().getType());
+}
+
 OpFoldResult Memref2PointerOp::fold(FoldAdaptor operands) {
   if (auto subindex = getSource().getDefiningOp<SubIndexOp>()) {
     if (auto cop = subindex.getIndex().getDefiningOp<ConstantIndexOp>()) {
@@ -1861,6 +1885,10 @@ struct MoveOutOfIfs : public OpRewritePattern<scf::IfOp> {
     return success();
   }
 };
+
+LogicalResult Pointer2MemrefOp::verify() {
+  return verifyPtrMemrefConversion(getSource().getType(), getType());
+}
 
 void Pointer2MemrefOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                                    MLIRContext *context) {
