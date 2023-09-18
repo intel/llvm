@@ -120,7 +120,7 @@ struct sub_group_mask {
   }
 
   sub_group_mask(const sub_group_mask &other) = default;
-  sub_group_mask& operator=(const sub_group_mask &other) = default;
+  sub_group_mask &operator=(const sub_group_mask &other) = default;
 #endif // SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 
   bool operator[](id<1> id) const {
