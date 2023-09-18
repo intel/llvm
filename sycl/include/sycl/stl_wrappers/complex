@@ -1,6 +1,11 @@
 #pragma once
 
+// Include real STL <complex> header - the next one from the include search
+// directories.
 #include_next <complex>
+
+// Now that we have std::complex available, implement SYCL functionality related
+// to it.
 
 #include <type_traits>
 
