@@ -405,7 +405,7 @@ typedef Types<UrLoaderInitParamsNoFlags, UrLoaderInitParamsInvalidFlags,
     Implementations;
 
 using ::testing::MatchesRegex;
-using namespace ur_print;
+using namespace ur::print;
 
 TYPED_TEST_SUITE(ParamsTest, Implementations, );
 
@@ -421,6 +421,6 @@ TEST(PrintPtr, nested_void_ptrs) {
     void ***ppreal = &preal;
     void ****pppreal = &ppreal;
     std::ostringstream out;
-    printPtr(out, pppreal);
+    details::printPtr(out, pppreal);
     EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
 }
