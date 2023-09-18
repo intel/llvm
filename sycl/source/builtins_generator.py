@@ -1339,6 +1339,11 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
   """Generates a builtins header."""
   instantiated_extra_includes = ('\n'.join([f'#include <{inc}>' for inc in extra_includes]))
 
+  if file_name == 'builtins_scalar_gen.hpp':
+      include = 'sycl/builtins_utils_scalar.hpp'
+  else:
+      include = 'sycl/builtins_utils_vec.hpp'
+
   with open(os.path.join(directory, file_name), "w+") as f:
     f.write(f"""
 //==--------- {file_name} - SYCL generated built-in functions ---------==//
@@ -1353,7 +1358,7 @@ def generate_file(directory, file_name, extra_includes, generated_builtins):
 
 #pragma once
 
-#include <sycl/builtins_utils.hpp>
+#include <{include}>
 
 {instantiated_extra_includes}
 
