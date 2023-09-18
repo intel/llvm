@@ -473,7 +473,7 @@ void mlir::polygeist::populateBareMemRefToLLVMConversionPatterns(
   // one added by default.
   converter.addConversion([&](MemRefType type) -> Optional<Type> {
     if (!canBeLoweredToBarePtr(type))
-      return std::nullopt;
+      return Type{};
 
     FailureOr<unsigned> addrSpace = converter.getMemRefAddressSpace(type);
     if (failed(addrSpace)) {
