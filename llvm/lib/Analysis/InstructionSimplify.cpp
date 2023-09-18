@@ -4125,15 +4125,17 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
 
   // Handle fcmp with constant RHS.
   if (C) {
+    // TODO: If we always required a context function, we wouldn't need to
+    // special case nans.
+    if (C->isNaN())
+      return ConstantInt::get(RetTy, CmpInst::isUnordered(Pred));
+
     // TODO: Need version fcmpToClassTest which returns implied class when the
     // compare isn't a complete class test. e.g. > 1.0 implies fcPositive, but
     // isn't implementable as a class call.
     if (C->isNegative() && !C->isNegZero()) {
-      FPClassTest Interested = fcPositive | fcNan;
+      FPClassTest Interested = KnownFPClass::OrderedLessThanZeroMask;
 
-      // FIXME: This assert won't always hold if we depend on the context
-      // instruction above
-      assert(!C->isNaN() && "Unexpected NaN constant!");
       // TODO: We can catch more cases by using a range check rather than
       //       relying on CannotBeOrderedLessThanZero.
       switch (Pred) {
@@ -4210,11 +4212,13 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
   // TODO: Could fold this with above if there were a matcher which returned all
   // classes in a non-splat vector.
   if (match(RHS, m_AnyZeroFP())) {
-    FPClassTest Interested = FMF.noNaNs() ? fcPositive : fcPositive | fcNan;
-
     switch (Pred) {
     case FCmpInst::FCMP_OGE:
     case FCmpInst::FCMP_ULT: {
+      FPClassTest Interested = KnownFPClass::OrderedLessThanZeroMask;
+      if (!FMF.noNaNs())
+        Interested |= fcNan;
+
       KnownFPClass Known = computeLHSClass(Interested);
 
       // Positive or zero X >= 0.0 --> true
@@ -4226,6 +4230,7 @@ static Value *simplifyFCmpInst(unsigned Predicate, Value *LHS, Value *RHS,
     }
     case FCmpInst::FCMP_UGE:
     case FCmpInst::FCMP_OLT: {
+      FPClassTest Interested = KnownFPClass::OrderedLessThanZeroMask;
       KnownFPClass Known = computeLHSClass(Interested);
 
       // Positive or zero or nan X >= 0.0 --> true
@@ -4913,15 +4918,8 @@ static Value *simplifyGEPInst(Type *SrcTy, Value *Ptr,
     }
   }
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   // All-zero GEP is a no-op, unless it performs a vector splat.
   if (Ptr->getType() == GEPTy &&
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  // For opaque pointers an all-zero GEP is a no-op. For typed pointers,
-  // it may be equivalent to a bitcast.
-  if (Ptr->getType()->getScalarType()->isOpaquePointerTy() &&
-      Ptr->getType() == GEPTy &&
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       all_of(Indices, [](const auto *V) { return match(V, m_Zero()); }))
     return Ptr;
 
@@ -6096,6 +6094,56 @@ static Value *simplifyRelativeLoad(Constant *Ptr, Constant *Offset,
   return LoadedLHSPtr;
 }
 
+// TODO: Need to pass in FastMathFlags
+static Value *simplifyLdexp(Value *Op0, Value *Op1, const SimplifyQuery &Q,
+                            bool IsStrict) {
+  // ldexp(poison, x) -> poison
+  // ldexp(x, poison) -> poison
+  if (isa<PoisonValue>(Op0) || isa<PoisonValue>(Op1))
+    return Op0;
+
+  // ldexp(undef, x) -> nan
+  if (Q.isUndefValue(Op0))
+    return ConstantFP::getNaN(Op0->getType());
+
+  if (!IsStrict) {
+    // TODO: Could insert a canonicalize for strict
+
+    // ldexp(x, undef) -> x
+    if (Q.isUndefValue(Op1))
+      return Op0;
+  }
+
+  const APFloat *C = nullptr;
+  match(Op0, PatternMatch::m_APFloat(C));
+
+  // These cases should be safe, even with strictfp.
+  // ldexp(0.0, x) -> 0.0
+  // ldexp(-0.0, x) -> -0.0
+  // ldexp(inf, x) -> inf
+  // ldexp(-inf, x) -> -inf
+  if (C && (C->isZero() || C->isInfinity()))
+    return Op0;
+
+  // These are canonicalization dropping, could do it if we knew how we could
+  // ignore denormal flushes and target handling of nan payload bits.
+  if (IsStrict)
+    return nullptr;
+
+  // TODO: Could quiet this with strictfp if the exception mode isn't strict.
+  if (C && C->isNaN())
+    return ConstantFP::get(Op0->getType(), C->makeQuiet());
+
+  // ldexp(x, 0) -> x
+
+  // TODO: Could fold this if we know the exception mode isn't
+  // strict, we know the denormal mode and other target modes.
+  if (match(Op1, PatternMatch::m_ZeroInt()))
+    return Op0;
+
+  return nullptr;
+}
+
 static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
                                      const SimplifyQuery &Q) {
   // Idempotent functions return the same result when called repeatedly.
@@ -6158,6 +6206,12 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
         match(Op0, m_Intrinsic<Intrinsic::log2>(m_Value(X))))
       return X;
     break;
+  case Intrinsic::exp10:
+    // exp10(log10(x)) -> x
+    if (Q.CxtI->hasAllowReassoc() &&
+        match(Op0, m_Intrinsic<Intrinsic::log10>(m_Value(X))))
+      return X;
+    break;
   case Intrinsic::log:
     // log(exp(x)) -> x
     if (Q.CxtI->hasAllowReassoc() &&
@@ -6174,8 +6228,11 @@ static Value *simplifyUnaryIntrinsic(Function *F, Value *Op0,
     break;
   case Intrinsic::log10:
     // log10(pow(10.0, x)) -> x
+    // log10(exp10(x)) -> x
     if (Q.CxtI->hasAllowReassoc() &&
-        match(Op0, m_Intrinsic<Intrinsic::pow>(m_SpecificFP(10.0), m_Value(X))))
+        (match(Op0, m_Intrinsic<Intrinsic::exp10>(m_Value(X))) ||
+         match(Op0,
+               m_Intrinsic<Intrinsic::pow>(m_SpecificFP(10.0), m_Value(X)))))
       return X;
     break;
   case Intrinsic::experimental_vector_reverse:
@@ -6439,6 +6496,8 @@ static Value *simplifyBinaryIntrinsic(Function *F, Value *Op0, Value *Op1,
         return Op0;
     }
     break;
+  case Intrinsic::ldexp:
+    return simplifyLdexp(Op0, Op1, Q, false);
   case Intrinsic::copysign:
     // copysign X, X --> X
     if (Op0 == Op1)
@@ -6702,6 +6761,8 @@ static Value *simplifyIntrinsic(CallBase *Call, Value *Callee,
                             *FPI->getExceptionBehavior(),
                             *FPI->getRoundingMode());
   }
+  case Intrinsic::experimental_constrained_ldexp:
+    return simplifyLdexp(Args[0], Args[1], Q, true);
   default:
     return nullptr;
   }

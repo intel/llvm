@@ -116,12 +116,12 @@ static const RISCVSupportedExtension SupportedExtensions[] = {
     {"zicbom", RISCVExtensionVersion{1, 0}},
     {"zicbop", RISCVExtensionVersion{1, 0}},
     {"zicboz", RISCVExtensionVersion{1, 0}},
-    {"zicntr", RISCVExtensionVersion{1, 0}},
+    {"zicntr", RISCVExtensionVersion{2, 0}},
     {"zicsr", RISCVExtensionVersion{2, 0}},
     {"zifencei", RISCVExtensionVersion{2, 0}},
     {"zihintntl", RISCVExtensionVersion{1, 0}},
     {"zihintpause", RISCVExtensionVersion{2, 0}},
-    {"zihpm", RISCVExtensionVersion{1, 0}},
+    {"zihpm", RISCVExtensionVersion{2, 0}},
 
     {"zk", RISCVExtensionVersion{1, 0}},
     {"zkn", RISCVExtensionVersion{1, 0}},
@@ -526,7 +526,7 @@ static Error getExtensionVersion(StringRef Ext, StringRef In, unsigned &Major,
     return createStringError(errc::invalid_argument, Error);
   }
 
-  // If experimental extension, require use of current version number number
+  // If experimental extension, require use of current version number
   if (auto ExperimentalExtension = isExperimentalExtension(Ext)) {
     if (!EnableExperimentalExtension) {
       std::string Error = "requires '-menable-experimental-extensions' for "

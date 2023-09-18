@@ -6888,6 +6888,7 @@ QualType TreeTransform<Derived>::TransformAutoType(TypeLocBuilder &TLB,
   AutoTypeLoc NewTL = TLB.push<AutoTypeLoc>(Result);
   NewTL.setNameLoc(TL.getNameLoc());
   NewTL.setRParenLoc(TL.getRParenLoc());
+  NewTL.setConceptReference(nullptr);
 
   if (T->isConstrained()) {
     DeclarationNameInfo DNI = DeclarationNameInfo(
@@ -12434,7 +12435,16 @@ TreeTransform<Derived>::TransformCXXNullPtrLiteralExpr(
 template<typename Derived>
 ExprResult
 TreeTransform<Derived>::TransformCXXThisExpr(CXXThisExpr *E) {
-  QualType T = getSema().getCurrentThisType();
+
+  // In lambdas, the qualifiers of the type depends of where in
+  // the call operator `this` appear, and we do not have a good way to
+  // rebuild this information, so we transform the type.
+  //
+  // In other contexts, the type of `this` may be overrided
+  // for type deduction, so we need to recompute it.
+  QualType T = getSema().getCurLambda() ?
+                   getDerived().TransformType(E->getType())
+                 : getSema().getCurrentThisType();
 
   if (!getDerived().AlwaysRebuild() && T == E->getType()) {
     // Mark it referenced in the new context regardless.
@@ -13668,6 +13678,9 @@ TreeTransform<Derived>::TransformLambdaExpr(LambdaExpr *E) {
   auto TPL = getDerived().TransformTemplateParameterList(
       E->getTemplateParameterList());
   LSI->GLTemplateParameterList = TPL;
+  if (TPL)
+    getSema().AddTemplateParametersToLambdaCallOperator(NewCallOperator, Class,
+                                                        TPL);
 
   // Transform the type of the original lambda's call operator.
   // The transformation MUST be done in the CurrentInstantiationScope since

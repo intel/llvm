@@ -1327,7 +1327,7 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
   m->getContext()->getOrLoadDialect<LLVM::LLVMDialect>();
   auto llvmModule = std::make_unique<llvm::Module>(name, llvmContext);
   if (auto dataLayoutAttr =
-          m->getAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
+          m->getDiscardableAttr(LLVM::LLVMDialect::getDataLayoutAttrName())) {
     llvmModule->setDataLayout(cast<StringAttr>(dataLayoutAttr).getValue());
   } else {
     FailureOr<llvm::DataLayout> llvmDataLayout(llvm::DataLayout(""));
@@ -1347,7 +1347,7 @@ prepareLLVMModule(Operation *m, llvm::LLVMContext &llvmContext,
     llvmModule->setDataLayout(*llvmDataLayout);
   }
   if (auto targetTripleAttr =
-          m->getAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
+          m->getDiscardableAttr(LLVM::LLVMDialect::getTargetTripleAttrName()))
     llvmModule->setTargetTriple(cast<StringAttr>(targetTripleAttr).getValue());
 
   // Inject declarations for `malloc` and `free` functions that can be used in
@@ -1377,6 +1377,15 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   LLVM::ensureDistinctSuccessors(module);
 
   ModuleTranslation translator(module, std::move(llvmModule));
+  llvm::IRBuilder<> llvmBuilder(llvmContext);
+
+  // Convert module before functions and operations inside, so dialect
+  // attributes can be used to change dialect-specific global configurations via
+  // `amendOperation()`. These configurations can then influence the translation
+  // of operations afterwards.
+  if (failed(translator.convertOperation(*module, llvmBuilder)))
+    return nullptr;
+
   if (failed(translator.convertComdats()))
     return nullptr;
   if (failed(translator.convertFunctionSignatures()))
@@ -1387,7 +1396,6 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
     return nullptr;
 
   // Convert other top-level operations if possible.
-  llvm::IRBuilder<> llvmBuilder(llvmContext);
   for (Operation &o : getModuleBody(module).getOperations()) {
     if (!isa<LLVM::LLVMFuncOp, LLVM::GlobalOp, LLVM::GlobalCtorsOp,
              LLVM::GlobalDtorsOp, LLVM::ComdatOp>(&o) &&
@@ -1401,10 +1409,6 @@ mlir::translateModuleToLLVMIR(Operation *module, llvm::LLVMContext &llvmContext,
   // after the top-level operations they refer to are declared, so we do it
   // last.
   if (failed(translator.convertFunctions()))
-    return nullptr;
-
-  // Convert module itself.
-  if (failed(translator.convertOperation(*module, llvmBuilder)))
     return nullptr;
 
   if (llvm::verifyModule(*translator.llvmModule, &llvm::errs()))

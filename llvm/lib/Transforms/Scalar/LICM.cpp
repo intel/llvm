@@ -993,7 +993,7 @@ bool llvm::hoistRegion(DomTreeNode *N, AAResults *AA, LoopInfo *LI,
   // loop invariant). If so make them unconditional by moving them to their
   // immediate dominator. We iterate through the instructions in reverse order
   // which ensures that when we rehoist an instruction we rehoist its operands,
-  // and also keep track of where in the block we are rehoisting to to make sure
+  // and also keep track of where in the block we are rehoisting to make sure
   // that we rehoist instructions before the instructions that use them.
   Instruction *HoistPoint = nullptr;
   if (ControlFlowHoisting) {
@@ -1055,30 +1055,15 @@ static bool isLoadInvariantInLoop(LoadInst *LI, DominatorTree *DT,
   if (LocSizeInBits.isScalable())
     return false;
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   // if the type is ptr addrspace(x), we know this is the type of
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  // if the type is i8 addrspace(x)*, we know this is the type of
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
   // llvm.invariant.start operand
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PtrASXTy = PointerType::get(LI->getContext(),
-                                    LI->getPointerAddressSpace());
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  auto *PtrInt8Ty = PointerType::get(Type::getInt8Ty(LI->getContext()),
-                                     LI->getPointerAddressSpace());
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
+  auto *PtrASXTy =
+      PointerType::get(LI->getContext(), LI->getPointerAddressSpace());
   unsigned BitcastsVisited = 0;
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   // Look through bitcasts until we reach the PtrASXTy type (this is
   // invariant.start operand type).
   // FIXME: We shouldn't really find such bitcasts with opaque pointers.
   while (Addr->getType() != PtrASXTy) {
-#else //INTEL_SYCL_OPAQUEPOINTER_READY
-  // Look through bitcasts until we reach the i8* type (this is invariant.start
-  // operand type).
-  while (Addr->getType() != PtrInt8Ty) {
-#endif //INTEL_SYCL_OPAQUEPOINTER_READY
     auto *BC = dyn_cast<BitCastInst>(Addr);
     // Avoid traversing high number of bitcast uses.
     if (++BitcastsVisited > MaxNumUsesTraversed || !BC)
@@ -1504,8 +1489,9 @@ static Instruction *cloneInstructionInExitBlock(
     if (LI->wouldBeOutOfLoopUseRequiringLCSSA(Op.get(), PN.getParent())) {
       auto *OInst = cast<Instruction>(Op.get());
       PHINode *OpPN =
-        PHINode::Create(OInst->getType(), PN.getNumIncomingValues(),
-                        OInst->getName() + ".lcssa", &ExitBlock.front());
+          PHINode::Create(OInst->getType(), PN.getNumIncomingValues(),
+                          OInst->getName() + ".lcssa");
+      OpPN->insertBefore(ExitBlock.begin());
       for (unsigned i = 0, e = PN.getNumIncomingValues(); i != e; ++i)
         OpPN->addIncoming(OInst, PN.getIncomingBlock(i));
       Op = OpPN;
@@ -1847,7 +1833,8 @@ class LoopPromoter : public LoadAndStorePromoter {
     // We need to create an LCSSA PHI node for the incoming value and
     // store that.
     PHINode *PN = PHINode::Create(I->getType(), PredCache.size(BB),
-                                  I->getName() + ".lcssa", &BB->front());
+                                  I->getName() + ".lcssa");
+    PN->insertBefore(BB->begin());
     for (BasicBlock *Pred : PredCache.get(BB))
       PN->addIncoming(I, Pred);
     return PN;

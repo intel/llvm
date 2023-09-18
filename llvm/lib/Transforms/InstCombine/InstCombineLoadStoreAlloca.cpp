@@ -224,7 +224,7 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       Value *Idx[2] = {NullIdx, NullIdx};
       Instruction *GEP = GetElementPtrInst::CreateInBounds(
           NewTy, New, Idx, New->getName() + ".sub");
-      IC.InsertNewInstBefore(GEP, *It);
+      IC.InsertNewInstBefore(GEP, It);
 
       // Now make everything use the getelementptr instead of the original
       // allocation.
@@ -380,7 +380,7 @@ void PointerReplacer::replace(Instruction *I) {
     NewI->takeName(LT);
     copyMetadataForLoad(*NewI, *LT);
 
-    IC.InsertNewInstWith(NewI, *LT);
+    IC.InsertNewInstWith(NewI, LT->getIterator());
     IC.replaceInstUsesWith(*LT, NewI);
     WorkMap[LT] = NewI;
   } else if (auto *PHI = dyn_cast<PHINode>(I)) {
@@ -398,29 +398,23 @@ void PointerReplacer::replace(Instruction *I) {
     Indices.append(GEP->idx_begin(), GEP->idx_end());
     auto *NewI =
         GetElementPtrInst::Create(GEP->getSourceElementType(), V, Indices);
-    IC.InsertNewInstWith(NewI, *GEP);
+    IC.InsertNewInstWith(NewI, GEP->getIterator());
     NewI->takeName(GEP);
     WorkMap[GEP] = NewI;
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewT = PointerType::get(BC->getType()->getContext(),
                                   V->getType()->getPointerAddressSpace());
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-    auto *NewT = PointerType::getWithSamePointeeType(
-        cast<PointerType>(BC->getType()),
-        V->getType()->getPointerAddressSpace());
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     auto *NewI = new BitCastInst(V, NewT);
-    IC.InsertNewInstWith(NewI, *BC);
+    IC.InsertNewInstWith(NewI, BC->getIterator());
     NewI->takeName(BC);
     WorkMap[BC] = NewI;
   } else if (auto *SI = dyn_cast<SelectInst>(I)) {
     auto *NewSI = SelectInst::Create(
         SI->getCondition(), getReplacement(SI->getTrueValue()),
         getReplacement(SI->getFalseValue()), SI->getName(), nullptr, SI);
-    IC.InsertNewInstWith(NewSI, *SI);
+    IC.InsertNewInstWith(NewSI, SI->getIterator());
     NewSI->takeName(SI);
     WorkMap[SI] = NewSI;
   } else if (auto *MemCpy = dyn_cast<MemTransferInst>(I)) {
@@ -455,7 +449,7 @@ void PointerReplacer::replace(Instruction *I) {
         ASC->getType()->getPointerAddressSpace()) {
       auto *NewI = new AddrSpaceCastInst(V, ASC->getType(), "");
       NewI->takeName(ASC);
-      IC.InsertNewInstWith(NewI, *ASC);
+      IC.InsertNewInstWith(NewI, ASC->getIterator());
       NewV = NewI;
     }
     IC.replaceInstUsesWith(*ASC, NewV);
@@ -583,22 +577,9 @@ LoadInst *InstCombinerImpl::combineLoadToNewType(LoadInst &LI, Type *NewTy,
   assert((!LI.isAtomic() || isSupportedAtomicType(NewTy)) &&
          "can't fold an atomic load to requested type");
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   LoadInst *NewLoad =
       Builder.CreateAlignedLoad(NewTy, LI.getPointerOperand(), LI.getAlign(),
                                 LI.isVolatile(), LI.getName() + Suffix);
-#else  // INTEL_SYCL_OPAQUEPOINTER_READY
-  Value *Ptr = LI.getPointerOperand();
-  unsigned AS = LI.getPointerAddressSpace();
-  Type *NewPtrTy = NewTy->getPointerTo(AS);
-  Value *NewPtr = nullptr;
-  if (!(match(Ptr, m_BitCast(m_Value(NewPtr))) &&
-        NewPtr->getType() == NewPtrTy))
-    NewPtr = Builder.CreateBitCast(Ptr, NewPtrTy);
-
-  LoadInst *NewLoad = Builder.CreateAlignedLoad(
-      NewTy, NewPtr, LI.getAlign(), LI.isVolatile(), LI.getName() + Suffix);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   NewLoad->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
   copyMetadataForLoad(*NewLoad, LI);
@@ -614,20 +595,11 @@ static StoreInst *combineStoreToNewValue(InstCombinerImpl &IC, StoreInst &SI,
          "can't fold an atomic store of requested type");
 
   Value *Ptr = SI.getPointerOperand();
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  unsigned AS = SI.getPointerAddressSpace();
-#endif
   SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
   SI.getAllMetadata(MD);
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   StoreInst *NewStore =
       IC.Builder.CreateAlignedStore(V, Ptr, SI.getAlign(), SI.isVolatile());
-#else
-  StoreInst *NewStore = IC.Builder.CreateAlignedStore(
-      V, IC.Builder.CreateBitCast(Ptr, V->getType()->getPointerTo(AS)),
-      SI.getAlign(), SI.isVolatile());
-#endif
   NewStore->setAtomic(SI.getOrdering(), SI.getSyncScopeID());
   for (const auto &MDPair : MD) {
     unsigned ID = MDPair.first;
@@ -1035,7 +1007,7 @@ static Instruction *replaceGEPIdxWithZero(InstCombinerImpl &IC, Value *Ptr,
       Instruction *NewGEPI = GEPI->clone();
       NewGEPI->setOperand(Idx,
         ConstantInt::get(GEPI->getOperand(Idx)->getType(), 0));
-      IC.InsertNewInstBefore(NewGEPI, *GEPI);
+      IC.InsertNewInstBefore(NewGEPI, GEPI->getIterator());
       return NewGEPI;
     }
   }
@@ -1698,7 +1670,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
     Builder.SetInsertPoint(OtherStore);
     PN->addIncoming(Builder.CreateBitOrPointerCast(MergedVal, PN->getType()),
                     OtherBB);
-    MergedVal = InsertNewInstBefore(PN, DestBB->front());
+    MergedVal = InsertNewInstBefore(PN, DestBB->begin());
     PN->setDebugLoc(MergedLoc);
   }
 
@@ -1707,7 +1679,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
   StoreInst *NewSI =
       new StoreInst(MergedVal, SI.getOperand(1), SI.isVolatile(), SI.getAlign(),
                     SI.getOrdering(), SI.getSyncScopeID());
-  InsertNewInstBefore(NewSI, *BBI);
+  InsertNewInstBefore(NewSI, BBI);
   NewSI->setDebugLoc(MergedLoc);
   NewSI->mergeDIAssignID({&SI, OtherStore});
 

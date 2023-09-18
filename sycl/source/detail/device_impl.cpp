@@ -87,11 +87,9 @@ device_impl::~device_impl() {
   if (!MIsHostDevice) {
     // TODO catch an exception and put it to list of asynchronous exceptions
     const PluginPtr &Plugin = getPlugin();
-    if (!Plugin->pluginReleased) {
-      sycl::detail::pi::PiResult Err =
-          Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
-      __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
-    }
+    sycl::detail::pi::PiResult Err =
+        Plugin->call_nocheck<PiApiKind::piDeviceRelease>(MDevice);
+    __SYCL_CHECK_OCL_CODE_NO_EXC(Err);
   }
 }
 

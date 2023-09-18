@@ -549,7 +549,7 @@ bool InstCombinerImpl::SimplifyAssociativeOrCommutative(BinaryOperator &I) {
                                  Op1->getFastMathFlags();
            NewBO->setFastMathFlags(Flags);
         }
-        InsertNewInstWith(NewBO, I);
+        InsertNewInstWith(NewBO, I.getIterator());
         NewBO->takeName(Op1);
         replaceOperand(I, 0, NewBO);
         replaceOperand(I, 1, CRes);
@@ -1295,7 +1295,7 @@ static Value *foldOperationIntoSelectOperand(Instruction &I, SelectInst *SI,
                                              Value *NewOp, InstCombiner &IC) {
   Instruction *Clone = I.clone();
   Clone->replaceUsesOfWith(SI, NewOp);
-  IC.InsertNewInstBefore(Clone, *SI);
+  IC.InsertNewInstBefore(Clone, SI->getIterator());
   return Clone;
 }
 
@@ -1467,7 +1467,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
 
   // Okay, we can do the transformation: create the new PHI node.
   PHINode *NewPN = PHINode::Create(I.getType(), PN->getNumIncomingValues());
-  InsertNewInstBefore(NewPN, *PN);
+  InsertNewInstBefore(NewPN, PN->getIterator());
   NewPN->takeName(PN);
   NewPN->setDebugLoc(PN->getDebugLoc());
 
@@ -1482,7 +1482,7 @@ Instruction *InstCombinerImpl::foldOpIntoPhi(Instruction &I, PHINode *PN) {
       else
         U = U->DoPHITranslation(PN->getParent(), NonSimplifiedBB);
     }
-    InsertNewInstBefore(Clone, *NonSimplifiedBB->getTerminator());
+    InsertNewInstBefore(Clone, NonSimplifiedBB->getTerminator()->getIterator());
   }
 
   for (unsigned i = 0; i != NumPHIValues; ++i) {
@@ -1630,30 +1630,6 @@ Instruction *InstCombinerImpl::foldBinOpIntoSelectOrPhi(BinaryOperator &I) {
   return nullptr;
 }
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-/// Given a pointer type and a constant offset, determine whether or not there
-/// is a sequence of GEP indices into the pointed type that will land us at the
-/// specified offset. If so, fill them into NewIndices and return the resultant
-/// element type, otherwise return null.
-static Type *findElementAtOffset(PointerType *PtrTy, int64_t IntOffset,
-                                 SmallVectorImpl<Value *> &NewIndices,
-                                 const DataLayout &DL) {
-  // Only used by visitGEPOfBitcast(), which is skipped for opaque pointers.
-  Type *Ty = PtrTy->getNonOpaquePointerElementType();
-  if (!Ty->isSized())
-    return nullptr;
-
-  APInt Offset(DL.getIndexTypeSizeInBits(PtrTy), IntOffset);
-  SmallVector<APInt> Indices = DL.getGEPIndicesForOffset(Ty, Offset);
-  if (!Offset.isZero())
-    return nullptr;
-
-  for (const APInt &Index : Indices)
-    NewIndices.push_back(ConstantInt::get(PtrTy->getContext(), Index));
-  return Ty;
-}
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
-
 static bool shouldMergeGEPs(GEPOperator &GEP, GEPOperator &Src) {
   // If this GEP has only 0 indices, it is the same pointer as
   // Src. If Src is not a trivial GEP too, don't combine
@@ -1663,250 +1639,6 @@ static bool shouldMergeGEPs(GEPOperator &GEP, GEPOperator &Src) {
     return false;
   return true;
 }
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-/// Return a value X such that Val = X * Scale, or null if none.
-/// If the multiplication is known not to overflow, then NoSignedWrap is set.
-Value *InstCombinerImpl::Descale(Value *Val, APInt Scale, bool &NoSignedWrap) {
-  assert(isa<IntegerType>(Val->getType()) && "Can only descale integers!");
-  assert(cast<IntegerType>(Val->getType())->getBitWidth() ==
-         Scale.getBitWidth() && "Scale not compatible with value!");
-
-  // If Val is zero or Scale is one then Val = Val * Scale.
-  if (match(Val, m_Zero()) || Scale == 1) {
-    NoSignedWrap = true;
-    return Val;
-  }
-
-  // If Scale is zero then it does not divide Val.
-  if (Scale.isMinValue())
-    return nullptr;
-
-  // Look through chains of multiplications, searching for a constant that is
-  // divisible by Scale.  For example, descaling X*(Y*(Z*4)) by a factor of 4
-  // will find the constant factor 4 and produce X*(Y*Z).  Descaling X*(Y*8) by
-  // a factor of 4 will produce X*(Y*2).  The principle of operation is to bore
-  // down from Val:
-  //
-  //     Val = M1 * X          ||   Analysis starts here and works down
-  //      M1 = M2 * Y          ||   Doesn't descend into terms with more
-  //      M2 =  Z * 4          \/   than one use
-  //
-  // Then to modify a term at the bottom:
-  //
-  //     Val = M1 * X
-  //      M1 =  Z * Y          ||   Replaced M2 with Z
-  //
-  // Then to work back up correcting nsw flags.
-
-  // Op - the term we are currently analyzing.  Starts at Val then drills down.
-  // Replaced with its descaled value before exiting from the drill down loop.
-  Value *Op = Val;
-
-  // Parent - initially null, but after drilling down notes where Op came from.
-  // In the example above, Parent is (Val, 0) when Op is M1, because M1 is the
-  // 0'th operand of Val.
-  std::pair<Instruction *, unsigned> Parent;
-
-  // Set if the transform requires a descaling at deeper levels that doesn't
-  // overflow.
-  bool RequireNoSignedWrap = false;
-
-  // Log base 2 of the scale. Negative if not a power of 2.
-  int32_t logScale = Scale.exactLogBase2();
-
-  for (;; Op = Parent.first->getOperand(Parent.second)) { // Drill down
-    if (ConstantInt *CI = dyn_cast<ConstantInt>(Op)) {
-      // If Op is a constant divisible by Scale then descale to the quotient.
-      APInt Quotient(Scale), Remainder(Scale); // Init ensures right bitwidth.
-      APInt::sdivrem(CI->getValue(), Scale, Quotient, Remainder);
-      if (!Remainder.isMinValue())
-        // Not divisible by Scale.
-        return nullptr;
-      // Replace with the quotient in the parent.
-      Op = ConstantInt::get(CI->getType(), Quotient);
-      NoSignedWrap = true;
-      break;
-    }
-
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Op)) {
-      if (BO->getOpcode() == Instruction::Mul) {
-        // Multiplication.
-        NoSignedWrap = BO->hasNoSignedWrap();
-        if (RequireNoSignedWrap && !NoSignedWrap)
-          return nullptr;
-
-        // There are three cases for multiplication: multiplication by exactly
-        // the scale, multiplication by a constant different to the scale, and
-        // multiplication by something else.
-        Value *LHS = BO->getOperand(0);
-        Value *RHS = BO->getOperand(1);
-
-        if (ConstantInt *CI = dyn_cast<ConstantInt>(RHS)) {
-          // Multiplication by a constant.
-          if (CI->getValue() == Scale) {
-            // Multiplication by exactly the scale, replace the multiplication
-            // by its left-hand side in the parent.
-            Op = LHS;
-            break;
-          }
-
-          // Otherwise drill down into the constant.
-          if (!Op->hasOneUse())
-            return nullptr;
-
-          Parent = std::make_pair(BO, 1);
-          continue;
-        }
-
-        // Multiplication by something else. Drill down into the left-hand side
-        // since that's where the reassociate pass puts the good stuff.
-        if (!Op->hasOneUse())
-          return nullptr;
-
-        Parent = std::make_pair(BO, 0);
-        continue;
-      }
-
-      if (logScale > 0 && BO->getOpcode() == Instruction::Shl &&
-          isa<ConstantInt>(BO->getOperand(1))) {
-        // Multiplication by a power of 2.
-        NoSignedWrap = BO->hasNoSignedWrap();
-        if (RequireNoSignedWrap && !NoSignedWrap)
-          return nullptr;
-
-        Value *LHS = BO->getOperand(0);
-        int32_t Amt = cast<ConstantInt>(BO->getOperand(1))->
-          getLimitedValue(Scale.getBitWidth());
-        // Op = LHS << Amt.
-
-        if (Amt == logScale) {
-          // Multiplication by exactly the scale, replace the multiplication
-          // by its left-hand side in the parent.
-          Op = LHS;
-          break;
-        }
-        if (Amt < logScale || !Op->hasOneUse())
-          return nullptr;
-
-        // Multiplication by more than the scale.  Reduce the multiplying amount
-        // by the scale in the parent.
-        Parent = std::make_pair(BO, 1);
-        Op = ConstantInt::get(BO->getType(), Amt - logScale);
-        break;
-      }
-    }
-
-    if (!Op->hasOneUse())
-      return nullptr;
-
-    if (CastInst *Cast = dyn_cast<CastInst>(Op)) {
-      if (Cast->getOpcode() == Instruction::SExt) {
-        // Op is sign-extended from a smaller type, descale in the smaller type.
-        unsigned SmallSize = Cast->getSrcTy()->getPrimitiveSizeInBits();
-        APInt SmallScale = Scale.trunc(SmallSize);
-        // Suppose Op = sext X, and we descale X as Y * SmallScale.  We want to
-        // descale Op as (sext Y) * Scale.  In order to have
-        //   sext (Y * SmallScale) = (sext Y) * Scale
-        // some conditions need to hold however: SmallScale must sign-extend to
-        // Scale and the multiplication Y * SmallScale should not overflow.
-        if (SmallScale.sext(Scale.getBitWidth()) != Scale)
-          // SmallScale does not sign-extend to Scale.
-          return nullptr;
-        assert(SmallScale.exactLogBase2() == logScale);
-        // Require that Y * SmallScale must not overflow.
-        RequireNoSignedWrap = true;
-
-        // Drill down through the cast.
-        Parent = std::make_pair(Cast, 0);
-        Scale = SmallScale;
-        continue;
-      }
-
-      if (Cast->getOpcode() == Instruction::Trunc) {
-        // Op is truncated from a larger type, descale in the larger type.
-        // Suppose Op = trunc X, and we descale X as Y * sext Scale.  Then
-        //   trunc (Y * sext Scale) = (trunc Y) * Scale
-        // always holds.  However (trunc Y) * Scale may overflow even if
-        // trunc (Y * sext Scale) does not, so nsw flags need to be cleared
-        // from this point up in the expression (see later).
-        if (RequireNoSignedWrap)
-          return nullptr;
-
-        // Drill down through the cast.
-        unsigned LargeSize = Cast->getSrcTy()->getPrimitiveSizeInBits();
-        Parent = std::make_pair(Cast, 0);
-        Scale = Scale.sext(LargeSize);
-        if (logScale + 1 == (int32_t)Cast->getType()->getPrimitiveSizeInBits())
-          logScale = -1;
-        assert(Scale.exactLogBase2() == logScale);
-        continue;
-      }
-    }
-
-    // Unsupported expression, bail out.
-    return nullptr;
-  }
-
-  // If Op is zero then Val = Op * Scale.
-  if (match(Op, m_Zero())) {
-    NoSignedWrap = true;
-    return Op;
-  }
-
-  // We know that we can successfully descale, so from here on we can safely
-  // modify the IR.  Op holds the descaled version of the deepest term in the
-  // expression.  NoSignedWrap is 'true' if multiplying Op by Scale is known
-  // not to overflow.
-
-  if (!Parent.first)
-    // The expression only had one term.
-    return Op;
-
-  // Rewrite the parent using the descaled version of its operand.
-  assert(Parent.first->hasOneUse() && "Drilled down when more than one use!");
-  assert(Op != Parent.first->getOperand(Parent.second) &&
-         "Descaling was a no-op?");
-  replaceOperand(*Parent.first, Parent.second, Op);
-  Worklist.push(Parent.first);
-
-  // Now work back up the expression correcting nsw flags.  The logic is based
-  // on the following observation: if X * Y is known not to overflow as a signed
-  // multiplication, and Y is replaced by a value Z with smaller absolute value,
-  // then X * Z will not overflow as a signed multiplication either.  As we work
-  // our way up, having NoSignedWrap 'true' means that the descaled value at the
-  // current level has strictly smaller absolute value than the original.
-  Instruction *Ancestor = Parent.first;
-  do {
-    if (BinaryOperator *BO = dyn_cast<BinaryOperator>(Ancestor)) {
-      // If the multiplication wasn't nsw then we can't say anything about the
-      // value of the descaled multiplication, and we have to clear nsw flags
-      // from this point on up.
-      bool OpNoSignedWrap = BO->hasNoSignedWrap();
-      NoSignedWrap &= OpNoSignedWrap;
-      if (NoSignedWrap != OpNoSignedWrap) {
-        BO->setHasNoSignedWrap(NoSignedWrap);
-        Worklist.push(Ancestor);
-      }
-    } else if (Ancestor->getOpcode() == Instruction::Trunc) {
-      // The fact that the descaled input to the trunc has smaller absolute
-      // value than the original input doesn't tell us anything useful about
-      // the absolute values of the truncations.
-      NoSignedWrap = false;
-    }
-    assert((Ancestor->getOpcode() != Instruction::SExt || NoSignedWrap) &&
-           "Failed to keep proper track of nsw flags while drilling down?");
-
-    if (Ancestor == Val)
-      // Got to the top, all done!
-      return Val;
-
-    // Move up one level in the expression.
-    assert(Ancestor->hasOneUse() && "Drilled down when more than one use!");
-    Ancestor = Ancestor->user_back();
-  } while (true);
-}
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 Instruction *InstCombinerImpl::foldVectorBinop(BinaryOperator &Inst) {
   if (!isa<VectorType>(Inst.getType()))
@@ -2254,11 +1986,7 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
   // For constant GEPs, use a more general offset-based folding approach.
   // Only do this for opaque pointers, as the result element type may change.
   Type *PtrTy = Src->getType()->getScalarType();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   if (GEP.hasAllConstantIndices() &&
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  if (PtrTy->isOpaquePointerTy() && GEP.hasAllConstantIndices() &&
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       (Src->hasOneUse() || Src->hasAllConstantIndices())) {
     // Split Src into a variable part and a constant suffix.
     gep_type_iterator GTI = gep_type_begin(*Src);
@@ -2385,113 +2113,6 @@ Instruction *InstCombinerImpl::visitGEPOfGEP(GetElementPtrInst &GEP,
 
   return nullptr;
 }
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-// Note that we may have also stripped an address space cast in between.
-Instruction *InstCombinerImpl::visitGEPOfBitcast(BitCastInst *BCI,
-                                                 GetElementPtrInst &GEP) {
-  // With opaque pointers, there is no pointer element type we can use to
-  // adjust the GEP type.
-  PointerType *SrcType = cast<PointerType>(BCI->getSrcTy());
-  if (SrcType->isOpaque())
-    return nullptr;
-
-  Type *GEPEltType = GEP.getSourceElementType();
-  Type *SrcEltType = SrcType->getNonOpaquePointerElementType();
-  Value *SrcOp = BCI->getOperand(0);
-
-  // GEP directly using the source operand if this GEP is accessing an element
-  // of a bitcasted pointer to vector or array of the same dimensions:
-  // gep (bitcast <c x ty>* X to [c x ty]*), Y, Z --> gep X, Y, Z
-  // gep (bitcast [c x ty]* X to <c x ty>*), Y, Z --> gep X, Y, Z
-  auto areMatchingArrayAndVecTypes = [](Type *ArrTy, Type *VecTy,
-                                        const DataLayout &DL) {
-    auto *VecVTy = cast<FixedVectorType>(VecTy);
-    return ArrTy->getArrayElementType() == VecVTy->getElementType() &&
-           ArrTy->getArrayNumElements() == VecVTy->getNumElements() &&
-           DL.getTypeAllocSize(ArrTy) == DL.getTypeAllocSize(VecTy);
-  };
-  if (GEP.getNumOperands() == 3 &&
-      ((GEPEltType->isArrayTy() && isa<FixedVectorType>(SrcEltType) &&
-        areMatchingArrayAndVecTypes(GEPEltType, SrcEltType, DL)) ||
-       (isa<FixedVectorType>(GEPEltType) && SrcEltType->isArrayTy() &&
-        areMatchingArrayAndVecTypes(SrcEltType, GEPEltType, DL)))) {
-
-    // Create a new GEP here, as using `setOperand()` followed by
-    // `setSourceElementType()` won't actually update the type of the
-    // existing GEP Value. Causing issues if this Value is accessed when
-    // constructing an AddrSpaceCastInst
-    SmallVector<Value *, 8> Indices(GEP.indices());
-    Value *NGEP =
-        Builder.CreateGEP(SrcEltType, SrcOp, Indices, "", GEP.isInBounds());
-    NGEP->takeName(&GEP);
-
-    // Preserve GEP address space to satisfy users
-    if (NGEP->getType()->getPointerAddressSpace() != GEP.getAddressSpace())
-      return new AddrSpaceCastInst(NGEP, GEP.getType());
-
-    return replaceInstUsesWith(GEP, NGEP);
-  }
-
-  // See if we can simplify:
-  //   X = bitcast A* to B*
-  //   Y = gep X, <...constant indices...>
-  // into a gep of the original struct. This is important for SROA and alias
-  // analysis of unions. If "A" is also a bitcast, wait for A/X to be merged.
-  unsigned OffsetBits = DL.getIndexTypeSizeInBits(GEP.getType());
-  APInt Offset(OffsetBits, 0);
-
-  // If the bitcast argument is an allocation, The bitcast is for convertion
-  // to actual type of allocation. Removing such bitcasts, results in having
-  // GEPs with i8* base and pure byte offsets. That means GEP is not aware of
-  // struct or array hierarchy.
-  // By avoiding such GEPs, phi translation and MemoryDependencyAnalysis have
-  // a better chance to succeed.
-  if (!isa<BitCastInst>(SrcOp) && GEP.accumulateConstantOffset(DL, Offset) &&
-      !isAllocationFn(SrcOp, &TLI)) {
-    // If this GEP instruction doesn't move the pointer, just replace the GEP
-    // with a bitcast of the real input to the dest type.
-    if (!Offset) {
-      // If the bitcast is of an allocation, and the allocation will be
-      // converted to match the type of the cast, don't touch this.
-      if (isa<AllocaInst>(SrcOp)) {
-        // See if the bitcast simplifies, if so, don't nuke this GEP yet.
-        if (Instruction *I = visitBitCast(*BCI)) {
-          if (I != BCI) {
-            I->takeName(BCI);
-            I->insertInto(BCI->getParent(), BCI->getIterator());
-            replaceInstUsesWith(*BCI, I);
-          }
-          return &GEP;
-        }
-      }
-
-      if (SrcType->getPointerAddressSpace() != GEP.getAddressSpace())
-        return new AddrSpaceCastInst(SrcOp, GEP.getType());
-      return new BitCastInst(SrcOp, GEP.getType());
-    }
-
-    // Otherwise, if the offset is non-zero, we need to find out if there is a
-    // field at Offset in 'A's type.  If so, we can pull the cast through the
-    // GEP.
-    SmallVector<Value *, 8> NewIndices;
-    if (findElementAtOffset(SrcType, Offset.getSExtValue(), NewIndices, DL)) {
-      Value *NGEP = Builder.CreateGEP(SrcEltType, SrcOp, NewIndices, "",
-                                      GEP.isInBounds());
-
-      if (NGEP->getType() == GEP.getType())
-        return replaceInstUsesWith(GEP, NGEP);
-      NGEP->takeName(&GEP);
-
-      if (NGEP->getType()->getPointerAddressSpace() != GEP.getAddressSpace())
-        return new AddrSpaceCastInst(NGEP, GEP.getType());
-      return new BitCastInst(NGEP, GEP.getType());
-    }
-  }
-
-  return nullptr;
-}
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
 Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   Value *PtrOp = GEP.getOperand(0);
@@ -2666,7 +2287,7 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
       NewGEP->setOperand(DI, NewPN);
     }
 
-    NewGEP->insertInto(GEP.getParent(), GEP.getParent()->getFirstInsertionPt());
+    NewGEP->insertBefore(*GEP.getParent(), GEP.getParent()->getFirstInsertionPt());
     return replaceOperand(GEP, 0, NewGEP);
   }
 
@@ -2713,193 +2334,6 @@ Instruction *InstCombinerImpl::visitGetElementPtrInst(GetElementPtrInst &GEP) {
   // We do not handle pointer-vector geps here.
   if (GEPType->isVectorTy())
     return nullptr;
-
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  // Handle gep(bitcast x) and gep(gep x, 0, 0, 0).
-  Value *StrippedPtr = PtrOp->stripPointerCasts();
-  PointerType *StrippedPtrTy = cast<PointerType>(StrippedPtr->getType());
-
-  // TODO: The basic approach of these folds is not compatible with opaque
-  // pointers, because we can't use bitcasts as a hint for a desirable GEP
-  // type. Instead, we should perform canonicalization directly on the GEP
-  // type. For now, skip these.
-  if (StrippedPtr != PtrOp && !StrippedPtrTy->isOpaque()) {
-    bool HasZeroPointerIndex = false;
-    Type *StrippedPtrEltTy = StrippedPtrTy->getNonOpaquePointerElementType();
-
-    if (auto *C = dyn_cast<ConstantInt>(GEP.getOperand(1)))
-      HasZeroPointerIndex = C->isZero();
-
-    // Transform: GEP (bitcast [10 x i8]* X to [0 x i8]*), i32 0, ...
-    // into     : GEP [10 x i8]* X, i32 0, ...
-    //
-    // Likewise, transform: GEP (bitcast i8* X to [0 x i8]*), i32 0, ...
-    //           into     : GEP i8* X, ...
-    //
-    // This occurs when the program declares an array extern like "int X[];"
-    if (HasZeroPointerIndex) {
-      if (auto *CATy = dyn_cast<ArrayType>(GEPEltType)) {
-        // GEP (bitcast i8* X to [0 x i8]*), i32 0, ... ?
-        if (CATy->getElementType() == StrippedPtrEltTy) {
-          // -> GEP i8* X, ...
-          SmallVector<Value *, 8> Idx(drop_begin(GEP.indices()));
-          GetElementPtrInst *Res = GetElementPtrInst::Create(
-              StrippedPtrEltTy, StrippedPtr, Idx, GEP.getName());
-          Res->setIsInBounds(GEP.isInBounds());
-          if (StrippedPtrTy->getAddressSpace() == GEP.getAddressSpace())
-            return Res;
-          // Insert Res, and create an addrspacecast.
-          // e.g.,
-          // GEP (addrspacecast i8 addrspace(1)* X to [0 x i8]*), i32 0, ...
-          // ->
-          // %0 = GEP i8 addrspace(1)* X, ...
-          // addrspacecast i8 addrspace(1)* %0 to i8*
-          return new AddrSpaceCastInst(Builder.Insert(Res), GEPType);
-        }
-
-        if (auto *XATy = dyn_cast<ArrayType>(StrippedPtrEltTy)) {
-          // GEP (bitcast [10 x i8]* X to [0 x i8]*), i32 0, ... ?
-          if (CATy->getElementType() == XATy->getElementType()) {
-            // -> GEP [10 x i8]* X, i32 0, ...
-            // At this point, we know that the cast source type is a pointer
-            // to an array of the same type as the destination pointer
-            // array.  Because the array type is never stepped over (there
-            // is a leading zero) we can fold the cast into this GEP.
-            if (StrippedPtrTy->getAddressSpace() == GEP.getAddressSpace()) {
-              GEP.setSourceElementType(XATy);
-              return replaceOperand(GEP, 0, StrippedPtr);
-            }
-            // Cannot replace the base pointer directly because StrippedPtr's
-            // address space is different. Instead, create a new GEP followed by
-            // an addrspacecast.
-            // e.g.,
-            // GEP (addrspacecast [10 x i8] addrspace(1)* X to [0 x i8]*),
-            //   i32 0, ...
-            // ->
-            // %0 = GEP [10 x i8] addrspace(1)* X, ...
-            // addrspacecast i8 addrspace(1)* %0 to i8*
-            SmallVector<Value *, 8> Idx(GEP.indices());
-            Value *NewGEP =
-                Builder.CreateGEP(StrippedPtrEltTy, StrippedPtr, Idx,
-                                  GEP.getName(), GEP.isInBounds());
-            return new AddrSpaceCastInst(NewGEP, GEPType);
-          }
-        }
-      }
-    } else if (GEP.getNumOperands() == 2 && !IsGEPSrcEleScalable) {
-      // Skip if GEP source element type is scalable. The type alloc size is
-      // unknown at compile-time.
-      // Transform things like: %t = getelementptr i32*
-      // bitcast ([2 x i32]* %str to i32*), i32 %V into:  %t1 = getelementptr [2
-      // x i32]* %str, i32 0, i32 %V; bitcast
-      if (StrippedPtrEltTy->isArrayTy() &&
-          DL.getTypeAllocSize(StrippedPtrEltTy->getArrayElementType()) ==
-              DL.getTypeAllocSize(GEPEltType)) {
-        Type *IdxType = DL.getIndexType(GEPType);
-        Value *Idx[2] = {Constant::getNullValue(IdxType), GEP.getOperand(1)};
-        Value *NewGEP = Builder.CreateGEP(StrippedPtrEltTy, StrippedPtr, Idx,
-                                          GEP.getName(), GEP.isInBounds());
-
-        // V and GEP are both pointer types --> BitCast
-        return CastInst::CreatePointerBitCastOrAddrSpaceCast(NewGEP, GEPType);
-      }
-
-      // Transform things like:
-      // %V = mul i64 %N, 4
-      // %t = getelementptr i8* bitcast (i32* %arr to i8*), i32 %V
-      // into:  %t1 = getelementptr i32* %arr, i32 %N; bitcast
-      if (GEPEltType->isSized() && StrippedPtrEltTy->isSized()) {
-        // Check that changing the type amounts to dividing the index by a scale
-        // factor.
-        uint64_t ResSize = DL.getTypeAllocSize(GEPEltType).getFixedValue();
-        uint64_t SrcSize =
-            DL.getTypeAllocSize(StrippedPtrEltTy).getFixedValue();
-        if (ResSize && SrcSize % ResSize == 0) {
-          Value *Idx = GEP.getOperand(1);
-          unsigned BitWidth = Idx->getType()->getPrimitiveSizeInBits();
-          uint64_t Scale = SrcSize / ResSize;
-
-          // Earlier transforms ensure that the index has the right type
-          // according to Data Layout, which considerably simplifies the
-          // logic by eliminating implicit casts.
-          assert(Idx->getType() == DL.getIndexType(GEPType) &&
-                 "Index type does not match the Data Layout preferences");
-
-          bool NSW;
-          if (Value *NewIdx = Descale(Idx, APInt(BitWidth, Scale), NSW)) {
-            // Successfully decomposed Idx as NewIdx * Scale, form a new GEP.
-            // If the multiplication NewIdx * Scale may overflow then the new
-            // GEP may not be "inbounds".
-            Value *NewGEP =
-                Builder.CreateGEP(StrippedPtrEltTy, StrippedPtr, NewIdx,
-                                  GEP.getName(), GEP.isInBounds() && NSW);
-
-            // The NewGEP must be pointer typed, so must the old one -> BitCast
-            return CastInst::CreatePointerBitCastOrAddrSpaceCast(NewGEP,
-                                                                 GEPType);
-          }
-        }
-      }
-
-      // Similarly, transform things like:
-      // getelementptr i8* bitcast ([100 x double]* X to i8*), i32 %tmp
-      //   (where tmp = 8*tmp2) into:
-      // getelementptr [100 x double]* %arr, i32 0, i32 %tmp2; bitcast
-      if (GEPEltType->isSized() && StrippedPtrEltTy->isSized() &&
-          StrippedPtrEltTy->isArrayTy()) {
-        // Check that changing to the array element type amounts to dividing the
-        // index by a scale factor.
-        uint64_t ResSize = DL.getTypeAllocSize(GEPEltType).getFixedValue();
-        uint64_t ArrayEltSize =
-            DL.getTypeAllocSize(StrippedPtrEltTy->getArrayElementType())
-                .getFixedValue();
-        if (ResSize && ArrayEltSize % ResSize == 0) {
-          Value *Idx = GEP.getOperand(1);
-          unsigned BitWidth = Idx->getType()->getPrimitiveSizeInBits();
-          uint64_t Scale = ArrayEltSize / ResSize;
-
-          // Earlier transforms ensure that the index has the right type
-          // according to the Data Layout, which considerably simplifies
-          // the logic by eliminating implicit casts.
-          assert(Idx->getType() == DL.getIndexType(GEPType) &&
-                 "Index type does not match the Data Layout preferences");
-
-          bool NSW;
-          if (Value *NewIdx = Descale(Idx, APInt(BitWidth, Scale), NSW)) {
-            // Successfully decomposed Idx as NewIdx * Scale, form a new GEP.
-            // If the multiplication NewIdx * Scale may overflow then the new
-            // GEP may not be "inbounds".
-            Type *IndTy = DL.getIndexType(GEPType);
-            Value *Off[2] = {Constant::getNullValue(IndTy), NewIdx};
-
-            Value *NewGEP =
-                Builder.CreateGEP(StrippedPtrEltTy, StrippedPtr, Off,
-                                  GEP.getName(), GEP.isInBounds() && NSW);
-            // The NewGEP must be pointer typed, so must the old one -> BitCast
-            return CastInst::CreatePointerBitCastOrAddrSpaceCast(NewGEP,
-                                                                 GEPType);
-          }
-        }
-      }
-    }
-  }
-  // addrspacecast between types is canonicalized as a bitcast, then an
-  // addrspacecast. To take advantage of the below bitcast + struct GEP, look
-  // through the addrspacecast.
-  Value *ASCStrippedPtrOp = PtrOp;
-  if (auto *ASC = dyn_cast<AddrSpaceCastInst>(PtrOp)) {
-    //   X = bitcast A addrspace(1)* to B addrspace(1)*
-    //   Y = addrspacecast A addrspace(1)* to B addrspace(2)*
-    //   Z = gep Y, <...constant indices...>
-    // Into an addrspacecasted GEP of the struct.
-    if (auto *BC = dyn_cast<BitCastInst>(ASC->getOperand(0)))
-      ASCStrippedPtrOp = BC;
-  }
-
-  if (auto *BCI = dyn_cast<BitCastInst>(ASCStrippedPtrOp))
-    if (Instruction *I = visitGEPOfBitcast(BCI, GEP))
-      return I;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   if (!GEP.isInBounds()) {
     unsigned IdxWidth =
@@ -3244,7 +2678,7 @@ static Instruction *tryToMoveFreeBeforeNullTest(CallInst &FI,
   for (Instruction &Instr : llvm::make_early_inc_range(*FreeInstrBB)) {
     if (&Instr == FreeInstrBBTerminator)
       break;
-    Instr.moveBefore(TI);
+    Instr.moveBeforePreserving(TI);
   }
   assert(FreeInstrBB->size() == 1 &&
          "Only the branch instruction should remain");
@@ -4184,7 +3618,7 @@ Instruction *InstCombinerImpl::foldFreezeIntoRecurrence(FreezeInst &FI,
   Value *StartV = StartU->get();
   BasicBlock *StartBB = PN->getIncomingBlock(*StartU);
   bool StartNeedsFreeze = !isGuaranteedNotToBeUndefOrPoison(StartV);
-  // We can't insert freeze if the the start value is the result of the
+  // We can't insert freeze if the start value is the result of the
   // terminator (e.g. an invoke).
   if (StartNeedsFreeze && StartBB->getTerminator() == StartV)
     return nullptr;
@@ -4247,7 +3681,7 @@ bool InstCombinerImpl::freezeOtherUses(FreezeInst &FI) {
 
   bool Changed = false;
   if (&FI != MoveBefore) {
-    FI.moveBefore(MoveBefore);
+    FI.moveBefore(*MoveBefore->getParent(), MoveBefore->getIterator());
     Changed = true;
   }
 
@@ -4450,7 +3884,7 @@ bool InstCombinerImpl::tryToSinkInstruction(Instruction *I,
   /// the new position.
 
   BasicBlock::iterator InsertPos = DestBlock->getFirstInsertionPt();
-  I->moveBefore(&*InsertPos);
+  I->moveBefore(*DestBlock, InsertPos);
   ++NumSunkInst;
 
   // Also sink all related debug uses from the source basic block. Otherwise we

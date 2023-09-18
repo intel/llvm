@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <syclcompat/atomic.hpp>
 #include <syclcompat/defs.hpp>
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>

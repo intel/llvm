@@ -386,13 +386,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                 # Enable SPIR-V builtin function declarations, so they don't
                 # have to be explicity declared in the soruce.
                 list( APPEND flags -Xclang -fdeclare-spirv-builtins)
-                if (${ARCH} STREQUAL "spirv" OR ${ARCH} STREQUAL "spirv64")
-                  if(NOT SPIRV_ENABLE_OPAQUE_POINTERS)
-                    list(APPEND flags "-UENABLE_OPAQUE_POINTERS")
-                    list(APPEND flags "SHELL:-Xclang -no-opaque-pointers")
-                    list(APPEND opt_flags "-opaque-pointers=0")
-                  endif()
-                endif()
 
                 # OpenCL 3.0 extensions
                 list( APPEND flags -cl-std=CL3.0 "SHELL:-Xclang" )
@@ -408,6 +401,18 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
                     ",+cl_khr_fp16")
                 endif()
                 list( APPEND flags ${CL_3_0_EXTENSIONS})
+
+		# Add platform specific flags
+		if(WIN32)
+			list(APPEND flags -D_WIN32)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+			list(APPEND flags -D__APPLE__)
+		elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+			list(APPEND flags -D__unix__ -D__linux__)
+		else()
+			# Assume some UNIX system otherwise
+			list(APPEND flags -D__unix__)
+		endif()
 
 		add_libclc_builtin_set(libspirv-${arch_suffix}
 			TRIPLE ${t}

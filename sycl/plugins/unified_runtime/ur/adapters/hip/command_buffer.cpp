@@ -50,7 +50,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t, void *, const void *, size_t, uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *) {
@@ -59,7 +59,25 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemcpyUSMExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
+    ur_exp_command_buffer_handle_t, void *, const void *, size_t, size_t,
+    uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  detail::ur::die("Experimental Command-buffer feature is not implemented for "
+                  "HIP adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
+    ur_exp_command_buffer_handle_t, ur_mem_handle_t, const void *, size_t,
+    size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    ur_exp_command_buffer_sync_point_t *) {
+  detail::ur::die("Experimental Command-buffer feature is not implemented for "
+                  "HIP adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, size_t,
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *) {
@@ -68,7 +86,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyExp(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t,
     ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, size_t, size_t,
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
@@ -79,7 +97,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMembufferCopyRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, size_t, size_t,
     const void *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *) {
@@ -89,7 +107,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, size_t, size_t, void *,
     uint32_t, const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *) {
@@ -99,7 +117,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferReadExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_rect_offset_t,
     ur_rect_offset_t, ur_rect_region_t, size_t, size_t, size_t, size_t, void *,
     uint32_t, const ur_exp_command_buffer_sync_point_t *,
@@ -110,7 +128,7 @@ ur_result_t UR_APICALL urCommandBufferAppendMembufferWriteRectExp(
 }
 
 UR_APIEXPORT
-ur_result_t UR_APICALL urCommandBufferAppendMembufferReadRectExp(
+ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_rect_offset_t,
     ur_rect_offset_t, ur_rect_region_t, size_t, size_t, size_t, size_t, void *,
     uint32_t, const ur_exp_command_buffer_sync_point_t *,
