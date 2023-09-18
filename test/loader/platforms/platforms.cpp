@@ -18,7 +18,7 @@
 using namespace logger;
 
 //////////////////////////////////////////////////////////////////////////
-int main([[maybe_unused]] int argc, [[maybe_unused]] char *argv[]) {
+int main(int, char *[]) {
     logger::init("TEST");
 
     ur_result_t status;
