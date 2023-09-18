@@ -129,3 +129,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
+    ur_exp_command_buffer_handle_t hCommandBuffer, void *pDst, const void *pSrc,
+    size_t size, uint32_t numSyncPointsInWaitList,
+    const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+  (void)hCommandBuffer;
+  (void)pDst;
+  (void)pSrc;
+  (void)size;
+  (void)numSyncPointsInWaitList;
+  (void)pSyncPointWaitList;
+  (void)pSyncPoint;
+
+  detail::ur::die("Experimental Command-buffer feature is not "
+                  "implemented for the NativeCPU adapter.");
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
