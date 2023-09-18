@@ -171,10 +171,7 @@ property parameter `SetIds`, or if a kernel is submitted without the property,
 then it is *not* considered to be declaring a use of the set of virtual member
 functions.
 
-:fn-property-macro-docs: footnote:[To read more about the
-`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro, see
-link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
-  sycl_ext_oneapi_kernel_properties] extension]
+:fn-property-macro-docs: footnote:[To read more about the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro, see link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties] extension]
 
 |===
 |Property|Description
