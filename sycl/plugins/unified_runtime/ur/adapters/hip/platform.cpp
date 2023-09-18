@@ -95,13 +95,16 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             }
             PlatformIds.clear();
             Err = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-          } catch (...) {
+          } catch (ur_result_t CatchErr) {
             // Clear and rethrow to allow retry
             for (int i = 0; i < NumDevices; ++i) {
               PlatformIds[i].Devices.clear();
             }
             PlatformIds.clear();
-            Err = UR_RESULT_ERROR_UNKNOWN;
+            Err = CatchErr;
+            throw CatchErr;
+          } catch (...) {
+            Err = UR_RESULT_ERROR_OUT_OF_RESOURCES;
             throw;
           }
         },
