@@ -1,10 +1,10 @@
-//===--------- device.hpp - CUDA Adapter -----------------------------===//
+//===--------- device.hpp - CUDA Adapter ----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 #pragma once
 
 #include <ur/ur.hpp>
@@ -45,8 +45,13 @@ public:
         cuDevice));
 
     // Set local mem max size if env var is present
-    static const char *LocalMemSizePtr =
+    static const char *LocalMemSizePtrUR =
+        std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtrPI =
         std::getenv("SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE");
+    static const char *LocalMemSizePtr =
+        LocalMemSizePtrUR ? LocalMemSizePtrUR
+                          : (LocalMemSizePtrPI ? LocalMemSizePtrPI : nullptr);
 
     if (LocalMemSizePtr) {
       cuDeviceGetAttribute(

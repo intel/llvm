@@ -71,35 +71,35 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function Attrs: nofree norecurse nounwind willreturn mustprogress
-define dso_local spir_kernel void @_ZTSZ4mainE15kernel_restrict(i32 addrspace(1)* noalias %_arg_, i32 addrspace(1)* noalias %_arg_1, i32 addrspace(1)* noalias %_arg_3) local_unnamed_addr #0 !kernel_arg_buffer_location !4 {
+define dso_local spir_kernel void @_ZTSZ4mainE15kernel_restrict(ptr addrspace(1) noalias %_arg_, ptr addrspace(1) noalias %_arg_1, ptr addrspace(1) noalias %_arg_3) local_unnamed_addr #0 !kernel_arg_buffer_location !4 {
 entry:
-  %0 = addrspacecast i32 addrspace(1)* %_arg_ to i32 addrspace(4)*
-  %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
-  %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
+  %0 = addrspacecast ptr addrspace(1) %_arg_ to ptr addrspace(4)
+  %1 = addrspacecast ptr addrspace(1) %_arg_1 to ptr addrspace(4)
+  %2 = addrspacecast ptr addrspace(1) %_arg_3 to ptr addrspace(4)
 ; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD1:[0-9]+]]
 ; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD1]]{{.*}}!noalias ![[LISTMD2:[0-9]+]]
-  %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !9
-  %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !9, !noalias !16
+  %3 = load i32, ptr addrspace(4) %0, align 4, !tbaa !5, !alias.scope !9
+  %4 = load i32, ptr addrspace(4) %1, align 4, !tbaa !5, !alias.scope !9, !noalias !16
   %add.i = add nsw i32 %4, %3
 ; CHECK-LLVM: store i32 {{.*}} !noalias ![[LISTMD1]]
-  store i32 %add.i, i32 addrspace(4)* %2, align 4, !tbaa !5, !noalias !9
+  store i32 %add.i, ptr addrspace(4) %2, align 4, !tbaa !5, !noalias !9
   ret void
 }
 
 ; Function Attrs: nofree norecurse nounwind willreturn mustprogress
-define dso_local spir_kernel void @_ZTSZ4mainE27kernel_restrict_other_types(i32 addrspace(1)* noalias %_arg_, i32 addrspace(1)* noalias %_arg_1, i32 addrspace(1)* noalias %_arg_3, i32 %_arg_5) local_unnamed_addr #0 !kernel_arg_buffer_location !12 {
+define dso_local spir_kernel void @_ZTSZ4mainE27kernel_restrict_other_types(ptr addrspace(1) noalias %_arg_, ptr addrspace(1) noalias %_arg_1, ptr addrspace(1) noalias %_arg_3, i32 %_arg_5) local_unnamed_addr #0 !kernel_arg_buffer_location !12 {
 entry:
-  %0 = addrspacecast i32 addrspace(1)* %_arg_ to i32 addrspace(4)*
-  %1 = addrspacecast i32 addrspace(1)* %_arg_1 to i32 addrspace(4)*
-  %2 = addrspacecast i32 addrspace(1)* %_arg_3 to i32 addrspace(4)*
+  %0 = addrspacecast ptr addrspace(1) %_arg_ to ptr addrspace(4)
+  %1 = addrspacecast ptr addrspace(1) %_arg_1 to ptr addrspace(4)
+  %2 = addrspacecast ptr addrspace(1) %_arg_3 to ptr addrspace(4)
 ; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD3:[0-9]+]]
 ; CHECK-LLVM: load i32, ptr addrspace(4) {{.*}} !alias.scope ![[LISTMD3]]
-  %3 = load i32, i32 addrspace(4)* %0, align 4, !tbaa !5, !alias.scope !13
-  %4 = load i32, i32 addrspace(4)* %1, align 4, !tbaa !5, !alias.scope !13
+  %3 = load i32, ptr addrspace(4) %0, align 4, !tbaa !5, !alias.scope !13
+  %4 = load i32, ptr addrspace(4) %1, align 4, !tbaa !5, !alias.scope !13
   %add.i = add i32 %3, %_arg_5
   %add3.i = add i32 %add.i, %4
 ; CHECK-LLVM: store i32 {{.*}} !noalias ![[LISTMD3]]
-  store i32 %add3.i, i32 addrspace(4)* %2, align 4, !tbaa !5, !noalias !13
+  store i32 %add3.i, ptr addrspace(4) %2, align 4, !tbaa !5, !noalias !13
   ret void
 }
 

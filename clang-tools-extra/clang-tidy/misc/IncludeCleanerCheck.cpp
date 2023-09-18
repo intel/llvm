@@ -33,6 +33,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Regex.h"
@@ -87,7 +88,7 @@ void IncludeCleanerCheck::registerPPCallbacks(const SourceManager &SM,
                                               Preprocessor *PP,
                                               Preprocessor *ModuleExpanderPP) {
   PP->addPPCallbacks(RecordedPreprocessor.record(*PP));
-  HS = &PP->getHeaderSearchInfo();
+  this->PP = PP;
   RecordedPI.record(*PP);
 }
 
@@ -121,7 +122,7 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
   // FIXME: Find a way to have less code duplication between include-cleaner
   // analysis implementation and the below code.
   walkUsed(MainFileDecls, RecordedPreprocessor.MacroReferences, &RecordedPI,
-           *SM,
+           *PP,
            [&](const include_cleaner::SymbolReference &Ref,
                llvm::ArrayRef<include_cleaner::Header> Providers) {
              // Process each symbol once to reduce noise in the findings.
@@ -199,9 +200,11 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
 
   tooling::HeaderIncludes HeaderIncludes(getCurrentMainFile(), Code,
                                          FileStyle->IncludeStyle);
+  // Deduplicate insertions when running in bulk fix mode.
+  llvm::StringSet<> InsertedHeaders{};
   for (const auto &Inc : Missing) {
-    std::string Spelling =
-        include_cleaner::spellHeader({Inc.Missing, *HS, MainFile});
+    std::string Spelling = include_cleaner::spellHeader(
+        {Inc.Missing, PP->getHeaderSearchInfo(), MainFile});
     bool Angled = llvm::StringRef{Spelling}.starts_with("<");
     // We might suggest insertion of an existing include in edge cases, e.g.,
     // include is present in a PP-disabled region, or spelling of the header
@@ -209,14 +212,18 @@ void IncludeCleanerCheck::check(const MatchFinder::MatchResult &Result) {
     // main file.
     if (auto Replacement =
             HeaderIncludes.insert(llvm::StringRef{Spelling}.trim("\"<>"),
-                                  Angled, tooling::IncludeDirective::Include))
-      diag(SM->getSpellingLoc(Inc.SymRef.RefLocation),
-           "no header providing \"%0\" is directly included")
-          << Inc.SymRef.Target.name()
-          << FixItHint::CreateInsertion(
-                 SM->getComposedLoc(SM->getMainFileID(),
-                                    Replacement->getOffset()),
-                 Replacement->getReplacementText());
+                                  Angled, tooling::IncludeDirective::Include)) {
+      DiagnosticBuilder DB =
+          diag(SM->getSpellingLoc(Inc.SymRef.RefLocation),
+               "no header providing \"%0\" is directly included")
+          << Inc.SymRef.Target.name();
+      if (areDiagsSelfContained() ||
+          InsertedHeaders.insert(Replacement->getReplacementText()).second) {
+        DB << FixItHint::CreateInsertion(
+            SM->getComposedLoc(SM->getMainFileID(), Replacement->getOffset()),
+            Replacement->getReplacementText());
+      }
+    }
   }
 }
 

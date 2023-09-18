@@ -5,36 +5,36 @@ and a wide range of compute accelerators such as GPU and FPGA.
 
 ## Table of contents
 
-* [Prerequisites](#prerequisites)
-  * [Create DPC++ workspace](#create-dpc-workspace)
-* [Build DPC++ toolchain](#build-dpc-toolchain)
-  * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
-  * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
-  * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
-  * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
-  * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
-  * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
-  * [Build Doxygen documentation](#build-doxygen-documentation)
-  * [Deployment](#deployment)
-* [Use DPC++ toolchain](#use-dpc-toolchain)
-  * [Install low level runtime](#install-low-level-runtime)
-  * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
-    * [GPU](#gpu)
-    * [CPU](#cpu)
-    * [Accelerator](#accelerator)
-  * [Test DPC++ toolchain](#test-dpc-toolchain)
-    * [Run in-tree LIT tests](#run-in-tree-lit-tests)
-    * [Run DPC++ E2E test suite](#run-dpc-e2e-test-suite)
-    * [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
-  * [Run simple DPC++ application](#run-simple-dpc-application)
-  * [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
-  * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
-  * [Using the DPC++ toolchain on CUDA platforms](#using-the-dpc-toolchain-on-cuda-platforms)
-* [C++ standard](#c-standard)
-* [Known Issues and Limitations](#known-issues-and-limitations)
-  * [CUDA back-end limitations](#cuda-back-end-limitations)
-  * [HIP back-end limitations](#hip-back-end-limitations)
-* [Find More](#find-more)
+  * [Prerequisites](#prerequisites)
+    * [Create DPC++ workspace](#create-dpc-workspace)
+  * [Build DPC++ toolchain](#build-dpc-toolchain)
+    * [Build DPC++ toolchain with libc++ library](#build-dpc-toolchain-with-libc-library)
+    * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
+    * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
+    * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for ESIMD CPU Emulation](#build-dpc-toolchain-with-support-for-esimd-cpu-emulation)
+    * [Build DPC++ toolchain with support for runtime kernel fusion](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion)
+    * [Build Doxygen documentation](#build-doxygen-documentation)
+    * [Deployment](#deployment)
+  * [Use DPC++ toolchain](#use-dpc-toolchain)
+    * [Install low level runtime](#install-low-level-runtime)
+    * [Obtain prerequisites for ahead of time (AOT) compilation](#obtain-prerequisites-for-ahead-of-time-aot-compilation)
+      * [GPU](#gpu)
+      * [CPU](#cpu)
+      * [Accelerator](#accelerator)
+    * [Test DPC++ toolchain](#test-dpc-toolchain)
+      * [Run in-tree LIT tests](#run-in-tree-lit-tests)
+      * [Run DPC++ E2E tests](#run-dpc-e2e-tests)
+      * [Run Khronos\* SYCL\* conformance test suite (optional)](#run-khronos-sycl-conformance-test-suite-optional)
+    * [Run simple DPC++ application](#run-simple-dpc-application)
+      * [AOT Target architectures](#aot-target-architectures)
+    * [Build DPC++ application with CMake](#build-dpc-application-with-cmake)
+    * [Code the program for a specific GPU](#code-the-program-for-a-specific-gpu)
+  * [C++ standard](#c-standard)
+  * [Known Issues and Limitations](#known-issues-and-limitations)
+    * [CUDA back-end limitations](#cuda-back-end-limitations)
+    * [HIP back-end limitations](#hip-back-end-limitations)
+  * [Find More](#find-more)
 
 ## Prerequisites
 
@@ -178,12 +178,11 @@ Windows DPC++ toolchain, but add the `--cuda` flag to `configure.py`. Note, the
 CUDA backend has Windows support; Windows Subsystem for Linux (WSL) is not
 needed to build and run the CUDA backend.
 
-Enabling this flag requires an installation of at least
-[CUDA 10.2](https://developer.nvidia.com/cuda-10.2-download-archive) on
-the system, refer to
+Refer to
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html)
 or
 [NVIDIA CUDA Installation Guide for Windows](https://docs.nvidia.com/cuda/cuda-installation-guide-microsoft-windows/index.html)
+for CUDA toolkit installation instructions.
 
 Errors may occur if DPC++ is built with a toolkit version which is higher than
 the CUDA driver version. In order to check that the CUDA driver and toolkits
@@ -197,14 +196,23 @@ Optimization options for CUDA toolkits prior to 11.6 (This is due to a bug in
 earlier versions of the CUDA toolkit: see
 [this issue](https://forums.developer.nvidia.com/t/libdevice-functions-causing-ptxas-segfault/193352)).
 
-An installation of at least
-[CUDA 11.0](https://developer.nvidia.com/cuda-11.0-download-archive)
-is required to fully utilize Turing (SM 75) devices and to enable Ampere (SM 80)
-core features.
+**_NOTE:_** CUDA toolkit versions earlier than 11.0 are not regularly tested,
+but should work for appropriate devices. Note that for example some oneapi
+extensions that require sm_80 and later architectures also require at least CUDA
+11.0.
 
 The CUDA backend should work on Windows or Linux operating systems with any GPU
-compatible with SM 50 or above. The default SM for the NVIDIA CUDA backend is
-5.0. Users can specify lower values, but some features may not be supported.
+with compute capability (SM version) sm_50 or above. The default SM version for
+the NVIDIA CUDA backend is sm_50. Users of sm_3X devices can attempt to specify
+the target architecture [ahead of time](#aot-target-architectures), provided
+that they use a 11.X  or earlier CUDA toolkit version, but some features may not be
+supported. The CUDA backend has been tested with different Ubuntu Linux
+distributions and a selection of supported CUDA toolkit versions and GPUs.
+The backend is tested by a relevant device/toolkit prior to a ONEAPI plugin release.
+Go to the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/nvidia/) for further
+details.
+
 
 **Non-standard CUDA location**:
 
@@ -230,9 +238,13 @@ LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DPCPP_HOME/llvm/build/lib ./a.out
 
 ### Build DPC++ toolchain with support for HIP AMD
 
-There is experimental support for DPC++ for HIP on AMD devices. Note as this is
-still experimental and there is no continuous integration for this yet there are
-therefore no guarantees for supported platforms or configurations.
+There is beta support for oneAPI DPC++ for HIP on AMD devices. It is not feature
+complete and it still contains known and unknown bugs. Currently it has only
+been tried on Linux, with ROCm 4.2.0, 4.3.0, 4.5.2, 5.3.0, and 5.4.3, using the
+AMD Radeon Pro W6800 (gtx1030), MI50 (gfx906), MI100 (gfx908) and MI250x
+(gfx90a) devices. The backend is tested by a relevant device/toolkit prior to a
+oneAPI plugin release. Go to the plugin release
+[pages](https://developer.codeplay.com/products/oneapi/amd) for further details.
 
 To enable support for HIP devices, follow the instructions for the Linux DPC++
 toolchain, but add the `--hip` flag to `configure.py`.
@@ -251,9 +263,6 @@ python $DPCPP_HOME/llvm/buildbot/configure.py --hip \
   --cmake-opt=-DSYCL_BUILD_PI_HIP_ROCM_DIR=/usr/local/rocm
 ```
 
-Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0 and using
-the MI50 (gfx906) and MI100 (gfx908) devices.
-
 [LLD](https://llvm.org/docs/AMDGPUUsage.html) is necessary for the AMDGPU
 compilation chain. The AMDGPU backend generates a standard ELF relocatable code
 object that can be linked by lld to produce a standard ELF shared code object
@@ -263,9 +272,9 @@ by default when configuring for HIP. For more details on building LLD refer to
 
 ### Build DPC++ toolchain with support for HIP NVIDIA
 
-There is experimental support for DPC++ for HIP on Nvidia devices. Note as this
-is still experimental and there is no continuous integration for this yet there
-are therefore no guarantees for supported platforms or configurations.
+There is experimental support for oneAPI DPC++ for HIP on Nvidia devices.
+There is no continuous integration for this and there are no guarantees for
+supported platforms or configurations.
 
 This is a compatibility feature and the
 [CUDA backend](#build-dpc-toolchain-with-support-for-nvidia-cuda)
@@ -277,7 +286,7 @@ DPC++ toolchain, but add the `--hip` and `--hip-platform NVIDIA` flags to
 
 Enabling this flag requires HIP to be installed, more specifically
 [HIP NVCC](https://rocmdocs.amd.com/en/latest/Installation_Guide/HIP-Installation.html#nvidia-platform),
-as well as CUDA to be installed, see
+as well as the CUDA Runtime API to be installed, see
 [NVIDIA CUDA Installation Guide for Linux](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html).
 
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
@@ -652,9 +661,32 @@ clang++ -fsycl -fsycl-targets=nvptx64-nvidia-cuda \
   simple-sycl-app.cpp -o simple-sycl-app-cuda.exe
 ```
 
-When building for HIP AMD, use the AMD target triple and specify the
-target architecture with `-Xsycl-target-backend --offload-arch=<arch>`
-as follows:
+**Linux & Windows (64-bit)**:
+
+```bash
+./simple-sycl-app.exe
+The results are correct!
+```
+
+**NOTE**: Currently, when the application has been built with the CUDA target,
+the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR`
+environment variable.
+
+```bash
+ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
+```
+
+**NOTE**: oneAPI DPC++/SYCL developers can specify SYCL device for execution
+using device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
+[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md))
+as explained in following section
+[Code the program for a specific GPU](#code-the-program-for-a-specific-gpu).
+
+#### AOT Target architectures
+
+**NOTE**: When building for HIP AMD, you **MUST** use the AMD target triple and
+specify the target architecture with
+`-Xsycl-target-backend --offload-arch=<arch>` as follows:
 
 ```bash
 clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
@@ -665,7 +697,7 @@ clang++ -fsycl -fsycl-targets=amdgcn-amd-amdhsa \
 The target architecture may also be specified for the CUDA backend, with
 `-Xsycl-target-backend --cuda-gpu-arch=<arch>`. Specifying the architecture is
 necessary if an application aims to use newer hardware features, such as
-native atomic operations or tensor core operations.
+native atomic operations or the joint_matrix extension.
 Moreover, it is possible to pass specific options to CUDA `ptxas` (such as
 `--maxrregcount=<n>` for limiting the register usage or `--verbose` for
 printing generation statistics) using the `-Xcuda-ptxas` flag.
@@ -721,27 +753,6 @@ The default is the OpenCL backend if available.
 
 **NOTE**: `nvptx64-nvidia-cuda` is usable with `-fsycl-targets`
 if clang was built with the cmake option `SYCL_ENABLE_PLUGINS=cuda`.
-
-**Linux & Windows (64-bit)**:
-
-```bash
-./simple-sycl-app.exe
-The results are correct!
-```
-
-**NOTE**: Currently, when the application has been built with the CUDA target,
-the CUDA backend must be selected at runtime using the `ONEAPI_DEVICE_SELECTOR` environment
-variable.
-
-```bash
-ONEAPI_DEVICE_SELECTOR=cuda:* ./simple-sycl-app-cuda.exe
-```
-
-**NOTE**: DPC++/SYCL developers can specify SYCL device for execution using
-device selectors (e.g. `sycl::cpu_selector_v`, `sycl::gpu_selector_v`,
-[Intel FPGA selector(s)](extensions/supported/sycl_ext_intel_fpga_device_selector.md)) as
-explained in following section [Code the program for a specific
-GPU](#code-the-program-for-a-specific-gpu).
 
 ### Build DPC++ application with CMake
 
@@ -827,24 +838,6 @@ int CUDASelector(const sycl::device &Device) {
 
 ```
 
-### Using the DPC++ toolchain on CUDA platforms
-
-Currently, the DPC++ toolchain relies on having a recent OpenCL implementation
-on the system in order to link applications to the DPC++ runtime.
-The OpenCL implementation is not used at runtime if only the CUDA backend is
-used in the application, but must be installed.
-
-The OpenCL implementation provided by the CUDA SDK is OpenCL 1.2, which is
-too old to link with the DPC++ runtime and lacks some symbols.
-
-We recommend installing the low level CPU runtime, following the instructions
-in the next section.
-
-Instead of installing the low level CPU runtime, it is possible to build and
-install the
-[Khronos ICD loader](https://github.com/KhronosGroup/OpenCL-ICD-Loader),
-which contains all the symbols required.
-
 ## C++ standard
 
 * DPC++ runtime and headers require C++17 at least.
@@ -862,11 +855,7 @@ which contains all the symbols required.
 
 ### CUDA back-end limitations
 
-* Backend is only supported on Linux
-* The only combination tested is Ubuntu 22.04 with CUDA 11.7 using a Titan RTX
-  GPU (SM 71), but it should work on any GPU compatible with SM 50 or above
-* The NVIDIA OpenCL headers conflict with the OpenCL headers required for this
-  project and may cause compilation issues on some platforms
+* Windows support is currently experimental and not regularly tested.
 * `sycl::sqrt` is not correctly rounded by default as the SYCL specification
   allows lower precision, when porting from CUDA it may be helpful to use
   `-fsycl-fp32-prec-sqrt` to use the correctly rounded square root, this is
@@ -891,12 +880,7 @@ which contains all the symbols required.
 * Requires a ROCm compatible operating system, for full details of supported
   Operating System for ROCm, please refer to the
   [ROCm Supported Operating Systems](https://github.com/RadeonOpenCompute/ROCm#supported-operating-systems).
-* Has only been tried with ROCm 4.2.0 and 4.3.0.
-* Has only been tested using the MI50 (gfx906) and MI100 (gfx908) devices.
-* Support is still experimental so not all of the tests are currently passing
-  and many of the built-in function are not yet implemented.
-* Additionally there is no continuous integration yet so no guarantee can be
-  made for support platforms or configurations
+* Support is still in a beta state, but the backend is being actively developed.
 * Global offsets are currently not supported.
 
 ## Find More

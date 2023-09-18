@@ -1,10 +1,10 @@
-//===--------- kernel.cpp - HIP Adapter ---------------------------===//
+//===--------- kernel.cpp - HIP Adapter -----------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "kernel.hpp"
 #include "memory.hpp"
@@ -58,26 +58,20 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     size_t GlobalWorkSize[3] = {0, 0, 0};
 
     int MaxBlockDimX{0}, MaxBlockDimY{0}, MaxBlockDimZ{0};
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxBlockDimX,
-                                                hipDeviceAttributeMaxBlockDimX,
-                                                hDevice->get()) == hipSuccess);
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxBlockDimY,
-                                                hipDeviceAttributeMaxBlockDimY,
-                                                hDevice->get()) == hipSuccess);
-    detail::ur::assertion(hipDeviceGetAttribute(&MaxBlockDimZ,
-                                                hipDeviceAttributeMaxBlockDimZ,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &MaxBlockDimX, hipDeviceAttributeMaxBlockDimX, hDevice->get()));
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &MaxBlockDimY, hipDeviceAttributeMaxBlockDimY, hDevice->get()));
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &MaxBlockDimZ, hipDeviceAttributeMaxBlockDimZ, hDevice->get()));
 
     int max_grid_dimX{0}, max_grid_dimY{0}, max_grid_dimZ{0};
-    detail::ur::assertion(hipDeviceGetAttribute(&max_grid_dimX,
-                                                hipDeviceAttributeMaxGridDimX,
-                                                hDevice->get()) == hipSuccess);
-    detail::ur::assertion(hipDeviceGetAttribute(&max_grid_dimY,
-                                                hipDeviceAttributeMaxGridDimY,
-                                                hDevice->get()) == hipSuccess);
-    detail::ur::assertion(hipDeviceGetAttribute(&max_grid_dimZ,
-                                                hipDeviceAttributeMaxGridDimZ,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &max_grid_dimX, hipDeviceAttributeMaxGridDimX, hDevice->get()));
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &max_grid_dimY, hipDeviceAttributeMaxGridDimY, hDevice->get()));
+    UR_CHECK_ERROR(hipDeviceGetAttribute(
+        &max_grid_dimZ, hipDeviceAttributeMaxGridDimZ, hDevice->get()));
 
     GlobalWorkSize[0] = MaxBlockDimX * max_grid_dimX;
     GlobalWorkSize[1] = MaxBlockDimY * max_grid_dimY;
@@ -86,10 +80,8 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   }
   case UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE: {
     int MaxThreads = 0;
-    detail::ur::assertion(
-        hipFuncGetAttribute(&MaxThreads,
-                            HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                            hKernel->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipFuncGetAttribute(
+        &MaxThreads, HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, hKernel->get()));
     return ReturnValue(size_t(MaxThreads));
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
@@ -105,25 +97,22 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_GROUP_INFO_LOCAL_MEM_SIZE: {
     // OpenCL LOCAL == HIP SHARED
     int Bytes = 0;
-    detail::ur::assertion(
-        hipFuncGetAttribute(&Bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES,
-                            hKernel->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipFuncGetAttribute(
+        &Bytes, HIP_FUNC_ATTRIBUTE_SHARED_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
   case UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE: {
     // Work groups should be multiples of the warp size
     int WarpSize = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&WarpSize,
-                                                hipDeviceAttributeWarpSize,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                                         hDevice->get()));
     return ReturnValue(static_cast<size_t>(WarpSize));
   }
   case UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE: {
     // OpenCL PRIVATE == HIP LOCAL
     int Bytes = 0;
-    detail::ur::assertion(
-        hipFuncGetAttribute(&Bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES,
-                            hKernel->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipFuncGetAttribute(
+        &Bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
   default:
@@ -168,11 +157,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     const ur_kernel_arg_value_properties_t *, const void *pArgValue) {
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    if (pArgValue) {
-      hKernel->setKernelArg(argIndex, argSize, pArgValue);
-    } else {
-      hKernel->setKernelLocalArg(argIndex, argSize);
-    }
+    hKernel->setKernelArg(argIndex, argSize, pArgValue);
+  } catch (ur_result_t Err) {
+    Result = Err;
+  }
+  return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
+    ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
+    const ur_kernel_arg_local_properties_t *pProperties) {
+  std::ignore = pProperties;
+  UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
+
+  ur_result_t Result = UR_RESULT_SUCCESS;
+  try {
+    hKernel->setKernelLocalArg(argIndex, argSize);
   } catch (ur_result_t Err) {
     Result = Err;
   }
@@ -215,18 +215,15 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
   case UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE: {
     // Sub-group size is equivalent to warp size
     int WarpSize = 0;
-    detail::ur::assertion(hipDeviceGetAttribute(&WarpSize,
-                                                hipDeviceAttributeWarpSize,
-                                                hDevice->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipDeviceGetAttribute(&WarpSize, hipDeviceAttributeWarpSize,
+                                         hDevice->get()));
     return ReturnValue(static_cast<uint32_t>(WarpSize));
   }
   case UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS: {
     // Number of sub-groups = max block size / warp size + possible remainder
     int MaxThreads = 0;
-    detail::ur::assertion(
-        hipFuncGetAttribute(&MaxThreads,
-                            HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK,
-                            hKernel->get()) == hipSuccess);
+    UR_CHECK_ERROR(hipFuncGetAttribute(
+        &MaxThreads, HIP_FUNC_ATTRIBUTE_MAX_THREADS_PER_BLOCK, hKernel->get()));
     int WarpSize = 0;
     urKernelGetSubGroupInfo(hKernel, hDevice,
                             UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE,

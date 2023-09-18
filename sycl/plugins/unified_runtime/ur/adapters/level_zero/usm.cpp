@@ -1,10 +1,10 @@
-//===--------- usm.cpp - Level Zero Adapter --------------------------===//
+//===--------- usm.cpp - Level Zero Adapter -------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -607,8 +607,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMGetMemAllocInfo(
 }
 
 static ur_result_t USMFreeImpl(ur_context_handle_t Context, void *Ptr) {
-  ZE2UR_CALL(zeMemFree, (Context->ZeContext, Ptr));
-  return UR_RESULT_SUCCESS;
+  auto ZeResult = ZE_CALL_NOCHECK(zeMemFree, (Context->ZeContext, Ptr));
+  // Handle When the driver is already released
+  if (ZeResult == ZE_RESULT_ERROR_UNINITIALIZED) {
+    return UR_RESULT_SUCCESS;
+  } else {
+    return ze2urResult(ZeResult);
+  }
 }
 
 static ur_result_t USMQueryPageSize(ur_context_handle_t Context, void *Ptr,

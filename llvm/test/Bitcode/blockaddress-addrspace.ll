@@ -9,8 +9,8 @@
 ; RUN: not llvm-as %t/return-self-bad.ll -o /dev/null 2>&1 | FileCheck %t/return-self-bad.ll
 ; RUN: not llvm-as %t/return-self-bad-2.ll -o /dev/null 2>&1 | FileCheck %t/return-self-bad-2.ll
 ; RUN: not llvm-as %t/return-unknown-fn-bad.ll -o /dev/null 2>&1 | FileCheck %t/return-unknown-fn-bad.ll
-; RUN: llvm-as -opaque-pointers %t/call-fwddecl-good.ll  -o - | llvm-dis -o /dev/null
-; RUN: not llvm-as -opaque-pointers %t/call-fwddecl-bad.ll -o /dev/null 2>&1 | FileCheck %t/call-fwddecl-bad.ll
+; RUN: llvm-as %t/call-fwddecl-good.ll  -o - | llvm-dis -o /dev/null
+; RUN: not llvm-as %t/call-fwddecl-bad.ll -o /dev/null 2>&1 | FileCheck %t/call-fwddecl-bad.ll
 ; RUN: llvm-as %t/phi-good.ll  -o - | llvm-dis -o /dev/null
 ; RUN: not llvm-as %t/phi-bad.ll -o /dev/null 2>&1 | FileCheck %t/phi-bad.ll
 ; RUN: llvm-as %t/fwddecl-phi-good.ll  -o - | llvm-dis -o /dev/null

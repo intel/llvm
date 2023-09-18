@@ -502,6 +502,13 @@ void handler::addReduction(const std::shared_ptr<const void> &ReduObj) {
 
 void handler::associateWithHandlerCommon(detail::AccessorImplPtr AccImpl,
                                          int AccTarget) {
+  if (getCommandGraph() &&
+      static_cast<detail::SYCLMemObjT *>(AccImpl->MSYCLMemObj)
+          ->needsWriteBack()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Accessors to buffers which have write_back enabled "
+                          "are not allowed to be used in command graphs.");
+  }
   detail::Requirement *Req = AccImpl.get();
   // Add accessor to the list of requirements.
   if (Req->MAccessRange.size() != 0)
@@ -1361,7 +1368,9 @@ void handler::ext_oneapi_graph(
     }
     // Store the node representing the subgraph in the handler so that we can
     // return it to the user later.
-    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl->getSchedule());
+    // The nodes of the subgraph are duplicated when added to its parents.
+    // This avoids changing properties of the graph added as a subgraph.
+    MSubgraphNode = ParentGraph->addSubgraphNodes(GraphImpl);
 
     // If we are recording an in-order queue remember the subgraph node, so it
     // can be used as a dependency for any more nodes recorded from this queue.

@@ -1,10 +1,10 @@
 ; Do setup work for all below tests: generate bitcode and combined index
 ; RUN: opt -module-summary %s -o %t.bc
 ; RUN: opt -module-summary %p/Inputs/llvm.used.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=thinlink -opaque-pointers -o %t3.bc %t.bc %t2.bc
+; RUN: llvm-lto -thinlto-action=thinlink -o %t3.bc %t.bc %t2.bc
 
 
-; RUN: llvm-lto -thinlto-action=import -opaque-pointers %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
+; RUN: llvm-lto -thinlto-action=import %t2.bc -thinlto-index=%t3.bc -o - | llvm-dis -o - | FileCheck %s
 ; CHECK: define available_externally void @globalfunc
 
 

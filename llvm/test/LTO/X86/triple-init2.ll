@@ -8,7 +8,7 @@
 ; Check with ThinLTO. Use llvm-lto2 since this adds earlier passes requiring
 ; the TargetLibraryInfo with ThinLTO (WholeProgramDevirt).
 ; RUN: opt -module-summary -o %t1 %s
-; RUN: llvm-lto2 run -opaque-pointers -r %t1,main,plx -o %t2 %t1
+; RUN: llvm-lto2 run -r %t1,main,plx -o %t2 %t1
 ; RUN: llvm-nm %t2.1 | FileCheck %s
 
 ; We check that LTO will be aware of target triple and prevent exp2 to ldexpf

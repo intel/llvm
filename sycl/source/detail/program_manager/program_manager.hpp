@@ -94,11 +94,6 @@ public:
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  // TODO: remove this function when m_UniversalKernelSet is removed
-  RTDeviceBinaryImage &
-  getDeviceImage(const std::vector<RTDeviceBinaryImage *> &ImagesToVerify,
-                 const context &Context, const device &Device,
-                 bool JITCompilationIsRequired = false);
 
   RTDeviceBinaryImage &getDeviceImage(
       const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
@@ -348,11 +343,6 @@ private:
   std::unordered_map<RTDeviceBinaryImage *,
                      std::shared_ptr<std::vector<kernel_id>>>
       m_BinImg2KernelIDs;
-
-  /// Keeps images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref m_KernelIDsMutex mutex.
-  std::vector<RTDeviceBinaryImage *> m_UniversalKernelSet;
 
   /// Protects kernel ID cache.
   /// NOTE: This may be acquired while \ref Sync::getGlobalLock() is held so to
