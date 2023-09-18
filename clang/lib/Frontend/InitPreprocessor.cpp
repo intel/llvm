@@ -1339,6 +1339,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
       Builder.defineMacro("__ENABLE_USM_ADDR_SPACE__");
       Builder.defineMacro("SYCL_DISABLE_FALLBACK_ASSERT");
     }
+  } else if (LangOpts.SYCLIsHost && LangOpts.SYCLESIMDBuildHostCode) {
+    Builder.defineMacro("__ESIMD_BUILD_HOST_CODE");
   }
   if (LangOpts.SYCLUnnamedLambda)
     Builder.defineMacro("__SYCL_UNNAMED_LAMBDA__");

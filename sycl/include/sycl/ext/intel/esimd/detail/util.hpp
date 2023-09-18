@@ -19,6 +19,8 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 #define __ESIMD_INTRIN __DPCPP_SYCL_EXTERNAL SYCL_ESIMD_FUNCTION
+#elif !defined(__ESIMD_BUILD_HOST_CODE)
+#define __ESIMD_INTRIN ESIMD_NOINLINE __attribute__((internal_linkage))
 #else
 #define __ESIMD_INTRIN inline
 #endif // __SYCL_DEVICE_ONLY__
