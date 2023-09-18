@@ -49,7 +49,7 @@ TEST_F(urDeviceGetTest, InvalidEnumerationDevicesType) {
         urDeviceGet(platform, UR_DEVICE_TYPE_FORCE_UINT32, 0, nullptr, &count));
 }
 
-TEST_F(urDeviceGetTest, InvalidValueNumEntries) {
+TEST_F(urDeviceGetTest, InvalidSizeNumEntries) {
     uint32_t count = 0;
     ASSERT_SUCCESS(
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
@@ -58,4 +58,14 @@ TEST_F(urDeviceGetTest, InvalidValueNumEntries) {
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_SIZE,
         urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, devices.data(), nullptr));
+}
+
+TEST_F(urDeviceGetTest, InvalidNullPointerDevices) {
+    uint32_t count = 0;
+    ASSERT_SUCCESS(
+        urDeviceGet(platform, UR_DEVICE_TYPE_ALL, 0, nullptr, &count));
+    ASSERT_NE(count, 0);
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_NULL_POINTER,
+        urDeviceGet(platform, UR_DEVICE_TYPE_ALL, count, nullptr, nullptr));
 }

@@ -419,6 +419,10 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGet(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
+        if (NumEntries > 0 && phDevices == NULL) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
         if (UR_DEVICE_TYPE_VPU < DeviceType) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
