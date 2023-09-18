@@ -3535,7 +3535,7 @@ struct NewGVN::ValueDFS {
     // the second. We only want it to be less than if the DFS orders are equal.
     //
     // Each LLVM instruction only produces one value, and thus the lowest-level
-    // differentiator that really matters for the stack (and what we use as as a
+    // differentiator that really matters for the stack (and what we use as a
     // replacement) is the local dfs number.
     // Everything else in the structure is instruction level, and only affects
     // the order in which we will replace operands of a given instruction.
@@ -3717,11 +3717,7 @@ void NewGVN::deleteInstructionsInBlock(BasicBlock *BB) {
   Type *Int8Ty = Type::getInt8Ty(BB->getContext());
   new StoreInst(
       PoisonValue::get(Int8Ty),
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       Constant::getNullValue(PointerType::getUnqual(BB->getContext())),
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      Constant::getNullValue(Int8Ty->getPointerTo()),
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
       BB->getTerminator());
 }
 
@@ -4092,9 +4088,12 @@ bool NewGVN::eliminateInstructions(Function &F) {
           // For copy instructions, we use their operand as a leader,
           // which means we remove a user of the copy and it may become dead.
           if (isSSACopy) {
-            unsigned &IIUseCount = UseCounts[II];
-            if (--IIUseCount == 0)
-              ProbablyDead.insert(II);
+            auto It = UseCounts.find(II);
+            if (It != UseCounts.end()) {
+              unsigned &IIUseCount = It->second;
+              if (--IIUseCount == 0)
+                ProbablyDead.insert(II);
+            }
           }
           ++LeaderUseCount;
           AnythingReplaced = true;

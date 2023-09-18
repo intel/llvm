@@ -778,11 +778,6 @@ public:
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
     SMDiagnostic Err;
-#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
-    LLVMCtx.setOpaquePointers(true);
-#else
-    LLVMCtx.setOpaquePointers(false);
-#endif
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
     std::unique_ptr<llvm::Module> const M =

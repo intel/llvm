@@ -289,7 +289,6 @@ public:
                                                   QualType SrcRecordTy) = 0;
   virtual bool shouldEmitExactDynamicCast(QualType DestRecordTy) = 0;
 
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   virtual llvm::Value *emitDynamicCastCall(CodeGenFunction &CGF, Address Value,
                                            QualType SrcRecordTy,
                                            QualType DestTy,
@@ -299,17 +298,6 @@ public:
   virtual llvm::Value *emitDynamicCastToVoid(CodeGenFunction &CGF,
                                              Address Value,
                                              QualType SrcRecordTy) = 0;
-#else
-  virtual llvm::Value *
-  EmitDynamicCastCall(CodeGenFunction &CGF, Address Value,
-                      QualType SrcRecordTy, QualType DestTy,
-                      QualType DestRecordTy, llvm::BasicBlock *CastEnd) = 0;
-
-  virtual llvm::Value *EmitDynamicCastToVoid(CodeGenFunction &CGF,
-                                             Address Value,
-                                             QualType SrcRecordTy,
-                                             QualType DestTy) = 0;
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
 
   /// Emit a dynamic_cast from SrcRecordTy to DestRecordTy. The cast fails if
   /// the dynamic type of Value is not exactly DestRecordTy.

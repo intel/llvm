@@ -5,8 +5,8 @@
 
 // CHECK: kernel_function
 // CHECK-NEXT: entry:
-// CHECK-NEXT: call void @__itt_offload_wi_start_wrapper()
-// CHECK: call void @__itt_offload_wi_finish_wrapper()
+// CHECK-NEXT: call spir_func void @__itt_offload_wi_start_wrapper()
+// CHECK: call spir_func void @__itt_offload_wi_finish_wrapper()
 // CHECK-NEXT: ret void
 
 #include "Inputs/sycl.hpp"

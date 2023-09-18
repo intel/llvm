@@ -200,9 +200,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   if (UR_RESULT_SUCCESS != result) {
     return result;
   }
-
-  pDdiTable->pfnInit = urInit;
-  pDdiTable->pfnTearDown = urTearDown;
   pDdiTable->pfnAdapterGet = urAdapterGet;
   pDdiTable->pfnAdapterGetInfo = urAdapterGetInfo;
   pDdiTable->pfnAdapterGetLastError = urAdapterGetLastError;
@@ -239,10 +236,10 @@ urGetUSMProcAddrTable(ur_api_version_t version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolRetain = nullptr;
-  pDdiTable->pfnPoolRelease = nullptr;
-  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }
@@ -276,17 +273,19 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
-  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
-  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
-  pDdiTable->pfnAppendMembufferCopyRectExp =
-      urCommandBufferAppendMembufferCopyRectExp;
-  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
-  pDdiTable->pfnAppendMembufferReadRectExp =
-      urCommandBufferAppendMembufferReadRectExp;
-  pDdiTable->pfnAppendMembufferWriteExp =
-      urCommandBufferAppendMembufferWriteExp;
-  pDdiTable->pfnAppendMembufferWriteRectExp =
-      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
+  pDdiTable->pfnAppendUSMFillExp = urCommandBufferAppendUSMFillExp;
+  pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;
+  pDdiTable->pfnAppendMemBufferCopyRectExp =
+      urCommandBufferAppendMemBufferCopyRectExp;
+  pDdiTable->pfnAppendMemBufferReadExp = urCommandBufferAppendMemBufferReadExp;
+  pDdiTable->pfnAppendMemBufferReadRectExp =
+      urCommandBufferAppendMemBufferReadRectExp;
+  pDdiTable->pfnAppendMemBufferWriteExp =
+      urCommandBufferAppendMemBufferWriteExp;
+  pDdiTable->pfnAppendMemBufferWriteRectExp =
+      urCommandBufferAppendMemBufferWriteRectExp;
+  pDdiTable->pfnAppendMemBufferFillExp = urCommandBufferAppendMemBufferFillExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;

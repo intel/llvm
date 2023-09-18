@@ -62,13 +62,36 @@ __SYCL_EXPORT image_mem_handle alloc_image_mem(const image_descriptor &desc,
                                                const sycl::queue &syclQueue);
 
 /**
- *  @brief   Free image memory
+ *  @brief   [Deprecated] Free image memory
  *
  *  @param   handle Memory handle to allocated memory on the device
  *  @param   syclDevice The device in which we create our memory handle
  *  @param   syclContext The context in which we created our memory handle
  */
-__SYCL_EXPORT void free_image_mem(image_mem_handle handle,
+__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
+                         "Instead use overload that accepts image_type.")
+void free_image_mem(image_mem_handle handle, const sycl::device &syclDevice,
+                    const sycl::context &syclContext);
+
+/**
+ *  @brief   [Deprecated] Free image memory
+ *
+ *  @param   handle Memory handle to allocated memory on the device
+ *  @param   syclQueue The queue in which we create our memory handle
+ */
+__SYCL_EXPORT_DEPRECATED("Distinct image frees are deprecated. "
+                         "Instead use overload that accepts image_type.")
+void free_image_mem(image_mem_handle handle, const sycl::device &syclQueue);
+
+/**
+ *  @brief   Free image memory
+ *
+ *  @param   handle Memory handle to allocated memory on the device
+ *  @param   imageType Type of image memory to be freed
+ *  @param   syclDevice The device in which we create our memory handle
+ *  @param   syclContext The context in which we created our memory handle
+ */
+__SYCL_EXPORT void free_image_mem(image_mem_handle handle, image_type imageType,
                                   const sycl::device &syclDevice,
                                   const sycl::context &syclContext);
 
@@ -76,52 +99,61 @@ __SYCL_EXPORT void free_image_mem(image_mem_handle handle,
  *  @brief   Free image memory
  *
  *  @param   handle Memory handle to allocated memory on the device
+ *  @param   imageType Type of image memory to be freed
  *  @param   syclQueue The queue in which we create our memory handle
  */
-__SYCL_EXPORT void free_image_mem(image_mem_handle handle,
-                                  const sycl::device &syclQueue);
+__SYCL_EXPORT void free_image_mem(image_mem_handle handle, image_type imageType,
+                                  const sycl::queue &syclQueue);
 
 /**
- *  @brief   Allocate mipmap memory based on image_descriptor
+ *  @brief   [Deprecated] Allocate mipmap memory based on image_descriptor
  *
  *  @param   desc The image descriptor
  *  @param   syclDevice The device in which we create our memory handle
  *  @param   syclContext The context in which we create our memory handle
  *  @return  Memory handle to allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle
-alloc_mipmap_mem(const image_descriptor &desc, const sycl::device &syclDevice,
-                 const sycl::context &syclContext);
+__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
+                         "Instead use alloc_image_mem().")
+image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
+                                  const sycl::device &syclDevice,
+                                  const sycl::context &syclContext);
 
 /**
- *  @brief   Allocate mipmap memory based on image_descriptor
+ *  @brief   [Deprecated] Allocate mipmap memory based on image_descriptor
  *
  *  @param   desc The image descriptor
  *  @param   syclQueue The queue in which we create our memory handle
  *  @return  Memory handle to allocated memory on the device
  */
-__SYCL_EXPORT image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
-                                                const sycl::device &syclQueue);
+__SYCL_EXPORT_DEPRECATED("Distinct mipmap allocs are deprecated. "
+                         "Instead use alloc_image_mem().")
+image_mem_handle alloc_mipmap_mem(const image_descriptor &desc,
+                                  const sycl::device &syclQueue);
 
 /**
- *  @brief   Free mipmap memory
+ *  @brief   [Deprecated] Free mipmap memory
  *
  *  @param   handle The mipmap memory handle
  *  @param   syclDevice The device in which we created our memory handle
  *  @param   syclContext The context in which we created our memory handle
  */
-__SYCL_EXPORT void free_mipmap_mem(image_mem_handle handle,
-                                   const sycl::device &syclDevice,
-                                   const sycl::context &syclContext);
+__SYCL_EXPORT_DEPRECATED(
+    "Distinct mipmap frees are deprecated. "
+    "Instead use free_image_mem() that accepts image_type.")
+void free_mipmap_mem(image_mem_handle handle, const sycl::device &syclDevice,
+                     const sycl::context &syclContext);
 
 /**
- *  @brief   Free mipmap memory
+ *  @brief   [Deprecated] Free mipmap memory
  *
  *  @param   handle The mipmap memory handle
  *  @param   syclQueue The queue in which we created our memory handle
  */
-__SYCL_EXPORT void free_mipmap_mem(image_mem_handle handle,
-                                   const sycl::queue &syclQueue);
+__SYCL_EXPORT_DEPRECATED(
+    "Distinct mipmap frees are deprecated. "
+    "Instead use free_image_mem() that accepts image_type.")
+void free_mipmap_mem(image_mem_handle handle, const sycl::queue &syclQueue);
 
 /**
  *  @brief   Retrieve the memory handle to an individual mipmap image
@@ -205,7 +237,7 @@ __SYCL_EXPORT image_mem_handle map_external_memory_array(
  *  @return  Memory handle to externally allocated memory on the device
  */
 __SYCL_EXPORT image_mem_handle map_external_memory_array(
-    interop_mem_handle memHandle, const image_descriptor &descm,
+    interop_mem_handle memHandle, const image_descriptor &desc,
     const sycl::queue &syclQueue);
 
 /**
@@ -659,8 +691,7 @@ DataT read_image(const unsampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for unsampled image read
 #endif
@@ -695,8 +726,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageRead<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                      coords);
+  return __invoke__ImageRead<DataT>(imageHandle.raw_handle, coords);
 #else
   // TODO: add SPIRV part for sampled image read
 #endif
@@ -727,8 +757,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadLod<DataT, uint64_t, CoordT>(imageHandle.raw_handle,
-                                                         coords, level);
+  return __invoke__ImageReadLod<DataT>(imageHandle.raw_handle, coords, level);
 #else
   // TODO: add SPIRV for mipmap level read
 #endif
@@ -762,8 +791,7 @@ DataT read_image(const sampled_image_handle &imageHandle [[maybe_unused]],
 
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
-  return __invoke__ImageReadGrad<DataT, uint64_t, CoordT>(
-      imageHandle.raw_handle, coords, dX, dY);
+  return __invoke__ImageReadGrad<DataT>(imageHandle.raw_handle, coords, dX, dY);
 #else
   // TODO: add SPIRV part for mipmap grad read
 #endif

@@ -37,7 +37,6 @@
 
 ## Other content:
 * [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
-* [ESIMD Emulator](./sycl_ext_intel_esimd_emulator.md) (deprecated)
 * [Examples](./examples/README.md)
 * [ESIMD LIT tests - working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
 

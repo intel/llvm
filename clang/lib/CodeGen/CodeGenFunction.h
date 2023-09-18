@@ -2659,11 +2659,6 @@ public:
                                  AggValueSlot::DoesNotOverlap);
   }
 
-#ifndef INTEL_SYCL_OPAQUEPOINTER_READY
-  /// Emit a cast to void* in the appropriate address space.
-  llvm::Value *EmitCastToVoidPtr(llvm::Value *value);
-#endif
-
   /// EvaluateExprAsBool - Perform the usual unary conversions on the specified
   /// expression and compare the result against zero, returning an Int1Ty value.
   llvm::Value *EvaluateExprAsBool(const Expr *E);

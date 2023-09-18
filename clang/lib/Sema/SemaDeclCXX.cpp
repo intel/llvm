@@ -3309,24 +3309,6 @@ void Sema::CheckOverrideControl(NamedDecl *D) {
       << MD->getDeclName();
 }
 
-// Check and diagnose if a SYCLAddIRAttributesFunctionAttr is attached to a
-// virtual member function.
-void Sema::CheckVirtualSYCLAddIRAttributesFunctionAttr(const NamedDecl *D) {
-  const CXXMethodDecl *MD = dyn_cast<CXXMethodDecl>(D);
-  if (!MD)
-    return;
-
-  // sycl_add_ir_attributes_function is not currently allowed on virtual member
-  // functions.
-  if (const auto *AddIRAttr = MD->getAttr<SYCLAddIRAttributesFunctionAttr>()) {
-    if (MD->isVirtual()) {
-      Diag(AddIRAttr->getLoc(), diag::err_disallow_attribute_on_func)
-          << AddIRAttr << 0;
-      return;
-    }
-  }
-}
-
 void Sema::DiagnoseAbsenceOfOverrideControl(NamedDecl *D, bool Inconsistent) {
   if (D->isInvalidDecl() || D->hasAttr<OverrideAttr>())
     return;
@@ -3737,7 +3719,6 @@ Sema::ActOnCXXMemberDeclarator(Scope *S, AccessSpecifier AS, Declarator &D,
   }
 
   CheckOverrideControl(Member);
-  CheckVirtualSYCLAddIRAttributesFunctionAttr(Member);
 
   assert((Name || isInstField) && "No identifier for non-field ?");
 
@@ -6647,6 +6628,13 @@ void Sema::checkClassLevelDLLAttribute(CXXRecordDecl *Class) {
     // Only methods and static fields inherit the attributes.
     if (!VD && !MD)
       continue;
+
+    if ((TSK == TSK_ExplicitInstantiationDeclaration ||
+         TSK == TSK_ExplicitInstantiationDefinition) &&
+        Member->hasAttr<ExcludeFromExplicitInstantiationAttr>()) {
+      // Skip members excluded from instantiation.
+      continue;
+    }
 
     if (MD) {
       // Don't process deleted methods.

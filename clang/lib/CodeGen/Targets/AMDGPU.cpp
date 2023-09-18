@@ -35,11 +35,7 @@ private:
     // Single value types.
     auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty);
     if (PtrTy && PtrTy->getAddressSpace() == FromAS)
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
       return llvm::PointerType::get(Ty->getContext(), ToAS);
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-      return llvm::PointerType::getWithSamePointeeType(PtrTy, ToAS);
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
     return Ty;
   }
 
@@ -399,7 +395,8 @@ void AMDGPUTargetCodeGenInfo::addAMDGCNMetadata(llvm::GlobalValue *GV,
 void AMDGPUTargetCodeGenInfo::emitTargetGlobals(
     CodeGen::CodeGenModule &CGM) const {
   StringRef Name = "llvm.amdgcn.abi.version";
-  if (CGM.getModule().getNamedGlobal(Name))
+  llvm::GlobalVariable *OriginalGV = CGM.getModule().getNamedGlobal(Name);
+  if (OriginalGV && !llvm::GlobalVariable::isExternalLinkage(OriginalGV->getLinkage()))
     return;
 
   auto *Type = llvm::IntegerType::getIntNTy(CGM.getModule().getContext(), 32);
@@ -414,6 +411,13 @@ void AMDGPUTargetCodeGenInfo::emitTargetGlobals(
       CGM.getContext().getTargetAddressSpace(LangAS::opencl_constant));
   GV->setUnnamedAddr(llvm::GlobalValue::UnnamedAddr::Local);
   GV->setVisibility(llvm::GlobalValue::VisibilityTypes::HiddenVisibility);
+
+  // Replace any external references to this variable with the new global.
+  if (OriginalGV) {
+    OriginalGV->replaceAllUsesWith(GV);
+    GV->takeName(OriginalGV);
+    OriginalGV->eraseFromParent();
+  }
 }
 
 void AMDGPUTargetCodeGenInfo::setTargetAttributes(
@@ -463,13 +467,8 @@ llvm::Constant *AMDGPUTargetCodeGenInfo::getNullPointer(
     return llvm::ConstantPointerNull::get(PT);
 
   auto &Ctx = CGM.getContext();
-#ifdef INTEL_SYCL_OPAQUEPOINTER_READY
   auto NPT = llvm::PointerType::get(
       PT->getContext(), Ctx.getTargetAddressSpace(LangAS::opencl_generic));
-#else // INTEL_SYCL_OPAQUEPOINTER_READY
-  auto NPT = llvm::PointerType::getWithSamePointeeType(
-      PT, Ctx.getTargetAddressSpace(LangAS::opencl_generic));
-#endif // INTEL_SYCL_OPAQUEPOINTER_READY
   return llvm::ConstantExpr::getAddrSpaceCast(
       llvm::ConstantPointerNull::get(NPT), PT);
 }
@@ -486,7 +485,6 @@ AMDGPUTargetCodeGenInfo::getGlobalVarAddressSpace(CodeGenModule &CGM,
     return DefaultGlobalAS;
 
   LangAS AddrSpace = D->getType().getAddressSpace();
-  assert(AddrSpace == LangAS::Default || isTargetAddressSpace(AddrSpace));
   if (AddrSpace != LangAS::Default)
     return AddrSpace;
 
