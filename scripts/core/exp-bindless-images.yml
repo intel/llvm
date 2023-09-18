@@ -110,6 +110,9 @@ etors:
     - name: EXP_LAYERED_IMAGE_PROPERTIES
       desc: $x_exp_layered_image_properties_t
       value: "0x2005"
+    - name: EXP_SAMPLER_ADDR_MODES
+      desc: $x_exp_sampler_addr_modes_t
+      value: "0x2006"
 --- #--------------------------------------------------------------------------
 type: enum
 extend: true
@@ -174,6 +177,25 @@ members:
     - type: $x_sampler_filter_mode_t
       name: mipFilterMode
       desc: "[in] mipmap filter mode used for filtering between mipmap levels"
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Describes unique sampler addressing mode per dimension"
+details:
+    - Specify these properties in $xSamplerCreate via $x_sampler_desc_t as part
+      of a `pNext` chain.
+class: $xBindlessImages
+name: $x_exp_sampler_addr_modes_t
+base: $x_base_properties_t
+members:
+    - type: $x_sampler_addressing_mode_t
+      name: addrModeX
+      desc: "[in] Specify the addressing mode of the x-dimension."
+    - type: $x_sampler_addressing_mode_t
+      name: addrModeY
+      desc: "[in] Specify the addressing mode of the y-dimension."
+    - type: $x_sampler_addressing_mode_t
+      name: addrModeZ
+      desc: "[in] Specify the addressing mode of the z-dimension."
 --- #--------------------------------------------------------------------------
 type: struct
 desc: "Describes an interop memory resource descriptor"

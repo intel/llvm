@@ -69,6 +69,7 @@ Enums
     ${X}_STRUCTURE_TYPE_EXP_FILE_DESCRIPTOR
     ${X}_STRUCTURE_TYPE_EXP_WIN32_HANDLE
     ${X}_STRUCTURE_TYPE_EXP_LAYERED_IMAGE_PROPERTIES 
+    ${X}_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
 
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP
@@ -129,6 +130,7 @@ Types
 * ${x}_exp_file_descriptor_t
 * ${x}_exp_win32_handle_t
 * ${x}_exp_layered_image_properties_t
+* ${x}_exp_sampler_addr_modes_t
 
 Functions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -180,6 +182,8 @@ Changelog
 +----------+-------------------------------------------------------------+
 | 7.0      | Add layered image properties struct.                        |
 +----------+-------------------------------------------------------------+
+| 8.0      | Added structure for sampler addressing modes per dimension. |
++------------------------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
