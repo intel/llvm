@@ -2,7 +2,6 @@
 // RUN: %{run} %t.out
 
 #include <cstdlib>
-#include <sycl/ext/oneapi/experimental/auto_local_range.hpp>
 #include <sycl/sycl.hpp>
 
 template <size_t... Args> bool testAutoLocalRange() {
@@ -17,7 +16,7 @@ template <size_t... Args> bool testAutoLocalRange() {
      cgh.parallel_for(
          nd_range<Dimensions>{
              range<Dimensions>{Args...},
-             sycl::ext::oneapi::experimental::auto_range<Dimensions>},
+             sycl::ext::oneapi::experimental::auto_range<Dimensions>()},
          [=](auto id) { acc[id.get_global_id()] = id.get_global_linear_id(); });
    }).wait();
 

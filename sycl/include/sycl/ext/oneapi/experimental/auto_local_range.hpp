@@ -13,19 +13,20 @@
 #define SYCL_EXT_ONEAPI_AUTO_LOCAL_RANGE 1
 
 namespace sycl {
-namespace ext {
-namespace oneapi {
-namespace experimental {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
 
-template <int Dimensions> static const inline range<Dimensions> auto_range;
+template <int Dimensions> static inline range<Dimensions> auto_range() {
+  static_assert(1 <= Dimensions && Dimensions <= 3);
+  if constexpr (Dimensions == 3) {
+    return range<Dimensions>(0, 0, 0);
+  } else if constexpr (Dimensions == 2) {
+    return range<Dimensions>(0, 0);
+  } else {
+    return range<Dimensions>(0);
+  }
+}
 
-template <> static const inline range<3> auto_range<3>{0, 0, 0};
-
-template <> static const inline range<2> auto_range<2>{0, 0};
-
-template <> static const inline range<1> auto_range<1>{0};
-
-} // namespace experimental
-} // namespace oneapi
-} // namespace ext
+} // namespace ext::oneapi::experimental
+} // namespace _V1
 } // namespace sycl
