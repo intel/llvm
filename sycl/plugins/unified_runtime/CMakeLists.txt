@@ -4,8 +4,9 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
   include(FetchContent)
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG v0.7.1)
+  set(UNIFIED_RUNTIME_TAG b3cc9ae3f99ca7faff1ba765dd36652fef2cfddd)
 
+  set(UMF_ENABLE_POOL_TRACKING ON)
   message(STATUS "Will fetch Unified Runtime from ${UNIFIED_RUNTIME_REPO}")
   FetchContent_Declare(unified-runtime
     GIT_REPOSITORY    ${UNIFIED_RUNTIME_REPO}
@@ -45,7 +46,6 @@ if (NOT DEFINED UNIFIED_RUNTIME_LIBRARY OR NOT DEFINED UNIFIED_RUNTIME_INCLUDE_D
     ${unified-runtime_SOURCE_DIR} CACHE PATH "Path to Unified Runtime Headers")
   set(UNIFIED_RUNTIME_INCLUDE_DIR "${UNIFIED_RUNTIME_SOURCE_DIR}/include")
 endif()
-
 
 add_library(UnifiedRuntime-Headers INTERFACE)
 

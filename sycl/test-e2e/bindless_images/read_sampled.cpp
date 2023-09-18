@@ -59,11 +59,14 @@ struct util {
                                                         int *x1) {
     double pixelCoord;
 
+    // sycl::fract stores results into a multi_ptr instead of a raw pointer.
+    sycl::private_ptr<double> pPixelCoord = &pixelCoord;
+
     // Subtract to align so that pixel center is 0.5 away from origin.
     coord = coord - 0.5;
 
-    double weight = sycl::fract(coord, &pixelCoord);
-    *x0 = static_cast<int>(std::floor(pixelCoord));
+    double weight = sycl::fract(coord, pPixelCoord);
+    *x0 = static_cast<int>(*pPixelCoord);
     *x1 = *x0 + 1;
     return weight;
   }

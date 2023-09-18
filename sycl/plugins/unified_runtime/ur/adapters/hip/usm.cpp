@@ -99,7 +99,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,
 
 ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t, ur_usm_device_mem_flags_t *,
-                               size_t Size, uint32_t Alignment) {
+                               size_t Size,
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Context->getDevice());
     UR_CHECK_ERROR(hipMalloc(ResultPtr, Size));
@@ -114,7 +115,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                                ur_device_handle_t, ur_usm_host_mem_flags_t *,
                                ur_usm_device_mem_flags_t *, size_t Size,
-                               uint32_t Alignment) {
+                               [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Context->getDevice());
     UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, hipMemAttachGlobal));
@@ -128,7 +129,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t Context,
 
 ur_result_t USMHostAllocImpl(void **ResultPtr, ur_context_handle_t Context,
                              ur_usm_host_mem_flags_t *, size_t Size,
-                             uint32_t Alignment) {
+                             [[maybe_unused]] uint32_t Alignment) {
   try {
     ScopedContext Active(Context->getDevice());
     UR_CHECK_ERROR(hipHostMalloc(ResultPtr, Size));
