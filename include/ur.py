@@ -2228,9 +2228,7 @@ class ur_exp_sampler_addr_modes_t(Structure):
         ("stype", ur_structure_type_t),                                 ## [in] type of this structure, must be
                                                                         ## ::UR_STRUCTURE_TYPE_EXP_SAMPLER_ADDR_MODES
         ("pNext", c_void_p),                                            ## [in,out][optional] pointer to extension-specific structure
-        ("addrModeX", ur_sampler_addressing_mode_t),                    ## [in] Specify the addressing mode of the x-dimension.
-        ("addrModeY", ur_sampler_addressing_mode_t),                    ## [in] Specify the addressing mode of the y-dimension.
-        ("addrModeZ", ur_sampler_addressing_mode_t)                     ## [in] Specify the addressing mode of the z-dimension.
+        ("addrModes", ur_sampler_addressing_mode_t * 3)                 ## [in] Specify the address mode of the sampler per dimension
     ]
 
 ###############################################################################
