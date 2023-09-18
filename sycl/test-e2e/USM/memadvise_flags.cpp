@@ -44,7 +44,8 @@ int main() {
     valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY);
     valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY);
     valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_PREFERRED_LOCATION_HOST);
-    valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST);
+    valid_advices.emplace_back(
+        PI_MEM_ADVICE_CUDA_UNSET_PREFERRED_LOCATION_HOST);
     valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_SET_ACCESSED_BY_HOST);
     valid_advices.emplace_back(PI_MEM_ADVICE_CUDA_UNSET_ACCESSED_BY_HOST);
   } else if (isHip) {
@@ -64,8 +65,8 @@ int main() {
   }
 
   for (int advice : valid_advices) {
-      q.mem_advise(ptr, size, advice);
-    }
+    q.mem_advise(ptr, size, advice);
+  }
 
   q.wait_and_throw();
   std::cout << "Test passed." << std::endl;
