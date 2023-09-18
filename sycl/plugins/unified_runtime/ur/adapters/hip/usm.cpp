@@ -70,8 +70,7 @@ UR_APIEXPORT ur_result_t UR_APICALL USMFreeImpl(ur_context_handle_t hContext,
   try {
     ScopedContext Active(hContext->getDevice());
     hipPointerAttribute_t hipPointerAttributeType;
-    Result =
-        UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
+    UR_CHECK_ERROR(hipPointerGetAttributes(&hipPointerAttributeType, pMem));
     unsigned int Type = hipPointerAttributeType.memoryType;
     UR_ASSERT(Type == hipMemoryTypeDevice || Type == hipMemoryTypeHost,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
