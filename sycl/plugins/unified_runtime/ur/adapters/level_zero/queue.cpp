@@ -293,10 +293,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
   for (auto I = Context->Devices.begin(); I != Context->Devices.end(); ++I) {
     if (*I == Device) {
       MakeFirst = I;
-      if (!Device->RootDevice) break;
+      if (!Device->RootDevice)
+        break;
       // continue the search for possible root-device in the context
-    }
-    else if (*I == Device->RootDevice) {
+    } else if (*I == Device->RootDevice) {
       MakeFirst = I;
       break; // stop the search
     }
