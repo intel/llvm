@@ -237,10 +237,8 @@ struct NMSymbol {
   std::string IndirectName;
 
   bool isDefined() const {
-    if (Sym.getRawDataRefImpl().p) {
-      uint32_t Flags = cantFail(Sym.getFlags());
-      return !(Flags & SymbolRef::SF_Undefined);
-    }
+    if (Sym.getRawDataRefImpl().p)
+      return !(SymFlags & SymbolRef::SF_Undefined);
     return TypeChar != 'U';
   }
 
@@ -1822,7 +1820,7 @@ static bool getSymbolNamesFromObject(SymbolicFile &Obj,
 
       if (const WasmObjectFile *WasmObj = dyn_cast<WasmObjectFile>(&Obj)) {
         const WasmSymbol &WasmSym = WasmObj->getWasmSymbol(Sym);
-        if (WasmSym.isTypeData())
+        if (WasmSym.isTypeData() && !WasmSym.isUndefined())
           S.Size = WasmSym.Info.DataRef.Size;
       }
 

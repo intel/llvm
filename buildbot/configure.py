@@ -62,9 +62,6 @@ def do_configure(args):
     if platform.system() == 'Windows' or (args.hip and args.hip_platform == 'AMD'):
         llvm_enable_projects += ';lld'
 
-    if args.enable_esimd_emulator:
-        sycl_enabled_plugins.append("esimd_emulator")
-
     if args.cuda or args.hip or args.native_cpu:
         llvm_enable_projects += ';libclc'
 
@@ -245,7 +242,6 @@ def main():
     parser.add_argument("--hip-platform", type=str, choices=['AMD', 'NVIDIA'], default='AMD', help="choose hardware platform for HIP backend")
     parser.add_argument("--host-target", default='X86',
                         help="host LLVM target architecture, defaults to X86, multiple targets may be provided as a semi-colon separated string")
-    parser.add_argument("--enable-esimd-emulator", action='store_true', help="build with ESIMD emulation support (deprecated)")
     parser.add_argument("--enable-all-llvm-targets", action='store_true', help="build compiler with all supported targets, it doesn't change runtime build")
     parser.add_argument("--no-assertions", action='store_true', help="build without assertions")
     parser.add_argument("--docs", action='store_true', help="build Doxygen documentation")
