@@ -1,3 +1,18 @@
+//==---------------- <complex> wrapper around STL --------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+// STL's <complex> includes <cmath> which, in turn, pollutes global namespace.
+// As such, we cannot include <complex> from SYCL headers unconditionally and
+// have to provide support for std::complex only when the customer included
+// <complex> explicitly. Do that by providing our own <complex> that is
+// implemented as a wrapper around the STL header using "#include_next"
+// functionality.
+
 #pragma once
 
 // Include real STL <complex> header - the next one from the include search
