@@ -72,7 +72,7 @@ The main purpose of this extension is to reduce amount of SYCL language
 restrictions for device code by allowing to call virtual member functions
 from device functions.
 
-NOTE: this extension **does not** cover (i.e. enables) things like
+NOTE: this extension **does not** cover (i.e. doesn't enable) things like
 `dynamic_cast`, `typeid` or calls through function pointers.
 
 == Specification
@@ -109,45 +109,45 @@ does not apply if this extension is supported by an implementation:
 However, there are still some limitations of how virtual member functions can
 be used:
 
-- if an object is constructed in host code, calling a virtual function for that
-  object in device code has undefined behavior
-- if an object is constructed in device code, calling a virtual function for
-  that object in host code has undefined behavior
+- if an object is constructed in host code, calling a virtual member function
+  for that object in device code has undefined behavior;
+- if an object is constructed in device code, calling a virtual member function
+  for that object in host code has undefined behavior;
 
 === New properties
 
 Due to the indirect nature of virtual member functions, compiler may not be able
-to understand member function of which exact class is being called. Moreover,
-when code is distributed over several translation units, compiler may not be
-able to even see definitions of all virtual member functions which may be called
-in a kernel.
+to understand which exact virtual member function is being called (i.e. which
+class it belongs to).  Moreover, when code is distributed over several
+translation units, compiler may not be able to even see definitions of all
+virtual member functions which may be called in a kernel.
 
 Therefore, to provide a mechanism for an implementation to help detect virtual
 member functions, which are going to be used from kernels and enforce necessary
-restrictions on them, new compile-time-constant properties are proposed:
+restrictions on them, new compile-time-constant properties are proposed.
 
 [source,dpcpp]
 ----
 namespace sycl::ext::oneapi::experimental {
 
   struct indirectly_callable_key {
-    template <typename Set>
-    using value_t = property_value<indirectly_callable_key, Set>;
+    template <typename SetId>
+    using value_t = property_value<indirectly_callable_key, SetId>;
   };
 
   struct calls_indirectly_key {
-    template <typename... Sets>
+    template <typename... SetIds>
     using value_t =
         std::conditional_t<sizeof...(Sets) == 0,
                            property_value<calls_indirectly_key, void>,
-                           property_value<calls_indirectly_key, Sets...>>;
+                           property_value<calls_indirectly_key, SetIds...>>;
   };
 
-  template <typename Set = void>
-  inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable;
+  template <typename SetId = void>
+  inline constexpr indirectly_callable_key::value_t<SetId> indirectly_callable;
 
-  template <typename... Sets>
-  inline constexpr calls_indirectly_key::value_t<Sets...> calls_indirectly;
+  template <typename... SetIds>
+  inline constexpr calls_indirectly_key::value_t<SetIds...> calls_indirectly;
 
   template <>
   struct is_property_key<indirectly_callable_key> : std::true_type {};
@@ -155,50 +155,79 @@ namespace sycl::ext::oneapi::experimental {
 }
 ----
 
+Before describing those properties those properties in more detail, a couple of
+new terms are introduced to simplify the extension specification:
+
+Set of virtual member functions:: a group of virtual member functions which are
+defined with `indirectly_callable` property with the same value of the property
+parameter `SetId`. For the simplicity, this will also be further refferred to as
+a set, or as a set of virtual functions.
+
+Kernel declares a use of a set of virtual member functions:: a kernel is
+considered to be declaring a use of a set of virtual member functions `SetIdA`
+when it is submitted with `calls_indirectly` property with `SetIdA` included
+into the property parameter `SetIds`. If `SetIdA` is not included into the
+property parameter `SetIds`, or if a kernel is submitted without the property,
+then it is *not* considered to be declaring a use of the set of virtual member
+functions.
+
+:fn-property-macro-docs: footnote:[To read more about the
+`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro, see
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties] extension]
+
 |===
 |Property|Description
 |`indirectly_callable`
-|The `indirectly_callable` property marks a virtual member function as a device
-function, thus making it available to be called from SYCL kernel and device
-functions. Should only be applied to virtual member functions and to do so,
-`SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro should be used.
+|The `indirectly_callable` property indicates that a virtual member function as
+a device function, thus making it available to be called from SYCL kernel and
+device functions. Should only be applied to virtual member functions and to do
+so, `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro{fn-property-macro-docs} should be
+used.
 
-Parameter `Set` specifies a group of kernels, which can call this virtual member
-function, it must be a C++ typename. Calling a virtual member function from a
-kernel without `calls_indirectly` property, or with a `calls_indirectly`
-property with a value which does not include the same `Set` as specified by
-`indirectly_callable` in its parameter is an undefined behavior.
+Optional parameter `SetId` specifies a set of virtual member functions this
+function belongs to and at the same time it defines a group of kernels, which
+can call this function, it must be a C++ typename. When the parameter is
+ommitted, a virtual member function is considered to belong to a default set.
+
+Calling a virtual member function from a kernel which does not declare use of a
+set the virtual member function belongs to is an undefined behavior.
 
 |`calls_indirectly`
-|The `calls_indirectly` property marks a SYCL kernel function as performing
-calls through virtual member functions.
+|The `calls_indirectly` property indicates that a SYCL kernel function is
+performing calls through virtual member functions and declares use one or more
+of sets of virtual member functions.
 
-Parameter `Sets` specifies groups of virtual member functions which can be
-called from this kernel, it must be a C++ typename. Calling a virtual member
-function without `indirectly_callable` property, or with an
-`indirectly_callable` property with a value of `Set` parameter which is not part
-of `Sets` is an undefined behavior.
+Optional parameter `SetIds` specifies which sets of virtual member functions are
+declared to be used by the kernel, it must be zero or more comma-separated C++
+typenames. If the argument is omitted (zero C++ typenames specified), than a
+kernel is considered to be using a default set of virtual member functions.
+
+Calling a virtual member function, which does not belong to any of sets of
+virtual member functions declared to be used is an undefined behavior.
 |===
 
 If a virtual member function is called from device code, both definition and
 declaration of that function must be decorated with the +indirectly_callable+
-property. `Set` property parameter must match between definition and
+property. `SetId` property parameter must match between definition and
 declaration and implementation should provide a diagnostic in case of mismatch.
 
 Applying the +indirectly_callable+ property to a SYCL Kernel function is illegal
 and an implementation should produce a diagnostic for that.
 
 Applying the +indirectly_callable+ property to an arbitrary device function,
-which is not a virtual member function has no effect. NOTE: This behavior may be
-changed in either future version of this extension or in other extensions.
+which is not a virtual member function has no effect.
+
+NOTE: This behavior may be changed in either future version of this extension or
+in another extensions.
 
 Virtual member functions that are decorated with the +indirectly_callable+
-property are considered device functions, which must obey the restrictions
-listed in section 5.4 of the core SYCL specification "Language restrictions for
-device functions". Virtual member functions that are not decorated with this
-attribute do not need to obey these restrictions, even if other definitions of
-that virtual member function in other classes in the inheritance hierarchy are
-decorated with the attribute.
+property are considered to be device functions, i.e. they  must obey the
+restrictions listed in section 5.4 of the core SYCL specification "Language
+restrictions for device functions". Virtual member functions that are not
+decorated with this attribute do not need to obey these restrictions, even if
+other definitions of that virtual member function in other classes in the
+inheritance hierarchy are decorated with the attribute.
 
 [source,dpcpp]
 ----
@@ -230,14 +259,14 @@ void SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
   ptr->bar()
 
   // Note: this kernel can only call 'Foo::foo' and 'Foo::bar' but not
-  // 'Foo::baz', because the latter is declared within a different "set".
+  // 'Foo::baz', because the latter is declared within a different set.
 });
 ----
 
 Reasons about why it may be necessary to put different virtual functions into
-different "sets" are explained in further sections, but for simplicity purposes
-both properties cane be used without explicitly specifying a "set", thus using
-a default "set":
+different sets are explained in further sections, but for simplicity purposes
+both properties can be used without explicitly specifying a set, thus using
+a default set:
 
 [source,dpcpp]
 ----
@@ -247,7 +276,7 @@ struct set_A;
 
 class Foo {
 public:
-  // properties to functions should be applied using the macro:
+  // This virtual member function belongs to a default set of virtual functions.
   virtual SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
       syclext::indirectly_callable<>) void foo() {}
 
@@ -260,7 +289,7 @@ public:
   ptr->bar()
 
   // Note: this kernel can only call 'Foo::foo' but not 'Foo::bar', because the
-  // latter is declared within a different (non-default) "set".
+  // latter belongs to a different (non-default) set of virtual functions.
 });
 ----
 
@@ -282,15 +311,16 @@ When the attribute is applied to a function:
 > any of the functions it calls) uses an optional feature that is associated
 > with an aspect that is not listed in the attribute.
 
-Due to dynamic nature of virtual member functions, compiler is not able to
-perform static analysis of a call graph in order to understand which exact
-virtual functions are called from which kernels, in general case.
+Due to dynamic nature of virtual member functions, compiler in general case is
+not able to perform static analysis of a call graph in order to understand which
+exact virtual functions are called from which kernels.
 
 Instead, information from the new properties is used by an implementation to
 issue such diagnostic. When determining a set of aspects which are used by a
 SYCL kernel function, implementation also takes into account all aspects which
-are used by all virtual member functions included into all "sets" listed in
-`calls_indirectly` property.
+are used by all virtual member functions included into all sets of virtual
+member functions declared to be used by a kernel.
+
 
 [source,dpcpp]
 ----
@@ -340,7 +370,7 @@ q.single_task(syclext::properties{syclext::calls_indirectly<>},
     [=] [[sycl::device_has()]] {
   // No diagnostic is required for this kernel, because list of declared aspects
   // matches list of used aspects. There are no virtual member functions defined
-  // in a default "set", which means that no extra optional kernel features
+  // in a default set, which means that no extra optional kernel features
   // requirements were attached to the kernel.
 });
 ----
