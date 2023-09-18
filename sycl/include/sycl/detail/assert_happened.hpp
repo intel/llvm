@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
-#include <cstdint>
+#include <cstdint> // for uint64_t, int32_t
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Reads Flag of AssertHappened on device

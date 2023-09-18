@@ -6,52 +6,79 @@ on:
     - cron: '0 3 * * *'
 
 jobs:
-  test_matrix:
+  ubuntu2204_build:
     if: github.repository == 'intel/llvm'
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      lts_config: "hip_amdgpu;ocl_gen12;ocl_x64;l0_gen12;esimd_emu;cuda_aws;win_l0_gen12"
-
-  ubuntu2204_build_test:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: test_matrix
+    uses: ./.github/workflows/sycl_linux_build.yml
     secrets: inherit
     with:
       build_cache_root: "/__w/"
       build_artifact_suffix: default
-      build_configure_extra_args: '--hip --cuda --enable-esimd-emulator'
+      build_configure_extra_args: '--hip --cuda'
       merge_ref: ''
       retention-days: 90
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_lx_matrix }}
-      lts_aws_matrix: ${{ needs.test_matrix.outputs.lts_aws_matrix }}
 
       # We upload the build for people to download/use, override its name and
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
-  ubuntu2204_opaque_pointers_build_test:
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl_linux_build_and_test.yml
-    needs: test_matrix
-    secrets: inherit
+  ubuntu2204_test:
+    needs: [ubuntu2204_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: ext_oneapi_hip:gpu
+
+          - name: Intel L0 GPU
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_level_zero:gpu
+            reset_gpu: true
+
+          - name: Intel OCL GPU
+            runner: '["Linux", "gen12"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:gpu
+            reset_gpu: true
+
+          - name: OCL CPU
+            runner: '["Linux", "x86-cpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+            image_options: -u 1001
+            target_devices: opencl:cpu
+
+          - name: Self-hosted CUDA
+            runner: '["Linux", "cuda"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+            target_devices: ext_oneapi_cuda:gpu
+    uses: ./.github/workflows/sycl_linux_run_tests.yml
     with:
-      build_cache_root: "/__w/"
-      build_cache_suffix: opaque_pointers
-      build_artifact_suffix: opaque_pointers
-      build_configure_extra_args: "--hip --cuda --enable-esimd-emulator --cmake-opt=-DSPIRV_ENABLE_OPAQUE_POINTERS=TRUE"
+      name: ${{ matrix.name }}
+      runner: ${{ matrix.runner }}
+      image: ${{ matrix.image }}
+      image_options: ${{ matrix.image_options }}
+      target_devices: ${{ matrix.target_devices }}
+      reset_gpu: ${{ matrix.reset_gpu }}
+      ref: ${{ github.sha }}
       merge_ref: ''
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
 
   windows_default:
     name: Windows
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
-    needs: test_matrix
     with:
       retention-days: 90
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
-
       # We upload both Linux/Windows build via Github's "Releases"
       # functionality, make sure Linux/Windows names follow the same pattern.
       artifact_archive_name: sycl_windows.tar.gz
@@ -59,7 +86,7 @@ jobs:
   nightly_build_upload:
     name: Nightly Build Upload
     if: ${{ github.ref_name == 'sycl' }}
-    needs: [ubuntu2204_build_test, windows_default]
+    needs: [ubuntu2204_build, windows_default]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v3
@@ -92,7 +119,7 @@ jobs:
   ubuntu2204_docker_build_push:
     if: github.repository == 'intel/llvm'
     runs-on: [Linux, build]
-    needs: ubuntu2204_build_test
+    needs: ubuntu2204_build
     steps:
     - uses: actions/checkout@v3
     - uses: actions/download-artifact@v3

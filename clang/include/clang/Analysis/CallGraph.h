@@ -56,7 +56,7 @@ class CallGraph : public RecursiveASTVisitor<CallGraph> {
   /// a constant expression's context. This DOES require the ASTContext object
   /// for constexpr-if, so setting it requires a valid ASTContext.
   bool ShouldSkipConstexpr = false;
-  ASTContext *Ctx;
+  ASTContext *Ctx = nullptr;
 
 public:
   CallGraph();

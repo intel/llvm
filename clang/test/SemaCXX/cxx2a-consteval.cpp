@@ -840,13 +840,13 @@ void func() {
   copy<foo> fail1{good0}; // expected-error {{call to consteval function 'defaulted_special_member_template::copy<defaulted_special_member_template::foo>::copy' is not a constant expression}} \
                              expected-note {{in call to 'copy(good0)'}}
   fail1 = good0;          // expected-error {{call to consteval function 'defaulted_special_member_template::copy<defaulted_special_member_template::foo>::operator=' is not a constant expression}} \
-                             expected-note {{in call to '&fail1->operator=(good0)'}}
+                             expected-note {{in call to 'fail1.operator=(good0)'}}
 
   move<foo> good1;
   move<foo> fail2{static_cast<move<foo>&&>(good1)}; // expected-error {{call to consteval function 'defaulted_special_member_template::move<defaulted_special_member_template::foo>::move' is not a constant expression}} \
                                                        expected-note {{in call to 'move(good1)'}}
   fail2 = static_cast<move<foo>&&>(good1);          // expected-error {{call to consteval function 'defaulted_special_member_template::move<defaulted_special_member_template::foo>::operator=' is not a constant expression}} \
-                                                       expected-note {{in call to '&fail2->operator=(good1)'}}
+                                                       expected-note {{in call to 'fail2.operator=(good1)'}}
 }
 } // namespace defaulted_special_member_template
 
@@ -1102,4 +1102,28 @@ void bar() {
   static tester paddedloc(make_name(pad(bad))); // expected-error {{call to consteval function 'GH58207::make_name' is not a constant expression}} \
                                                 // expected-note {{read of non-const variable 'bad' is not allowed in a constant expression}}
 }
+}
+
+namespace GH64949 {
+struct f {
+  int g; // expected-note 2{{subobject declared here}}
+  constexpr ~f() {}
+};
+class h {
+
+public:
+  consteval h(char *) {}
+  consteval operator int() const { return 1; }
+  f i;
+};
+
+void test() { (int)h{nullptr}; }
+// expected-error@-1 {{call to consteval function 'GH64949::h::h' is not a constant expression}}
+// expected-note@-2 {{subobject 'g' is not initialized}}
+
+int  test2() { return h{nullptr}; }
+// expected-error@-1 {{call to consteval function 'GH64949::h::h' is not a constant expression}}
+// expected-note@-2 {{subobject 'g' is not initialized}}
+
+
 }

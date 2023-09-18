@@ -23,7 +23,7 @@ define dso_local i32 @_funcEx() #4 {
 }
 
 ; Function Attrs: noinline norecurse optnone uwtable
-define dso_local i32 @func() #5 personality i8* bitcast (i32 (...)* @__gxx_personality_v0 to i8*) {
+define dso_local i32 @func() #5 personality ptr @__gxx_personality_v0 {
 entry:
   %call = invoke i32 @_funcEx()
           to label %invoke.cont unwind label %lpad
@@ -32,7 +32,7 @@ invoke.cont:
   ret i32 0
 
 lpad:
-  %0 = landingpad { i8*, i32 }
+  %0 = landingpad { ptr, i32 }
           cleanup
   ret i32 0
 }

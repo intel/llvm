@@ -20,6 +20,7 @@ add_clang_library(clangTidyMiscModule
   ConstCorrectnessCheck.cpp
   DefinitionsInHeadersCheck.cpp
   ConfusableIdentifierCheck.cpp
+  HeaderIncludeCycleCheck.cpp
   IncludeCleanerCheck.cpp
   MiscTidyModule.cpp
   MisleadingBidirectional.cpp
@@ -47,6 +48,7 @@ add_clang_library(clangTidyMiscModule
   DEPENDS
   omp_gen
   genconfusable
+  ClangDriverOptions
   )
 
 clang_target_link_libraries(clangTidyMiscModule

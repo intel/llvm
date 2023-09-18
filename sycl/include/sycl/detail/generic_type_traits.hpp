@@ -8,17 +8,21 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/aliases.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/half_type.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <CL/__spirv/spirv_types.hpp>         // for complex_double, comple...
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/aliases.hpp>                   // for half, cl_char, cl_double
+#include <sycl/detail/generic_type_lists.hpp> // for nonconst_address_space...
+#include <sycl/detail/helpers.hpp>            // for marray
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_sam...
+#include <sycl/detail/type_traits.hpp>        // for is_gen_based_on_type_s...
+#include <sycl/half_type.hpp>                 // for BIsRepresentationT
+#include <sycl/multi_ptr.hpp>                 // for multi_ptr, address_spa...
 
-#include <complex>
-#include <limits>
+#include <complex>     // for complex
+#include <cstddef>     // for byte
+#include <cstdint>     // for uint8_t
+#include <limits>      // for numeric_limits
+#include <type_traits> // for enable_if_t, condition...
 
 namespace sycl {
 inline namespace _V1 {

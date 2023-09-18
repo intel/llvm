@@ -559,6 +559,38 @@ PrototypeDescriptor::parsePrototypeDescriptor(
         return std::nullopt;
       }
 
+    } else if (ComplexTT.first == "SEFixedLog2LMUL") {
+      int32_t Log2LMUL;
+      if (ComplexTT.second.getAsInteger(10, Log2LMUL)) {
+        llvm_unreachable("Invalid SEFixedLog2LMUL value!");
+        return std::nullopt;
+      }
+      switch (Log2LMUL) {
+      case -3:
+        VTM = VectorTypeModifier::SEFixedLog2LMULN3;
+        break;
+      case -2:
+        VTM = VectorTypeModifier::SEFixedLog2LMULN2;
+        break;
+      case -1:
+        VTM = VectorTypeModifier::SEFixedLog2LMULN1;
+        break;
+      case 0:
+        VTM = VectorTypeModifier::SEFixedLog2LMUL0;
+        break;
+      case 1:
+        VTM = VectorTypeModifier::SEFixedLog2LMUL1;
+        break;
+      case 2:
+        VTM = VectorTypeModifier::SEFixedLog2LMUL2;
+        break;
+      case 3:
+        VTM = VectorTypeModifier::SEFixedLog2LMUL3;
+        break;
+      default:
+        llvm_unreachable("Invalid LFixedLog2LMUL value, should be [-3, 3]");
+        return std::nullopt;
+      }
     } else if (ComplexTT.first == "Tuple") {
       unsigned NF = 0;
       if (ComplexTT.second.getAsInteger(10, NF)) {
@@ -726,6 +758,27 @@ void RVVType::applyModifier(const PrototypeDescriptor &Transformer) {
   case VectorTypeModifier::SFixedLog2LMUL3:
     applyFixedLog2LMUL(3, FixedLMULType::SmallerThan);
     break;
+  case VectorTypeModifier::SEFixedLog2LMULN3:
+    applyFixedLog2LMUL(-3, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMULN2:
+    applyFixedLog2LMUL(-2, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMULN1:
+    applyFixedLog2LMUL(-1, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMUL0:
+    applyFixedLog2LMUL(0, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMUL1:
+    applyFixedLog2LMUL(1, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMUL2:
+    applyFixedLog2LMUL(2, FixedLMULType::SmallerOrEqual);
+    break;
+  case VectorTypeModifier::SEFixedLog2LMUL3:
+    applyFixedLog2LMUL(3, FixedLMULType::SmallerOrEqual);
+    break;
   case VectorTypeModifier::Tuple2:
   case VectorTypeModifier::Tuple3:
   case VectorTypeModifier::Tuple4:
@@ -741,6 +794,10 @@ void RVVType::applyModifier(const PrototypeDescriptor &Transformer) {
   case VectorTypeModifier::NoModifier:
     break;
   }
+
+  // Early return if the current type modifier is already invalid.
+  if (ScalarType == Invalid)
+    return;
 
   for (unsigned TypeModifierMaskShift = 0;
        TypeModifierMaskShift <= static_cast<unsigned>(TypeModifier::MaxOffset);
@@ -803,12 +860,18 @@ void RVVType::applyFixedSEW(unsigned NewSEW) {
 void RVVType::applyFixedLog2LMUL(int Log2LMUL, enum FixedLMULType Type) {
   switch (Type) {
   case FixedLMULType::LargerThan:
-    if (Log2LMUL < LMUL.Log2LMUL) {
+    if (Log2LMUL <= LMUL.Log2LMUL) {
       ScalarType = ScalarTypeKind::Invalid;
       return;
     }
     break;
   case FixedLMULType::SmallerThan:
+    if (Log2LMUL >= LMUL.Log2LMUL) {
+      ScalarType = ScalarTypeKind::Invalid;
+      return;
+    }
+    break;
+  case FixedLMULType::SmallerOrEqual:
     if (Log2LMUL > LMUL.Log2LMUL) {
       ScalarType = ScalarTypeKind::Invalid;
       return;
@@ -875,16 +938,14 @@ std::optional<RVVTypePtr> RVVTypeCache::computeType(BasicType BT, int Log2LMUL,
 //===----------------------------------------------------------------------===//
 // RVVIntrinsic implementation
 //===----------------------------------------------------------------------===//
-RVVIntrinsic::RVVIntrinsic(StringRef NewName, StringRef Suffix,
-                           StringRef NewOverloadedName,
-                           StringRef OverloadedSuffix, StringRef IRName,
-                           bool IsMasked, bool HasMaskedOffOperand, bool HasVL,
-                           PolicyScheme Scheme, bool SupportOverloading,
-                           bool HasBuiltinAlias, StringRef ManualCodegen,
-                           const RVVTypes &OutInTypes,
-                           const std::vector<int64_t> &NewIntrinsicTypes,
-                           const std::vector<StringRef> &RequiredFeatures,
-                           unsigned NF, Policy NewPolicyAttrs)
+RVVIntrinsic::RVVIntrinsic(
+    StringRef NewName, StringRef Suffix, StringRef NewOverloadedName,
+    StringRef OverloadedSuffix, StringRef IRName, bool IsMasked,
+    bool HasMaskedOffOperand, bool HasVL, PolicyScheme Scheme,
+    bool SupportOverloading, bool HasBuiltinAlias, StringRef ManualCodegen,
+    const RVVTypes &OutInTypes, const std::vector<int64_t> &NewIntrinsicTypes,
+    const std::vector<StringRef> &RequiredFeatures, unsigned NF,
+    Policy NewPolicyAttrs, bool HasFRMRoundModeOp)
     : IRName(IRName), IsMasked(IsMasked),
       HasMaskedOffOperand(HasMaskedOffOperand), HasVL(HasVL), Scheme(Scheme),
       SupportOverloading(SupportOverloading), HasBuiltinAlias(HasBuiltinAlias),
@@ -903,7 +964,7 @@ RVVIntrinsic::RVVIntrinsic(StringRef NewName, StringRef Suffix,
     OverloadedName += "_" + OverloadedSuffix.str();
 
   updateNamesAndPolicy(IsMasked, hasPolicy(), Name, BuiltinName, OverloadedName,
-                       PolicyAttrs);
+                       PolicyAttrs, HasFRMRoundModeOp);
 
   // Init OutputType and InputTypes
   OutputType = OutInTypes[0];
@@ -1045,11 +1106,9 @@ RVVIntrinsic::getSupportedMaskedPolicies(bool HasTailPolicy,
                    "and mask policy");
 }
 
-void RVVIntrinsic::updateNamesAndPolicy(bool IsMasked, bool HasPolicy,
-                                        std::string &Name,
-                                        std::string &BuiltinName,
-                                        std::string &OverloadedName,
-                                        Policy &PolicyAttrs) {
+void RVVIntrinsic::updateNamesAndPolicy(
+    bool IsMasked, bool HasPolicy, std::string &Name, std::string &BuiltinName,
+    std::string &OverloadedName, Policy &PolicyAttrs, bool HasFRMRoundModeOp) {
 
   auto appendPolicySuffix = [&](const std::string &suffix) {
     Name += suffix;
@@ -1062,6 +1121,11 @@ void RVVIntrinsic::updateNamesAndPolicy(bool IsMasked, bool HasPolicy,
   Name = "__riscv_" + Name;
   OverloadedName = "__riscv_" + OverloadedName;
 
+  if (HasFRMRoundModeOp) {
+    Name += "_rm";
+    BuiltinName += "_rm";
+  }
+
   if (IsMasked) {
     if (PolicyAttrs.isTUMUPolicy())
       appendPolicySuffix("_tumu");
@@ -1071,19 +1135,15 @@ void RVVIntrinsic::updateNamesAndPolicy(bool IsMasked, bool HasPolicy,
       appendPolicySuffix("_mu");
     else if (PolicyAttrs.isTAMAPolicy()) {
       Name += "_m";
-      if (HasPolicy)
-        BuiltinName += "_tama";
-      else
-        BuiltinName += "_m";
+      BuiltinName += "_m";
     } else
       llvm_unreachable("Unhandled policy condition");
   } else {
     if (PolicyAttrs.isTUPolicy())
       appendPolicySuffix("_tu");
-    else if (PolicyAttrs.isTAPolicy()) {
-      if (HasPolicy)
-        BuiltinName += "_ta";
-    } else
+    else if (PolicyAttrs.isTAPolicy()) // no suffix needed
+      return;
+    else
       llvm_unreachable("Unhandled policy condition");
   }
 }
@@ -1132,6 +1192,7 @@ raw_ostream &operator<<(raw_ostream &OS, const RVVIntrinsicRecord &Record) {
   OS << (int)Record.HasMaskedOffOperand << ",";
   OS << (int)Record.HasTailPolicy << ",";
   OS << (int)Record.HasMaskPolicy << ",";
+  OS << (int)Record.HasFRMRoundModeOp << ",";
   OS << (int)Record.IsTuple << ",";
   OS << (int)Record.UnMaskedPolicyScheme << ",";
   OS << (int)Record.MaskedPolicyScheme << ",";

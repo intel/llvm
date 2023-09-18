@@ -277,6 +277,9 @@ class HeaderSearch {
 
   /// Keeps track of each lookup performed by LookupFile.
   struct LookupFileCacheInfo {
+    // The requesting module for the lookup we cached.
+    const Module *RequestingModule = nullptr;
+
     /// Starting search directory iterator that the cached search was performed
     /// from. If there is a hit and this value doesn't match the current query,
     /// the cache has to be ignored.
@@ -292,7 +295,9 @@ class HeaderSearch {
     /// Default constructor -- Initialize all members with zero.
     LookupFileCacheInfo() = default;
 
-    void reset(ConstSearchDirIterator NewStartIt) {
+    void reset(const Module *NewRequestingModule,
+               ConstSearchDirIterator NewStartIt) {
+      RequestingModule = NewRequestingModule;
       StartIt = NewStartIt;
       MappedName = nullptr;
     }
@@ -311,7 +316,7 @@ class HeaderSearch {
   std::unique_ptr<IncludeAliasMap> IncludeAliases;
 
   /// This is a mapping from FileEntry -> HeaderMap, uniquing headermaps.
-  std::vector<std::pair<const FileEntry *, std::unique_ptr<HeaderMap>>> HeaderMaps;
+  std::vector<std::pair<FileEntryRef, std::unique_ptr<HeaderMap>>> HeaderMaps;
 
   /// The mapping between modules and headers.
   mutable ModuleMap ModMap;
@@ -496,7 +501,7 @@ public:
   /// HIToolbox is a subframework within Carbon.framework.  If so, return
   /// the FileEntry for the designated file, otherwise return null.
   OptionalFileEntryRef LookupSubframeworkHeader(
-      StringRef Filename, const FileEntry *ContextFileEnt,
+      StringRef Filename, FileEntryRef ContextFileEnt,
       SmallVectorImpl<char> *SearchPath, SmallVectorImpl<char> *RelativePath,
       Module *RequestingModule, ModuleMap::KnownHeader *SuggestedModule);
 
@@ -568,7 +573,7 @@ public:
 
   /// This method returns a HeaderMap for the specified
   /// FileEntry, uniquing them through the 'HeaderMaps' datastructure.
-  const HeaderMap *CreateHeaderMap(const FileEntry *FE);
+  const HeaderMap *CreateHeaderMap(FileEntryRef FE);
 
   /// Get filenames for all registered header maps.
   void getHeaderMapFileNames(SmallVectorImpl<std::string> &Names) const;
@@ -664,9 +669,6 @@ public:
                                              bool AllowExcluded = false) const;
 
   /// Retrieve all the modules corresponding to the given file.
-  ///
-  /// \param AllowCreation Whether to allow inference of a new submodule, or to
-  ///        only return existing known modules.
   ///
   /// \ref findModuleForHeader should typically be used instead of this.
   ArrayRef<ModuleMap::KnownHeader>
@@ -866,11 +868,11 @@ public:
   /// MainFile location, if none of the include search directories were prefix
   /// of File.
   ///
-  /// \param IsSystem If non-null, filled in to indicate whether the suggested
-  ///        path is relative to a system header directory.
-  std::string suggestPathToFileForDiagnostics(const FileEntry *File,
+  /// \param IsAngled If non-null, filled in to indicate whether the suggested
+  ///        path should be referenced as <Header.h> instead of "Header.h".
+  std::string suggestPathToFileForDiagnostics(FileEntryRef File,
                                               llvm::StringRef MainFile,
-                                              bool *IsSystem = nullptr) const;
+                                              bool *IsAngled = nullptr) const;
 
   /// Suggest a path by which the specified file could be found, for use in
   /// diagnostics to suggest a #include. Returned path will only contain forward
@@ -884,7 +886,7 @@ public:
   std::string suggestPathToFileForDiagnostics(llvm::StringRef File,
                                               llvm::StringRef WorkingDir,
                                               llvm::StringRef MainFile,
-                                              bool *IsSystem = nullptr) const;
+                                              bool *IsAngled = nullptr) const;
 
   void PrintStats();
 

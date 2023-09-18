@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/aliases.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/aliases.hpp>       // for half
+#include <sycl/detail/common.hpp> // for ArrayCreator
+#include <sycl/half_type.hpp>     // for half
 
-#include <array>
-#include <type_traits>
-#include <utility>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <cstdint>     // for int64_t, int8_t, uint64_t, int16_t
+#include <type_traits> // for enable_if_t, remove_const, is_conv...
+#include <utility>     // for index_sequence, make_index_sequence
 
 namespace sycl {
 inline namespace _V1 {

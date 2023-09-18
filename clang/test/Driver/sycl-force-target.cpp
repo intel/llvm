@@ -34,7 +34,7 @@
 // CHECK_FORCE_TARGET_ARCHIVE: llvm-foreach{{.*}} {{.*}}ocloc{{.*}}
 
 /// -fsycl-force-target is only valid with -fsycl-target with single targets
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 \
+// RUN: not %clangxx -fsycl -fsycl-targets=spir64_gen,spir64_x86_64 \
 // RUN:          -fsycl-force-target=spir64 %s -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=MULTIPLE_TARGET
 // MULTIPLE_TARGET: error: multiple target usage with '-fsycl-targets=spir64_gen,spir64_x86_64' is not supported with '-fsycl-force-target=spir64'

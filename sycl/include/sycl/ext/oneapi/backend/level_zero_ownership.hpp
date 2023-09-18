@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::level_zero {

@@ -8,18 +8,37 @@
 
 #pragma once
 
-#include <sycl/detail/aligned_allocator.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/sycl_mem_obj_allocator.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/sampler.hpp>
-#include <sycl/stl.hpp>
-#include <sycl/types.hpp>
+#include <sycl/access/access.hpp>                     // for placeholder
+#include <sycl/aliases.hpp>                           // for cl_float, cl_half
+#include <sycl/backend_types.hpp>                     // for backend, backe...
+#include <sycl/buffer.hpp>                            // for range
+#include <sycl/context.hpp>                           // for context
+#include <sycl/detail/aligned_allocator.hpp>          // for aligned_allocator
+#include <sycl/detail/backend_traits.hpp>             // for InteropFeature...
+#include <sycl/detail/common.hpp>                     // for convertToArrayOfN
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
+#include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
+#include <sycl/detail/pi.h>                           // for pi_native_handle
+#include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
+#include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
+#include <sycl/detail/type_list.hpp>                  // for is_contained
+#include <sycl/event.hpp>                             // for event
+#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range, rangeTo...
+#include <sycl/sampler.hpp>                           // for image_sampler
+#include <sycl/stl.hpp>                               // for make_unique_ptr
+#include <sycl/types.hpp>                             // for vec
 
-#include <cstddef>
+#include <cstddef>     // for size_t, nullptr_t
+#include <functional>  // for function
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint8_t, uint32_t
+#include <type_traits> // for enable_if_t
+#include <variant>     // for hash
 
 namespace sycl {
 inline namespace _V1 {

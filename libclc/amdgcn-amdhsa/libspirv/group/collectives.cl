@@ -64,8 +64,11 @@ __CLC_DECLARE_SHUFFLES(double, d);
 #define __CLC_MIN(x, y) ((x < y) ? (x) : (y))
 #define __CLC_MAX(x, y) ((x > y) ? (x) : (y))
 #define __CLC_OR(x, y) (x | y)
+#define __CLC_XOR(x, y) (x ^ y)
 #define __CLC_AND(x, y) (x & y)
 #define __CLC_MUL(x, y) (x * y)
+#define __CLC_LOGICAL_OR(x, y) (x || y)
+#define __CLC_LOGICAL_AND(x, y) (x && y)
 
 #define __CLC_SUBGROUP_COLLECTIVE_BODY(OP, TYPE, TYPE_MANGLED, IDENTITY)       \
   uint sg_lid = __spirv_SubgroupLocalInvocationId();                           \
@@ -150,7 +153,38 @@ __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, float, f, -INFINITY)
 __CLC_SUBGROUP_COLLECTIVE(FMax, __CLC_MAX, double, d, -INFINITY)
 
 __CLC_SUBGROUP_COLLECTIVE(All, __CLC_AND, bool, a, true)
-__CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, true)
+__CLC_SUBGROUP_COLLECTIVE(Any, __CLC_OR, bool, a, false)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uchar, h, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uchar, h, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uchar, h, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, a, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, a, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, a, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ushort, t, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ushort, t, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ushort, t, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, short, s, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, short, s, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, short, s, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uint, j, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uint, j, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uint, j, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, int, i, ~0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, int, i, 0)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, int, i, 0)
+
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, m, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, m, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, m, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, l, ~0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, l, 0l)
+__CLC_SUBGROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, l, 0l)
+
+__CLC_SUBGROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, a, false)
+__CLC_SUBGROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, a, true)
 
 #undef __CLC_SUBGROUP_COLLECTIVE_BODY
 #undef __CLC_SUBGROUP_COLLECTIVE
@@ -266,6 +300,37 @@ __CLC_GROUP_COLLECTIVE(SMax, __CLC_MAX, long, LONG_MIN)
 __CLC_GROUP_COLLECTIVE(UMax, __CLC_MAX, ulong, 0)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, float, -INFINITY)
 __CLC_GROUP_COLLECTIVE(FMax, __CLC_MAX, double, -INFINITY)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uchar, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uchar, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, char, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, char, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, char, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ushort, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ushort, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, short, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, short, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, short, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, uint, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, uint, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, int, ~0)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, int, 0)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, int, 0)
+
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, ulong, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, ulong, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseAndKHR, __CLC_AND, long, ~0l)
+__CLC_GROUP_COLLECTIVE(BitwiseOrKHR, __CLC_OR, long, 0l)
+__CLC_GROUP_COLLECTIVE(BitwiseXorKHR, __CLC_XOR, long, 0l)
+
+__CLC_GROUP_COLLECTIVE(LogicalOrKHR, __CLC_LOGICAL_OR, bool, false)
+__CLC_GROUP_COLLECTIVE(LogicalAndKHR, __CLC_LOGICAL_AND, bool, true)
 
 #undef __CLC_GROUP_COLLECTIVE_4
 #undef __CLC_GROUP_COLLECTIVE_5

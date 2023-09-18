@@ -7,17 +7,20 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/group.hpp>
-#include <sycl/multi_ptr.hpp>
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERA...
+#include <sycl/detail/type_traits.hpp>        // for is_group
+#include <sycl/exception.hpp>                 // for feature_not_supported
+#include <sycl/ext/intel/usm_pointers.hpp>    // for multi_ptr
 
-#include <cstdint>
-#include <type_traits>
-#include <utility>
+#include <type_traits> // for enable_if_t
+
+#ifdef __SYCL_DEVICE_ONLY__
+// Request a fixed-size allocation in local address space at kernel scope.
+extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
+__sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
+#endif
 
 namespace sycl {
 inline namespace _V1 {

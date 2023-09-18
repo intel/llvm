@@ -10,6 +10,7 @@
 #define LLVM_DEBUGINFO_DWARF_DWARFACCELERATORTABLE_H
 
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/DebugInfo/DWARF/DWARFDataExtractor.h"
@@ -313,6 +314,13 @@ public:
   /// Return the Atom description, which can be used to interpret the raw values
   /// of the Accelerator Entries in this table.
   ArrayRef<std::pair<HeaderData::AtomType, HeaderData::Form>> getAtomsDesc();
+
+  /// Returns true iff `AtomTy` is one of the atoms available in Entries of this
+  /// table.
+  bool containsAtomType(HeaderData::AtomType AtomTy) const {
+    return is_contained(make_first_range(HdrData.Atoms), AtomTy);
+  }
+
   bool validateForms();
 
   /// Return information related to the DWARF DIE we're looking for when
@@ -734,6 +742,28 @@ public:
   /// there is no Name Index covering that unit.
   const NameIndex *getCUNameIndex(uint64_t CUOffset);
 };
+
+/// If `Name` is the name of a templated function that includes template
+/// parameters, returns a substring of `Name` containing no template
+/// parameters.
+/// E.g.: StripTemplateParameters("foo<int>") = "foo".
+std::optional<StringRef> StripTemplateParameters(StringRef Name);
+
+struct ObjCSelectorNames {
+  /// For "-[A(Category) method:]", this would be "method:"
+  StringRef Selector;
+  /// For "-[A(Category) method:]", this would be "A(category)"
+  StringRef ClassName;
+  /// For "-[A(Category) method:]", this would be "A"
+  std::optional<StringRef> ClassNameNoCategory;
+  /// For "-[A(Category) method:]", this would be "A method:"
+  std::optional<std::string> MethodNameNoCategory;
+};
+
+/// If `Name` is the AT_name of a DIE which refers to an Objective-C selector,
+/// returns an instance of ObjCSelectorNames. The Selector and ClassName fields
+/// are guaranteed to be non-empty in the result.
+std::optional<ObjCSelectorNames> getObjCNamesIfSelector(StringRef Name);
 
 } // end namespace llvm
 

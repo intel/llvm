@@ -1,26 +1,29 @@
 name: E2E on AWS CUDA
+run-name: E2E on AWS CUDA - ${{ github.event.workflow_run.display_title }}
+# We have to keep pre-commit AWS CUDA testing in a separate workflow because we
+# need access to AWS secret and that isn't available on pull_request jobs for
+# PRs from forks. And github's "require approval for all outside collaborators"
+# is bypassed on pull_request_target.
+#
+# Also, we use commit status and not check suite/run (which, in theory, is more
+# powerful) due to https://github.com/orgs/community/discussions/24616.
 
 on:
   workflow_run:
-    workflows: [SYCL Experimental Pre-Commit]
+    workflows: [SYCL Pre Commit on Linux]
     types:
       - completed
 
 jobs:
   create-check:
     runs-on: [Linux, build]
-    outputs:
-      id: ${{ steps.create_check.outputs.result }}
     steps:
       - uses: actions/github-script@v6
-        id: create_check
         with:
           script: |
             const sha = context.payload.workflow_run.head_sha
             const run_id = '${{ github.run_id }}'
             const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
-
-            // TODO: Decide what we want to keep.
 
             // Create commit status.
             await github.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
@@ -32,22 +35,6 @@ jobs:
               description: 'SYCL E2E on AWS CUDA',
               context: 'SYCL E2E on AWS CUDA',
             })
-
-            // Create check run.
-            const result = await  github.request('POST /repos/{owner}/{repo}/check-runs', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'e2e-aws-cuda',
-              head_sha: sha,
-              details_url: this_run_url,
-              status: 'in_progress',
-              output: {
-                title: 'SYCL E2E on AWS CUDA',
-                summary: 'URL: ' + this_run_url
-              }
-            })
-            console.log(result)
-            return result.data.id
 
   aws-start:
     runs-on: ubuntu-20.04
@@ -74,9 +61,10 @@ jobs:
       image: ghcr.io/intel/llvm/ubuntu2204_build:latest
       image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
       target_devices: ext_oneapi_cuda:gpu
-      ref: ${{ github.sha }}
-      merge_ref: ${{ github.event.pull_request.base.sha }}
-      env: '{"LIT_FILTER":"Basic/accessor"}'
+      # No idea why but that seems to work and be in sync with the main
+      # pre-commit workflow.
+      ref: ${{ github.event.workflow_run.referenced_workflows[0].sha }}
+      merge_ref: ''
 
       sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: llvm_sycl.tar.zst
@@ -94,8 +82,6 @@ jobs:
             const run_id = '${{ github.run_id }}'
             const this_run_url = 'https://github.com/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + run_id
 
-            // TODO: Decide what we want to keep.
-
             // Update commit status.
             await github.request('POST /repos/{owner}/{repo}/statuses/{sha}', {
               owner: context.repo.owner,
@@ -106,16 +92,6 @@ jobs:
               description: 'SYCL E2E on AWS CUDA',
               context: 'SYCL E2E on AWS CUDA',
             })
-
-            // Update check run.
-            const result = await github.request('PATCH /repos/{owner}/{repo}/check-runs/{check_run_id}', {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              check_run_id: '${{ needs.create-check.outputs.id }}',
-              status: 'completed',
-              conclusion: '${{ needs.e2e-cuda.result }}'
-            })
-            console.log(result)
 
   aws-stop:
     needs: [aws-start, e2e-cuda]

@@ -8,7 +8,9 @@
 
 #pragma once
 
-#include <sycl/ext/intel/pipes.hpp>
+#include <sycl/ext/intel/pipes.hpp> // for pipe
+
+#include <stdint.h> // for int32_t
 
 namespace sycl {
 inline namespace _V1 {

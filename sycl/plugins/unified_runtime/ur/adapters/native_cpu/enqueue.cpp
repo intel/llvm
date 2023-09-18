@@ -64,6 +64,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: add proper event dep management
   sycl::detail::NDRDescT ndr =
       getNDRDesc(workDim, pGlobalWorkOffset, pGlobalWorkSize, pLocalWorkSize);
+  hKernel->handleLocalArgs();
 
   __nativecpu_state state(ndr.GlobalSize[0], ndr.GlobalSize[1],
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
@@ -90,6 +91,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   // TODO: we should avoid calling clear here by avoiding using push_back
   // in setKernelArgs.
   hKernel->_args.clear();
+  hKernel->_localArgInfo.clear();
   return UR_RESULT_SUCCESS;
 }
 
@@ -115,39 +117,77 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   DIE_NO_IMPLEMENTATION;
 }
 
+template <bool IsRead>
+static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
+    ur_queue_handle_t, ur_mem_handle_t Buff, bool,
+    ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
+    ur_rect_region_t region, size_t BufferRowPitch, size_t BufferSlicePitch,
+    size_t HostRowPitch, size_t HostSlicePitch,
+    typename std::conditional<IsRead, void *, const void *>::type DstMem,
+    pi_uint32, const ur_event_handle_t *, ur_event_handle_t *) {
+  // TODO: events, blocking, check other constraints, performance optimizations
+  //       More sharing with level_zero where possible
+
+  if (BufferRowPitch == 0)
+    BufferRowPitch = region.width;
+  if (BufferSlicePitch == 0)
+    BufferSlicePitch = BufferRowPitch * region.height;
+  if (HostRowPitch == 0)
+    HostRowPitch = region.width;
+  if (HostSlicePitch == 0)
+    HostSlicePitch = HostRowPitch * region.height;
+  for (size_t w = 0; w < region.width; w++)
+    for (size_t h = 0; h < region.height; h++)
+      for (size_t d = 0; d < region.depth; d++) {
+        size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
+                            (h + BufferOffset.y) * BufferRowPitch + w +
+                            BufferOffset.x;
+        size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
+                             (h + HostOffset.y) * HostRowPitch + w +
+                             HostOffset.x;
+        int8_t &host_mem = ur_cast<int8_t *>(DstMem)[host_origin];
+        int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
+        if (IsRead)
+          host_mem = buff_mem;
+        else
+          buff_mem = host_mem;
+      }
+  return UR_RESULT_SUCCESS;
+}
+
+static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
+                                      const void *SrcPtr, size_t Size,
+                                      uint32_t numEventsInWaitList,
+                                      const ur_event_handle_t *EventWaitList,
+                                      ur_event_handle_t *Event) {
+  // todo: non-blocking, events, UR integration
+  std::ignore = hQueue;
+  std::ignore = numEventsInWaitList;
+  if (SrcPtr != DstPtr && Size)
+    memmove(DstPtr, SrcPtr, Size);
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingRead,
     size_t offset, size_t size, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBuffer;
   std::ignore = blockingRead;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
-  // TODO: is it ok to have this as no-op?
-  return UR_RESULT_SUCCESS;
+  void *FromPtr = /*Src*/ hBuffer->_mem + offset;
+  return doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
+                     phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, bool blockingWrite,
     size_t offset, size_t size, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBuffer;
   std::ignore = blockingWrite;
-  std::ignore = offset;
-  std::ignore = size;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
-  DIE_NO_IMPLEMENTATION;
+  void *ToPtr = hBuffer->_mem + offset;
+  return doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
+                     phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
@@ -157,22 +197,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pDst,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBuffer;
-  std::ignore = blockingRead;
-  std::ignore = bufferOrigin;
-  std::ignore = hostOrigin;
-  std::ignore = region;
-  std::ignore = bufferRowPitch;
-  std::ignore = bufferSlicePitch;
-  std::ignore = hostRowPitch;
-  std::ignore = hostSlicePitch;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
-  DIE_NO_IMPLEMENTATION;
+  return enqueueMemBufferReadWriteRect_impl<true /*read*/>(
+      hQueue, hBuffer, blockingRead, bufferOrigin, hostOrigin, region,
+      bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
+      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
@@ -182,22 +210,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     size_t hostRowPitch, size_t hostSlicePitch, void *pSrc,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBuffer;
-  std::ignore = blockingWrite;
-  std::ignore = bufferOrigin;
-  std::ignore = hostOrigin;
-  std::ignore = region;
-  std::ignore = bufferRowPitch;
-  std::ignore = bufferSlicePitch;
-  std::ignore = hostRowPitch;
-  std::ignore = hostSlicePitch;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
-  DIE_NO_IMPLEMENTATION;
+  return enqueueMemBufferReadWriteRect_impl<false /*write*/>(
+      hQueue, hBuffer, blockingWrite, bufferOrigin, hostOrigin, region,
+      bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
+      numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
@@ -205,17 +221,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBufferSrc;
-  std::ignore = hBufferDst;
-  std::ignore = srcOffset;
-  std::ignore = dstOffset;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
-  DIE_NO_IMPLEMENTATION;
+  const void *SrcPtr = hBufferSrc->_mem + srcOffset;
+  void *DstPtr = hBufferDst->_mem + dstOffset;
+  return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
+                     phEventWaitList, phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -225,21 +234,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = hBufferSrc;
-  std::ignore = hBufferDst;
-  std::ignore = srcOrigin;
-  std::ignore = dstOrigin;
-  std::ignore = region;
-  std::ignore = srcRowPitch;
-  std::ignore = srcSlicePitch;
-  std::ignore = dstRowPitch;
-  std::ignore = dstSlicePitch;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEvent;
-  std::ignore = phEventWaitList;
-
-  DIE_NO_IMPLEMENTATION;
+  return enqueueMemBufferReadWriteRect_impl<true /*read*/>(
+      hQueue, hBufferSrc, false /*todo: check blocking*/, srcOrigin,
+      /*HostOffset*/ dstOrigin, region, srcRowPitch, srcSlicePitch, dstRowPitch,
+      dstSlicePitch, hBufferDst->_mem, numEventsInWaitList, phEventWaitList,
+      phEvent);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(

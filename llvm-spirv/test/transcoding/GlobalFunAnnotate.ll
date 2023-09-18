@@ -1,7 +1,7 @@
 ;RUN: llvm-as %s -o %t.bc
 ;RUN: llvm-spirv %t.bc -o %t.spv
 ;RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-;RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+;RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ;RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ;CHECK-SPIRV: Decorate {{[0-9]+}} UserSemantic "annotation_on_function"
@@ -14,7 +14,7 @@ target triple = "spir64-unknown-linux"
 
 @.str = private unnamed_addr constant [23 x i8] c"annotation_on_function\00", section "llvm.metadata"
 @.str.1 = private unnamed_addr constant [6 x i8] c"an.cl\00", section "llvm.metadata"
-@llvm.global.annotations = appending global [1 x { i8*, i8*, i8*, i32, i8* }] [{ i8*, i8*, i8*, i32, i8* } { i8* bitcast (void ()* @foo to i8*), i8* getelementptr inbounds ([23 x i8], [23 x i8]* @.str, i32 0, i32 0), i8* getelementptr inbounds ([6 x i8], [6 x i8]* @.str.1, i32 0, i32 0), i32 2, i8* null }], section "llvm.metadata"
+@llvm.global.annotations = appending global [1 x { ptr, ptr, ptr, i32, ptr }] [{ ptr, ptr, ptr, i32, ptr } { ptr @foo, ptr @.str, ptr @.str.1, i32 2, ptr null }], section "llvm.metadata"
 
 ; Function Attrs: convergent norecurse nounwind
 define dso_local spir_func void @foo() #0 {

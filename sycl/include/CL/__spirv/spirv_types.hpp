@@ -8,12 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/detail/defines.hpp> // for SYCL_EXT_ONEAPI_MATRIX_VERSION
+#include <sycl/half_type.hpp>      // for half
 
-#include <complex>
-#include <cstddef>
-#include <cstdint>
+#include <complex> // for complex
+#include <cstddef> // for size_t
+#include <cstdint> // for uint32_t
 
 // TODO: include the header file with SPIR-V declarations from SPIRV-Headers
 // project.

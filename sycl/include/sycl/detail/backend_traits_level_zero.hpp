@@ -15,16 +15,24 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/device.hpp>
-#include <sycl/event.hpp>
-#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>
-#include <sycl/ext/oneapi/filter_selector.hpp>
-#include <sycl/kernel_bundle.hpp>
-#include <sycl/queue.hpp>
-#include <variant>
+#include <sycl/backend_types.hpp>                           // for backend
+#include <sycl/context.hpp>                                 // for context
+#include <sycl/detail/backend_traits.hpp>                   // for BackendI...
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/event.hpp>                                   // for event
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
+#include <sycl/handler.hpp>                                 // for buffer
+#include <sycl/image.hpp>                                   // for image
+#include <sycl/kernel.hpp>                                  // for kernel
+#include <sycl/kernel_bundle.hpp>                           // for kernel_b...
+#include <sycl/kernel_bundle_enums.hpp>                     // for bundle_s...
+#include <sycl/platform.hpp>                                // for platform
+#include <sycl/property_list.hpp>                           // for property...
+#include <sycl/queue.hpp>                                   // for queue
+#include <sycl/range.hpp>                                   // for range
+
+#include <variant> // for variant
+#include <vector>  // for vector
 
 typedef struct _ze_command_queue_handle_t *ze_command_queue_handle_t;
 typedef struct _ze_command_list_handle_t *ze_command_list_handle_t;

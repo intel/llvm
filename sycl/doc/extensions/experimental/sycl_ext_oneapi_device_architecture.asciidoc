@@ -104,11 +104,14 @@ enum class architecture : /* unspecified */ {
   intel_gpu_kbl,
   intel_gpu_cfl,
   intel_gpu_apl,
+  intel_gpu_bxt = intel_gpu_apl,
   intel_gpu_glk,
   intel_gpu_whl,
   intel_gpu_aml,
   intel_gpu_cml,
   intel_gpu_icllp,
+  intel_gpu_ehl,
+  intel_gpu_jsl = intel_gpu_ehl,
   intel_gpu_tgllp,
   intel_gpu_rkl,
   intel_gpu_adl_s,
@@ -117,8 +120,11 @@ enum class architecture : /* unspecified */ {
   intel_gpu_adl_n,
   intel_gpu_dg1,
   intel_gpu_acm_g10,
+  intel_gpu_dg2_g10 = intel_gpu_acm_g10,
   intel_gpu_acm_g11,
+  intel_gpu_dg2_g11 = intel_gpu_acm_g11,
   intel_gpu_acm_g12,
+  intel_gpu_dg2_g12 = intel_gpu_acm_g12,
   intel_gpu_pvc,
 
   nvidia_gpu_sm_50,
@@ -582,12 +588,6 @@ feature, the application must be compiled in ahead-of-time (AOT) mode using
 "special target values" listed in the link:../../UsersManual.md[users manual]
 description of the `-fsycl-targets` option.  These are the target names of the
 form "intel_gpu_*", "nvidia_gpu_*", or "amd_gpu_*".
-
-The two APIs `device::ext_oneapi_architecture_is` and the
-`ext::oneapi::experimental::info::device::architecture` device descriptor are
-currently supported only for Intel devices (both GPU and CPU).  There is no
-support yet for Nvidia or AMD devices.
-
 
 == Future direction
 

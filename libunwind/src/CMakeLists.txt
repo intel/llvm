@@ -80,11 +80,6 @@ endif()
 
 # Setup flags.
 add_link_flags_if(CXX_SUPPORTS_UNWINDLIB_EQ_NONE_FLAG --unwindlib=none)
-if (CXX_SUPPORTS_NOSTDLIBXX_FLAG)
-  add_link_flags_if_supported(-nostdlib++)
-else()
-  add_link_flags_if_supported(-nodefaultlibs)
-endif()
 
 # MINGW_LIBRARIES is defined in config-ix.cmake
 add_library_flags_if(MINGW "${MINGW_LIBRARIES}")
@@ -105,6 +100,16 @@ if (APPLE)
   if (CMAKE_OSX_DEPLOYMENT_TARGET STREQUAL "10.6")
     add_link_flags("-current_version ${LIBUNWIND_VERSION}" "/usr/lib/libSystem.B.dylib")
   endif ()
+endif ()
+
+if (HAIKU)
+  add_library_flags_if(LIBUNWIND_HAS_ROOT_LIB root)
+
+  add_library_flags_if(LIBUNWIND_HAS_BSD_LIB bsd)
+  add_compile_flags_if(LIBUNWIND_HAS_BSD_LIB -D_LIBUNWIND_USE_HAIKU_BSD_LIB=1)
+
+  add_compile_flags("-D_DEFAULT_SOURCE")
+  add_compile_flags("-DPT_GNU_EH_FRAME=PT_EH_FRAME")
 endif ()
 
 string(REPLACE ";" " " LIBUNWIND_COMPILE_FLAGS "${LIBUNWIND_COMPILE_FLAGS}")
@@ -132,6 +137,8 @@ else()
   target_compile_options(unwind_shared_objects PRIVATE -fno-rtti)
 endif()
 target_link_libraries(unwind_shared_objects PRIVATE unwind-headers ${LIBUNWIND_LIBRARIES})
+target_compile_options(unwind_shared_objects PUBLIC "${LIBUNWIND_ADDITIONAL_COMPILE_FLAGS}")
+target_link_libraries(unwind_shared_objects PUBLIC "${LIBUNWIND_ADDITIONAL_LIBRARIES}")
 set_target_properties(unwind_shared_objects
   PROPERTIES
     CXX_EXTENSIONS OFF
@@ -170,6 +177,8 @@ else()
   target_compile_options(unwind_static_objects PRIVATE -fno-rtti)
 endif()
 target_link_libraries(unwind_static_objects PRIVATE unwind-headers ${LIBUNWIND_LIBRARIES})
+target_compile_options(unwind_static_objects PUBLIC "${LIBUNWIND_ADDITIONAL_COMPILE_FLAGS}")
+target_link_libraries(unwind_static_objects PUBLIC "${LIBUNWIND_ADDITIONAL_LIBRARIES}")
 set_target_properties(unwind_static_objects
   PROPERTIES
     CXX_EXTENSIONS OFF

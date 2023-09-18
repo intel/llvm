@@ -193,7 +193,6 @@ public:
   /// variables in this scope then create and insert DIEs for these
   /// variables.
   DIE &updateSubprogramScopeDIE(const DISubprogram *SP);
-  DIE &updateSubprogramScopeDIEImpl(const DISubprogram *SP, DIE *SPDie);
 
   void constructScopeDIE(LexicalScope *Scope, DIE &ParentScopeDIE);
 
@@ -342,7 +341,7 @@ public:
   /// DWARF information necessary to find the actual variable (navigating the
   /// extra location information encoded in the type) based on the starting
   /// location.  Add the DWARF information to the die.
-  void addComplexAddress(const DbgVariable &DV, DIE &Die,
+  void addComplexAddress(const DIExpression *DIExpr, DIE &Die,
                          dwarf::Attribute Attribute,
                          const MachineLocation &Location);
 

@@ -34,7 +34,7 @@
 ; a situation, where spec constant default value contains less elements than
 ; spec constant type, due to padding inserted by a compiler.
 ;
-; RUN: sycl-post-link --spec-const=rt -S < %s -o %t.files.table
+; RUN: sycl-post-link --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ;
 ; CHECK: %[[#A:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID:]], float 0x40091EB860000000)

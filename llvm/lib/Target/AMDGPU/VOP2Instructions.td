@@ -357,7 +357,7 @@ class VOP_MADK_Base<ValueType vt> : VOPProfile <[vt, vt, vt, vt]> {
 }
 
 class VOP_MADAK <ValueType vt> : VOP_MADK_Base<vt> {
-  field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
+  field Operand ImmOpType = !if(!eq(vt.Size, 32), KImmFP32, KImmFP16);
   field dag Ins32 = !if(!eq(vt.Size, 32),
                         (ins VSrc_f32_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm),
                         (ins VSrc_f16_Deferred:$src0, VGPR_32:$src1, ImmOpType:$imm));
@@ -383,7 +383,7 @@ def VOP_MADAK_F16_t16 : VOP_MADAK <f16> {
 def VOP_MADAK_F32 : VOP_MADAK <f32>;
 
 class VOP_MADMK <ValueType vt> : VOP_MADK_Base<vt> {
-  field Operand ImmOpType = !if(!eq(vt.Size, 32), f32kimm, f16kimm);
+  field Operand ImmOpType = !if(!eq(vt.Size, 32), KImmFP32, KImmFP16);
   field dag Ins32 = !if(!eq(vt.Size, 32),
                         (ins VSrc_f32_Deferred:$src0, ImmOpType:$imm, VGPR_32:$src1),
                         (ins VSrc_f16_Deferred:$src0, ImmOpType:$imm, VGPR_32:$src1));
@@ -931,7 +931,7 @@ let SubtargetPredicate = isGFX11Plus in {
   } // End isCommutable = 1
 } // End SubtargetPredicate = isGFX11Plus
 
-let FPDPRounding = 1, isReMaterializable = 1 in {
+let FPDPRounding = 1, isReMaterializable = 1, FixedSize = 1 in {
 let SubtargetPredicate = isGFX10Plus, OtherPredicates = [NotHasTrue16BitInsts] in {
 def V_FMAMK_F16 : VOP2_Pseudo <"v_fmamk_f16", VOP_MADMK_F16, [], "">;
 }
@@ -947,7 +947,7 @@ let SubtargetPredicate = HasTrue16BitInsts in {
 def V_FMAAK_F16_t16 : VOP2_Pseudo <"v_fmaak_f16_t16", VOP_MADAK_F16_t16, [], "">;
 }
 } // End isCommutable = 1
-} // End FPDPRounding  = 1, isReMaterializable = 1
+} // End FPDPRounding  = 1, isReMaterializable = 1, FixedSize = 1
 
 let Constraints = "$vdst = $src2",
     DisableEncoding="$src2",
@@ -1089,12 +1089,12 @@ let AddedComplexity = 30 in {
   }
 } // End AddedComplexity = 30
 
-let SubtargetPredicate = HasFmaakFmamkF32Insts, isReMaterializable = 1 in {
+let SubtargetPredicate = HasFmaakFmamkF32Insts, isReMaterializable = 1, FixedSize = 1 in {
 def V_FMAMK_F32 : VOP2_Pseudo<"v_fmamk_f32", VOP_MADMK_F32, [], "">, VOPD_Component<0x2, "v_fmamk_f32">;
 
 let isCommutable = 1 in
 def V_FMAAK_F32 : VOP2_Pseudo<"v_fmaak_f32", VOP_MADAK_F32, [], "">, VOPD_Component<0x1, "v_fmaak_f32">;
-}
+} // End SubtargetPredicate = HasFmaakFmamkF32Insts, isReMaterializable = 1, FixedSize = 1
 
 let SubtargetPredicate = HasPkFmacF16Inst in {
 defm V_PK_FMAC_F16 : VOP2Inst<"v_pk_fmac_f16", VOP_V2F16_V2F16_V2F16>;

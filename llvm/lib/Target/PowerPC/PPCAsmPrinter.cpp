@@ -29,6 +29,7 @@
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -67,6 +68,7 @@
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/Threading.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
@@ -289,6 +291,8 @@ public:
   bool doFinalization(Module &M) override;
 
   void emitTTypeReference(const GlobalValue *GV, unsigned Encoding) override;
+
+  void emitModuleCommandLines(Module &M) override;
 };
 
 } // end anonymous namespace
@@ -313,7 +317,7 @@ void PPCAsmPrinter::printOperand(const MachineInstr *MI, unsigned OpNo,
 
     // Linux assembler (Others?) does not take register mnemonics.
     // FIXME - What about special registers used in mfspr/mtspr?
-    O << PPCRegisterInfo::stripRegisterPrefix(RegName);
+    O << PPC::stripRegisterPrefix(RegName);
     return;
   }
   case MachineOperand::MO_Immediate:
@@ -373,13 +377,13 @@ bool PPCAsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
       // This operand uses VSX numbering.
       // If the operand is a VMX register, convert it to a VSX register.
       Register Reg = MI->getOperand(OpNo).getReg();
-      if (PPCInstrInfo::isVRRegister(Reg))
+      if (PPC::isVRRegister(Reg))
         Reg = PPC::VSX32 + (Reg - PPC::V0);
-      else if (PPCInstrInfo::isVFRegister(Reg))
+      else if (PPC::isVFRegister(Reg))
         Reg = PPC::VSX32 + (Reg - PPC::VF0);
       const char *RegName;
       RegName = PPCInstPrinter::getRegisterName(Reg);
-      RegName = PPCRegisterInfo::stripRegisterPrefix(RegName);
+      RegName = PPC::stripRegisterPrefix(RegName);
       O << RegName;
       return false;
     }
@@ -629,7 +633,6 @@ void PPCAsmPrinter::EmitAIXTlsCallHelper(const MachineInstr *MI) {
   const MCExpr *TlsRef =
       MCSymbolRefExpr::create(TlsCall, MCSymbolRefExpr::VK_None, OutContext);
   EmitToStreamer(*OutStreamer, MCInstBuilder(PPC::BLA).addExpr(TlsRef));
-  return;
 }
 
 /// EmitTlsCall -- Given a GETtls[ld]ADDR[32] instruction, print a
@@ -824,17 +827,17 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
     return Expr;
   };
   auto GetVKForMO = [&](const MachineOperand &MO) {
-    // For TLS local-exec accesses on AIX, we have one TOC entry for the symbol
-    // (with the variable offset), which is differentiated by MO_TPREL_FLAG.
+    // For TLS initial-exec and local-exec accesses on AIX, we have one TOC
+    // entry for the symbol (with the variable offset), which is differentiated
+    // by MO_TPREL_FLAG.
     if (MO.getTargetFlags() & PPCII::MO_TPREL_FLAG) {
-      // TODO: Update the query and the comment above to add a check for initial
-      // exec when this TLS model is supported on AIX in the future, as both
-      // local-exec and initial-exec can use MO_TPREL_FLAG.
       assert(MO.isGlobal() && "Only expecting a global MachineOperand here!\n");
       TLSModel::Model Model = TM.getTLSModel(MO.getGlobal());
       if (Model == TLSModel::LocalExec)
         return MCSymbolRefExpr::VariantKind::VK_PPC_AIX_TLSLE;
-      llvm_unreachable("Only expecting local-exec accesses!");
+      if (Model == TLSModel::InitialExec)
+        return MCSymbolRefExpr::VariantKind::VK_PPC_AIX_TLSIE;
+      llvm_unreachable("Only expecting local-exec or initial-exec accesses!");
     }
     // For GD TLS access on AIX, we have two TOC entries for the symbol (one for
     // the variable offset and the other for the region handle). They are
@@ -1530,6 +1533,22 @@ void PPCAsmPrinter::emitInstruction(const MachineInstr *MI) {
         MCInstBuilder(PPC::ORI).addReg(PPC::X2).addReg(PPC::X2).addImm(0));
     EmitToStreamer(*OutStreamer, MCInstBuilder(PPC::EnforceIEIO));
     return;
+  }
+  case PPC::ADDI8: {
+    // The faster non-TOC-based local-exec sequence is represented by `addi`
+    // with an immediate operand having the MO_TPREL_FLAG. Such an instruction
+    // does not otherwise arise.
+    const MachineOperand &MO = MI->getOperand(2);
+    if ((MO.getTargetFlags() & PPCII::MO_TPREL_FLAG) != 0) {
+      assert(
+          Subtarget->hasAIXSmallLocalExecTLS() &&
+          "addi with thread-pointer only expected with local-exec small TLS");
+      LowerPPCMachineInstrToMCInst(MI, TmpInst, *this);
+      TmpInst.setOpcode(PPC::LA8);
+      EmitToStreamer(*OutStreamer, TmpInst);
+      return;
+    }
+    break;
   }
   }
 
@@ -2738,14 +2757,18 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
           // and add a format indicator as a part of function name in case we
           // will support more than one format.
           FormatIndicatorAndUniqueModId = "clang_" + UniqueModuleId.substr(1);
-        else
-          // Use the Pid and current time as the unique module id when we cannot
-          // generate one based on a module's strong external symbols.
-          // FIXME: Adjust the comment accordingly after we use source file full
-          // path instead.
+        else {
+          // Use threadId, Pid, and current time as the unique module id when we
+          // cannot generate one based on a module's strong external symbols.
+          auto CurTime =
+              std::chrono::duration_cast<std::chrono::nanoseconds>(
+                  std::chrono::steady_clock::now().time_since_epoch())
+                  .count();
           FormatIndicatorAndUniqueModId =
-              "clangPidTime_" + llvm::itostr(sys::Process::getProcessId()) +
-              "_" + llvm::itostr(time(nullptr));
+              "clangPidTidTime_" + llvm::itostr(sys::Process::getProcessId()) +
+              "_" + llvm::itostr(llvm::get_threadid()) + "_" +
+              llvm::itostr(CurTime);
+        }
       }
 
       emitSpecialLLVMGlobal(&G);
@@ -2760,11 +2783,21 @@ bool PPCAIXAsmPrinter::doInitialization(Module &M) {
 
   // Construct an aliasing list for each GlobalObject.
   for (const auto &Alias : M.aliases()) {
-    const GlobalObject *Base = Alias.getAliaseeObject();
-    if (!Base)
+    const GlobalObject *Aliasee = Alias.getAliaseeObject();
+    if (!Aliasee)
       report_fatal_error(
           "alias without a base object is not yet supported on AIX");
-    GOAliasMap[Base].push_back(&Alias);
+
+    if (Aliasee->hasCommonLinkage()) {
+      report_fatal_error("Aliases to common variables are not allowed on AIX:"
+                         "\n\tAlias attribute for " +
+                             Alias.getGlobalIdentifier() +
+                             " is invalid because " + Aliasee->getName() +
+                             " is common.",
+                         false);
+    }
+
+    GOAliasMap[Aliasee].push_back(&Alias);
   }
 
   return Result;
@@ -2951,6 +2984,26 @@ createPPCAsmPrinterPass(TargetMachine &tm,
     return new PPCAIXAsmPrinter(tm, std::move(Streamer));
 
   return new PPCLinuxAsmPrinter(tm, std::move(Streamer));
+}
+
+void PPCAIXAsmPrinter::emitModuleCommandLines(Module &M) {
+  const NamedMDNode *NMD = M.getNamedMetadata("llvm.commandline");
+  if (!NMD || !NMD->getNumOperands())
+    return;
+
+  std::string S;
+  raw_string_ostream RSOS(S);
+  for (unsigned i = 0, e = NMD->getNumOperands(); i != e; ++i) {
+    const MDNode *N = NMD->getOperand(i);
+    assert(N->getNumOperands() == 1 &&
+           "llvm.commandline metadata entry can have only one operand");
+    const MDString *MDS = cast<MDString>(N->getOperand(0));
+    // Add "@(#)" to support retrieving the command line information with the
+    // AIX "what" command
+    RSOS << "@(#)opt " << MDS->getString() << "\n";
+    RSOS.write('\0');
+  }
+  OutStreamer->emitXCOFFCInfoSym(".GCC.command.line", RSOS.str());
 }
 
 // Force static initialization.

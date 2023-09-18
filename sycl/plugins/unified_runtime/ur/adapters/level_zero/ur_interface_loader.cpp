@@ -1,10 +1,10 @@
-//===--------- ur_interface_loader.cpp - Level Zero Adapter-----------===//
+//===--------- ur_interface_loader.cpp - Level Zero Adapter----------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <ur_api.h>
 #include <ur_ddi.h>
@@ -30,9 +30,6 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetGlobalProcAddrTable(
   if (UR_RESULT_SUCCESS != retVal) {
     return retVal;
   }
-
-  pDdiTable->pfnInit = urInit;
-  pDdiTable->pfnTearDown = urTearDown;
   pDdiTable->pfnAdapterGet = urAdapterGet;
   pDdiTable->pfnAdapterRelease = urAdapterRelease;
   pDdiTable->pfnAdapterRetain = urAdapterRetain;
@@ -319,17 +316,19 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
   pDdiTable->pfnReleaseExp = urCommandBufferReleaseExp;
   pDdiTable->pfnFinalizeExp = urCommandBufferFinalizeExp;
   pDdiTable->pfnAppendKernelLaunchExp = urCommandBufferAppendKernelLaunchExp;
-  pDdiTable->pfnAppendMemcpyUSMExp = urCommandBufferAppendMemcpyUSMExp;
-  pDdiTable->pfnAppendMembufferCopyExp = urCommandBufferAppendMembufferCopyExp;
-  pDdiTable->pfnAppendMembufferCopyRectExp =
-      urCommandBufferAppendMembufferCopyRectExp;
-  pDdiTable->pfnAppendMembufferReadExp = urCommandBufferAppendMembufferReadExp;
-  pDdiTable->pfnAppendMembufferReadRectExp =
-      urCommandBufferAppendMembufferReadRectExp;
-  pDdiTable->pfnAppendMembufferWriteExp =
-      urCommandBufferAppendMembufferWriteExp;
-  pDdiTable->pfnAppendMembufferWriteRectExp =
-      urCommandBufferAppendMembufferWriteRectExp;
+  pDdiTable->pfnAppendUSMMemcpyExp = urCommandBufferAppendUSMMemcpyExp;
+  pDdiTable->pfnAppendUSMFillExp = urCommandBufferAppendUSMFillExp;
+  pDdiTable->pfnAppendMemBufferCopyExp = urCommandBufferAppendMemBufferCopyExp;
+  pDdiTable->pfnAppendMemBufferCopyRectExp =
+      urCommandBufferAppendMemBufferCopyRectExp;
+  pDdiTable->pfnAppendMemBufferReadExp = urCommandBufferAppendMemBufferReadExp;
+  pDdiTable->pfnAppendMemBufferReadRectExp =
+      urCommandBufferAppendMemBufferReadRectExp;
+  pDdiTable->pfnAppendMemBufferWriteExp =
+      urCommandBufferAppendMemBufferWriteExp;
+  pDdiTable->pfnAppendMemBufferWriteRectExp =
+      urCommandBufferAppendMemBufferWriteRectExp;
+  pDdiTable->pfnAppendMemBufferFillExp = urCommandBufferAppendMemBufferFillExp;
   pDdiTable->pfnEnqueueExp = urCommandBufferEnqueueExp;
 
   return retVal;

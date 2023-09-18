@@ -1,6 +1,4 @@
-; TODO: Remove -opaque-pointers flag when the project supports opaque pointers
-; by default
-; RUN: opt -opaque-pointers < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
+; RUN: opt < %s -S -passes=partial-inliner -skip-partial-inlining-cost-analysis=true | FileCheck %s
 
 define i32 @callee_most(i32 %v) unnamed_addr  #0 #1 {
 entry:

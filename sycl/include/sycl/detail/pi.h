@@ -918,6 +918,7 @@ static const uint8_t PI_DEVICE_BINARY_OFFLOAD_KIND_SYCL = 4;
 /// PTX 64-bit image <-> "nvptx64", 64-bit NVIDIA PTX device
 #define __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
+#define __SYCL_PI_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
 
 /// Extension to denote native support of assert feature by an arbitrary device
 /// piDeviceGetInfo call should return this extension when the device supports

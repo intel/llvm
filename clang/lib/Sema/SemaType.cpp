@@ -38,6 +38,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include <bitset>
@@ -127,7 +128,6 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_VectorCall:                                              \
   case ParsedAttr::AT_AArch64VectorPcs:                                        \
   case ParsedAttr::AT_AArch64SVEPcs:                                           \
-  case ParsedAttr::AT_ArmStreaming:                                            \
   case ParsedAttr::AT_AMDGPUKernelCall:                                        \
   case ParsedAttr::AT_MSABI:                                                   \
   case ParsedAttr::AT_SysVABI:                                                 \
@@ -142,6 +142,10 @@ static void diagnoseBadTypeAttribute(Sema &S, const ParsedAttr &attr,
   case ParsedAttr::AT_NoReturn:                                                \
   case ParsedAttr::AT_Regparm:                                                 \
   case ParsedAttr::AT_CmseNSCall:                                              \
+  case ParsedAttr::AT_ArmStreaming:                                            \
+  case ParsedAttr::AT_ArmStreamingCompatible:                                  \
+  case ParsedAttr::AT_ArmSharedZA:                                             \
+  case ParsedAttr::AT_ArmPreservesZA:                                          \
   case ParsedAttr::AT_AnyX86NoCallerSavedRegisters:                            \
   case ParsedAttr::AT_AnyX86NoCfCheck:                                         \
     CALLING_CONV_ATTRS_CASELIST
@@ -367,12 +371,14 @@ enum TypeAttrLocation {
   TAL_DeclName
 };
 
-static void processTypeAttrs(TypeProcessingState &state, QualType &type,
-                             TypeAttrLocation TAL,
-                             const ParsedAttributesView &attrs);
+static void
+processTypeAttrs(TypeProcessingState &state, QualType &type,
+                 TypeAttrLocation TAL, const ParsedAttributesView &attrs,
+                 Sema::CUDAFunctionTarget CFT = Sema::CFT_HostDevice);
 
 static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
-                                   QualType &type);
+                                   QualType &type,
+                                   Sema::CUDAFunctionTarget CFT);
 
 static bool handleMSPointerTypeQualifierAttr(TypeProcessingState &state,
                                              ParsedAttr &attr, QualType &type);
@@ -618,7 +624,8 @@ static void distributeFunctionTypeAttr(TypeProcessingState &state,
 /// distributed, false if no location was found.
 static bool distributeFunctionTypeAttrToInnermost(
     TypeProcessingState &state, ParsedAttr &attr,
-    ParsedAttributesView &attrList, QualType &declSpecType) {
+    ParsedAttributesView &attrList, QualType &declSpecType,
+    Sema::CUDAFunctionTarget CFT) {
   Declarator &declarator = state.getDeclarator();
 
   // Put it on the innermost function chunk, if there is one.
@@ -630,19 +637,20 @@ static bool distributeFunctionTypeAttrToInnermost(
     return true;
   }
 
-  return handleFunctionTypeAttr(state, attr, declSpecType);
+  return handleFunctionTypeAttr(state, attr, declSpecType, CFT);
 }
 
 /// A function type attribute was written in the decl spec.  Try to
 /// apply it somewhere.
-static void distributeFunctionTypeAttrFromDeclSpec(TypeProcessingState &state,
-                                                   ParsedAttr &attr,
-                                                   QualType &declSpecType) {
+static void
+distributeFunctionTypeAttrFromDeclSpec(TypeProcessingState &state,
+                                       ParsedAttr &attr, QualType &declSpecType,
+                                       Sema::CUDAFunctionTarget CFT) {
   state.saveDeclSpecAttrs();
 
   // Try to distribute to the innermost.
   if (distributeFunctionTypeAttrToInnermost(
-          state, attr, state.getCurrentAttributes(), declSpecType))
+          state, attr, state.getCurrentAttributes(), declSpecType, CFT))
     return;
 
   // If that failed, diagnose the bad attribute when the declarator is
@@ -654,14 +662,14 @@ static void distributeFunctionTypeAttrFromDeclSpec(TypeProcessingState &state,
 /// Try to apply it somewhere.
 /// `Attrs` is the attribute list containing the declaration (either of the
 /// declarator or the declaration).
-static void distributeFunctionTypeAttrFromDeclarator(TypeProcessingState &state,
-                                                     ParsedAttr &attr,
-                                                     QualType &declSpecType) {
+static void distributeFunctionTypeAttrFromDeclarator(
+    TypeProcessingState &state, ParsedAttr &attr, QualType &declSpecType,
+    Sema::CUDAFunctionTarget CFT) {
   Declarator &declarator = state.getDeclarator();
 
   // Try to distribute to the innermost.
   if (distributeFunctionTypeAttrToInnermost(
-          state, attr, declarator.getAttributes(), declSpecType))
+          state, attr, declarator.getAttributes(), declSpecType, CFT))
     return;
 
   // If that failed, diagnose the bad attribute when the declarator is
@@ -683,7 +691,8 @@ static void distributeFunctionTypeAttrFromDeclarator(TypeProcessingState &state,
 /// `Attrs` is the attribute list containing the declaration (either of the
 /// declarator or the declaration).
 static void distributeTypeAttrsFromDeclarator(TypeProcessingState &state,
-                                              QualType &declSpecType) {
+                                              QualType &declSpecType,
+                                              Sema::CUDAFunctionTarget CFT) {
   // The called functions in this loop actually remove things from the current
   // list, so iterating over the existing list isn't possible.  Instead, make a
   // non-owning copy and iterate over that.
@@ -700,7 +709,7 @@ static void distributeTypeAttrsFromDeclarator(TypeProcessingState &state,
       break;
 
     FUNCTION_TYPE_ATTRS_CASELIST:
-      distributeFunctionTypeAttrFromDeclarator(state, attr, declSpecType);
+      distributeFunctionTypeAttrFromDeclarator(state, attr, declSpecType, CFT);
       break;
 
     MS_TYPE_ATTRS_CASELIST:
@@ -1507,7 +1516,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_int128:
     if (!S.Context.getTargetInfo().hasInt128Type() &&
         !(S.getLangOpts().SYCLIsDevice || S.getLangOpts().CUDAIsDevice ||
-          (S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice)))
+          (S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsTargetDevice)))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__int128";
     if (DS.getTypeSpecSign() == TypeSpecifierSign::Unsigned)
@@ -1522,7 +1531,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
       // ToDo: more precise diagnostics for CUDA.
       if (!S.Context.getTargetInfo().hasFloat16Type() &&
           !S.getLangOpts().CUDA &&
-          !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+          !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsTargetDevice))
         S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
             << "_Float16";
     }
@@ -1531,7 +1540,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_half:    Result = Context.HalfTy; break;
   case DeclSpec::TST_BFloat16:
     if (!S.Context.getTargetInfo().hasBFloat16Type() &&
-        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice) &&
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsTargetDevice) &&
         !S.getLangOpts().SYCLIsDevice)
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__bf16";
     Result = Context.BFloat16Ty;
@@ -1556,7 +1565,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_float128:
     if (!S.Context.getTargetInfo().hasFloat128Type() &&
         !S.getLangOpts().SYCLIsDevice &&
-        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsTargetDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported)
         << "__float128";
     Result = Context.Float128Ty;
@@ -1564,7 +1573,7 @@ static QualType ConvertDeclSpecToType(TypeProcessingState &state) {
   case DeclSpec::TST_ibm128:
     if (!S.Context.getTargetInfo().hasIbm128Type() &&
         !S.getLangOpts().SYCLIsDevice &&
-        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsDevice))
+        !(S.getLangOpts().OpenMP && S.getLangOpts().OpenMPIsTargetDevice))
       S.Diag(DS.getTypeSpecTypeLoc(), diag::err_type_unsupported) << "__ibm128";
     Result = Context.Ibm128Ty;
     break;
@@ -2724,8 +2733,8 @@ QualType Sema::BuildVectorType(QualType CurType, Expr *SizeExpr,
     return QualType();
   }
   // Only support _BitInt elements with byte-sized power of 2 NumBits.
-  if (CurType->isBitIntType()) {
-    unsigned NumBits = CurType->getAs<BitIntType>()->getNumBits();
+  if (const auto *BIT = CurType->getAs<BitIntType>()) {
+    unsigned NumBits = BIT->getNumBits();
     if (!llvm::isPowerOf2_32(NumBits) || NumBits < 8) {
       Diag(AttrLoc, diag::err_attribute_invalid_bitint_vector_type)
           << (NumBits < 8);
@@ -3556,7 +3565,8 @@ static QualType GetDeclSpecTypeForDeclarator(TypeProcessingState &state,
   // Note: We don't need to distribute declaration attributes (i.e.
   // D.getDeclarationAttributes()) because those are always C++11 attributes,
   // and those don't get distributed.
-  distributeTypeAttrsFromDeclarator(state, T);
+  distributeTypeAttrsFromDeclarator(
+      state, T, SemaRef.IdentifyCUDATarget(D.getAttributes()));
 
   // Find the deduced type in this type. Look in the trailing return type if we
   // have one, otherwise in the DeclSpec type.
@@ -4067,7 +4077,8 @@ static CallingConv getCCForDeclaratorChunk(
       // function type.  We'll diagnose the failure to apply them in
       // handleFunctionTypeAttr.
       CallingConv CC;
-      if (!S.CheckCallingConvAttr(AL, CC) &&
+      if (!S.CheckCallingConvAttr(AL, CC, /*FunctionDecl=*/nullptr,
+                                  S.IdentifyCUDATarget(D.getAttributes())) &&
           (!FTI.isVariadic || supportsVariadicCall(CC))) {
         return CC;
       }
@@ -5454,7 +5465,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
           getCCForDeclaratorChunk(S, D, DeclType.getAttrs(), FTI, chunkIndex));
 
       // OpenCL disallows functions without a prototype, but it doesn't enforce
-      // strict prototypes as in C2x because it allows a function definition to
+      // strict prototypes as in C23 because it allows a function definition to
       // have an identifier list. See OpenCL 3.0 6.11/g for more details.
       if (!FTI.NumParams && !FTI.isVariadic && !LangOpts.SYCLIsDevice &&
           !LangOpts.requiresStrictPrototypes() && !LangOpts.OpenCL) {
@@ -5463,9 +5474,9 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
       } else {
         // We allow a zero-parameter variadic function in C if the
         // function is marked with the "overloadable" attribute. Scan
-        // for this attribute now. We also allow it in C2x per WG14 N2975.
+        // for this attribute now. We also allow it in C23 per WG14 N2975.
         if (!FTI.NumParams && FTI.isVariadic && !LangOpts.CPlusPlus) {
-          if (LangOpts.C2x)
+          if (LangOpts.C23)
             S.Diag(FTI.getEllipsisLoc(),
                    diag::warn_c17_compat_ellipsis_only_parameter);
           else if (!D.getDeclarationAttributes().hasAttribute(
@@ -5750,7 +5761,8 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
     }
 
     // See if there are any attributes on this declarator chunk.
-    processTypeAttrs(state, T, TAL_DeclChunk, DeclType.getAttrs());
+    processTypeAttrs(state, T, TAL_DeclChunk, DeclType.getAttrs(),
+                     S.IdentifyCUDATarget(D.getAttributes()));
 
     if (DeclType.Kind != DeclaratorChunk::Paren) {
       if (ExpectNoDerefChunk && !IsNoDerefableChunk(DeclType))
@@ -5773,7 +5785,7 @@ static TypeSourceInfo *GetFullTypeForDeclarator(TypeProcessingState &state,
   //   of that function specifies that no information about the number or types
   //   of the parameters is supplied.
   // See ActOnFinishFunctionBody() and MergeFunctionDecl() for handling of
-  // function declarations whose behavior changes in C2x.
+  // function declarations whose behavior changes in C23.
   if (!LangOpts.requiresStrictPrototypes()) {
     bool IsBlock = false;
     for (const DeclaratorChunk &DeclType : D.type_objects()) {
@@ -6326,24 +6338,27 @@ namespace {
       TemplateIdAnnotation *TemplateId = DS.getRepAsTemplateId();
       if (!TemplateId)
         return;
-      if (DS.getTypeSpecScope().isNotEmpty())
-        TL.setNestedNameSpecifierLoc(
-            DS.getTypeSpecScope().getWithLocInContext(Context));
-      else
-        TL.setNestedNameSpecifierLoc(NestedNameSpecifierLoc());
-      TL.setTemplateKWLoc(TemplateId->TemplateKWLoc);
-      TL.setConceptNameLoc(TemplateId->TemplateNameLoc);
-      TL.setFoundDecl(nullptr);
-      TL.setLAngleLoc(TemplateId->LAngleLoc);
-      TL.setRAngleLoc(TemplateId->RAngleLoc);
-      if (TemplateId->NumArgs == 0)
-        return;
-      TemplateArgumentListInfo TemplateArgsInfo;
-      ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
-                                         TemplateId->NumArgs);
-      SemaRef.translateTemplateArguments(TemplateArgsPtr, TemplateArgsInfo);
-      for (unsigned I = 0; I < TemplateId->NumArgs; ++I)
-        TL.setArgLocInfo(I, TemplateArgsInfo.arguments()[I].getLocInfo());
+
+      NestedNameSpecifierLoc NNS =
+          (DS.getTypeSpecScope().isNotEmpty()
+               ? DS.getTypeSpecScope().getWithLocInContext(Context)
+               : NestedNameSpecifierLoc());
+      TemplateArgumentListInfo TemplateArgsInfo(TemplateId->LAngleLoc,
+                                                TemplateId->RAngleLoc);
+      if (TemplateId->NumArgs > 0) {
+        ASTTemplateArgsPtr TemplateArgsPtr(TemplateId->getTemplateArgs(),
+                                           TemplateId->NumArgs);
+        SemaRef.translateTemplateArguments(TemplateArgsPtr, TemplateArgsInfo);
+      }
+      DeclarationNameInfo DNI = DeclarationNameInfo(
+          TL.getTypePtr()->getTypeConstraintConcept()->getDeclName(),
+          TemplateId->TemplateNameLoc);
+      auto *CR = ConceptReference::Create(
+          Context, NNS, TemplateId->TemplateKWLoc, DNI,
+          /*FoundDecl=*/nullptr,
+          /*NamedDecl=*/TL.getTypePtr()->getTypeConstraintConcept(),
+          ASTTemplateArgumentListInfo::Create(Context, TemplateArgsInfo));
+      TL.setConceptReference(CR);
     }
     void VisitTagTypeLoc(TagTypeLoc TL) {
       TL.setNameLoc(DS.getTypeSpecTypeNameLoc());
@@ -7858,10 +7873,31 @@ static Attr *getCCTypeAttr(ASTContext &Ctx, ParsedAttr &Attr) {
   llvm_unreachable("unexpected attribute kind!");
 }
 
+static bool checkMutualExclusion(TypeProcessingState &state,
+                                 const FunctionProtoType::ExtProtoInfo &EPI,
+                                 ParsedAttr &Attr,
+                                 AttributeCommonInfo::Kind OtherKind) {
+  auto OtherAttr = std::find_if(
+      state.getCurrentAttributes().begin(), state.getCurrentAttributes().end(),
+      [OtherKind](const ParsedAttr &A) { return A.getKind() == OtherKind; });
+  if (OtherAttr == state.getCurrentAttributes().end() || OtherAttr->isInvalid())
+    return false;
+
+  Sema &S = state.getSema();
+  S.Diag(Attr.getLoc(), diag::err_attributes_are_not_compatible)
+      << *OtherAttr << Attr
+      << (OtherAttr->isRegularKeywordAttribute() ||
+          Attr.isRegularKeywordAttribute());
+  S.Diag(OtherAttr->getLoc(), diag::note_conflicting_attribute);
+  Attr.setInvalid();
+  return true;
+}
+
 /// Process an individual function attribute.  Returns true to
 /// indicate that the attribute was handled, false if it wasn't.
 static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
-                                   QualType &type) {
+                                   QualType &type,
+                                   Sema::CUDAFunctionTarget CFT) {
   Sema &S = state.getSema();
 
   FunctionTypeUnwrapper unwrapped(S, type);
@@ -7987,6 +8023,55 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
     return true;
   }
 
+  if (attr.getKind() == ParsedAttr::AT_ArmStreaming ||
+      attr.getKind() == ParsedAttr::AT_ArmStreamingCompatible ||
+      attr.getKind() == ParsedAttr::AT_ArmSharedZA ||
+      attr.getKind() == ParsedAttr::AT_ArmPreservesZA){
+    if (S.CheckAttrTarget(attr) || S.CheckAttrNoArgs(attr))
+      return true;
+
+    if (!unwrapped.isFunctionType())
+      return false;
+
+    const auto *FnTy = unwrapped.get()->getAs<FunctionProtoType>();
+    if (!FnTy) {
+      // SME ACLE attributes are not supported on K&R-style unprototyped C
+      // functions.
+      S.Diag(attr.getLoc(), diag::warn_attribute_wrong_decl_type) <<
+        attr << attr.isRegularKeywordAttribute() << ExpectedFunctionWithProtoType;
+      attr.setInvalid();
+      return false;
+    }
+
+    FunctionProtoType::ExtProtoInfo EPI = FnTy->getExtProtoInfo();
+    switch (attr.getKind()) {
+    case ParsedAttr::AT_ArmStreaming:
+      if (checkMutualExclusion(state, EPI, attr,
+                               ParsedAttr::AT_ArmStreamingCompatible))
+        return true;
+      EPI.setArmSMEAttribute(FunctionType::SME_PStateSMEnabledMask);
+      break;
+    case ParsedAttr::AT_ArmStreamingCompatible:
+      if (checkMutualExclusion(state, EPI, attr, ParsedAttr::AT_ArmStreaming))
+        return true;
+      EPI.setArmSMEAttribute(FunctionType::SME_PStateSMCompatibleMask);
+      break;
+    case ParsedAttr::AT_ArmSharedZA:
+      EPI.setArmSMEAttribute(FunctionType::SME_PStateZASharedMask);
+      break;
+    case ParsedAttr::AT_ArmPreservesZA:
+      EPI.setArmSMEAttribute(FunctionType::SME_PStateZAPreservedMask);
+      break;
+    default:
+      llvm_unreachable("Unsupported attribute");
+    }
+
+    QualType newtype = S.Context.getFunctionType(FnTy->getReturnType(),
+                                                 FnTy->getParamTypes(), EPI);
+    type = unwrapped.wrap(S, newtype->getAs<FunctionType>());
+    return true;
+  }
+
   if (attr.getKind() == ParsedAttr::AT_NoThrow) {
     // Delay if this is not a function type.
     if (!unwrapped.isFunctionType())
@@ -8043,7 +8128,7 @@ static bool handleFunctionTypeAttr(TypeProcessingState &state, ParsedAttr &attr,
 
   // Otherwise, a calling convention.
   CallingConv CC;
-  if (S.CheckCallingConvAttr(attr, CC))
+  if (S.CheckCallingConvAttr(attr, CC, /*FunctionDecl=*/nullptr, CFT))
     return true;
 
   const FunctionType *fn = unwrapped.get();
@@ -8378,7 +8463,7 @@ static void HandleArmSveVectorBitsTypeAttr(QualType &CurType, ParsedAttr &Attr,
   }
 
   // Attribute can only be attached to a single SVE vector or predicate type.
-  if (!CurType->isVLSTBuiltinType()) {
+  if (!CurType->isSveVLSBuiltinType()) {
     S.Diag(Attr.getLoc(), diag::err_attribute_invalid_sve_type)
         << Attr << CurType;
     Attr.setInvalid();
@@ -8596,7 +8681,8 @@ static void HandleLifetimeBoundAttr(TypeProcessingState &State,
 
 static void processTypeAttrs(TypeProcessingState &state, QualType &type,
                              TypeAttrLocation TAL,
-                             const ParsedAttributesView &attrs) {
+                             const ParsedAttributesView &attrs,
+                             Sema::CUDAFunctionTarget CFT) {
 
   state.setParsedNoDeref(false);
   if (attrs.empty())
@@ -8843,7 +8929,7 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       // appertain to and hence should not use the "distribution" logic below.
       if (attr.isStandardAttributeSyntax() ||
           attr.isRegularKeywordAttribute()) {
-        if (!handleFunctionTypeAttr(state, attr, type)) {
+        if (!handleFunctionTypeAttr(state, attr, type, CFT)) {
           diagnoseBadTypeAttribute(state.getSema(), attr, type);
           attr.setInvalid();
         }
@@ -8853,10 +8939,10 @@ static void processTypeAttrs(TypeProcessingState &state, QualType &type,
       // Never process function type attributes as part of the
       // declaration-specifiers.
       if (TAL == TAL_DeclSpec)
-        distributeFunctionTypeAttrFromDeclSpec(state, attr, type);
+        distributeFunctionTypeAttrFromDeclSpec(state, attr, type, CFT);
 
       // Otherwise, handle the possible delays.
-      else if (!handleFunctionTypeAttr(state, attr, type))
+      else if (!handleFunctionTypeAttr(state, attr, type, CFT))
         distributeFunctionTypeAttr(state, attr, type);
       break;
     case ParsedAttr::AT_AcquireHandle: {

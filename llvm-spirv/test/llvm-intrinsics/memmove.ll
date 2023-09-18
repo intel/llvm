@@ -1,8 +1,8 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -spirv-text -o %t.txt
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc -spirv-text -o %t.txt
 ; RUN: FileCheck < %t.txt %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV-NOT: llvm.memmove
@@ -13,58 +13,48 @@
 ; CHECK-SPIRV-DAG: Constant [[#TYPEINT]] [[#C68:]] 68
 ; CHECK-SPIRV-DAG: Constant [[#TYPEINT]] [[#C72:]] 72
 ; CHECK-SPIRV-DAG: Constant [[#TYPEINT]] [[#C32:]] 32
-; CHECK-SPIRV-DAG: TypeStruct [[#TYPESTRUCTWRONG:]] [[#]] [[#]] [[#]] [[#]]
-; CHECK-SPIRV-DAG: TypeStruct [[#TYPESTRUCT:]] [[#]] [[#]] [[#]]
-; CHECK-SPIRV-DAG: TypePointer [[#STRUCTGLOBAL_PTR:]] 5 [[#TYPESTRUCT]]
 ; CHECK-SPIRV-DAG: TypePointer [[#I8GLOBAL_PTR:]] 5 [[#I8]]
 ; CHECK-SPIRV-DAG: TypePointer [[#I8PRIVATE_PTR:]] 7 [[#I8]]
-; CHECK-SPIRV-DAG: TypePointer [[#STRUCTGENERIC_PTR:]] 8 [[#TYPESTRUCT]]
 ; CHECK-SPIRV-DAG: TypePointer [[#I8GENERIC_PTR:]] 8 [[#I8]]
-
-; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
-; CHECK-SPIRV: FunctionParameter [[#STRUCTGLOBAL_PTR]] [[#ARG_IN:]]
-; CHECK-SPIRV: FunctionParameter [[#STRUCTGLOBAL_PTR]] [[#ARG_OUT:]]
-;
-; CHECK-SPIRV: Bitcast [[#I8GLOBAL_PTR]] [[#I8_ARG_IN:]] [[#ARG_IN]]
-; CHECK-SPIRV: Bitcast [[#I8GLOBAL_PTR]] [[#I8_ARG_OUT:]] [[#ARG_OUT]]
-; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStart [[#TMP]]
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#TMP]] [[#I8_ARG_IN]] [[#C128]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#TMP]] [[#C128]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStop [[#TMP]]
-
-; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
-; CHECK-SPIRV: FunctionParameter [[#STRUCTGLOBAL_PTR]] [[#ARG_IN:]]
-; CHECK-SPIRV: FunctionParameter [[#STRUCTGENERIC_PTR]] [[#ARG_OUT:]]
-;
-; CHECK-SPIRV: Bitcast [[#I8GLOBAL_PTR]] [[#I8_ARG_IN:]] [[#ARG_IN]]
-; CHECK-SPIRV: Bitcast [[#I8GENERIC_PTR]] [[#I8_ARG_OUT_GENERIC:]] [[#ARG_OUT]]
-; CHECK-SPIRV: GenericCastToPtr [[#I8GLOBAL_PTR]] [[#I8_ARG_OUT:]] [[#I8_ARG_OUT_GENERIC]]
-; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStart [[#TMP]]
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#TMP]] [[#I8_ARG_IN]] [[#C68]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#TMP]] [[#C68]] 2 64
-; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: LifetimeStop [[#TMP]]
 
 ; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
 ; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_OUT:]]
 ;
+; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
+; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT:]] [[#ARG_OUT]]
 ; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
 ; CHECK-SPIRV: LifetimeStart [[#TMP]]
+; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C128]] 2 64
+; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C128]] 2 64
 ; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#TMP]] [[#ARG_IN]] [[#C72]] 0
+; CHECK-SPIRV: LifetimeStop [[#TMP]]
+
+; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
+; CHECK-SPIRV: FunctionParameter [[#I8GLOBAL_PTR]] [[#ARG_IN:]]
+; CHECK-SPIRV: FunctionParameter [[#I8GENERIC_PTR]] [[#ARG_OUT:]]
+;
+; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_IN:]] [[#ARG_IN]]
+; CHECK-SPIRV: Bitcast [[#]] [[#I8_ARG_OUT_GENERIC:]] [[#ARG_OUT]]
+; CHECK-SPIRV: GenericCastToPtr [[#]] [[#I8_ARG_OUT:]] [[#I8_ARG_OUT_GENERIC]]
+; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
 ; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
-; CHECK-SPIRV: CopyMemorySized [[#ARG_OUT]] [[#TMP]] [[#C72]] 0
+; CHECK-SPIRV: LifetimeStart [[#TMP]]
+; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#I8_ARG_IN]] [[#C68]] 2 64
+; CHECK-SPIRV: CopyMemorySized [[#I8_ARG_OUT]] [[#MEM]] [[#C68]] 2 64
+; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStop [[#TMP]]
+
+; CHECK-SPIRV-LABEL: [[#]] Function [[#]]
+; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_IN:]]
+; CHECK-SPIRV: FunctionParameter [[#]] [[#ARG_OUT:]]
+;
+; CHECK-SPIRV: Variable [[#]] [[#MEM:]]
+; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
+; CHECK-SPIRV: LifetimeStart [[#TMP]]
+; CHECK-SPIRV: CopyMemorySized [[#MEM]] [[#ARG_IN]] [[#C72]] 0
+; CHECK-SPIRV: CopyMemorySized [[#ARG_OUT]] [[#MEM]] [[#C72]] 0
 ; CHECK-SPIRV: Bitcast [[#]] [[#TMP:]] [[#MEM]]
 ; CHECK-SPIRV: LifetimeStop [[#TMP]]
 
@@ -92,12 +82,10 @@
 ; CHECK-LLVM: %[[local:.*]] = alloca [128 x i8]
 ; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[i8_local]])
-; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[i8_local]],
+; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[local]],
 ; CHECK-LLVM-SAME: ptr addrspace(1) align 64 %[[i8_in]], i32 128, i1 false)
-; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) align 64 %[[i8_out]],
-; CHECK-LLVM-SAME: ptr align 64 %[[i8_local]], i32 128, i1 false)
+; CHECK-LLVM-SAME: ptr align 64 %[[local]], i32 128, i1 false)
 ; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[i8_local]])
 
@@ -108,12 +96,10 @@
 ; CHECK-LLVM: %[[local:.*]] = alloca [68 x i8]
 ; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[i8_local]])
-; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[i8_local]],
+; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr align 64 %[[local]],
 ; CHECK-LLVM-SAME: ptr addrspace(1) align 64 %[[i8_in]], i32 68, i1 false)
-; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) align 64 %[[i8_out]],
-; CHECK-LLVM-SAME: ptr align 64 %[[i8_local]], i32 68, i1 false)
+; CHECK-LLVM-SAME: ptr align 64 %[[local]], i32 68, i1 false)
 ; CHECK-LLVM: %[[i8_local:.*]] = bitcast ptr %[[local]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[i8_local]])
 
@@ -121,10 +107,8 @@
 ; CHECK-LLVM: %[[#ALLOCA:]] = alloca [72 x i8]
 ; CHECK-LLVM: %[[#TMP0:]] = bitcast ptr %[[#ALLOCA]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[#TMP0]])
-; CHECK-LLVM: %[[#TMP1:]] = bitcast ptr %[[#ALLOCA]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr %[[#TMP1]], ptr addrspace(1) %in, i32 72, i1 false)
-; CHECK-LLVM: %[[#TMP2:]] = bitcast ptr %[[#ALLOCA]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) %out, ptr %[[#TMP2]], i32 72, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p0.p1.i32(ptr %[[#ALLOCA]], ptr addrspace(1) %in, i32 72, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p1.p0.i32(ptr addrspace(1) %out, ptr %[[#ALLOCA]], i32 72, i1 false)
 ; CHECK-LLVM: %[[#TMP3:]] = bitcast ptr %[[#ALLOCA]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[#TMP3]])
 
@@ -132,10 +116,8 @@
 ; CHECK-LLVM: %[[#ALLOCA:]] = alloca [32 x i8]
 ; CHECK-LLVM: %[[#TMP0:]] = bitcast ptr %[[#ALLOCA]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.start.p0({{.*}}, ptr %[[#TMP0]])
-; CHECK-LLVM: %[[#TMP1:]] = bitcast ptr %[[#ALLOCA]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p0.p4.i64(ptr align 8 %[[#TMP1]], ptr addrspace(4) align 8 %phi, i64 32, i1 false)
-; CHECK-LLVM: %[[#TMP2:]] = bitcast ptr %[[#ALLOCA]] to ptr
-; CHECK-LLVM: call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 8 %[[#]], ptr align 8 %[[#TMP2]], i64 32, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p0.p4.i64(ptr align 8 %[[#ALLOCA]], ptr addrspace(4) align 8 %phi, i64 32, i1 false)
+; CHECK-LLVM: call void @llvm.memcpy.p4.p0.i64(ptr addrspace(4) align 8 %[[#]], ptr align 8 %[[#ALLOCA]], i64 32, i1 false)
 ; CHECK-LLVM: %[[#TMP3:]] = bitcast ptr %[[#ALLOCA]] to ptr
 ; CHECK-LLVM: call void @llvm.lifetime.end.p0({{.*}}, ptr %[[#TMP3]])
 

@@ -1486,6 +1486,7 @@ public:
 
   /// Return true if this header has already been included.
   bool alreadyIncluded(const FileEntry *File) const {
+    HeaderInfo.getFileInfo(File);
     return IncludedFiles.count(File);
   }
 
@@ -2717,8 +2718,8 @@ public:
   /// \return A file that can be #included to provide the desired effect. Null
   ///         if no such file could be determined or if a #include is not
   ///         appropriate (eg, if a module should be imported instead).
-  const FileEntry *getHeaderToIncludeForDiagnostics(SourceLocation IncLoc,
-                                                    SourceLocation MLoc);
+  OptionalFileEntryRef getHeaderToIncludeForDiagnostics(SourceLocation IncLoc,
+                                                        SourceLocation MLoc);
 
   bool isRecordingPreamble() const {
     return PreambleConditionalStack.isRecording();

@@ -170,7 +170,7 @@ CodeGen::emitVoidPtrDirectVAArg(CodeGenFunction &CGF, Address VAListAddr,
   // Cast the element type to i8* if necessary.  Some platforms define
   // va_list as a struct containing an i8* instead of just an i8*.
   if (VAListAddr.getElementType() != CGF.Int8PtrTy)
-    VAListAddr = CGF.Builder.CreateElementBitCast(VAListAddr, CGF.Int8PtrTy);
+    VAListAddr = VAListAddr.withElementType(CGF.Int8PtrTy);
 
   llvm::Value *Ptr = CGF.Builder.CreateLoad(VAListAddr, "argp.cur");
 
@@ -196,8 +196,7 @@ CodeGen::emitVoidPtrDirectVAArg(CodeGenFunction &CGF, Address VAListAddr,
     Addr = CGF.Builder.CreateConstInBoundsByteGEP(Addr, SlotSize - DirectSize);
   }
 
-  Addr = CGF.Builder.CreateElementBitCast(Addr, DirectTy);
-  return Addr;
+  return Addr.withElementType(DirectTy);
 }
 
 Address CodeGen::emitVoidPtrVAArg(CodeGenFunction &CGF, Address VAListAddr,
@@ -247,7 +246,7 @@ Address CodeGen::emitMergePHI(CodeGenFunction &CGF, Address Addr1,
 }
 
 bool CodeGen::isEmptyField(ASTContext &Context, const FieldDecl *FD,
-                           bool AllowArrays) {
+                           bool AllowArrays, bool AsIfNoUniqueAddr) {
   if (FD->isUnnamedBitfield())
     return true;
 
@@ -281,13 +280,14 @@ bool CodeGen::isEmptyField(ASTContext &Context, const FieldDecl *FD,
   // not arrays of records, so we must also check whether we stripped off an
   // array type above.
   if (isa<CXXRecordDecl>(RT->getDecl()) &&
-      (WasArray || !FD->hasAttr<NoUniqueAddressAttr>()))
+      (WasArray || (!AsIfNoUniqueAddr && !FD->hasAttr<NoUniqueAddressAttr>())))
     return false;
 
-  return isEmptyRecord(Context, FT, AllowArrays);
+  return isEmptyRecord(Context, FT, AllowArrays, AsIfNoUniqueAddr);
 }
 
-bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays) {
+bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays,
+                            bool AsIfNoUniqueAddr) {
   const RecordType *RT = T->getAs<RecordType>();
   if (!RT)
     return false;
@@ -298,11 +298,11 @@ bool CodeGen::isEmptyRecord(ASTContext &Context, QualType T, bool AllowArrays) {
   // If this is a C++ record, check the bases first.
   if (const CXXRecordDecl *CXXRD = dyn_cast<CXXRecordDecl>(RD))
     for (const auto &I : CXXRD->bases())
-      if (!isEmptyRecord(Context, I.getType(), true))
+      if (!isEmptyRecord(Context, I.getType(), true, AsIfNoUniqueAddr))
         return false;
 
   for (const auto *I : RD->fields())
-    if (!isEmptyField(Context, I, AllowArrays))
+    if (!isEmptyField(Context, I, AllowArrays, AsIfNoUniqueAddr))
       return false;
   return true;
 }

@@ -1,5 +1,5 @@
 // Note: Default is function-boundary-type-conversion=infer-layout-map
-// RUN: mlir-opt %s -one-shot-bufferize="bufferize-function-boundaries=1 allow-return-allocs" -drop-equivalent-buffer-results -split-input-file | FileCheck %s
+// RUN: mlir-opt %s -one-shot-bufferize="bufferize-function-boundaries=1 allow-return-allocs" -canonicalize -drop-equivalent-buffer-results -split-input-file | FileCheck %s
 
 // Run fuzzer with different seeds.
 // RUN: mlir-opt %s -one-shot-bufferize="bufferize-function-boundaries=1 allow-return-allocs test-analysis-only analysis-fuzzer-seed=23" -split-input-file -o /dev/null
@@ -658,4 +658,16 @@ func.func @to_memref_op_unsupported(
   %r1 = vector.transfer_read %t1[%idx3], %cst : tensor<?xf32>, vector<5xf32>
 
   return %r1 : vector<5xf32>
+}
+
+// -----
+
+// Note: The cf.br canonicalizes away, so there's nothing to check here. There
+// is a detailed test in ControlFlow/bufferize.mlir.
+
+// CHECK-LABEL: func @br_in_func(
+func.func @br_in_func(%t: tensor<5xf32>) -> tensor<5xf32> {
+  cf.br ^bb1(%t : tensor<5xf32>)
+^bb1(%arg1 : tensor<5xf32>):
+  func.return %arg1 : tensor<5xf32>
 }

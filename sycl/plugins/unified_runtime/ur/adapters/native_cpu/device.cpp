@@ -73,17 +73,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue("0.0.0");
   case UR_DEVICE_INFO_VENDOR:
     return ReturnValue("Intel(R) Corporation");
+  case UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION:
+    // TODO : CHECK
+    return ReturnValue("0.0.0");
   case UR_DEVICE_INFO_IMAGE2D_MAX_WIDTH:
     return ReturnValue(size_t{8192});
   case UR_DEVICE_INFO_IMAGE2D_MAX_HEIGHT:
     return ReturnValue(size_t{8192});
+  case UR_DEVICE_INFO_IMAGE_MAX_BUFFER_SIZE:
+    return ReturnValue(size_t(65536 /*todo: min if aspect::image*/));
+  case UR_DEVICE_INFO_MAX_SAMPLERS:
+    return ReturnValue(uint32_t{16 /*todo: min if aspect::image*/});
   case UR_DEVICE_INFO_HOST_UNIFIED_MEMORY:
     return ReturnValue(bool{1});
   case UR_DEVICE_INFO_EXTENSIONS:
     // TODO : Populate return string accordingly - e.g. cl_khr_fp16,
     // cl_khr_fp64, cl_khr_int64_base_atomics,
     // cl_khr_int64_extended_atomics
-    return ReturnValue("");
+    return ReturnValue("cl_khr_fp64 ");
   case UR_DEVICE_INFO_VERSION:
     return ReturnValue("0.1");
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
@@ -114,6 +121,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IMAGE3D_MAX_DEPTH:
     // Default minimum values required by the SYCL specification.
     return ReturnValue(size_t{2048});
+  case UR_DEVICE_INFO_HALF_FP_CONFIG: {
+    // todo:
+    ur_device_fp_capability_flags_t HalfFPValue = 0;
+    return ReturnValue(HalfFPValue);
+  }
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG: {
+    // todo
+    ur_device_fp_capability_flags_t SingleFPValue = 0;
+    return ReturnValue(SingleFPValue);
+  }
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG: {
+    ur_device_fp_capability_flags_t DoubleFPValue = 0;
+    return ReturnValue(DoubleFPValue);
+  }
   case UR_DEVICE_INFO_MAX_WORK_ITEM_DIMENSIONS:
     return ReturnValue(uint32_t{3});
   case UR_DEVICE_INFO_PARTITION_TYPE:
@@ -121,7 +142,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_EXT_DEVICE_INFO_OPENCL_C_VERSION:
     return ReturnValue("");
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
-    return ReturnValue(ur_queue_properties_t{});
+    return ReturnValue(
+        ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
+                        UR_QUEUE_FLAG_PROFILING_ENABLE));
   case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES: {
     struct {
       size_t Arr[3];
@@ -191,6 +214,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GLOBAL_MEM_SIZE:
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
+  case UR_DEVICE_INFO_LOCAL_MEM_SIZE:
+    // TODO : CHECK
+    return ReturnValue(uint64_t{0});
   case UR_DEVICE_INFO_MAX_CONSTANT_BUFFER_SIZE:
     // TODO : CHECK
     return ReturnValue(uint64_t{0});
@@ -255,6 +281,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE:
   case UR_DEVICE_INFO_MEMORY_BUS_WIDTH:
     return UR_RESULT_ERROR_INVALID_VALUE;
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
+    ur_memory_order_capability_flags_t Capabilities =
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
+        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL;
+    return ReturnValue(Capabilities);
+  }
+  case UR_DEVICE_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
+    uint64_t Capabilities = UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP |
+                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
+    return ReturnValue(Capabilities);
+  }
 
     CASE_UR_UNSUPPORTED(UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH);
 
@@ -313,11 +354,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
     uint64_t *pHostTimestamp) {
-  std::ignore = hDevice;
-  std::ignore = pDeviceTimestamp;
-  std::ignore = pHostTimestamp;
-
-  DIE_NO_IMPLEMENTATION;
+  std::ignore = hDevice; // todo
+  if (pHostTimestamp) {
+    using namespace std::chrono;
+    *pHostTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+  if (pDeviceTimestamp) {
+    // todo: calculate elapsed time properly
+    using namespace std::chrono;
+    *pDeviceTimestamp =
+        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
+            .count();
+  }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
@@ -328,5 +379,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceSelectBinary(
   std::ignore = NumBinaries;
   std::ignore = pSelectedBinary;
 
-  CONTINUE_NO_IMPLEMENTATION;
+#define UR_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+  // look for a binary with type "native_cpu"
+  // Todo: error checking
+  // Todo: define UR_DEVICE_BINARY_TARGET_NATIVE_CPU in upstream
+  const char *image_target = UR_DEVICE_BINARY_TARGET_NATIVE_CPU;
+  for (uint32_t i = 0; i < NumBinaries; ++i) {
+    if (strcmp(pBinaries[i].pDeviceTargetSpec, image_target) == 0) {
+      *pSelectedBinary = i;
+      return UR_RESULT_SUCCESS;
+    }
+  }
+
+  // No image can be loaded for the given device
+  return UR_RESULT_ERROR_INVALID_BINARY;
 }

@@ -396,8 +396,8 @@ define i64 @srshl_scalar_constant(ptr %A) nounwind {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr x8, [x0]
 ; CHECK-NEXT:    mov w9, #1 // =0x1
-; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    fmov d1, x9
+; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    srshl d0, d0, d1
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
@@ -492,8 +492,8 @@ define i64 @urshl_scalar_constant(ptr %A) nounwind {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr x8, [x0]
 ; CHECK-NEXT:    mov w9, #1 // =0x1
-; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    fmov d1, x9
+; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    urshl d0, d0, d1
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
@@ -805,8 +805,8 @@ define i64 @sqrshl_scalar_constant(ptr %A) nounwind {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr x8, [x0]
 ; CHECK-NEXT:    mov w9, #1 // =0x1
-; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    fmov d1, x9
+; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    sqrshl d0, d0, d1
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
@@ -914,8 +914,8 @@ define i64 @uqrshl_scalar_constant(ptr %A) nounwind {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr x8, [x0]
 ; CHECK-NEXT:    mov w9, #1 // =0x1
-; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    fmov d1, x9
+; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    uqrshl d0, d0, d1
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
@@ -2378,8 +2378,8 @@ define i64 @neon.sshll_scalar_constant_shift_m1(ptr %A) nounwind {
 ; CHECK:       // %bb.0:
 ; CHECK-NEXT:    ldr w8, [x0]
 ; CHECK-NEXT:    mov x9, #-1 // =0xffffffffffffffff
-; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    fmov d1, x9
+; CHECK-NEXT:    fmov d0, x8
 ; CHECK-NEXT:    sshl d0, d0, d1
 ; CHECK-NEXT:    fmov x0, d0
 ; CHECK-NEXT:    ret
@@ -3435,3 +3435,97 @@ define <1 x i64> @ashr_v1i64(<1 x i64> %a, <1 x i64> %b) {
   %c = ashr <1 x i64> %a, %b
   ret <1 x i64> %c
 }
+
+define void @sqshl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: sqshl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.sqshl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @uqshl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: uqshl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.uqshl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @srshl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: srshl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.srshl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @urshl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: urshl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.urshl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @sqshlu_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: sqshlu_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    sqshlu.2d v0, v0, #0
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.sqshlu.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @sshl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: sshl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.sshl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+define void @ushl_zero_shift_amount(<2 x i64> %a, <2 x i64> %b, ptr %dst) {
+; CHECK-LABEL: ushl_zero_shift_amount:
+; CHECK:       // %bb.0: // %entry
+; CHECK-NEXT:    addp.2d v0, v0, v1
+; CHECK-NEXT:    str q0, [x0]
+; CHECK-NEXT:    ret
+entry:
+  %vpaddq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64> %a, <2 x i64> %b)
+  %vshlq_v2.i.i = tail call <2 x i64> @llvm.aarch64.neon.ushl.v2i64(<2 x i64> %vpaddq_v2.i.i, <2 x i64> zeroinitializer)
+  store <2 x i64> %vshlq_v2.i.i, ptr %dst, align 8
+  ret void
+}
+
+declare <2 x i64> @llvm.aarch64.neon.addp.v2i64(<2 x i64>, <2 x i64>)

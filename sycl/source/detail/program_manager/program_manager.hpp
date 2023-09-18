@@ -51,6 +51,9 @@ namespace detail {
 
 bool doesDevSupportDeviceRequirements(const device &Dev,
                                       const RTDeviceBinaryImage &BinImages);
+std::optional<sycl::exception>
+checkDevSupportDeviceRequirements(const device &Dev,
+                                  const RTDeviceBinaryImage &BinImages);
 
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
@@ -86,13 +89,17 @@ public:
   // Returns the single instance of the program manager for the entire
   // process. Can only be called after staticInit is done.
   static ProgramManager &getInstance();
+
   RTDeviceBinaryImage &getDeviceImage(const std::string &KernelName,
                                       const context &Context,
                                       const device &Device,
                                       bool JITCompilationIsRequired = false);
-  RTDeviceBinaryImage &getDeviceImage(KernelSetId KSId, const context &Context,
-                                      const device &Device,
-                                      bool JITCompilationIsRequired = false);
+
+  RTDeviceBinaryImage &getDeviceImage(
+      const std::unordered_set<RTDeviceBinaryImage *> &ImagesToVerify,
+      const context &Context, const device &Device,
+      bool JITCompilationIsRequired = false);
+
   sycl::detail::pi::PiProgram createPIProgram(const RTDeviceBinaryImage &Img,
                                               const context &Context,
                                               const device &Device);
@@ -304,50 +311,15 @@ private:
                    const std::string &LinkOptions,
                    const sycl::detail::pi::PiDevice &Device,
                    uint32_t DeviceLibReqMask);
-  /// Provides a new kernel set id for grouping kernel names together
-  KernelSetId getNextKernelSetId() const;
-  /// Returns the kernel set associated with the kernel, handles some special
-  /// cases (when reading images from file or using images with no entry info)
-  KernelSetId getKernelSetId(const std::string &KernelName) const;
   /// Dumps image to current directory
-  void dumpImage(const RTDeviceBinaryImage &Img, KernelSetId KSId,
-                 uint32_t SequenceID = 0) const;
+  void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
 
   /// Add info on kernels using assert into cache
   void cacheKernelUsesAssertInfo(RTDeviceBinaryImage &Img);
 
   /// The three maps below are used during kernel resolution. Any kernel is
-  /// identified by its name and the OS module it's coming from, allowing
-  /// kernels with identical names in different OS modules. The following
-  /// assumption is made: for any two device images in a SYCL application
-  /// their kernel sets are either identical or disjoint. Based on this
-  /// assumption, m_KernelSets is used to group kernels together into sets by
-  /// assigning a set ID to them during device image registration. This ID is
-  /// then mapped to a vector of device images containing kernels from the set
-  /// (m_DeviceImages). An exception is made for device images with no entry
-  /// information: a special kernel set ID is used for them which is assigned
-  /// to just the OS module. These kernel set ids are stored in
-  /// m_UniversalKernelSet and device images associated with them are assumed
-  /// to contain all kernels coming from that OS module.
-
+  /// identified by its name.
   using RTDeviceBinaryImageUPtr = std::unique_ptr<RTDeviceBinaryImage>;
-
-  /// Keeps all available device executable images added via \ref addImages.
-  /// Organizes the images as a map from a kernel set id to the vector of images
-  /// containing kernels from that set.
-  /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::unordered_map<KernelSetId,
-                     std::unique_ptr<std::vector<RTDeviceBinaryImageUPtr>>>
-      m_DeviceImages;
-
-  /// Access must be guarded by the \ref Sync::getGlobalLock()
-  std::optional<std::unordered_map<std::string, KernelSetId>> m_KernelSets;
-
-  /// Keeps kernel sets for OS modules containing images without entry info.
-  /// Such images are assumed to contain all kernel associated with the module.
-  /// Access must be guarded by the \ref Sync::getGlobalLock()
-  // TODO: Treat default-constructed as None and get rid of std::optional?
-  std::optional<KernelSetId> m_UniversalKernelSet;
 
   /// Maps names of kernels to their unique kernel IDs.
   /// TODO: Use std::unordered_set with transparent hash and equality functions
@@ -358,6 +330,7 @@ private:
 
   // Maps KernelIDs to device binary images. There can be more than one image
   // in case of SPIRV + AOT.
+  // Using shared_ptr to avoid expensive copy of the vector.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_multimap<kernel_id, RTDeviceBinaryImage *>
       m_KernelIDs2BinImage;
@@ -383,12 +356,16 @@ private:
   /// in the sycl::detail::__sycl_service_kernel__ namespace which is
   /// exclusively used for this purpose.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
-  std::unordered_set<std::string> m_ServiceKernels;
+  std::unordered_multimap<std::string, RTDeviceBinaryImage *> m_ServiceKernels;
 
   /// Caches all exported symbols to allow faster lookup when excluding these
   // from kernel bundles.
   /// Access must be guarded by the m_KernelIDsMutex mutex.
   std::unordered_set<std::string> m_ExportedSymbols;
+
+  /// Keeps all device images we are refering to during program lifetime. Used
+  /// for proper cleanup.
+  std::unordered_set<RTDeviceBinaryImageUPtr> m_DeviceImages;
 
   /// Maps names of built-in kernels to their unique kernel IDs.
   /// Access must be guarded by the m_BuiltInKernelIDsMutex mutex.
@@ -423,6 +400,7 @@ private:
 
   /// True iff a SPIR-V file has been specified with an environment variable
   bool m_UseSpvFile = false;
+  RTDeviceBinaryImageUPtr m_SpvFileImage;
 
   std::set<std::string> m_KernelUsesAssert;
 

@@ -8,14 +8,15 @@
 
 #pragma once
 
-#include <cstddef>
-#include <type_traits>
-
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/detail/defines.hpp>
 #include <sycl/ext/intel/experimental/fpga_annotated_properties.hpp>
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
+
+#include <cstddef>
+#include <type_traits>
+#include <utility>
+#include <variant>
 
 namespace sycl {
 inline namespace _V1 {
@@ -77,6 +78,12 @@ __SYCL_TYPE(annotated_arg) annotated_arg<T *, detail::properties_t<Props...>> {
 public:
   static_assert(is_property_list<property_list_t>::value,
                 "Property list is invalid.");
+  static_assert(check_property_list<T *, Props...>::value,
+                "The property list contains invalid property.");
+  // check the set if FPGA specificed properties are used
+  static_assert(detail::checkValidFPGAPropertySet<Props...>::value,
+                "FPGA Interface properties (i.e. awidth, dwidth, etc.)"
+                "can only be set with BufferLocation together.");
 
   annotated_arg() noexcept = default;
   annotated_arg(const annotated_arg &) = default;
@@ -147,6 +154,8 @@ public:
   operator T *() const noexcept { return obj; }
 
   T &operator[](std::ptrdiff_t idx) const noexcept { return obj[idx]; }
+
+  T *operator->() const noexcept { return obj; }
 
   template <typename PropertyT> static constexpr bool has_property() {
     return property_list_t::template has_property<PropertyT>();

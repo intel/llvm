@@ -17,28 +17,33 @@
 #include "clang/Basic/Version.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/TargetParser/Triple.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
+#include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/TargetParser/Triple.h"
 #ifndef NDEBUG
 #include "llvm/IR/Verifier.h"
 #endif // NDEBUG
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
+#include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/EndianStream.h"
 #include "llvm/Support/Errc.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ErrorOr.h"
-#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Program.h"
@@ -598,6 +603,69 @@ private:
     return AutoGcBufs.back().get();
   }
 
+  Function *addDeclarationForNativeCPU(StringRef Name) {
+    static FunctionType *NativeCPUFuncTy = FunctionType::get(
+        Type::getVoidTy(C),
+        {PointerType::getUnqual(C), PointerType::getUnqual(C)}, false);
+    static FunctionType *NativeCPUBuiltinTy = FunctionType::get(
+        PointerType::getUnqual(C), {PointerType::getUnqual(C)}, false);
+    FunctionType *FTy;
+    if (Name.starts_with("__dpcpp_nativecpu"))
+      FTy = NativeCPUBuiltinTy;
+    else
+      FTy = NativeCPUFuncTy;
+    auto FCalle = M.getOrInsertFunction(
+        sycl::utils::addSYCLNativeCPUSuffix(Name).str(), FTy);
+    Function *F = dyn_cast<Function>(FCalle.getCallee());
+    if (F == nullptr)
+      report_fatal_error("Unexpected callee");
+    return F;
+  }
+
+  Expected<std::pair<Constant *, Constant *>>
+  addDeclarationsForNativeCPU(StringRef EntriesFile) {
+    Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
+    if (!MBOrErr)
+      return MBOrErr.takeError();
+    MemoryBuffer *MB = *MBOrErr;
+    // the Native CPU PI Plug-in expects the BinaryStart field to point to an
+    // array of struct nativecpu_entry {
+    //   char *kernelname;
+    //   unsigned char *kernel_ptr;
+    // };
+    StructType *NCPUEntryT = StructType::create(
+        {PointerType::getUnqual(C), PointerType::getUnqual(C)},
+        "__nativecpu_entry");
+    SmallVector<Constant *, 5> NativeCPUEntries;
+    for (line_iterator LI(*MB); !LI.is_at_eof(); ++LI) {
+      auto *NewDecl = addDeclarationForNativeCPU(*LI);
+      NativeCPUEntries.push_back(ConstantStruct::get(
+          NCPUEntryT,
+          {addStringToModule(*LI, "__ncpu_function_name"), NewDecl}));
+    }
+
+    // Add an empty entry that we use as end iterator
+    static auto *NativeCPUEndStr =
+        addStringToModule("__nativecpu_end", "__ncpu_end_str");
+    auto *NullPtr = llvm::ConstantPointerNull::get(PointerType::getUnqual(C));
+    NativeCPUEntries.push_back(
+        ConstantStruct::get(NCPUEntryT, {NativeCPUEndStr, NullPtr}));
+
+    // Create the constant array containing the {kernel name, function pointers}
+    // pairs
+    ArrayType *ATy = ArrayType::get(NCPUEntryT, NativeCPUEntries.size());
+    Constant *CA = ConstantArray::get(ATy, NativeCPUEntries);
+    auto *GVar = new GlobalVariable(M, CA->getType(), true,
+                                    GlobalVariable::InternalLinkage, CA,
+                                    "__sycl_native_cpu_decls");
+    auto *Begin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
+                                                 getSizetConstPair(0u, 0u));
+    auto *End = ConstantExpr::getGetElementPtr(
+        GVar->getValueType(), GVar,
+        getSizetConstPair(0u, NativeCPUEntries.size()));
+    return std::make_pair(Begin, End);
+  }
+
   // Adds a global readonly variable that is initialized by given data to the
   // module.
   GlobalVariable *addGlobalArrayVariable(const Twine &Name,
@@ -966,9 +1034,18 @@ private:
         // Adding ELF notes for STDIN is not supported yet.
         Bin = addELFNotes(Bin, Img.File);
       }
-      std::pair<Constant *, Constant *> Fbin = addDeviceImageToModule(
-          ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
-          Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind, Img.Tgt);
+      std::pair<Constant *, Constant *> Fbin;
+      if (Img.Tgt == "native_cpu") {
+        auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile);
+        if (!FBinOrErr)
+          return FBinOrErr.takeError();
+        Fbin = *FBinOrErr;
+      } else {
+        Fbin = addDeviceImageToModule(
+            ArrayRef<char>(Bin->getBufferStart(), Bin->getBufferSize()),
+            Twine(OffloadKindTag) + Twine(ImgId) + Twine(".data"), Kind,
+            Img.Tgt);
+      }
 
       if (Kind == OffloadKind::SYCL) {
         // For SYCL image offload entries are defined here, by wrapper, so

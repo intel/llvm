@@ -31,7 +31,10 @@ set(LLDB_ENABLE_LIBEDIT OFF CACHE BOOL "")
 
 if(WIN32)
   set(LLVM_USE_CRT_RELEASE "MT" CACHE STRING "")
-else()
+  set(FUCHSIA_DISABLE_DRIVER_BUILD ON)
+endif()
+
+if (NOT FUCHSIA_DISABLE_DRIVER_BUILD)
   set(LLVM_TOOL_LLVM_DRIVER_BUILD ON CACHE BOOL "")
   set(LLVM_DRIVER_TARGET llvm-driver)
 endif()
@@ -119,7 +122,6 @@ if(WIN32 OR LLVM_WINSYSROOT)
   set(RUNTIMES_${target}_CMAKE_SYSTEM_NAME Windows CACHE STRING "")
   set(RUNTIMES_${target}_CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "")
   set(RUNTIMES_${target}_LIBCXX_ABI_VERSION 2 CACHE STRING "")
-  set(RUNTIMES_${target}_LIBCXX_ENABLE_FILESYSTEM OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_ABI_LINKER_SCRIPT OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LIBCXX_ENABLE_SHARED OFF CACHE BOOL "")
   set(RUNTIMES_${target}_LLVM_ENABLE_RUNTIMES "compiler-rt;libcxx" CACHE STRING "")
@@ -130,7 +132,7 @@ if(WIN32 OR LLVM_WINSYSROOT)
   set(RUNTIMES_${target}_CMAKE_MODULE_LINKER_FLAGS ${WINDOWS_LINK_FLAGS} CACHE STRING "")
 endif()
 
-foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unknown-linux-gnu;x86_64-unknown-linux-gnu)
+foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unknown-linux-gnu;riscv64-unknown-linux-gnu;x86_64-unknown-linux-gnu)
   if(LINUX_${target}_SYSROOT)
     # Set the per-target builtins options.
     list(APPEND BUILTIN_TARGETS "${target}")
@@ -143,6 +145,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(BUILTINS_${target}_CMAKE_SHARED_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_MODULE_LINKER_FLAGS "-fuse-ld=lld" CACHE STRING "")
     set(BUILTINS_${target}_CMAKE_EXE_LINKER_FLAG "-fuse-ld=lld" CACHE STRING "")
+    set(BUILTINS_${target}_COMPILER_RT_BUILD_STANDALONE_LIBATOMIC ON CACHE BOOL "")
 
     # Set the per-target runtimes options.
     list(APPEND RUNTIME_TARGETS "${target}")
@@ -159,6 +162,7 @@ foreach(target aarch64-unknown-linux-gnu;armv7-unknown-linux-gnueabihf;i386-unkn
     set(RUNTIMES_${target}_COMPILER_RT_USE_BUILTINS_LIBRARY ON CACHE BOOL "")
     set(RUNTIMES_${target}_COMPILER_RT_USE_LLVM_UNWINDER ON CACHE BOOL "")
     set(RUNTIMES_${target}_COMPILER_RT_CAN_EXECUTE_TESTS ON CACHE BOOL "")
+    set(RUNTIMES_${target}_COMPILER_RT_BUILD_STANDALONE_LIBATOMIC ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBUNWIND_ENABLE_SHARED OFF CACHE BOOL "")
     set(RUNTIMES_${target}_LIBUNWIND_USE_COMPILER_RT ON CACHE BOOL "")
     set(RUNTIMES_${target}_LIBCXXABI_USE_COMPILER_RT ON CACHE BOOL "")
@@ -354,12 +358,16 @@ set(_FUCHSIA_DISTRIBUTIONS Toolchain)
 if(FUCHSIA_ENABLE_LLDB)
   list(APPEND _FUCHSIA_ENABLE_PROJECTS lldb)
   list(APPEND _FUCHSIA_DISTRIBUTIONS Debugger)
-  set(LLVM_Debugger_DISTRIBUTION_COMPONENTS
+  set(_FUCHSIA_LLDB_COMPONENTS
     lldb
     liblldb
     lldb-server
     lldb-argdumper
-    CACHE STRING "")
+  )
+  if(LLDB_ENABLE_PYTHON)
+    list(APPEND _FUCHSIA_LLDB_COMPONENTS lldb-python-scripts)
+  endif()
+  set(LLVM_Debugger_DISTRIBUTION_COMPONENTS ${_FUCHSIA_LLDB_COMPONENTS} CACHE STRING "")
 endif()
 
 set(LLVM_DISTRIBUTIONS ${_FUCHSIA_DISTRIBUTIONS} CACHE STRING "")

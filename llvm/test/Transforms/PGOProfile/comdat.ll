@@ -1,6 +1,6 @@
 ;; Test comdat functions.
-; RUN: opt -opaque-pointers < %s -mtriple=x86_64-linux -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefixes=ELF
-; RUN: opt -opaque-pointers < %s -mtriple=x86_64-windows -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefixes=COFF
+; RUN: opt < %s -mtriple=x86_64-linux -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefixes=ELF
+; RUN: opt < %s -mtriple=x86_64-windows -passes=pgo-instr-gen,instrprof -S | FileCheck %s --check-prefixes=COFF
 
 $linkonceodr = comdat any
 $weakodr = comdat any

@@ -1890,10 +1890,8 @@ public:
   }
   void Unparse(const AccBindClause &x) {
     common::visit(common::visitors{
-                      [&](const Name &y) { Put('('), Walk(y), Put(')'); },
-                      [&](const ScalarDefaultCharExpr &y) {
-                        Put('('), Walk(y), Put(')');
-                      },
+                      [&](const Name &y) { Walk(y); },
+                      [&](const ScalarDefaultCharExpr &y) { Walk(y); },
                   },
         x.u);
   }
@@ -2055,7 +2053,8 @@ public:
     Walk(std::get<ScalarIntExpr>(x.t));
   }
   void Unparse(const OmpAlignedClause &x) {
-    Walk(std::get<std::list<Name>>(x.t), ",");
+    Walk(std::get<OmpObjectList>(x.t));
+    Put(",");
     Walk(std::get<std::optional<ScalarIntConstantExpr>>(x.t));
   }
   void Unparse(const OmpIfClause &x) {
@@ -2308,17 +2307,7 @@ public:
   }
 
   void Unparse(const OmpAtomicDefaultMemOrderClause &x) {
-    switch (x.v) {
-    case OmpAtomicDefaultMemOrderClause::Type::SeqCst:
-      Word("SEQ_CST");
-      break;
-    case OmpAtomicDefaultMemOrderClause::Type::AcqRel:
-      Word("ACQ_REL");
-      break;
-    case OmpAtomicDefaultMemOrderClause::Type::Relaxed:
-      Word("RELAXED");
-      break;
-    }
+    Word(ToUpperCaseLetters(common::EnumToString(x.v)));
   }
 
   void Unparse(const OmpAtomicClauseList &x) { Walk(" ", x.v, " "); }

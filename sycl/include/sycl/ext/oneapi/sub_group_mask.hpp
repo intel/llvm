@@ -7,15 +7,18 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/id.hpp>
-#include <sycl/marray.hpp>
+#include <sycl/detail/helpers.hpp>     // for Builder
+#include <sycl/detail/type_traits.hpp> // for is_sub_group
+#include <sycl/exception.hpp>          // for errc, exception
+#include <sycl/id.hpp>                 // for id
+#include <sycl/marray.hpp>             // for marray
 
-#include <climits>
+#include <assert.h>     // for assert
+#include <climits>      // for CHAR_BIT
+#include <stddef.h>     // for size_t
+#include <stdint.h>     // for uint32_t
+#include <system_error> // for error_code
+#include <type_traits>  // for enable_if_t, decay_t
 
 namespace sycl {
 inline namespace _V1 {
@@ -249,10 +252,9 @@ struct sub_group_mask {
     return Tmp;
   }
 
-  sub_group_mask(const sub_group_mask &rhs)
-      : Bits(rhs.Bits), bits_num(rhs.bits_num) {}
+  sub_group_mask(const sub_group_mask &rhs) = default;
 
-  sub_group_mask &operator=(const sub_group_mask &rhs) = delete;
+  sub_group_mask &operator=(const sub_group_mask &rhs) = default;
 
   template <typename Group>
   friend std::enable_if_t<std::is_same_v<std::decay_t<Group>, sub_group>,

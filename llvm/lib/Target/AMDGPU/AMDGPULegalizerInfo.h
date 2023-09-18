@@ -78,8 +78,17 @@ public:
 
   bool legalizeAtomicCmpXChg(MachineInstr &MI, MachineRegisterInfo &MRI,
                              MachineIRBuilder &B) const;
-  bool legalizeFlog(MachineInstr &MI, MachineIRBuilder &B,
-                    double Log2BaseInverted) const;
+
+  std::pair<Register, Register>
+  getScaledLogInput(MachineIRBuilder &B, Register Src, unsigned Flags) const;
+
+  bool legalizeFlog2(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeFlogCommon(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeFlogUnsafe(MachineIRBuilder &B, Register Dst, Register Src,
+                          bool IsLog10, unsigned Flags) const;
+  bool legalizeFExp2(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeFExpUnsafe(MachineIRBuilder &B, Register Dst, Register Src,
+                          unsigned Flags) const;
   bool legalizeFExp(MachineInstr &MI, MachineIRBuilder &B) const;
   bool legalizeFPow(MachineInstr &MI, MachineIRBuilder &B) const;
   bool legalizeFFloor(MachineInstr &MI, MachineRegisterInfo &MRI,
@@ -139,12 +148,23 @@ public:
                       MachineIRBuilder &B) const;
   bool legalizeFDIV64(MachineInstr &MI, MachineRegisterInfo &MRI,
                       MachineIRBuilder &B) const;
+  bool legalizeFFREXP(MachineInstr &MI, MachineRegisterInfo &MRI,
+                      MachineIRBuilder &B) const;
   bool legalizeFastUnsafeFDIV(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
   bool legalizeFastUnsafeFDIV64(MachineInstr &MI, MachineRegisterInfo &MRI,
                                 MachineIRBuilder &B) const;
   bool legalizeFDIVFastIntrin(MachineInstr &MI, MachineRegisterInfo &MRI,
                               MachineIRBuilder &B) const;
+
+  bool legalizeFSQRTF16(MachineInstr &MI, MachineRegisterInfo &MRI,
+                        MachineIRBuilder &B) const;
+  bool legalizeFSQRTF32(MachineInstr &MI, MachineRegisterInfo &MRI,
+                        MachineIRBuilder &B) const;
+  bool legalizeFSQRTF64(MachineInstr &MI, MachineRegisterInfo &MRI,
+                        MachineIRBuilder &B) const;
+  bool legalizeFSQRT(MachineInstr &MI, MachineRegisterInfo &MRI,
+                     MachineIRBuilder &B) const;
 
   bool legalizeRsqClampIntrinsic(MachineInstr &MI, MachineRegisterInfo &MRI,
                                  MachineIRBuilder &B) const;
@@ -187,6 +207,7 @@ public:
   bool legalizeBVHIntrinsic(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeFPTruncRound(MachineInstr &MI, MachineIRBuilder &B) const;
+  bool legalizeStackSave(MachineInstr &MI, MachineIRBuilder &B) const;
 
   bool legalizeImageIntrinsic(
       MachineInstr &MI, MachineIRBuilder &B,
@@ -194,9 +215,6 @@ public:
       const AMDGPU::ImageDimIntrinsicInfo *ImageDimIntr) const;
 
   bool legalizeSBufferLoad(LegalizerHelper &Helper, MachineInstr &MI) const;
-
-  bool legalizeAtomicIncDec(MachineInstr &MI,  MachineIRBuilder &B,
-                            bool IsInc) const;
 
   bool legalizeTrapIntrinsic(MachineInstr &MI, MachineRegisterInfo &MRI,
                              MachineIRBuilder &B) const;

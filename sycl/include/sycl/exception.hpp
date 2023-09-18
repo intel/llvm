@@ -10,13 +10,18 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.h>
+#include <sycl/backend_types.hpp>             // for backend
+#include <sycl/detail/cl.h>                   // for cl_int
+#include <sycl/detail/common.hpp>             // for codeToString
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/pi.h>                   // for pi_int32
 
-#include <exception>
+#include <exception>    // for exception
+#include <memory>       // for allocator, shared_ptr, make...
+#include <string>       // for string, basic_string, opera...
+#include <system_error> // for error_code, error_category
+#include <type_traits>  // for true_type
 
 namespace sycl {
 inline namespace _V1 {

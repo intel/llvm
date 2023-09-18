@@ -16,34 +16,36 @@ static sycl::device dev;
 
 // Helpers and utilities
 struct util {
-  template <typename DType, int NChannels,
-            std::enable_if_t<std::is_integral<DType>::value, bool> = true>
-  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v) {
+  template <typename DType, int NChannels>
+  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v, int seed) {
     std::default_random_engine generator;
-    std::uniform_int_distribution<DType> distribution(0, 100);
+    generator.seed(seed);
+    auto distribution = [&]() {
+      auto distr_t_zero = []() {
+        if constexpr (std::is_same_v<DType, sycl::half>) {
+          return float{};
+        } else if constexpr (sizeof(DType) == 1) {
+          return int{};
+        } else {
+          return DType{};
+        }
+      }();
+      using distr_t = decltype(distr_t_zero);
+      if constexpr (std::is_floating_point_v<distr_t>) {
+        return std::uniform_real_distribution(distr_t_zero,
+                                              static_cast<distr_t>(100));
+      } else {
+        return std::uniform_int_distribution<distr_t>(distr_t_zero, 100);
+      }
+    }();
     for (int i = 0; i < v.size(); ++i) {
-      v[i] = sycl::vec<DType, NChannels>(distribution(generator));
-    }
-  }
+      sycl::vec<DType, NChannels> temp;
 
-  template <typename DType, int NChannels,
-            std::enable_if_t<std::is_floating_point<DType>::value, bool> = true>
-  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v) {
-    std::default_random_engine generator;
-    std::uniform_real_distribution<DType> distribution(0.0, 100.0);
-    for (int i = 0; i < v.size(); ++i) {
-      v[i] = sycl::vec<DType, NChannels>(distribution(generator));
-    }
-  }
+      for (int j = 0; j < NChannels; j++) {
+        temp[j] = static_cast<DType>(distribution(generator));
+      }
 
-  template <
-      typename DType, int NChannels,
-      std::enable_if_t<std::is_same<DType, sycl::half>::value, bool> = true>
-  static void fill_rand(std::vector<sycl::vec<DType, NChannels>> &v) {
-    std::default_random_engine generator;
-    std::uniform_real_distribution<float> distribution(0.0, 100.0);
-    for (int i = 0; i < v.size(); ++i) {
-      v[i] = sycl::vec<DType, NChannels>(distribution(generator));
+      v[i] = temp;
     }
   }
 
@@ -259,8 +261,8 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> localSize,
   std::vector<VecType> actual(num_elems);
 
   std::srand(seed);
-  util::fill_rand(input_0);
-  util::fill_rand(input_1);
+  util::fill_rand(input_0, seed);
+  util::fill_rand(input_1, seed);
   util::add_host(input_0, input_1, expected);
 
   try {

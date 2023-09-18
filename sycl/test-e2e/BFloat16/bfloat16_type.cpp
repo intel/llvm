@@ -5,7 +5,9 @@
 
 // TODO currently the feature isn't supported on FPGA.
 // UNSUPPORTED: accelerator
-//
+
+// FIXME: enable opaque pointers support on CPU.
+// UNSUPPORTED: cpu
 
 //==----------- bfloat16_type.cpp - SYCL bfloat16 type test ----------------==//
 //

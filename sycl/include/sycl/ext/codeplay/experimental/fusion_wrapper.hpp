@@ -8,7 +8,12 @@
 
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/event.hpp>         // for event
+#include <sycl/property_list.hpp> // for property_list
+#include <sycl/queue.hpp>         // for queue
+
+#include <memory> // for shared_ptr
 
 namespace sycl {
 inline namespace _V1 {

@@ -1,10 +1,10 @@
-//===--------- queue.cpp - Level Zero Adapter ------------------------===//
+//===--------- queue.cpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -279,8 +279,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_queue_handle_t
         *Queue ///< [out] pointer to handle of queue object created
 ) {
-  Context->Devices[0] = Device;
-
   ur_queue_flags_t Flags{};
   if (Props) {
     Flags = Props->flags;
@@ -615,6 +613,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
       return UR_RESULT_ERROR_UNKNOWN;
     }
   }
+  (*RetQueue)->UsingImmCmdLists = (NativeHandleDesc == 1);
 
   return UR_RESULT_SUCCESS;
 }

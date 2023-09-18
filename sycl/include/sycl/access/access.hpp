@@ -5,11 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
+#include <type_traits>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -323,7 +327,7 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
   constexpr access::address_space ToAS = deduce_AS<ToT>::value;
   constexpr access::address_space FromAS = deduce_AS<FromT>::value;
   if constexpr (FromAS == access::address_space::generic_space) {
-#if defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__SYCL_NATIVE_CPU__)
     // TODO: NVPTX and AMDGCN backends do not currently support the
     //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
     //       we do C-style casting. This may produce warnings when targetting

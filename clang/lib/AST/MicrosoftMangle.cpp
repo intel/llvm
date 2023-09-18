@@ -483,9 +483,9 @@ MicrosoftMangleContextImpl::MicrosoftMangleContextImpl(ASTContext &Context,
   // The generated names are intended to look similar to what MSVC generates,
   // which are something like "?A0x01234567@".
   SourceManager &SM = Context.getSourceManager();
-  if (const FileEntry *FE = SM.getFileEntryForID(SM.getMainFileID())) {
+  if (OptionalFileEntryRef FE = SM.getFileEntryRefForID(SM.getMainFileID())) {
     // Truncate the hash so we get 8 characters of hexadecimal.
-    uint32_t TruncatedHash = uint32_t(xxHash64(FE->getName()));
+    uint32_t TruncatedHash = uint32_t(xxh3_64bits(FE->getName()));
     AnonymousNamespaceHash = llvm::utohexstr(TruncatedHash);
   } else {
     // If we don't have a path to the main file, we'll just use 0.
@@ -898,6 +898,7 @@ void MicrosoftCXXNameMangler::mangleFloat(llvm::APFloat Number) {
   case APFloat::S_Float8E5M2FNUZ:
   case APFloat::S_Float8E4M3FNUZ:
   case APFloat::S_Float8E4M3B11FNUZ:
+  case APFloat::S_FloatTF32:
     llvm_unreachable("Tried to mangle unexpected APFloat semantics");
   }
 
@@ -2711,7 +2712,7 @@ void MicrosoftCXXNameMangler::mangleFunctionType(const FunctionType *T,
         // Copy constructor closure always takes an unqualified reference.
         mangleFunctionArgumentType(getASTContext().getLValueReferenceType(
                                        Proto->getParamType(0)
-                                           ->getAs<LValueReferenceType>()
+                                           ->castAs<LValueReferenceType>()
                                            ->getPointeeType(),
                                        /*SpelledAsLValue=*/true),
                                    Range);
@@ -2874,6 +2875,7 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
   //                      ::= T # __attribute__((__swiftasynccall__))
   //                            // Clang-only
   //                      ::= w # __regcall
+  //                      ::= x # __regcall4
   // The 'export' calling conventions are from a bygone era
   // (*cough*Win16*cough*) when functions were declared for export with
   // that keyword. (It didn't actually export them, it just made them so
@@ -2894,7 +2896,12 @@ void MicrosoftCXXNameMangler::mangleCallingConvention(CallingConv CC) {
     case CC_Swift: Out << 'S'; break;
     case CC_SwiftAsync: Out << 'W'; break;
     case CC_PreserveMost: Out << 'U'; break;
-    case CC_X86RegCall: Out << 'w'; break;
+    case CC_X86RegCall:
+      if (getASTContext().getLangOpts().RegCall4)
+        Out << "x";
+      else
+        Out << "w";
+      break;
   }
 }
 void MicrosoftCXXNameMangler::mangleCallingConvention(const FunctionType *T) {

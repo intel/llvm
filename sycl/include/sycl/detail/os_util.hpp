@@ -10,14 +10,11 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
 
-#include <cstdint>
-#include <cstdlib>
-#include <string>
-#include <sys/stat.h>
-#include <sys/types.h>
+#include <cstdlib>    // for size_t
+#include <string>     // for string
+#include <sys/stat.h> // for stat
 
 #ifdef _WIN32
 #define __SYCL_RT_OS_WINDOWS

@@ -19,9 +19,9 @@ int main() {
   auto ctxt = q.get_context();
 
   // declare image data
-  size_t width = 4;
-  size_t height = 4;
-  size_t depth = 4;
+  size_t width = 5;
+  size_t height = 5;
+  size_t depth = 5;
   size_t N = width * height * depth;
   std::vector<float> out(N);
   std::vector<float> expected(N);

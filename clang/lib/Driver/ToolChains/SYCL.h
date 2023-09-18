@@ -202,13 +202,13 @@ public:
       llvm::opt::ArgStringList &CC1Args) const override;
 
   const ToolChain &HostTC;
+  const bool IsSYCLNativeCPU;
 
 protected:
   Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
 
 private:
-  bool IsSYCLNativeCPU;
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;
@@ -222,6 +222,14 @@ template <typename ArgListT> bool isSYCLNativeCPU(const ArgListT &Args) {
       return true;
   }
   return false;
+}
+
+inline bool isSYCLNativeCPU(const llvm::Triple HostT, const llvm::Triple DevT) {
+  return HostT == DevT;
+}
+
+inline bool isSYCLNativeCPU(const ToolChain &TC1, const ToolChain &TC2) {
+  return isSYCLNativeCPU(TC1.getTriple(), TC2.getTriple());
 }
 } // end namespace driver
 } // end namespace clang

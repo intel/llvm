@@ -96,7 +96,6 @@ on:
           - 'opencl:acc'
           - 'ext_oneapi_level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
-          - 'ext_intel_esimd_emulator:gpu'
       tests_selector:
         type: choice
         options:
@@ -164,17 +163,10 @@ jobs:
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
       if: inputs.install_drivers == 'true'
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        sudo cp devops/scripts/get_release.py /opt/
-        sudo -E devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
-    - name: Install drivers (deprecated CI interface)
-      if: env.compute_runtime_tag != '' && inputs.install_drivers != 'true'
-      run: |
-        if [ -e /opt/install_drivers.sh ]; then
-          # TODO pack this script into container
-          sudo cp devops/scripts/get_release.py /opt/
-          sudo -E /opt/install_drivers.sh --all
-        fi
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -196,6 +188,11 @@ jobs:
       uses: actions/download-artifact@v3
       with:
         name: ${{ inputs.sycl_toolchain_artifact }}
+    - name: Debug prints [workflow_run]
+      if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
+      run: |
+        pwd
+        ls
     - name: Download SYCL toolchain [workflow_run]
       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
       uses: actions/github-script@v6
@@ -221,6 +218,8 @@ jobs:
     - name: Unzip artifact [workflow_run]
       if: inputs.sycl_toolchain_artifact != '' && github.event_name == 'workflow_run'
       run: |
+        pwd
+        ls
         unzip ${{ inputs.sycl_toolchain_artifact }}.zip
         rm ${{ inputs.sycl_toolchain_artifact }}.zip
     - name: Extract/Setup SYCL toolchain

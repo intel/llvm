@@ -525,9 +525,10 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
   // Get the global variable with the annotation string.
   const GlobalVariable *AnnotStrArgGV = nullptr;
   const Value *IntrAnnotStringArg = IntrInst->getArgOperand(1);
-  if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
-    if (auto *C = dyn_cast<Constant>(GEP->getOperand(0)))
-      AnnotStrArgGV = dyn_cast<GlobalVariable>(C);
+  if (IntrAnnotStringArg->getType()->isOpaquePointerTy())
+    AnnotStrArgGV = dyn_cast<GlobalVariable>(IntrAnnotStringArg);
+  else if (auto *GEP = dyn_cast<GEPOperator>(IntrAnnotStringArg))
+    AnnotStrArgGV = dyn_cast<GlobalVariable>(GEP->getOperand(0));
   if (!AnnotStrArgGV)
     return;
 
@@ -562,7 +563,7 @@ void CompileTimePropertiesPass::parseAlignmentAndApply(
 
       auto Align_val = Align(AttrVal);
       // apply alignment attributes to load/store
-      for (auto Pair : TargetedInstList) {
+      for (const auto &Pair : TargetedInstList) {
         auto *Inst = Pair.first;
         auto Op_num = Pair.second;
         if (auto *LInst = dyn_cast<LoadInst>(Inst)) {

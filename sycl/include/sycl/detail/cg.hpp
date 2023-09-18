@@ -8,26 +8,24 @@
 
 #pragma once
 
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/cg_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/type_traits.hpp>
-#include <sycl/group.hpp>
-#include <sycl/id.hpp>
-#include <sycl/interop_handle.hpp>
-#include <sycl/kernel.hpp>
-#include <sycl/nd_item.hpp>
-#include <sycl/range.hpp>
+#include <sycl/accessor.hpp>        // for AccessorImplHost, AccessorImplPtr
+#include <sycl/detail/cg_types.hpp> // for ArgDesc, HostTask, HostKernelBase
+#include <sycl/detail/common.hpp>   // for code_location
+#include <sycl/detail/helpers.hpp>  // for context_impl
+#include <sycl/detail/pi.h>         // for pi_mem_advice, _pi_ext_command_b...
+#include <sycl/detail/pi.hpp>       // for PiImageOffset, PiImageRegion
+#include <sycl/event.hpp>           // for event_impl
+#include <sycl/exception_list.hpp>  // for queue_impl
+#include <sycl/kernel.hpp>          // for kernel_impl
+#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 
-#include <memory>
-#include <string>
-#include <type_traits>
-#include <vector>
+#include <assert.h> // for assert
+#include <memory>   // for shared_ptr, unique_ptr
+#include <stddef.h> // for size_t
+#include <stdint.h> // for int32_t
+#include <string>   // for string
+#include <utility>  // for move
+#include <vector>   // for vector
 
 namespace sycl {
 inline namespace _V1 {
@@ -576,7 +574,7 @@ class CGExecCommandBuffer : public CG {
 public:
   sycl::detail::pi::PiExtCommandBuffer MCommandBuffer;
 
-  CGExecCommandBuffer(sycl::detail::pi::PiExtCommandBuffer CommandBuffer,
+  CGExecCommandBuffer(const sycl::detail::pi::PiExtCommandBuffer &CommandBuffer,
                       CG::StorageInitHelper CGData)
       : CG(CGTYPE::ExecCommandBuffer, std::move(CGData)),
         MCommandBuffer(CommandBuffer) {}

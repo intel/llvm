@@ -8,9 +8,11 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_helper.hpp>     // for PropWithDataKind, Dat...
+#include <sycl/properties/property_traits.hpp> // for is_property
+
+#include <stdint.h>    // for uint64_t
+#include <type_traits> // for true_type
 
 namespace sycl {
 inline namespace _V1 {

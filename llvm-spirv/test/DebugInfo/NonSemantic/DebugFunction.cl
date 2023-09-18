@@ -13,7 +13,7 @@
 // RUN: llvm-spirv %t.spv -to-text -o %t.spt
 // RUN: FileCheck %s --input-file %t.spt  --check-prefix=CHECK-SPIRV
 
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 float foo(int i) {
     return i * 3.14;

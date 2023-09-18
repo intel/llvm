@@ -2,6 +2,7 @@
 
 import os
 import platform
+import copy
 import re
 import subprocess
 import tempfile
@@ -222,8 +223,14 @@ else:
 config.substitutions.append( ('%vulkan_include_dir', config.vulkan_include_dir ) )
 config.substitutions.append( ('%vulkan_lib', config.vulkan_lib ) )
 
-vulkan_lib_path = os.path.dirname(config.vulkan_lib)
-config.substitutions.append( ('%link-vulkan', '-L %s -lvulkan -I %s' % (vulkan_lib_path, config.vulkan_include_dir ) ) )
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ('%link-vulkan',
+         '-l %s -I %s' % (config.vulkan_lib, config.vulkan_include_dir)))
+else:
+    vulkan_lib_path = os.path.dirname(config.vulkan_lib)
+    config.substitutions.append(('%link-vulkan', '-L %s -lvulkan -I %s' %
+                                 (vulkan_lib_path, config.vulkan_include_dir)))
 
 if config.vulkan_found == "TRUE":
     config.available_features.add('vulkan')
@@ -238,10 +245,14 @@ if config.dump_ir_supported:
 
 lit_config.note("Targeted devices: {}".format(', '.join(config.sycl_devices)))
 
+sycl_ls = FindTool('sycl-ls').resolve(llvm_config, config.llvm_tools_dir)
+if not sycl_ls:
+    lit_config.fatal("can't find `sycl-ls`")
+
 if len(config.sycl_devices) == 1 and config.sycl_devices[0] == 'all':
     devices = set()
-    sp = subprocess.getstatusoutput('sycl-ls')
-    for line in sp[1].split('\n'):
+    sp = subprocess.check_output(sycl_ls, text=True)
+    for line in sp.splitlines():
         (backend, device, _) = line[1:].split(':', 2)
         devices.add('{}:{}'.format(backend, device))
     config.sycl_devices = list(devices)
@@ -326,7 +337,7 @@ tools = [
   # behaviour.
   ToolSubst(r'\| \bnot\b', command=FindTool('not'),
     verbatim=True, unresolved='ignore'),
-  ToolSubst('sycl-ls', unresolved='ignore'),
+  ToolSubst('sycl-ls', command=sycl_ls, unresolved='ignore'),
 ] + feature_tools
 
 # Try and find each of these tools in the llvm tools directory or the PATH, in
@@ -383,19 +394,29 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 for sycl_device in config.sycl_devices:
-    cmd = 'env '
+    env = copy.copy(llvm_config.config.environment)
+    env['ONEAPI_DEVICE_SELECTOR'] = sycl_device
     if sycl_device.startswith('ext_oneapi_cuda:'):
-        cmd += 'SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT=1 '
-    cmd += 'ONEAPI_DEVICE_SELECTOR={} sycl-ls --verbose'.format(sycl_device)
-    sp = subprocess.run((cmd), env=llvm_config.config.environment,
-                        shell=True, capture_output=True, text=True)
-    if sp.returncode != 0:
-        lit_config.error('Cannot list device aspects for {}\nstdout:\n{}\nstderr:\n{}'.format(
-            sycl_device, sp.stdout, sp.stderr))
+        env['SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT'] = '1'
+    # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
+    # prints warnings that might derail a user thinking something is wrong
+    # with their test run. It's just us filtering here, so silence them unless
+    # we get an exit status.
+    try:
+        sp = subprocess.run([sycl_ls, '--verbose'], env=env, text=True,
+                            capture_output=True)
+        sp.check_returncode()
+    except subprocess.CalledProcessError as e:
+        # capturing e allows us to see path resolution errors / system
+        # permissions errors etc
+        lit_config.fatal(f'Cannot list device aspects for {sycl_device}\n'
+                         f'{e}\n'
+                         f'stdout:{sp.stdout}\n'
+                         f'stderr:{sp.stderr}\n')
 
     dev_aspects = []
     dev_sg_sizes = []
-    for line in sp.stdout.split('\n'):
+    for line in sp.stdout.splitlines():
         if re.search(r'^ *Aspects *:', line):
             _, aspects_str = line.split(':', 1)
             dev_aspects.append(aspects_str.strip().split(' '))

@@ -1,7 +1,7 @@
 name: SYCL Pre Commit on Windows
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
     - sycl
     - sycl-devops-pr/**
@@ -15,9 +15,13 @@ on:
     - 'clang/docs/**'
     - '**.md'
     - '**.rst'
-    # For CI-related files we explicitly skip all the jobs below even if there
-    # were other (non-ignored) files modified in this PR.
-    - 'devops/*/**'
+    - '.github/workflows/sycl_precommit_linux.yml'
+    - '.github/workflows/sycl_linux_build_and_test.yml'
+    - '.github/workflows/sycl_linux_build.yml'
+    - '.github/workflows/sycl_linux_run_tests.yml'
+    - '.github/workflows/sycl_precommit_aws.yml'
+    - 'devops/containers/**'
+    - 'devops/actions/build_container/**'
 
 permissions:
   contents: read
@@ -27,10 +31,6 @@ jobs:
     uses: ./.github/workflows/sycl_detect_changes.yml
 
   lint:
-    needs: [detect_changes]
-    if: |
-      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
-      !contains(needs.detect_changes.outputs.filters, 'ci')
     runs-on: [Linux, build]
     container:
       image: ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:no-drivers
@@ -59,29 +59,14 @@ jobs:
       with:
         path: src
 
-  # This job generates matrix of tests for SYCL End-to-End tests
-  test_matrix:
-    needs: [detect_changes]
-    if: |
-      github.event.pull_request.head.repo.full_name == 'intel/llvm' ||
-      !contains(needs.detect_changes.outputs.filters, 'ci')
-    name: Generate Test Matrix
-    uses: ./.github/workflows/sycl_gen_test_matrix.yml
-    with:
-      ref: ${{ github.event.pull_request.head.sha }}
-      lts_config: "win_l0_gen12"
-
   windows_default:
     name: Windows
-    needs: [lint, test_matrix, detect_changes]
+    needs: [lint, detect_changes]
     if: |
       always()
       && (success() || contains(github.event.pull_request.labels.*.name, 'ignore-lint'))
       && github.repository == 'intel/llvm'
-      && (github.event.pull_request.head.repo.full_name == 'intel/llvm'
-          || !contains(needs.detect_changes.outputs.filters, 'ci'))
     uses: ./.github/workflows/sycl_windows_build_and_test.yml
     with:
-      lts_matrix: ${{ needs.test_matrix.outputs.lts_wn_matrix }}
-      build_ref: ${{ github.event.pull_request.head.sha }}
+      build_ref: ${{ github.sha }}
       changes: ${{ needs.detect_changes.outputs.filters }}

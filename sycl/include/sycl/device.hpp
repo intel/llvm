@@ -8,20 +8,24 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/platform.hpp>
+#include <sycl/aspects.hpp>                                     // for aspect
+#include <sycl/backend_types.hpp>                               // for backend
+#include <sycl/detail/defines_elementary.hpp>                   // for __SY...
+#include <sycl/detail/export.hpp>                               // for __SY...
+#include <sycl/detail/info_desc_helpers.hpp>                    // for is_d...
+#include <sycl/detail/owner_less_base.hpp>                      // for Owne...
+#include <sycl/detail/pi.h>                                     // for pi_n...
+#include <sycl/device_selector.hpp>                             // for Enab...
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp> // for arch...
+#include <sycl/info/info_desc.hpp>                              // for part...
+#include <sycl/platform.hpp>                                    // for plat...
 
-#include <memory>
-#include <utility>
+#include <cstddef>     // for size_t
+#include <memory>      // for shar...
+#include <string>      // for string
+#include <type_traits> // for add_...
+#include <variant>     // for hash
+#include <vector>      // for vector
 
 namespace sycl {
 inline namespace _V1 {

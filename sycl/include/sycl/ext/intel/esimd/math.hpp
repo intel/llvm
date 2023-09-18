@@ -46,7 +46,7 @@ namespace ext::intel::esimd {
 /// The following conversions are supported:
 /// - \c T0 and \c T1 is the same floating-point type (including \c half). In
 ///   this case the result in the \c i'th lane is:
-///     * \c -1 if \c src[i] is less than \c -1
+///     * \c 0 if \c src[i] is less than \c 0
 ///     * \c 1 if  \c src[i] is greater than \c 1
 ///     * src[i] otherwise
 ///
@@ -352,7 +352,7 @@ ESIMD_NODEBUG
     if constexpr (std::is_same_v<Sat, saturation_off_tag>)                     \
       return res;                                                              \
     else                                                                       \
-      return esimd::saturate<T>(res);                                          \
+      return esimd::saturate<T>(simd<T, N>(res));                              \
   }                                                                            \
                                                                                \
   /** Scalar version.                                                       */ \

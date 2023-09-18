@@ -55,8 +55,11 @@ void mlir::linalg::hoistRedundantVectorTransfersOnTensor(func::FuncOp func) {
 static bool noAliasingUseInLoop(vector::TransferReadOp transferRead,
                                 LoopLikeOpInterface loop) {
   Value source = transferRead.getSource();
+  // Skip subview and collapse_shape Ops
   while (auto subView = source.getDefiningOp<memref::SubViewOp>())
     source = subView.getSource();
+  while (auto collapsed = source.getDefiningOp<memref::CollapseShapeOp>())
+    source = collapsed->getOperand(0);
   llvm::SmallVector<Operation *, 32> users(source.getUsers().begin(),
                                            source.getUsers().end());
   llvm::SmallDenseSet<Operation *, 32> processed;
@@ -67,6 +70,10 @@ static bool noAliasingUseInLoop(vector::TransferReadOp transferRead,
       continue;
     if (auto subView = dyn_cast<memref::SubViewOp>(user)) {
       users.append(subView->getUsers().begin(), subView->getUsers().end());
+      continue;
+    }
+    if (auto collapsed = dyn_cast<memref::CollapseShapeOp>(user)) {
+      users.append(collapsed->getUsers().begin(), collapsed->getUsers().end());
       continue;
     }
     if (isMemoryEffectFree(user) || isa<vector::TransferReadOp>(user))
@@ -135,12 +142,14 @@ void mlir::linalg::hoistRedundantVectorTransfers(func::FuncOp func) {
                         << "\n");
 
       // Approximate aliasing by checking that:
-      //   1. indices are the same,
+      //   1. indices, vector type and permutation map are the same (i.e., the
+      //      transfer_read/transfer_write ops are matching),
       //   2. no other operations in the loop access the same memref except
       //      for transfer_read/transfer_write accessing statically disjoint
       //      slices.
-      if (transferRead.getIndices() != transferWrite.getIndices() &&
-          transferRead.getVectorType() == transferWrite.getVectorType())
+      if (transferRead.getIndices() != transferWrite.getIndices() ||
+          transferRead.getVectorType() != transferWrite.getVectorType() ||
+          transferRead.getPermutationMap() != transferWrite.getPermutationMap())
         return WalkResult::advance();
 
       // TODO: may want to memoize this information for performance but it

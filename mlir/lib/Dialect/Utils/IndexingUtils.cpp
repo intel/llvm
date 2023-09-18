@@ -81,7 +81,15 @@ SmallVector<int64_t> mlir::computeElementwiseMul(ArrayRef<int64_t> v1,
   return computeElementwiseMulImpl(v1, v2);
 }
 
-int64_t mlir::computeMaxLinearIndex(ArrayRef<int64_t> basis) {
+int64_t mlir::computeSum(ArrayRef<int64_t> basis) {
+  assert(llvm::all_of(basis, [](int64_t s) { return s > 0; }) &&
+         "basis must be nonnegative");
+  if (basis.empty())
+    return 0;
+  return std::accumulate(basis.begin(), basis.end(), 1, std::plus<int64_t>());
+}
+
+int64_t mlir::computeProduct(ArrayRef<int64_t> basis) {
   assert(llvm::all_of(basis, [](int64_t s) { return s > 0; }) &&
          "basis must be nonnegative");
   if (basis.empty())
@@ -149,10 +157,17 @@ SmallVector<AffineExpr> mlir::computeElementwiseMul(ArrayRef<AffineExpr> v1,
   return computeElementwiseMulImpl(v1, v2);
 }
 
-AffineExpr mlir::computeMaxLinearIndex(MLIRContext *ctx,
-                                       ArrayRef<AffineExpr> basis) {
+AffineExpr mlir::computeSum(MLIRContext *ctx, ArrayRef<AffineExpr> basis) {
   if (basis.empty())
     return getAffineConstantExpr(0, ctx);
+  return std::accumulate(basis.begin(), basis.end(),
+                         getAffineConstantExpr(0, ctx),
+                         std::plus<AffineExpr>());
+}
+
+AffineExpr mlir::computeProduct(MLIRContext *ctx, ArrayRef<AffineExpr> basis) {
+  if (basis.empty())
+    return getAffineConstantExpr(1, ctx);
   return std::accumulate(basis.begin(), basis.end(),
                          getAffineConstantExpr(1, ctx),
                          std::multiplies<AffineExpr>());
@@ -245,4 +260,45 @@ SmallVector<int64_t> mlir::getI64SubArray(ArrayAttr arrayAttr,
        it != eit; ++it)
     res.push_back((*it).getValue().getSExtValue());
   return res;
+}
+
+// TODO: do we have any common utily for this?
+static MLIRContext *getContext(OpFoldResult val) {
+  assert(val && "Invalid value");
+  if (auto attr = dyn_cast<Attribute>(val)) {
+    return attr.getContext();
+  } else {
+    return cast<Value>(val).getContext();
+  }
+}
+
+std::pair<AffineExpr, SmallVector<OpFoldResult>>
+mlir::computeLinearIndex(OpFoldResult sourceOffset,
+                         ArrayRef<OpFoldResult> strides,
+                         ArrayRef<OpFoldResult> indices) {
+  assert(strides.size() == indices.size());
+  auto sourceRank = static_cast<unsigned>(strides.size());
+
+  // Hold the affine symbols and values for the computation of the offset.
+  SmallVector<OpFoldResult> values(2 * sourceRank + 1);
+  SmallVector<AffineExpr> symbols(2 * sourceRank + 1);
+
+  bindSymbolsList(getContext(sourceOffset), MutableArrayRef{symbols});
+  AffineExpr expr = symbols.front();
+  values[0] = sourceOffset;
+
+  for (unsigned i = 0; i < sourceRank; ++i) {
+    // Compute the stride.
+    OpFoldResult origStride = strides[i];
+
+    // Build up the computation of the offset.
+    unsigned baseIdxForDim = 1 + 2 * i;
+    unsigned subOffsetForDim = baseIdxForDim;
+    unsigned origStrideForDim = baseIdxForDim + 1;
+    expr = expr + symbols[subOffsetForDim] * symbols[origStrideForDim];
+    values[subOffsetForDim] = indices[i];
+    values[origStrideForDim] = origStride;
+  }
+
+  return {expr, values};
 }

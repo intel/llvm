@@ -26,6 +26,8 @@ namespace affine {
 
 class AffineApplyOp;
 class AffineBound;
+class AffineMaxOp;
+class AffineMinOp;
 class AffineValueMap;
 
 /// A utility function to check if a value is defined at the top level of an
@@ -115,7 +117,7 @@ public:
   /// Returns the affine map used to access the source memref.
   AffineMap getSrcMap() { return getSrcMapAttr().getValue(); }
   AffineMapAttr getSrcMapAttr() {
-    return cast<AffineMapAttr>((*this)->getAttr(getSrcMapAttrStrName()));
+    return cast<AffineMapAttr>(*(*this)->getInherentAttr(getSrcMapAttrStrName()));
   }
 
   /// Returns the source memref affine map indices for this DMA operation.
@@ -154,7 +156,7 @@ public:
   /// Returns the affine map used to access the destination memref.
   AffineMap getDstMap() { return getDstMapAttr().getValue(); }
   AffineMapAttr getDstMapAttr() {
-    return cast<AffineMapAttr>((*this)->getAttr(getDstMapAttrStrName()));
+    return cast<AffineMapAttr>(*(*this)->getInherentAttr(getDstMapAttrStrName()));
   }
 
   /// Returns the destination memref indices for this DMA operation.
@@ -183,7 +185,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return cast<AffineMapAttr>((*this)->getAttr(getTagMapAttrStrName()));
+    return cast<AffineMapAttr>(*(*this)->getInherentAttr(getTagMapAttrStrName()));
   }
 
   /// Returns the tag memref indices for this DMA operation.
@@ -305,7 +307,7 @@ public:
   /// Returns the affine map used to access the tag memref.
   AffineMap getTagMap() { return getTagMapAttr().getValue(); }
   AffineMapAttr getTagMapAttr() {
-    return cast<AffineMapAttr>((*this)->getAttr(getTagMapAttrStrName()));
+    return cast<AffineMapAttr>(*(*this)->getInherentAttr(getTagMapAttrStrName()));
   }
 
   /// Returns the tag memref index for this DMA operation.
@@ -382,10 +384,9 @@ void canonicalizeSetAndOperands(IntegerSet *set,
 /// other AffineApplyOps supplying those operands. The operands of the resulting
 /// AffineApplyOp do not change the length of  AffineApplyOp chains.
 AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineMap map,
-                                      ValueRange operands);
-/// Variant of `makeComposedAffineApply` which infers the AffineMap from `e`.
+                                      ArrayRef<OpFoldResult> operands);
 AffineApplyOp makeComposedAffineApply(OpBuilder &b, Location loc, AffineExpr e,
-                                      ValueRange values);
+                                      ArrayRef<OpFoldResult> operands);
 
 /// Constructs an AffineApplyOp that applies `map` to `operands` after composing
 /// the map with the maps of any other AffineApplyOp supplying the operands,
@@ -407,8 +408,8 @@ SmallVector<OpFoldResult> makeComposedFoldedMultiResultAffineApply(
 
 /// Returns an AffineMinOp obtained by composing `map` and `operands` with
 /// AffineApplyOps supplying those operands.
-Value makeComposedAffineMin(OpBuilder &b, Location loc, AffineMap map,
-                            ValueRange operands);
+AffineMinOp makeComposedAffineMin(OpBuilder &b, Location loc, AffineMap map,
+                                  ArrayRef<OpFoldResult> operands);
 
 /// Constructs an AffineMinOp that computes a minimum across the results of
 /// applying `map` to `operands`, then immediately attempts to fold it. If
@@ -423,10 +424,6 @@ OpFoldResult makeComposedFoldedAffineMin(OpBuilder &b, Location loc,
 OpFoldResult makeComposedFoldedAffineMax(OpBuilder &b, Location loc,
                                          AffineMap map,
                                          ArrayRef<OpFoldResult> operands);
-
-/// Returns the values obtained by applying `map` to the list of values.
-SmallVector<Value, 4> applyMapToValues(OpBuilder &b, Location loc,
-                                       AffineMap map, ValueRange values);
 
 /// Given an affine map `map` and its input `operands`, this method composes
 /// into `map`, maps of AffineApplyOps whose results are the values in

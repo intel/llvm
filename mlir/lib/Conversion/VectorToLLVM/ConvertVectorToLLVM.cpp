@@ -15,42 +15,33 @@
 #include "mlir/Dialect/LLVMIR/FunctionCallUtils.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/Vector/Interfaces/MaskableOpInterface.h"
 #include "mlir/Dialect/Vector/Transforms/LoweringPatterns.h"
 #include "mlir/Dialect/Vector/Transforms/VectorTransforms.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "llvm/ADT/APFloat.h"
 #include "llvm/Support/Casting.h"
 #include <optional>
 
 using namespace mlir;
 using namespace mlir::vector;
 
-// Helper to reduce vector type by one rank at front.
-static VectorType reducedVectorTypeFront(VectorType tp) {
-  assert((tp.getRank() > 1) && "unlowerable vector type");
-  unsigned numScalableDims = tp.getNumScalableDims();
-  if (tp.getShape().size() == numScalableDims)
-    --numScalableDims;
-  return VectorType::get(tp.getShape().drop_front(), tp.getElementType(),
-                         numScalableDims);
-}
-
 // Helper to reduce vector type by *all* but one rank at back.
 static VectorType reducedVectorTypeBack(VectorType tp) {
   assert((tp.getRank() > 1) && "unlowerable vector type");
-  unsigned numScalableDims = tp.getNumScalableDims();
-  if (numScalableDims > 0)
-    --numScalableDims;
   return VectorType::get(tp.getShape().take_back(), tp.getElementType(),
-                         numScalableDims);
+                         tp.getScalableDims().take_back());
 }
 
 // Helper that picks the proper sequence for inserting.
 static Value insertOne(ConversionPatternRewriter &rewriter,
-                       LLVMTypeConverter &typeConverter, Location loc,
+                       const LLVMTypeConverter &typeConverter, Location loc,
                        Value val1, Value val2, Type llvmType, int64_t rank,
                        int64_t pos) {
   assert(rank > 0 && "0-D vector corner case should have been handled already");
@@ -67,7 +58,7 @@ static Value insertOne(ConversionPatternRewriter &rewriter,
 
 // Helper that picks the proper sequence for extracting.
 static Value extractOne(ConversionPatternRewriter &rewriter,
-                        LLVMTypeConverter &typeConverter, Location loc,
+                        const LLVMTypeConverter &typeConverter, Location loc,
                         Value val, Type llvmType, int64_t rank, int64_t pos) {
   if (rank <= 1) {
     auto idxType = rewriter.getIndexType();
@@ -81,7 +72,7 @@ static Value extractOne(ConversionPatternRewriter &rewriter,
 }
 
 // Helper that returns data layout alignment of a memref.
-LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter,
+LogicalResult getMemRefAlignment(const LLVMTypeConverter &typeConverter,
                                  MemRefType memrefType, unsigned &align) {
   Type elementTy = typeConverter.convertType(memrefType.getElementType());
   if (!elementTy)
@@ -97,21 +88,19 @@ LogicalResult getMemRefAlignment(LLVMTypeConverter &typeConverter,
 
 // Check if the last stride is non-unit or the memory space is not zero.
 static LogicalResult isMemRefTypeSupported(MemRefType memRefType,
-                                           LLVMTypeConverter &converter) {
-  int64_t offset;
-  SmallVector<int64_t, 4> strides;
-  auto successStrides = getStridesAndOffset(memRefType, strides, offset);
+                                           const LLVMTypeConverter &converter) {
+  if (!isLastMemrefDimUnitStride(memRefType))
+    return failure();
   FailureOr<unsigned> addressSpace =
       converter.getMemRefAddressSpace(memRefType);
-  if (failed(successStrides) || strides.back() != 1 || failed(addressSpace) ||
-      *addressSpace != 0)
+  if (failed(addressSpace) || *addressSpace != 0)
     return failure();
   return success();
 }
 
 // Add an index vector component to a base pointer.
 static Value getIndexedPtrs(ConversionPatternRewriter &rewriter, Location loc,
-                            LLVMTypeConverter &typeConverter,
+                            const LLVMTypeConverter &typeConverter,
                             MemRefType memRefType, Value llvmMemref, Value base,
                             Value index, uint64_t vLen) {
   assert(succeeded(isMemRefTypeSupported(memRefType, typeConverter)) &&
@@ -127,7 +116,7 @@ static Value getIndexedPtrs(ConversionPatternRewriter &rewriter, Location loc,
 // will be in the same address space as the incoming memref type.
 static Value castDataPtr(ConversionPatternRewriter &rewriter, Location loc,
                          Value ptr, MemRefType memRefType, Type vt,
-                         LLVMTypeConverter &converter) {
+                         const LLVMTypeConverter &converter) {
   if (converter.useOpaquePointers())
     return ptr;
 
@@ -309,7 +298,7 @@ public:
       return success();
     }
 
-    LLVMTypeConverter &typeConverter = *this->getTypeConverter();
+    const LLVMTypeConverter &typeConverter = *this->getTypeConverter();
     auto callback = [align, memRefType, base, ptr, loc, &rewriter,
                      &typeConverter](Type llvm1DVectorTy,
                                      ValueRange vectorOperands) {
@@ -581,37 +570,86 @@ static Value createIntegerReductionComparisonOpLowering(
   return result;
 }
 
-/// Create lowering of minf/maxf op. We cannot use llvm.maximum/llvm.minimum
-/// with vector types.
-static Value createMinMaxF(OpBuilder &builder, Location loc, Value lhs,
-                           Value rhs, bool isMin) {
-  auto floatType = cast<FloatType>(getElementTypeOrSelf(lhs.getType()));
-  Type i1Type = builder.getI1Type();
-  if (auto vecType = dyn_cast<VectorType>(lhs.getType()))
-    i1Type = VectorType::get(vecType.getShape(), i1Type);
-  Value cmp = builder.create<LLVM::FCmpOp>(
-      loc, i1Type, isMin ? LLVM::FCmpPredicate::olt : LLVM::FCmpPredicate::ogt,
-      lhs, rhs);
-  Value sel = builder.create<LLVM::SelectOp>(loc, cmp, lhs, rhs);
-  Value isNan = builder.create<LLVM::FCmpOp>(
-      loc, i1Type, LLVM::FCmpPredicate::uno, lhs, rhs);
-  Value nan = builder.create<LLVM::ConstantOp>(
-      loc, lhs.getType(),
-      builder.getFloatAttr(floatType,
-                           APFloat::getQNaN(floatType.getFloatSemantics())));
-  return builder.create<LLVM::SelectOp>(loc, isNan, nan, sel);
-}
+namespace {
+template <typename Source>
+struct VectorToScalarMapper;
+template <>
+struct VectorToScalarMapper<LLVM::vector_reduce_fmaximum> {
+  using Type = LLVM::MaximumOp;
+};
+template <>
+struct VectorToScalarMapper<LLVM::vector_reduce_fminimum> {
+  using Type = LLVM::MinimumOp;
+};
+template <>
+struct VectorToScalarMapper<LLVM::vector_reduce_fmax> {
+  using Type = LLVM::MaxNumOp;
+};
+template <>
+struct VectorToScalarMapper<LLVM::vector_reduce_fmin> {
+  using Type = LLVM::MinNumOp;
+};
+} // namespace
 
 template <class LLVMRedIntrinOp>
-static Value createFPReductionComparisonOpLowering(
-    ConversionPatternRewriter &rewriter, Location loc, Type llvmType,
-    Value vectorOperand, Value accumulator, bool isMin) {
+static Value
+createFPReductionComparisonOpLowering(ConversionPatternRewriter &rewriter,
+                                      Location loc, Type llvmType,
+                                      Value vectorOperand, Value accumulator) {
   Value result = rewriter.create<LLVMRedIntrinOp>(loc, llvmType, vectorOperand);
 
-  if (accumulator)
-    result = createMinMaxF(rewriter, loc, result, accumulator, /*isMin=*/isMin);
+  if (accumulator) {
+    result =
+        rewriter.create<typename VectorToScalarMapper<LLVMRedIntrinOp>::Type>(
+            loc, result, accumulator);
+  }
 
   return result;
+}
+
+/// Reduction neutral classes for overloading
+class MaskNeutralFMaximum {};
+class MaskNeutralFMinimum {};
+
+/// Get the mask neutral floating point maximum value
+static llvm::APFloat
+getMaskNeutralValue(MaskNeutralFMaximum,
+                    const llvm::fltSemantics &floatSemantics) {
+  return llvm::APFloat::getSmallest(floatSemantics, /*Negative=*/true);
+}
+/// Get the mask neutral floating point minimum value
+static llvm::APFloat
+getMaskNeutralValue(MaskNeutralFMinimum,
+                    const llvm::fltSemantics &floatSemantics) {
+  return llvm::APFloat::getLargest(floatSemantics, /*Negative=*/false);
+}
+
+/// Create the mask neutral floating point MLIR vector constant
+template <typename MaskNeutral>
+static Value createMaskNeutralValue(ConversionPatternRewriter &rewriter,
+                                    Location loc, Type llvmType,
+                                    Type vectorType) {
+  const auto &floatSemantics = cast<FloatType>(llvmType).getFloatSemantics();
+  auto value = getMaskNeutralValue(MaskNeutral{}, floatSemantics);
+  auto denseValue =
+      DenseElementsAttr::get(vectorType.cast<ShapedType>(), value);
+  return rewriter.create<LLVM::ConstantOp>(loc, vectorType, denseValue);
+}
+
+/// Lowers masked `fmaximum` and `fminimum` reductions using the non-masked
+/// intrinsics. It is a workaround to overcome the lack of masked intrinsics for
+/// `fmaximum`/`fminimum`.
+/// More information: https://github.com/llvm/llvm-project/issues/64940
+template <class LLVMRedIntrinOp, class MaskNeutral>
+static Value lowerMaskedReductionWithRegular(
+    ConversionPatternRewriter &rewriter, Location loc, Type llvmType,
+    Value vectorOperand, Value accumulator, Value mask) {
+  const Value vectorMaskNeutral = createMaskNeutralValue<MaskNeutral>(
+      rewriter, loc, llvmType, vectorOperand.getType());
+  const Value selectedVectorByMask = rewriter.create<LLVM::SelectOp>(
+      loc, mask, vectorOperand, vectorMaskNeutral);
+  return createFPReductionComparisonOpLowering<LLVMRedIntrinOp>(
+      rewriter, loc, llvmType, selectedVectorByMask, accumulator);
 }
 
 /// Overloaded methods to lower a reduction to an llvm instrinsic that requires
@@ -691,7 +729,7 @@ static Value lowerReductionWithStartValue(ConversionPatternRewriter &rewriter,
 class VectorReductionOpConversion
     : public ConvertOpToLLVMPattern<vector::ReductionOp> {
 public:
-  explicit VectorReductionOpConversion(LLVMTypeConverter &typeConv,
+  explicit VectorReductionOpConversion(const LLVMTypeConverter &typeConv,
                                        bool reassociateFPRed)
       : ConvertOpToLLVMPattern<vector::ReductionOp>(typeConv),
         reassociateFPReductions(reassociateFPRed) {}
@@ -781,18 +819,20 @@ public:
       result = lowerReductionWithStartValue<LLVM::vector_reduce_fmul,
                                             ReductionNeutralFPOne>(
           rewriter, loc, llvmType, operand, acc, reassociateFPReductions);
+    } else if (kind == vector::CombiningKind::MINIMUMF) {
+      result =
+          createFPReductionComparisonOpLowering<LLVM::vector_reduce_fminimum>(
+              rewriter, loc, llvmType, operand, acc);
+    } else if (kind == vector::CombiningKind::MAXIMUMF) {
+      result =
+          createFPReductionComparisonOpLowering<LLVM::vector_reduce_fmaximum>(
+              rewriter, loc, llvmType, operand, acc);
     } else if (kind == vector::CombiningKind::MINF) {
-      // FIXME: MLIR's 'minf' and LLVM's 'vector_reduce_fmin' do not handle
-      // NaNs/-0.0/+0.0 in the same way.
       result = createFPReductionComparisonOpLowering<LLVM::vector_reduce_fmin>(
-          rewriter, loc, llvmType, operand, acc,
-          /*isMin=*/true);
+          rewriter, loc, llvmType, operand, acc);
     } else if (kind == vector::CombiningKind::MAXF) {
-      // FIXME: MLIR's 'maxf' and LLVM's 'vector_reduce_fmax' do not handle
-      // NaNs/-0.0/+0.0 in the same way.
       result = createFPReductionComparisonOpLowering<LLVM::vector_reduce_fmax>(
-          rewriter, loc, llvmType, operand, acc,
-          /*isMin=*/false);
+          rewriter, loc, llvmType, operand, acc);
     } else
       return failure();
 
@@ -903,17 +943,23 @@ public:
           rewriter, loc, llvmType, operand, acc, maskOp.getMask());
       break;
     case vector::CombiningKind::MINF:
-      // FIXME: MLIR's 'minf' and LLVM's 'vector_reduce_fmin' do not handle
-      // NaNs/-0.0/+0.0 in the same way.
       result = lowerReductionWithStartValue<LLVM::VPReduceFMinOp,
                                             ReductionNeutralFPMax>(
           rewriter, loc, llvmType, operand, acc, maskOp.getMask());
       break;
     case vector::CombiningKind::MAXF:
-      // FIXME: MLIR's 'minf' and LLVM's 'vector_reduce_fmin' do not handle
-      // NaNs/-0.0/+0.0 in the same way.
       result = lowerReductionWithStartValue<LLVM::VPReduceFMaxOp,
                                             ReductionNeutralFPMin>(
+          rewriter, loc, llvmType, operand, acc, maskOp.getMask());
+      break;
+    case CombiningKind::MAXIMUMF:
+      result = lowerMaskedReductionWithRegular<LLVM::vector_reduce_fmaximum,
+                                               MaskNeutralFMaximum>(
+          rewriter, loc, llvmType, operand, acc, maskOp.getMask());
+      break;
+    case CombiningKind::MINIMUMF:
+      result = lowerMaskedReductionWithRegular<LLVM::vector_reduce_fminimum,
+                                               MaskNeutralFMinimum>(
           rewriter, loc, llvmType, operand, acc, maskOp.getMask());
       break;
     }
@@ -1033,44 +1079,37 @@ public:
     auto loc = extractOp->getLoc();
     auto resultType = extractOp.getResult().getType();
     auto llvmResultType = typeConverter->convertType(resultType);
-    auto positionArrayAttr = extractOp.getPosition();
+    ArrayRef<int64_t> positionArray = extractOp.getPosition();
 
     // Bail if result type cannot be lowered.
     if (!llvmResultType)
       return failure();
 
     // Extract entire vector. Should be handled by folder, but just to be safe.
-    if (positionArrayAttr.empty()) {
+    if (positionArray.empty()) {
       rewriter.replaceOp(extractOp, adaptor.getVector());
       return success();
     }
 
     // One-shot extraction of vector from array (only requires extractvalue).
     if (isa<VectorType>(resultType)) {
-      SmallVector<int64_t> indices;
-      for (auto idx : positionArrayAttr.getAsRange<IntegerAttr>())
-        indices.push_back(idx.getInt());
       Value extracted = rewriter.create<LLVM::ExtractValueOp>(
-          loc, adaptor.getVector(), indices);
+          loc, adaptor.getVector(), positionArray);
       rewriter.replaceOp(extractOp, extracted);
       return success();
     }
 
     // Potential extraction of 1-D vector from array.
     Value extracted = adaptor.getVector();
-    auto positionAttrs = positionArrayAttr.getValue();
-    if (positionAttrs.size() > 1) {
-      SmallVector<int64_t> nMinusOnePosition;
-      for (auto idx : positionAttrs.drop_back())
-        nMinusOnePosition.push_back(cast<IntegerAttr>(idx).getInt());
-      extracted = rewriter.create<LLVM::ExtractValueOp>(loc, extracted,
-                                                        nMinusOnePosition);
+    if (positionArray.size() > 1) {
+      extracted = rewriter.create<LLVM::ExtractValueOp>(
+          loc, extracted, positionArray.drop_back());
     }
 
     // Remaining extraction of element from 1-D LLVM vector
-    auto position = cast<IntegerAttr>(positionAttrs.back());
     auto i64Type = IntegerType::get(rewriter.getContext(), 64);
-    auto constant = rewriter.create<LLVM::ConstantOp>(loc, i64Type, position);
+    auto constant =
+        rewriter.create<LLVM::ConstantOp>(loc, i64Type, positionArray.back());
     extracted =
         rewriter.create<LLVM::ExtractElementOp>(loc, extracted, constant);
     rewriter.replaceOp(extractOp, extracted);
@@ -1155,7 +1194,7 @@ public:
     auto sourceType = insertOp.getSourceType();
     auto destVectorType = insertOp.getDestVectorType();
     auto llvmResultType = typeConverter->convertType(destVectorType);
-    auto positionArrayAttr = insertOp.getPosition();
+    ArrayRef<int64_t> positionArray = insertOp.getPosition();
 
     // Bail if result type cannot be lowered.
     if (!llvmResultType)
@@ -1163,7 +1202,7 @@ public:
 
     // Overwrite entire vector with value. Should be handled by folder, but
     // just to be safe.
-    if (positionArrayAttr.empty()) {
+    if (positionArray.empty()) {
       rewriter.replaceOp(insertOp, adaptor.getSource());
       return success();
     }
@@ -1171,36 +1210,32 @@ public:
     // One-shot insertion of a vector into an array (only requires insertvalue).
     if (isa<VectorType>(sourceType)) {
       Value inserted = rewriter.create<LLVM::InsertValueOp>(
-          loc, adaptor.getDest(), adaptor.getSource(),
-          LLVM::convertArrayToIndices(positionArrayAttr));
+          loc, adaptor.getDest(), adaptor.getSource(), positionArray);
       rewriter.replaceOp(insertOp, inserted);
       return success();
     }
 
     // Potential extraction of 1-D vector from array.
     Value extracted = adaptor.getDest();
-    auto positionAttrs = positionArrayAttr.getValue();
-    auto position = cast<IntegerAttr>(positionAttrs.back());
     auto oneDVectorType = destVectorType;
-    if (positionAttrs.size() > 1) {
+    if (positionArray.size() > 1) {
       oneDVectorType = reducedVectorTypeBack(destVectorType);
       extracted = rewriter.create<LLVM::ExtractValueOp>(
-          loc, extracted,
-          LLVM::convertArrayToIndices(positionAttrs.drop_back()));
+          loc, extracted, positionArray.drop_back());
     }
 
     // Insertion of an element into a 1-D LLVM vector.
     auto i64Type = IntegerType::get(rewriter.getContext(), 64);
-    auto constant = rewriter.create<LLVM::ConstantOp>(loc, i64Type, position);
+    auto constant =
+        rewriter.create<LLVM::ConstantOp>(loc, i64Type, positionArray.back());
     Value inserted = rewriter.create<LLVM::InsertElementOp>(
         loc, typeConverter->convertType(oneDVectorType), extracted,
         adaptor.getSource(), constant);
 
     // Potential insertion of resulting 1-D vector into array.
-    if (positionAttrs.size() > 1) {
+    if (positionArray.size() > 1) {
       inserted = rewriter.create<LLVM::InsertValueOp>(
-          loc, adaptor.getDest(), inserted,
-          LLVM::convertArrayToIndices(positionAttrs.drop_back()));
+          loc, adaptor.getDest(), inserted, positionArray.drop_back());
     }
 
     rewriter.replaceOp(insertOp, inserted);
@@ -1443,45 +1478,92 @@ class VectorPrintOpConversion : public ConvertOpToLLVMPattern<vector::PrintOp> {
 public:
   using ConvertOpToLLVMPattern<vector::PrintOp>::ConvertOpToLLVMPattern;
 
-  // Proof-of-concept lowering implementation that relies on a small
-  // runtime support library, which only needs to provide a few
-  // printing methods (single value for all data types, opening/closing
-  // bracket, comma, newline). The lowering fully unrolls a vector
-  // in terms of these elementary printing operations. The advantage
-  // of this approach is that the library can remain unaware of all
-  // low-level implementation details of vectors while still supporting
-  // output of any shaped and dimensioned vector. Due to full unrolling,
-  // this approach is less suited for very large vectors though.
+  // Lowering implementation that relies on a small runtime support library,
+  // which only needs to provide a few printing methods (single value for all
+  // data types, opening/closing bracket, comma, newline). The lowering splits
+  // the vector into elementary printing operations. The advantage of this
+  // approach is that the library can remain unaware of all low-level
+  // implementation details of vectors while still supporting output of any
+  // shaped and dimensioned vector.
+  //
+  // Note: This lowering only handles scalars, n-D vectors are broken into
+  // printing scalars in loops in VectorToSCF.
   //
   // TODO: rely solely on libc in future? something else?
   //
   LogicalResult
   matchAndRewrite(vector::PrintOp printOp, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    Type printType = printOp.getPrintType();
+    auto parent = printOp->getParentOfType<ModuleOp>();
+    if (!parent)
+      return failure();
 
+    auto loc = printOp->getLoc();
+
+    if (auto value = adaptor.getSource()) {
+      Type printType = printOp.getPrintType();
+      if (isa<VectorType>(printType)) {
+        // Vectors should be broken into elementary print ops in VectorToSCF.
+        return failure();
+      }
+      if (failed(emitScalarPrint(rewriter, parent, loc, printType, value)))
+        return failure();
+    }
+
+    auto punct = printOp.getPunctuation();
+    if (punct != PrintPunctuation::NoPunctuation) {
+      emitCall(rewriter, printOp->getLoc(), [&] {
+        switch (punct) {
+        case PrintPunctuation::Close:
+          return LLVM::lookupOrCreatePrintCloseFn(parent);
+        case PrintPunctuation::Open:
+          return LLVM::lookupOrCreatePrintOpenFn(parent);
+        case PrintPunctuation::Comma:
+          return LLVM::lookupOrCreatePrintCommaFn(parent);
+        case PrintPunctuation::NewLine:
+          return LLVM::lookupOrCreatePrintNewlineFn(parent);
+        default:
+          llvm_unreachable("unexpected punctuation");
+        }
+      }());
+    }
+
+    rewriter.eraseOp(printOp);
+    return success();
+  }
+
+private:
+  enum class PrintConversion {
+    // clang-format off
+    None,
+    ZeroExt64,
+    SignExt64,
+    Bitcast16
+    // clang-format on
+  };
+
+  LogicalResult emitScalarPrint(ConversionPatternRewriter &rewriter,
+                                ModuleOp parent, Location loc, Type printType,
+                                Value value) const {
     if (typeConverter->convertType(printType) == nullptr)
       return failure();
 
     // Make sure element type has runtime support.
     PrintConversion conversion = PrintConversion::None;
-    VectorType vectorType = dyn_cast<VectorType>(printType);
-    Type eltType = vectorType ? vectorType.getElementType() : printType;
-    auto parent = printOp->getParentOfType<ModuleOp>();
     Operation *printer;
-    if (eltType.isF32()) {
+    if (printType.isF32()) {
       printer = LLVM::lookupOrCreatePrintF32Fn(parent);
-    } else if (eltType.isF64()) {
+    } else if (printType.isF64()) {
       printer = LLVM::lookupOrCreatePrintF64Fn(parent);
-    } else if (eltType.isF16()) {
+    } else if (printType.isF16()) {
       conversion = PrintConversion::Bitcast16; // bits!
       printer = LLVM::lookupOrCreatePrintF16Fn(parent);
-    } else if (eltType.isBF16()) {
+    } else if (printType.isBF16()) {
       conversion = PrintConversion::Bitcast16; // bits!
       printer = LLVM::lookupOrCreatePrintBF16Fn(parent);
-    } else if (eltType.isIndex()) {
+    } else if (printType.isIndex()) {
       printer = LLVM::lookupOrCreatePrintU64Fn(parent);
-    } else if (auto intTy = dyn_cast<IntegerType>(eltType)) {
+    } else if (auto intTy = dyn_cast<IntegerType>(printType)) {
       // Integers need a zero or sign extension on the operand
       // (depending on the source type) as well as a signed or
       // unsigned print method. Up to 64-bit is supported.
@@ -1512,86 +1594,24 @@ public:
       return failure();
     }
 
-    // Unroll vector into elementary print calls.
-    int64_t rank = vectorType ? vectorType.getRank() : 0;
-    Type type = vectorType ? vectorType : eltType;
-    emitRanks(rewriter, printOp, adaptor.getSource(), type, printer, rank,
-              conversion);
-    emitCall(rewriter, printOp->getLoc(),
-             LLVM::lookupOrCreatePrintNewlineFn(parent));
-    rewriter.eraseOp(printOp);
+    switch (conversion) {
+    case PrintConversion::ZeroExt64:
+      value = rewriter.create<arith::ExtUIOp>(
+          loc, IntegerType::get(rewriter.getContext(), 64), value);
+      break;
+    case PrintConversion::SignExt64:
+      value = rewriter.create<arith::ExtSIOp>(
+          loc, IntegerType::get(rewriter.getContext(), 64), value);
+      break;
+    case PrintConversion::Bitcast16:
+      value = rewriter.create<LLVM::BitcastOp>(
+          loc, IntegerType::get(rewriter.getContext(), 16), value);
+      break;
+    case PrintConversion::None:
+      break;
+    }
+    emitCall(rewriter, loc, printer, value);
     return success();
-  }
-
-private:
-  enum class PrintConversion {
-    // clang-format off
-    None,
-    ZeroExt64,
-    SignExt64,
-    Bitcast16
-    // clang-format on
-  };
-
-  void emitRanks(ConversionPatternRewriter &rewriter, Operation *op,
-                 Value value, Type type, Operation *printer, int64_t rank,
-                 PrintConversion conversion) const {
-    VectorType vectorType = dyn_cast<VectorType>(type);
-    Location loc = op->getLoc();
-    if (!vectorType) {
-      assert(rank == 0 && "The scalar case expects rank == 0");
-      switch (conversion) {
-      case PrintConversion::ZeroExt64:
-        value = rewriter.create<arith::ExtUIOp>(
-            loc, IntegerType::get(rewriter.getContext(), 64), value);
-        break;
-      case PrintConversion::SignExt64:
-        value = rewriter.create<arith::ExtSIOp>(
-            loc, IntegerType::get(rewriter.getContext(), 64), value);
-        break;
-      case PrintConversion::Bitcast16:
-        value = rewriter.create<LLVM::BitcastOp>(
-            loc, IntegerType::get(rewriter.getContext(), 16), value);
-        break;
-      case PrintConversion::None:
-        break;
-      }
-      emitCall(rewriter, loc, printer, value);
-      return;
-    }
-
-    auto parent = op->getParentOfType<ModuleOp>();
-    emitCall(rewriter, loc, LLVM::lookupOrCreatePrintOpenFn(parent));
-    Operation *printComma = LLVM::lookupOrCreatePrintCommaFn(parent);
-
-    if (rank <= 1) {
-      auto reducedType = vectorType.getElementType();
-      auto llvmType = typeConverter->convertType(reducedType);
-      int64_t dim = rank == 0 ? 1 : vectorType.getDimSize(0);
-      for (int64_t d = 0; d < dim; ++d) {
-        Value nestedVal = extractOne(rewriter, *getTypeConverter(), loc, value,
-                                     llvmType, /*rank=*/0, /*pos=*/d);
-        emitRanks(rewriter, op, nestedVal, reducedType, printer, /*rank=*/0,
-                  conversion);
-        if (d != dim - 1)
-          emitCall(rewriter, loc, printComma);
-      }
-      emitCall(rewriter, loc, LLVM::lookupOrCreatePrintCloseFn(parent));
-      return;
-    }
-
-    int64_t dim = vectorType.getDimSize(0);
-    for (int64_t d = 0; d < dim; ++d) {
-      auto reducedType = reducedVectorTypeFront(vectorType);
-      auto llvmType = typeConverter->convertType(reducedType);
-      Value nestedVal = extractOne(rewriter, *getTypeConverter(), loc, value,
-                                   llvmType, rank, d);
-      emitRanks(rewriter, op, nestedVal, reducedType, printer, rank - 1,
-                conversion);
-      if (d != dim - 1)
-        emitCall(rewriter, loc, printComma);
-    }
-    emitCall(rewriter, loc, LLVM::lookupOrCreatePrintCloseFn(parent));
   }
 
   // Helper to emit a call.

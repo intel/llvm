@@ -1,10 +1,10 @@
-//===--------- device.cpp - Level Zero Adapter -----------------------===//
+//===--------- device.cpp - Level Zero Adapter ----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "device.hpp"
 #include "ur_level_zero.hpp"
@@ -612,12 +612,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(
   case UR_DEVICE_INFO_DEVICE_ID:
     return ReturnValue(uint32_t{Device->ZeDeviceProperties->deviceId});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
-    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      urPrint("Set SYCL_ENABLE_PCI=1 to obtain PCI data.\n");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-    ZesStruct<zes_pci_properties_t> ZeDevicePciProperties;
-    ZE2UR_CALL(zesDevicePciGetProperties, (ZeDevice, &ZeDevicePciProperties));
+    ze_pci_address_ext_t PciAddr{};
+    ZeStruct<ze_pci_ext_properties_t> ZeDevicePciProperties;
+    ZeDevicePciProperties.address = PciAddr;
+    ZE2UR_CALL(zeDevicePciGetPropertiesExt, (ZeDevice, &ZeDevicePciProperties));
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
     std::snprintf(AddressBuffer, AddressBufferSize, "%04x:%02x:%02x.%01x",

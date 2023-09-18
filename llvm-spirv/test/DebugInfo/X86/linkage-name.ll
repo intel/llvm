@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-macosx %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-macosx %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc -mtriple=x86_64-macosx %t.ll -o %t -filetype=obj
 ; RUN: llvm-dwarfdump -v -debug-info %t | FileCheck %s
 
@@ -28,16 +28,16 @@ source_filename = "test/DebugInfo/X86/linkage-name.ll"
 @a = global %class.A zeroinitializer, align 1, !dbg !0
 
 ; Function Attrs: nounwind ssp uwtable
-define i32 @_ZN1A1aEi(%class.A* %this, i32 %b) #0 align 2 !dbg !14 {
+define i32 @_ZN1A1aEi(ptr %this, i32 %b) #0 align 2 !dbg !14 {
 entry:
-  %this.addr = alloca %class.A*, align 8
+  %this.addr = alloca ptr, align 8
   %b.addr = alloca i32, align 4
-  store %class.A* %this, %class.A** %this.addr, align 8
-  call void @llvm.dbg.declare(metadata %class.A** %this.addr, metadata !15, metadata !17), !dbg !18
-  store i32 %b, i32* %b.addr, align 4
-  call void @llvm.dbg.declare(metadata i32* %b.addr, metadata !19, metadata !17), !dbg !20
-  %this1 = load %class.A*, %class.A** %this.addr
-  %0 = load i32, i32* %b.addr, align 4, !dbg !21
+  store ptr %this, ptr %this.addr, align 8
+  call void @llvm.dbg.declare(metadata ptr %this.addr, metadata !15, metadata !17), !dbg !18
+  store i32 %b, ptr %b.addr, align 4
+  call void @llvm.dbg.declare(metadata ptr %b.addr, metadata !19, metadata !17), !dbg !20
+  %this1 = load ptr, ptr %this.addr
+  %0 = load i32, ptr %b.addr, align 4, !dbg !21
   ret i32 %0, !dbg !21
 }
 

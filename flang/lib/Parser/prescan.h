@@ -109,8 +109,9 @@ private:
     BeginSourceLineAndAdvance();
     slashInCurrentStatement_ = false;
     preventHollerith_ = false;
-    delimiterNesting_ = 0;
+    parenthesisNesting_ = 0;
     continuationLines_ = 0;
+    isPossibleMacroCall_ = false;
   }
 
   Provenance GetProvenance(const char *sourceChar) const {
@@ -194,9 +195,10 @@ private:
   bool inFixedForm_{false};
   int fixedFormColumnLimit_{72};
   Encoding encoding_{Encoding::UTF_8};
-  int delimiterNesting_{0};
+  int parenthesisNesting_{0};
   int prescannerNesting_{0};
   int continuationLines_{0};
+  bool isPossibleMacroCall_{false};
 
   Provenance startProvenance_;
   const char *start_{nullptr}; // beginning of current source file content
@@ -204,7 +206,7 @@ private:
   const char *nextLine_{nullptr}; // next line to process; <= limit_
   const char *directiveSentinel_{nullptr}; // current compiler directive
 
-  // This data members are state for processing the source line containing
+  // These data members are state for processing the source line containing
   // "at_", which goes to up to the newline character before "nextLine_".
   const char *at_{nullptr}; // next character to process; < nextLine_
   int column_{1}; // card image column position of next character

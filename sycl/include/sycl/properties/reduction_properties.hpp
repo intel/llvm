@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <sycl/context.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/properties/property_traits.hpp>
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, DataLes...
 
 namespace sycl {
 inline namespace _V1 {

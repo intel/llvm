@@ -115,6 +115,7 @@ TYPE_PARSER(construct<OmpDeviceTypeClause>(
 TYPE_PARSER(construct<OmpIfClause>(
     maybe(
         ("PARALLEL" >> pure(OmpIfClause::DirectiveNameModifier::Parallel) ||
+            "SIMD" >> pure(OmpIfClause::DirectiveNameModifier::Simd) ||
             "TARGET ENTER DATA" >>
                 pure(OmpIfClause::DirectiveNameModifier::TargetEnterData) ||
             "TARGET EXIT DATA" >>
@@ -125,7 +126,8 @@ TYPE_PARSER(construct<OmpIfClause>(
                 pure(OmpIfClause::DirectiveNameModifier::TargetUpdate) ||
             "TARGET" >> pure(OmpIfClause::DirectiveNameModifier::Target) ||
             "TASK"_id >> pure(OmpIfClause::DirectiveNameModifier::Task) ||
-            "TASKLOOP" >> pure(OmpIfClause::DirectiveNameModifier::Taskloop)) /
+            "TASKLOOP" >> pure(OmpIfClause::DirectiveNameModifier::Taskloop) ||
+            "TEAMS" >> pure(OmpIfClause::DirectiveNameModifier::Teams)) /
         ":"),
     scalarLogicalExpr))
 
@@ -209,7 +211,7 @@ TYPE_CONTEXT_PARSER("Omp LINEAR clause"_en_US,
 
 // 2.8.1 ALIGNED (list: alignment)
 TYPE_PARSER(construct<OmpAlignedClause>(
-    nonemptyList(name), maybe(":" >> scalarIntConstantExpr)))
+    Parser<OmpObjectList>{}, maybe(":" >> scalarIntConstantExpr)))
 
 // 2.9.5 ORDER ([order-modifier :]concurrent)
 TYPE_PARSER(construct<OmpOrderModifier>(
@@ -430,9 +432,9 @@ TYPE_PARSER(sourced(construct<OmpMemoryOrderClause>(
 //                               acq_rel
 //                               relaxed
 TYPE_PARSER(construct<OmpAtomicDefaultMemOrderClause>(
-    "SEQ_CST" >> pure(OmpAtomicDefaultMemOrderClause::Type::SeqCst) ||
-    "ACQ_REL" >> pure(OmpAtomicDefaultMemOrderClause::Type::AcqRel) ||
-    "RELAXED" >> pure(OmpAtomicDefaultMemOrderClause::Type::Relaxed)))
+    "SEQ_CST" >> pure(common::OmpAtomicDefaultMemOrderType::SeqCst) ||
+    "ACQ_REL" >> pure(common::OmpAtomicDefaultMemOrderType::AcqRel) ||
+    "RELAXED" >> pure(common::OmpAtomicDefaultMemOrderType::Relaxed)))
 
 // 2.17.7 Atomic construct
 //        atomic-clause -> memory-order-clause | HINT(hint-expression)
@@ -608,7 +610,7 @@ TYPE_PARSER(
 
 // 2.4 Requires construct
 TYPE_PARSER(sourced(construct<OpenMPRequiresConstruct>(
-    verbatim("REQUIRES"_tok), some(Parser<OmpClause>{} / maybe(","_tok)))))
+    verbatim("REQUIRES"_tok), Parser<OmpClauseList>{})))
 
 // 2.15.2 Threadprivate directive
 TYPE_PARSER(sourced(construct<OpenMPThreadprivate>(

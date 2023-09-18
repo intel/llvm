@@ -1,10 +1,10 @@
-//===--------- event.cpp - Level Zero Adapter ------------------------===//
+//===--------- event.cpp - Level Zero Adapter -----------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include <algorithm>
 #include <climits>
@@ -152,15 +152,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
       [&Queue](ur_command_list_ptr_t CmdList,
                const _ur_ze_event_list_t &EventWaitList,
                ur_event_handle_t &Event, bool IsInternal) {
-        // For in-order queue and empty wait-list just use the last command
-        // event as the barrier event.
-        if (Queue->isInOrderQueue() && !EventWaitList.Length &&
-            Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
-          UR_CALL(urEventRetain(Queue->LastCommandEvent));
-          Event = Queue->LastCommandEvent;
-          return UR_RESULT_SUCCESS;
-        }
-
         UR_CALL(createEventAndAssociateQueue(
             Queue, &Event, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, CmdList,
             IsInternal));
@@ -203,6 +194,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   ur_event_handle_t InternalEvent;
   bool IsInternal = OutEvent == nullptr;
   ur_event_handle_t *Event = OutEvent ? OutEvent : &InternalEvent;
+
+  auto WaitListEmptyOrAllEventsFromSameQueue = [Queue, NumEventsInWaitList,
+                                                EventWaitList]() {
+    if (!NumEventsInWaitList)
+      return true;
+
+    for (uint32_t I = 0; I < NumEventsInWaitList; ++I)
+      if (Queue != EventWaitList[I]->UrQueue)
+        return false;
+
+    return true;
+  };
+
+  // For in-order queue and wait-list which is empty or has events from
+  // the same queue just use the last command event as the barrier event.
+  if (Queue->isInOrderQueue() && WaitListEmptyOrAllEventsFromSameQueue() &&
+      Queue->LastCommandEvent && !Queue->LastCommandEvent->IsDiscarded) {
+    UR_CALL(urEventRetain(Queue->LastCommandEvent));
+    *Event = Queue->LastCommandEvent;
+    return UR_RESULT_SUCCESS;
+  }
 
   // Indicator for whether batching is allowed. This may be changed later in
   // this function, but allow it by default.
@@ -935,7 +947,7 @@ ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
     }
     if (DepEventKernel) {
       ReleaseIndirectMem(DepEventKernel);
-      // UR_CALL(piKernelRelease(DepEventKernel));
+      UR_CALL(urKernelRelease(DepEventKernel));
     }
     UR_CALL(urEventReleaseInternal(DepEvent));
   }

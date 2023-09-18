@@ -2542,6 +2542,51 @@ void reference_binds_to_temporary_checks() {
   { int arr[T((__reference_binds_to_temporary(const int &, long)))]; }
 }
 
+void reference_constructs_from_temporary_checks() {
+  static_assert(!__reference_constructs_from_temporary(int &, int &), "");
+  static_assert(!__reference_constructs_from_temporary(int &, int &&), "");
+
+  static_assert(!__reference_constructs_from_temporary(int const &, int &), "");
+  static_assert(!__reference_constructs_from_temporary(int const &, int const &), "");
+  static_assert(!__reference_constructs_from_temporary(int const &, int &&), "");
+
+  static_assert(!__reference_constructs_from_temporary(int &, long &), ""); // doesn't construct
+
+  static_assert(__reference_constructs_from_temporary(int const &, long &), "");
+  static_assert(__reference_constructs_from_temporary(int const &, long &&), "");
+  static_assert(__reference_constructs_from_temporary(int &&, long &), "");
+
+  using LRef = ConvertsToRef<int, int &>;
+  using RRef = ConvertsToRef<int, int &&>;
+  using CLRef = ConvertsToRef<int, const int &>;
+  using LongRef = ConvertsToRef<long, long &>;
+  static_assert(__is_constructible(int &, LRef), "");
+  static_assert(!__reference_constructs_from_temporary(int &, LRef), "");
+
+  static_assert(__is_constructible(int &&, RRef), "");
+  static_assert(!__reference_constructs_from_temporary(int &&, RRef), "");
+
+  static_assert(__is_constructible(int const &, CLRef), "");
+  static_assert(!__reference_constructs_from_temporary(int &&, CLRef), "");
+
+  static_assert(__is_constructible(int const &, LongRef), "");
+  static_assert(__reference_constructs_from_temporary(int const &, LongRef), "");
+
+  // Test that it doesn't accept non-reference types as input.
+  static_assert(!__reference_constructs_from_temporary(int, long), "");
+
+  static_assert(__reference_constructs_from_temporary(const int &, long), "");
+
+  // Additional checks
+  static_assert(__reference_constructs_from_temporary(POD const&, Derives), "");
+  static_assert(__reference_constructs_from_temporary(int&&, int), "");
+  static_assert(__reference_constructs_from_temporary(const int&, int), "");
+  static_assert(!__reference_constructs_from_temporary(int&&, int&&), "");
+  static_assert(!__reference_constructs_from_temporary(const int&, int&&), "");
+  static_assert(__reference_constructs_from_temporary(int&&, long&&), "");
+  static_assert(__reference_constructs_from_temporary(int&&, long), "");
+}
+
 void array_rank() {
   int t01[T(__array_rank(IntAr) == 1)];
   int t02[T(__array_rank(ConstIntArAr) == 2)];
@@ -3110,7 +3155,7 @@ static_assert(!__is_trivially_equality_comparable(ForwardDeclared), ""); // expe
 static_assert(!__is_trivially_equality_comparable(void), "");
 static_assert(__is_trivially_equality_comparable(int), "");
 static_assert(!__is_trivially_equality_comparable(int[]), "");
-static_assert(__is_trivially_equality_comparable(int[3]), "");
+static_assert(!__is_trivially_equality_comparable(int[3]), "");
 static_assert(!__is_trivially_equality_comparable(float), "");
 static_assert(!__is_trivially_equality_comparable(double), "");
 static_assert(!__is_trivially_equality_comparable(long double), "");
@@ -3133,6 +3178,20 @@ struct TriviallyEqualityComparable {
   bool operator==(const TriviallyEqualityComparable&) const = default;
 };
 static_assert(__is_trivially_equality_comparable(TriviallyEqualityComparable), "");
+
+struct TriviallyEqualityComparableContainsArray {
+  int a[4];
+
+  bool operator==(const TriviallyEqualityComparableContainsArray&) const = default;
+};
+static_assert(__is_trivially_equality_comparable(TriviallyEqualityComparableContainsArray));
+
+struct TriviallyEqualityComparableContainsMultiDimensionArray {
+  int a[4][4];
+
+  bool operator==(const TriviallyEqualityComparableContainsMultiDimensionArray&) const = default;
+};
+static_assert(__is_trivially_equality_comparable(TriviallyEqualityComparableContainsMultiDimensionArray));
 
 struct TriviallyEqualityComparableNonTriviallyCopyable {
   TriviallyEqualityComparableNonTriviallyCopyable(const TriviallyEqualityComparableNonTriviallyCopyable&);
@@ -3257,6 +3316,21 @@ struct NotTriviallyEqualityComparableHasReferenceMember {
 };
 static_assert(!__is_trivially_equality_comparable(NotTriviallyEqualityComparableHasReferenceMember));
 
+struct NotTriviallyEqualityComparableNonTriviallyComparableBaseBase {
+  int i;
+
+  bool operator==(const NotTriviallyEqualityComparableNonTriviallyComparableBaseBase&) const {
+    return true;
+  }
+};
+
+struct NotTriviallyEqualityComparableNonTriviallyComparableBase : NotTriviallyEqualityComparableNonTriviallyComparableBaseBase {
+  int i;
+
+  bool operator==(const NotTriviallyEqualityComparableNonTriviallyComparableBase&) const = default;
+};
+static_assert(!__is_trivially_equality_comparable(NotTriviallyEqualityComparableNonTriviallyComparableBase));
+
 enum E {
   a,
   b
@@ -3269,6 +3343,20 @@ struct NotTriviallyEqualityComparableHasEnum {
   bool operator==(const NotTriviallyEqualityComparableHasEnum&) const = default;
 };
 static_assert(!__is_trivially_equality_comparable(NotTriviallyEqualityComparableHasEnum));
+
+struct NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs {
+  E e[1];
+
+  bool operator==(const NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs&) const = default;
+};
+static_assert(!__is_trivially_equality_comparable(NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs));
+
+struct NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs2 {
+  E e[1][1];
+
+  bool operator==(const NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs2&) const = default;
+};
+static_assert(!__is_trivially_equality_comparable(NotTriviallyEqualityComparableNonTriviallyEqualityComparableArrs2));
 
 namespace hidden_friend {
 

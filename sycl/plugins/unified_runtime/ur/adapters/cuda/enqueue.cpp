@@ -1,10 +1,10 @@
-//===--------- enqueue.cpp - CUDA Adapter ----------------------------===//
+//===--------- enqueue.cpp - CUDA Adapter ---------------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-//===-----------------------------------------------------------------===//
+//===----------------------------------------------------------------------===//
 
 #include "enqueue.hpp"
 #include "common.hpp"
@@ -249,8 +249,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     if (phEvent) {
       *phEvent = ur_event_handle_t_::makeNative(
           UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue, CuStream, StreamToken);
-      (*phEvent)->start();
-      (*phEvent)->record();
+      UR_CHECK_ERROR((*phEvent)->start());
+      UR_CHECK_ERROR((*phEvent)->record());
     }
 
     return UR_RESULT_SUCCESS;
@@ -390,15 +390,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_KERNEL_LAUNCH, hQueue, CuStream, StreamToken));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     if (hQueue->getContext()->getDevice()->maxLocalMemSizeChosen()) {
       // Set up local memory requirements for kernel.
       auto Device = hQueue->getContext()->getDevice();
       if (Device->getMaxChosenLocalMem() < 0) {
-        setErrorMessage("Invalid value specified for "
-                        "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
+        setErrorMessage(EnvVarHasURPrefix ? "Invalid value specified for "
+                                            "UR_CUDA_MAX_LOCAL_MEM_SIZE"
+                                          : "Invalid value specified for "
+                                            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE",
                         UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -408,10 +412,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
       if (LocalSize > static_cast<uint32_t>(Device->getMaxChosenLocalMem())) {
+        bool EnvVarHasURPrefix =
+            (std::getenv("UR_CUDA_MAX_LOCAL_MEM_SIZE") != nullptr);
         setErrorMessage(
-            "Local memory for kernel exceeds the amount requested using "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value for "
-            "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
+            EnvVarHasURPrefix
+                ? "Local memory for kernel exceeds the amount requested using "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the value of "
+                  "UR_CUDA_MAX_LOCAL_MEM_SIZE."
+                : "Local memory for kernel exceeds the amount requested using "
+                  "SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE. Try increasing the the "
+                  "value of SYCL_PI_CUDA_MAX_LOCAL_MEM_SIZE.",
             UR_RESULT_ERROR_ADAPTER_SPECIFIC);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
@@ -428,7 +438,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       hKernel->clearLocalSize();
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
@@ -517,7 +527,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_READ_RECT, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -526,7 +536,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
         hostRowPitch, hostSlicePitch);
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingRead) {
@@ -564,7 +574,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_WRITE_RECT, hQueue, cuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -573,7 +583,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
         bufferRowPitch, bufferSlicePitch);
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingWrite) {
@@ -595,6 +605,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  UR_ASSERT(size + dstOffset <= hBufferDst->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+  UR_ASSERT(size + srcOffset <= hBufferSrc->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
@@ -609,7 +624,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, Stream));
-      Result = RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     auto Src = hBufferSrc->Mem.BufferMem.get() + srcOffset;
@@ -618,7 +633,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     Result = UR_CHECK_ERROR(cuMemcpyDtoDAsync(Dst, Src, size, Stream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -652,7 +667,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     Result = commonEnqueueMemBufferCopyRect(
@@ -661,7 +676,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
         dstSlicePitch);
 
     if (phEvent) {
-      RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -671,11 +686,51 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   return Result;
 }
 
+// CUDA has no memset functions that allow setting values more than 4 bytes. UR
+// API lets you pass an arbitrary "pattern" to the buffer fill, which can be
+// more than 4 bytes. We must break up the pattern into 1 byte values, and set
+// the buffer using multiple strided calls.  The first 4 patterns are set using
+// cuMemsetD32Async then all subsequent 1 byte patterns are set using
+// cuMemset2DAsync which is called for each pattern.
+ur_result_t commonMemSetLargePattern(CUstream Stream, uint32_t PatternSize,
+                                     size_t Size, const void *pPattern,
+                                     CUdeviceptr Ptr) {
+  // Calculate the number of patterns, stride, number of times the pattern
+  // needs to be applied, and the number of times the first 32 bit pattern
+  // needs to be applied.
+  auto NumberOfSteps = PatternSize / sizeof(uint8_t);
+  auto Pitch = NumberOfSteps * sizeof(uint8_t);
+  auto Height = Size / NumberOfSteps;
+  auto Count32 = Size / sizeof(uint32_t);
+
+  // Get 4-byte chunk of the pattern and call cuMemsetD32Async
+  auto Value = *(static_cast<const uint32_t *>(pPattern));
+  auto Result = UR_CHECK_ERROR(cuMemsetD32Async(Ptr, Value, Count32, Stream));
+  if (Result != UR_RESULT_SUCCESS) {
+    return Result;
+  }
+  for (auto step = 4u; step < NumberOfSteps; ++step) {
+    // take 1 byte of the pattern
+    Value = *(static_cast<const uint8_t *>(pPattern) + step);
+
+    // offset the pointer to the part of the buffer we want to write to
+    auto OffsetPtr = Ptr + (step * sizeof(uint8_t));
+
+    // set all of the pattern chunks
+    UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch, Value, sizeof(uint8_t),
+                                     Height, Stream));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ur_queue_handle_t hQueue, ur_mem_handle_t hBuffer, const void *pPattern,
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  UR_ASSERT(size + offset <= hBuffer->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
+
   auto ArgsAreMultiplesOfPatternSize =
       (offset % patternSize == 0) || (size % patternSize == 0);
 
@@ -703,7 +758,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_FILL, hQueue, Stream));
-      Result = RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     auto DstDevice = hBuffer->Mem.BufferMem.get() + offset;
@@ -727,35 +782,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       break;
     }
     default: {
-      // CUDA has no memset functions that allow setting values more than 4
-      // bytes. PI API lets you pass an arbitrary "pattern" to the buffer
-      // fill, which can be more than 4 bytes. We must break up the pattern
-      // into 4 byte values, and set the buffer using multiple strided calls.
-      // This means that one cuMemsetD2D32Async call is made for every 4 bytes
-      // in the pattern.
-
-      auto NumberOfSteps = patternSize / sizeof(uint32_t);
-
-      // we walk up the pattern in 4-byte steps, and call cuMemset for each
-      // 4-byte chunk of the pattern.
-      for (auto Step = 0u; Step < NumberOfSteps; ++Step) {
-        // take 4 bytes of the pattern
-        auto Value = *(static_cast<const uint32_t *>(pPattern) + Step);
-
-        // offset the pointer to the part of the buffer we want to write to
-        auto OffsetPtr = DstDevice + (Step * sizeof(uint32_t));
-
-        // set all of the pattern chunks
-        Result = UR_CHECK_ERROR(
-            cuMemsetD2D32Async(OffsetPtr, patternSize, Value, 1, N, Stream));
-      }
-
+      Result = commonMemSetLargePattern(Stream, patternSize, size, pPattern,
+                                        DstDevice);
       break;
     }
     }
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
     }
 
@@ -883,6 +917,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
+
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_READ, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(
           cuMemcpyAtoHAsync(pDst, Array, ByteOffsetX, BytesToCopy, CuStream));
@@ -901,10 +943,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_READ,
-                                                     hQueue, CuStream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
 
     if (blockingRead) {
@@ -949,6 +989,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
 
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_WRITE, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
     ur_mem_type_t ImgType = hImage->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(
@@ -968,10 +1016,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_WRITE,
-                                                     hQueue, CuStream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1026,6 +1072,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     size_t BytesToCopy =
         ElementByteSize * SrcArrayDesc.NumChannels * region.width;
 
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
+    if (phEvent) {
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_IMAGE_COPY, hQueue, CuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
+    }
+
     ur_mem_type_t ImgType = hImageSrc->Mem.SurfaceMem.getImageType();
     if (ImgType == UR_MEM_TYPE_IMAGE1D) {
       Result = UR_CHECK_ERROR(cuMemcpyAtoA(DstArray, DstByteOffsetX, SrcArray,
@@ -1046,10 +1100,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     }
 
     if (phEvent) {
-      auto NewEvent = ur_event_handle_t_::makeNative(UR_COMMAND_MEM_IMAGE_COPY,
-                                                     hQueue, CuStream);
-      NewEvent->record();
-      *phEvent = NewEvent;
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
   } catch (ur_result_t Err) {
     return Err;
@@ -1072,6 +1124,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_event_handle_t *phEvent, void **ppRetMap) {
   UR_ASSERT(hBuffer->MemType == ur_mem_handle_t_::Type::Buffer,
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
+  UR_ASSERT(offset + size <= hBuffer->Mem.BufferMem.getSize(),
+            UR_RESULT_ERROR_INVALID_SIZE);
 
   ur_result_t Result = UR_RESULT_ERROR_INVALID_MEM_OBJECT;
   const bool IsPinned =
@@ -1080,11 +1134,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
   // Currently no support for overlapping regions
   if (hBuffer->Mem.BufferMem.getMapPtr() != nullptr) {
-    return Result;
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
   // Allocate a pointer in the host to store the mapped information
-  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(offset, mapFlags);
+  auto HostPtr = hBuffer->Mem.BufferMem.mapToPtr(size, offset, mapFlags);
   *ppRetMap = hBuffer->Mem.BufferMem.getMapPtr();
   if (HostPtr) {
     Result = UR_RESULT_SUCCESS;
@@ -1108,8 +1162,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
       try {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_BUFFER_MAP, hQueue, hQueue->getNextTransferStream());
-        (*phEvent)->start();
-        (*phEvent)->record();
+        UR_CHECK_ERROR((*phEvent)->start());
+        UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
         Result = Err;
       }
@@ -1142,8 +1196,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
   if (!IsPinned && (hMem->Mem.BufferMem.getMapFlags() & UR_MAP_FLAG_WRITE)) {
     // Pinned host memory is only on host so it doesn't need to be written to.
     Result = urEnqueueMemBufferWrite(
-        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(pMappedPtr),
-        hMem->Mem.BufferMem.getSize(), pMappedPtr, numEventsInWaitList,
+        hQueue, hMem, true, hMem->Mem.BufferMem.getMapOffset(),
+        hMem->Mem.BufferMem.getMapSize(), pMappedPtr, numEventsInWaitList,
         phEventWaitList, phEvent);
   } else {
     ScopedContext Active(hQueue->getContext());
@@ -1157,8 +1211,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
       try {
         *phEvent = ur_event_handle_t_::makeNative(
             UR_COMMAND_MEM_UNMAP, hQueue, hQueue->getNextTransferStream());
-        (*phEvent)->start();
-        (*phEvent)->record();
+        UR_CHECK_ERROR((*phEvent)->start());
+        UR_CHECK_ERROR((*phEvent)->record());
       } catch (ur_result_t Err) {
         Result = Err;
       }
@@ -1182,35 +1236,38 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_stream_guard_ Guard;
     CUstream CuStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
-    Result = enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, CuStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_FILL, hQueue, CuStream, StreamToken));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
+
+    auto N = size / patternSize;
     switch (patternSize) {
     case 1:
-      Result = UR_CHECK_ERROR(
-          cuMemsetD8Async((CUdeviceptr)ptr, *((const uint8_t *)pPattern) & 0xFF,
-                          size, CuStream));
+      UR_CHECK_ERROR(cuMemsetD8Async(
+          (CUdeviceptr)ptr, *((const uint8_t *)pPattern) & 0xFF, N, CuStream));
       break;
     case 2:
-      Result = UR_CHECK_ERROR(cuMemsetD16Async(
-          (CUdeviceptr)ptr, *((const uint16_t *)pPattern) & 0xFFFF, size,
-          CuStream));
+      UR_CHECK_ERROR(cuMemsetD16Async((CUdeviceptr)ptr,
+                                      *((const uint16_t *)pPattern) & 0xFFFF, N,
+                                      CuStream));
       break;
     case 4:
-      Result = UR_CHECK_ERROR(cuMemsetD32Async(
-          (CUdeviceptr)ptr, *((const uint32_t *)pPattern) & 0xFFFFFFFF, size,
+      UR_CHECK_ERROR(cuMemsetD32Async(
+          (CUdeviceptr)ptr, *((const uint32_t *)pPattern) & 0xFFFFFFFF, N,
           CuStream));
       break;
     default:
-      return UR_RESULT_ERROR_INVALID_ARGUMENT;
+      commonMemSetLargePattern(CuStream, patternSize, size, pPattern,
+                               (CUdeviceptr)ptr);
+      break;
     }
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
@@ -1236,12 +1293,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_MEMCPY, hQueue, CuStream));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
     Result = UR_CHECK_ERROR(
         cuMemcpyAsync((CUdeviceptr)pDst, (CUdeviceptr)pSrc, size, CuStream));
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
     }
     if (blocking) {
       Result = UR_CHECK_ERROR(cuStreamSynchronize(CuStream));
@@ -1259,6 +1316,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ur_queue_handle_t hQueue, const void *pMem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  unsigned int PointerRangeSize = 0;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
+  UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
   ur_device_handle_t Device = hQueue->getContext()->getDevice();
 
   // Certain cuda devices and Windows do not have support for some Unified
@@ -1297,12 +1358,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_COPY, hQueue, CuStream));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
     Result = UR_CHECK_ERROR(
         cuMemPrefetchAsync((CUdeviceptr)pMem, size, Device->get(), CuStream));
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
@@ -1315,6 +1376,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
 UR_APIEXPORT ur_result_t UR_APICALL
 urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                    ur_usm_advice_flags_t advice, ur_event_handle_t *phEvent) {
+  unsigned int PointerRangeSize = 0;
+  UR_CHECK_ERROR(cuPointerGetAttribute(
+      &PointerRangeSize, CU_POINTER_ATTRIBUTE_RANGE_SIZE, (CUdeviceptr)pMem));
+  UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
+
   // Certain cuda devices and Windows do not have support for some Unified
   // Memory features. Passing CU_MEM_ADVISE_SET/CLEAR_PREFERRED_LOCATION and
   // to cuMemAdvise on a GPU device requires the GPU device to report a non-zero
@@ -1358,7 +1424,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_USM_ADVISE, hQueue, hQueue->getNextTransferStream()));
-      EventPtr->start();
+      UR_CHECK_ERROR(EventPtr->start());
     }
 
     if (advice & UR_USM_ADVICE_FLAG_DEFAULT) {
@@ -1377,7 +1443,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
     }
 
     if (phEvent) {
-      Result = EventPtr->record();
+      UR_CHECK_ERROR(EventPtr->record());
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t err) {
@@ -1408,10 +1474,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     CUstream cuStream = hQueue->getNextTransferStream();
     result = enqueueEventsWait(hQueue, cuStream, numEventsInWaitList,
                                phEventWaitList);
+
+    std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
-      (*phEvent) = ur_event_handle_t_::makeNative(
-          UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream);
-      (*phEvent)->start();
+      RetImplEvent =
+          std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
+              UR_COMMAND_MEM_BUFFER_COPY_RECT, hQueue, cuStream));
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     // Determine the direction of copy using cuPointerGetAttribute
@@ -1432,7 +1501,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     result = UR_CHECK_ERROR(cuMemcpy2DAsync(&CpyDesc, cuStream));
 
     if (phEvent) {
-      (*phEvent)->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
+      *phEvent = RetImplEvent.release();
     }
     if (blocking) {
       result = UR_CHECK_ERROR(cuStreamSynchronize(cuStream));
@@ -1466,13 +1536,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_READ, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     UR_CHECK_ERROR(cuMemcpyDtoHAsync(pDst, DevPtr + offset, size, CuStream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingRead) {
@@ -1513,13 +1583,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
       RetImplEvent =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
               UR_COMMAND_MEM_BUFFER_WRITE, hQueue, CuStream));
-      RetImplEvent->start();
+      UR_CHECK_ERROR(RetImplEvent->start());
     }
 
     UR_CHECK_ERROR(cuMemcpyHtoDAsync(DevPtr + offset, pSrc, size, CuStream));
 
     if (phEvent) {
-      Result = RetImplEvent->record();
+      UR_CHECK_ERROR(RetImplEvent->record());
     }
 
     if (blockingWrite) {

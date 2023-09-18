@@ -10,6 +10,14 @@
 #pragma once
 
 #include <sycl/ext/oneapi/experimental/common_annotated_properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
+
+#include <cstdint>
+#include <iosfwd>
+#include <tuple>
+#include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
@@ -356,13 +364,12 @@ template <typename... Args> struct checkValidFPGAPropertySet {
       ContainsProperty<buffer_location_key, list>::value;
 
   static constexpr bool has_InterfaceConfig =
-      ContainsProperty<awidth_key, list>::value &&
-      ContainsProperty<dwidth_key, list>::value &&
-      ContainsProperty<latency_key, list>::value &&
-      ContainsProperty<read_write_mode_key, list>::value &&
-      ContainsProperty<maxburst_key, list>::value &&
-      ContainsProperty<wait_request_key, list>::value &&
-      ContainsProperty<alignment_key, list>::value;
+      ContainsProperty<awidth_key, list>::value ||
+      ContainsProperty<dwidth_key, list>::value ||
+      ContainsProperty<latency_key, list>::value ||
+      ContainsProperty<read_write_mode_key, list>::value ||
+      ContainsProperty<maxburst_key, list>::value ||
+      ContainsProperty<wait_request_key, list>::value;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };

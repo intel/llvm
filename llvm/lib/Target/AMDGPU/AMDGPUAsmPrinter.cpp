@@ -78,8 +78,8 @@ createAMDGPUAsmPrinterPass(TargetMachine &tm,
   return new AMDGPUAsmPrinter(tm, std::move(Streamer));
 }
 
-extern "C" void LLVM_EXTERNAL_VISIBILITY LLVMInitializeAMDGPUAsmPrinter() {
-  TargetRegistry::RegisterAsmPrinter(getTheAMDGPUTarget(),
+extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUAsmPrinter() {
+  TargetRegistry::RegisterAsmPrinter(getTheR600Target(),
                                      llvm::createR600AsmPrinterPass);
   TargetRegistry::RegisterAsmPrinter(getTheGCNTarget(),
                                      createAMDGPUAsmPrinterPass);
@@ -393,28 +393,29 @@ uint16_t AMDGPUAsmPrinter::getAmdhsaKernelCodeProperties(
     const MachineFunction &MF) const {
   const SIMachineFunctionInfo &MFI = *MF.getInfo<SIMachineFunctionInfo>();
   uint16_t KernelCodeProperties = 0;
+  const GCNUserSGPRUsageInfo &UserSGPRInfo = MFI.getUserSGPRInfo();
 
-  if (MFI.hasPrivateSegmentBuffer()) {
+  if (UserSGPRInfo.hasPrivateSegmentBuffer()) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER;
   }
-  if (MFI.hasDispatchPtr()) {
+  if (UserSGPRInfo.hasDispatchPtr()) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
   }
-  if (MFI.hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5) {
+  if (UserSGPRInfo.hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
   }
-  if (MFI.hasKernargSegmentPtr()) {
+  if (UserSGPRInfo.hasKernargSegmentPtr()) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR;
   }
-  if (MFI.hasDispatchID()) {
+  if (UserSGPRInfo.hasDispatchID()) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID;
   }
-  if (MFI.hasFlatScratchInit()) {
+  if (UserSGPRInfo.hasFlatScratchInit()) {
     KernelCodeProperties |=
         amdhsa::KERNEL_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT;
   }
@@ -1113,7 +1114,8 @@ void AMDGPUAsmPrinter::EmitPALMetadata(const MachineFunction &MF,
 void AMDGPUAsmPrinter::emitPALFunctionMetadata(const MachineFunction &MF) {
   auto *MD = getTargetStreamer()->getPALMetadata();
   const MachineFrameInfo &MFI = MF.getFrameInfo();
-  MD->setFunctionScratchSize(MF, MFI.getStackSize());
+  StringRef FnName = MF.getFunction().getName();
+  MD->setFunctionScratchSize(FnName, MFI.getStackSize());
 
   // Set compute registers
   MD->setRsrc1(CallingConv::AMDGPU_CS,
@@ -1121,9 +1123,9 @@ void AMDGPUAsmPrinter::emitPALFunctionMetadata(const MachineFunction &MF) {
   MD->setRsrc2(CallingConv::AMDGPU_CS, CurrentProgramInfo.getComputePGMRSrc2());
 
   // Set optional info
-  MD->setFunctionLdsSize(MF, CurrentProgramInfo.LDSSize);
-  MD->setFunctionNumUsedVgprs(MF, CurrentProgramInfo.NumVGPRsForWavesPerEU);
-  MD->setFunctionNumUsedSgprs(MF, CurrentProgramInfo.NumSGPRsForWavesPerEU);
+  MD->setFunctionLdsSize(FnName, CurrentProgramInfo.LDSSize);
+  MD->setFunctionNumUsedVgprs(FnName, CurrentProgramInfo.NumVGPRsForWavesPerEU);
+  MD->setFunctionNumUsedSgprs(FnName, CurrentProgramInfo.NumSGPRsForWavesPerEU);
 }
 
 // This is supposed to be log2(Size)
@@ -1164,27 +1166,28 @@ void AMDGPUAsmPrinter::getAmdKernelCode(amd_kernel_code_t &Out,
                    AMD_CODE_PROPERTY_PRIVATE_ELEMENT_SIZE,
                    getElementByteSizeValue(STM.getMaxPrivateElementSize(true)));
 
-  if (MFI->hasPrivateSegmentBuffer()) {
+  const GCNUserSGPRUsageInfo &UserSGPRInfo = MFI->getUserSGPRInfo();
+  if (UserSGPRInfo.hasPrivateSegmentBuffer()) {
     Out.code_properties |=
       AMD_CODE_PROPERTY_ENABLE_SGPR_PRIVATE_SEGMENT_BUFFER;
   }
 
-  if (MFI->hasDispatchPtr())
+  if (UserSGPRInfo.hasDispatchPtr())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
 
-  if (MFI->hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5)
+  if (UserSGPRInfo.hasQueuePtr() && CodeObjectVersion < AMDGPU::AMDHSA_COV5)
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_QUEUE_PTR;
 
-  if (MFI->hasKernargSegmentPtr())
+  if (UserSGPRInfo.hasKernargSegmentPtr())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_KERNARG_SEGMENT_PTR;
 
-  if (MFI->hasDispatchID())
+  if (UserSGPRInfo.hasDispatchID())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_ID;
 
-  if (MFI->hasFlatScratchInit())
+  if (UserSGPRInfo.hasFlatScratchInit())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_FLAT_SCRATCH_INIT;
 
-  if (MFI->hasDispatchPtr())
+  if (UserSGPRInfo.hasDispatchPtr())
     Out.code_properties |= AMD_CODE_PROPERTY_ENABLE_SGPR_DISPATCH_PTR;
 
   if (STM.isXNACKEnabled())
@@ -1293,6 +1296,9 @@ void AMDGPUAsmPrinter::emitResourceUsageRemarks(
     EmitResourceUsageRemark("NumAGPR", "AGPRs", CurrentProgramInfo.NumAccVGPR);
   EmitResourceUsageRemark("ScratchSize", "ScratchSize [bytes/lane]",
                           CurrentProgramInfo.ScratchSize);
+  StringRef DynamicStackStr =
+      CurrentProgramInfo.DynamicCallStack ? "True" : "False";
+  EmitResourceUsageRemark("DynamicStack", "Dynamic Stack", DynamicStackStr);
   EmitResourceUsageRemark("Occupancy", "Occupancy [waves/SIMD]",
                           CurrentProgramInfo.Occupancy);
   EmitResourceUsageRemark("SGPRSpill", "SGPRs Spill",

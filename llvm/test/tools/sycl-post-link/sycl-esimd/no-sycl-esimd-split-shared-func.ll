@@ -48,7 +48,7 @@ define dso_local spir_func <4 x float> @SHARED_F(i64 %addr) noinline {
   ret <4 x float> %res
 }
 
-declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* noundef, <4 x float> (<4 x float>)* noundef, float noundef)
+declare dso_local x86_regcallcc noundef float @_Z33__regcall3____builtin_invoke_simdXX(ptr noundef, ptr noundef, float noundef)
 
 ;---- This has linkonce_odr, so it should be removed after inlining into the
 ;---- helper.
@@ -61,16 +61,16 @@ define linkonce_odr x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> %val) #3 
 
 ;---- Function containing the invoke_simd call.
 define dso_local spir_func float @SPMD_CALLER(float %x) #0 !intel_reqd_sub_group_size !2 {
-  %res = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(<4 x float> (<4 x float> (<4 x float>)*, <4 x float>)* @SIMD_CALL_HELPER, <4 x float> (<4 x float>)* @SIMD_CALLEE, float %x)
+  %res = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX(ptr @SIMD_CALL_HELPER, ptr @SIMD_CALLEE, float %x)
   ret float %res
 }
 
 ;---- Simd call helper library function mock.
-define linkonce_odr dso_local x86_regcallcc <4 x float> @SIMD_CALL_HELPER(<4 x float> (<4 x float>)* noundef nonnull %f, <4 x float> %simd_args) #0 {
-  %f.addr = alloca <4 x float> (<4 x float>)*, align 8
-  %f.addr.ascast = addrspacecast <4 x float> (<4 x float>)** %f.addr to <4 x float> (<4 x float>)* addrspace(4)*
-  store <4 x float> (<4 x float>)* %f, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast, align 8
-  %1 = load <4 x float> (<4 x float>)*, <4 x float> (<4 x float>)* addrspace(4)* %f.addr.ascast, align 8
+define linkonce_odr dso_local x86_regcallcc <4 x float> @SIMD_CALL_HELPER(ptr noundef nonnull %f, <4 x float> %simd_args) #0 {
+  %f.addr = alloca ptr, align 8
+  %f.addr.ascast = addrspacecast ptr %f.addr to ptr addrspace(4)
+  store ptr %f,ptr addrspace(4) %f.addr.ascast, align 8
+  %1 = load ptr,ptr addrspace(4) %f.addr.ascast, align 8
   %call = call x86_regcallcc <4 x float> %1(<4 x float> %simd_args)
   ret <4 x float> %call
 }
@@ -90,10 +90,9 @@ entry:
 ;---- ESIMD kernel, an entry point
 define dso_local spir_kernel void @ESIMD_kernel(float addrspace(1)* %ptr) #1 !sycl_explicit_simd !0 {
 entry:
-  %ptr_as4 = addrspacecast float addrspace(1)* %ptr to float addrspace(4)*
+  %ptr_as4 = addrspacecast float addrspace(1)* %ptr to ptr addrspace(4)
   %res = call x86_regcallcc <4 x float> @SIMD_CALLEE(<4 x float> <float 1.0, float 1.0, float 1.0, float 1.0>)
-  %ptr_x4 = bitcast float addrspace(4)* %ptr_as4 to <4 x float> addrspace(4)*
-  store <4 x float> %res, <4 x float> addrspace(4)* %ptr_x4
+  store <4 x float> %res, ptr addrspace(4) %ptr_as4
   ret void
 }
 
@@ -129,7 +128,7 @@ attributes #3 = { "referenced-indirectly" }
 ; 1) the second argument (function pointer) is removed
 ; 2) The call target (helper) is changed to the optimized one
 ; CHECK: define dso_local spir_func float @SPMD_CALLER(float %{{.*}})
-; CHECK:   %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX_{{.+}}(<4 x float> (<4 x float>)* @[[NEW_HELPER_NAME]], float %{{.*}})
+; CHECK:   %{{.*}} = call spir_func float @_Z33__regcall3____builtin_invoke_simdXX_{{.+}}(ptr @[[NEW_HELPER_NAME]], float %{{.*}})
 ; CHECK:   ret float %{{.*}}
 
 ; Check that VCStackCall attribute is added to the invoke_simd helpers functions:

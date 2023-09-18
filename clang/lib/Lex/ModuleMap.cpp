@@ -622,7 +622,7 @@ ModuleMap::findOrCreateModuleForHeaderInUmbrellaDir(FileEntryRef File) {
       UmbrellaModule = UmbrellaModule->Parent;
 
     if (UmbrellaModule->InferSubmodules) {
-      OptionalFileEntryRefDegradesToFileEntryPtr UmbrellaModuleMap =
+      OptionalFileEntryRef UmbrellaModuleMap =
           getModuleMapFileForUniquing(UmbrellaModule);
 
       // Infer submodules for each of the directories we found between
@@ -993,7 +993,7 @@ Module *ModuleMap::inferFrameworkModule(DirectoryEntryRef FrameworkDir,
 
   // If the framework has a parent path from which we're allowed to infer
   // a framework module, do so.
-  const FileEntry *ModuleMapFile = nullptr;
+  OptionalFileEntryRef ModuleMapFile;
   if (!Parent) {
     // Determine whether we're allowed to infer a module map.
     bool canInfer = false;
@@ -1162,7 +1162,7 @@ void ModuleMap::setUmbrellaHeaderAsWritten(
     Module *Mod, FileEntryRef UmbrellaHeader, const Twine &NameAsWritten,
     const Twine &PathRelativeToRootModuleDirectory) {
   Headers[UmbrellaHeader].push_back(KnownHeader(Mod, NormalHeader));
-  Mod->Umbrella = &UmbrellaHeader.getMapEntry();
+  Mod->Umbrella = UmbrellaHeader;
   Mod->UmbrellaAsWritten = NameAsWritten.str();
   Mod->UmbrellaRelativeToRootModuleDirectory =
       PathRelativeToRootModuleDirectory.str();
@@ -1176,7 +1176,7 @@ void ModuleMap::setUmbrellaHeaderAsWritten(
 void ModuleMap::setUmbrellaDirAsWritten(
     Module *Mod, DirectoryEntryRef UmbrellaDir, const Twine &NameAsWritten,
     const Twine &PathRelativeToRootModuleDirectory) {
-  Mod->Umbrella = &UmbrellaDir.getMapEntry();
+  Mod->Umbrella = UmbrellaDir;
   Mod->UmbrellaAsWritten = NameAsWritten.str();
   Mod->UmbrellaRelativeToRootModuleDirectory =
       PathRelativeToRootModuleDirectory.str();
@@ -1268,8 +1268,7 @@ void ModuleMap::addHeader(Module *Mod, Module::Header Header,
   HeaderList.push_back(KH);
   Mod->Headers[headerRoleToKind(Role)].push_back(Header);
 
-  bool isCompilingModuleHeader =
-      LangOpts.isCompilingModule() && Mod->getTopLevelModule() == SourceModule;
+  bool isCompilingModuleHeader = Mod->isForBuilding(LangOpts);
   if (!Imported || isCompilingModuleHeader) {
     // When we import HeaderFileInfo, the external source is expected to
     // set the isModuleHeader flag itself.
@@ -1295,13 +1294,13 @@ OptionalFileEntryRef
 ModuleMap::getModuleMapFileForUniquing(const Module *M) const {
   if (M->IsInferred) {
     assert(InferredModuleAllowedBy.count(M) && "missing inferred module map");
-    // FIXME: Update InferredModuleAllowedBy to use FileEntryRef.
-    return InferredModuleAllowedBy.find(M)->second->getLastRef();
+    return InferredModuleAllowedBy.find(M)->second;
   }
   return getContainingModuleMapFile(M);
 }
 
-void ModuleMap::setInferredModuleAllowedBy(Module *M, const FileEntry *ModMap) {
+void ModuleMap::setInferredModuleAllowedBy(Module *M,
+                                           OptionalFileEntryRef ModMap) {
   assert(M->IsInferred && "module not inferred");
   InferredModuleAllowedBy[M] = ModMap;
 }
@@ -1325,18 +1324,8 @@ ModuleMap::canonicalizeModuleMapPath(SmallVectorImpl<char> &Path) {
 
   // Canonicalize the directory.
   StringRef CanonicalDir = FM.getCanonicalName(*DirEntry);
-  if (CanonicalDir != Dir) {
-    auto CanonicalDirEntry = FM.getDirectory(CanonicalDir);
-    // Only use the canonicalized path if it resolves to the same entry as the
-    // original. This is not true if there's a VFS overlay on top of a FS where
-    // the directory is a symlink. The overlay would not remap the target path
-    // of the symlink to the same directory entry in that case.
-    if (CanonicalDirEntry && *CanonicalDirEntry == *DirEntry) {
-      bool Done = llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
-      (void)Done;
-      assert(Done && "Path should always start with Dir");
-    }
-  }
+  if (CanonicalDir != Dir)
+    llvm::sys::path::replace_path_prefix(Path, Dir, CanonicalDir);
 
   // In theory, the filename component should also be canonicalized if it
   // on a case-insensitive filesystem. However, the extra canonicalization is
@@ -1350,7 +1339,7 @@ ModuleMap::canonicalizeModuleMapPath(SmallVectorImpl<char> &Path) {
 }
 
 void ModuleMap::addAdditionalModuleMapFile(const Module *M,
-                                           const FileEntry *ModuleMap) {
+                                           FileEntryRef ModuleMap) {
   AdditionalModMaps[M].insert(ModuleMap);
 }
 
@@ -1501,7 +1490,7 @@ namespace clang {
     ModuleMap &Map;
 
     /// The current module map file.
-    const FileEntry *ModuleMapFile;
+    FileEntryRef ModuleMapFile;
 
     /// Source location of most recent parsed module declaration
     SourceLocation CurrModuleDeclLoc;
@@ -1573,7 +1562,7 @@ namespace clang {
   public:
     explicit ModuleMapParser(Lexer &L, SourceManager &SourceMgr,
                              const TargetInfo *Target, DiagnosticsEngine &Diags,
-                             ModuleMap &Map, const FileEntry *ModuleMapFile,
+                             ModuleMap &Map, FileEntryRef ModuleMapFile,
                              DirectoryEntryRef Directory, bool IsSystem)
         : L(L), SourceMgr(SourceMgr), Target(Target), Diags(Diags), Map(Map),
           ModuleMapFile(ModuleMapFile), Directory(Directory),
@@ -2026,10 +2015,28 @@ void ModuleMapParser::parseModuleDecl() {
   Module *ShadowingModule = nullptr;
   if (Module *Existing = Map.lookupModuleQualified(ModuleName, ActiveModule)) {
     // We might see a (re)definition of a module that we already have a
-    // definition for in two cases:
+    // definition for in four cases:
     //  - If we loaded one definition from an AST file and we've just found a
     //    corresponding definition in a module map file, or
-    bool LoadedFromASTFile = Existing->DefinitionLoc.isInvalid();
+    bool LoadedFromASTFile = Existing->IsFromModuleFile;
+    //  - If we previously inferred this module from different module map file.
+    bool Inferred = Existing->IsInferred;
+    //  - If we're building a framework that vends a module map, we might've
+    //    previously seen the one in intermediate products and now the system
+    //    one.
+    // FIXME: If we're parsing module map file that looks like this:
+    //          framework module FW { ... }
+    //          module FW.Sub { ... }
+    //        We can't check the framework qualifier, since it's not attached to
+    //        the definition of Sub. Checking that qualifier on \c Existing is
+    //        not correct either, since we might've previously seen:
+    //          module FW { ... }
+    //          module FW.Sub { ... }
+    //        We should enforce consistency of redefinitions so that we can rely
+    //        that \c Existing is part of a framework iff the redefinition of FW
+    //        we have just skipped had it too. Once we do that, stop checking
+    //        the local framework qualifier and only rely on \c Existing.
+    bool PartOfFramework = Framework || Existing->isPartOfFramework();
     //  - If we're building a (preprocessed) module and we've just loaded the
     //    module map file from which it was created.
     bool ParsedAsMainInput =
@@ -2037,7 +2044,8 @@ void ModuleMapParser::parseModuleDecl() {
         Map.LangOpts.CurrentModule == ModuleName &&
         SourceMgr.getDecomposedLoc(ModuleNameLoc).first !=
             SourceMgr.getDecomposedLoc(Existing->DefinitionLoc).first;
-    if (!ActiveModule && (LoadedFromASTFile || ParsedAsMainInput)) {
+    if (LoadedFromASTFile || Inferred || PartOfFramework || ParsedAsMainInput) {
+      ActiveModule = PreviousActiveModule;
       // Skip the module definition.
       skipUntil(MMToken::RBrace);
       if (Tok.is(MMToken::RBrace))
@@ -2087,7 +2095,7 @@ void ModuleMapParser::parseModuleDecl() {
     ActiveModule->NoUndeclaredIncludes = true;
   ActiveModule->Directory = Directory;
 
-  StringRef MapFileName(ModuleMapFile->getName());
+  StringRef MapFileName(ModuleMapFile.getName());
   if (MapFileName.endswith("module.private.modulemap") ||
       MapFileName.endswith("module_private.map")) {
     ActiveModule->ModuleMapIsPrivate = true;
@@ -2466,7 +2474,7 @@ void ModuleMapParser::parseHeaderDecl(MMToken::TokenKind LeadingToken,
   bool NeedsFramework = false;
   Map.addUnresolvedHeader(ActiveModule, std::move(Header), NeedsFramework);
 
-  if (NeedsFramework && ActiveModule)
+  if (NeedsFramework)
     Diags.Report(CurrModuleDeclLoc, diag::note_mmap_add_framework_keyword)
       << ActiveModule->getFullModuleName()
       << FixItHint::CreateReplacement(CurrModuleDeclLoc, "framework module");
@@ -3069,7 +3077,7 @@ bool ModuleMapParser::parseModuleMapFile() {
   } while (true);
 }
 
-bool ModuleMap::parseModuleMapFile(const FileEntry *File, bool IsSystem,
+bool ModuleMap::parseModuleMapFile(FileEntryRef File, bool IsSystem,
                                    DirectoryEntryRef Dir, FileID ID,
                                    unsigned *Offset,
                                    SourceLocation ExternModuleLoc) {
@@ -3112,7 +3120,7 @@ bool ModuleMap::parseModuleMapFile(const FileEntry *File, bool IsSystem,
 
   // Notify callbacks that we parsed it.
   for (const auto &Cb : Callbacks)
-    Cb->moduleMapFileRead(Start, *File, IsSystem);
+    Cb->moduleMapFileRead(Start, File, IsSystem);
 
   return Result;
 }

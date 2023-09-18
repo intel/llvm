@@ -8,18 +8,18 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/helpers.hpp>
-#include <sycl/memory_enums.hpp>
+#include <CL/__spirv/spirv_types.hpp>         // for Scope, MemorySemanticsMask
+#include <sycl/access/access.hpp>             // for address_space, decorated
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/helpers.hpp>            // for getSPIRVMemorySemanticsMask
+#include <sycl/memory_enums.hpp> // for memory_order, getStdMemoryO...
+#include <sycl/multi_ptr.hpp>    // for multi_ptr
+
+#include <type_traits> // for is_same
 
 #ifndef __SYCL_DEVICE_ONLY__
-#include <atomic>
-#else
-#include <cstring>
+#include <atomic> // for atomic, memory_order
 #endif
-#include <type_traits>
 
 #define __SYCL_STATIC_ASSERT_NOT_FLOAT(T)                                      \
   static_assert(!std::is_same<T, float>::value,                                \

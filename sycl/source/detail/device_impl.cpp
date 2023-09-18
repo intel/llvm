@@ -628,6 +628,15 @@ uint64_t device_impl::getCurrentDeviceTime() {
   return MDeviceHostBaseTime.first + Diff;
 }
 
+bool device_impl::isGetDeviceAndHostTimerSupported() {
+  const auto &Plugin = getPlugin();
+  uint64_t DeviceTime = 0, HostTime = 0;
+  auto Result =
+      Plugin->call_nocheck<detail::PiApiKind::piGetDeviceAndHostTimer>(
+          MDevice, &DeviceTime, &HostTime);
+  return Result != PI_ERROR_INVALID_OPERATION;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

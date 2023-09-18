@@ -73,16 +73,16 @@ M68kTargetLowering::M68kTargetLowering(const M68kTargetMachine &TM,
   setTruncStoreAction(MVT::i32, MVT::i8, Expand);
   setTruncStoreAction(MVT::i16, MVT::i8, Expand);
 
-  setOperationAction(ISD::MUL, MVT::i8, Promote);
-  setOperationAction(ISD::MUL, MVT::i16, Legal);
+  setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i8, Promote);
+  setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i16, Legal);
   if (Subtarget.atLeastM68020())
-    setOperationAction(ISD::MUL, MVT::i32, Legal);
+    setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i32, Legal);
   else
-    setOperationAction(ISD::MUL, MVT::i32, LibCall);
+    setOperationAction({ISD::MUL, ISD::SDIV, ISD::UDIV}, MVT::i32, LibCall);
   setOperationAction(ISD::MUL, MVT::i64, LibCall);
 
   for (auto OP :
-       {ISD::SDIV, ISD::UDIV, ISD::SREM, ISD::UREM, ISD::UDIVREM, ISD::SDIVREM,
+       {ISD::SREM, ISD::UREM, ISD::UDIVREM, ISD::SDIVREM,
         ISD::MULHS, ISD::MULHU, ISD::UMUL_LOHI, ISD::SMUL_LOHI}) {
     setOperationAction(OP, MVT::i8, Promote);
     setOperationAction(OP, MVT::i16, Legal);
@@ -204,11 +204,12 @@ M68kTargetLowering::getExceptionSelectorRegister(const Constant *) const {
   return M68k::D1;
 }
 
-unsigned
+InlineAsm::ConstraintCode
 M68kTargetLowering::getInlineAsmMemConstraint(StringRef ConstraintCode) const {
-  return StringSwitch<unsigned>(ConstraintCode)
-      .Case("Q", InlineAsm::Constraint_Q)
-      .Case("U", InlineAsm::Constraint_Um) // We borrow Constraint_Um for 'U'.
+  return StringSwitch<InlineAsm::ConstraintCode>(ConstraintCode)
+      .Case("Q", InlineAsm::ConstraintCode::Q)
+      // We borrow ConstraintCode::Um for 'U'.
+      .Case("U", InlineAsm::ConstraintCode::Um)
       .Default(TargetLowering::getInlineAsmMemConstraint(ConstraintCode));
 }
 
@@ -3203,6 +3204,11 @@ M68kTargetLowering::EmitLoweredSelect(MachineInstr &MI,
   MachineBasicBlock *SinkMBB = F->CreateMachineBasicBlock(BB);
   F->insert(It, Copy0MBB);
   F->insert(It, SinkMBB);
+
+  // Set the call frame size on entry to the new basic blocks.
+  unsigned CallFrameSize = TII->getCallFrameSizeAt(MI);
+  Copy0MBB->setCallFrameSize(CallFrameSize);
+  SinkMBB->setCallFrameSize(CallFrameSize);
 
   // If the CCR register isn't dead in the terminator, then claim that it's
   // live into the sink and copy blocks.

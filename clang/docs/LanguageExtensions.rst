@@ -612,7 +612,7 @@ to perform additional operations on certain scalar and vector types.
 
 Let ``T`` be one of the following types:
 
-* an integer type (as in C2x 6.2.5p19), but excluding enumerated types and _Bool
+* an integer type (as in C23 6.2.5p22), but excluding enumerated types and ``bool``
 * the standard floating types float or double
 * a half-precision floating point type, if one is supported on the target
 * a vector type.
@@ -631,7 +631,7 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
 =========================================== ================================================================ =========================================
  T __builtin_elementwise_abs(T x)            return the absolute value of a number x; the absolute value of   signed integer and floating point types
                                              the most negative integer remains the most negative integer
- T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                              floating point types
+ T __builtin_elementwise_fma(T x, T y, T z)  fused multiply add, (x * y) +  z.                                floating point types
  T __builtin_elementwise_ceil(T x)           return the smallest integral value greater than or equal to x    floating point types
  T __builtin_elementwise_sin(T x)            return the sine of x interpreted as an angle in radians          floating point types
  T __builtin_elementwise_cos(T x)            return the cosine of x interpreted as an angle in radians        floating point types
@@ -639,8 +639,12 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
  T __builtin_elementwise_log(T x)            return the natural logarithm of x                                floating point types
  T __builtin_elementwise_log2(T x)           return the base 2 logarithm of x                                 floating point types
  T __builtin_elementwise_log10(T x)          return the base 10 logarithm of x                                floating point types
+ T __builtin_elementwise_pow(T x, T y)       return x raised to the power of y                                floating point types
+ T __builtin_elementwise_bitreverse(T x)     return the integer represented after reversing the bits of x     integer types
  T __builtin_elementwise_exp(T x)            returns the base-e exponential, e^x, of the specified value      floating point types
  T __builtin_elementwise_exp2(T x)           returns the base-2 exponential, 2^x, of the specified value      floating point types
+
+ T __builtin_elementwise_sqrt(T x)           return the square root of a floating-point number                floating point types
  T __builtin_elementwise_roundeven(T x)      round x to the nearest integer value in floating point format,   floating point types
                                              rounding halfway cases to even (that is, to the nearest value
                                              that is an even integer), regardless of the current rounding
@@ -651,6 +655,19 @@ Unless specified otherwise operation(±0) = ±0 and operation(±infinity) = ±in
                                              exceptions.
  T __builtin_elementwise_trunc(T x)          return the integral value nearest to but no larger in            floating point types
                                              magnitude than x
+
+  T __builtin_elementwise_nearbyint(T x)     round x to the nearest  integer value in floating point format,      floating point types
+                                             rounding according to the current rounding direction.
+                                             May not raise the inexact floating-point exception. This is
+                                             treated the same as ``__builtin_elementwise_rint`` unless
+                                             :ref:`FENV_ACCESS is enabled <floating-point-environment>`.
+
+ T __builtin_elementwise_rint(T x)           round x to the nearest  integer value in floating point format,      floating point types
+                                             rounding according to the current rounding
+                                             direction. May raise floating-point exceptions. This is treated
+                                             the same as ``__builtin_elementwise_nearbyint`` unless
+                                             :ref:`FENV_ACCESS is enabled <floating-point-environment>`.
+
  T __builtin_elementwise_canonicalize(T x)   return the platform specific canonical encoding                  floating point types
                                              of a floating-point number
  T __builtin_elementwise_copysign(T x, T y)  return the magnitude of x with the sign of y.                    floating point types
@@ -797,10 +814,12 @@ to ``float``; see below for more information on this emulation.
   * AMDGPU (natively)
   * SPIR (natively)
   * X86 (if SSE2 is available; natively if AVX512-FP16 is also available)
+  * RISC-V (natively if Zfh or Zhinx is available)
 
 * ``__bf16`` is supported on the following targets (currently never natively):
   * 32-bit ARM
   * 64-bit ARM (AArch64)
+  * RISC-V
   * X86 (when SSE2 is available)
 
 (For X86, SSE2 is available on 64-bit and all recent 32-bit processors.)
@@ -1416,15 +1435,15 @@ More information could be found `here <https://clang.llvm.org/docs/Modules.html>
 Language Extensions Back-ported to Previous Standards
 =====================================================
 
-====================================== ================================ ============= ============= ==================================
-Feature                                Feature Test Macro               Introduced In Backported To Required Flags
-====================================== ================================ ============= ============= ==================================
+====================================== ================================ ============= =============
+Feature                                Feature Test Macro               Introduced In Backported To
+====================================== ================================ ============= =============
 variadic templates                     __cpp_variadic_templates         C++11         C++03
 Alias templates                        __cpp_alias_templates            C++11         C++03
 Non-static data member initializers    __cpp_nsdmi                      C++11         C++03
 Range-based ``for`` loop               __cpp_range_based_for            C++11         C++03
 RValue references                      __cpp_rvalue_references          C++11         C++03
-Attributes                             __cpp_attributes                 C++11         C++03         -fdouble-square-bracket-attributes
+Attributes                             __cpp_attributes                 C++11         C++03
 variable templates                     __cpp_variable_templates         C++14         C++03
 Binary literals                        __cpp_binary_literals            C++14         C++03
 Relaxed constexpr                      __cpp_constexpr                  C++14         C++11
@@ -1444,10 +1463,11 @@ Conditional ``explicit``               __cpp_conditional_explicit       C++20   
 ``using enum``                         __cpp_using_enum                 C++20         C++03
 ``if consteval``                       __cpp_if_consteval               C++23         C++20
 ``static operator()``                  __cpp_static_call_operator       C++23         C++03
--------------------------------------- -------------------------------- ------------- ------------- ----------------------------------
+-------------------------------------- -------------------------------- ------------- -------------
 Designated initializers (N494)                                          C99           C89
-Array & element qualification (N2607)                                   C2x           C89
-====================================== ================================ ============= ============= ==================================
+Array & element qualification (N2607)                                   C23           C89
+Attributes (N2335)                                                      C23           C89
+====================================== ================================ ============= =============
 
 Type Trait Primitives
 =====================
@@ -1601,6 +1621,10 @@ The following type trait primitives are supported by Clang. Those traits marked
   materialized temporary object. If ``T`` is not a reference type the result
   is false. Note this trait will also return false when the initialization of
   ``T`` from ``U`` is ill-formed.
+  Deprecated, use ``__reference_constructs_from_temporary``.
+* ``__reference_constructs_from_temporary(T, U)`` (C++)
+  Returns true if a reference ``T`` can be constructed from a temporary of type
+  a non-cv-qualified ``U``.
 * ``__underlying_type`` (C++, GNU, Microsoft)
 
 In addition, the following expression traits are supported:
@@ -2320,18 +2344,18 @@ targets.
 WebAssembly Features
 ====================
 
-Clang supports the WebAssembly features documented below. For further 
+Clang supports the WebAssembly features documented below. For further
 information related to the semantics of the builtins, please refer to the `WebAssembly Specification <https://webassembly.github.io/spec/core/>`_.
-In this section, when we refer to reference types, we are referring to 
+In this section, when we refer to reference types, we are referring to
 WebAssembly reference types, not C++ reference types unless stated
 otherwise.
 
 ``__builtin_wasm_table_set``
 ----------------------------
 
-This builtin function stores a value in a WebAssembly table. 
+This builtin function stores a value in a WebAssembly table.
 It takes three arguments.
-The first argument is the table to store a value into, the second 
+The first argument is the table to store a value into, the second
 argument is the index to which to store the value into, and the
 third argument is a value of reference type to store in the table.
 It returns nothing.
@@ -2343,7 +2367,7 @@ It returns nothing.
 
   void store(int index) {
     __builtin_wasm_table_set(table, index, JSObj);
-  } 
+  }
 
 ``__builtin_wasm_table_get``
 ----------------------------
@@ -2351,14 +2375,14 @@ It returns nothing.
 This builtin function is the counterpart to ``__builtin_wasm_table_set``
 and loads a value from a WebAssembly table of reference typed values.
 It takes 2 arguments.
-The first argument is a table of reference typed values and the 
+The first argument is a table of reference typed values and the
 second argument is an index from which to load the value. It returns
 the loaded reference typed value.
 
 .. code-block:: c++
 
   static __externref_t table[0];
-  
+
   __externref_t load(int index) {
     __externref_t Obj = __builtin_wasm_table_get(table, index);
     return Obj;
@@ -2384,13 +2408,13 @@ with the current table size.
 -----------------------------
 
 This builtin function grows the WebAssembly table by a certain amount.
-Currently, as all WebAssembly tables created in C/C++ are zero-sized, 
-this always needs to be called to grow the table. 
+Currently, as all WebAssembly tables created in C/C++ are zero-sized,
+this always needs to be called to grow the table.
 
-It takes three arguments. The first argument is the WebAssembly table 
-to grow. The second argument is the reference typed value to store in 
+It takes three arguments. The first argument is the WebAssembly table
+to grow. The second argument is the reference typed value to store in
 the new table entries (the initialization value), and the third argument
-is the amound to grow the table by. It returns the previous table size
+is the amount to grow the table by. It returns the previous table size
 or -1. It will return -1 if not enough space could be allocated.
 
 .. code-block:: c++
@@ -2409,11 +2433,11 @@ or -1. It will return -1 if not enough space could be allocated.
 ``__builtin_wasm_table_fill``
 -----------------------------
 
-This builtin function sets all the entries of a WebAssembly table to a given 
-reference typed value. It takes four arguments. The first argument is 
-the WebAssembly table, the second argument is the index that starts the 
-range, the third argument is the value to set in the new entries, and 
-the fourth and the last argument is the size of the range. It returns 
+This builtin function sets all the entries of a WebAssembly table to a given
+reference typed value. It takes four arguments. The first argument is
+the WebAssembly table, the second argument is the index that starts the
+range, the third argument is the value to set in the new entries, and
+the fourth and the last argument is the size of the range. It returns
 nothing.
 
 .. code-block:: c++
@@ -2429,11 +2453,11 @@ nothing.
 ``__builtin_wasm_table_copy``
 -----------------------------
 
-This builtin function copies elements from a source WebAssembly table 
+This builtin function copies elements from a source WebAssembly table
 to a possibly overlapping destination region. It takes five arguments.
 The first argument is the destination WebAssembly table, and the second
-argument is the source WebAssembly table. The third argument is the 
-destination index from where the copy starts, the fourth argument is the 
+argument is the source WebAssembly table. The third argument is the
+destination index from where the copy starts, the fourth argument is the
 source index from there the copy starts, and the fifth and last argument
 is the number of elements to copy. It returns nothing.
 
@@ -3143,7 +3167,7 @@ avoid cache misses when the developer has a good understanding of which data
 are going to be used next. ``addr`` is the address that needs to be brought into
 the cache. ``rw`` indicates the expected access mode: ``0`` for *read* and ``1``
 for *write*. In case of *read write* access, ``1`` is to be used. ``locality``
-indicates the expected persistance of data in cache, from ``0`` which means that
+indicates the expected persistence of data in cache, from ``0`` which means that
 data can be discarded from cache after its next use to ``3`` which means that
 data is going to be reused a lot once in cache. ``1`` and ``2`` provide
 intermediate behavior between these two extremes.
@@ -3517,18 +3541,15 @@ Floating point builtins
 ``__builtin_isfpclass``
 -----------------------
 
-``__builtin_isfpclass`` is used to test if the specified floating-point value
-falls into one of the specified floating-point classes.
+``__builtin_isfpclass`` is used to test if the specified floating-point values
+fall into one of the specified floating-point classes.
 
 **Syntax**:
 
 .. code-block:: c++
 
     int __builtin_isfpclass(fp_type expr, int mask)
-
-``fp_type`` is a floating-point type supported by the target. ``mask`` is an
-integer constant expression, where each bit represents floating-point class to
-test. The function returns boolean value.
+    int_vector __builtin_isfpclass(fp_vector expr, int mask)
 
 **Example of use**:
 
@@ -3544,8 +3565,9 @@ test. The function returns boolean value.
 The ``__builtin_isfpclass()`` builtin is a generalization of functions ``isnan``,
 ``isinf``, ``isfinite`` and some others defined by the C standard. It tests if
 the floating-point value, specified by the first argument, falls into any of data
-classes, specified by the second argument. The later is a bitmask, in which each
-data class is represented by a bit using the encoding:
+classes, specified by the second argument. The latter is an integer constant
+bitmask expression, in which each data class is represented by a bit
+using the encoding:
 
 ========== =================== ======================
 Mask value Data class          Macro
@@ -3572,6 +3594,14 @@ these data classes. Using suitable mask value, the function can implement any of
 the standard classification functions, for example, ``__builtin_isfpclass(x, 3)``
 is identical to ``isnan``,``__builtin_isfpclass(x, 504)`` - to ``isfinite``
 and so on.
+
+If the first argument is a vector, the function is equivalent to the set of
+scalar calls of ``__builtin_isfpclass`` applied to the input elementwise.
+
+The result of ``__builtin_isfpclass`` is a boolean value, if the first argument
+is a scalar, or an integer vector with the same element count as the first
+argument. The element type in this vector has the same bit length as the
+element of the the first argument type.
 
 This function never raises floating-point exceptions and does not canonicalize
 its input. The floating-point argument is not promoted, its data class is
@@ -3673,7 +3703,7 @@ A predefined typedef for the target-specific ``va_list`` type.
 
 A builtin function for the target-specific ``va_start`` function-like macro.
 The ``parameter-name`` argument is the name of the parameter preceding the
-ellipsis (``...``) in the function signature. Alternatively, in C2x mode or
+ellipsis (``...``) in the function signature. Alternatively, in C23 mode or
 later, it may be the integer literal ``0`` if there is no parameter preceding
 the ellipsis. This function initializes the given ``__builtin_va_list`` object.
 It is undefined behavior to call this function on an already initialized
@@ -4682,6 +4712,13 @@ The full syntax this pragma supports is
     a = b[i] * c[i] + e;
   }
 
+Note: ``math.h`` defines the typedefs ``float_t`` and ``double_t`` based on the active
+evaluation method at the point where the header is included, not where the
+typedefs are used.  Because of this, it is unwise to combine these typedefs with
+``#pragma clang fp eval_method``.  To catch obvious bugs, Clang will emit an
+error for any references to these typedefs within the scope of this pragma;
+however, this is not a fool-proof protection, and programmers must take care.
+
 The ``#pragma float_control`` pragma allows precise floating-point
 semantics and floating-point exception behavior to be specified
 for a section of the source code. This pragma can only appear at file or
@@ -4696,7 +4733,12 @@ settings can be pushed or popped.
 When ``pragma float_control(precise, on)`` is enabled, the section of code
 governed by the pragma uses precise floating point semantics, effectively
 ``-ffast-math`` is disabled and ``-ffp-contract=on``
-(fused multiply add) is enabled.
+(fused multiply add) is enabled. This pragma enables ``-fmath-errno``.
+
+When ``pragma float_control(precise, off)`` is enabled, unsafe-floating point
+optimizations are enabled in the section of code governed by the pragma.
+Effectively ``-ffast-math`` is enabled and ``-ffp-contract=fast``. This pragma
+disables ``-fmath-errno``.
 
 When ``pragma float_control(except, on)`` is enabled, the section of code
 governed by the pragma behaves as though the command-line option
@@ -5219,12 +5261,18 @@ The following x86-specific intrinsics can be used in constant expressions:
 * ``_castf64_u64``
 * ``_castu32_f32``
 * ``_castu64_f64``
+* ``__lzcnt16``
+* ``__lzcnt``
+* ``__lzcnt64``
 * ``_mm_popcnt_u32``
 * ``_mm_popcnt_u64``
 * ``_popcnt32``
 * ``_popcnt64``
 * ``__popcntd``
 * ``__popcntq``
+* ``__popcnt16``
+* ``__popcnt``
+* ``__popcnt64``
 * ``__rolb``
 * ``__rolw``
 * ``__rold``

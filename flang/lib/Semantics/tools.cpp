@@ -1208,13 +1208,13 @@ ComponentIterator<componentKind>::const_iterator::PlanComponentTraversal(
           // Order Component (only visit parents)
           traverse = component.test(Symbol::Flag::ParentComp);
         } else if constexpr (componentKind == ComponentKind::Direct) {
-          traverse = !IsAllocatableOrPointer(component);
+          traverse = !IsAllocatableOrObjectPointer(&component);
         } else if constexpr (componentKind == ComponentKind::Ultimate) {
-          traverse = !IsAllocatableOrPointer(component);
+          traverse = !IsAllocatableOrObjectPointer(&component);
         } else if constexpr (componentKind == ComponentKind::Potential) {
           traverse = !IsPointer(component);
         } else if constexpr (componentKind == ComponentKind::Scope) {
-          traverse = !IsAllocatableOrPointer(component);
+          traverse = !IsAllocatableOrObjectPointer(&component);
         } else if constexpr (componentKind ==
             ComponentKind::PotentialAndPointer) {
           traverse = !IsPointer(component);
@@ -1248,7 +1248,7 @@ static bool StopAtComponentPre(const Symbol &component) {
     return true;
   } else if constexpr (componentKind == ComponentKind::Ultimate) {
     return component.has<ProcEntityDetails>() ||
-        IsAllocatableOrPointer(component) ||
+        IsAllocatableOrObjectPointer(&component) ||
         (component.get<ObjectEntityDetails>().type() &&
             component.get<ObjectEntityDetails>().type()->AsIntrinsic());
   } else if constexpr (componentKind == ComponentKind::Potential) {
@@ -1608,6 +1608,62 @@ bool HasDefinedIo(common::DefinedIo which, const DerivedTypeSpec &derived,
     }
   }
   return false;
+}
+
+void WarnOnDeferredLengthCharacterScalar(SemanticsContext &context,
+    const SomeExpr *expr, parser::CharBlock at, const char *what) {
+  if (context.languageFeatures().ShouldWarn(
+          common::UsageWarning::F202XAllocatableBreakingChange)) {
+    if (const Symbol *
+        symbol{evaluate::UnwrapWholeSymbolOrComponentDataRef(expr)}) {
+      const Symbol &ultimate{ResolveAssociations(*symbol)};
+      if (const DeclTypeSpec * type{ultimate.GetType()}; type &&
+          type->category() == DeclTypeSpec::Category::Character &&
+          type->characterTypeSpec().length().isDeferred() &&
+          IsAllocatable(ultimate) && ultimate.Rank() == 0) {
+        context.Say(at,
+            "The deferred length allocatable character scalar variable '%s' may be reallocated to a different length under the new Fortran 202X standard semantics for %s"_port_en_US,
+            symbol->name(), what);
+      }
+    }
+  }
+}
+
+bool CouldBeDataPointerValuedFunction(const Symbol *original) {
+  if (original) {
+    const Symbol &ultimate{original->GetUltimate()};
+    if (const Symbol * result{FindFunctionResult(ultimate)}) {
+      return IsPointer(*result) && !IsProcedure(*result);
+    }
+    if (const auto *generic{ultimate.detailsIf<GenericDetails>()}) {
+      for (const SymbolRef &ref : generic->specificProcs()) {
+        if (CouldBeDataPointerValuedFunction(&*ref)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+std::string GetModuleOrSubmoduleName(const Symbol &symbol) {
+  const auto &details{symbol.get<ModuleDetails>()};
+  std::string result{symbol.name().ToString()};
+  if (details.ancestor() && details.ancestor()->symbol()) {
+    result = details.ancestor()->symbol()->name().ToString() + ':' + result;
+  }
+  return result;
+}
+
+std::string GetCommonBlockObjectName(const Symbol &common, bool underscoring) {
+  if (const std::string * bind{common.GetBindName()}) {
+    return *bind;
+  }
+  if (common.name().empty()) {
+    return Fortran::common::blankCommonObjectName;
+  }
+  return underscoring ? common.name().ToString() + "_"s
+                      : common.name().ToString();
 }
 
 } // namespace Fortran::semantics

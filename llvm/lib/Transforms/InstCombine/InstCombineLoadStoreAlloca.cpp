@@ -224,7 +224,7 @@ static Instruction *simplifyAllocaArraySize(InstCombinerImpl &IC,
       Value *Idx[2] = {NullIdx, NullIdx};
       Instruction *GEP = GetElementPtrInst::CreateInBounds(
           NewTy, New, Idx, New->getName() + ".sub");
-      IC.InsertNewInstBefore(GEP, *It);
+      IC.InsertNewInstBefore(GEP, It);
 
       // Now make everything use the getelementptr instead of the original
       // allocation.
@@ -380,7 +380,7 @@ void PointerReplacer::replace(Instruction *I) {
     NewI->takeName(LT);
     copyMetadataForLoad(*NewI, *LT);
 
-    IC.InsertNewInstWith(NewI, *LT);
+    IC.InsertNewInstWith(NewI, LT->getIterator());
     IC.replaceInstUsesWith(*LT, NewI);
     WorkMap[LT] = NewI;
   } else if (auto *PHI = dyn_cast<PHINode>(I)) {
@@ -398,24 +398,23 @@ void PointerReplacer::replace(Instruction *I) {
     Indices.append(GEP->idx_begin(), GEP->idx_end());
     auto *NewI =
         GetElementPtrInst::Create(GEP->getSourceElementType(), V, Indices);
-    IC.InsertNewInstWith(NewI, *GEP);
+    IC.InsertNewInstWith(NewI, GEP->getIterator());
     NewI->takeName(GEP);
     WorkMap[GEP] = NewI;
   } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
     auto *V = getReplacement(BC->getOperand(0));
     assert(V && "Operand not replaced");
-    auto *NewT = PointerType::getWithSamePointeeType(
-        cast<PointerType>(BC->getType()),
-        V->getType()->getPointerAddressSpace());
+    auto *NewT = PointerType::get(BC->getType()->getContext(),
+                                  V->getType()->getPointerAddressSpace());
     auto *NewI = new BitCastInst(V, NewT);
-    IC.InsertNewInstWith(NewI, *BC);
+    IC.InsertNewInstWith(NewI, BC->getIterator());
     NewI->takeName(BC);
     WorkMap[BC] = NewI;
   } else if (auto *SI = dyn_cast<SelectInst>(I)) {
     auto *NewSI = SelectInst::Create(
         SI->getCondition(), getReplacement(SI->getTrueValue()),
         getReplacement(SI->getFalseValue()), SI->getName(), nullptr, SI);
-    IC.InsertNewInstWith(NewSI, *SI);
+    IC.InsertNewInstWith(NewSI, SI->getIterator());
     NewSI->takeName(SI);
     WorkMap[SI] = NewSI;
   } else if (auto *MemCpy = dyn_cast<MemTransferInst>(I)) {
@@ -450,7 +449,7 @@ void PointerReplacer::replace(Instruction *I) {
         ASC->getType()->getPointerAddressSpace()) {
       auto *NewI = new AddrSpaceCastInst(V, ASC->getType(), "");
       NewI->takeName(ASC);
-      IC.InsertNewInstWith(NewI, *ASC);
+      IC.InsertNewInstWith(NewI, ASC->getIterator());
       NewV = NewI;
     }
     IC.replaceInstUsesWith(*ASC, NewV);
@@ -508,8 +507,6 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
         // types.
         const Align MaxAlign = std::max(EntryAI->getAlign(), AI.getAlign());
         EntryAI->setAlignment(MaxAlign);
-        if (AI.getType() != EntryAI->getType())
-          return new BitCastInst(EntryAI, AI.getType());
         return replaceInstUsesWith(AI, EntryAI);
       }
     }
@@ -535,13 +532,11 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
       LLVM_DEBUG(dbgs() << "Found alloca equal to global: " << AI << '\n');
       LLVM_DEBUG(dbgs() << "  memcpy = " << *Copy << '\n');
       unsigned SrcAddrSpace = TheSrc->getType()->getPointerAddressSpace();
-      auto *DestTy = PointerType::get(AI.getAllocatedType(), SrcAddrSpace);
       if (AI.getAddressSpace() == SrcAddrSpace) {
         for (Instruction *Delete : ToDelete)
           eraseInstFromFunction(*Delete);
 
-        Value *Cast = Builder.CreateBitCast(TheSrc, DestTy);
-        Instruction *NewI = replaceInstUsesWith(AI, Cast);
+        Instruction *NewI = replaceInstUsesWith(AI, TheSrc);
         eraseInstFromFunction(*Copy);
         ++NumGlobalCopies;
         return NewI;
@@ -552,8 +547,7 @@ Instruction *InstCombinerImpl::visitAllocaInst(AllocaInst &AI) {
         for (Instruction *Delete : ToDelete)
           eraseInstFromFunction(*Delete);
 
-        Value *Cast = Builder.CreateBitCast(TheSrc, DestTy);
-        PtrReplacer.replacePointer(Cast);
+        PtrReplacer.replacePointer(TheSrc);
         ++NumGlobalCopies;
       }
     }
@@ -583,16 +577,10 @@ LoadInst *InstCombinerImpl::combineLoadToNewType(LoadInst &LI, Type *NewTy,
   assert((!LI.isAtomic() || isSupportedAtomicType(NewTy)) &&
          "can't fold an atomic load to requested type");
 
-  Value *Ptr = LI.getPointerOperand();
-  unsigned AS = LI.getPointerAddressSpace();
-  Type *NewPtrTy = NewTy->getPointerTo(AS);
-  Value *NewPtr = nullptr;
-  if (!(match(Ptr, m_BitCast(m_Value(NewPtr))) &&
-        NewPtr->getType() == NewPtrTy))
-    NewPtr = Builder.CreateBitCast(Ptr, NewPtrTy);
+  LoadInst *NewLoad =
+      Builder.CreateAlignedLoad(NewTy, LI.getPointerOperand(), LI.getAlign(),
+                                LI.isVolatile(), LI.getName() + Suffix);
 
-  LoadInst *NewLoad = Builder.CreateAlignedLoad(
-      NewTy, NewPtr, LI.getAlign(), LI.isVolatile(), LI.getName() + Suffix);
   NewLoad->setAtomic(LI.getOrdering(), LI.getSyncScopeID());
   copyMetadataForLoad(*NewLoad, LI);
   return NewLoad;
@@ -607,13 +595,11 @@ static StoreInst *combineStoreToNewValue(InstCombinerImpl &IC, StoreInst &SI,
          "can't fold an atomic store of requested type");
 
   Value *Ptr = SI.getPointerOperand();
-  unsigned AS = SI.getPointerAddressSpace();
   SmallVector<std::pair<unsigned, MDNode *>, 8> MD;
   SI.getAllMetadata(MD);
 
-  StoreInst *NewStore = IC.Builder.CreateAlignedStore(
-      V, IC.Builder.CreateBitCast(Ptr, V->getType()->getPointerTo(AS)),
-      SI.getAlign(), SI.isVolatile());
+  StoreInst *NewStore =
+      IC.Builder.CreateAlignedStore(V, Ptr, SI.getAlign(), SI.isVolatile());
   NewStore->setAtomic(SI.getOrdering(), SI.getSyncScopeID());
   for (const auto &MDPair : MD) {
     unsigned ID = MDPair.first;
@@ -1021,7 +1007,7 @@ static Instruction *replaceGEPIdxWithZero(InstCombinerImpl &IC, Value *Ptr,
       Instruction *NewGEPI = GEPI->clone();
       NewGEPI->setOperand(Idx,
         ConstantInt::get(GEPI->getOperand(Idx)->getType(), 0));
-      IC.InsertNewInstBefore(NewGEPI, *GEPI);
+      IC.InsertNewInstBefore(NewGEPI, GEPI->getIterator());
       return NewGEPI;
     }
   }
@@ -1097,12 +1083,7 @@ Instruction *InstCombinerImpl::visitLoadInst(LoadInst &LI) {
   // load null/undef -> unreachable
   // TODO: Consider a target hook for valid address spaces for this xforms.
   if (canSimplifyNullLoadOrGEP(LI, Op)) {
-    // Insert a new store to null instruction before the load to indicate
-    // that this code is not reachable.  We do this instead of inserting
-    // an unreachable instruction directly because we cannot modify the
-    // CFG.
-    Builder.CreateStore(PoisonValue::get(LI.getType()),
-                        Constant::getNullValue(Op->getType()));
+    CreateNonTerminatorUnreachable(&LI);
     return replaceInstUsesWith(LI, PoisonValue::get(LI.getType()));
   }
 
@@ -1514,8 +1495,7 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
     --BBI;
     // Don't count debug info directives, lest they affect codegen,
     // and we skip pointer-to-pointer bitcasts, which are NOPs.
-    if (BBI->isDebugOrPseudoInst() ||
-        (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy())) {
+    if (BBI->isDebugOrPseudoInst()) {
       ScanInsts++;
       continue;
     }
@@ -1562,6 +1542,20 @@ Instruction *InstCombinerImpl::visitStoreInst(StoreInst &SI) {
     if (!isa<PoisonValue>(Val))
       return replaceOperand(SI, 0, PoisonValue::get(Val->getType()));
     return nullptr;  // Do not modify these!
+  }
+
+  // This is a non-terminator unreachable marker. Don't remove it.
+  if (isa<UndefValue>(Ptr)) {
+    // Remove guaranteed-to-transfer instructions before the marker.
+    if (removeInstructionsBeforeUnreachable(SI))
+      return &SI;
+
+    // Remove all instructions after the marker and handle dead blocks this
+    // implies.
+    SmallVector<BasicBlock *> Worklist;
+    handleUnreachableFrom(SI.getNextNode(), Worklist);
+    handlePotentiallyDeadBlocks(Worklist);
+    return nullptr;
   }
 
   // store undef, Ptr -> noop
@@ -1622,8 +1616,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
   if (OtherBr->isUnconditional()) {
     --BBI;
     // Skip over debugging info and pseudo probes.
-    while (BBI->isDebugOrPseudoInst() ||
-           (isa<BitCastInst>(BBI) && BBI->getType()->isPointerTy())) {
+    while (BBI->isDebugOrPseudoInst()) {
       if (BBI==OtherBB->begin())
         return false;
       --BBI;
@@ -1677,7 +1670,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
     Builder.SetInsertPoint(OtherStore);
     PN->addIncoming(Builder.CreateBitOrPointerCast(MergedVal, PN->getType()),
                     OtherBB);
-    MergedVal = InsertNewInstBefore(PN, DestBB->front());
+    MergedVal = InsertNewInstBefore(PN, DestBB->begin());
     PN->setDebugLoc(MergedLoc);
   }
 
@@ -1686,7 +1679,7 @@ bool InstCombinerImpl::mergeStoreIntoSuccessor(StoreInst &SI) {
   StoreInst *NewSI =
       new StoreInst(MergedVal, SI.getOperand(1), SI.isVolatile(), SI.getAlign(),
                     SI.getOrdering(), SI.getSyncScopeID());
-  InsertNewInstBefore(NewSI, *BBI);
+  InsertNewInstBefore(NewSI, BBI);
   NewSI->setDebugLoc(MergedLoc);
   NewSI->mergeDIAssignID({&SI, OtherStore});
 

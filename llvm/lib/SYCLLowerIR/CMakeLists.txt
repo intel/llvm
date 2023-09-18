@@ -13,10 +13,10 @@ endif()
 if (NOT TARGET LLVMGenXIntrinsics)
   if (NOT DEFINED LLVMGenXIntrinsics_SOURCE_DIR)
     set(LLVMGenXIntrinsics_GIT_REPO https://github.com/intel/vc-intrinsics.git)
-    # Author: Gorban, Igor <igor.gorban@intel.com>
-    # Date:   Tue Jun 6 23:56:43 2023 +0000
-    # Mark llvm15 tests failures
-    set(LLVMGenXIntrinsics_GIT_TAG 910db4801d4a029834606e3e42a8d60358e74fdf)
+    # Author: Jinsong Ji <jinsong.ji@intel.com>
+    # Date:   Thu Aug 10 14:41:52 2023 +0000
+    #    Guard removed typed pointer enum within version macro
+    set(LLVMGenXIntrinsics_GIT_TAG 17a53f4304463b8e7e639d57ef17479040a8a2ad)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)
@@ -50,11 +50,11 @@ add_llvm_component_library(LLVMSYCLLowerIR
   ESIMD/ESIMDOptimizeVecArgCallConv.cpp
   ESIMD/ESIMDUtils.cpp
   ESIMD/ESIMDVerifier.cpp
+  ESIMD/ESIMDRemoveHostCode.cpp
   ESIMD/LowerESIMD.cpp
   ESIMD/LowerESIMDKernelAttrs.cpp
   CompileTimePropertiesPass.cpp
   DeviceGlobals.cpp
-  ESIMD/LowerESIMDVecArg.cpp
   ESIMD/LowerESIMDVLoadVStore.cpp
   ESIMD/LowerESIMDSlmReservation.cpp
   HostPipes.cpp
@@ -70,7 +70,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   GlobalOffset.cpp
   TargetHelpers.cpp
   PrepareSYCLNativeCPU.cpp
-  EmitSYCLNativeCPUHeader.cpp
+  RenameKernelSYCLNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR

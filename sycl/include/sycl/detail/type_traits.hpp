@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/detail/type_list.hpp>
-#include <sycl/detail/vector_traits.hpp>
+#include <sycl/access/access.hpp>             // for decorated, address_space
+#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
+#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/half_type.hpp>                 // for half
 
-#include <array>
-#include <tuple>
-#include <type_traits>
+#include <array>       // for array
+#include <cstddef>     // for size_t
+#include <tuple>       // for tuple
+#include <type_traits> // for true_type, false_type
 
 namespace sycl {
 inline namespace _V1 {
@@ -266,6 +266,8 @@ using is_gen_based_on_type_sizeof =
 template <typename> struct is_vec : std::false_type {};
 template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
 
+template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
+
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };
@@ -273,6 +275,13 @@ template <typename> struct get_vec_size {
 template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
+
+// is_marray
+template <typename> struct is_marray : std::false_type {};
+template <typename T, size_t N>
+struct is_marray<sycl::marray<T, N>> : std::true_type {};
+
+template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>

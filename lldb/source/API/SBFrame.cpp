@@ -17,7 +17,6 @@
 #include "Utils.h"
 #include "lldb/Core/Address.h"
 #include "lldb/Core/Debugger.h"
-#include "lldb/Core/StreamFile.h"
 #include "lldb/Core/ValueObjectRegister.h"
 #include "lldb/Core/ValueObjectVariable.h"
 #include "lldb/Core/ValueObjectConstResult.h"
@@ -813,12 +812,13 @@ SBValueList SBFrame::GetVariables(const lldb::SBVariablesOptions &options) {
         if (variable_list) {
           const size_t num_variables = variable_list->GetSize();
           if (num_variables) {
+            size_t num_produced = 0;
             for (const VariableSP &variable_sp : *variable_list) {
-              if (dbg.InterruptRequested()) {
-                Log *log = GetLog(LLDBLog::Host);
-                LLDB_LOG(log, "Interrupted SBFrame::GetVariables");
+              if (INTERRUPT_REQUESTED(dbg, 
+                    "Interrupted getting frame variables with {0} of {1} "
+                    "produced.", num_produced, num_variables))
                 return {};
-              }
+
               if (variable_sp) {
                 bool add_variable = false;
                 switch (variable_sp->GetScope()) {
@@ -862,6 +862,7 @@ SBValueList SBFrame::GetVariables(const lldb::SBVariablesOptions &options) {
                 }
               }
             }
+            num_produced++;
           }
         }
         if (recognized_arguments) {
