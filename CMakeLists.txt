@@ -40,6 +40,7 @@ option(UR_BUILD_ADAPTER_L0 "build level 0 adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_OPENCL "build opencl adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_CUDA "build cuda adapter from SYCL" OFF)
 option(UR_BUILD_ADAPTER_HIP "build hip adapter from SYCL" OFF)
+option(UR_BUILD_EXAMPLE_CODEGEN "Build the codegen example." OFF)
 
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
