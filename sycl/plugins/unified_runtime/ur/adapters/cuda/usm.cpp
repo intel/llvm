@@ -207,7 +207,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
         // pointer not known to the CUDA subsystem
         return ReturnValue(UR_USM_TYPE_UNKNOWN);
       }
-      Result = checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
+      checkErrorUR(Ret, __func__, __LINE__ - 5, __FILE__);
       if (Value) {
         // pointer to managed memory
         return ReturnValue(UR_USM_TYPE_SHARED);
