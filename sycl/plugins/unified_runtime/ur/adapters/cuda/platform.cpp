@@ -97,19 +97,13 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
                 const auto &Dev = Platforms[i].Devices.back().get();
                 size_t MaxWorkGroupSize = 0u;
                 size_t MaxThreadsPerBlock[3] = {};
-                ur_result_t RetError = urDeviceGetInfo(
+                UR_CHECK_ERROR(urDeviceGetInfo(
                     Dev, UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES,
-                    sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
-                if (RetError != UR_RESULT_SUCCESS) {
-                  throw RetError;
-                }
+                    sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr));
 
-                RetError = urDeviceGetInfo(
+                UR_CHECK_ERROR(urDeviceGetInfo(
                     Dev, UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE,
-                    sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
-                if (RetError != UR_RESULT_SUCCESS) {
-                  throw RetError;
-                }
+                    sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr));
 
                 Dev->saveMaxWorkItemSizes(sizeof(MaxThreadsPerBlock),
                                           MaxThreadsPerBlock);

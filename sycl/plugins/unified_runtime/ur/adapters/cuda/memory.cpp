@@ -39,7 +39,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
 
   try {
     ScopedContext Active(hContext);
-    CUdeviceptr Ptr;
+    CUdeviceptr Ptr = 0;
     auto HostPtr = pProperties ? pProperties->pHost : nullptr;
 
     ur_mem_handle_t_::MemImpl::BufferMem::AllocMode AllocMode =
@@ -61,27 +61,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       }
     }
 
-    if (Result == UR_RESULT_SUCCESS) {
-      ur_mem_handle_t parentBuffer = nullptr;
+    ur_mem_handle_t parentBuffer = nullptr;
 
-      auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
-          hContext, parentBuffer, flags, AllocMode, Ptr, HostPtr, size});
-      if (URMemObj != nullptr) {
-        MemObj = URMemObj.release();
-        if (PerformInitialCopy) {
-          // Operates on the default stream of the current CUDA context.
-          UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
-          // Synchronize with default stream implicitly used by cuMemcpyHtoD
-          // to make buffer data available on device before any other UR call
-          // uses it.
-          if (Result == UR_RESULT_SUCCESS) {
-            CUstream defaultStream = 0;
-            UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
-          }
-        }
-      } else {
-        Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    auto URMemObj = std::unique_ptr<ur_mem_handle_t_>(new ur_mem_handle_t_{
+        hContext, parentBuffer, flags, AllocMode, Ptr, HostPtr, size});
+    if (URMemObj != nullptr) {
+      MemObj = URMemObj.release();
+      if (PerformInitialCopy) {
+        // Operates on the default stream of the current CUDA context.
+        UR_CHECK_ERROR(cuMemcpyHtoD(Ptr, HostPtr, size));
+        // Synchronize with default stream implicitly used by cuMemcpyHtoD
+        // to make buffer data available on device before any other UR call
+        // uses it.
+        CUstream defaultStream = 0;
+        UR_CHECK_ERROR(cuStreamSynchronize(defaultStream));
       }
+    } else {
+      Result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
   } catch (ur_result_t Err) {
     Result = Err;
