@@ -1,8 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
 
-// the fill_accessor.cpp test checks that the .fill() function is working
-// correctly. here we check that it uses the correct PI call.
+// This test merely checks the use of the correct PI call. Its sister test
+// fill_accessor.cpp thoroughly checks the workings of the .fill() call.
 
 #include <sycl/sycl.hpp>
 constexpr int width = 32;

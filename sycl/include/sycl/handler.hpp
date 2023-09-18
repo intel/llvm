@@ -2551,29 +2551,6 @@ public:
     CGData.MAccStorage.push_back(std::move(AccImpl));
   }
 
-private:
-  // StageFillCG()  Supporting function to fill()
-  template <typename T, int Dims, access::mode AccessMode,
-            access::target AccessTarget,
-            access::placeholder IsPlaceholder = access::placeholder::false_t,
-            typename PropertyListT = property_list>
-  void StageFillCG(
-      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
-          Dst,
-      const T &Pattern) {
-    setType(detail::CG::Fill);
-    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
-    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
-
-    MDstPtr = static_cast<void *>(AccImpl.get());
-    CGData.MRequirements.push_back(AccImpl.get());
-    CGData.MAccStorage.push_back(std::move(AccImpl));
-
-    MPattern.resize(sizeof(T));
-    auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
-    *PatternPtr = Pattern;
-  }
-
 public:
   /// Fills memory pointed by accessor with the pattern given.
   ///
@@ -3369,6 +3346,28 @@ private:
         std::copy(SrcItBegin, SrcItBegin + Width, DestItBegin);
       }
     });
+  }
+
+  // StageFillCG()  Supporting function to fill()
+  template <typename T, int Dims, access::mode AccessMode,
+            access::target AccessTarget,
+            access::placeholder IsPlaceholder = access::placeholder::false_t,
+            typename PropertyListT = property_list>
+  void StageFillCG(
+      accessor<T, Dims, AccessMode, AccessTarget, IsPlaceholder, PropertyListT>
+          Dst,
+      const T &Pattern) {
+    setType(detail::CG::Fill);
+    detail::AccessorBaseHost *AccBase = (detail::AccessorBaseHost *)&Dst;
+    detail::AccessorImplPtr AccImpl = detail::getSyclObjImpl(*AccBase);
+
+    MDstPtr = static_cast<void *>(AccImpl.get());
+    CGData.MRequirements.push_back(AccImpl.get());
+    CGData.MAccStorage.push_back(std::move(AccImpl));
+
+    MPattern.resize(sizeof(T));
+    auto PatternPtr = reinterpret_cast<T *>(MPattern.data());
+    *PatternPtr = Pattern;
   }
 
   // Common function for launching a 2D USM fill kernel to avoid redefinitions
