@@ -634,6 +634,9 @@ private:
   /// action.
   SmallVector<DependentActionInfo, 6> DependentActionInfoArray;
 
+  /// Provides a specific type to be used that overrides the input type.
+  types::ID DependentType = types::TY_Nothing;
+
 public:
   // Offloading unbundling doesn't change the type of output.
   OffloadUnbundlingJobAction(Action *Input);
@@ -654,6 +657,12 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadUnbundlingJobClass;
   }
+
+  /// Set the dependent type.
+  void setDependentType(types::ID Type) { DependentType = Type; }
+
+  /// Get the dependent type.
+  types::ID getDependentType() const { return DependentType; }
 };
 
 class OffloadWrapperJobAction : public JobAction {
@@ -671,6 +680,17 @@ public:
   static bool classof(const Action *A) {
     return A->getKind() == OffloadWrapperJobClass;
   }
+
+  // Set the compilation step setting.  This is used to tell the wrapper job
+  // action that the compilation step to create the object should be performed
+  // after the wrapping step is complete.
+  void setCompileStep(bool SetValue) { CompileStep = SetValue; }
+
+  // Get the compilation step setting.
+  bool getCompileStep() const { return CompileStep; }
+
+private:
+  bool CompileStep = true;
 };
 
 class OffloadPackagerJobAction : public JobAction {

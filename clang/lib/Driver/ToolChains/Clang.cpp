@@ -9021,18 +9021,24 @@ void OffloadBundler::ConstructJob(Compilation &C, const JobAction &JA,
     const ToolChain *CurTC = &getToolChain();
     const Action *CurDep = JA.getInputs()[I];
 
-    // Special handling for FPGA AOCX binaries that are bundled prior to being
-    // added to the generated archive.
-    bool IsFPGAImage = false;
-    if (Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ)) {
-      llvm::Triple Triple = CurTC->getTriple();
-      IsFPGAImage = (A->getValue() == StringRef("image")) && Triple.isSPIR() &&
-                    (Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga);
-    }
-    if (Inputs.size() == 1 && IsFPGAImage) {
-      Triples += Action::GetOffloadKindName(CurKind);
-      Triples += "-fpga_aocx-intel-unknown";
-      continue;
+    // Special handling for FPGA AOC[RX] binaries that are bundled prior to
+    // being added to the generated archive.
+    llvm::Triple Triple = CurTC->getTriple();
+    bool IsFPGA = Triple.isSPIR() &&
+                  Triple.getSubArch() == llvm::Triple::SPIRSubArch_fpga;
+    Arg *A = TCArgs.getLastArg(options::OPT_fsycl_link_EQ);
+    if (A && IsFPGA) {
+      bool IsFPGAImage = false;
+      IsFPGAImage = A->getValue() == StringRef("image");
+      if (Inputs.size() == 1) {
+        Triples += Action::GetOffloadKindName(CurKind);
+        Triples += "-fpga_";
+        Triples += IsFPGAImage ? "aocx" : "aocr";
+        if (!IsFPGAImage && !C.getDriver().IsFPGAHWMode())
+          Triples += "_emu";
+        Triples += "-intel-unknown";
+        continue;
+      }
     }
 
     if (const auto *OA = dyn_cast<OffloadAction>(CurDep)) {
@@ -9158,19 +9164,15 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   types::ID InputType(Input.getType());
   bool IsFPGADepUnbundle = JA.getType() == types::TY_FPGA_Dependencies;
   bool IsFPGADepLibUnbundle = JA.getType() == types::TY_FPGA_Dependencies_List;
+  InputInfoList ForeachInputs;
+  if (InputType == types::TY_Tempfilelist)
+    ForeachInputs.push_back(Input);
 
   if (InputType == types::TY_FPGA_AOCX || InputType == types::TY_FPGA_AOCR ||
-      InputType == types::TY_FPGA_AOCR_EMU) {
+      InputType == types::TY_FPGA_AOCR_EMU)
     // Override type with AOCX/AOCR which will unbundle to a list containing
-    // binaries with the appropriate file extension (.aocx/.aocr).
-    // TODO - representation of the output file from the unbundle for these
-    // types (aocx/aocr) are always list files.  We should represent this
-    // better in the output extension and type for improved understanding
-    // of file contents and debuggability.
-    TypeArg = (InputType == types::TY_FPGA_AOCX) ? "aocx" : "aocr";
-    if (!getToolChain().getTriple().isSPIR())
-      TypeArg = "aoo";
-  }
+    // binaries.
+    TypeArg = "aoo";
   if (InputType == types::TY_FPGA_AOCO || IsFPGADepLibUnbundle)
     TypeArg = "aoo";
   if (IsFPGADepUnbundle)
@@ -9217,18 +9219,25 @@ void OffloadBundler::ConstructJobMultipleOutputs(
     // FPGA device triples are 'transformed' for the bundler when creating
     // aocx or aocr type bundles.  Also, we only do a specific target
     // unbundling, skipping the host side or device side.
-    if (types::isFPGA(InputType)) {
+    if (types::isFPGA(InputType) || InputType == types::TY_Tempfilelist) {
       if (getToolChain().getTriple().isSPIR()) {
         if (Dep.DependentToolChain->getTriple().getSubArch() ==
             llvm::Triple::SPIRSubArch_fpga) {
+          // mtoguchi
+          StringRef TypeName(types::getTypeName(InputType));
+          types::ID Type = UA.getDependentType();
+          if (InputType == types::TY_Tempfilelist && Type != types::TY_Nothing)
+            TypeName = types::getTypeName(Type);
           if (J++)
             Triples += ',';
           llvm::Triple TT;
-          TT.setArchName(types::getTypeName(InputType));
+          TT.setArchName(TypeName);
           TT.setVendorName("intel");
           TT.setOS(getToolChain().getTriple().getOS());
-          if (InputType == types::TY_FPGA_AOCX)
-            // AOCX device is bundled in the host section
+          if (InputType == types::TY_FPGA_AOCX ||
+              InputType == types::TY_FPGA_AOCR ||
+              InputType == types::TY_FPGA_AOCR_EMU)
+            // AOCX/AOCR device is bundled in the host section
             Triples += "host-";
           else
             Triples += "sycl-";
@@ -9326,12 +9335,21 @@ void OffloadBundler::ConstructJobMultipleOutputs(
   }
   CmdArgs.push_back("-unbundle");
   CmdArgs.push_back("-allow-missing-bundles");
-
+  // Input is a list, we need to work on each individually and create a new
+  // list file.
   // All the inputs are encoded as commands.
-  C.addCommand(std::make_unique<Command>(
+  auto Cmd = std::make_unique<Command>(
       JA, *this, ResponseFileSupport::None(),
       TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
-      CmdArgs, std::nullopt, Outputs));
+      CmdArgs, std::nullopt, Outputs);
+  if (!ForeachInputs.empty() && Outputs.size() == 1) {
+    StringRef ParallelJobs =
+        TCArgs.getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
+    tools::SYCL::constructLLVMForeachCommand(
+        C, JA, std::move(Cmd), ForeachInputs, Outputs[0], this, "",
+        types::getTypeTempSuffix(types::TY_Tempfilelist), ParallelJobs);
+  } else
+    C.addCommand(std::move(Cmd));
 }
 
 // Begin OffloadWrapper
@@ -9356,11 +9374,13 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     //  ...
     ArgStringList WrapperArgs;
 
+    const auto &WrapperJob = *llvm::dyn_cast<OffloadWrapperJobAction>(&JA);
+    bool LlcCompileEnabled = WrapperJob.getCompileStep();
+    SmallString<128> OutOpt("-o=");
     std::string OutTmpName = C.getDriver().GetTemporaryPath("wrapper", "bc");
     const char *WrapperFileName =
         C.addTempFile(C.getArgs().MakeArgString(OutTmpName));
-    SmallString<128> OutOpt("-o=");
-    OutOpt += WrapperFileName;
+    OutOpt += LlcCompileEnabled ? WrapperFileName : Output.getFilename();
     WrapperArgs.push_back(C.getArgs().MakeArgString(OutOpt));
 
     SmallString<128> HostTripleOpt("-host=");
@@ -9424,7 +9444,6 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       TC.TranslateLinkerTargetArgs(TT, TCArgs, BuildArgs);
       createArgString("-link-opts=");
     }
-
     bool IsEmbeddedIR = cast<OffloadWrapperJobAction>(JA).isEmbeddedIR();
     if (IsEmbeddedIR) {
       // When the offload-wrapper is called to embed LLVM IR, add a prefix to
@@ -9450,6 +9469,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     WrapperArgs.push_back(
         C.getArgs().MakeArgString(Twine("-kind=") + Twine(Kind)));
 
+    StringRef BaseInput = Inputs[0].getBaseInput();
+    // For FPGA toolchains, we can add additional wrapped bc input files to
+    // the wrapped step.  This is done for AOCR based files that contain the
+    // Symbols and Properties from a previous compilation step.
+    if (TC.getTriple().isSPIR() &&
+        TC.getTriple().getSubArch() == llvm::Triple::SPIRSubArch_fpga) {
+      for (const auto &AOCRFile : C.getDriver().getAOCRUnbundleList()) {
+        if (AOCRFile == BaseInput)
+          WrapperArgs.push_back(C.getArgs().MakeArgString(
+              Twine("--wrapped-bc-input=") + AOCRFile));
+      }
+    }
+
     assert((Inputs.size() > 0) && "no inputs for clang-offload-wrapper");
     assert(((Inputs[0].getType() != types::TY_Tempfiletable) ||
             (Inputs.size() == 1)) &&
@@ -9469,27 +9501,29 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         WrapperArgs, std::nullopt);
     C.addCommand(std::move(Cmd));
 
-    // Construct llc command.
-    // The output is an object file
-    ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                          WrapperFileName};
-    llvm::Reloc::Model RelocationModel;
-    unsigned PICLevel;
-    bool IsPIE;
-    std::tie(RelocationModel, PICLevel, IsPIE) =
-        ParsePICArgs(getToolChain(), TCArgs);
-    if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
-      LlcArgs.push_back("-relocation-model=pic");
-    }
-    if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
-      LlcArgs.push_back(
-          TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
+    if (LlcCompileEnabled) {
+      // Construct llc command.
+      // The output is an object file
+      ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
+                            WrapperFileName};
+      llvm::Reloc::Model RelocationModel;
+      unsigned PICLevel;
+      bool IsPIE;
+      std::tie(RelocationModel, PICLevel, IsPIE) =
+          ParsePICArgs(getToolChain(), TCArgs);
+      if (PICLevel > 0 || TCArgs.hasArg(options::OPT_shared)) {
+        LlcArgs.push_back("-relocation-model=pic");
+      }
+      if (Arg *A = C.getArgs().getLastArg(options::OPT_mcmodel_EQ))
+        LlcArgs.push_back(
+            TCArgs.MakeArgString(Twine("--code-model=") + A->getValue()));
 
-    SmallString<128> LlcPath(C.getDriver().Dir);
-    llvm::sys::path::append(LlcPath, "llc");
-    const char *Llc = C.getArgs().MakeArgString(LlcPath);
-    C.addCommand(std::make_unique<Command>(
-         JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, std::nullopt));
+      SmallString<128> LlcPath(C.getDriver().Dir);
+      llvm::sys::path::append(LlcPath, "llc");
+      const char *Llc = C.getArgs().MakeArgString(LlcPath);
+      C.addCommand(std::make_unique<Command>(
+          JA, *this, ResponseFileSupport::None(), Llc, LlcArgs, std::nullopt));
+    }
     return;
   } // end of SYCL flavor of offload wrapper command creation
 
