@@ -156,10 +156,6 @@ private:
   ///
   /// Flags to apply to the barrier to be introduced between fused kernels.
   ///
-  /// Possible values:
-  /// - -1: Do not insert barrier
-  /// - 1: ensure correct ordering of memory operations to local memory
-  /// - 2: ensure correct ordering of memory operations to global memory
   const jit_compiler::BarrierFlags BarriersFlags{DefaultBarriersFlags};
 
   ///

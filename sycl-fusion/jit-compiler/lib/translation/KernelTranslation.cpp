@@ -329,6 +329,8 @@ KernelTranslator::translateToAMDGCN(SYCLKernelInfo &KernelInfo,
         ErrorMessage.c_str());
   }
 
+  // Set to the lowest tested target according to the GetStartedGuide, section
+  // "Build DPC++ toolchain with support for HIP AMD"
   llvm::StringRef TargetCPU{"gfx906"};
   llvm::StringRef TargetFeatures{""};
   if (auto *KernelFunc = Mod.getFunction(KernelInfo.Name)) {

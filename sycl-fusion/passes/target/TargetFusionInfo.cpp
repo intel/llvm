@@ -326,16 +326,11 @@ public:
       return;
     }
     // Following implemention in
-    // libclc/amdgcn/libspirv/synchroization/barrier.cl
-    if (hasGlobalBarrierFlag(BarrierFlags)) {
-      Builder.CreateIntrinsic(Builder.getVoidTy(),
-                              Intrinsic::AMDGCNIntrinsics::amdgcn_s_waitcnt,
-                              {Builder.getInt32(0)});
-    } else if (hasLocalBarrierFlag(BarrierFlags)) {
-      Builder.CreateIntrinsic(Builder.getVoidTy(),
-                              Intrinsic::AMDGCNIntrinsics::amdgcn_s_waitcnt,
-                              {Builder.getInt32(0xff)});
-    }
+    // libclc/amdgcn-amdhsa/libspirv/synchronization/barrier.cl
+    llvm::AtomicOrdering AO = llvm::AtomicOrdering::SequentiallyConsistent;
+    llvm::SyncScope::ID SSID =
+        LLVMMod->getContext().getOrInsertSyncScopeID("workgroup");
+    Builder.CreateFence(AO, SSID);
     Builder.CreateIntrinsic(Intrinsic::AMDGCNIntrinsics::amdgcn_s_barrier, {},
                             {});
   }
