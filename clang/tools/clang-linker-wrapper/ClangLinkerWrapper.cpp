@@ -70,7 +70,7 @@ static bool SaveTemps = false;
 static bool DryRun = false;
 
 /// Print verbose output.
-static bool Verbose = true; // TODO: Will be reverted before merge
+static bool Verbose = false;
 
 /// Filename of the executable being created.
 static StringRef ExecutableName;
@@ -2029,13 +2029,9 @@ int main(int Argc, char **Argv) {
   }
 
   // Remove the temporary files created.
-  // Disabling this for debuggig purpose. Just passing -save-temps seems to
-  // mess up tmp filenames.
-#if 0
   if (!SaveTemps)
     for (const auto &TempFile : TempFiles)
       if (std::error_code EC = sys::fs::remove(TempFile))
         reportError(createFileError(TempFile, EC));
-#endif
   return EXIT_SUCCESS;
 }
