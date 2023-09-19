@@ -413,9 +413,9 @@ void store_layoutT(
 template <typename T, size_t NumRows, size_t NumCols,
           access::address_space Space, access::decorated IsDecorated>
 void joint_matrix_store_cuda(
-    joint_matrix_cuda<
+    const joint_matrix_cuda<
         T, sycl::ext::oneapi::experimental::matrix::use::accumulator, NumRows,
-        NumCols, const sycl::ext::oneapi::experimental::matrix::layout::dynamic>
+        NumCols, sycl::ext::oneapi::experimental::matrix::layout::dynamic>
         &src,
     multi_ptr<T, Space, IsDecorated> dst, size_t stride,
     sycl::ext::oneapi::experimental::matrix::layout Layout) {
